@@ -14,7 +14,7 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
-use bevy_state::prelude::{OnEnter, in_state};
+use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
@@ -46,7 +46,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noise_settings};
+use crate::world_options::{DimensionList, bake_dimensions};
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -60,10 +60,6 @@ pub struct ConfigurationStatePlugin;
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(bevy_app::Startup, bake_dimensions);
-        app.add_systems(
-            OnEnter(AppState::LoadingDataPack),
-            request_dimension_noise_settings,
-        );
         app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);

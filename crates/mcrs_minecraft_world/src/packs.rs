@@ -18,6 +18,7 @@ pub(crate) struct Directory {
 /// directory walks and file reads; which namespaces, registry directories, tag
 /// directories and built-in entries a pack has is decided only here.
 pub(crate) struct PackScan<'a> {
+    pack: &'a str,
     vanilla: bool,
     registries: &'a WorldRegistries,
     tag_directories: BTreeSet<&'a str>,
@@ -26,7 +27,7 @@ pub(crate) struct PackScan<'a> {
 
 impl<'a> PackScan<'a> {
     pub(crate) fn new(
-        vanilla: bool,
+        pack: &'a str,
         registries: &'a WorldRegistries,
         statics: &'a RegistrySet,
     ) -> Self {
@@ -36,7 +37,8 @@ impl<'a> PackScan<'a> {
             .chain(registries.declared().map(|registry| registry.path()))
             .collect();
         PackScan {
-            vanilla,
+            pack,
+            vanilla: pack == VANILLA_PACK,
             registries,
             tag_directories,
             found: BTreeMap::new(),
@@ -81,15 +83,10 @@ impl<'a> PackScan<'a> {
     /// The files of the pack with whether their bytes are read, and the
     /// entries the pack carries as code.
     pub(crate) fn finish(self) -> (Vec<(String, bool)>, Vec<Built>) {
-        let built = if self.vanilla
-            && self
-                .registries
-                .parses(mcrs_minecraft_biome::keys::BIOME.location().as_static_str())
-        {
-            vec![mcrs_minecraft_worldgen_builtin::built_biomes()]
-        } else {
-            Vec::new()
-        };
+        let built = mcrs_minecraft_worldgen_builtin::built(self.pack)
+            .into_iter()
+            .filter(|built| self.registries.parses(built.registry().as_static_str()))
+            .collect();
         (self.found.into_iter().collect(), built)
     }
 }
@@ -205,7 +202,7 @@ fn read_pack(
     statics: &RegistrySet,
     report: &mut LoadReport,
 ) -> Pack {
-    let mut scan = PackScan::new(vanilla, registries, statics);
+    let mut scan = PackScan::new(name, registries, statics);
     let namespaces: Vec<String> = std::fs::read_dir(base)
         .into_iter()
         .flatten()
@@ -281,6 +278,48 @@ mod tests {
 
     fn assets() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
+    }
+
+    #[test]
+    fn each_pack_carries_the_built_entries_named_for_it() {
+        let report = std::fs::read(assets().join(DATAPACK_REPORT)).unwrap();
+        let world = world_registries(&report).unwrap();
+        let packs =
+            read_packs_from_directory(&assets(), &world, &static_registries().unwrap()).unwrap();
+        let built: Vec<(&str, Vec<&str>)> = packs
+            .iter()
+            .map(|pack| {
+                let registries = pack
+                    .built
+                    .iter()
+                    .map(|built| built.registry().as_static_str())
+                    .collect();
+                (pack.name.as_str(), registries)
+            })
+            .collect();
+        assert_eq!(
+            built,
+            [
+                (
+                    "vanilla",
+                    vec![
+                        "minecraft:worldgen/biome",
+                        "minecraft:worldgen/noise",
+                        "minecraft:worldgen/density_function",
+                        "minecraft:worldgen/noise_settings",
+                    ]
+                ),
+                (
+                    "beta",
+                    vec![
+                        "minecraft:worldgen/noise",
+                        "minecraft:worldgen/density_function",
+                        "minecraft:worldgen/noise_settings",
+                    ]
+                ),
+                ("mcrs", vec![]),
+            ]
+        );
     }
 
     #[test]

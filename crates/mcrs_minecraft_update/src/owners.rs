@@ -247,6 +247,16 @@ pub const OWNERS: &[Owner] = &[
         value: ValueType::Defined("crate::proto::MaterialRule"),
     },
     Owner {
+        registry: "minecraft:worldgen/material_condition",
+        krate: "mcrs_minecraft_worldgen_surface",
+        value: ValueType::Defined("crate::proto::MaterialConditionHolder"),
+    },
+    Owner {
+        registry: "minecraft:worldgen/density_function",
+        krate: "mcrs_minecraft_worldgen_density",
+        value: ValueType::Defined("crate::proto::DensityFunctionHolder"),
+    },
+    Owner {
         registry: "minecraft:chunk_status",
         krate: "mcrs_minecraft_anvil",
         value: ValueType::Enum("ChunkStatus"),

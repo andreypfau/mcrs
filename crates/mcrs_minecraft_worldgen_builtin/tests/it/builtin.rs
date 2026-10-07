@@ -1,69 +1,9 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
-use serde::de::DeserializeOwned;
-use std::collections::BTreeMap;
-use std::fmt::Debug;
 use std::io::Cursor;
 
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_worldgen_feature::template::Template;
-
-// chisle: `serde_json` without `float_roundtrip` reads these base amplitudes one
-// ulp low, from a file and from a built-in alike. The feature cannot simply be
-// enabled: it turns an overflowing `f32` into an error where item components
-// expect infinity.
-const MISREAD_NOISES: &[&str] = &[
-    "jagged",
-    "nether/temperature",
-    "nether/vegetation",
-    "offset",
-    "pillar",
-    "ridge",
-];
-
-/// A built-in reaches the loaders as the JSON it encodes to, so the encoding
-/// has to read back as the value that was built.
-fn reads_back<T: DeserializeOwned + PartialEq + Debug>(
-    folder: &str,
-    built: BTreeMap<ResourceLocation, T>,
-    expected: usize,
-    misread: &[&str],
-) {
-    assert_eq!(built.len(), expected, "{folder}");
-    let mut encoded = builtin::assets(folder);
-    for (id, value) in built {
-        let bytes = encoded
-            .remove(&id)
-            .unwrap_or_else(|| panic!("{folder}/{id} is not served"));
-        let read: T =
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-        assert_eq!(
-            read == value,
-            !misread.contains(&id.path()),
-            "{folder}/{id}"
-        );
-        let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
-        assert_eq!(builtin::asset(&path), Some(bytes), "{path}");
-    }
-    assert!(
-        encoded.is_empty(),
-        "{folder} serves entries that were not built"
-    );
-    let listed = builtin::paths(&format!("minecraft/worldgen/{folder}"));
-    assert!(listed.len() <= expected && !listed.is_empty(), "{folder}");
-    for path in listed {
-        assert!(
-            builtin::asset(&path).is_some(),
-            "{path} is listed and not served"
-        );
-    }
-}
-
-#[test]
-fn noises_read_back() {
-    reads_back::<NoiseParam>("noise", builtin::noises(), 69, MISREAD_NOISES);
-}
 
 #[test]
 fn a_path_outside_the_built_in_folders_is_not_served() {
@@ -75,6 +15,20 @@ fn a_path_outside_the_built_in_folders_is_not_served() {
         builtin::asset("minecraft/worldgen/noise/no_such_noise.json"),
         None
     );
+}
+
+#[test]
+fn the_typed_folders_are_built_for_a_pack_and_served_as_no_file() {
+    for folder in ["noise", "density_function", "noise_settings"] {
+        assert!(builtin::assets(folder).is_empty(), "{folder}");
+        assert!(
+            builtin::paths(&format!("minecraft/worldgen/{folder}")).is_empty(),
+            "{folder}"
+        );
+    }
+    assert_eq!(builtin::built("vanilla").len(), 4);
+    assert_eq!(builtin::built("beta").len(), 3);
+    assert!(builtin::built("mcrs").is_empty());
 }
 
 fn templates_read_back_from_the_bytes_they_are_served_as(count: usize) {

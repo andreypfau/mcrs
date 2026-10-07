@@ -53,6 +53,10 @@ pub struct Built {
 }
 
 impl Built {
+    pub fn registry(&self) -> ResourceLocation<&'static str> {
+        self.registry
+    }
+
     pub fn new<T: Send + Sync + 'static>(
         registry: ResourceLocation<&'static str>,
         names: Vec<Name>,
