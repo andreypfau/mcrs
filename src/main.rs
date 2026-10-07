@@ -29,7 +29,11 @@ async fn main() {
     ));
     app.add_plugins(MinecraftServerPlugin {
         world: world_folder(),
-        announce_on_lan: lan_announce(variable("MCRS_LAN_ANNOUNCE").as_deref()),
+        announce_on_lan: on_off(
+            "MCRS_LAN_ANNOUNCE",
+            variable("MCRS_LAN_ANNOUNCE").as_deref(),
+        ),
+        offer_known_packs: on_off("MCRS_KNOWN_PACKS", variable("MCRS_KNOWN_PACKS").as_deref()),
         seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
         preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
         lighting: lighting(variable("MCRS_NO_LIGHTING").as_deref()),
@@ -55,9 +59,9 @@ fn world_folder() -> Option<PathBuf> {
     Some(path)
 }
 
-/// `MCRS_LAN_ANNOUNCE=off` turns the LAN announcement off; `0`, `false` and `no` do the same, in
-/// any case. Any other value leaves it on and is logged when it is neither on nor off.
-fn lan_announce(value: Option<&str>) -> bool {
+/// `off` turns a setting off; `0`, `false` and `no` do the same, in any case. Any other value
+/// leaves it on and is logged when it is neither on nor off.
+fn on_off(name: &str, value: Option<&str>) -> bool {
     match value
         .map(|value| value.trim().to_ascii_lowercase())
         .as_deref()
@@ -65,7 +69,7 @@ fn lan_announce(value: Option<&str>) -> bool {
         None | Some("" | "on" | "1" | "true" | "yes") => true,
         Some("off" | "0" | "false" | "no") => false,
         Some(other) => {
-            eprintln!("MCRS_LAN_ANNOUNCE={other} is neither on nor off; announcing");
+            eprintln!("{name}={other} is neither on nor off; leaving it on");
             true
         }
     }
@@ -133,20 +137,22 @@ fn slow_column_threshold(value: Option<&str>) -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use super::{game_mode, lan_announce, world_seed};
+    use super::{game_mode, on_off, world_seed};
     use mcrs_minecraft_server::GameMode;
 
     #[test]
-    fn the_lan_setting_reads_its_spellings_in_any_case() {
-        for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
-            assert!(!lan_announce(Some(off)), "{off:?}");
+    fn the_on_off_settings_read_their_spellings_in_any_case() {
+        for name in ["MCRS_LAN_ANNOUNCE", "MCRS_KNOWN_PACKS"] {
+            for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
+                assert!(!on_off(name, Some(off)), "{name}={off:?}");
+            }
+            for on in [
+                "ON", "On", " TRUE ", "Yes", "1", "disabled", "of f", "2", "",
+            ] {
+                assert!(on_off(name, Some(on)), "{name}={on:?}");
+            }
+            assert!(on_off(name, None), "{name} unset");
         }
-        for on in [
-            "ON", "On", " TRUE ", "Yes", "1", "disabled", "of f", "2", "",
-        ] {
-            assert!(lan_announce(Some(on)), "{on:?}");
-        }
-        assert!(lan_announce(None));
     }
 
     #[test]

@@ -9,7 +9,7 @@ use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
-use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, Resource, With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
@@ -97,11 +97,27 @@ pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
     on_configuration_enter.run_if(in_state(AppState::Playing))
 }
 
+#[derive(Resource)]
+pub(crate) struct KnownPackOffer(pub bool);
+
+pub fn known_pack_offer(offer: bool) -> Vec<KnownPack<'static>> {
+    if offer {
+        vec![KnownPack {
+            namespace: "minecraft",
+            id: "core",
+            version: VERSION.id.as_str(),
+        }]
+    } else {
+        Vec::new()
+    }
+}
+
 fn on_configuration_enter(
     mut query: Query<
         (Entity, &mut ServerSideConnection, &ConnectionState),
         (Changed<ConnectionState>, Without<AwaitingKnownPacks>),
     >,
+    offer: Option<Res<KnownPackOffer>>,
     mut commands: Commands,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
@@ -113,11 +129,7 @@ fn on_configuration_enter(
             brand: identity::BRAND,
         })));
         con.write_packet(&ClientboundSelectKnownPacks {
-            known_packs: vec![KnownPack {
-                namespace: "minecraft",
-                id: "core",
-                version: VERSION.id.as_str(),
-            }],
+            known_packs: known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0)),
         });
         commands.entity(entity).insert(AwaitingKnownPacks);
     }

@@ -1,8 +1,9 @@
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_server::configuration::registry_data;
+use mcrs_minecraft_server::configuration::{known_pack_offer, registry_data};
 use mcrs_minecraft_world::registries::test_registries;
 use std::collections::HashSet;
 
@@ -101,4 +102,14 @@ fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
             );
         }
     }
+}
+
+#[test]
+fn the_known_pack_offer_follows_the_plugin() {
+    let offered = known_pack_offer(true);
+    assert_eq!(offered.len(), 1);
+    assert_eq!(offered[0].namespace, "minecraft");
+    assert_eq!(offered[0].id, "core");
+    assert_eq!(offered[0].version, VERSION.id);
+    assert!(known_pack_offer(false).is_empty());
 }
