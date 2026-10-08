@@ -3,9 +3,10 @@ use crate::section::{
     Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue, biome_direct_bits,
     block_direct_bits,
 };
-use crate::{Decode as DecodeTrait, Encode as EncodeTrait, RegistryId, VarInt, VarLong};
+use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
 use anyhow::{Context, bail, ensure};
 use bitfield_struct::bitfield;
+use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_chunk::{
     PalettedContainer, SectionKind, VoxelId, any_entry_past, first_entry_past, pack_from,
     packed_len, remap_into, unpack_into,
@@ -196,7 +197,7 @@ impl<'a> Default for LightData<'a> {
 pub struct ChunkDataBlockEntity<'a> {
     pub packed_xz: i8,
     pub y: i16,
-    pub kind: RegistryId,
+    pub kind: BlockEntityType,
     pub data: Cow<'a, NbtCompound>,
 }
 

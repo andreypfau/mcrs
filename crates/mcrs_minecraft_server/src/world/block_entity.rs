@@ -9,7 +9,6 @@ use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_nbt::to_nbt_compound;
-use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::borrow::Cow;
@@ -86,7 +85,7 @@ pub fn packet_entry(
     Ok(ChunkDataBlockEntity {
         packed_xz: (((pos.x & 15) << 4) | (pos.z & 15)) as i8,
         y: pos.y as i16,
-        kind: RegistryId::from(entry.kind().id()),
+        kind: entry.kind(),
         data: Cow::Owned(to_nbt_compound(entry)?),
     })
 }

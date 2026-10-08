@@ -50,7 +50,7 @@ pub mod clientbound {
         /// The tag identifier (e.g., "minecraft:mineable/pickaxe")
         pub name: ResourceLocation<Cow<'a, str>>,
         /// Array of numeric registry entry IDs that belong to this tag
-        pub entries: Vec<crate::RegistryId>,
+        pub entries: Vec<crate::VarInt>,
     }
 
     /// Tags for a specific registry type.

@@ -6,6 +6,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+mcrs_minecraft_block.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_sound.workspace = true
@@ -31,7 +32,6 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_block.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true

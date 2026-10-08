@@ -2,7 +2,8 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{
-    CAT_SOUND_VARIANT, CAT_VARIANT, VillagerProfession, VillagerType, ZOMBIE_NAUTILUS_VARIANT,
+    Attribute, CAT_SOUND_VARIANT, CAT_VARIANT, EntityType, VillagerProfession, VillagerType,
+    ZOMBIE_NAUTILUS_VARIANT,
 };
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_item::PaintingVariantValue;
@@ -17,7 +18,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
     ClientboundUpdateAttributes,
 };
-use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, RegistryId, VarInt};
+use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries, Registry, RegistrySet};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -65,7 +66,7 @@ fn add_entity_writes_pitch_before_yaw() {
     let packet = ClientboundAddEntity {
         id: VarInt(7),
         uuid: Uuid::nil(),
-        kind: RegistryId(159),
+        kind: EntityType::Player,
         pos: DVec3::ZERO,
         movement: LpVec3(DVec3::ZERO),
         pitch: ByteAngle(1),
@@ -252,12 +253,12 @@ fn attributes_round_trip_with_modifiers() {
         entity_id: VarInt(5),
         attributes: vec![
             AttributeSnapshot {
-                attribute: RegistryId(23),
+                attribute: Attribute::MaxHealth,
                 base: 26.0,
                 modifiers: vec![],
             },
             AttributeSnapshot {
-                attribute: RegistryId(20),
+                attribute: Attribute::KnockbackResistance,
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::read_cow("minecraft:random_spawn_bonus").unwrap(),

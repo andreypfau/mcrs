@@ -198,15 +198,8 @@ fn receive_inventory_packets(
             }
         }
     } else if let Some(packet) = event.decode::<ClientboundOpenScreen>() {
-        let Some(menu_type) = registries
-            .registry::<MenuType>()
-            .and_then(|menus| menus.id(packet.menu_type.0))
-        else {
-            warn!("open_screen: unknown menu type {}", packet.menu_type.0);
-            return;
-        };
         commands.queue(move |world: &mut World| {
-            open_screen(world, packet.container_id.0, menu_type);
+            open_screen(world, packet.container_id.0, packet.menu_type.id());
         });
     } else if event.decode::<ClientboundContainerClose>().is_some() {
         commands.queue(close_screen);

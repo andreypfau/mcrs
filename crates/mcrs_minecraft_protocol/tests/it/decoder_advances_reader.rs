@@ -7,9 +7,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
-use mcrs_minecraft_protocol::registry::Holder;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_protocol::{Decode, Encode};
 
 fn compound(name: &str, value: i32) -> NbtCompound {
     let mut c = NbtCompound::new();
@@ -52,19 +51,6 @@ fn every_decoder_stops_after_its_own_bytes() {
         assert!(r.is_empty(), "{} trailing bytes", r.len());
         assert_eq!(encoded(&decoded), buf);
         assert_eq!(decoded.entries.len(), 3);
-    }
-    {
-        let holder = Holder::Direct(compound("value", 7));
-        let mut buf = encoded(&holder);
-        VarInt(0x2A).encode(&mut buf).expect("encode tail");
-
-        let mut r: &[u8] = &buf;
-        match Holder::decode(&mut r).expect("decode holder") {
-            Holder::Direct(c) => assert_eq!(c, compound("value", 7)),
-            other => panic!("expected a direct holder, got {other:?}"),
-        }
-        assert_eq!(VarInt::decode(&mut r).expect("decode tail").0, 0x2A);
-        assert!(r.is_empty());
     }
     {
         let content = Text::text("hello");

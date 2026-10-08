@@ -16,18 +16,16 @@ use mcrs_minecraft_inventory::{
     ShulkerBoxSlots, ShulkerBoxes, container_menu_layout,
 };
 use mcrs_minecraft_item::SlotTable;
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::Text;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
-use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_registry::BlockStateId;
 
-/// chisle: the generic 9x3 menu id is written by hand; reading the id of the
-/// `menu` registry from the static registries report lifts this.
-const GENERIC_9X3: RegistryId = RegistryId(2);
 const CHEST_ROWS: usize = 3;
 
 #[derive(Message, Debug)]
@@ -155,7 +153,7 @@ pub fn open_containers(world: &mut World) {
             req.player,
             PacketPayload::OpenScreen(ClientboundOpenScreen {
                 container_id: VarInt(i32::from(container_id)),
-                menu_type: GENERIC_9X3,
+                menu_type: MenuType::Generic9x3,
                 title: Text::translate("container.chest", Vec::new()),
             }),
         );

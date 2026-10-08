@@ -1,32 +1,10 @@
-use crate::{Decode, Encode, VarInt, nbt};
+use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Id, Registered, Registry};
 use std::borrow::Cow;
 use std::io::Write;
-
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct RegistryId(pub u16);
-
-impl From<u16> for RegistryId {
-    fn from(id: u16) -> Self {
-        RegistryId(id)
-    }
-}
-
-impl From<RegistryId> for u16 {
-    fn from(id: RegistryId) -> Self {
-        id.0
-    }
-}
-
-impl<R> From<Id<R>> for RegistryId {
-    fn from(id: Id<R>) -> Self {
-        RegistryId(id.number())
-    }
-}
 
 macro_rules! static_registry_wire {
     ($ty:ty, $what:literal) => {
@@ -63,6 +41,14 @@ macro_rules! world_registry_wire {
         }
     )+};
 }
+
+static_registry_wire!(mcrs_minecraft_entity::keys::EntityType, "entity type");
+static_registry_wire!(mcrs_minecraft_item::keys::MenuType, "menu type");
+static_registry_wire!(mcrs_minecraft_entity::keys::Attribute, "attribute");
+static_registry_wire!(
+    mcrs_minecraft_block::keys::BlockEntityType,
+    "block entity type"
+);
 
 world_registry_wire!(
     mcrs_minecraft_dimension::DimensionType,
@@ -119,50 +105,10 @@ pub(crate) fn decode_holder_id(r: &mut &[u8]) -> anyhow::Result<Option<u16>> {
         .with_context(|| format!("holder id {raw} is outside 0..=65536"))
 }
 
-impl Encode for RegistryId {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_registry_id(self.0, w)
-    }
-}
-
-impl Decode<'_> for RegistryId {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        decode_registry_id(r).map(RegistryId)
-    }
-}
-
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
     pub id: ResourceLocation<Cow<'a, str>>,
     pub data: Option<Cow<'a, NbtTag>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum Holder {
-    Reference(u16),
-    Direct(NbtCompound),
-}
-
-impl Encode for Holder {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        match self {
-            Holder::Reference(id) => encode_holder_id(Some(*id), w),
-            Holder::Direct(compound) => {
-                encode_holder_id(None, &mut w)?;
-                nbt::to_bytes_unnamed(compound, &mut w)?;
-                Ok(())
-            }
-        }
-    }
-}
-
-impl<'a> Decode<'a> for Holder {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        match decode_holder_id(r)? {
-            Some(id) => Ok(Holder::Reference(id)),
-            None => Ok(Holder::Direct(NbtCompound::decode(r)?)),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -176,8 +122,8 @@ mod tests {
 
     type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
 
-    const DECODERS: [(&str, Decoder); 8] = [
-        ("registry id", |r| RegistryId::decode(r).map(drop)),
+    const DECODERS: [(&str, Decoder); 7] = [
+        ("registry id", |r| decode_registry_id(r).map(drop)),
         ("block state", |r| BlockStateId::decode(r).map(drop)),
         ("item", |r| Id::<Item>::decode(r).map(drop)),
         ("optional block state", |r| {
@@ -190,7 +136,6 @@ mod tests {
         ("component predicate type", |r| {
             DataComponentPredicateType::decode(r).map(drop)
         }),
-        ("holder", |r| Holder::decode(r).map(drop)),
     ];
 
     fn var_int(value: i32) -> Vec<u8> {
@@ -220,6 +165,115 @@ mod tests {
         mcrs_minecraft_registry::RegistrySet::new()
             .with(mcrs_minecraft_registry::Registry::new(CAT_VARIANT, names).unwrap())
             .unwrap()
+    }
+
+    fn with_number(valid: &[u8], prefix: usize, last: u16, number: u16) -> Vec<u8> {
+        let tail = prefix + var_int(i32::from(last)).len();
+        [
+            &valid[..prefix],
+            &var_int(i32::from(number)),
+            &valid[tail..],
+        ]
+        .concat()
+    }
+
+    fn refused_past_the_table(
+        registry: &str,
+        table_len: usize,
+        prefix: usize,
+        valid: &[u8],
+        decode_packet: impl Fn(&mut &[u8]) -> anyhow::Result<()>,
+    ) {
+        let last = table_len as u16 - 1;
+        let decode = |number: u16| {
+            let bytes = with_number(valid, prefix, last, number);
+            decode_packet(&mut bytes.as_slice())
+        };
+        decode(last).unwrap_or_else(|e| panic!("{registry} {last}: {e:#}"));
+        let refused = format!("{:#}", decode(last + 1).unwrap_err());
+        assert!(refused.contains(registry), "{registry}: {refused}");
+    }
+
+    fn encoded(packet: &impl Encode) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        packet.encode(&mut bytes).unwrap();
+        bytes
+    }
+
+    #[test]
+    fn a_static_registry_number_past_its_table_does_not_decode() {
+        use crate::chunk::ChunkDataBlockEntity;
+        use crate::packets::game::clientbound::{
+            AttributeSnapshot, ClientboundAddEntity, ClientboundOpenScreen,
+            ClientboundUpdateAttributes,
+        };
+        use crate::text::Text;
+        use bevy_math::DVec3;
+        use mcrs_minecraft_block::keys::BlockEntityType;
+        use mcrs_minecraft_entity::keys::{Attribute, EntityType};
+        use mcrs_minecraft_item::keys::MenuType;
+
+        let add_entity = ClientboundAddEntity {
+            id: VarInt(1),
+            uuid: uuid::Uuid::nil(),
+            kind: *EntityType::ALL.last().unwrap(),
+            pos: DVec3::ZERO,
+            movement: crate::LpVec3(DVec3::ZERO),
+            pitch: crate::ByteAngle(0),
+            yaw: crate::ByteAngle(0),
+            head_yaw: crate::ByteAngle(0),
+            data: VarInt(0),
+        };
+        refused_past_the_table(
+            "entity type",
+            EntityType::ALL.len(),
+            1 + 16,
+            &encoded(&add_entity),
+            |r| ClientboundAddEntity::decode(r).map(drop),
+        );
+
+        let open_screen = ClientboundOpenScreen {
+            container_id: VarInt(1),
+            menu_type: *MenuType::ALL.last().unwrap(),
+            title: Text::text("Chest"),
+        };
+        refused_past_the_table(
+            "menu type",
+            MenuType::ALL.len(),
+            1,
+            &encoded(&open_screen),
+            |r| ClientboundOpenScreen::decode(r).map(drop),
+        );
+
+        let attributes = ClientboundUpdateAttributes {
+            entity_id: VarInt(1),
+            attributes: vec![AttributeSnapshot {
+                attribute: *Attribute::ALL.last().unwrap(),
+                base: 1.0,
+                modifiers: vec![],
+            }],
+        };
+        refused_past_the_table(
+            "attribute",
+            Attribute::ALL.len(),
+            1 + 1,
+            &encoded(&attributes),
+            |r| ClientboundUpdateAttributes::decode(r).map(drop),
+        );
+
+        let block_entity = ChunkDataBlockEntity {
+            packed_xz: 0,
+            y: 0,
+            kind: *BlockEntityType::ALL.last().unwrap(),
+            data: Cow::Owned(Default::default()),
+        };
+        refused_past_the_table(
+            "block entity type",
+            BlockEntityType::ALL.len(),
+            1 + 2,
+            &encoded(&block_entity),
+            |r| ChunkDataBlockEntity::decode(r).map(drop),
+        );
     }
 
     #[test]
@@ -259,19 +313,8 @@ mod tests {
     #[test]
     fn the_widest_id_round_trips_in_var_int_bytes() {
         let mut bytes = Vec::new();
-        RegistryId(u16::MAX).encode(&mut bytes).unwrap();
+        encode_registry_id(u16::MAX, &mut bytes).unwrap();
         assert_eq!(bytes, var_int(65535));
-        assert_eq!(
-            RegistryId::decode(&mut bytes.as_slice()).unwrap(),
-            RegistryId(u16::MAX)
-        );
-
-        let mut bytes = Vec::new();
-        Holder::Reference(u16::MAX).encode(&mut bytes).unwrap();
-        assert_eq!(bytes, var_int(65536));
-        assert!(matches!(
-            Holder::decode(&mut bytes.as_slice()).unwrap(),
-            Holder::Reference(u16::MAX)
-        ));
+        assert_eq!(decode_registry_id(&mut bytes.as_slice()).unwrap(), u16::MAX);
     }
 }

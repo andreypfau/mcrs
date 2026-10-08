@@ -104,7 +104,7 @@ pub fn generate(
     let mut files = Files::new();
     let mut targets: BTreeMap<String, Target> = BTreeMap::new();
     targets.insert(KEYS_CRATE.to_owned(), Target::new(KEYS_CRATE));
-    let mut statics = Vec::new();
+    let mut statics: Vec<(u16, String)> = Vec::new();
     let mut claimed: BTreeMap<String, &str> = ["registry", "lib", "keys"]
         .into_iter()
         .map(|name| (name.to_owned(), "src"))
@@ -196,7 +196,10 @@ pub fn generate(
             } else {
                 target.path(&key)
             };
-            statics.push(format!("    ({location}, {entries}),\n"));
+            statics.push((
+                report.protocol_id,
+                format!("    ({location}, {entries}),\n"),
+            ));
         }
         if let Some(text) = text {
             files.insert(target.source(&format!("{module}.rs")), text);
@@ -227,6 +230,8 @@ pub fn generate(
         .map(String::as_str)
         .filter(|krate| !above_catalog.contains(*krate))
         .collect();
+    statics.sort_by_key(|&(protocol_id, _)| protocol_id);
+    let statics: Vec<String> = statics.into_iter().map(|(_, line)| line).collect();
     files.insert(
         format!("crates/{CATALOG_CRATE}/src/lib.rs"),
         catalog_file(&statics, &owning),
@@ -810,6 +815,17 @@ mod tests {
              \n\
              pub const PLAINS: StaticResourceLocation = rl!(\"minecraft:plains\");\n"
         );
+    }
+
+    #[test]
+    fn the_catalog_lists_static_registries_in_the_order_of_the_registry_table() {
+        let statics: Statics = &[("minecraft:sound_event", BLOCK), ("minecraft:block", BLOCK)];
+
+        let files = generated(statics, &[]).unwrap();
+        let catalog = &files[CATALOG_LIB];
+        let sound_event = catalog.find("mcrs_minecraft_keys::SOUND_EVENT").unwrap();
+        let block = catalog.find("mcrs_minecraft_keys::BLOCK").unwrap();
+        assert!(sound_event < block, "{catalog}");
     }
 
     #[test]

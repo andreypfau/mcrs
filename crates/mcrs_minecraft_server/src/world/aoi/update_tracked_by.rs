@@ -16,7 +16,6 @@ use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::LpVec3;
-use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
@@ -111,9 +110,7 @@ pub fn update_tracked_by(
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                         id: VarInt(player.index_u32() as i32),
                         uuid,
-                        kind: RegistryId::from(
-                            mcrs_minecraft_entity::keys::EntityType::Player.id(),
-                        ),
+                        kind: mcrs_minecraft_entity::keys::EntityType::Player,
                         pos,
                         movement: LpVec3(DVec3::ZERO),
                         yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

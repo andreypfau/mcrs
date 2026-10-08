@@ -11,13 +11,15 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, LpVec3, PositionFlag, RegistryId, VarInt};
+    use crate::{ColumnPos, Look, LpVec3, PositionFlag, VarInt};
     use crate::{Decode as _, Encode as _};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
+    use mcrs_minecraft_entity::keys::{Attribute, EntityType};
+    use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use mcrs_minecraft_registry::BlockStateId;
@@ -29,7 +31,7 @@ pub mod clientbound {
     pub struct ClientboundAddEntity {
         pub id: VarInt,
         pub uuid: Uuid,
-        pub kind: RegistryId,
+        pub kind: EntityType,
         pub pos: DVec3,
         pub movement: LpVec3,
         pub pitch: ByteAngle,
@@ -348,7 +350,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundOpenScreen {
         pub container_id: VarInt,
-        pub menu_type: RegistryId,
+        pub menu_type: MenuType,
         pub title: Text,
     }
 
@@ -493,7 +495,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct AttributeSnapshot<'a> {
-        pub attribute: RegistryId,
+        pub attribute: Attribute,
         pub base: f64,
         pub modifiers: Vec<AttributeModifier<'a>>,
     }

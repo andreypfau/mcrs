@@ -716,7 +716,7 @@ mod tests {
     use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
     use mcrs_minecraft_dimension::{Dimension, DimensionType};
     use mcrs_minecraft_protocol::GameMode;
-    use mcrs_minecraft_protocol::RegistryId;
+    use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
     use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
     use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
@@ -920,7 +920,7 @@ mod tests {
                 .iter()
                 .map(|(tag, members)| TagGroup {
                     name: ResourceLocation::read_cow((*tag).to_owned()).unwrap(),
-                    entries: members.iter().copied().map(RegistryId).collect(),
+                    entries: members.iter().map(|&m| VarInt(i32::from(m))).collect(),
                 })
                 .collect(),
         }]

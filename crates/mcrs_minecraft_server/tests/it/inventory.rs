@@ -1,10 +1,10 @@
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
-use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, InboundPlayerPacket};
 use std::path::PathBuf;
 
@@ -18,6 +18,7 @@ use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
@@ -465,7 +466,7 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
             packet.data,
             PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                 id: VarInt(id),
-                kind: RegistryId(72),
+                kind: EntityType::Item,
                 ..
             }) if id == wire_id
         )
