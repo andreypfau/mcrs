@@ -620,7 +620,9 @@ impl Volume {
         cache: &PipelineCache,
     ) -> Self {
         let limits = device.limits();
-        let binding = (limits.max_storage_buffer_binding_size as u64).min(limits.max_buffer_size);
+        let binding = limits
+            .max_storage_buffer_binding_size
+            .min(limits.max_buffer_size);
         let radius = fit_radius(settings.radius, binding);
         let pool_slots = if radius == 0 {
             1

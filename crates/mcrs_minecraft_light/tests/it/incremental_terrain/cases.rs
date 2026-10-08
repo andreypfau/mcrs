@@ -12,7 +12,7 @@ fn bounds() -> LightBounds {
 /// Terraced ground: each section column sits on its own plateau, so the world
 /// is open everywhere and every surface block is a sky source.
 fn surface_height(x: i32, z: i32) -> i32 {
-    let step = ((x.div_euclid(16) * 3 + z.div_euclid(16) * 5) % 4) as i32;
+    let step = (x.div_euclid(16) * 3 + z.div_euclid(16) * 5) % 4;
     20 + step * 13 + (x.rem_euclid(16) / 8) + (z.rem_euclid(16) / 8)
 }
 

@@ -94,6 +94,10 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
 
 /// Page entries are written after the pass is recorded: queue writes land before the frame's
 /// commands, and this pass runs before lighting, so no entry names a slot not yet filled.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy render-graph system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn propagate_colour(
     _view: ViewQuery<&'static ExtractedView>,
     volume: Option<ResMut<Volume>>,

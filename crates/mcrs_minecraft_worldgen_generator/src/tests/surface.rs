@@ -677,8 +677,7 @@ fn surfaced_column_fixed(
     material: &MaterialProgram,
     ids: &HashMap<String, u16>,
     biome: &str,
-    section_x: i32,
-    section_z: i32,
+    (section_x, section_z): (i32, i32),
     y_sections: &[i32],
     bypass_shortcuts: bool,
 ) -> ColumnBlocks {
@@ -754,8 +753,7 @@ fn settled_badlands_runs_write_the_bands_the_descent_would(columns: &[(i32, i32)
                 &material,
                 &ids,
                 biome,
-                section_x,
-                section_z,
+                (section_x, section_z),
                 &y_sections,
                 false,
             );
@@ -764,8 +762,7 @@ fn settled_badlands_runs_write_the_bands_the_descent_would(columns: &[(i32, i32)
                 &material,
                 &ids,
                 biome,
-                section_x,
-                section_z,
+                (section_x, section_z),
                 &y_sections,
                 true,
             );

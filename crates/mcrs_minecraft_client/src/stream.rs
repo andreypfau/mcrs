@@ -94,6 +94,9 @@ impl Plugin for StreamPlugin {
     }
 }
 
+type MeshingSection = ([i32; 3], u32, Task<(SectionMesh, Scratch)>);
+type FarthestResidents = ([i32; 3], BinaryHeap<(u32, [i32; 3])>);
+
 /// The sections the server's columns hold, from queued to drawn, and the arena they are
 /// drawn out of.
 #[derive(Resource)]
@@ -104,7 +107,7 @@ pub struct Loader {
     sections: Sections,
     /// Sections whose light a delta rewrote, present or not.
     relit: HashSet<[i32; 3]>,
-    meshing: Vec<([i32; 3], u32, Task<(SectionMesh, Scratch)>)>,
+    meshing: Vec<MeshingSection>,
     scratches: Vec<Scratch>,
     streams: [Stream; STREAMS],
     owners: Vec<[i32; 3]>,
@@ -117,7 +120,7 @@ pub struct Loader {
     evicted: usize,
     /// Residents farthest first, as of the camera section it was built in. Entries go stale as
     /// sections leave and are skipped when they surface.
-    farthest: Option<([i32; 3], BinaryHeap<(u32, [i32; 3])>)>,
+    farthest: Option<FarthestResidents>,
     quads: Arena,
     models: Arena,
     faces: Arena,
@@ -584,9 +587,9 @@ impl Loader {
         mesh: SectionMesh,
         slot: u32,
         cave: &mut CaveCull,
-    ) -> Result<Placement, SectionMesh> {
+    ) -> Result<Placement, Box<SectionMesh>> {
         let Some([quads, models, faces]) = self.reserve(&mesh) else {
-            return Err(mesh);
+            return Err(Box::new(mesh));
         };
 
         let mut placed = mesh.groups;
@@ -1496,7 +1499,7 @@ fn place_meshes(
                         // end deferred; it waits for the camera to move instead.
                         loader.evict(victim, &mut cave);
                         loader.sections.defer(victim);
-                        pending = back;
+                        pending = *back;
                     }
                     None => {
                         loader.sections.defer(at);
@@ -1544,7 +1547,7 @@ fn admit_meshing(
         };
         let world = store.around(ColumnPos::new(at[0], at[2]));
         let blocks = catalog.blocks.clone();
-        let mut scratch = loader.scratches.pop().unwrap_or_else(Scratch::new);
+        let mut scratch = loader.scratches.pop().unwrap_or_default();
         loader.sections.start_meshing(at);
         loader.meshing.push((
             at,

@@ -166,11 +166,7 @@ fn network_tags(registry: RegistryTags<'_>) -> NetworkTags {
             .tags
             .into_iter()
             .map(|group| {
-                let members = group
-                    .entries
-                    .into_iter()
-                    .map(|member| i32::from(member.0))
-                    .collect();
+                let members = group.entries.into_iter().map(|member| member.0).collect();
                 (group.name.into(), members)
             })
             .collect(),
@@ -263,6 +259,13 @@ fn close_connection_later(commands: &mut Commands, connection: Entity, reason: S
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         let (send, recv) = channel(1);
+        #[cfg_attr(
+            not(target_family = "wasm"),
+            expect(
+                clippy::clone_on_copy,
+                reason = "ServerAddress is Copy only on native; the browser's WebTransportTarget is not"
+            )
+        )]
         let server = self.server.clone();
         let username = self.username.clone();
         let profile_id = self

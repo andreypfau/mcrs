@@ -419,11 +419,9 @@ mod tests {
         assert_eq!(e.range(&RangeProperty::Damage { normalize: false }), 100.0);
         assert!(e.condition(&ConditionProperty::Damaged));
         assert!(!e.condition(&ConditionProperty::Broken));
-        drop(e);
         set(&mut world, pick, Damage(Bounded(1560)));
         let e = eval(&world, pick);
         assert!(e.condition(&ConditionProperty::Broken));
-        drop(e);
         let stone = spawn(&mut world, "stone", 17, ComponentPatch::EMPTY);
         let e = eval(&world, stone);
         assert_eq!(e.range(&RangeProperty::Count { normalize: true }), 0.265625);
@@ -451,7 +449,6 @@ mod tests {
         );
         let e = eval(&world, bundle);
         assert_eq!(e.range(&RangeProperty::BundleFullness), 0.375);
-        drop(e);
         let empty = spawn(&mut world, "bundle", 1, ComponentPatch::EMPTY);
         let e = eval(&world, empty);
         assert_eq!(e.range(&RangeProperty::BundleFullness), 0.0);
@@ -500,7 +497,6 @@ mod tests {
         assert!(e.condition(&max_stack(false)));
         assert!(!e.condition(&max_stack(true)));
         assert!(!e.condition(&dyed(false)));
-        drop(e);
         set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
         Transaction(vec![Op::Remove {
             stack: stone,

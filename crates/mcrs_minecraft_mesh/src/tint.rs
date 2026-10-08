@@ -60,7 +60,7 @@ pub fn fixed_colors() -> [u32; FIXED_TINTS] {
     colors[ATTACHED_STEM as usize] = 0xe0c71c;
     colors[LILY_PAD as usize] = 0x208030;
     for age in 0..STEM_AGES as u32 {
-        colors[(STEM as u32 + age) as usize] = (age * 32) << 16 | (255 - age * 8) << 8 | age * 4;
+        colors[(STEM as u32 + age) as usize] = (age * 32) << 16 | (255 - age * 8) << 8 | (age * 4);
     }
     for power in 0..REDSTONE_POWERS {
         colors[(REDSTONE + power) as usize] = redstone_color(power);

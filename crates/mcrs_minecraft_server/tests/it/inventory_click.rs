@@ -57,7 +57,15 @@ fn click(
             .unwrap()
             .state_id,
     );
-    click_at(world, player, state_id, input, slot, button, changed, None);
+    let click = Click {
+        state_id,
+        input,
+        slot,
+        button,
+        changed,
+        carried: None,
+    };
+    click_at(world, player, click);
 }
 
 fn open_container_id(world: &World, player: Entity) -> i32 {
@@ -69,16 +77,16 @@ fn open_container_id(world: &World, player: Entity) -> i32 {
     )
 }
 
-fn click_at(
-    world: &mut World,
-    player: Entity,
+struct Click {
     state_id: i32,
     input: ContainerInput,
     slot: i16,
     button: u8,
     changed: Vec<(u16, Option<HashedStack>)>,
     carried: Option<HashedStack>,
-) {
+}
+
+fn click_at(world: &mut World, player: Entity, click: Click) {
     let container_id = open_container_id(world, player);
     world
         .resource_mut::<Messages<ContainerClickRequest>>()
@@ -86,12 +94,12 @@ fn click_at(
             player,
             game_mode: GameMode::Survival,
             container_id,
-            state_id,
-            slot,
-            button,
-            input,
-            changed,
-            carried,
+            state_id: click.state_id,
+            slot: click.slot,
+            button: click.button,
+            input: click.input,
+            changed: click.changed,
+            carried: click.carried,
         });
     handle_clicks(world);
 }
@@ -867,15 +875,17 @@ fn a_drag_whose_claims_match_sends_no_packet() {
     click_at(
         &mut world,
         player,
-        state_id,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::End,
-        }),
-        changed,
-        cursor_hash,
+        Click {
+            state_id,
+            input: ContainerInput::QuickCraft,
+            slot: SLOT_CLICKED_OUTSIDE,
+            button: u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::End,
+            }),
+            changed,
+            carried: cursor_hash,
+        },
     );
 
     for slot in 9u16..14 {

@@ -497,6 +497,10 @@ impl LightVolumeFeed {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn feed_light_volume(
     mut feed: ResMut<LightVolumeFeed>,
     mut changes: MessageReader<ColumnChange>,

@@ -176,11 +176,14 @@ mod tests {
             .potential_chunk(SEED, sector)
     }
 
+    type Found = Option<(IVec3, StructureId)>;
+    type Asked = Vec<(SetId, ColumnPos)>;
+
     fn run(
         placements: &[LocatePlacement<'_>],
         ring_positions: &[ColumnPos],
         starts: &[(SetId, ColumnPos)],
-    ) -> (Option<(IVec3, StructureId)>, Vec<(SetId, ColumnPos)>) {
+    ) -> (Found, Asked) {
         let asked = RefCell::new(Vec::new());
         let found = locate(
             SEED,

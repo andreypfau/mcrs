@@ -511,8 +511,8 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
         RegistrySet::from_tables(
             registries().tables().cloned().chain([Arc::new(
                 NameTable::new(
-                    rl!("minecraft:enchantment").to_arc().into(),
-                    paths.map(|path| enchantment(path).into()),
+                    rl!("minecraft:enchantment").to_arc(),
+                    paths.map(enchantment),
                 )
                 .unwrap(),
             )]),

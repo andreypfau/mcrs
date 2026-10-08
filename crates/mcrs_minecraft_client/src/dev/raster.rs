@@ -98,6 +98,10 @@ fn fit_world_target(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn present_world(
     view: ViewQuery<(&ViewTarget, &ExtractedView)>,
     worlds: Query<&ExtractedCamera, With<Camera3d>>,

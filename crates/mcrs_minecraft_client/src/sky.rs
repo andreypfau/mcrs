@@ -737,7 +737,7 @@ mod sky_regression {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
             clocks.insert(
-                clock.clone(),
+                *clock,
                 ClockState {
                     total_ticks: ticks,
                     ..default()

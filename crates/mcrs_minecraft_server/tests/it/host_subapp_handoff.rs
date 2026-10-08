@@ -513,11 +513,7 @@ fn a_shared_registry_is_not_changed_on_the_second_tick() {
     assert_eq!(labels.len(), 2);
     let overworld = labels
         .iter()
-        .find(|(_, key)| {
-            *key == ResourceKey::<Dimension>::from(
-                mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
-            )
-        })
+        .find(|(_, key)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
         .expect("the overworld is live")
         .0;
 

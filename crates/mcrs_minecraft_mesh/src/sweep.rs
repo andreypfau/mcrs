@@ -1,5 +1,5 @@
 use crate::SECTION_SIZE;
-use crate::block::{BlockInfo, FACE_AXES, Pass};
+use crate::block::{BlockInfo, FACE_AXES};
 use crate::pack::{
     FACE_WORDS, QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
     QUAD_X, QUAD_Y, QUAD_Z,
@@ -24,8 +24,8 @@ pub(super) fn sweep(
     group_face: u64,
     attr: FaceAttr,
 ) {
-    for pass in 0..Pass::COUNT {
-        scratch.simple_by_pass[pass].clear();
+    for quads in &mut scratch.simple_by_pass {
+        quads.clear();
     }
     let axes = FACE_AXES[face];
     let n_axis = axes[0] as usize;
@@ -75,10 +75,8 @@ pub(super) fn sweep(
         }
     }
 
-    for pass in 0..Pass::COUNT {
-        let quads = std::mem::take(&mut scratch.simple_by_pass[pass]);
-        sink.simple(pass, group_face, &quads);
-        scratch.simple_by_pass[pass] = quads;
+    for (pass, quads) in scratch.simple_by_pass.iter().enumerate() {
+        sink.simple(pass, group_face, quads);
     }
 }
 

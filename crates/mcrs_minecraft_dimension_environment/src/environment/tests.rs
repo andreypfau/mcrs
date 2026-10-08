@@ -106,7 +106,7 @@ fn ticks_at(attributes: &EnvironmentAttributes, total_ticks: i64, partial_tick: 
     let mut clocks = WorldClocks::default();
     for clock in attributes.clocks() {
         clocks.insert(
-            clock.clone(),
+            *clock,
             ClockState {
                 total_ticks,
                 partial_tick,

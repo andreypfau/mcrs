@@ -156,6 +156,10 @@ fn toggle_floor(keys: Res<ButtonInput<KeyCode>>, mut show: ResMut<ShowFloor>) {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn rebuild_scene(
     mut commands: Commands,
     target: Res<Target>,

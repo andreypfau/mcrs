@@ -93,6 +93,10 @@ impl ColumnBlocks {
     /// Section-local box fill, the dense counterpart of `BlockPalette::fill_box`.
     /// The box is clipped to the section, which is what the paletted container
     /// required of its callers anyway.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the box bounds are six coordinates next to the section index and value, and the placement call in lib.rs passes them this way through a public signature"
+    )]
     pub fn fill_box_in_section(
         &self,
         index: usize,

@@ -237,7 +237,8 @@ pub(crate) async fn assets(
 ) -> Files {
     let host = release.jar.url.split('/').nth(2).unwrap_or(release.jar.url);
     let phase = |what: &str| format!("Downloading {what} from {host}");
-    let tail = [release.jar.size - release.directory.size..release.jar.size];
+    let directory_span = release.jar.size - release.directory.size..release.jar.size;
+    let tail = [directory_span];
     let hint = FontHint::for_release(release);
     let hinted = hint.as_ref().map(FontHint::spans).unwrap_or_default();
     source.with_queue(|queue| {
@@ -364,17 +365,21 @@ mod tests {
         assert_eq!(ranges.0, [10..25, 30..40]);
         assert_eq!(ranges.gaps(&(0..50)), [0..10, 25..30, 40..50]);
         ranges.insert(24..31);
-        assert_eq!(ranges.0, [10..40]);
+        let merged = 10..40;
+        assert_eq!(ranges.0, [merged]);
         ranges.remove(&(15..18));
         assert_eq!(ranges.0, [10..15, 18..40]);
         assert!(ranges.covers(&[18..40, 11..12]));
-        assert!(!ranges.covers(&[14..19]));
+        let uncovered = 14..19;
+        assert!(!ranges.covers(&[uncovered]));
     }
 
     #[test]
     fn the_queue_hands_out_chunks_by_group_then_offset_and_takes_back_the_rest() {
-        let mut queue = Queue::resume(Ranges(vec![100..200]));
-        queue.enqueue(ASSETS, &[0..(3 << 20)], true);
+        let resumed = 100..200;
+        let mut queue = Queue::resume(Ranges(vec![resumed]));
+        let assets = 0..(3 << 20);
+        queue.enqueue(ASSETS, &[assets], true);
         queue.enqueue(DIRECTORY, &[50..150, 5 << 20..(5 << 20) + 10], true);
 
         let first = queue.next().unwrap();

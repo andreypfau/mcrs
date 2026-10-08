@@ -34,12 +34,12 @@ fn slab_shape(aabb: Aabb) -> &'static VoxelShape {
 
 fn bottom_slab_shape() -> &'static VoxelShape {
     static SHAPE: OnceLock<&'static VoxelShape> = OnceLock::new();
-    *SHAPE.get_or_init(|| slab_shape(LOWER_HALF))
+    SHAPE.get_or_init(|| slab_shape(LOWER_HALF))
 }
 
 fn top_slab_shape() -> &'static VoxelShape {
     static SHAPE: OnceLock<&'static VoxelShape> = OnceLock::new();
-    *SHAPE.get_or_init(|| slab_shape(UPPER_HALF))
+    SHAPE.get_or_init(|| slab_shape(UPPER_HALF))
 }
 
 pub fn filled(block: VoxelId) -> SectionBlocks {

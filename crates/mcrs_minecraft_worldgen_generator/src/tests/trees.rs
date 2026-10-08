@@ -386,8 +386,8 @@ fn states_of(name: &str) -> std::ops::Range<u16> {
         .0
         .block(name)
         .unwrap_or_else(|| panic!("{name} is not a block"));
-    let base = entry.base_state_id.0 as u16;
-    base..base + entry.state_count as u16
+    let base = entry.base_state_id.0;
+    base..base + entry.state_count
 }
 
 /// The pale garden, decorated: pale oaks grow, and the `pale_moss` decorator's

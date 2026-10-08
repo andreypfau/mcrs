@@ -32,7 +32,7 @@ impl DebugViews {
         } else {
             (at + 1) % len
         };
-        (next != final_shading).then(|| DebugView(next as u16))
+        (next != final_shading).then_some(DebugView(next as u16))
     }
 }
 

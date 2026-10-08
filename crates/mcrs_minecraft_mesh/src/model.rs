@@ -1,6 +1,6 @@
 use crate::SECTION_SIZE;
 use crate::ambient;
-use crate::block::{BlockInfo, Pass, face_hidden};
+use crate::block::{BlockInfo, face_hidden};
 use crate::pack::{
     FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
     MODEL_STEPS, MODEL_TINT, MODEL_TINT_HIGH, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
@@ -54,10 +54,8 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
 }
 
 pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
-    for pass in 0..Pass::COUNT {
-        for group in &mut scratch.complex_by_pass[pass] {
-            group.clear();
-        }
+    for group in scratch.complex_by_pass.iter_mut().flatten() {
+        group.clear();
     }
 
     for y in 0..SECTION_SIZE {
@@ -78,7 +76,11 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                             y as i32 + normal[1],
                             z as i32 + normal[2],
                         );
-                        if face_hidden(info, &catalog[scratch.states[front] as usize], cull as usize) {
+                        if face_hidden(
+                            info,
+                            &catalog[scratch.states[front] as usize],
+                            cull as usize,
+                        ) {
                             continue;
                         }
                         sample = front;
@@ -140,16 +142,14 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
 }
 
 pub(super) fn emit(scratch: &mut Scratch, sink: &mut Sink) {
-    for pass in 0..Pass::COUNT {
-        for group in 0..FACE_GROUPS {
-            let verts = std::mem::take(&mut scratch.complex_by_pass[pass][group]);
+    for (pass, groups) in scratch.complex_by_pass.iter().enumerate() {
+        for (group, verts) in groups.iter().enumerate() {
             let face = if group == UNGROUPED {
                 FACE_NONE as u64
             } else {
                 group as u64
             };
-            sink.complex(pass, face, &verts);
-            scratch.complex_by_pass[pass][group] = verts;
+            sink.complex(pass, face, verts);
         }
     }
 }

@@ -293,8 +293,9 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
         return;
     }
     let bits = (((1u32 << span.len()) - 1) << span.start) as u16;
-    for row in cell(low[rows], true)..cell(high[rows], false) {
-        side[row] |= bits;
+    let (first_row, end_row) = (cell(low[rows], true), cell(high[rows], false));
+    for covered in side.iter_mut().take(end_row).skip(first_row) {
+        *covered |= bits;
     }
 }
 
@@ -722,9 +723,9 @@ mod tests {
         assert!(extras.is_empty(), "stone has nothing beyond its cube");
         for dir in Dir::all() {
             let quad = &baked.quads[faces[dir as usize]];
-            for corner in 0..4 {
+            for (corner, position) in quad.positions.iter().enumerate().take(4) {
                 assert_eq!(
-                    quad.positions[corner],
+                    *position,
                     cube_corner(dir, corner),
                     "{dir:?} corner {corner}"
                 );

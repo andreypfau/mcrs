@@ -6,6 +6,8 @@ use mcrs_minecraft_value_provider::HeightContext;
 
 use super::{WorldGenVolume, WorldStates};
 
+type HeightFn = Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>;
+
 /// A volume over one owned box: one biome, a fixed extent, a height answered by
 /// a closure over the box, and every write logged in order. What a test world
 /// needs, and nothing a real column has.
@@ -14,7 +16,7 @@ pub struct BoxRegion {
     pub world: WorldStates,
     pub extent: HeightContext,
     pub biome: u16,
-    pub height: Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>,
+    pub height: HeightFn,
     pub writes: Vec<(BlockPos, VoxelId)>,
 }
 

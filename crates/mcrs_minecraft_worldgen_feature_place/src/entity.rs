@@ -204,10 +204,8 @@ impl GeneratedEntity {
         rng: &WorldgenRandom,
     ) -> Option<Self> {
         let kind = match &entity.kind {
-            EntityKind::Villager { data } => GeneratedKind::Villager { data: data.clone() },
-            EntityKind::ZombieVillager { data } => {
-                GeneratedKind::ZombieVillager { data: data.clone() }
-            }
+            EntityKind::Villager { data } => GeneratedKind::Villager { data: *data },
+            EntityKind::ZombieVillager { data } => GeneratedKind::ZombieVillager { data: *data },
             _ => return None,
         };
         let pos = mcrs_minecraft_worldgen_feature::template::transform_continuous(

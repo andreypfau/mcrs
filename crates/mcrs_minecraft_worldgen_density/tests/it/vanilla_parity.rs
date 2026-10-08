@@ -10,6 +10,7 @@ use mcrs_minecraft_worldgen_density::router::{
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_testing as corpus;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -190,7 +191,7 @@ mod exhaustive {
                     slot.checked += 1;
                     if got.to_bits() != want.to_bits() {
                         let d = (got - want).abs();
-                        if !(d <= slot.worst) {
+                        if d.partial_cmp(&slot.worst).is_none_or(Ordering::is_gt) {
                             slot.worst = d;
                             slot.example = Some((i, got, want));
                         }
@@ -256,7 +257,7 @@ mod exhaustive {
             if got.to_bits() != want.to_bits() {
                 mismatched += 1;
                 let d = (got - want).abs();
-                if !(d <= worst) {
+                if d.partial_cmp(&worst).is_none_or(Ordering::is_gt) {
                     worst = d;
                     example = Some((i, got, want));
                 }

@@ -263,7 +263,7 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
     light_one_column(&mut app, label, true);
 
     let column = ColumnPos::new(0, 0);
-    let sub_app = app
+    let _sub_app = app
         .sub_apps_mut()
         .sub_apps
         .get_mut(&label.intern())

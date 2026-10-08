@@ -165,7 +165,8 @@ pub fn download(
     let files = block_on(schedule::assets(
         &*shared, release, progress, pick, &mut fonts,
     ));
-    shared.with_queue(|queue| queue.enqueue(REST, &[0..release.jar.size], false));
+    let whole_jar = 0..release.jar.size;
+    shared.with_queue(|queue| queue.enqueue(REST, &[whole_jar], false));
     let remainder = Remainder {
         shared,
         workers,
@@ -395,7 +396,8 @@ pub struct Remainder {
 
 impl Remainder {
     pub fn finish(mut self) {
-        let whole = [0..self.release.jar.size];
+        let whole_jar = 0..self.release.jar.size;
+        let whole = [whole_jar];
         let quiet = Progress::default();
         loop {
             block_on(schedule::until_held(&*self.shared, &whole, &quiet, ""));
@@ -938,7 +940,7 @@ mod tests {
             assert_eq!(delivered.last(), Some(&fonts), "{name}");
             assert_complete(&dir, release);
         }
-        assert!(FONTS > HINTED_FONTS);
+        const { assert!(FONTS > HINTED_FONTS) };
     }
 
     #[test]

@@ -463,7 +463,7 @@ mod tests {
             .light
             .map(sky_light);
         assert!(got.iter().any(|&l| l < 240), "{got:?}");
-        assert!(got.iter().any(|&l| l == 240), "{got:?}");
+        assert!(got.contains(&240), "{got:?}");
     }
 
     #[test]

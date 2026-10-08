@@ -2,11 +2,11 @@ pub mod schema;
 
 use std::sync::Arc;
 
+use crate::keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use crate::keys::Item;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
@@ -113,6 +113,10 @@ impl ItemDefinitions {
         self.entries.iter()
     }
 
+    #[expect(
+        clippy::len_without_is_empty,
+        reason = "the table is addressed by registry id and nothing asks whether it is empty, so an is_empty method would only add public API"
+    )]
     pub fn len(&self) -> usize {
         self.entries.len()
     }

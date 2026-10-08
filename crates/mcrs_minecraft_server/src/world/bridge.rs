@@ -138,6 +138,7 @@ fn push_to_connection(
     }
 }
 
+/// Sixteen blobs at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
 /// Encode queued outbound packets for every active connection, enforce the
@@ -155,8 +156,6 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
-/// Sixteen blobs at the socket's cap.
-
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
@@ -252,7 +251,6 @@ pub fn dispatch_encode(
                                 .collect(),
                             data: chunk_bytes.as_slice(),
                             block_entities: Cow::Owned(block_entities),
-                            ..Default::default()
                         };
                         conn.raw.append(&ClientboundLevelChunkWithLight {
                             pos: column,

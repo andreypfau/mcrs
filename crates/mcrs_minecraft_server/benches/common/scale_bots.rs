@@ -201,11 +201,9 @@ pub fn run_profile_ticks(
     }
 
     let total_elapsed = run_start.elapsed();
-    let tick_mean_us = if tick_count > 0 {
-        total_elapsed.as_micros() as u64 / tick_count
-    } else {
-        0
-    };
+    let tick_mean_us = (total_elapsed.as_micros() as u64)
+        .checked_div(tick_count)
+        .unwrap_or(0);
     if tick_min_us == u64::MAX {
         tick_min_us = 0;
     }

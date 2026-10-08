@@ -87,7 +87,7 @@ fn main() -> AppExit {
     let frozen_at = config::frozen_time();
     let assets = asset_corpus().to_string_lossy().into_owned();
 
-    let mut wgpu = WgpuSettings {
+    let wgpu = WgpuSettings {
         features: WgpuFeatures::TIMESTAMP_QUERY,
         ..default()
     };
@@ -96,13 +96,15 @@ fn main() -> AppExit {
     // Labels handed to Metal cost a fifth of the frame's encoding. The environment still wins,
     // so `WGPU_DISCARD_HAL_LABELS=0` brings them back for a GPU capture.
     #[cfg(not(debug_assertions))]
-    {
+    let wgpu = {
         use bevy::render::settings::InstanceFlags;
+        let mut wgpu = wgpu;
         #[cfg(not(target_os = "windows"))]
         wgpu.instance_flags
             .remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
         wgpu.instance_flags = (wgpu.instance_flags | InstanceFlags::DISCARD_HAL_LABELS).with_env();
-    }
+        wgpu
+    };
     let mut task_pool_options = bevy::app::TaskPoolOptions::default();
     task_pool_options.async_compute.max_threads = config::async_threads();
     task_pool_options.async_compute.percent = 1.0;

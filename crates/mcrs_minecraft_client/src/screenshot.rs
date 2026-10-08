@@ -115,6 +115,10 @@ struct Settling {
 /// scene counts as settled only once it has stayed done with nothing new arriving. It also
 /// waits while any plugin reports `Unsettled`, with no timeout of its own: work that never
 /// settles fails the capture rather than shooting it unfinished.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

@@ -925,8 +925,8 @@ mod tests {
 
         for (&y, entity) in carried
             .iter()
-            .chain([&5].into_iter())
-            .zip(sections.iter().chain([&late].into_iter()))
+            .chain([&5])
+            .zip(sections.iter().chain([&late]))
         {
             let want = alone.sections[(y - bottom) as usize]
                 .as_ref()

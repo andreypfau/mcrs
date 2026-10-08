@@ -108,7 +108,7 @@ fn messages_buffered_before_dim_boots() {
     // Send messages into the channel BEFORE app.update() runs the sub-app.
     // All sends must return Ok without blocking — the bounded channel buffer
     // is the pending queue (structural readiness).
-    let send_results: Vec<Result<(), _>> = {
+    let sent_ok: Vec<bool> = {
         let channels = app.world().resource::<DimChannelsResource>();
         let entry = channels
             .get(label_entity)
@@ -139,17 +139,18 @@ fn messages_buffered_before_dim_boots() {
                         data: Bytes::new(),
                         timestamp: std::time::Instant::now(),
                     }))
+                    .is_ok()
             })
             .collect();
 
-        std::iter::once(spawn_result)
+        std::iter::once(spawn_result.is_ok())
             .chain(serverbound_results)
             .collect()
     };
 
-    for (i, result) in send_results.iter().enumerate() {
+    for (i, sent) in sent_ok.iter().enumerate() {
         assert!(
-            result.is_ok(),
+            *sent,
             "send {i} must return Ok without blocking before the dim's first tick"
         );
     }
