@@ -42,9 +42,11 @@ struct DumpManifest {
     palettes: Vec<DumpPalette>,
 }
 
+type PlacedStates = Vec<([i32; 3], String)>;
+
 struct DumpListed {
     id: String,
-    palettes: Vec<(Vec<([i32; 3], String)>, Vec<u8>)>,
+    palettes: Vec<(PlacedStates, Vec<u8>)>,
 }
 
 fn read_dump() -> (Vec<String>, Vec<DumpManifest>, Vec<DumpListed>) {

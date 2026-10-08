@@ -210,9 +210,11 @@ mod exhaustive {
 
     #[test]
     fn random_values_of_every_kind_round_trip() {
-        for &kind in DataComponentType::ALL.iter() {
-            super::check_kind(kind, super::ITERATIONS);
-        }
+        super::in_samples(|| {
+            for &kind in DataComponentType::ALL.iter() {
+                super::check_kind(kind, super::ITERATIONS);
+            }
+        });
     }
 }
 

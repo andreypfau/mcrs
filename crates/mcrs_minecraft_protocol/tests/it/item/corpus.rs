@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use super::harness::in_data_pack;
 use mcrs_minecraft_protocol::item::{ComponentMap, ComponentPatch, ItemPredicate, Template};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -70,13 +71,15 @@ fn json_files(dir: &Path) -> Vec<PathBuf> {
 
 fn run(name: &str, visit: impl Fn(&mut Family, &Path, &Value)) {
     let mut family = Family::default();
-    for file in json_files(&Path::new(ASSETS).join(name)) {
-        let text = std::fs::read_to_string(&file).unwrap();
-        let root: Value =
-            serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-        family.files += 1;
-        visit(&mut family, &file, &root);
-    }
+    in_data_pack(|| {
+        for file in json_files(&Path::new(ASSETS).join(name)) {
+            let text = std::fs::read_to_string(&file).unwrap();
+            let root: Value =
+                serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            family.files += 1;
+            visit(&mut family, &file, &root);
+        }
+    });
     family.finish(name);
 }
 
