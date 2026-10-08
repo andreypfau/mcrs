@@ -224,12 +224,11 @@ fn consume_inbound_player_spawn(
                     reduced_debug_info: false,
                     show_death_screen: false,
                     do_limited_crafting: false,
-                    player_spawn_info: PlayerSpawnInfo {
-                        dimension_type_id: RegistryId(dimension_type.0.number()),
-                        dimension: dim_key.clone(),
-                        game_mode: default_game_mode.0,
-                        ..Default::default()
-                    },
+                    player_spawn_info: PlayerSpawnInfo::new(
+                        dimension_type.0,
+                        dim_key.clone(),
+                        default_game_mode.0,
+                    ),
                     online_mode: false,
                     enforces_secure_chat: false,
                 }),

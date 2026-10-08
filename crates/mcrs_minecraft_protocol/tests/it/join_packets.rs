@@ -5,16 +5,17 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
+use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_mode::OptGameMode;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_minecraft_protocol::{
-    Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, RegistryId, VarInt,
-};
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, VarInt};
+use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
+use std::sync::Arc;
 
 const GOLDEN: &str = include_str!("../fixtures/join_packets_golden.txt");
 
@@ -43,8 +44,32 @@ fn fixture() -> Fixture {
     fixture
 }
 
-fn id(fixture: &Fixture, registry: &str, name: &str) -> RegistryId {
-    RegistryId(fixture.ids[&(registry.into(), name.into())])
+fn dimension_types_of(fixture: &Fixture, len: usize) -> RegistrySet {
+    let names = (0..len).map(|number| {
+        let name = fixture
+            .ids
+            .iter()
+            .find(|((registry, _), n)| registry == "dimension_type" && usize::from(**n) == number)
+            .map_or_else(
+                || format!("minecraft:unused{number}"),
+                |((_, name), _)| name.clone(),
+            );
+        ResourceLocation::<Arc<str>>::read(&name).unwrap()
+    });
+    RegistrySet::new()
+        .with(Registry::new(DIMENSION_TYPE, names).unwrap())
+        .unwrap()
+}
+
+fn dimension_types(fixture: &Fixture) -> RegistrySet {
+    dimension_types_of(fixture, 4)
+}
+
+fn dimension_type(set: &RegistrySet, name: &str) -> Id<DimensionType> {
+    set.registry::<DimensionType>()
+        .unwrap()
+        .require_by_name(name)
+        .unwrap()
 }
 
 fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) {
@@ -78,6 +103,7 @@ fn overworld() -> ResourceKey<Dimension> {
 #[test]
 fn login_carries_no_seed_and_equals_the_reference_bytes() {
     let fixture = fixture();
+    let set = dimension_types(&fixture);
     let expected = ClientboundLogin {
         player_id: 7,
         hardcore: false,
@@ -89,7 +115,7 @@ fn login_carries_no_seed_and_equals_the_reference_bytes() {
         show_death_screen: true,
         do_limited_crafting: false,
         player_spawn_info: PlayerSpawnInfo {
-            dimension_type_id: id(&fixture, "dimension_type", "minecraft:overworld"),
+            dimension_type_id: dimension_type(&set, "minecraft:overworld"),
             dimension: overworld(),
             game_mode: GameMode::Creative,
             prev_game_mode: OptGameMode(Some(GameMode::Survival)),
@@ -102,15 +128,16 @@ fn login_carries_no_seed_and_equals_the_reference_bytes() {
         online_mode: false,
         enforces_secure_chat: true,
     };
-    check(&fixture, "login", expected);
+    set.scope(|| check(&fixture, "login", expected));
 }
 
 #[test]
 fn respawn_equals_the_reference_bytes() {
     let fixture = fixture();
+    let set = dimension_types(&fixture);
     let expected = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo {
-            dimension_type_id: id(&fixture, "dimension_type", "minecraft:the_nether"),
+            dimension_type_id: dimension_type(&set, "minecraft:the_nether"),
             dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),
@@ -125,7 +152,30 @@ fn respawn_equals_the_reference_bytes() {
         },
         data_to_keep: 3,
     };
-    check(&fixture, "respawn", expected);
+    set.scope(|| check(&fixture, "respawn", expected));
+}
+
+#[test]
+fn a_dimension_type_past_the_registry_does_not_decode() {
+    let fixture = fixture();
+    let nether = fixture.ids[&("dimension_type".into(), "minecraft:the_nether".into())];
+    let decode_respawn = |len: usize| {
+        dimension_types_of(&fixture, len).scope(|| {
+            let mut r = &fixture.packets["respawn"][..];
+            ClientboundRespawn::decode(&mut r).map(drop)
+        })
+    };
+
+    assert!(decode_respawn(usize::from(nether) + 1).is_ok());
+    let refused = format!("{:#}", decode_respawn(usize::from(nether)).unwrap_err());
+    assert!(refused.contains("minecraft:dimension_type"), "{refused}");
+    assert!(refused.contains(&nether.to_string()), "{refused}");
+
+    let mut r = &fixture.packets["respawn"][..];
+    assert!(
+        ClientboundRespawn::decode(&mut r).is_err(),
+        "no registry scope is active"
+    );
 }
 
 fn handshake<'a>(host: &'a str, intent: Intent) -> ServerboundHandshake<'a> {

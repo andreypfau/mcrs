@@ -576,9 +576,7 @@ impl Arrivals {
     }
 
     fn enter(&mut self, registries: &RegistrySet, spawn: &PlayerSpawnInfo) {
-        let Some(current) = CurrentDimension::named_by(registries, spawn) else {
-            return;
-        };
+        let current = CurrentDimension::of(spawn);
         match extent_of(registries, &current) {
             Some(extent) => {
                 self.extent = Some(extent);
@@ -589,7 +587,7 @@ impl Arrivals {
             }
             None => error!(
                 "dimension type {} has no extent: columns have nowhere to sit",
-                spawn.dimension_type_id.0
+                spawn.dimension_type_id.number()
             ),
         }
     }
@@ -1275,27 +1273,23 @@ mod tests {
 
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
+        use mcrs_minecraft_core::ResourceKey;
+        use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
-        use mcrs_minecraft_protocol::RegistryId;
+        use mcrs_minecraft_protocol::GameMode;
+        use mcrs_minecraft_registry::Id;
 
         let registries = mcrs_minecraft_world::registries::test_registries();
         let types = registries.registry::<DimensionType>().unwrap();
-        let named = |key: &str, dimension: &str| {
-            let number = types.by_name(key).unwrap().index() as u16;
-            CurrentDimension::named_by(
-                registries,
-                &PlayerSpawnInfo {
-                    dimension: mcrs_minecraft_core::ResourceKey::from_location(
-                        mcrs_minecraft_core::ResourceLocation::read(dimension).unwrap(),
-                    ),
-                    dimension_type_id: RegistryId(number),
-                    ..Default::default()
-                },
-            )
-            .unwrap()
+        let named = |key: &str, dimension: ResourceKey<Dimension>| {
+            CurrentDimension::of(&PlayerSpawnInfo::new(
+                types.by_name(key).unwrap(),
+                dimension,
+                GameMode::Survival,
+            ))
         };
 
-        let overworld = named("minecraft:overworld", OVERWORLD.as_str());
+        let overworld = named("minecraft:overworld", OVERWORLD.into());
         assert_eq!(
             extent_of(registries, &overworld),
             Some(Extent {
@@ -1303,7 +1297,7 @@ mod tests {
                 sections: 24,
             })
         );
-        let nether = named("minecraft:the_nether", THE_NETHER.as_str());
+        let nether = named("minecraft:the_nether", THE_NETHER.into());
         assert_eq!(
             extent_of(registries, &nether),
             Some(Extent {
@@ -1311,17 +1305,11 @@ mod tests {
                 sections: 16,
             })
         );
-        let past = RegistryId(u16::try_from(types.len()).unwrap());
-        assert!(
-            CurrentDimension::named_by(
-                registries,
-                &PlayerSpawnInfo {
-                    dimension_type_id: past,
-                    ..Default::default()
-                },
-            )
-            .is_none(),
-            "no such dimension type"
-        );
+        let past = CurrentDimension::of(&PlayerSpawnInfo::new(
+            Id::from_raw(u16::try_from(types.len()).unwrap()),
+            OVERWORLD.into(),
+            GameMode::Survival,
+        ));
+        assert_eq!(extent_of(registries, &past), None, "no such dimension type");
     }
 }

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
+use mcrs_minecraft_entity::villager::VillagerData;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,29 +107,6 @@ pub struct FrozenEntity {
     pub block_pos: [i32; 3],
     pub rotation: [f32; 2],
     pub kind: EntityKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct VillagerData {
-    #[serde(rename = "type")]
-    pub kind: ResourceLocation,
-    pub profession: ResourceLocation,
-    pub level: i32,
-}
-
-impl Default for VillagerData {
-    fn default() -> Self {
-        VillagerData {
-            kind: mcrs_minecraft_entity::keys::VillagerType::Plains
-                .location()
-                .to_arc(),
-            profession: mcrs_minecraft_entity::keys::VillagerProfession::None
-                .location()
-                .to_arc(),
-            level: 1,
-        }
-    }
 }
 
 /// Every entity id the shipped templates carry; any other id fails the
@@ -1272,13 +1250,11 @@ mod tests {
                     block_pos: [1, 0, 2],
                     rotation: [90.0, -5.0],
                     kind: EntityKind::Villager {
-                        data: VillagerData {
-                            kind: mcrs_minecraft_entity::keys::VillagerType::Plains
-                                .location()
-                                .to_arc(),
-                            profession: rl!("minecraft:cleric").to_arc(),
-                            level: 2,
-                        },
+                        data: VillagerData::new(
+                            mcrs_minecraft_entity::keys::VillagerType::Plains,
+                            mcrs_minecraft_entity::keys::VillagerProfession::Cleric,
+                            2,
+                        ),
                     },
                 },
                 FrozenEntity {

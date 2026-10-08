@@ -1,14 +1,21 @@
 use crate::item::RawStack;
 pub use crate::item::component::enums::DyeColor;
 pub use crate::item::component::equippable::EquipmentSlot;
-use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
 use crate::text::Text;
-use crate::{Direction, GlobalPos, RegistryId, VarInt, VarLong};
+use crate::{Direction, GlobalPos, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_entity::keys::{VillagerProfession, VillagerType};
+use mcrs_minecraft_entity::variant::{
+    CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
+    FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
+};
+pub use mcrs_minecraft_entity::villager::VillagerData;
+use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, Id};
 use std::io::Write;
 use uuid::Uuid;
 
@@ -97,20 +104,20 @@ pub enum MetaDataValue<'a> {
     VillagerData(VillagerData),
     OptionalUnsignedInt(OptionalUnsignedInt),
     Pose(Pose),
-    CatVariant(RegistryId),
-    CatSoundVariant(RegistryId),
-    CowVariant(RegistryId),
-    CowSoundVariant(RegistryId),
-    WolfVariant(RegistryId),
-    WolfSoundVariant(RegistryId),
-    FrogVariant(RegistryId),
-    PigVariant(RegistryId),
-    PigSoundVariant(RegistryId),
-    ChickenVariant(RegistryId),
-    ChickenSoundVariant(RegistryId),
-    ZombieNautilusVariant(RegistryId),
+    CatVariant(Id<CatVariant>),
+    CatSoundVariant(Id<CatSoundVariant>),
+    CowVariant(Id<CowVariant>),
+    CowSoundVariant(Id<CowSoundVariant>),
+    WolfVariant(Id<WolfVariant>),
+    WolfSoundVariant(Id<WolfSoundVariant>),
+    FrogVariant(Id<FrogVariant>),
+    PigVariant(Id<PigVariant>),
+    PigSoundVariant(Id<PigSoundVariant>),
+    ChickenVariant(Id<ChickenVariant>),
+    ChickenSoundVariant(Id<ChickenSoundVariant>),
+    ZombieNautilusVariant(Id<ZombieNautilusVariant>),
     OptionalGlobalPos(Option<GlobalPos>),
-    PaintingVariant(RegistryId),
+    PaintingVariant(Id<PaintingVariantValue>),
     SnifferState(SnifferState),
     ArmadilloState(ArmadilloState),
     CopperGolemState(CopperGolemState),
@@ -216,9 +223,21 @@ pub enum CopperGolemState {
     DroppingNoItem,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub struct VillagerData {
-    pub kind: RegistryId,
-    pub profession: RegistryId,
-    pub level: VarInt,
+static_registry_wire!(VillagerType, "villager type");
+static_registry_wire!(VillagerProfession, "villager profession");
+
+impl crate::Encode for VillagerData {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.kind.encode(&mut w)?;
+        self.profession.encode(&mut w)?;
+        VarInt(self.level()).encode(w)
+    }
+}
+
+impl crate::Decode<'_> for VillagerData {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let kind = VillagerType::decode(r)?;
+        let profession = VillagerProfession::decode(r)?;
+        Ok(VillagerData::new(kind, profession, VarInt::decode(r)?.0))
+    }
 }

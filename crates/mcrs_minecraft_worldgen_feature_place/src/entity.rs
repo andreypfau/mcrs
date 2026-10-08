@@ -3,12 +3,13 @@ use std::io::Cursor;
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
+use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 use serde::{Deserialize, Serialize};
 
