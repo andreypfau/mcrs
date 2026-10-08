@@ -3421,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_diagnostic",
@@ -3447,7 +3447,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_anvil"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "criterion",
  "flate2",
@@ -3462,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_assets"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3480,7 +3480,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_biome"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_core",
@@ -3494,7 +3494,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_biome_file"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
@@ -3510,7 +3510,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_block"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3531,7 +3531,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_block_predicate"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_chunk"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
@@ -3556,7 +3556,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_client"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "bevy",
@@ -3606,7 +3606,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_client_jar"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "flate2",
  "js-sys",
@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
@@ -3638,7 +3638,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_dimension"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3649,7 +3649,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_dimension_environment"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
@@ -3668,7 +3668,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_enchantment"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
@@ -3687,7 +3687,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_entity"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
@@ -3699,7 +3699,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_environment"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -3722,7 +3722,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_game_rule"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_registry",
@@ -3732,7 +3732,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_inventory"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -3752,7 +3752,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_item"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "bevy_ecs",
@@ -3775,14 +3775,14 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_keys"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
 ]
 
 [[package]]
 name = "mcrs_minecraft_level"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3814,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_light"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3832,7 +3832,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_light_color"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3856,7 +3856,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_light_color_bench"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -3883,7 +3883,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_loot"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3900,7 +3900,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_mesh"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "bytemuck",
@@ -3909,7 +3909,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_nbt"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bytes",
  "cesu8",
@@ -3921,7 +3921,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_network"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -3949,7 +3949,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_particle"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3960,7 +3960,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_predicate"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
@@ -3976,7 +3976,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_profile"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "bevy_ecs",
@@ -3987,7 +3987,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_protocol"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "bevy_math",
@@ -4020,7 +4020,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_protocol_macros"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4029,7 +4029,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_random"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "md-5",
@@ -4038,7 +4038,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_registry"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_ecs",
  "fixedbitset",
@@ -4051,7 +4051,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_registry_catalog"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
@@ -4081,7 +4081,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_render"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy",
  "bitflags 2.10.0",
@@ -4092,7 +4092,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_render_light_color"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -4103,7 +4103,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_render_probe"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -4114,7 +4114,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_server"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -4174,7 +4174,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_sound"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_registry",
@@ -4183,7 +4183,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_text"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
@@ -4196,7 +4196,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_update"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -4217,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_value_provider"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
@@ -4228,7 +4228,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_world"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -4278,7 +4278,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -4309,7 +4309,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_builtin"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -4337,7 +4337,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_carver"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_reflect",
  "fixedbitset",
@@ -4351,7 +4351,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_density"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_asset",
  "bevy_math",
@@ -4373,7 +4373,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_feature"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "bytes",
@@ -4400,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_feature_place"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "bytes",
@@ -4429,7 +4429,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_generator"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "base64 0.22.1",
  "bevy_app",
@@ -4477,7 +4477,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_noise"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "mcrs_minecraft_core",
@@ -4489,7 +4489,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_structure"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "bytes",
@@ -4514,7 +4514,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_structure_place"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_math",
  "fixedbitset",
@@ -4534,7 +4534,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_surface"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bevy_asset",
  "bevy_math",
@@ -4556,7 +4556,7 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_worldgen_testing"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bytes",
  "mcrs_minecraft_biome",
