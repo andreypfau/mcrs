@@ -17,6 +17,10 @@ pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
     sample_registries().scope(run)
 }
 
+pub fn in_data_pack<T>(run: impl FnOnce() -> T) -> T {
+    mcrs_minecraft_world::registries::test_registries().scope(run)
+}
+
 pub use crate::common::{hex, nbt_tree};
 
 /// Every name a sample may reference, with the ids a capture session would
