@@ -13,7 +13,7 @@ use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
-use mcrs_minecraft_entity::keys::VillagerProfession;
+use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
@@ -37,8 +37,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassenger
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
-use mcrs_minecraft_world::entity::villager::VillagerData;
+use mcrs_minecraft_registry::{ChainLookup, Id, Registered, RegistryLookup, RegistrySet};
 use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
 };
@@ -137,8 +136,8 @@ fn spawn_one(
                 Health::full(10.0),
                 left_handed(left),
             ));
-            if let Some((variant, sound)) = registry_id(registry, "cat_variant", &variant)
-                .zip(registry_id(registry, "cat_sound_variant", &sound_variant))
+            if let Some((variant, sound)) =
+                registry_id(registry, &variant).zip(registry_id(registry, &sound_variant))
             {
                 spawned.insert(CatVariant { variant, sound });
             }
@@ -178,9 +177,9 @@ fn spawn_one(
                 Health::full(4.0),
                 left_handed(left),
             ));
-            if let Some((variant, sound)) = registry_id(registry, "chicken_variant", &variant).zip(
-                registry_id(registry, "chicken_sound_variant", &sound_variant),
-            ) {
+            if let Some((variant, sound)) =
+                registry_id(registry, &variant).zip(registry_id(registry, &sound_variant))
+            {
                 spawned.insert(ChickenVariant { variant, sound });
             }
         }
@@ -193,7 +192,7 @@ fn spawn_one(
                 Health::full(15.0),
                 left_handed(left),
             ));
-            if let Some(variant) = registry_id(registry, "zombie_nautilus_variant", &variant) {
+            if let Some(variant) = registry_id(registry, &variant) {
                 spawned.insert(ZombieNautilusVariant(variant));
             }
         }
@@ -245,7 +244,7 @@ fn spawn_one(
                 EntityKind(mcrs_minecraft_entity::keys::EntityType::Villager.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
-                Villager(villager_data(&data)),
+                Villager(data),
             ));
         }
         GeneratedKind::ZombieVillager { data } => {
@@ -253,7 +252,7 @@ fn spawn_one(
                 EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieVillager.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
-                Villager(villager_data(&data)),
+                Villager(data),
             ));
         }
         GeneratedKind::ChestMinecart {
@@ -281,41 +280,15 @@ fn uuid([a, b, c, d]: [i32; 4]) -> Uuid {
     Uuid::from_u64_pair(most, least)
 }
 
-fn registry_id(
+fn registry_id<R: Registered>(
     registry: Option<&RegistrySet>,
-    key: &str,
     location: &ResourceLocation,
-) -> Option<u16> {
-    let id = registry?.id(key, location);
+) -> Option<Id<R>> {
+    let id = registry?.registry::<R>()?.by_name(location.as_str());
     if id.is_none() {
-        tracing::warn!(key, %location, "a spawned entity names a variant the registry lacks");
+        tracing::warn!(registry = %R::REGISTRY, %location, "a spawned entity names a variant the registry lacks");
     }
     id
-}
-
-fn villager_data(data: &mcrs_minecraft_worldgen_feature::template::VillagerData) -> VillagerData {
-    use mcrs_minecraft_entity::keys::VillagerType;
-    VillagerData {
-        kind: registered(data.kind.as_str(), VillagerType::find, VillagerType::Plains).id(),
-        profession: registered(
-            data.profession.as_str(),
-            VillagerProfession::find,
-            VillagerProfession::None,
-        ),
-        level: data.level,
-    }
-}
-
-fn registered<K>(name: &str, find: fn(&str) -> Option<K>, fallback: K) -> K {
-    find(name).unwrap_or_else(|| {
-        let registry = std::any::type_name::<K>();
-        tracing::warn!(
-            name,
-            registry,
-            "a template villager names an entry the registry lacks"
-        );
-        fallback
-    })
 }
 
 fn stack(stack: GeneratedStack) -> ItemStack {
@@ -487,29 +460,23 @@ impl PairingItem<'_, '_> {
             put(BABY, MetaDataValue::Boolean(true));
         }
         if let Some(cat) = self.cat {
-            put(
-                CAT_VARIANT,
-                MetaDataValue::CatVariant(RegistryId(cat.variant)),
-            );
-            put(
-                CAT_SOUND_VARIANT,
-                MetaDataValue::CatSoundVariant(RegistryId(cat.sound)),
-            );
+            put(CAT_VARIANT, MetaDataValue::CatVariant(cat.variant));
+            put(CAT_SOUND_VARIANT, MetaDataValue::CatSoundVariant(cat.sound));
         }
         if let Some(chicken) = self.chicken {
             put(
                 CHICKEN_VARIANT,
-                MetaDataValue::ChickenVariant(RegistryId(chicken.variant)),
+                MetaDataValue::ChickenVariant(chicken.variant),
             );
             put(
                 CHICKEN_SOUND_VARIANT,
-                MetaDataValue::ChickenSoundVariant(RegistryId(chicken.sound)),
+                MetaDataValue::ChickenSoundVariant(chicken.sound),
             );
         }
         if let Some(nautilus) = self.nautilus {
             put(
                 ZOMBIE_NAUTILUS_VARIANT,
-                MetaDataValue::ZombieNautilusVariant(RegistryId(nautilus.0)),
+                MetaDataValue::ZombieNautilusVariant(nautilus.0),
             );
         }
         if let Some(villager) = self.villager {
@@ -522,11 +489,7 @@ impl PairingItem<'_, '_> {
                     } else {
                         VILLAGER_DATA
                     },
-                    MetaDataValue::VillagerData(mcrs_minecraft_protocol::entity::VillagerData {
-                        kind: RegistryId(villager.kind.number()),
-                        profession: RegistryId(villager.profession.id().number()),
-                        level: VarInt(villager.level),
-                    }),
+                    MetaDataValue::VillagerData(villager.0),
                 );
             }
         }
@@ -644,6 +607,55 @@ mod tests {
             [(to, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids }))]
                 if *to == anchor && entity_ids.as_slice() == [wire_id(mob)]
         )
+    }
+
+    #[test]
+    fn a_cat_holds_the_ids_its_set_numbers_its_variants_by() {
+        use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant as CatVariantValue};
+
+        let set = mcrs_minecraft_world::registries::test_registries();
+        let variants = set.registry::<CatVariantValue>().unwrap();
+        let sounds = set.registry::<CatSoundVariant>().unwrap();
+        let name = |text: &str| ResourceLocation::read(text).unwrap();
+        let cat = |variant: &str| GeneratedEntity {
+            pos: [0.5, 1.0, 0.5],
+            rotation: [0.0, 0.0],
+            uuid: [1, 2, 3, 4],
+            kind: GeneratedKind::Cat {
+                left_handed: false,
+                variant: name(variant),
+                sound_variant: name("minecraft:classic"),
+            },
+            passengers: Vec::new(),
+        };
+
+        let mut app = App::new();
+        let dim = app.world_mut().spawn_empty().id();
+        let section = app.world_mut().spawn_empty().id();
+        let mut commands = app.world_mut().commands();
+        spawn_generated_entities(
+            &mut commands,
+            InDimension(dim),
+            &[(section, SectionPos::new(0, 0, 0))],
+            Some(set),
+            vec![cat("minecraft:red"), cat("minecraft:not_a_cat")],
+        );
+        app.world_mut().flush();
+
+        let held: Vec<CatVariant> = app
+            .world_mut()
+            .query::<&CatVariant>()
+            .iter(app.world())
+            .copied()
+            .collect();
+        assert_eq!(
+            held,
+            [CatVariant {
+                variant: variants.require_by_name("minecraft:red").unwrap(),
+                sound: sounds.require_by_name("minecraft:classic").unwrap(),
+            }],
+            "a variant the set lacks leaves the cat with the default"
+        );
     }
 
     #[test]

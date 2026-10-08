@@ -1654,7 +1654,8 @@ mod tests {
     #[test]
     fn a_template_villager_is_placed_once_by_the_column_that_holds_it() {
         use crate::entity::GeneratedKind;
-        use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
+        use mcrs_minecraft_entity::villager::VillagerData;
+        use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 
         let mut template = template();
         template.entities = vec![

@@ -31,7 +31,7 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundKeepAlive as GameKeepAlive,
     ClientboundLogin, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSetChunkCacheCenter, ClientboundStartConfiguration,
+    ClientboundSetChunkCacheCenter, ClientboundSetEntityData, ClientboundStartConfiguration,
     ClientboundUpdateTags as ClientboundGameUpdateTags,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
@@ -110,9 +110,16 @@ pub struct SessionRegistryInputs {
 struct ConfigurationPackets {
     registries: Vec<NetworkRegistry>,
     tags: Vec<NetworkTags>,
+    vanilla_accepted: bool,
 }
 
 impl ConfigurationPackets {
+    /// Entries a server leaves out are read from the vanilla pack only when this client told it
+    /// to leave them out; otherwise they have no data to be read from.
+    fn known<'a>(&self, inputs: &'a SessionRegistryInputs) -> Option<&'a KnownPackEntries> {
+        inputs.known.as_ref().filter(|_| self.vanilla_accepted)
+    }
+
     fn collect_registry(&mut self, registry: NetworkRegistry) {
         match self
             .registries
@@ -174,11 +181,12 @@ fn build_session_registries(
     inputs: &SessionRegistryInputs,
     collected: ConfigurationPackets,
 ) -> Result<RegistrySet, LoadReport> {
+    let known = collected.known(inputs);
     inputs.declarations.from_network(
         &inputs.statics,
         collected.registries,
         &collected.tags,
-        inputs.known.as_ref(),
+        known,
     )
 }
 
@@ -197,14 +205,11 @@ pub struct CurrentDimension {
 }
 
 impl CurrentDimension {
-    /// `None` when the dimension type number is past the session's dimension types.
-    pub fn named_by(registries: &RegistrySet, spawn: &PlayerSpawnInfo) -> Option<Self> {
-        Some(CurrentDimension {
+    pub fn of(spawn: &PlayerSpawnInfo) -> Self {
+        CurrentDimension {
             key: spawn.dimension.clone(),
-            dimension_type: registries
-                .registry::<DimensionType>()?
-                .id(spawn.dimension_type_id.0)?,
-        })
+            dimension_type: spawn.dimension_type_id,
+        }
     }
 }
 
@@ -470,12 +475,15 @@ fn receive_packets(
     for (entity, mut connection) in connections.iter_mut() {
         loop {
             match connection.raw.try_recv() {
-                Ok(Some(packet)) => commands.trigger(ReceivedPacketEvent {
-                    entity,
-                    id: packet.id,
-                    data: packet.payload,
-                    timestamp: packet.timestamp,
-                }),
+                Ok(Some(packet)) => {
+                    let event = ReceivedPacketEvent {
+                        entity,
+                        id: packet.id,
+                        data: packet.payload,
+                        timestamp: packet.timestamp,
+                    };
+                    commands.queue(move |world: &mut World| trigger_in_session_scope(world, event));
+                }
                 Ok(None) => break,
                 Err(_) => {
                     close_connection_later(
@@ -487,6 +495,15 @@ fn receive_packets(
                 }
             }
         }
+    }
+}
+
+/// Ids in a play packet are numbers of the session registries, so every observer of the packet
+/// decodes inside the set the previous packet left behind.
+fn trigger_in_session_scope(world: &mut World, event: ReceivedPacketEvent) {
+    match world.get_resource::<RegistrySet>().cloned() {
+        Some(session) => session.scope(|| world.trigger(event)),
+        None => world.trigger(event),
     }
 }
 
@@ -538,6 +555,7 @@ fn handle_configuration_packet(
         } else {
             Vec::new()
         };
+        collected.vanilla_accepted = !known_packs.is_empty();
         connection.write_packet(&ServerboundSelectKnownPacks { known_packs });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
         collected.collect_registry(network_registry(data));
@@ -565,25 +583,12 @@ fn handle_configuration_packet(
     }
 }
 
-fn enter_dimension(
-    registries: Option<&RegistrySet>,
-    spawn: &PlayerSpawnInfo,
-    connection: Entity,
-    commands: &mut Commands,
-) {
-    match registries.and_then(|registries| CurrentDimension::named_by(registries, spawn)) {
-        Some(current) => {
-            commands.entity(connection).insert(current);
-        }
-        None => close_connection_later(
-            commands,
-            connection,
-            format!(
-                "the server put the player in dimension type {} of {}, which is not among its dimension types",
-                spawn.dimension_type_id.0, spawn.dimension
-            ),
-        ),
-    }
+fn refuse_packet(commands: &mut Commands, connection: Entity, name: &str, error: anyhow::Error) {
+    close_connection_later(
+        commands,
+        connection,
+        format!("the server sent a {name} the client cannot read: {error:#}"),
+    );
 }
 
 fn handle_game_packet(
@@ -615,23 +620,36 @@ fn handle_game_packet(
                 disconnect.reason.to_legacy_lossy()
             ),
         );
-    } else if let Some(login) = event.decode::<ClientboundLogin>() {
-        commands.entity(event.entity).insert(JoinedGame {
-            player_id: login.player_id,
-            dimensions: login.dimensions,
-        });
-        enter_dimension(
-            registries.as_deref(),
-            &login.player_spawn_info,
-            event.entity,
+    } else if let Some(login) = event.try_decode::<ClientboundLogin>() {
+        match login {
+            Ok(login) => {
+                commands.entity(event.entity).insert((
+                    JoinedGame {
+                        player_id: login.player_id,
+                        dimensions: login.dimensions,
+                    },
+                    CurrentDimension::of(&login.player_spawn_info),
+                ));
+            }
+            Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),
+        }
+    } else if let Some(respawn) = event.try_decode::<ClientboundRespawn>() {
+        match respawn {
+            Ok(respawn) => {
+                commands
+                    .entity(event.entity)
+                    .insert(CurrentDimension::of(&respawn.player_spawn_info));
+            }
+            Err(error) => {
+                refuse_packet(&mut commands, event.entity, ClientboundRespawn::NAME, error)
+            }
+        }
+    } else if let Some(Err(error)) = event.try_decode::<ClientboundSetEntityData>() {
+        refuse_packet(
             &mut commands,
-        );
-    } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
-        enter_dimension(
-            registries.as_deref(),
-            &respawn.player_spawn_info,
             event.entity,
-            &mut commands,
+            ClientboundSetEntityData::NAME,
+            error,
         );
     } else if event.decode::<ClientboundStartConfiguration>().is_some() {
         connection.write_packet(&ServerboundConfigurationAcknowledged);
@@ -697,6 +715,7 @@ mod tests {
     use mcrs_minecraft_core::tag_key::TagKey;
     use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
     use mcrs_minecraft_dimension::{Dimension, DimensionType};
+    use mcrs_minecraft_protocol::GameMode;
     use mcrs_minecraft_protocol::RegistryId;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
     use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -1015,10 +1034,11 @@ mod tests {
             reduced_debug_info: false,
             show_death_screen: true,
             do_limited_crafting: false,
-            player_spawn_info: PlayerSpawnInfo {
-                dimension_type_id: RegistryId(dimension_type),
-                ..Default::default()
-            },
+            player_spawn_info: PlayerSpawnInfo::new(
+                Id::from_raw(dimension_type),
+                mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+                GameMode::Survival,
+            ),
             online_mode: false,
             enforces_secure_chat: false,
         }
@@ -1026,11 +1046,11 @@ mod tests {
 
     fn respawn(dimension: ResourceKey<Dimension>, dimension_type: u16) -> ClientboundRespawn {
         ClientboundRespawn {
-            player_spawn_info: PlayerSpawnInfo {
+            player_spawn_info: PlayerSpawnInfo::new(
+                Id::from_raw(dimension_type),
                 dimension,
-                dimension_type_id: RegistryId(dimension_type),
-                ..Default::default()
-            },
+                GameMode::Survival,
+            ),
             data_to_keep: 0,
         }
     }
@@ -1112,7 +1132,7 @@ mod tests {
             &inputs(),
             ConfigurationPackets {
                 registries: vec![network_registry(data)],
-                tags: Vec::new(),
+                ..Default::default()
             },
         )
         .err()
@@ -1129,19 +1149,27 @@ mod tests {
         use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
 
         let runtime = Runtime::new().unwrap();
-        let offer = ClientboundSelectKnownPacks {
-            known_packs: vec![KnownPack {
-                namespace: "minecraft",
-                id: "core",
-                version: VERSION.id.as_str(),
-            }],
+        let vanilla = || KnownPack {
+            namespace: "minecraft",
+            id: "core",
+            version: VERSION.id.as_str(),
         };
-        let answer = |known: Option<KnownPackEntries>| {
+        let other = KnownPack {
+            namespace: "minecraft",
+            id: "core",
+            version: "an-older-snapshot",
+        };
+        let answer = |known: Option<KnownPackEntries>, offered: Vec<KnownPack<'static>>| {
             let mut client = Harness::configuring(&runtime);
             client
                 .app
                 .insert_resource(SessionRegistryInputs { known, ..inputs() });
-            client.deliver(&runtime, &offer);
+            client.deliver(
+                &runtime,
+                &ClientboundSelectKnownPacks {
+                    known_packs: offered,
+                },
+            );
             client.app.update();
             let mut decoder = PacketDecoder::new();
             while let Ok(blob) = client.outgoing.try_recv() {
@@ -1149,14 +1177,29 @@ mod tests {
             }
             let frame = decoder.try_next_packet().unwrap().expect("an answer");
             assert_eq!(frame.id, ServerboundSelectKnownPacks::ID);
-            ServerboundSelectKnownPacks::decode(&mut &frame.body[..])
+            let answered = ServerboundSelectKnownPacks::decode(&mut &frame.body[..])
                 .unwrap()
                 .known_packs
-                .len()
+                .len();
+            let world = client.app.world();
+            let reads_known = world
+                .get::<ConfigurationPackets>(client.entity)
+                .unwrap()
+                .known(world.resource::<SessionRegistryInputs>())
+                .is_some();
+            (answered, reads_known)
         };
 
-        assert_eq!(answer(None), 0);
-        assert_eq!(answer(Some(KnownPackEntries::default())), 1);
+        assert_eq!(answer(None, vec![vanilla()]), (0, false));
+        assert_eq!(
+            answer(Some(KnownPackEntries::default()), vec![vanilla()]),
+            (1, true)
+        );
+        assert_eq!(
+            answer(Some(KnownPackEntries::default()), vec![other]),
+            (0, false),
+            "entries a server sends without data are not read from a pack it was not told we hold"
+        );
     }
 
     #[test]
@@ -1230,6 +1273,38 @@ mod tests {
     }
 
     #[test]
+    fn a_cat_variant_outside_the_session_registry_drops_the_connection() {
+        use mcrs_minecraft_entity::keys::CAT_VARIANT;
+        use mcrs_minecraft_entity::variant::CatVariant;
+        use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
+
+        let cats = Registry::<CatVariant>::new(
+            CAT_VARIANT,
+            ["minecraft:tabby", "minecraft:red"].map(name),
+        )
+        .unwrap();
+        let entity_data = |variant: u16| ClientboundSetEntityData {
+            entity_id: VarInt(5),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 20,
+                value: MetaDataValue::CatVariant(Id::from_raw(variant)),
+            }]),
+        };
+
+        let runtime = Runtime::new().unwrap();
+        let mut client = Harness::playing(&runtime);
+        client.app.insert_resource(statics().with(cats).unwrap());
+
+        client.deliver(&runtime, &entity_data(1));
+        client.app.update();
+        assert!(!client.dropped(), "the last cat variant of the session");
+
+        client.deliver(&runtime, &entity_data(2));
+        client.app.update();
+        assert!(client.dropped(), "one past the session's cat variants");
+    }
+
+    #[test]
     fn a_login_naming_a_type_outside_the_session_registries_drops_the_connection() {
         let runtime = Runtime::new().unwrap();
         let mut client = Harness::playing(&runtime);
@@ -1251,6 +1326,7 @@ mod tests {
             ConfigurationPackets {
                 registries: vec![network_registry(probe_data(entries))],
                 tags,
+                ..Default::default()
             },
         )
         .unwrap_or_else(|report| panic!("{report}"))

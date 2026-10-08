@@ -3,7 +3,7 @@ use anyhow::Context;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::{Id, Registered, Registry};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -47,6 +47,53 @@ macro_rules! static_registry_wire {
 }
 
 pub(crate) use static_registry_wire;
+
+macro_rules! world_registry_wire {
+    ($($ty:ty),+ $(,)?) => {$(
+        impl crate::Encode for Id<$ty> {
+            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+                crate::registry::encode_registry_id(self.number(), w)
+            }
+        }
+
+        impl crate::Decode<'_> for Id<$ty> {
+            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+                crate::registry::decode_world_registry_id(r)
+            }
+        }
+    )+};
+}
+
+world_registry_wire!(
+    mcrs_minecraft_dimension::DimensionType,
+    mcrs_minecraft_entity::variant::CatSoundVariant,
+    mcrs_minecraft_entity::variant::CatVariant,
+    mcrs_minecraft_entity::variant::ChickenSoundVariant,
+    mcrs_minecraft_entity::variant::ChickenVariant,
+    mcrs_minecraft_entity::variant::CowSoundVariant,
+    mcrs_minecraft_entity::variant::CowVariant,
+    mcrs_minecraft_entity::variant::FrogVariant,
+    mcrs_minecraft_entity::variant::PigSoundVariant,
+    mcrs_minecraft_entity::variant::PigVariant,
+    mcrs_minecraft_entity::variant::WolfSoundVariant,
+    mcrs_minecraft_entity::variant::WolfVariant,
+    mcrs_minecraft_entity::variant::ZombieNautilusVariant,
+    mcrs_minecraft_item::PaintingVariantValue,
+);
+
+fn decode_world_registry_id<R: Registered>(r: &mut &[u8]) -> anyhow::Result<Id<R>> {
+    let number = decode_registry_id(r)?;
+    Registry::<R>::in_scope(std::any::type_name::<Id<R>>(), |registry| {
+        registry.id(number).with_context(|| {
+            format!(
+                "registry {} has {} entries and none is numbered {number}",
+                R::REGISTRY,
+                registry.len()
+            )
+        })
+    })
+    .with_context(|| format!("cannot read an id of registry {}", R::REGISTRY))?
+}
 
 pub fn encode_registry_id(id: u16, w: impl Write) -> anyhow::Result<()> {
     VarInt(i32::from(id)).encode(w)
@@ -160,6 +207,53 @@ mod tests {
                 assert!(decode(&mut bytes.as_slice()).is_err(), "{name} {raw}");
             }
         }
+    }
+
+    fn cat_variants(len: usize) -> mcrs_minecraft_registry::RegistrySet {
+        use mcrs_minecraft_entity::keys::CAT_VARIANT;
+        let names = (0..len).map(|n| {
+            mcrs_minecraft_core::ResourceLocation::<std::sync::Arc<str>>::read(&format!(
+                "minecraft:cat{n}"
+            ))
+            .unwrap()
+        });
+        mcrs_minecraft_registry::RegistrySet::new()
+            .with(mcrs_minecraft_registry::Registry::new(CAT_VARIANT, names).unwrap())
+            .unwrap()
+    }
+
+    #[test]
+    fn a_world_registry_id_outside_its_registry_does_not_decode() {
+        use mcrs_minecraft_entity::variant::CatVariant;
+
+        let decode_cat = |number: i32| {
+            let bytes = var_int(number);
+            Id::<CatVariant>::decode(&mut bytes.as_slice())
+        };
+
+        cat_variants(3).scope(|| {
+            assert_eq!(decode_cat(2).unwrap().number(), 2);
+            let refused = format!("{:#}", decode_cat(3).unwrap_err());
+            assert!(refused.contains("minecraft:cat_variant"), "{refused}");
+            assert!(refused.contains('3'), "{refused}");
+        });
+
+        let outside = format!("{:#}", decode_cat(0).unwrap_err());
+        assert!(outside.contains("minecraft:cat_variant"), "{outside}");
+    }
+
+    #[test]
+    fn a_world_registry_id_writes_its_number_without_a_registry() {
+        use mcrs_minecraft_entity::variant::CatVariant;
+
+        let id = cat_variants(3)
+            .registry::<CatVariant>()
+            .unwrap()
+            .id(2)
+            .unwrap();
+        let mut bytes = Vec::new();
+        id.encode(&mut bytes).unwrap();
+        assert_eq!(bytes, var_int(2));
     }
 
     #[test]

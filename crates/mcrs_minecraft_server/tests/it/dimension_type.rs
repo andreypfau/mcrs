@@ -77,7 +77,7 @@ fn a_dimension_named_unlike_its_type_spawns_with_its_entry_type() {
 
     let login = host_app::join(&mut app, overworld, Vec::new().into());
     assert_eq!(
-        login.player_spawn_info.dimension_type_id.0,
+        login.player_spawn_info.dimension_type_id.number(),
         support::dimension_type("minecraft:beta").number(),
         "the login names the beta type, not the type that shares the dimension's name"
     );
@@ -159,7 +159,7 @@ fn every_join_into_a_dimension_sends_the_type_of_its_entry() {
             host_app::join(&mut app, label, Vec::new().into())
                 .player_spawn_info
                 .dimension_type_id
-                .0
+                .number()
         })
         .collect();
     assert_eq!(

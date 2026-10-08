@@ -53,6 +53,7 @@ bevy = ["dep:bevy_app", "dep:bevy_ecs", "mcrs_minecraft_registry/bevy"]
 telemetry-tracy = []
 
 [dev-dependencies]
+mcrs_minecraft_entity.workspace = true
 serde.workspace = true
 
 [[test]]

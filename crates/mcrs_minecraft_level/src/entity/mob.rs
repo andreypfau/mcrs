@@ -3,9 +3,13 @@ use bevy_ecs::prelude::{Component, Entity};
 use bitflags::bitflags;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::variant::{
+    CatSoundVariant, CatVariant as CatVariantValue, ChickenSoundVariant,
+    ChickenVariant as ChickenVariantValue, ZombieNautilusVariant as ZombieNautilusVariantValue,
+};
+use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_registry::Id;
-use mcrs_minecraft_world::entity::villager::VillagerData;
 use uuid::Uuid;
 
 #[derive(Component, Clone, Copy, Debug, Deref)]
@@ -50,21 +54,20 @@ pub struct Equipment {
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Baby;
 
-/// Registry ids, as the wire carries them.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CatVariant {
-    pub variant: u16,
-    pub sound: u16,
+    pub variant: Id<CatVariantValue>,
+    pub sound: Id<CatSoundVariant>,
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChickenVariant {
-    pub variant: u16,
-    pub sound: u16,
+    pub variant: Id<ChickenVariantValue>,
+    pub sound: Id<ChickenSoundVariant>,
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ZombieNautilusVariant(pub u16);
+pub struct ZombieNautilusVariant(pub Id<ZombieNautilusVariantValue>);
 
 #[derive(Component, Clone, Copy, Debug, Deref, PartialEq, Eq)]
 pub struct Villager(pub VillagerData);

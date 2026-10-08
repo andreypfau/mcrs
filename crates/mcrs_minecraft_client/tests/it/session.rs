@@ -20,7 +20,7 @@ use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
-use mcrs_minecraft_protocol::{Encode, Packet, RegistryId};
+use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
 use mcrs_minecraft_registry::{Holder, Id, NetworkRegistry, RegistrySet};
 
 use crate::boot::{boot, session_registries};
@@ -101,22 +101,30 @@ fn set_connection_state(app: &mut App, connection: Entity, state: ConnectionStat
     app.update();
 }
 
-fn receive_respawn(app: &mut App, connection: Entity, dimension: &str, dimension_type: u16) {
+fn receive_respawn(
+    app: &mut App,
+    connection: Entity,
+    dimension: &str,
+    dimension_type: Id<DimensionType>,
+) {
     let packet = ClientboundRespawn {
-        player_spawn_info: PlayerSpawnInfo {
-            dimension_type_id: RegistryId(dimension_type),
-            dimension: ResourceKey::from_location(ResourceLocation::read(dimension).unwrap()),
-            ..Default::default()
-        },
+        player_spawn_info: PlayerSpawnInfo::new(
+            dimension_type,
+            ResourceKey::from_location(ResourceLocation::read(dimension).unwrap()),
+            GameMode::Survival,
+        ),
         data_to_keep: 0,
     };
     let mut bytes = Vec::new();
     packet.encode(&mut bytes).unwrap();
-    app.world_mut().trigger(ReceivedPacketEvent {
-        entity: connection,
-        id: ClientboundRespawn::ID,
-        data: Bytes::from(bytes),
-        timestamp: Instant::now(),
+    let session = app.world().resource::<RegistrySet>().clone();
+    session.scope(|| {
+        app.world_mut().trigger(ReceivedPacketEvent {
+            entity: connection,
+            id: ClientboundRespawn::ID,
+            data: Bytes::from(bytes),
+            timestamp: Instant::now(),
+        });
     });
     app.world_mut().flush();
     app.update();
@@ -270,12 +278,7 @@ fn a_respawn_into_another_dimension_replaces_the_client_world() {
     let overworld_sky = sky_key(&app).unwrap();
     assert_eq!(app.world().resource::<ColumnStore>().len(), 2);
 
-    receive_respawn(
-        &mut app,
-        connection,
-        "minecraft:the_nether",
-        nether.number(),
-    );
+    receive_respawn(&mut app, connection, "minecraft:the_nether", nether);
     app.world_mut()
         .entity_mut(connection)
         .insert(current("minecraft:the_nether", nether));
@@ -300,12 +303,7 @@ fn a_respawn_into_another_dimension_replaces_the_client_world() {
             sections: 16,
         }),
     );
-    receive_respawn(
-        &mut app,
-        connection,
-        "minecraft:the_nether",
-        nether.number(),
-    );
+    receive_respawn(&mut app, connection, "minecraft:the_nether", nether);
     assert_eq!(
         app.world().resource::<ColumnStore>().len(),
         1,

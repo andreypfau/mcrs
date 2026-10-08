@@ -14,8 +14,7 @@ pub struct ReceivedPacketEvent {
 }
 
 impl ReceivedPacketEvent {
-    #[inline]
-    pub fn decode<'a, P>(&'a self) -> Option<P>
+    pub fn try_decode<'a, P>(&'a self) -> Option<anyhow::Result<P>>
     where
         P: Decode<'a> + Packet,
     {
@@ -24,10 +23,21 @@ impl ReceivedPacketEvent {
         }
 
         let mut r = &self.data[..];
-        let fault = match P::decode(&mut r) {
-            Ok(pkt) if r.is_empty() => return Some(pkt),
-            Ok(_) => anyhow::anyhow!("{} bytes left over", r.len()),
-            Err(error) => error,
+        Some(match P::decode(&mut r) {
+            Ok(pkt) if r.is_empty() => Ok(pkt),
+            Ok(_) => Err(anyhow::anyhow!("{} bytes left over", r.len())),
+            Err(error) => Err(error),
+        })
+    }
+
+    #[inline]
+    pub fn decode<'a, P>(&'a self) -> Option<P>
+    where
+        P: Decode<'a> + Packet,
+    {
+        let fault = match self.try_decode::<P>()? {
+            Ok(packet) => return Some(packet),
+            Err(fault) => fault,
         };
         // A serverbound frame was counted, and its row's first fault logged, by the loop
         // that read it off the socket.

@@ -1,5 +1,12 @@
 use bevy_math::DVec3;
+use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_entity::keys::{
+    CAT_SOUND_VARIANT, CAT_VARIANT, VillagerProfession, VillagerType, ZOMBIE_NAUTILUS_VARIANT,
+};
+use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
+use mcrs_minecraft_item::PaintingVariantValue;
+use mcrs_minecraft_item::keys::PAINTING_VARIANT;
 use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
@@ -11,8 +18,31 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries};
+use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries, Registry, RegistrySet};
+use std::sync::Arc;
 use uuid::Uuid;
+
+fn registry<R>(key: RegistryKey<R>, len: usize) -> Registry<R> {
+    let names = (0..len)
+        .map(|n| ResourceLocation::<Arc<str>>::read(&format!("minecraft:entry{n}")).unwrap());
+    Registry::new(key, names).unwrap()
+}
+
+fn world_registries() -> RegistrySet {
+    RegistrySet::new()
+        .with(registry(CAT_VARIANT, 3))
+        .unwrap()
+        .with(registry(CAT_SOUND_VARIANT, 2))
+        .unwrap()
+        .with(registry(ZOMBIE_NAUTILUS_VARIANT, 2))
+        .unwrap()
+        .with(registry(PAINTING_VARIANT, 5))
+        .unwrap()
+}
+
+fn id<R: 'static>(set: &RegistrySet, number: u16) -> Id<R> {
+    set.registry::<R>().unwrap().id(number).unwrap()
+}
 
 fn raw(slot: ProtoStack) -> RawStack {
     RawStack::from_stack(&slot, &NoRegistries).unwrap()
@@ -51,6 +81,7 @@ fn add_entity_writes_pitch_before_yaw() {
 
 #[test]
 fn entity_data_uses_the_registered_serializer_ids() {
+    let set = world_registries();
     let entries = vec![
         (0, MetaDataValue::Byte(0x20), 0),
         (1, MetaDataValue::VarInt(VarInt(300)), 1),
@@ -74,11 +105,11 @@ fn entity_data_uses_the_registered_serializer_ids() {
         ),
         (
             8,
-            MetaDataValue::VillagerData(VillagerData {
-                kind: RegistryId(2),
-                profession: RegistryId(4),
-                level: VarInt(1),
-            }),
+            MetaDataValue::VillagerData(VillagerData::new(
+                VillagerType::Plains,
+                VillagerProfession::Cleric,
+                1,
+            )),
             18,
         ),
         (
@@ -87,10 +118,22 @@ fn entity_data_uses_the_registered_serializer_ids() {
             19,
         ),
         (10, MetaDataValue::Pose(Pose::Sitting), 20),
-        (11, MetaDataValue::CatVariant(RegistryId(1)), 21),
-        (12, MetaDataValue::CatSoundVariant(RegistryId(0)), 22),
-        (13, MetaDataValue::ZombieNautilusVariant(RegistryId(0)), 32),
-        (14, MetaDataValue::PaintingVariant(RegistryId(3)), 34),
+        (11, MetaDataValue::CatVariant(id::<CatVariant>(&set, 1)), 21),
+        (
+            12,
+            MetaDataValue::CatSoundVariant(id::<CatSoundVariant>(&set, 0)),
+            22,
+        ),
+        (
+            13,
+            MetaDataValue::ZombieNautilusVariant(id::<ZombieNautilusVariant>(&set, 0)),
+            32,
+        ),
+        (
+            14,
+            MetaDataValue::PaintingVariant(id::<PaintingVariantValue>(&set, 3)),
+            34,
+        ),
         (15, MetaDataValue::DyeColor(DyeColor::Black), 43),
     ];
     for (index, value, serializer) in &entries {
@@ -117,7 +160,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         ),
     };
     let mut buf = Vec::new();
-    let bytes = round_trip(&packet, &mut buf);
+    let bytes = set.scope(|| round_trip(&packet, &mut buf));
     assert_eq!(*bytes.last().unwrap(), 0xFF);
 
     let empty = ClientboundSetEntityData {
@@ -228,4 +271,41 @@ fn attributes_round_trip_with_modifiers() {
     let bytes = round_trip(&packet, &mut buf);
     assert_eq!(&bytes[..4], [5, 2, 23, 0x40]);
     assert_eq!(*bytes.last().unwrap(), 0);
+}
+
+#[test]
+fn a_villager_data_on_the_wire_follows_the_reference_stream_codec() {
+    let wire = |kind: i32, profession: i32, level: i32| {
+        let mut bytes = Vec::new();
+        for number in [kind, profession, level] {
+            VarInt(number).encode(&mut bytes).unwrap();
+        }
+        bytes
+    };
+    let read = |bytes: Vec<u8>| {
+        let mut r = bytes.as_slice();
+        let read = VillagerData::decode(&mut r);
+        assert!(read.is_err() || r.is_empty(), "{} trailing bytes", r.len());
+        read
+    };
+
+    let swamp_nitwit = VillagerData::new(VillagerType::Swamp, VillagerProfession::Nitwit, 2);
+    assert_eq!(read(wire(5, 11, 2)).unwrap(), swamp_nitwit);
+    let mut written = Vec::new();
+    swamp_nitwit.encode(&mut written).unwrap();
+    assert_eq!(written, wire(5, 11, 2));
+
+    assert_eq!(
+        read(wire(2, 0, 0)).unwrap().level(),
+        1,
+        "a level is at least the first"
+    );
+    assert_eq!(read(wire(2, 0, -7)).unwrap().level(), 1);
+    assert_eq!(
+        read(wire(2, 0, 12)).unwrap().level(),
+        12,
+        "and has no upper bound"
+    );
+    assert!(read(wire(7, 0, 1)).is_err(), "no seventh villager type");
+    assert!(read(wire(2, 15, 1)).is_err(), "no fifteenth profession");
 }
