@@ -6,7 +6,6 @@ use bevy::render::render_resource::{
 };
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
@@ -20,6 +19,7 @@ use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
+use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::{self, VanillaAssets};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
@@ -70,7 +70,14 @@ impl Plugin for SkyPlugin {
             )
             .add_systems(
                 Update,
-                build_sky_environment.run_if(in_state(AppState::Playing)),
+                (
+                    clear_sky
+                        .in_set(SessionSet::Clear)
+                        .run_if(entered_configuration),
+                    build_sky_environment
+                        .after(SessionSet::Derive)
+                        .run_if(resource_exists::<RegistrySet>),
+                ),
             )
             .add_systems(
                 PostUpdate,
@@ -185,6 +192,10 @@ impl SkyEnvironment {
         let [red, green, blue, _] = rgba(self.value(frame, SkyField::FogColor).color(), 0.0);
         Color::LinearRgba(LinearRgba::rgb(red, green, blue))
     }
+}
+
+fn clear_sky(mut commands: Commands) {
+    commands.remove_resource::<SkyEnvironment>();
 }
 
 fn build_sky_environment(

@@ -258,7 +258,10 @@ impl Plugin for WorldClockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldClocks>()
             .init_resource::<AdvanceTime>()
-            .add_systems(Startup, seed_world_clocks)
+            .add_systems(
+                Startup,
+                seed_world_clocks.run_if(resource_exists::<RegistrySet>),
+            )
             .add_systems(
                 FixedUpdate,
                 advance_world_clocks.run_if(advance_time_enabled),

@@ -4,9 +4,9 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_inventory::{
     MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
 };
-use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, item_of, slots};
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::MenuType;
+use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, item_of, slots};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -23,6 +23,7 @@ use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
 use mcrs_minecraft_registry::{Id, RegistryLookup, RegistrySet};
 
 use crate::player::{self, Player};
+use crate::registries::{SessionSet, entered_configuration};
 
 /// The server's state id for the holder's menu, echoed back on every click.
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,7 +55,34 @@ impl Plugin for InventoryPlugin {
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush)
                     .after(player::grab_cursor_on_click),
+            )
+            .add_systems(
+                Update,
+                clear_inventory
+                    .in_set(SessionSet::Clear)
+                    .run_if(entered_configuration),
             );
+    }
+}
+
+fn clear_inventory(
+    stacks: Query<Entity, With<ItemStack>>,
+    menus: Query<Entity, With<OpenMenu>>,
+    mut screen: ResMut<Screen>,
+    mut windows: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut commands: Commands,
+) {
+    for stack in &stacks {
+        commands.entity(stack).try_despawn();
+    }
+    for menu in &menus {
+        commands.entity(menu).try_despawn();
+    }
+    if *screen != Screen::None {
+        *screen = Screen::None;
+        for mut cursor in &mut windows {
+            grab(&mut cursor, true);
+        }
     }
 }
 
@@ -83,11 +111,14 @@ fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option
 fn receive_inventory_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<&ConnectionState>,
-    registries: Res<RegistrySet>,
+    registries: Option<Res<RegistrySet>>,
     mut selected: Query<&mut SelectedHotbarSlot, With<Player>>,
     mut commands: Commands,
 ) {
     let Ok(ConnectionState::Game) = connections.get(event.entity) else {
+        return;
+    };
+    let Some(registries) = registries else {
         return;
     };
     let lookup: &RegistrySet = &registries;

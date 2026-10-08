@@ -5,11 +5,12 @@ use mcrs_minecraft_biome_file::{BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{
-    KnownPackEntries, NetworkEntry, NetworkRegistry, NetworkTags, RegistrySet, VANILLA_PACK,
-    WorldRegistries,
+    KnownPackEntries, NetworkRegistry, RegistrySet, VANILLA_PACK, WorldRegistries,
 };
 use mcrs_minecraft_world::packs::{DATAPACK_REPORT, known_pack_entries};
-use mcrs_minecraft_world::registries::{static_registries, test_registries, world_registries};
+use mcrs_minecraft_world::registries::{
+    registries_as_sent, static_registries, tags_as_sent, test_registries, world_registries,
+};
 
 use crate::common::assets;
 
@@ -21,56 +22,6 @@ fn declarations() -> WorldRegistries {
     world_registries(&report).unwrap_or_else(|report| panic!("{report}"))
 }
 
-fn sent(server: &RegistrySet, sends_data: impl Fn(&str, usize) -> bool) -> Vec<NetworkRegistry> {
-    server
-        .synced()
-        .map(|(table, column)| {
-            let registry = table.registry();
-            NetworkRegistry {
-                registry: registry.clone(),
-                entries: table
-                    .names()
-                    .iter()
-                    .zip(column)
-                    .enumerate()
-                    .map(|(id, (name, network))| NetworkEntry {
-                        name: name.clone(),
-                        data: sends_data(registry.as_str(), id).then(|| network.0.clone()),
-                    })
-                    .collect(),
-            }
-        })
-        .collect()
-}
-
-fn sent_tags(statics: &RegistrySet, server: &RegistrySet) -> Vec<NetworkTags> {
-    let synced: Vec<_> = server
-        .synced()
-        .map(|(table, _)| table.registry().as_str())
-        .collect();
-    server
-        .tables()
-        .map(|table| table.registry())
-        .filter(|registry| {
-            statics.table(registry.as_str()).is_some() || synced.contains(&registry.as_str())
-        })
-        .filter_map(|registry| server.tag_table(registry.as_str()))
-        .filter(|table| !table.is_empty())
-        .map(|table| NetworkTags {
-            registry: table.registry().clone(),
-            tags: table
-                .names()
-                .iter()
-                .enumerate()
-                .map(|(tag, name)| {
-                    let members = table.members(tag).iter().map(|&m| i32::from(m)).collect();
-                    (name.clone(), members)
-                })
-                .collect(),
-        })
-        .collect()
-}
-
 static KNOWN: LazyLock<KnownPackEntries> =
     LazyLock::new(|| known_pack_entries(&assets()).unwrap_or_else(|report| panic!("{report}")));
 
@@ -79,7 +30,7 @@ fn build(
     known: Option<&KnownPackEntries>,
 ) -> Result<RegistrySet, String> {
     let statics = static_registries().unwrap();
-    let tags = sent_tags(&statics, test_registries());
+    let tags = tags_as_sent(&statics, test_registries());
     declarations()
         .from_network(&statics, registries, &tags, known)
         .map_err(|report| report.to_string())
@@ -102,7 +53,8 @@ fn water_colour(set: &RegistrySet, name: &str) -> Option<i32> {
 fn the_network_column_rebuilds_every_synced_registry() {
     let server = test_registries();
     let registries = declarations();
-    let client = build(sent(server, |_, _| true), None).unwrap_or_else(|report| panic!("{report}"));
+    let client = build(registries_as_sent(server, |_, _| true), None)
+        .unwrap_or_else(|report| panic!("{report}"));
 
     let mut synced = 0;
     for (table, column) in server.synced() {
@@ -144,7 +96,7 @@ fn a_known_pack_entry_is_filled_from_the_local_pack() {
     let server = test_registries();
     let from_vanilla =
         |registry: &str, id: usize| server.pack_of(registry, id) == Some(VANILLA_PACK);
-    let bare = sent(server, |registry, id| !from_vanilla(registry, id));
+    let bare = registries_as_sent(server, |registry, id| !from_vanilla(registry, id));
     assert!(
         bare.iter()
             .flat_map(|registry| &registry.entries)
@@ -152,7 +104,7 @@ fn a_known_pack_entry_is_filled_from_the_local_pack() {
     );
 
     let filled = build(bare, Some(&KNOWN)).unwrap_or_else(|report| panic!("{report}"));
-    let full = build(sent(server, |_, _| true), None).unwrap();
+    let full = build(registries_as_sent(server, |_, _| true), None).unwrap();
     for (table, column) in server.synced() {
         let registry = table.registry().as_str();
         assert_eq!(
@@ -187,7 +139,7 @@ fn an_entry_without_data_outside_the_known_packs_fails() {
 
     for known in [Some(&*KNOWN), None] {
         let report = build(
-            sent(server, |registry, id| !(registry == BIOME && id == beta)),
+            registries_as_sent(server, |registry, id| !(registry == BIOME && id == beta)),
             known,
         )
         .err()
@@ -216,7 +168,7 @@ fn an_entry_with_data_is_decoded_even_when_known() {
     let changed: NbtTag = mcrs_minecraft_nbt::to_nbt_tag(&changed).unwrap();
     assert_ne!(changed, original);
 
-    let mut registries = sent(server, |registry, id| !from_vanilla(registry, id));
+    let mut registries = registries_as_sent(server, |registry, id| !from_vanilla(registry, id));
     for registry in &mut registries {
         for entry in &mut registry.entries {
             if registry.registry.as_str() == BIOME && entry.name.as_str() == "minecraft:plains" {

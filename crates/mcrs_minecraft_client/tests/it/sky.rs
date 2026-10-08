@@ -6,10 +6,10 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_render::sky::SkyUniform;
 
-use crate::boot::boot;
+use crate::boot::{boot, session_registries};
 use mcrs_minecraft_dimension::DimensionType;
 
 fn sky(app: &App) -> Option<(SkyUniform, String)> {
@@ -36,17 +36,17 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
             .insert_resource(Weather::default());
     });
 
-    let types = app
-        .world()
-        .resource::<RegistrySet>()
+    let session = session_registries(&app, |_| {});
+    let types = session
         .registry::<DimensionType>()
-        .expect("the dimension type registry is loaded");
+        .expect("the dimension type registry is received");
     let (overworld, nether, beta) = (
         types.require_by_name("minecraft:overworld").unwrap(),
         types.require_by_name("minecraft:the_nether").unwrap(),
         types.require_by_name("minecraft:beta").unwrap(),
     );
 
+    app.insert_resource(session);
     app.world_mut()
         .spawn((PlayerCamera, GlobalTransform::from_xyz(0.0, 80.0, 0.0)));
     let connection = app

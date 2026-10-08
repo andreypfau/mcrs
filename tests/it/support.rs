@@ -14,9 +14,12 @@ pub fn insert_block_catalog(client: &mut App) {
     client.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 }
 
-/// What the client reads the server's registries with once configuration ends.
+/// What the client reads the server's registries with once configuration ends, the vanilla
+/// pack's entries included, as the client's registry plugin holds them.
 pub fn insert_session_inputs(client: &mut App) {
-    client.insert_resource(mcrs_minecraft_client::registries::session_inputs());
+    client.insert_resource(mcrs_minecraft_client::registries::session_inputs(Some(
+        &mcrs_minecraft_client::asset_corpus(),
+    )));
 }
 
 /// Returns the connection entity once every play-state packet the flow promises

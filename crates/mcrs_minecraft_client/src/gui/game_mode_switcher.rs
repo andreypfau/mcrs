@@ -20,6 +20,7 @@ use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::inventory::{Screen, grab};
 use crate::player::Player;
+use crate::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_item::keys::Item;
 
 const MODIFIER: KeyCode = KeyCode::F3;
@@ -113,9 +114,21 @@ impl Plugin for GameModeSwitcherPlugin {
 fn add_icon_spawning(app: &mut App) {
     app.add_systems(
         Update,
-        spawn_icons
-            .run_if(resource_exists::<Items>.and_then(not(any_with_component::<GameModeIcons>))),
+        (
+            clear_icons
+                .in_set(SessionSet::Clear)
+                .run_if(entered_configuration),
+            spawn_icons.run_if(
+                resource_exists::<Items>.and_then(not(any_with_component::<GameModeIcons>)),
+            ),
+        ),
     );
+}
+
+fn clear_icons(icons: Query<Entity, With<GameModeIcons>>, mut commands: Commands) {
+    for holder in &icons {
+        commands.entity(holder).try_despawn();
+    }
 }
 
 fn spawn_icons(world: &mut World) {
@@ -394,6 +407,34 @@ mod tests {
         let icons: Vec<_> = holders.iter(app.world()).collect();
         assert_eq!(icons.len(), 1);
         assert!((0..4).all(|index| icons[0].get(index).is_some()));
+    }
+
+    #[test]
+    fn the_icons_are_spawned_again_from_the_next_session_item_table() {
+        let mut app = App::new();
+        add_icon_spawning(&mut app);
+        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
+        app.update();
+        app.update();
+        let mut stacks = app
+            .world_mut()
+            .query_filtered::<Entity, With<mcrs_minecraft_item::ItemStack>>();
+        let before: Vec<_> = stacks.iter(app.world()).collect();
+        assert_eq!(before.len(), ICONS.len());
+
+        app.world_mut().remove_resource::<Items>();
+        app.world_mut()
+            .spawn(mcrs_minecraft_network::ConnectionState::Configuration);
+        app.update();
+        app.update();
+        assert_eq!(stacks.iter(app.world()).count(), 0);
+
+        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
+        app.update();
+        app.update();
+        let after: Vec<_> = stacks.iter(app.world()).collect();
+        assert_eq!(after.len(), ICONS.len());
+        assert!(after.iter().all(|stack| !before.contains(stack)));
     }
 
     #[test]

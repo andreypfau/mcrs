@@ -49,6 +49,18 @@ pub fn asset_corpus() -> PathBuf {
         .join("assets")
 }
 
+/// The default asset source over `root`: the packs under it layered over its files, with no
+/// built-in answer for a path none of them holds.
+#[cfg(not(target_family = "wasm"))]
+pub fn asset_source(root: &str) -> bevy::asset::io::AssetSourceBuilder {
+    use bevy::asset::io::{AssetSource, AssetSourceBuilder};
+    use mcrs_minecraft_assets::packs::PackLayers;
+
+    let mut files = AssetSource::get_default_reader(root.to_owned());
+    AssetSourceBuilder::platform_default(root, None)
+        .with_reader(move || Box::new(PackLayers::new(files())))
+}
+
 /// A plugin still has work a scripted capture must wait for.
 #[derive(Message)]
 pub struct Unsettled;
@@ -59,8 +71,6 @@ impl PluginGroup for ClientPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(vanilla::VanillaAssetsPlugin)
-            .add(mcrs_minecraft_assets::MinecraftCorePlugin)
-            .add(mcrs_minecraft_world::MinecraftWorldPlugin)
             .add(player::PlayerPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
@@ -68,7 +78,7 @@ impl PluginGroup for ClientPlugins {
             .add(gui::debug::DebugScreenPlugin)
             .add(gui::chunk_map::ChunkMapPlugin)
             .add(gui::light_levels::LightLevelsPlugin)
-            .add(registries::ClientRegistriesPlugin)
+            .add(registries::ClientRegistriesPlugin::default())
             .add(sky::SkyPlugin)
     }
 }

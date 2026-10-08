@@ -8,9 +8,8 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
-use mcrs_minecraft_registry::{BlockStateId, RegistrySet};
-use tint::extend_tints;
-pub use tint::{BiomeTint, tint_column};
+use mcrs_minecraft_registry::BlockStateId;
+pub use tint::{BiomeTint, BiomeTints, derive_tints, tint_column};
 
 mod build;
 
@@ -77,7 +76,6 @@ fn render(value: &PropertyValue) -> String {
 pub struct Catalog {
     pub blocks: Vec<BlockInfo>,
     pub sprites: SpriteRegistry,
-    pub tints: Vec<tint::BiomeTint>,
     pub failures: Vec<String>,
 }
 
@@ -89,20 +87,13 @@ pub fn empty() -> Catalog {
     Catalog {
         blocks: Vec::new(),
         sprites: SpriteRegistry::default(),
-        tints: Vec::new(),
         failures: Vec::new(),
     }
 }
 
 /// Bakes the states named by `ids`, which are indices into the corpus'
 /// state space and so index the catalog directly.
-pub fn extend(
-    pack: &Pack,
-    catalog: &mut Catalog,
-    definitions: &BlockDefinitions,
-    ids: &[u16],
-    registries: &RegistrySet,
-) {
+pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions, ids: &[u16]) {
     if catalog.blocks.len() < definitions.state_count() {
         catalog
             .blocks
@@ -137,8 +128,6 @@ pub fn extend(
         "the pack has {} sprites, but a face can name only {MAX_SPRITES}",
         catalog.sprites.len(),
     );
-
-    extend_tints(pack, catalog, registries);
 }
 
 #[cfg(test)]

@@ -17,10 +17,8 @@ use bevy::window::{
     WindowPosition, WindowResolution,
 };
 use bevy::winit::{UpdateMode, WinitSettings};
-use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_dimension_environment::environment::Weather;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -30,11 +28,12 @@ use mcrs_minecraft_world::save::{self, SaveError};
 
 use mcrs_minecraft_client::columns::SECTION_SIZE;
 use mcrs_minecraft_client::config::TerrainLimits;
+use mcrs_minecraft_client::registries::SessionSet;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, asset_corpus, config, gui, local_player, player, sky,
-    vanilla,
+    ClientPlugins, ClientTerrainPlugin, asset_corpus, asset_source, config, gui, local_player,
+    player, sky, vanilla,
 };
 use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -109,10 +108,7 @@ fn main() -> AppExit {
     task_pool_options.async_compute.percent = 1.0;
     task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
-    app.register_asset_source(
-        AssetSourceId::Default,
-        layered_file_source(&assets, mcrs_minecraft_worldgen_builtin::asset),
-    );
+    app.register_asset_source(AssetSourceId::Default, asset_source(&assets));
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
@@ -184,8 +180,10 @@ fn main() -> AppExit {
     )
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_systems(
-        OnEnter(AppState::Playing),
-        (log_registry_counts, log_seeded_resources),
+        Update,
+        (log_registry_counts, log_seeded_resources)
+            .after(apply_saved_clocks)
+            .run_if(resource_exists_and_changed::<RegistrySet>),
     )
     .add_systems(
         PostStartup,
@@ -239,7 +237,12 @@ fn main() -> AppExit {
         }
     }
     app.insert_resource(SavedClocks(saved_clocks))
-        .add_systems(Startup, apply_saved_clocks.after(seed_world_clocks))
+        .add_systems(
+            Update,
+            apply_saved_clocks
+                .after(SessionSet::Derive)
+                .run_if(resource_exists::<SavedClocks>.and_then(resource_exists::<RegistrySet>)),
+        )
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
 
