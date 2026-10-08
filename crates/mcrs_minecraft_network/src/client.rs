@@ -113,6 +113,17 @@ struct ConfigurationPackets {
 }
 
 impl ConfigurationPackets {
+    fn collect_registry(&mut self, registry: NetworkRegistry) {
+        match self
+            .registries
+            .iter_mut()
+            .find(|collected| collected.registry == registry.registry)
+        {
+            Some(collected) => collected.entries.extend(registry.entries),
+            None => self.registries.push(registry),
+        }
+    }
+
     fn collect_tags(&mut self, update: Vec<RegistryTags<'_>>) {
         for registry in update.into_iter().map(network_tags) {
             match self
@@ -529,7 +540,7 @@ fn handle_configuration_packet(
         };
         connection.write_packet(&ServerboundSelectKnownPacks { known_packs });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
-        collected.registries.push(network_registry(data));
+        collected.collect_registry(network_registry(data));
     } else if let Some(update) = event.decode::<ClientboundUpdateTags>() {
         collected.collect_tags(update.registries);
     } else if let Some(keep_alive) = event.decode::<ConfigurationKeepAlive>() {
@@ -1050,6 +1061,35 @@ mod tests {
             client.sent_ids(),
             [ServerboundFinishConfiguration::ID],
             "the acknowledgement is the only thing written"
+        );
+    }
+
+    #[test]
+    fn a_registry_split_across_packets_is_read_as_one() {
+        let runtime = Runtime::new().unwrap();
+        let mut client = Harness::configuring(&runtime);
+        client.deliver(&runtime, &probe_data(&["minecraft:zeta"]));
+        client.deliver(&runtime, &probe_data(&["minecraft:alpha"]));
+        client.deliver(&runtime, &ClientboundFinishConfiguration);
+        client.app.update();
+
+        assert_eq!(client.state(), ConnectionState::Game);
+        let set = client.session();
+        let table = set.table(PROBE_NAME).unwrap();
+        assert_eq!(table.number("minecraft:zeta"), Some(0));
+        assert_eq!(table.number("minecraft:alpha"), Some(1));
+
+        let mut collected = ConfigurationPackets::default();
+        for entries in [["minecraft:one"], ["minecraft:one"]] {
+            collected.collect_registry(network_registry(probe_data(&entries)));
+        }
+        let report = build_session_registries(&inputs(), collected)
+            .err()
+            .expect("the repeated entry is refused")
+            .to_string();
+        assert!(
+            report.contains("minecraft:test_probe/minecraft:one"),
+            "{report}"
         );
     }
 
