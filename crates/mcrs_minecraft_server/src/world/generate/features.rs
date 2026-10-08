@@ -15,12 +15,11 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
-use mcrs_minecraft_worldgen::tables::{WorldgenTables, named, template_handle};
+use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
+use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
-use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
-use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
@@ -85,7 +84,6 @@ fn decoration_steps(
 fn build_dimension_features(
     mut commands: Commands,
     dimensions: Res<DimensionList>,
-    tables: Res<WorldgenTables>,
     asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     structures: Res<DimensionStructures>,
@@ -97,48 +95,23 @@ fn build_dimension_features(
     let providers =
         registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
 
-    let features = named(&registries, &tables.features);
-    let placed_features = named(&registries, &tables.placed_features);
-    let pools = registries.loaded_entries::<TemplatePool, TemplatePool>();
-
-    // A template is `structure/<id>.nbt`, which is no registry, so the ids come
-    // off the handles the feature and placed-feature values declared and the
-    // elements of the pools: a pool can inline a template feature.
-    // chisle: every pool template is cloned for the few an inline template
-    // feature might name; upgrade = walk the pool elements for template
-    // feature nodes and take only theirs.
-    let template_values = features
-        .values()
-        .map(|asset| &asset.deps)
-        .chain(placed_features.values().map(|asset| &asset.deps))
-        .flat_map(|deps| deps.templates.iter())
-        .map(|(id, handle)| (id.clone(), handle.clone()))
-        .chain(
-            pools
-                .as_slice()
-                .iter()
-                .flat_map(pool_templates)
-                .filter_map(|id| {
-                    let handle = template_handle(&asset_server, &id)?;
-                    Some((id, handle))
-                }),
-        )
-        .filter_map(|(id, handle)| Some((id, templates.get(&handle)?.template.clone())))
+    // chisle: every named template is cloned, though only the templates a
+    // template feature places are read from here; upgrade = collect those alone.
+    let template_values = named_templates(&registries)
+        .unwrap_or_else(|error| {
+            panic!("the loaded registries cannot list their templates: {error}")
+        })
+        .into_iter()
+        .filter_map(|id| {
+            let handle = template_handle(&asset_server, &id)?;
+            Some((id, templates.get(&handle)?.template.clone()))
+        })
         .collect();
     let loaded = LoadedFeatures {
-        features: features
-            .iter()
-            .map(|(id, asset)| (id.clone(), asset.feature.clone()))
-            .collect(),
-        placed_features: placed_features
-            .iter()
-            .map(|(id, asset)| (id.clone(), asset.placed_feature.clone()))
-            .collect(),
+        features: registries.loaded_by_name::<Feature>(),
+        placed_features: registries.loaded_by_name::<PlacedFeature>(),
         templates: template_values,
-        processor_lists: named(&registries, &tables.processor_lists)
-            .into_iter()
-            .map(|(id, list)| (id, list.clone()))
-            .collect(),
+        processor_lists: registries.loaded_by_name::<StructureProcessorList>(),
         block_state_providers: provider_registry
             .iter()
             .map(|(id, name)| (name.clone(), providers[id].clone()))

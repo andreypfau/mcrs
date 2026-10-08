@@ -6,7 +6,6 @@ use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
@@ -26,38 +25,25 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_systems(
             bevy_state::prelude::OnEnter(mcrs_minecraft_assets::AppState::WorldgenFreeze),
-            build_modern_carver_biomes
-                .before(mcrs_minecraft_world::transition_to_playing)
-                .after(build_worldgen_tables),
+            build_modern_carver_biomes.before(mcrs_minecraft_world::transition_to_playing),
         );
     }
 }
 
-/// The carvers every biome runs, in the order its file lists them. A carver a
-/// biome names that did not load is reported and the biome runs without it.
+/// The carvers every biome runs, in the order its file lists them.
 fn carvers_by_biome(
     biomes: &Registry<Biome>,
     values: &Entries<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
-    carvers: &Registry<CarverConfig>,
     carver_tags: &Tags<CarverConfig>,
-    table: &Entries<CarverConfig, Option<CarverConfig>>,
+    table: &Entries<CarverConfig, CarverConfig>,
 ) -> Entries<Biome, Arc<[CarverConfig]>> {
     let lists = biomes
         .iter()
-        .map(|(id, biome)| {
+        .map(|(id, _)| {
             values[id]
                 .carvers
                 .ids(carver_tags)
-                .filter_map(|carver| match &table[carver] {
-                    Some(config) => Some(config.clone()),
-                    None => {
-                        let carver = carvers
-                            .name(carver)
-                            .expect("an id of the registry has a name");
-                        tracing::error!(%biome, %carver, "a carver of this biome is unavailable");
-                        None
-                    }
-                })
+                .map(|carver| table[carver].clone())
                 .collect()
         })
         .collect();
@@ -67,26 +53,23 @@ fn carvers_by_biome(
 /// Resolve every dimension's biome source climate table into carver lists.
 ///
 /// Both halves are loaded values: which carvers a biome runs comes from the
-/// biome JSON, and what each carver is comes from the carver table, so a
+/// biome JSON, and what each carver is comes from the carver column, so a
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
     registries: bevy_ecs::prelude::Res<RegistrySet>,
-    worldgen: bevy_ecs::prelude::Res<WorldgenTables>,
     preset_tables: bevy_ecs::prelude::Res<Resolved<PresetBiomeTables>>,
 ) {
     let biomes = registries.loaded_registry::<Biome>();
     let values =
         registries.loaded_entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>();
-    let carver_names = registries.loaded_registry::<CarverConfig>();
     let carver_tags = registries.loaded_tags::<CarverConfig>();
     let carvers = carvers_by_biome(
         &biomes,
         &values,
-        &carver_names,
         &carver_tags,
-        &worldgen.carvers,
+        &registries.loaded_entries::<CarverConfig, CarverConfig>(),
     );
 
     let mut tables = DimensionCarverBiomes::default();

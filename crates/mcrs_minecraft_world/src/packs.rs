@@ -92,18 +92,33 @@ fn relative_to(root: &Path, path: &Path) -> Option<String> {
 
 /// Loads the world registries from a data pack report and a reader of packs.
 /// The reader is called once with the world registries over the statics, then
-/// once with the reloadable registries over what the first load produced.
+/// once with the reloadable registries over what the first load produced. Both
+/// calls must return the same packs in the same order, because an entry names
+/// its pack by position.
 pub fn load_registry_set(
     statics: RegistrySet,
     datapack_report: &[u8],
     mut read: impl FnMut(&WorldRegistries, &RegistrySet) -> Result<Vec<Pack>, LoadReport>,
 ) -> Result<RegistrySet, LoadReport> {
     let world = world_registries(datapack_report)?;
-    let packs = read(&world, &statics)?;
-    let loaded = world.load(&statics, &packs)?;
+    let world_packs = read(&world, &statics)?;
+    let loaded = world.load(&statics, &world_packs)?;
     let reloadable = crate::registries::reloadable_registries(datapack_report)?;
-    let packs = read(&reloadable, &loaded)?;
-    reloadable.load(&loaded, &packs)
+    let reloadable_packs = read(&reloadable, &loaded)?;
+    let names = |packs: &[Pack]| {
+        packs
+            .iter()
+            .map(|pack| pack.name.clone())
+            .collect::<Vec<_>>()
+    };
+    if names(&world_packs) != names(&reloadable_packs) {
+        return Err(LoadReport::invalid(format_args!(
+            "the reloadable registries were read from the packs {:?} and the world registries from {:?}",
+            names(&reloadable_packs),
+            names(&world_packs)
+        )));
+    }
+    reloadable.load(&loaded, &reloadable_packs)
 }
 
 /// Loads the corpus under `root`: the vanilla data pack at `root` and every
@@ -292,6 +307,33 @@ mod tests {
                 ),
                 ("mcrs", vec![]),
             ]
+        );
+    }
+
+    #[test]
+    fn the_reloadable_stage_keeps_the_pack_list_of_the_world_stage() {
+        let report = std::fs::read(assets().join(DATAPACK_REPORT)).unwrap();
+        let mut stage = 0;
+        let refused = load_registry_set(
+            static_registries().unwrap(),
+            &report,
+            |registries, statics| {
+                stage += 1;
+                let mut packs = read_packs_from_directory(&assets(), registries, statics)?;
+                if stage == 2 {
+                    packs.pop();
+                }
+                Ok(packs)
+            },
+        )
+        .err()
+        .expect("a different pack list is refused")
+        .to_string();
+
+        assert!(refused.contains(r#"["vanilla", "beta"]"#), "{refused}");
+        assert!(
+            refused.contains(r#"["vanilla", "beta", "mcrs"]"#),
+            "{refused}"
         );
     }
 

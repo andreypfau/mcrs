@@ -44,7 +44,9 @@ use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
 
@@ -174,16 +176,21 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 11] = [
+const PARSED_WORLDGEN: [&str; 16] = [
     "minecraft:worldgen/biome",
     "minecraft:worldgen/block_state_provider",
+    "minecraft:worldgen/carver",
     "minecraft:worldgen/density_function",
+    "minecraft:worldgen/feature",
     "minecraft:worldgen/material_condition",
     "minecraft:worldgen/material_rule",
     "minecraft:worldgen/multi_noise_biome_source_parameter_list",
     "minecraft:worldgen/noise",
     "minecraft:worldgen/noise_settings",
     "minecraft:worldgen/placed_feature",
+    "minecraft:worldgen/processor_list",
+    "minecraft:worldgen/structure",
+    "minecraft:worldgen/structure_set",
     "minecraft:worldgen/template_pool",
     "minecraft:worldgen/world_preset",
 ];
@@ -402,7 +409,10 @@ fn a_biome_placing_a_feature_outside_the_allowed_range_fails_the_load() {
     let biome = r##"{"temperature":0.5,"downfall":0.5,"has_precipitation":true,"effects":{"water_color":"#3f76e4"},
         "features":[["minecraft:test_far","minecraft:test_edge"]]}"##;
     let refused = load_text(&[
-        ("minecraft/worldgen/feature/test_feature.json", "{}"),
+        (
+            "minecraft/worldgen/feature/test_feature.json",
+            r#"{"type":"minecraft:no_op","config":{}}"#,
+        ),
         ("minecraft/worldgen/placed_feature/test_far.json", &far),
         ("minecraft/worldgen/placed_feature/test_edge.json", &edge),
         ("minecraft/worldgen/biome/test_biome.json", biome),
@@ -2148,6 +2158,32 @@ pub(crate) fn load_shipped_and(
 }
 
 #[test]
+fn a_worldgen_file_that_does_not_parse_stops_the_load() {
+    for registry in [
+        "carver",
+        "feature",
+        "placed_feature",
+        "processor_list",
+        "structure",
+        "structure_set",
+    ] {
+        let directory = format!("test/worldgen/{registry}");
+        let refused = load_shipped_and(&directory, &[("broken", r#"{"bad":true}"#.to_owned())])
+            .err()
+            .unwrap_or_else(|| panic!("a malformed {registry} file is accepted"));
+
+        let (header, line) = refused.split_once('\n').expect("a header and one line");
+        assert_eq!(
+            header, "registry load failed: 1 errors in 1 registries",
+            "{registry}"
+        );
+        let key = format!("minecraft:worldgen/{registry}/test:broken ({directory}/broken.json): ");
+        assert!(line.starts_with(&key), "{registry}: {line}");
+        assert!(line.len() > key.len(), "{registry}: no reason in {line}");
+    }
+}
+
+#[test]
 fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
     let refused = load_shipped_and("test/timeline", &[
         (
@@ -2252,24 +2288,69 @@ fn trial_spawners_have_names_and_no_values() {
 }
 
 #[test]
-fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
+fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets() {
+    fn parsed<T: 'static>(set: &RegistrySet, registry: &str) -> usize {
+        set.column::<T>(registry)
+            .unwrap_or_else(|| panic!("{registry} is not parsed by the loader"))
+            .len()
+    }
+
     let app = crate::common::run_to_playing();
     let set = app.world().resource::<RegistrySet>();
-    let carvers = set
-        .registry::<CarverConfig>()
-        .expect("the carver registry is declared");
-    let tables = app
-        .world()
-        .resource::<mcrs_minecraft_worldgen::tables::WorldgenTables>();
+    let server = app.world().resource::<AssetServer>();
 
-    assert!(carvers.by_name("minecraft:beta_cave").is_some());
-    for id in carvers.ids() {
-        let name = carvers.name(id).unwrap();
-        assert!(
-            tables.carvers.get(id).is_some_and(Option::is_some),
-            "{name} has no value in the carver table"
-        );
+    let counts = [
+        (
+            "minecraft:worldgen/carver",
+            parsed::<CarverConfig>(set, "minecraft:worldgen/carver"),
+            5,
+        ),
+        (
+            "minecraft:worldgen/feature",
+            parsed::<Feature>(set, "minecraft:worldgen/feature"),
+            241,
+        ),
+        (
+            "minecraft:worldgen/placed_feature",
+            parsed::<PlacedFeature>(set, "minecraft:worldgen/placed_feature"),
+            274,
+        ),
+        (
+            "minecraft:worldgen/processor_list",
+            parsed::<StructureProcessorList>(set, "minecraft:worldgen/processor_list"),
+            40,
+        ),
+        (
+            "minecraft:worldgen/structure",
+            parsed::<Structure>(set, "minecraft:worldgen/structure"),
+            52,
+        ),
+        (
+            "minecraft:worldgen/structure_set",
+            parsed::<StructureSet>(set, "minecraft:worldgen/structure_set"),
+            21,
+        ),
+    ];
+    for (registry, parsed, expected) in counts {
+        assert_eq!(parsed, expected, "{registry}");
+        let table = set.table(registry).unwrap();
+        assert_eq!(table.len(), expected, "{registry}");
+        for name in table.names() {
+            let path = format!(
+                "{}/{}/{}.json",
+                name.namespace(),
+                table.registry().path(),
+                name.path()
+            );
+            assert!(
+                server.get_path_ids(path.clone()).is_empty(),
+                "{path} was requested as an asset"
+            );
+        }
     }
+
+    let carvers = set.registry::<CarverConfig>().unwrap();
+    assert!(carvers.by_name("minecraft:beta_cave").is_some());
 }
 
 fn overworld_dimension_type_with(

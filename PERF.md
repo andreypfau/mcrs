@@ -887,6 +887,32 @@ and the change that moved them is earlier than this one and was not measured. Th
 against the 0.771 s of the previous table is not compared, because that table was taken at a load
 average of 71 and these at about 19.
 
+### Worldgen registries on the loader
+
+The same scenario on the tree where features, structures, structure sets, processor lists and
+carvers are parsed by the registry loader like the other worldgen registries, so the only worldgen
+files the asset server reads are the structure templates. The load average is the 1, 5 and 15
+minute reading taken as each run started, three fresh processes in a row, on the release binary
+built just before them.
+
+| run | load average | start to Playing | loader duration | registries | entries |
+|---|---|---|---|---|---|
+| 1 | 17.79, 18.57, 17.13 | 1.955 s | 190.0 ms | 155 | 14472 |
+| 2 | 17.79, 18.57, 17.13 | 0.625 s | 150.8 ms | 155 | 14472 |
+| 3 | 17.79, 18.57, 17.13 | 0.659 s | 181.7 ms | 155 | 14472 |
+| median | | 0.659 s | 181.7 ms | 155 | 14472 |
+
+The median start to Playing is 0.659 s against the 0.617 s of the previous subsection, which is 42
+ms later; the loader's median duration is 181.7 ms against 145.8 ms. The whole folders of the five
+registries now parse at load, where the asset server used to parse them while the loader only listed
+their names, so some of the loader's added time is expected, and the start time moved by about the
+same amount. The previous subsection was taken at a load average of about 19 and this one at about
+18, both above the machine's 16 cores; the previous tree was not rebuilt and run beside this one,
+and the two runs of this tree that did not read the binary cold differ by 34 ms, so the 42 ms is
+inside the noise of a single comparison and is not called a regression or a gain. The registry and
+entry counts are unchanged, because those registries were already loaded as names. The first run
+read the data pack cold.
+
 ### Synced registry column
 
 The load encodes the network form of every synced registry entry once and keeps it as a column of
