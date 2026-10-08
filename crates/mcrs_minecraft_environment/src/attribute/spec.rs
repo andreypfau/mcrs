@@ -835,7 +835,10 @@ mod tests {
             AttributeValue::Activity(Activity::Rest)
         );
         let error = value(activity, json!("minecraft:no_such_activity")).unwrap_err();
-        assert!(error.to_string().contains("minecraft:no_such_activity"), "{error}");
+        assert!(
+            error.to_string().contains("minecraft:no_such_activity"),
+            "{error}"
+        );
     }
 
     #[test]

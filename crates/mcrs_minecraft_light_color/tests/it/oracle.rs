@@ -47,8 +47,15 @@ fn resolve_mixes_known_colours_by_the_light_weight() {
     assert_near([half[0], half[1], half[2]], torch.map(|c| c as f32 / 2.0));
 
     let brighter = resolve_one(&[(TORCH_TYPE, 15), (SOUL_TYPE, 5)]);
-    let distance = |to: [u8; 3]| (0..3).map(|i| brighter[i].abs_diff(to[i]) as u32).sum::<u32>();
-    assert!(distance(torch) < distance(soul), "{brighter:?} leans to the dimmer light");
+    let distance = |to: [u8; 3]| {
+        (0..3)
+            .map(|i| brighter[i].abs_diff(to[i]) as u32)
+            .sum::<u32>()
+    };
+    assert!(
+        distance(torch) < distance(soul),
+        "{brighter:?} leans to the dimmer light"
+    );
 
     assert_eq!(
         resolve_one(&[(TORCH_TYPE, 0), (LightType::DEFAULT, 0)]),

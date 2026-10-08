@@ -93,18 +93,24 @@ const NOTHING: &str = Block::StructureVoid.as_static_str();
 const EMPTY: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_static_str();
 const BOTTOM: &str = "minecraft:bottom";
 
-const ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
+const ANIMALS: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
 const BLUE_BED: &str = Block::BlueBed.as_static_str();
-const BUTCHER_ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_static_str();
-const CATS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
+const BUTCHER_ANIMALS: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS
+        .as_static_str();
+const CATS: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
 const COBBLE: &str = Block::Cobblestone.as_static_str();
 const COBBLE_STAIRS: &str = Block::CobblestoneStairs.as_static_str();
 const DIRT: &str = Block::Dirt.as_static_str();
 const GRASS: &str = Block::GrassBlock.as_static_str();
-const IRON_GOLEM: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
+const IRON_GOLEM: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
 const PATH: &str = Block::DirtPath.as_static_str();
 const RED_BED: &str = Block::RedBed.as_static_str();
-const SHEEP: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
+const SHEEP: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
 const SPRUCE_DOOR: &str = Block::SpruceDoor.as_static_str();
 const SPRUCE_STAIRS: &str = Block::SpruceStairs.as_static_str();
 const WHITE_BED: &str = Block::WhiteBed.as_static_str();
@@ -323,5 +329,5 @@ mod mob {
     pub const ADULT: Fields = &[("food_level", Tag::Byte(0)), ("Leashed", Tag::Byte(0)), ("lastRestock", Tag::Long(0))];
     pub const BABY: Fields = &[("FoodLevel", Tag::Byte(0)), ("LastRestock", Tag::Long(0)), ("UUID", Tag::IntArray(&[895037032, -995736946, -1319125422, -1224629455])), ("Age", Tag::Int(-21359)), ("Rotation", Tag::List(&[Tag::Float(0.0), Tag::Float(-25.827711)])), ("Pos", Tag::List(&[Tag::Double(-1740.6339469144218), Tag::Double(5.0), Tag::Double(496.0697962117287)]))];
 }
-use mob::*;
 use mcrs_minecraft_block::keys::Block;
+use mob::*;

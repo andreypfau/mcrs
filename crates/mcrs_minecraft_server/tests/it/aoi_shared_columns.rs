@@ -8,9 +8,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::dimension::{
-    DimensionBundle, DimensionTypeConfig, InDimension,
-};
+use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::world::aoi::TrackedBy;
 use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};

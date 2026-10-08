@@ -353,7 +353,10 @@ mod tests {
             sprint: true,
             ..forward()
         };
-        for (input, terminal) in [(forward(), 0.5444444444444444), (sprint, 1.0888888888888888)] {
+        for (input, terminal) in [
+            (forward(), 0.5444444444444444),
+            (sprint, 1.0888888888888888),
+        ] {
             let (local, displacement) = at_terminal(input);
             assert_eq!(local.sprint.active, input.sprint);
             assert!((displacement.z - terminal).abs() < 1e-9, "{displacement:?}");

@@ -33,9 +33,9 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in};
 use support::{corpus, router_blocks};
-use mcrs_minecraft_biome::Biome;
 
 fn parameter_lists() -> Registry<MultiNoiseBiomeSourceParameterList> {
     Registry::new(

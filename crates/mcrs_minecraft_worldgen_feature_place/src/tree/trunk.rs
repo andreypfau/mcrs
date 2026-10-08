@@ -5,9 +5,9 @@ use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::tree::{TrunkPlacer, UniformIntRange};
 
@@ -1234,7 +1234,9 @@ mod tests {
     #[test]
     fn a_wide_straight_trunk_fills_a_square_hung_from_its_north_west_corner() {
         let origin = BlockPos::new(8, 64, 8);
-        for (width, corner, double_trunk) in [(2, origin, true), (3, origin - IVec3::new(1, 0, 1), false)] {
+        for (width, corner, double_trunk) in
+            [(2, origin, true), (3, origin - IVec3::new(1, 0, 1), false)]
+        {
             let trunk = placer(
                 "straight",
                 &format!(r#"{},"trunk_width":{width}"#, base(4, 0, 0)),
@@ -1246,7 +1248,11 @@ mod tests {
             assert_eq!(pin.writes, (width * width * 4) as usize, "width {width}");
             assert_eq!(
                 attachments,
-                vec![FoliageAttachment::new(corner + IVec3::Y * 4, 0, double_trunk)],
+                vec![FoliageAttachment::new(
+                    corner + IVec3::Y * 4,
+                    0,
+                    double_trunk
+                )],
                 "width {width}"
             );
         }

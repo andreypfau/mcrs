@@ -108,9 +108,10 @@ pub fn handle_container_clicks(
             );
             continue;
         }
-        let fold = menus
-            .entry(menu)
-            .or_insert_with(|| MenuFold { drag: menu_drag, ..Default::default() });
+        let fold = menus.entry(menu).or_insert_with(|| MenuFold {
+            drag: menu_drag,
+            ..Default::default()
+        });
         if req.game_mode == GameMode::Spectator {
             fold.full = true;
             continue;

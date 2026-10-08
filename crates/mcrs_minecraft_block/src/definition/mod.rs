@@ -19,16 +19,16 @@ use self::schema::{
     BlockDefinitionFile, BlockProperties, Components, LavaFlammable, ModelBox, NoteBlockInstrument,
     PlacementFilter, PropertyValue, Sticky,
 };
+use crate::keys::Block;
+use crate::keys::Fluid;
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use crate::keys::Fluid;
-use crate::keys::Block;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
+use mcrs_minecraft_value_provider::IntProvider;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 

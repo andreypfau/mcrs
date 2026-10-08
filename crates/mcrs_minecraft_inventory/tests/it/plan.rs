@@ -144,7 +144,12 @@ fn click_as(
     planner.ops
 }
 
-fn drag(snapshot: &mut MenuSnapshot, kind: QuickCraftKind, indices: &[i16], creative: bool) -> Vec<Op> {
+fn drag(
+    snapshot: &mut MenuSnapshot,
+    kind: QuickCraftKind,
+    indices: &[i16],
+    creative: bool,
+) -> Vec<Op> {
     let mut current: Option<Drag> = None;
     let feed = |current: &mut Option<Drag>, slot, stage, snapshot: &MenuSnapshot| {
         Drag::feed(
@@ -385,13 +390,15 @@ fn left_drag_splits_64_over_five_empty_slots_into_12_each_and_leaves_4() {
     snapshot.set(slot(slots::CARRIED), Some(stone(64)));
     let indices: Vec<usize> = (9..14).collect();
     let (counts, remaining) = quick_craft_counts(QuickCraftKind::Split, &indices, &snapshot);
-    assert_eq!(
-        counts,
-        [(9, 12), (10, 12), (11, 12), (12, 12), (13, 12)]
-    );
+    assert_eq!(counts, [(9, 12), (10, 12), (11, 12), (12, 12), (13, 12)]);
     assert_eq!(remaining, 4);
 
-    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9, 10, 11, 12, 13], false);
+    let ops = drag(
+        &mut snapshot,
+        QuickCraftKind::Split,
+        &[9, 10, 11, 12, 13],
+        false,
+    );
     assert_eq!(
         ops,
         (9..14)

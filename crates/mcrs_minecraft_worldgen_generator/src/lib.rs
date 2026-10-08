@@ -7,6 +7,7 @@ use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
@@ -25,7 +26,6 @@ use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
-use mcrs_minecraft_block::keys::Block;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.

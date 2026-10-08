@@ -15,6 +15,7 @@ pub mod template_piece;
 pub mod woodland_mansion;
 
 use bevy_math::IVec3;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -30,7 +31,6 @@ use mcrs_minecraft_worldgen_feature_place::template::{
     place_template, rotate_state, state,
 };
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
-use mcrs_minecraft_block::keys::Block;
 
 /// One block state as `StructurePiece.placeBlock` mirrors and rotates it
 /// under each orientation, resolved once so a painter indexes instead of
