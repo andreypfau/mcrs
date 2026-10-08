@@ -139,6 +139,11 @@ bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 [dev-dependencies]
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
+bevy_input = "0.19.1"
+bytes.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_world.workspace = true
