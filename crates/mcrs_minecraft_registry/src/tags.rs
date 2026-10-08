@@ -86,6 +86,10 @@ impl TagTable {
     pub fn members(&self, tag: usize) -> &[u16] {
         &self.members[tag]
     }
+
+    pub(crate) fn number(&self, tag: &str) -> Option<usize> {
+        self.numbers.get(tag).map(|&number| usize::from(number))
+    }
 }
 
 pub struct Tags<R> {
