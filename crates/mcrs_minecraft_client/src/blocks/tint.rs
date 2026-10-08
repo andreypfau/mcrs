@@ -1,4 +1,6 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
+
+use bevy::ecs::resource::Resource;
 
 use crate::columns::{BlockSource, SECTION_SIZE};
 use mcrs_minecraft_core::ColumnPos;
@@ -10,7 +12,6 @@ use mcrs_minecraft_biome::{Biome, GrassColorModifier};
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_registry::RegistrySet;
 
-use super::Catalog;
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
 /// A biome's colour for each biome tint, as `0xRRGGBB`.
@@ -61,59 +62,77 @@ impl BiomeTint {
     }
 }
 
-pub(super) fn extend_tints(pack: &Pack, catalog: &mut Catalog, registries: &RegistrySet) {
-    let (Some(registry), Some(loaded)) = (
-        registries.registry::<Biome>(),
-        registries.entries::<Biome, Biome>(),
-    ) else {
-        return;
-    };
-    let done = catalog.tints.len();
-    if done == registry.len() {
-        return;
+#[derive(Resource, Clone, Debug)]
+pub struct BiomeTints(Arc<[BiomeTint]>);
+
+impl Default for BiomeTints {
+    fn default() -> Self {
+        Self(Arc::from(Vec::new()))
     }
-    let grass_map = noted(load_colormap(pack, "grass"), &mut catalog.failures);
-    let foliage_map = noted(load_colormap(pack, "foliage"), &mut catalog.failures);
-    let dry_foliage_map = noted(load_colormap(pack, "dry_foliage"), &mut catalog.failures);
-    let biomes = registry.table().names().iter().zip(loaded.as_slice());
-    for (name, biome) in biomes.skip(done) {
-        let (temperature, downfall, effects) = (biome.temperature, biome.downfall, &biome.effects);
-        let tint = effects
-            .water_color
-            .ok_or_else(|| format!("{name}: has no water colour"))
-            .map(|water| {
-                let from_map =
-                    |map: &Option<Vec<u8>>| sample_colormap(map.as_deref(), temperature, downfall);
-                let base_grass = effects
-                    .grass_color
-                    .map_or_else(|| from_map(&grass_map), |HexRgb(c)| c);
-                let grass = match effects.grass_color_modifier {
-                    GrassColorModifier::None => Grass::Color(base_grass),
-                    GrassColorModifier::DarkForest => {
-                        Grass::Color(((base_grass & 0xfefefe) + 0x28340a) >> 1)
+}
+
+impl std::ops::Deref for BiomeTints {
+    type Target = [BiomeTint];
+
+    fn deref(&self) -> &[BiomeTint] {
+        &self.0
+    }
+}
+
+pub fn derive_tints(pack: &Pack, registries: &RegistrySet) -> Option<(BiomeTints, Vec<String>)> {
+    let (registry, loaded) = (
+        registries.registry::<Biome>()?,
+        registries.entries::<Biome, Biome>()?,
+    );
+    let mut failures = Vec::new();
+    let grass_map = noted(load_colormap(pack, "grass"), &mut failures);
+    let foliage_map = noted(load_colormap(pack, "foliage"), &mut failures);
+    let dry_foliage_map = noted(load_colormap(pack, "dry_foliage"), &mut failures);
+    let tints: Arc<[BiomeTint]> = registry
+        .table()
+        .names()
+        .iter()
+        .zip(loaded.as_slice())
+        .map(|(name, biome)| {
+            let (temperature, downfall, effects) =
+                (biome.temperature, biome.downfall, &biome.effects);
+            let tint = effects
+                .water_color
+                .ok_or_else(|| format!("{name}: has no water colour"))
+                .map(|water| {
+                    let from_map = |map: &Option<Vec<u8>>| {
+                        sample_colormap(map.as_deref(), temperature, downfall)
+                    };
+                    let base_grass = effects
+                        .grass_color
+                        .map_or_else(|| from_map(&grass_map), |HexRgb(c)| c);
+                    let grass = match effects.grass_color_modifier {
+                        GrassColorModifier::None => Grass::Color(base_grass),
+                        GrassColorModifier::DarkForest => {
+                            Grass::Color(((base_grass & 0xfefefe) + 0x28340a) >> 1)
+                        }
+                        GrassColorModifier::Swamp => Grass::Swamp,
+                    };
+                    BiomeTint {
+                        grass,
+                        foliage: effects
+                            .foliage_color
+                            .map_or_else(|| from_map(&foliage_map), |HexRgb(c)| c),
+                        dry_foliage: effects
+                            .dry_foliage_color
+                            .map_or_else(|| from_map(&dry_foliage_map), |HexRgb(c)| c),
+                        water: water.0,
                     }
-                    GrassColorModifier::Swamp => Grass::Swamp,
-                };
-                BiomeTint {
-                    grass,
-                    foliage: effects
-                        .foliage_color
-                        .map_or_else(|| from_map(&foliage_map), |HexRgb(c)| c),
-                    dry_foliage: effects
-                        .dry_foliage_color
-                        .map_or_else(|| from_map(&dry_foliage_map), |HexRgb(c)| c),
-                    water: water.0,
-                }
-            });
-        catalog
-            .tints
-            .push(noted(tint, &mut catalog.failures).unwrap_or(BiomeTint {
+                });
+            noted(tint, &mut failures).unwrap_or(BiomeTint {
                 grass: Grass::Color(0xffffff),
                 foliage: 0xffffff,
                 dry_foliage: 0xffffff,
                 water: 0xffffff,
-            }));
-    }
+            })
+        })
+        .collect();
+    Some((BiomeTints(tints), failures))
 }
 
 fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> {
@@ -209,11 +228,11 @@ mod tests {
     use mcrs_minecraft_world::registries::test_registries;
 
     fn tints_of(biome: &str) -> BiomeTint {
-        static TINTS: LazyLock<Vec<BiomeTint>> = LazyLock::new(|| {
-            let mut catalog = crate::blocks::empty();
-            extend_tints(Pack::corpus(), &mut catalog, test_registries());
-            assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
-            catalog.tints
+        static TINTS: LazyLock<BiomeTints> = LazyLock::new(|| {
+            let (tints, failures) =
+                derive_tints(Pack::corpus(), test_registries()).expect("the corpus holds biomes");
+            assert!(failures.is_empty(), "{failures:?}");
+            tints
         });
         let id = test_registries()
             .registry::<Biome>()

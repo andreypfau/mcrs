@@ -15,10 +15,11 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_registry::RegistrySet;
 
 use crate::atlas::SpriteArray;
-use crate::blocks::{self, Catalog};
+use crate::blocks::{self, BiomeTints, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
+use crate::registries::SessionSet;
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
@@ -74,6 +75,14 @@ impl Plugin for StreamPlugin {
                     .chain()
                     .in_set(ClientTerrainSet::Build)
                     .run_if(can_stream),
+            )
+            .add_systems(
+                Update,
+                derive_biome_tints
+                    .in_set(SessionSet::Derive)
+                    .after(bake_catalog)
+                    .before(tint_columns)
+                    .run_if(resource_exists::<RegistrySet>),
             )
             .add_systems(
                 Update,
@@ -917,7 +926,6 @@ impl BlockCatalog {
         &mut self,
         pack: &Arc<Pack>,
         definitions: &Blocks,
-        loaded: &RegistrySet,
         pool: &'static AsyncComputeTaskPool,
     ) {
         let Some(mut catalog) = self.catalog.take() else {
@@ -927,12 +935,11 @@ impl BlockCatalog {
         let known = self.sprites;
         let sent = self.sent.clone();
         let definitions = definitions.clone();
-        let loaded = loaded.clone();
         let pack = pack.clone();
         let bake_items_too = !self.items_baked;
         self.items_baked = true;
         self.baking = Some(pool.spawn(async move {
-            blocks::extend(&pack, &mut catalog, &definitions, &states, &loaded);
+            blocks::extend(&pack, &mut catalog, &definitions, &states);
             let items = bake_items_too.then(|| {
                 let started = std::time::Instant::now();
                 let items = bake_items(&pack, &mut catalog.sprites)
@@ -1360,7 +1367,6 @@ fn bake_catalog(
     uploads: Res<Uploads>,
     assets: Res<AssetServer>,
     definitions: Res<Blocks>,
-    loaded: Res<RegistrySet>,
     mut commands: Commands,
 ) {
     let catalog = &mut *catalog;
@@ -1376,17 +1382,44 @@ fn bake_catalog(
     if let Some(pack) = pack
         && catalog.baking.is_none()
         && (!catalog.to_bake.is_empty() || !catalog.items_baked)
-        && loaded
-            .registry::<mcrs_minecraft_biome::Biome>()
-            .is_some_and(|biomes| !biomes.is_empty())
     {
-        catalog.start_baking(&pack, &definitions, &loaded, AsyncComputeTaskPool::get());
+        catalog.start_baking(&pack, &definitions, AsyncComputeTaskPool::get());
+    }
+}
+
+/// The tint table follows the session's biomes: it is rebuilt whole when the set is replaced,
+/// and built from the first set once the pack is in, since the colormaps are read from it.
+fn derive_biome_tints(
+    registries: Res<RegistrySet>,
+    catalog: Res<BlockCatalog>,
+    mut due: Local<bool>,
+    mut commands: Commands,
+) {
+    *due |= registries.is_changed();
+    if !*due {
+        return;
+    }
+    let Some(pack) = catalog.pack() else {
+        return;
+    };
+    *due = false;
+    match blocks::derive_tints(pack, &registries) {
+        Some((tints, failures)) => {
+            for failure in &failures {
+                warn!("no tint for {failure}");
+            }
+            commands.insert_resource(tints);
+        }
+        None => {
+            error!("the session registries hold no biomes to tint columns by");
+            commands.remove_resource::<BiomeTints>();
+        }
     }
 }
 
 fn tint_columns(
     mut tints: ResMut<ColumnTints>,
-    catalog: Res<BlockCatalog>,
+    palette: Option<Res<BiomeTints>>,
     uploads: Res<Uploads>,
     store: Res<ColumnStore>,
 ) {
@@ -1404,14 +1437,11 @@ fn tint_columns(
             }
             None => true,
         });
-    let Some(catalog) = catalog.catalog.as_ref() else {
+    let Some(palette) = palette.filter(|palette| !palette.is_empty()) else {
         return;
     };
-    if catalog.tints.is_empty() {
-        return;
-    }
     let pool = AsyncComputeTaskPool::get();
-    let palette = catalog.tints.clone();
+    let palette = BiomeTints::clone(&palette);
     for pos in std::mem::take(&mut tints.to_tint) {
         let corner = tints.corner(pos);
         let world = store.around(pos);
@@ -1532,23 +1562,72 @@ mod tests {
     use super::*;
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
-    use mcrs_minecraft_world::registries::test_registries;
+    use mcrs_minecraft_network::client::SessionRegistryInputs;
+    use mcrs_minecraft_registry::NetworkRegistry;
+    use mcrs_minecraft_world::registries::{
+        registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent, test_registries,
+    };
+
+    static INPUTS: std::sync::LazyLock<SessionRegistryInputs> = std::sync::LazyLock::new(|| {
+        crate::registries::session_inputs(Some(&crate::asset_corpus()))
+    });
+
+    fn session(edit: impl FnOnce(&mut Vec<NetworkRegistry>)) -> RegistrySet {
+        let server = test_registries();
+        let mut sent = registries_as_sent_to_a_client_that_knows_vanilla(server);
+        edit(&mut sent);
+        let tags = tags_as_sent(&INPUTS.statics, server);
+        INPUTS
+            .declarations
+            .from_network(&INPUTS.statics, sent, &tags, INPUTS.known.as_ref())
+            .unwrap_or_else(|report| panic!("{report}"))
+    }
 
     #[test]
-    fn the_tint_table_holds_one_tint_per_local_biome() {
-        let mut catalog = blocks::empty();
-        blocks::extend(
-            Pack::corpus(),
-            &mut catalog,
-            blocks::corpus(),
-            &[],
-            test_registries(),
+    fn the_tint_table_follows_the_session_biomes() {
+        let mut app = App::new();
+        app.insert_resource(BlockCatalog::new());
+        app.add_systems(
+            Update,
+            derive_biome_tints.run_if(resource_exists::<RegistrySet>),
         );
-        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
-        let biomes = test_registries()
-            .registry::<mcrs_minecraft_biome::Biome>()
-            .unwrap();
-        assert_eq!(catalog.tints.len(), biomes.len());
+        app.update();
+        assert!(app.world().get_resource::<BiomeTints>().is_none());
+
+        let first = session(|_| {});
+        app.insert_resource(first.clone());
+        app.update();
+        assert!(
+            app.world().get_resource::<BiomeTints>().is_none(),
+            "the colormaps are read from the pack, which is not in yet"
+        );
+
+        app.world_mut().resource_mut::<BlockCatalog>().pack =
+            PackLoad::Ready(Pack::shared_corpus());
+        app.update();
+        let tints = app.world().resource::<BiomeTints>().clone();
+        let biomes = |set: &RegistrySet| set.registry::<mcrs_minecraft_biome::Biome>().unwrap();
+        assert_eq!(tints.len(), biomes(&first).len());
+
+        let second = session(|sent| {
+            sent.iter_mut()
+                .find(|sent| sent.registry.as_str() == "minecraft:worldgen/biome")
+                .expect("a server syncs its biomes")
+                .entries
+                .reverse();
+        });
+        app.insert_resource(second.clone());
+        app.update();
+        let replaced = app.world().resource::<BiomeTints>();
+        assert_eq!(replaced.len(), biomes(&second).len());
+
+        let swamp = |set: &RegistrySet| biomes(set).require_by_name("minecraft:swamp").unwrap();
+        assert_ne!(swamp(&first), swamp(&second), "the swamp is numbered anew");
+        assert_eq!(
+            replaced[swamp(&second).index()],
+            tints[swamp(&first).index()],
+            "each biome keeps its tint at its new number"
+        );
     }
 
     fn loader() -> Loader {

@@ -7,7 +7,6 @@ edition.workspace = true
 [dependencies]
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_dimension.workspace = true
-mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_render_light_color.workspace = true

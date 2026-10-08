@@ -166,14 +166,22 @@ impl FromIterator<(String, Vec<u8>)> for Pack {
 }
 
 #[cfg(test)]
+static SHARED: std::sync::LazyLock<std::sync::Arc<Pack>> = std::sync::LazyLock::new(|| {
+    std::sync::Arc::new(Pack {
+        files: vanilla::resource_files().iter().cloned().collect(),
+    })
+});
+
+#[cfg(test)]
 impl Pack {
     /// The client jar's resource pack, read without an asset system: a test has none to read
     /// it through.
     pub fn corpus() -> &'static Pack {
-        static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| Pack {
-            files: vanilla::resource_files().iter().cloned().collect(),
-        });
-        &CORPUS
+        &SHARED
+    }
+
+    pub fn shared_corpus() -> std::sync::Arc<Pack> {
+        SHARED.clone()
     }
 }
 

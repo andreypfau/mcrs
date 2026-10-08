@@ -34,6 +34,8 @@ use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, Cur
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 
+use crate::registries::{SessionSet, entered_configuration};
+
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
 pub const AIR: u16 = 0;
@@ -114,6 +116,17 @@ impl ColumnStore {
             }
             self.dimension = Some(dimension);
         }
+    }
+
+    pub fn clear(&mut self) {
+        for (pos, column) in self.columns.drain() {
+            self.changes.push(ColumnChange::Departed(pos, column));
+        }
+        self.dimension = None;
+    }
+
+    fn holds_nothing(&self) -> bool {
+        self.columns.is_empty() && self.dimension.is_none()
     }
 
     pub fn insert(&mut self, pos: ColumnPos, column: Column) {
@@ -477,7 +490,25 @@ impl Plugin for ColumnCachePlugin {
                 ClientTerrainSet::Build.after(ClientTerrainSet::Settle),
             ),
         );
-        app.add_systems(Update, settle_columns.in_set(ClientTerrainSet::Settle));
+        app.add_systems(
+            Update,
+            (
+                clear_columns
+                    .in_set(SessionSet::Clear)
+                    .before(settle_columns)
+                    .run_if(entered_configuration),
+                settle_columns.in_set(ClientTerrainSet::Settle),
+            ),
+        );
+    }
+}
+
+fn clear_columns(mut store: ResMut<ColumnStore>, mut arrivals: ResMut<Arrivals>) {
+    if !store.holds_nothing() {
+        store.clear();
+    }
+    if !arrivals.holds_nothing() {
+        arrivals.clear();
     }
 }
 
@@ -529,6 +560,19 @@ const NANOS_PER_TICK_ON_COLUMNS: f64 = 35_000_000.0;
 impl Arrivals {
     pub fn pending(&self) -> usize {
         self.queue.len()
+    }
+
+    /// Drops what the connection sent for the dimension it is leaving. The decodes still
+    /// running are cancelled with their tasks. The measured decode rate stays: it describes the
+    /// machine, not the session.
+    fn clear(&mut self) {
+        self.queue.clear();
+        self.extent = None;
+        self.batch_started_at = None;
+    }
+
+    fn holds_nothing(&self) -> bool {
+        self.queue.is_empty() && self.extent.is_none() && self.batch_started_at.is_none()
     }
 
     fn enter(&mut self, registries: &RegistrySet, spawn: &PlayerSpawnInfo) {
@@ -1162,6 +1206,38 @@ mod tests {
             changed,
             "settling nothing leaves the store's change tick where it was"
         );
+    }
+
+    #[test]
+    fn clearing_departs_every_column_and_drops_what_was_on_its_way() {
+        let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
+        let (a, b) = (ColumnPos::new(0, 0), ColumnPos::new(1, 0));
+        let mut store = ColumnStore::default();
+        store.enter(EXTENT);
+        store.insert(a, column());
+        store.insert(b, column());
+        drained(&mut store);
+
+        store.clear();
+        let mut departed: Vec<_> = drained(&mut store).iter().map(observed).collect();
+        departed.sort_by_key(|(_, pos, _)| *pos);
+        assert_eq!(
+            departed,
+            vec![("departed", a, Vec::new()), ("departed", b, Vec::new())]
+        );
+        assert!(store.is_empty());
+        assert!(store.extent().is_none());
+        assert!(store.holds_nothing());
+
+        let mut arrivals = Arrivals::default();
+        arrivals.extent = Some(EXTENT);
+        arrivals.queue.push_back(Arrival::BatchStart);
+        arrivals.queue.push_back(Arrival::Forget(a));
+        assert!(!arrivals.holds_nothing());
+        arrivals.clear();
+        assert_eq!(arrivals.pending(), 0);
+        assert!(arrivals.extent.is_none());
+        assert!(arrivals.holds_nothing());
     }
 
     #[test]

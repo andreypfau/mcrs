@@ -5,13 +5,15 @@ use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use mcrs_minecraft_assets::packs::layered_reader;
+use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_dimension_environment::environment::Weather;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::config::TerrainLimits;
+use crate::registries::SessionSet;
 use crate::{ClientPlugins, ClientTerrainPlugin, config, local_player, player, vanilla};
 
 pub const CANVAS: &str = "#mcrs";
@@ -47,10 +49,9 @@ pub fn register_asset_source(app: &mut App) {
     app.register_asset_source(
         AssetSourceId::Default,
         AssetSourceBuilder::new(move || {
-            layered_reader(
-                Box::new(MemoryAssetReader { root: root.clone() }),
-                mcrs_minecraft_worldgen_builtin::asset,
-            )
+            Box::new(PackLayers::new(Box::new(MemoryAssetReader {
+                root: root.clone(),
+            })))
         }),
     );
 }
@@ -114,12 +115,16 @@ pub fn run() {
     .insert_resource(AdvanceTime(frozen_at.is_none()))
     .insert_resource(Weather::default());
 
-    // With no save to seed them, the clocks appear only when
-    // `seed_world_clocks` fills them from the registry, which is later than
-    // this, so a frozen time has to be applied there instead.
+    // With no save to seed them, the clocks appear only when the session's
+    // registries arrive, which is later than this, so a frozen time has to be
+    // applied there instead.
     if let Some(ticks) = frozen_at {
-        app.insert_resource(FrozenTicks(ticks))
-            .add_systems(Startup, freeze_clocks.after(seed_world_clocks));
+        app.insert_resource(FrozenTicks(ticks)).add_systems(
+            Update,
+            freeze_clocks
+                .after(SessionSet::Derive)
+                .run_if(resource_exists_and_changed::<RegistrySet>),
+        );
     }
 
     app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));

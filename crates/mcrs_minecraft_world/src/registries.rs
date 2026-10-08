@@ -418,6 +418,77 @@ pub fn test_registries() -> &'static RegistrySet {
     &SET
 }
 
+/// The registries a server holding `server` sends, in table order. A vanilla entry
+/// goes without data unless `sends_data` asks for it, as it does to a client that
+/// knows the vanilla pack.
+pub fn registries_as_sent(
+    server: &RegistrySet,
+    sends_data: impl Fn(&str, usize) -> bool,
+) -> Vec<mcrs_minecraft_registry::NetworkRegistry> {
+    server
+        .synced()
+        .map(|(table, column)| {
+            let registry = table.registry();
+            mcrs_minecraft_registry::NetworkRegistry {
+                registry: registry.clone(),
+                entries: table
+                    .names()
+                    .iter()
+                    .zip(column)
+                    .enumerate()
+                    .map(
+                        |(id, (name, network))| mcrs_minecraft_registry::NetworkEntry {
+                            name: name.clone(),
+                            data: sends_data(registry.as_str(), id).then(|| network.0.clone()),
+                        },
+                    )
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+/// Every vanilla entry of `server` without data and every other entry with it.
+pub fn registries_as_sent_to_a_client_that_knows_vanilla(
+    server: &RegistrySet,
+) -> Vec<mcrs_minecraft_registry::NetworkRegistry> {
+    registries_as_sent(server, |registry, id| {
+        server.pack_of(registry, id) != Some(mcrs_minecraft_registry::VANILLA_PACK)
+    })
+}
+
+/// The tags a server holding `server` sends for the static registries and the synced ones.
+pub fn tags_as_sent(
+    statics: &RegistrySet,
+    server: &RegistrySet,
+) -> Vec<mcrs_minecraft_registry::NetworkTags> {
+    let synced: Vec<_> = server
+        .synced()
+        .map(|(table, _)| table.registry().as_str())
+        .collect();
+    server
+        .tables()
+        .map(|table| table.registry())
+        .filter(|registry| {
+            statics.table(registry.as_str()).is_some() || synced.contains(&registry.as_str())
+        })
+        .filter_map(|registry| server.tag_table(registry.as_str()))
+        .filter(|table| !table.is_empty())
+        .map(|table| mcrs_minecraft_registry::NetworkTags {
+            registry: table.registry().clone(),
+            tags: table
+                .names()
+                .iter()
+                .enumerate()
+                .map(|(tag, name)| {
+                    let members = table.members(tag).iter().map(|&m| i32::from(m)).collect();
+                    (name.clone(), members)
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 #[cfg(feature = "bevy")]
 pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     world.insert_resource(

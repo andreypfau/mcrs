@@ -3587,7 +3587,6 @@ dependencies = [
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
- "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_testing",
  "objc2-foundation 0.3.2",
