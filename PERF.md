@@ -851,6 +851,42 @@ this one at 71, so the difference cannot be told from the load and is not called
 This is the baseline the work that moves the worldgen registries onto the loader compares
 against.
 
+### Built-in worldgen as typed entries
+
+The same scenario on the tree where the template pools the code builds are entries of the vanilla
+pack, read from the registry set, and no registry value passes through the asset server as JSON
+built by code. The tree before the change (`2192410ef`, built from an exported copy) was measured
+beside it: the two binaries ran alternately, three runs each, each a fresh process, with the load
+average read as the run started.
+
+| tree | run | load average | start to Playing | loader duration | registries | entries |
+|---|---|---|---|---|---|---|
+| before | 1 | 18.49, 17.62, 11.73 | 2.273 s | 201.8 ms | 155 | 14472 |
+| before | 2 | 20.86, 18.12, 11.94 | 0.831 s | 154.2 ms | 155 | 14472 |
+| before | 3 | 19.19, 17.82, 11.87 | 0.824 s | 149.0 ms | 155 | 14472 |
+| before | median | | 0.831 s | 154.2 ms | 155 | 14472 |
+| after | 1 | 20.86, 18.12, 11.94 | 0.641 s | 163.3 ms | 155 | 14472 |
+| after | 2 | 19.19, 17.82, 11.87 | 0.617 s | 145.8 ms | 155 | 14472 |
+| after | 3 | 18.05, 17.61, 11.83 | 0.615 s | 145.2 ms | 155 | 14472 |
+| after | median | | 0.617 s | 145.8 ms | 155 | 14472 |
+
+A first set of three runs on the changed tree, taken before the other binary was built, read
+2.228 s, 0.611 s and 0.612 s to Playing and 244.3, 142.1 and 143.6 ms for the loader, at a load
+average of 17.2, 16.2 and 15.5 over the last minute.
+
+The load was above the machine's 16 cores in every run, so all of these are upper bounds. The first
+run of the tree before the change read the binary and the data pack cold (2.273 s against 0.641 s
+for the run that followed it), so the first pair is not compared. The other two pairs ran at the
+same load and read 0.831 and 0.824 s before the change against 0.617 and 0.615 s after it, with
+under 3 ms between the two runs of either tree; that difference of about 0.21 s is larger than the
+spread inside each tree and is read as real at this load, while its cause was not isolated. The
+loader's own duration reads 154.2 ms before and 145.8 ms after, which is inside the spread of the
+runs (145.2 to 201.8 ms), so it is not called a change; the registry and entry counts are equal on
+both trees. They differ from the 147 registries and 9079 entries of the tables above,
+and the change that moved them is earlier than this one and was not measured. The median start time
+against the 0.771 s of the previous table is not compared, because that table was taken at a load
+average of 71 and these at about 19.
+
 ### Synced registry column
 
 The load encodes the network form of every synced registry entry once and keeps it as a column of

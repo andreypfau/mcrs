@@ -72,6 +72,7 @@ use mcrs_minecraft_registry::{LoadReport, Parts, RegistrySet, WorldRegistries};
 use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK};
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_surface::proto::{
@@ -124,6 +125,7 @@ world_registry_table! {
         synced from parts as |parts| NetworkBiome::from(parts),
         received as NetworkBiome => NetworkBiome::into_parts;
     PlacedFeature => PlacedFeature;
+    TemplatePool => TemplatePool;
     NoiseParam => NoiseParam;
     DensityFunctionHolder => DensityFunctionHolder;
     NoiseGeneratorSettings => NoiseGeneratorSettings;

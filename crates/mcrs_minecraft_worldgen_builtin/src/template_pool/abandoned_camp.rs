@@ -111,7 +111,7 @@ pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {
     })
 }
 
-pub fn build(id: &ResourceLocation) -> Option<TemplatePool> {
+fn build(id: &ResourceLocation) -> Option<TemplatePool> {
     let name = id.path().strip_prefix("abandoned_camp/")?;
     if id.namespace() != "minecraft" {
         return None;

@@ -14,9 +14,12 @@ mod village_taiga;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_registry::Built;
+use mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL;
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;
-use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
+use std::collections::{BTreeMap, BTreeSet};
 
 type ProcessorListKey = ResourceKey<StructureProcessorList, &'static str>;
 
@@ -217,7 +220,7 @@ fn listed() -> impl Iterator<Item = &'static Pool> {
     TABLES.iter().flat_map(|table| table.iter())
 }
 
-pub fn keys() -> impl Iterator<Item = ResourceLocation> {
+fn keys() -> impl Iterator<Item = ResourceLocation> {
     listed()
         .map(|pool| ResourceLocation::minecraft(pool.name).expect("a hardcoded name"))
         .chain(abandoned_camp::keys())
@@ -234,12 +237,10 @@ pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {
         .chain(abandoned_camp::all())
 }
 
-// chisle: a linear scan of 188 rows per pool read. A sorted table and a binary
-// search lift it if the tables grow.
-pub fn build(id: &ResourceLocation) -> Option<TemplatePool> {
-    let named = |pool: &&Pool| id.namespace() == "minecraft" && pool.name == id.path();
-    match listed().find(named) {
-        Some(pool) => Some(pool.build()),
-        None => abandoned_camp::build(id),
-    }
+pub fn built() -> Built {
+    Built::new(
+        TEMPLATE_POOL.location(),
+        keys().collect::<BTreeSet<_>>().into_iter().collect(),
+        |_| Ok(all().collect::<BTreeMap<_, _>>().into_values().collect()),
+    )
 }

@@ -5,10 +5,12 @@ use std::path::Path;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
-use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
+use bevy_asset::io::{AssetReaderError, AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
-use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
+use mcrs_minecraft_assets::packs::{
+    PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source, layered_reader,
+};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
@@ -41,6 +43,7 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
@@ -171,7 +174,7 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 10] = [
+const PARSED_WORLDGEN: [&str; 11] = [
     "minecraft:worldgen/biome",
     "minecraft:worldgen/block_state_provider",
     "minecraft:worldgen/density_function",
@@ -181,13 +184,15 @@ const PARSED_WORLDGEN: [&str; 10] = [
     "minecraft:worldgen/noise",
     "minecraft:worldgen/noise_settings",
     "minecraft:worldgen/placed_feature",
+    "minecraft:worldgen/template_pool",
     "minecraft:worldgen/world_preset",
 ];
 
-const BUILT_WORLDGEN: [&str; 3] = [
+const BUILT_WORLDGEN: [&str; 4] = [
     "minecraft:worldgen/density_function",
     "minecraft:worldgen/noise",
     "minecraft:worldgen/noise_settings",
+    "minecraft:worldgen/template_pool",
 ];
 
 #[test]
@@ -256,24 +261,15 @@ fn vanilla_biomes_are_built_entries_not_files() {
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/biome/plains.json").is_none(),
         "a built biome is served as a file"
     );
-    assert!(
-        mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome").is_empty(),
-        "a built biome is listed as a file"
-    );
 }
 
 #[test]
 fn vanilla_noise_settings_are_built_entries_not_files() {
     let set = test_registries();
-    for (registry, folder, vanilla, beta) in [
-        ("minecraft:worldgen/noise", "noise", 64, 5),
-        (
-            "minecraft:worldgen/density_function",
-            "density_function",
-            55,
-            10,
-        ),
-        ("minecraft:worldgen/noise_settings", "noise_settings", 7, 1),
+    for (registry, vanilla, beta) in [
+        ("minecraft:worldgen/noise", 64, 5),
+        ("minecraft:worldgen/density_function", 55, 10),
+        ("minecraft:worldgen/noise_settings", 7, 1),
     ] {
         let table = set.table(registry).expect(registry);
         let from = |pack: &str| {
@@ -286,21 +282,82 @@ fn vanilla_noise_settings_are_built_entries_not_files() {
             (vanilla, beta),
             "{registry}"
         );
-        assert!(
-            mcrs_minecraft_worldgen_builtin::paths(&format!("minecraft/worldgen/{folder}"))
-                .is_empty(),
-            "a built {folder} entry is listed as a file"
-        );
-        assert!(
-            mcrs_minecraft_worldgen_builtin::assets(folder).is_empty(),
-            "a built {folder} entry is served as JSON"
-        );
     }
     assert!(
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/noise_settings/overworld.json")
             .is_none(),
         "built noise settings are served as a file"
     );
+}
+
+#[test]
+fn vanilla_template_pools_are_built_entries_not_files() {
+    let set = test_registries();
+    let registry = "minecraft:worldgen/template_pool";
+    let table = set.table(registry).expect(registry);
+    assert_eq!(table.len(), 245);
+    assert!(
+        (0..table.len()).all(|id| set.pack_of(registry, id) == Some(VANILLA_PACK)),
+        "a template pool comes from a pack other than the vanilla one"
+    );
+    let pools = set
+        .entries::<TemplatePool, TemplatePool>()
+        .expect("the loader parses template pools");
+    assert_eq!(pools.as_slice().len(), table.len());
+    assert!(
+        mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/template_pool/empty.json")
+            .is_none(),
+        "a built template pool is served as a file"
+    );
+}
+
+#[test]
+fn the_fallback_serves_only_structure_templates() {
+    let set = test_registries();
+    let fallback = layered_reader(
+        Box::new(MemoryAssetReader {
+            root: Dir::default(),
+        }),
+        mcrs_minecraft_worldgen_builtin::asset,
+    );
+
+    let mut json_paths = 0;
+    for built in mcrs_minecraft_worldgen_builtin::built(VANILLA_PACK) {
+        let registry = built.registry().as_static_str();
+        let table = set.table(registry).expect(registry);
+        for (id, name) in table.names().iter().enumerate() {
+            if set.pack_of(registry, id) != Some(VANILLA_PACK) {
+                continue;
+            }
+            let path = format!(
+                "{}/{}/{}.json",
+                name.namespace(),
+                table.registry().path(),
+                name.path()
+            );
+            assert!(
+                mcrs_minecraft_worldgen_builtin::asset(&path).is_none(),
+                "{path} is answered from built-in code"
+            );
+            assert!(
+                matches!(
+                    bevy_tasks::block_on(read_whole(&*fallback, Path::new(&path))),
+                    Err(AssetReaderError::NotFound(_))
+                ),
+                "{path} is read through the fallback"
+            );
+            json_paths += 1;
+        }
+    }
+    assert_eq!(json_paths, 67 + 64 + 55 + 7 + 245);
+
+    let template = mcrs_minecraft_worldgen_builtin::template_paths("minecraft/structure")
+        .into_iter()
+        .next()
+        .expect("the code builds structure templates");
+    let bytes = bevy_tasks::block_on(read_whole(&*fallback, Path::new(&template)))
+        .unwrap_or_else(|error| panic!("{template}: {error}"));
+    assert!(!bytes.is_empty());
 }
 
 #[test]
@@ -637,6 +694,7 @@ fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(Strin
                         "minecraft:worldgen/density_function" => {
                             read_back::<DensityFunctionHolder>(&encoded)
                         }
+                        "minecraft:worldgen/template_pool" => read_back::<TemplatePool>(&encoded),
                         _ => read_back::<NoiseGeneratorSettings>(&encoded),
                     });
                     assert_eq!(
@@ -2045,13 +2103,11 @@ fn every_built_in_file_reads_through_the_layered_file_source() {
         .expect("default AssetSource missing")
         .reader();
 
-    for directory in ["minecraft/worldgen/template_pool"] {
-        let paths = mcrs_minecraft_worldgen_builtin::paths(directory);
-        assert!(!paths.is_empty(), "{directory}");
-        for path in paths {
-            bevy_tasks::block_on(read_whole(source, Path::new(&path)))
-                .unwrap_or_else(|error| panic!("{path}: {error}"));
-        }
+    let paths = mcrs_minecraft_worldgen_builtin::template_paths("minecraft/structure");
+    assert!(!paths.is_empty());
+    for path in paths {
+        bevy_tasks::block_on(read_whole(source, Path::new(&path)))
+            .unwrap_or_else(|error| panic!("{path}: {error}"));
     }
 }
 

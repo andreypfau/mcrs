@@ -66,7 +66,8 @@ pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
 
 /// The packs layered over `inner`, answering from `builtin` for a path no layer
 /// holds. A file always wins, so a datapack overrides a built-in by shipping
-/// the same path.
+/// the same path. Only structure templates are answered this way; registry
+/// entries are built by the registry loader and never reach this reader.
 pub fn layered_reader(
     inner: Box<dyn ErasedAssetReader>,
     builtin: BuiltinAsset,
@@ -107,8 +108,8 @@ impl AssetReader for BuiltinFallback {
         AssetReader::read_meta(&self.layers, path).await
     }
 
-    // chisle: a directory listing shows files only. The registry loader adds
-    // the built-in paths itself; merging the listings here lifts that.
+    // chisle: a directory listing shows files only. The template reader adds
+    // the built-in template paths itself; merging the listings here lifts that.
     async fn read_directory<'a>(
         &'a self,
         path: &'a Path,

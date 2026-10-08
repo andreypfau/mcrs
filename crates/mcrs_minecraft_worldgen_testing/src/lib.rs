@@ -75,7 +75,7 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
 /// ones it ships no file for.
 pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
     let base = assets_dir().join("minecraft/structure");
-    let mut templates: BTreeMap<PathBuf, Vec<u8>> = builtin::paths("minecraft/structure")
+    let mut templates: BTreeMap<PathBuf, Vec<u8>> = builtin::template_paths("minecraft/structure")
         .into_iter()
         .map(|path| {
             let bytes = builtin::asset(&path).expect("a listed built-in template builds");
@@ -273,6 +273,12 @@ pub fn names_of<R: mcrs_minecraft_registry::Registered>(set: &HolderSet<R>) -> V
         .collect()
 }
 
+/// The built template pools as the JSON they encode to, for the tests that read
+/// the corpus as files.
+pub fn built_template_pools() -> BTreeMap<ResourceLocation, Vec<u8>> {
+    built_json("template_pool")
+}
+
 /// The built biomes as the JSON they encode to, for the tests that read the
 /// corpus as files.
 pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
@@ -311,12 +317,14 @@ fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     static NOISES: Json = LazyLock::new(|| encoded(builtin::noises()));
     static DENSITY_FUNCTIONS: Json = LazyLock::new(|| encoded(builtin::density_functions()));
     static NOISE_SETTINGS: Json = LazyLock::new(|| encoded(builtin::noise_settings()));
+    static TEMPLATE_POOLS: Json = LazyLock::new(|| encoded(builtin::template_pools()));
     match folder {
         "biome" => built_biomes(),
         "noise" => NOISES.clone(),
         "density_function" => DENSITY_FUNCTIONS.clone(),
         "noise_settings" => NOISE_SETTINGS.clone(),
-        _ => builtin::assets(folder),
+        "template_pool" => TEMPLATE_POOLS.clone(),
+        _ => BTreeMap::new(),
     }
 }
 

@@ -4,7 +4,6 @@ use mcrs_minecraft_registry::{
     WorldRegistries,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 pub const DATAPACK_REPORT: &str = "mcrs/reports/datapack.json";
@@ -53,16 +52,9 @@ impl<'a> PackScan<'a> {
         let registries = self.registries;
         let mut directories = Vec::new();
         for registry in registries.declared() {
-            let reads_bytes = registries.parses(registry.as_str());
-            if self.vanilla {
-                let directory = format!("{namespace}/{}", registry.path());
-                for path in mcrs_minecraft_worldgen_builtin::paths(&directory) {
-                    *self.found.entry(path).or_default() |= reads_bytes;
-                }
-            }
             directories.push(Directory {
                 path: Path::new(namespace).join(registry.path()),
-                reads_bytes,
+                reads_bytes: registries.parses(registry.as_str()),
             });
         }
         for directory in &self.tag_directories {
@@ -137,7 +129,6 @@ pub fn known_pack_entries(root: &Path) -> Result<KnownPackEntries, LoadReport> {
     let vanilla = vec![read_pack(
         root,
         VANILLA_PACK,
-        true,
         &world,
         &statics,
         &mut problems,
@@ -159,21 +150,13 @@ pub fn read_packs_from_directory(
     let mut packs = vec![read_pack(
         root,
         VANILLA_PACK,
-        true,
         registries,
         statics,
         &mut report,
     )];
     for name in pack_names(root) {
         let base = root.join(PACKS_ROOT).join(&name);
-        packs.push(read_pack(
-            &base,
-            &name,
-            false,
-            registries,
-            statics,
-            &mut report,
-        ));
+        packs.push(read_pack(&base, &name, registries, statics, &mut report));
     }
     if report.is_empty() {
         Ok(packs)
@@ -197,7 +180,6 @@ fn pack_names(root: &Path) -> Vec<String> {
 fn read_pack(
     base: &Path,
     name: &str,
-    vanilla: bool,
     registries: &WorldRegistries,
     statics: &RegistrySet,
     report: &mut LoadReport,
@@ -222,7 +204,7 @@ fn read_pack(
         .into_iter()
         .map(|(path, reads_bytes)| {
             let bytes = reads_bytes
-                .then(|| match read_file(base, &path, vanilla) {
+                .then(|| match std::fs::read(base.join(&path)) {
                     Ok(bytes) => Some(bytes),
                     Err(error) => {
                         report.invalid_report(format_args!(
@@ -240,16 +222,6 @@ fn read_pack(
         name: name.to_owned(),
         files,
         built,
-    }
-}
-
-fn read_file(base: &Path, path: &str, vanilla: bool) -> std::io::Result<Vec<u8>> {
-    match std::fs::read(base.join(path)) {
-        // The built-in entries of the vanilla pack are listed but have no file.
-        Err(error) if vanilla && error.kind() == ErrorKind::NotFound => {
-            mcrs_minecraft_worldgen_builtin::asset(path).ok_or(error)
-        }
-        read => read,
     }
 }
 
@@ -307,6 +279,7 @@ mod tests {
                         "minecraft:worldgen/noise",
                         "minecraft:worldgen/density_function",
                         "minecraft:worldgen/noise_settings",
+                        "minecraft:worldgen/template_pool",
                     ]
                 ),
                 (

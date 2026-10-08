@@ -15,18 +15,15 @@ fn a_path_outside_the_built_in_folders_is_not_served() {
         builtin::asset("minecraft/worldgen/noise/no_such_noise.json"),
         None
     );
+    assert_eq!(
+        builtin::asset("minecraft/worldgen/template_pool/empty.json"),
+        None
+    );
 }
 
 #[test]
-fn the_typed_folders_are_built_for_a_pack_and_served_as_no_file() {
-    for folder in ["noise", "density_function", "noise_settings"] {
-        assert!(builtin::assets(folder).is_empty(), "{folder}");
-        assert!(
-            builtin::paths(&format!("minecraft/worldgen/{folder}")).is_empty(),
-            "{folder}"
-        );
-    }
-    assert_eq!(builtin::built("vanilla").len(), 4);
+fn the_typed_folders_are_built_for_a_pack() {
+    assert_eq!(builtin::built("vanilla").len(), 5);
     assert_eq!(builtin::built("beta").len(), 3);
     assert!(builtin::built("mcrs").is_empty());
 }
@@ -34,7 +31,7 @@ fn the_typed_folders_are_built_for_a_pack_and_served_as_no_file() {
 fn templates_read_back_from_the_bytes_they_are_served_as(count: usize) {
     let built = builtin::templates();
     assert_eq!(built.len(), 483);
-    let listed = builtin::paths("minecraft/structure");
+    let listed = builtin::template_paths("minecraft/structure");
     assert_eq!(listed.len(), built.len());
     for (id, template) in built.into_iter().take(count) {
         let path = format!("minecraft/structure/{}.nbt", id.path());
@@ -83,7 +80,7 @@ fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() 
         "268bd82d55f28aaa4fcf5d85f0042d9e0ec173b88edb553619a6b248f5742051"
     );
     assert_eq!(
-        digest(builtin::assets("template_pool")),
+        digest(mcrs_minecraft_worldgen_testing::built_template_pools()),
         "f13af32a6f2766c69986cd799dcf0ee948023bf3592ca34c1a15d062a7620f2d"
     );
     let templates = builtin::templates().into_iter().map(|(id, template)| {

@@ -27,7 +27,7 @@ pub(crate) mod registry_files {
 /// future resource packs mounted as file-system folders or ZIPs.
 /// Falls back to the build-time manifest baked from the vanilla `assets/`
 /// tree for sources that cannot list directories (HTTP/WASM). Either listing
-/// names files only, so the entries the code builds are added to it.
+/// names files only, so the templates the code builds are added to it.
 fn list_registry_files(
     asset_server: &AssetServer,
     folder: &str,
@@ -54,7 +54,7 @@ fn list_registry_files(
     } else {
         dynamic.into_iter().collect()
     };
-    files.extend(mcrs_minecraft_worldgen_builtin::paths(folder));
+    files.extend(mcrs_minecraft_worldgen_builtin::template_paths(folder));
     files.into_iter().collect()
 }
 
@@ -105,11 +105,11 @@ pub(crate) fn request_data_pack_assets(
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
     use mcrs_minecraft_worldgen::bevy::{
-        CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, StructureAsset, StructureSetAsset,
-        TemplatePoolAsset,
+        CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, StructureAsset,
+        StructureSetAsset,
     };
     use mcrs_minecraft_worldgen_carver::keys::CARVER;
-    use mcrs_minecraft_worldgen_feature::keys::{FEATURE, PLACED_FEATURE, TEMPLATE_POOL};
+    use mcrs_minecraft_worldgen_feature::keys::{FEATURE, PLACED_FEATURE, PROCESSOR_LIST};
     use mcrs_minecraft_worldgen_structure::keys::{STRUCTURE, STRUCTURE_SET};
     let (server, loaded) = (&asset_server, &mut *loaded);
     request_registry::<CarverConfigAsset, _>(server, &set, loaded, CARVER);
@@ -117,7 +117,7 @@ pub(crate) fn request_data_pack_assets(
     request_registry::<PlacedFeatureAsset, _>(server, &set, loaded, PLACED_FEATURE);
     request_registry::<StructureSetAsset, _>(server, &set, loaded, STRUCTURE_SET);
     request_registry::<StructureAsset, _>(server, &set, loaded, STRUCTURE);
-    request_registry::<TemplatePoolAsset, _>(server, &set, loaded, TEMPLATE_POOL);
+    request_registry::<ProcessorListAsset, _>(server, &set, loaded, PROCESSOR_LIST);
     request_templates(server, loaded);
 }
 
