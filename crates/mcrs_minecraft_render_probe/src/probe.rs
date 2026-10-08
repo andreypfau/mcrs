@@ -352,7 +352,7 @@ pub(crate) fn log_system_counts(world: &mut World) {
         .map(|(label, schedule)| (format!("{label:?}"), schedule.systems_len()))
         .filter(|(_, count)| *count > 0)
         .collect();
-    counts.sort_by(|a, b| b.1.cmp(&a.1));
+    counts.sort_by_key(|count| std::cmp::Reverse(count.1));
     let total: usize = counts.iter().map(|(_, count)| count).sum();
     info!(total, ?counts, "systems per schedule");
 }
@@ -461,6 +461,10 @@ pub(crate) fn resolve(
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy render-graph system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn begin_frame(
     _view: ViewQuery<&'static ExtractedView>,
     queries: Option<Res<Queries>>,

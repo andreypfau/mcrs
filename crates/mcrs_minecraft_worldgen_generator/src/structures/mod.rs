@@ -1,7 +1,10 @@
 use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{Mirror, Rotation};
@@ -9,6 +12,7 @@ use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
@@ -23,15 +27,13 @@ use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::spawn_condition::{
     IdSet, SpawnSelector, VariantTable, VariantTables,
 };
-use mcrs_minecraft_worldgen_structure::{PoolAlias, Structure, StructurePlacement, StructureSet, TerrainAdaptation};
-use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{
+    PoolAlias, Structure, StructurePlacement, StructureSet, TerrainAdaptation,
+};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::BlockEntityType;
 
 pub mod index;
 
@@ -168,20 +170,25 @@ fn freeze_variants(
     };
     frozen.variants = VariantTables {
         cats: table(
-            mcrs_minecraft_entity::keys::CAT_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::CAT_VARIANT
+                .location()
+                .as_static_str(),
             inputs.variants.cats,
         )?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
         chickens: table(
-            mcrs_minecraft_entity::keys::CHICKEN_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::CHICKEN_VARIANT
+                .location()
+                .as_static_str(),
             inputs.variants.chickens,
         )?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT
+                .location()
+                .as_static_str(),
             inputs.variants.zombie_nautiluses,
         )?,
-        ..VariantTables::default()
     };
     Ok(())
 }
@@ -465,7 +472,11 @@ fn freeze_structures(
             Structure::JungleTemple { .. } => StructureKind::JungleTemple,
             Structure::Mineshaft { mineshaft_type, .. } => StructureKind::Mineshaft {
                 mineshaft_type: *mineshaft_type,
-                blocking: biome_tag_mask(inputs, id, mcrs_minecraft_biome::keys::biome_tags::MINESHAFT_BLOCKING)?,
+                blocking: biome_tag_mask(
+                    inputs,
+                    id,
+                    mcrs_minecraft_biome::keys::biome_tags::MINESHAFT_BLOCKING,
+                )?,
             },
             Structure::NetherFossil { height, .. } => StructureKind::NetherFossil {
                 height: *height,

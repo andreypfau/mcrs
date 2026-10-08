@@ -185,6 +185,10 @@ fn spawn(mut commands: Commands) {
         });
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn render(
     map: Res<ChunkMap>,
     mut root: Query<&mut Visibility, With<ChunkMapRoot>>,

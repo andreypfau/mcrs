@@ -27,11 +27,11 @@ fn stack() -> Vec<SectionBlocks> {
     let canopy = &mut sections[2];
     for i in 0..8u8 {
         canopy.set_cell(i as usize, 4, i as usize, LEAVES);
-        canopy.set_cell((i) as usize, (5) as usize, (i + 1) as usize, GLASS);
+        canopy.set_cell((i) as usize, 5_usize, (i + 1) as usize, GLASS);
         // A top slab directly under a bottom slab seals a seam neither seals
         // alone, so the shortcut has to leave these columns to the full walk.
-        canopy.set_cell((i + 8) as usize, (7) as usize, (i) as usize, TOP_SLAB);
-        canopy.set_cell((i + 8) as usize, (8) as usize, (i) as usize, BOTTOM_SLAB);
+        canopy.set_cell((i + 8) as usize, 7_usize, (i) as usize, TOP_SLAB);
+        canopy.set_cell((i + 8) as usize, 8_usize, (i) as usize, BOTTOM_SLAB);
     }
     sections
 }
@@ -167,7 +167,7 @@ fn a_section_arriving_drops_the_bound() {
     // Section 3 comes back holding terrain the bound says is not there.
     let mut ceiling = filled(AIR);
     for i in 0..16u8 {
-        ceiling.set_cell(i as usize, 9 as usize, i as usize, STONE);
+        ceiling.set_cell(i as usize, 9_usize, i as usize, STONE);
     }
     let replacement = Edit::LoadSection {
         entity: 0,
@@ -191,7 +191,7 @@ fn a_bound_on_a_section_boundary_is_exact() {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)
         .map(|y| filled(if y == 0 { STONE } else { AIR }))
         .collect();
-    sections[1].set_cell(0 as usize, 15 as usize, 0 as usize, STONE);
+    sections[1].set_cell(0_usize, 15_usize, 0_usize, STONE);
 
     let mut bounded = world();
     load(&mut bounded, &sections);

@@ -69,7 +69,7 @@ pub struct CarverBiomeTable {
 /// How a source chunk's biome is found, and the carvers each answer runs.
 enum SourceBiomes {
     /// The six climate roots at the source, against a climate table.
-    Climate(ParameterList<Arc<[CarverConfig]>>),
+    Climate(Box<ParameterList<Arc<[CarverConfig]>>>),
     /// Temperature and humidity at the source through Beta's lookup grid, which
     /// only ever answers a land biome: one carver list per land biome, in
     /// discriminant order.
@@ -293,7 +293,8 @@ impl CarverBiomeTable {
                 .or_insert_with(|| lookup(biome))
                 .clone()
         });
-        Self::with_biomes(SourceBiomes::Climate(values)).with_region(REGION_WIDTH, REGION_CAPACITY)
+        Self::with_biomes(SourceBiomes::Climate(Box::new(values)))
+            .with_region(REGION_WIDTH, REGION_CAPACITY)
     }
 
     /// A source that lists its biomes rather than naming a preset.
@@ -316,7 +317,7 @@ impl CarverBiomeTable {
             })
             .collect();
         Some(
-            Self::with_biomes(SourceBiomes::Climate(ParameterList::new(values)))
+            Self::with_biomes(SourceBiomes::Climate(Box::new(ParameterList::new(values))))
                 .with_region(REGION_WIDTH, REGION_CAPACITY),
         )
     }

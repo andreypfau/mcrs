@@ -107,7 +107,7 @@ fn space_for_tree<W: WorldGenVolume>(
     for above_origin in 1..=config.required_vertical_space_for_tree {
         up.y += 1;
         let air = volume.is_air(up);
-        let shallow_water = above_origin + 1 <= config.allowed_vertical_water_for_tree
+        let shallow_water = above_origin < config.allowed_vertical_water_for_tree
             && volume.holds(&volume.world().water_fluid, up);
         if !air && !shallow_water {
             return false;

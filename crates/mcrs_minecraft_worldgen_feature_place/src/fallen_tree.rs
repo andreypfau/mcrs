@@ -163,11 +163,13 @@ mod tests {
     /// Dirt at y = 63 under air, and a trunk provider that draws once per log
     /// so the anchor below sees the log count.
     fn fixture() -> (CompiledFallenTree, FakeVolume) {
-        let mut states = TreeStates::default();
-        states.valid_tree_pos = mask_of([AIR]);
-        states.logs = mask_of([LOG]);
-        states.air_or_leaves = mask_of([AIR]);
-        states.persistent = StateMask::default();
+        let states = TreeStates {
+            valid_tree_pos: mask_of([AIR]),
+            logs: mask_of([LOG]),
+            air_or_leaves: mask_of([AIR]),
+            persistent: StateMask::default(),
+            ..TreeStates::default()
+        };
 
         let tree = CompiledFallenTree {
             trunk_provider: StateProvider::Weighted(vec![(LOG, 1)]),
@@ -185,13 +187,15 @@ mod tests {
             }),
         };
 
-        let mut volume = FakeVolume::default();
-        volume.world = WorldStates {
-            air_states: mask_of([AIR]),
-            replaceable: mask_of([AIR]),
-            solid_render: mask_of([DIRT, LOG]),
-            sturdy_up: mask_of([DIRT]),
-            ..WorldStates::default()
+        let mut volume = FakeVolume {
+            world: WorldStates {
+                air_states: mask_of([AIR]),
+                replaceable: mask_of([AIR]),
+                solid_render: mask_of([DIRT, LOG]),
+                sturdy_up: mask_of([DIRT]),
+                ..WorldStates::default()
+            },
+            ..FakeVolume::default()
         };
         for x in -8..=8 {
             for z in -8..=8 {

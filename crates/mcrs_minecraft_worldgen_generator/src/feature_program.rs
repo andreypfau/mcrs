@@ -1022,10 +1022,11 @@ fn compile_elements(
     resolver: &Resolver<'_>,
     corpus: &LoadedFeatures,
 ) -> Compiled<Vec<CompiledElement>> {
-    let mut chains: Vec<(
-        (&Holder<StructureProcessorList>, ChainKind),
+    type ChainEntry<'a> = (
+        (&'a Holder<StructureProcessorList>, ChainKind),
         Arc<CompiledChain>,
-    )> = Vec::new();
+    );
+    let mut chains: Vec<ChainEntry<'_>> = Vec::new();
     frozen
         .elements
         .iter()
@@ -2347,7 +2348,7 @@ fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceS
     let mut faces_high_first = Direction::all().map(|direction| direction.name());
     faces_high_first.reverse();
     for (waterlogged, row) in by_faces.iter_mut().enumerate() {
-        for faces in 0..64usize {
+        for (faces, slot) in row.iter_mut().enumerate() {
             let id = with_bits(entry, &faces_high_first, faces)?;
             let id = entry
                 .with_text(
@@ -2356,7 +2357,7 @@ fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceS
                     if waterlogged == 1 { "true" } else { "false" },
                 )
                 .map_or(id, |flooded| VoxelId::from(flooded.0));
-            row[faces] = id;
+            *slot = id;
         }
     }
     let mut of_state = FxHashMap::default();
@@ -2818,7 +2819,8 @@ impl<'a> Resolver<'a> {
     }
 
     fn add_block(&self, mask: &mut FixedBitSet, id: &ResourceLocation) -> Option<()> {
-        Some(Self::add_entry(mask, self.blocks.block(id.as_str())?))
+        let _: () = Self::add_entry(mask, self.blocks.block(id.as_str())?);
+        Some(())
     }
 
     fn add_tag(&self, mask: &mut FixedBitSet, tag: &ResourceLocation) -> Option<()> {

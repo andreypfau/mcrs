@@ -503,7 +503,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(TntBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
-    sub_app.add_plugins(BlockUpdatePlugin::default());
+    sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);

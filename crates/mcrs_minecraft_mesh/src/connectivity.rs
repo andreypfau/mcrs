@@ -160,9 +160,9 @@ mod tests {
                     stack.push([x, y, z]);
                     let mut touched = 0u64;
                     while let Some(here) = stack.pop() {
-                        for axis in 0..3 {
-                            touched |= ((here[axis] == 0) as u64) << (axis_face(axis) * 2);
-                            touched |= ((here[axis] == N - 1) as u64) << (axis_face(axis) * 2 + 1);
+                        for (axis, &coord) in here.iter().enumerate() {
+                            touched |= ((coord == 0) as u64) << (axis_face(axis) * 2);
+                            touched |= ((coord == N - 1) as u64) << (axis_face(axis) * 2 + 1);
                         }
                         for step in NEIGHBOUR {
                             let next = [here[0] + step[0], here[1] + step[1], here[2] + step[2]];

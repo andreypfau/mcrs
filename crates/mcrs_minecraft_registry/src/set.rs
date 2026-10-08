@@ -778,14 +778,11 @@ mod tests {
         assert_eq!(table.name(0).unwrap().as_str(), "minecraft:desert");
 
         let twice = [rl!("minecraft:a"), rl!("minecraft:a")];
-        let cases: [(
-            &str,
-            &[(
-                ResourceLocation<&'static str>,
-                &[ResourceLocation<&'static str>],
-            )],
-            &str,
-        ); 2] = [
+        type RegistryLocations<'a> = &'a [(
+            ResourceLocation<&'static str>,
+            &'a [ResourceLocation<&'static str>],
+        )];
+        let cases: [(&str, RegistryLocations, &str); 2] = [
             (
                 "an entry twice",
                 &[(rl!("minecraft:item"), &twice)],

@@ -12,6 +12,13 @@ use crate::task::CancellationToken;
 use crate::{apply_beta_surface, generate_column};
 use mcrs_minecraft_biome::Biome;
 
+type GeneratedSections = Vec<
+    Option<(
+        mcrs_minecraft_level::palette::BlockPalette,
+        mcrs_minecraft_level::palette::BiomePalette,
+    )>,
+>;
+
 pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let land: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
@@ -241,15 +248,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     let stone_id = VoxelId::from(super::corpus().default_state("minecraft:stone").0);
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
-    let rust_stone_top_y = |sections: &Vec<
-        Option<(
-            mcrs_minecraft_level::palette::BlockPalette,
-            mcrs_minecraft_level::palette::BiomePalette,
-        )>,
-    >,
-                            lx: i32,
-                            lz: i32|
-     -> Option<i32> {
+    let rust_stone_top_y = |sections: &GeneratedSections, lx: i32, lz: i32| -> Option<i32> {
         let y_sections: Vec<i32> = (0..8).collect();
         for sy in (0..8i32).rev() {
             let si = sy as usize;
@@ -289,15 +288,8 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         .collect();
 
     // Cache generated sections by chunk to avoid re-generating.
-    let mut chunk_cache: std::collections::HashMap<
-        (i32, i32),
-        Vec<
-            Option<(
-                mcrs_minecraft_level::palette::BlockPalette,
-                mcrs_minecraft_level::palette::BiomePalette,
-            )>,
-        >,
-    > = std::collections::HashMap::new();
+    let mut chunk_cache: std::collections::HashMap<(i32, i32), GeneratedSections> =
+        std::collections::HashMap::new();
 
     let mut failures: Vec<String> = Vec::new();
     let mut table_rows: Vec<String> = Vec::new();

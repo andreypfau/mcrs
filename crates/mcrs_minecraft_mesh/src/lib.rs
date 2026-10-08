@@ -110,7 +110,14 @@ struct Sink {
 }
 
 impl Sink {
-    fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize, bounds: u32) {
+    fn group(
+        &mut self,
+        stream: usize,
+        face: u64,
+        quad_base: usize,
+        quad_count: usize,
+        bounds: u32,
+    ) {
         self.groups.push((
             stream as u32,
             Group {
@@ -248,7 +255,7 @@ pub fn mesh_section(
 
     let mut groups = Vec::with_capacity(sink.groups.len());
     let mut spans = [StreamSpan::default(); STREAMS];
-    for stream in 0..STREAMS {
+    for (stream, span) in spans.iter_mut().enumerate() {
         let first = groups.len();
         let mut quads = 0u32;
         for &(from, group) in &sink.groups {
@@ -257,7 +264,7 @@ pub fn mesh_section(
                 groups.push(group);
             }
         }
-        spans[stream] = StreamSpan {
+        *span = StreamSpan {
             group_count: (groups.len() - first) as u32,
             quad_count: quads,
         };
@@ -478,7 +485,11 @@ mod tests {
         let world = one_section_world(|_, y, _| if y == 0 { BUSH } else { 0 });
         let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
         assert_eq!(mesh.model_quads(), SECTION_SIZE * SECTION_SIZE);
-        assert!(mesh.groups.iter().all(|group| group.quad_count as usize <= GROUP_QUADS));
+        assert!(
+            mesh.groups
+                .iter()
+                .all(|group| group.quad_count as usize <= GROUP_QUADS)
+        );
     }
 
     #[test]
@@ -502,10 +513,10 @@ mod tests {
         // One layer: the floor is covered whole, each side along its lowest two rows.
         let mut sides = [[0u16; 16]; 6];
         sides[0] = [u16::MAX; 16];
-        for side in 2..6 {
+        for (side, rows) in sides.iter_mut().enumerate().skip(2) {
             let rows_are_height = side >= 4;
-            for row in 0..16 {
-                sides[side][row] = if rows_are_height {
+            for (row, covered) in rows.iter_mut().enumerate() {
+                *covered = if rows_are_height {
                     if row < 2 { u16::MAX } else { 0 }
                 } else {
                     0b11
@@ -531,7 +542,11 @@ mod tests {
             .iter()
             .filter(|quad| QUAD_FACE.read(*quad) == 1)
             .collect();
-        assert_eq!(tops.len(), 1, "the snow tops merge and the stone under them is hidden");
+        assert_eq!(
+            tops.len(),
+            1,
+            "the snow tops merge and the stone under them is hidden"
+        );
         assert_eq!(QUAD_DROP.read(tops[0]), 28);
     }
 

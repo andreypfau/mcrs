@@ -62,6 +62,10 @@ struct Source {
 }
 
 impl SpriteRegistry {
+    #[expect(
+        clippy::len_without_is_empty,
+        reason = "the registry is addressed by sprite index and nothing asks whether it is empty, so an is_empty method would only add public API"
+    )]
     pub fn len(&self) -> usize {
         self.table.len()
     }
@@ -526,6 +530,16 @@ fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize, dst: &mut [u8])
     dst[3] = (alpha / 4) as u8;
 }
 
+impl From<Opacity> for Pass {
+    fn from(opacity: Opacity) -> Pass {
+        match opacity {
+            Opacity::Solid => Pass::Solid,
+            Opacity::Cutout => Pass::Cutout,
+            Opacity::Translucent => Pass::Translucent,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -770,8 +784,8 @@ mod tests {
             assert_eq!(base, sprite.layer as usize);
             let frames = source_frames(id);
             assert_eq!(animation.count as usize, frames.len());
-            for step in 0..animation.count as usize {
-                assert_eq!(layer(base + step), &frames[step][..], "{id} step {step}");
+            for (step, frame) in frames.iter().enumerate().take(animation.count as usize) {
+                assert_eq!(layer(base + step), &frame[..], "{id} step {step}");
             }
         }
     }
@@ -887,15 +901,5 @@ mod tests {
         assert_eq!(mapping.apply(0x00AA_BBCC), 0x00AA_BBCC);
         assert_eq!(mapping.apply(0xFFAA_BBCC), 0xFFAA_BBCC);
         assert!(PaletteMapping::create(&Palette(vec![1]), &Palette(vec![1, 2])).is_err());
-    }
-}
-
-impl From<Opacity> for Pass {
-    fn from(opacity: Opacity) -> Pass {
-        match opacity {
-            Opacity::Solid => Pass::Solid,
-            Opacity::Cutout => Pass::Cutout,
-            Opacity::Translucent => Pass::Translucent,
-        }
     }
 }

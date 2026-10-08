@@ -317,7 +317,7 @@ impl<W: WorldGenVolume> Portal<'_, W> {
         self.place_netherrack_or_magma(pos);
         let mut remaining = DRIP_CAP;
         while remaining > 0 && self.rng.next_f32() < 0.5 {
-            pos = pos - IVec3::Y;
+            pos -= IVec3::Y;
             remaining -= 1;
             self.place_netherrack_or_magma(pos);
         }

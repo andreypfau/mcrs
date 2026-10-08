@@ -230,7 +230,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 switch
                     .cases
                     .iter()
-                    .position(|case| case.when.iter().any(|when| *when == value))
+                    .position(|case| case.when.contains(&value))
             }
             SelectSwitch::MainHand { .. }
             | SelectSwitch::LocalTime { .. }

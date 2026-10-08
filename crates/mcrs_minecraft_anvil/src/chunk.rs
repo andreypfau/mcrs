@@ -369,12 +369,16 @@ fn packed_data<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Pack
         fn visit_array<E>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E> {
             let words = match kind {
                 ArrayKind::Long => payload
-                    .chunks_exact(8)
-                    .map(|word| i64::from_be_bytes(word.try_into().unwrap()))
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .map(|&word| i64::from_be_bytes(word))
                     .collect(),
                 ArrayKind::Int => payload
-                    .chunks_exact(4)
-                    .map(|word| i64::from(i32::from_be_bytes(word.try_into().unwrap())))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&word| i64::from(i32::from_be_bytes(word)))
                     .collect(),
                 ArrayKind::Byte => payload.iter().map(|&byte| i64::from(byte as i8)).collect(),
             };

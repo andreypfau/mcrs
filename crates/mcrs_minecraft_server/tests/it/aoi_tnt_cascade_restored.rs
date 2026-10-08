@@ -45,7 +45,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // here before add_plugins.
     app.add_message::<BlockSetRequest>();
     app.add_message::<BlockPlaced>();
-    app.add_plugins(BlockUpdatePlugin::default());
+    app.add_plugins(BlockUpdatePlugin);
     app.add_plugins(BlockUpdateWirePlugin);
 
     // The player must carry the Player Component so the liveness filter in

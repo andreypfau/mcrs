@@ -267,6 +267,10 @@ pub(crate) fn frame_ready(
     frame.is_some() && pipelines.tint_ready(tint.as_deref()) && pipelines.ready(&cache)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy render system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn prepare_deferred_pipelines(
     mut pipelines: ResMut<DeferredPipelines>,
     terrain: Option<Res<Terrain>>,

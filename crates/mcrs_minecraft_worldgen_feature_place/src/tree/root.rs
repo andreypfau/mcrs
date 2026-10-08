@@ -30,6 +30,12 @@ pub struct MangroveRoots {
     pub random_skew_chance: f32,
 }
 
+#[derive(Clone, Copy)]
+struct RootRay {
+    direction: Direction,
+    origin: BlockPos,
+}
+
 impl MangroveRoots {
     /// `RootPlacer.getTrunkOrigin`, drawn where the reference draws it: after
     /// the crown's radius and before the height bounds are checked.
@@ -57,7 +63,11 @@ impl MangroveRoots {
         for direction in Direction::HORIZONTAL {
             let side = trunk_origin + direction.normal();
             let mut branch = Vec::new();
-            if !self.simulate_roots(cx, rng, side, direction, trunk_origin, &mut branch, 0) {
+            let ray = RootRay {
+                direction,
+                origin: trunk_origin,
+            };
+            if !self.simulate_roots(cx, rng, side, ray, &mut branch, 0) {
                 return None;
             }
             positions.append(&mut branch);
@@ -80,8 +90,7 @@ impl MangroveRoots {
         cx: &TreeContext<'_, W>,
         rng: &mut WorldgenRandom,
         pos: BlockPos,
-        direction: Direction,
-        root_origin: BlockPos,
+        ray: RootRay,
         branch: &mut Vec<BlockPos>,
         layer: i32,
     ) -> bool {
@@ -89,13 +98,13 @@ impl MangroveRoots {
             return false;
         }
         for next in self
-            .potential_root_positions(rng, pos, direction, root_origin)
+            .potential_root_positions(rng, pos, ray.direction, ray.origin)
             .into_iter()
             .flatten()
         {
             if self.can_place_root(cx, next) {
                 branch.push(next);
-                if !self.simulate_roots(cx, rng, next, direction, root_origin, branch, layer + 1) {
+                if !self.simulate_roots(cx, rng, next, ray, branch, layer + 1) {
                     return false;
                 }
             }
@@ -121,9 +130,7 @@ impl MangroveRoots {
             } else {
                 [Some(below), None]
             }
-        } else if width > self.max_root_width {
-            [Some(below), None]
-        } else if rng.next_f32() < self.random_skew_chance {
+        } else if width > self.max_root_width || rng.next_f32() < self.random_skew_chance {
             [Some(below), None]
         } else if rng.next_bool() {
             [Some(next_to), None]
@@ -224,12 +231,14 @@ mod tests {
     /// Mud at y = 64 and below, air above, so a branch walking downward or
     /// outward is stopped by stone under the mud.
     fn volume() -> FakeVolume {
-        let mut volume = FakeVolume::default();
-        volume.world = WorldStates {
-            air_states: mask_of([AIR]),
-            replaceable: mask_of([AIR]),
-            solid_render: mask_of([STONE, MUD]),
-            ..WorldStates::default()
+        let mut volume = FakeVolume {
+            world: WorldStates {
+                air_states: mask_of([AIR]),
+                replaceable: mask_of([AIR]),
+                solid_render: mask_of([STONE, MUD]),
+                ..WorldStates::default()
+            },
+            ..FakeVolume::default()
         };
         for x in -16..=16 {
             for z in -16..=16 {

@@ -417,8 +417,8 @@ mod tests {
             (Dir::East, 0.6),
         ] {
             let q = quad(&baked, dir);
-            for i in 0..4 {
-                assert_eq!(q.positions[i], corner(dir, i, Vec3::ZERO, Vec3::ONE));
+            for (i, position) in q.positions.iter().enumerate().take(4) {
+                assert_eq!(*position, corner(dir, i, Vec3::ZERO, Vec3::ONE));
             }
             assert_eq!(
                 q.uvs,
@@ -437,7 +437,10 @@ mod tests {
             Dir::all().map(|dir| baked.sprites[quad(baked, dir).sprite].clone())
         };
         let (top, bark) = ("minecraft:block/oak_log_top", "minecraft:block/oak_log");
-        assert_eq!(sprites(&baked), [top, top, bark, bark, bark, bark].map(String::from));
+        assert_eq!(
+            sprites(&baked),
+            [top, top, bark, bark, bark, bark].map(String::from)
+        );
 
         let sideways = oak_log(&[("axis", "x")]);
         assert_eq!(sideways.quads.len(), 6);

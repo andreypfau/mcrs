@@ -137,7 +137,7 @@ fn the_tree_selectors_reach_their_fallen_entry() {
     }
 
     let Some(Generator::RandomSelector { features, default }) =
-        generator_of(&tables, &program, "minecraft:trees_plains")
+        generator_of(tables, program, "minecraft:trees_plains")
     else {
         panic!("trees_plains is a random_selector");
     };
@@ -152,7 +152,7 @@ fn the_tree_selectors_reach_their_fallen_entry() {
 fn a_simple_random_selector_compiles_to_equal_weights() {
     let (tables, program) = corpus_program();
     let Some(Generator::WeightedRandomSelector(features)) =
-        generator_of(&tables, &program, "minecraft:forest_flowers")
+        generator_of(tables, program, "minecraft:forest_flowers")
     else {
         panic!("forest_flowers is a simple_random_selector");
     };
@@ -230,7 +230,7 @@ fn a_pale_oak_runs_its_moss_patch() {
         program.run(RunScratch::default()).moss_patch.is_some(),
         "the decorator has no patch to run"
     );
-    let Some(Generator::Tree(tree)) = generator_of(&tables, &program, "minecraft:pale_oak") else {
+    let Some(Generator::Tree(tree)) = generator_of(tables, program, "minecraft:pale_oak") else {
         panic!("pale_oak is a tree");
     };
     assert!(
@@ -403,7 +403,7 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
 fn the_pale_garden_carpet_compiles_to_a_shape_table() {
     let (tables, program) = corpus_program();
     let Some(Generator::SimpleBlock(config)) =
-        generator_of(&tables, &program, "minecraft:pale_moss_vegetation")
+        generator_of(tables, program, "minecraft:pale_moss_vegetation")
     else {
         panic!("pale_moss_vegetation is a simple_block");
     };

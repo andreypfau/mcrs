@@ -97,14 +97,18 @@ struct Codec {
     split: Option<Split>,
 }
 
+type SplitColumns = Box<dyn Fn(&(dyn Any + Send + Sync)) -> Vec<(TypeId, Column)> + Send + Sync>;
+type SplitEncode = Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>;
+type ReceiveColumns =
+    Box<dyn Fn(Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>;
+
 struct Split {
-    columns: Box<dyn Fn(&(dyn Any + Send + Sync)) -> Vec<(TypeId, Column)> + Send + Sync>,
-    encode: Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>,
+    columns: SplitColumns,
+    encode: SplitEncode,
 }
 
 pub(crate) struct Receive {
-    pub(crate) columns:
-        Box<dyn Fn(Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>,
+    pub(crate) columns: ReceiveColumns,
     reencode: Box<dyn Fn(NbtTag) -> Result<NbtTag, mcrs_minecraft_nbt::Error> + Send + Sync>,
 }
 

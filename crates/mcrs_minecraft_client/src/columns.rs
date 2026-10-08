@@ -856,7 +856,7 @@ mod tests {
         .expect("decode the column");
         store.insert(packet.pos, column);
 
-        let (x, z) = (1 * SECTION_SIZE as i32 + 3, -2 * SECTION_SIZE as i32 + 7);
+        let (x, z) = ((SECTION_SIZE as i32) + 3, -2 * SECTION_SIZE as i32 + 7);
         assert_eq!(store.block(x, 5, z), 42, "the state the packet carried");
         assert_eq!(store.block(x + 1, 5, z), AIR, "its neighbour");
         assert_eq!(store.block(x + 64, 5, z), AIR, "a column nobody sent");
@@ -1227,8 +1227,10 @@ mod tests {
         assert!(store.extent().is_none());
         assert!(store.holds_nothing());
 
-        let mut arrivals = Arrivals::default();
-        arrivals.extent = Some(EXTENT);
+        let mut arrivals = Arrivals {
+            extent: Some(EXTENT),
+            ..Arrivals::default()
+        };
         arrivals.queue.push_back(Arrival::BatchStart);
         arrivals.queue.push_back(Arrival::Forget(a));
         assert!(!arrivals.holds_nothing());

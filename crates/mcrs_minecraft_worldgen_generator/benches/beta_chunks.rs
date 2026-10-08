@@ -27,15 +27,16 @@ use mcrs_minecraft_worldgen_generator::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use support::{build_settings_router, corpus};
 use mcrs_minecraft_biome::Biome;
+use support::{build_settings_router, corpus};
 
 fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)
         .map(|i| ResourceLocation::read(&format!("minecraft:land_biome_{i}")).unwrap())
         .collect();
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    let registry = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names).expect("distinct land biomes");
+    let registry = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names)
+        .expect("distinct land biomes");
     let biome_source = BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| {
             registry
@@ -49,8 +50,7 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
 
 /// Beta's carver in every land biome, as the shipped Beta biomes carry it.
 fn beta_carvers(source: &BiomeSource) -> CarverBiomeTable {
-    CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave]))
-        .expect("a Beta source")
+    CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave])).expect("a Beta source")
 }
 
 #[derive(Default, Clone, Copy)]
@@ -75,8 +75,7 @@ impl Stages {
 fn generate_chunk(
     column: &mut ColumnBlocks,
     y_sections: &[i32],
-    chunk_x: i32,
-    chunk_z: i32,
+    (chunk_x, chunk_z): (i32, i32),
     router: &NoiseRouter,
     biome_source: &BiomeSource,
     carvers: &CarverBiomeTable,
@@ -104,7 +103,7 @@ fn generate_chunk(
     let t = Instant::now();
     let mut rng = beta_surface_rng(chunk_x, chunk_z);
     apply_beta_surface(
-        &column,
+        column,
         chunk_x * 16,
         chunk_z * 16,
         router,
@@ -162,8 +161,7 @@ fn generate_range(
             let (ms, s) = generate_chunk(
                 &mut column,
                 y_sections,
-                cx,
-                cz,
+                (cx, cz),
                 &router,
                 &biome_source,
                 &carvers,
@@ -210,7 +208,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
 
     let mut non_air = 0u64;
     let mut per_section = Vec::new();
-    for section in 0..y_sections.len() {
+    for (section, &section_y) in y_sections.iter().enumerate() {
         let mut count = 0u32;
         for cell in column.section_cells(section) {
             if cell.get() != mcrs_minecraft_chunk::VoxelId::default() {
@@ -219,7 +217,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         }
         non_air += count as u64;
         if count > 0 {
-            per_section.push((y_sections[section], count));
+            per_section.push((section_y, count));
         }
     }
     println!("  non-empty sections: {per_section:?}");

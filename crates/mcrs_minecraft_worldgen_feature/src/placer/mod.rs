@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn the_step_loop_seeds_each_object_from_the_decoration_seed() {
         let in_square = || vec![Modifier::InSquare {}];
-        let steps = vec![vec![in_square(), in_square()], vec![in_square()]];
+        let steps = [vec![in_square(), in_square()], vec![in_square()]];
         let mut present = vec![FixedBitSet::with_capacity(2), FixedBitSet::with_capacity(1)];
         present[0].insert(1);
         present[1].insert(0);

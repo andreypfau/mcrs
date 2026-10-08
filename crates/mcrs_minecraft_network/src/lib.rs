@@ -73,7 +73,7 @@ pub fn certificate_hash_from_hex(hex: &str) -> anyhow::Result<[u8; 32]> {
         );
     }
     let mut hash = [0u8; 32];
-    for (byte, pair) in hash.iter_mut().zip(hex.as_bytes().chunks_exact(2)) {
+    for (byte, pair) in hash.iter_mut().zip(hex.as_bytes().as_chunks::<2>().0) {
         *byte = u8::from_str_radix(std::str::from_utf8(pair)?, 16)?;
     }
     Ok(hash)

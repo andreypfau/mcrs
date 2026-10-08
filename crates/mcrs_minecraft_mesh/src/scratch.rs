@@ -198,6 +198,12 @@ impl Scratch {
     }
 }
 
+impl Default for Scratch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[inline]
 pub(super) fn inside(coordinate: i32) -> bool {
     (0..SECTION_SIZE as i32).contains(&coordinate)

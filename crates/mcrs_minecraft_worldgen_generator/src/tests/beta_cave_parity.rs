@@ -329,7 +329,8 @@ mod exhaustive {
         }
 
         let mut total_columns: u64 = 0;
-        let mut mismatches: Vec<(i32, i32, Vec<(i32, u8, u8)>)> = Vec::new();
+        type ColumnMismatches = Vec<(i32, u8, u8)>;
+        let mut mismatches: Vec<(i32, i32, ColumnMismatches)> = Vec::new();
 
         for ((cx, cz), fixture_cols) in &chunks {
             let block_x = cx * 16;
@@ -368,7 +369,7 @@ mod exhaustive {
                 let local_x = fix_col.wx - block_x;
                 let local_z = fix_col.wz - block_z;
 
-                let mut col_mismatches: Vec<(i32, u8, u8)> = Vec::new();
+                let mut col_mismatches = ColumnMismatches::new();
                 for (si, &sy) in y_sections.iter().enumerate() {
                     if let Some(Some((palette, _))) = sections.get(si) {
                         let base_y = sy * 16;
