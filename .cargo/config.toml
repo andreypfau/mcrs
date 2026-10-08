@@ -31,3 +31,6 @@ rustflags = ["-Zshare-generics=y", "-Zthreads=0", "-Zcache-proc-macros"]
 # for across 650 dependencies.
 [unstable]
 embed-metadata = false
+
+[alias]
+xtask = "run --quiet --locked -p xtask --target-dir target/xtask --"

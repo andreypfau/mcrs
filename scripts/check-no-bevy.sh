@@ -50,7 +50,7 @@ crates=(
 
 status=0
 for crate in "${crates[@]}"; do
-    leaked=$(cargo tree --manifest-path "$root/Cargo.toml" -p "$crate" --no-default-features \
+    leaked=$(cargo tree --locked --manifest-path "$root/Cargo.toml" -p "$crate" --no-default-features \
         -e normal --prefix none --format '{p}' |
         awk '$1 ~ /^bevy_/ && $1 != "bevy_math" { print $1 }' | sort -u | tr '\n' ' ')
     if [ -n "$leaked" ]; then
@@ -61,6 +61,6 @@ done
 
 packages=()
 for crate in "${crates[@]}"; do packages+=(-p "$crate"); done
-cargo check --manifest-path "$root/Cargo.toml" --no-default-features "${packages[@]}"
+cargo check --locked --manifest-path "$root/Cargo.toml" --no-default-features "${packages[@]}"
 
 exit $status

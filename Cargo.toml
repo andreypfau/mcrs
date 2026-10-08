@@ -11,7 +11,7 @@ name = "mcrs"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "xtask"]
 
 [workspace.package]
 version = "0.5.2"

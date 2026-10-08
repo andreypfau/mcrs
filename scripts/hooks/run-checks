@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+root=$(cd "$(dirname "$0")/../.." && pwd)
+cd "$root"
+
+if ! command -v cargo > /dev/null 2>&1; then
+    echo "cargo is not on PATH; install the Rust toolchain from https://rustup.rs" >&2
+    exit 127
+fi
+
+if ! cargo build --locked --quiet -p xtask --target-dir target/xtask; then
+    echo "the check runner failed to build; fix the errors above" >&2
+    exit 1
+fi
+
+exec target/xtask/debug/xtask "$@"
