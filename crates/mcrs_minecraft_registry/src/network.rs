@@ -316,16 +316,17 @@ impl RegistrySet {
                 );
                 continue;
             }
-            if update.tags.len() > TAG_CAPACITY {
-                report.whole_registry(
-                    registry,
-                    &directory,
-                    "the registry has more tags than an id can number",
-                );
-                continue;
-            }
+            let previous = self.tag_table(registry.as_str());
+            // A decoded value holds tag numbers, so a tag keeps its number across updates and a
+            // tag the update drops stays as an empty row.
+            let mut rows: Vec<(Name, Box<[u16]>)> = previous.map_or_else(Vec::new, |table| {
+                table
+                    .names()
+                    .iter()
+                    .map(|tag| (tag.clone(), Box::default()))
+                    .collect()
+            });
             let mut seen = HashSet::with_capacity(update.tags.len());
-            let mut rows = Vec::with_capacity(update.tags.len());
             for (tag, members) in &update.tags {
                 let label = format!("#{tag}");
                 if !seen.insert(tag) {
@@ -350,7 +351,19 @@ impl RegistrySet {
                         ),
                     }
                 }
-                rows.push((tag.clone(), numbers.into_boxed_slice()));
+                let numbers = numbers.into_boxed_slice();
+                match previous.and_then(|table| table.number(tag.as_str())) {
+                    Some(number) => rows[number].1 = numbers,
+                    None => rows.push((tag.clone(), numbers)),
+                }
+            }
+            if rows.len() > TAG_CAPACITY {
+                report.whole_registry(
+                    registry,
+                    &directory,
+                    "the registry has more tags than an id can number",
+                );
+                continue;
             }
             values.tags.insert(
                 registry.clone(),
@@ -633,6 +646,56 @@ mod tests {
         let (same_fixed, same_other) = tables(&third);
         assert!(Arc::ptr_eq(&new_fixed, &same_fixed));
         assert!(Arc::ptr_eq(&kept_other, &same_other));
+    }
+
+    #[test]
+    fn a_tag_number_held_before_an_update_still_names_its_tag() {
+        type Case<'a> = (&'a [(&'a str, &'a [i32])], [&'a [usize]; 2]);
+        let cases: [Case; 3] = [
+            (
+                &[("minecraft:u", &[2]), ("minecraft:t", &[1])],
+                [&[1], &[2]],
+            ),
+            (&[("minecraft:u", &[2])], [&[], &[2]]),
+            (
+                &[
+                    ("minecraft:v", &[0]),
+                    ("minecraft:t", &[2]),
+                    ("minecraft:u", &[0, 1]),
+                ],
+                [&[2], &[0, 1]],
+            ),
+        ];
+        for (update, expected) in cases {
+            let first = tag_statics()
+                .with_network_tags(&[tags_of(
+                    "minecraft:test_fixed",
+                    &[("minecraft:t", &[0]), ("minecraft:u", &[1])],
+                )])
+                .unwrap();
+            let held = ["minecraft:t", "minecraft:u"].map(|tag| {
+                first
+                    .tags::<Fixed>()
+                    .unwrap()
+                    .get(&TagKey::<Fixed, _>::from_location(name(tag)))
+                    .unwrap()
+            });
+            let second = first
+                .with_network_tags(&[tags_of("minecraft:test_fixed", update)])
+                .unwrap_or_else(|report| panic!("{report}"));
+            let tags = second.tags::<Fixed>().unwrap();
+            for (tag, expected) in held.into_iter().zip(expected) {
+                let members: Vec<usize> = tags.members(tag).map(|id| id.index()).collect();
+                assert_eq!(members, expected, "{update:?}");
+            }
+            for (tag, members) in update {
+                let found = tags
+                    .get(&TagKey::<Fixed, _>::from_location(name(tag)))
+                    .unwrap();
+                let found: Vec<i32> = tags.members(found).map(|id| id.index() as i32).collect();
+                assert_eq!(&found, members, "{update:?}");
+            }
+        }
     }
 
     #[test]
