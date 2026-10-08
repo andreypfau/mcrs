@@ -18,7 +18,6 @@ use mcrs_minecraft_world::registries::{
 };
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
-use mcrs_minecraft_worldgen::tables::WorldgenTables;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
 /// resolves the block it fills terrain with against it, so a stub would only
@@ -38,7 +37,6 @@ pub fn insert_corpus(app: &mut App) {
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
     insert_registry_resources(app.world_mut(), test_registries());
-    app.insert_resource(WorldgenTables::default());
     share_registries(app.world_mut());
     app.add_plugins((
         mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin,

@@ -4282,7 +4282,6 @@ version = "0.4.6"
 dependencies = [
  "bevy_app",
  "bevy_asset",
- "bevy_ecs",
  "bevy_math",
  "bevy_reflect",
  "bytes",

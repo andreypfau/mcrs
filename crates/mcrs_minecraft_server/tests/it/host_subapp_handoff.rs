@@ -411,7 +411,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
-    use mcrs_minecraft_worldgen::tables::WorldgenTables;
     use mcrs_minecraft_worldgen_generator::SurfaceIds;
     use mcrs_minecraft_worldgen_generator::ids::FillIds;
     use std::any::type_name;
@@ -423,7 +422,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Registry<EnchantmentData>>(),
         type_name::<Entries<EnchantmentData, EnchantmentData>>(),
         type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
-        type_name::<WorldgenTables>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),
         type_name::<ShulkerBoxes>(),
@@ -484,7 +482,6 @@ fn is_registry_type(name: &str) -> bool {
             | "RegistrySet"
             | "Blocks"
             | "Items"
-            | "WorldgenTables"
             | "ClockTimeMarkers"
             | "Resolved"
     )

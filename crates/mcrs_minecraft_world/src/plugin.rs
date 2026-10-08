@@ -8,7 +8,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -56,10 +55,7 @@ impl Plugin for MinecraftWorldPlugin {
                 Update,
                 check_registry_assets_ready.run_if(in_state(AppState::LoadingDataPack)),
             )
-            .add_systems(
-                OnEnter(AppState::WorldgenFreeze),
-                (build_worldgen_tables, transition_to_playing),
-            );
+            .add_systems(OnEnter(AppState::WorldgenFreeze), transition_to_playing);
     }
 
     fn finish(&self, app: &mut App) {
@@ -102,7 +98,6 @@ impl Plugin for MinecraftWorldPlugin {
             registries::insert_registry_resources(app.world_mut(), &registries);
             (block_registry, registries)
         };
-        mcrs_minecraft_worldgen::bevy::register_worldgen_loaders(app, &registries);
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
             let (definitions, report) = mcrs_minecraft_block::definition::load_block_definitions(

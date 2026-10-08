@@ -1,21 +1,39 @@
 use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_worldgen::bevy::{
-    ProcessorListAsset, StructureAsset, StructureSetAsset, TemplateAsset, pool_templates,
-};
+use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
 use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 
 pub fn the_structure_registries_land_before_playing(app: &App) {
     let world = app.world();
 
-    assert_eq!(world.resource::<Assets<StructureSetAsset>>().len(), 21);
-    assert_eq!(world.resource::<Assets<StructureAsset>>().len(), 52);
-    assert_eq!(world.resource::<Assets<ProcessorListAsset>>().len(), 40);
     assert_eq!(world.resource::<Assets<TemplateAsset>>().len(), 1511);
 
     let set = world.resource::<RegistrySet>();
+    assert_eq!(
+        set.entries::<StructureSet, StructureSet>()
+            .expect("the structure sets are parsed by the loader")
+            .as_slice()
+            .len(),
+        21
+    );
+    assert_eq!(
+        set.entries::<Structure, Structure>()
+            .expect("the structures are parsed by the loader")
+            .as_slice()
+            .len(),
+        52
+    );
+    assert_eq!(
+        set.entries::<StructureProcessorList, StructureProcessorList>()
+            .expect("the processor lists are parsed by the loader")
+            .as_slice()
+            .len(),
+        40
+    );
     let pools = set
         .entries::<TemplatePool, TemplatePool>()
         .expect("the template pools are parsed by the loader");

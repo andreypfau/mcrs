@@ -1,15 +1,14 @@
 use crate::LoadedRegistryAssets;
+use bevy_asset::AssetServer;
 use bevy_asset::io::{AssetReaderError, AssetSourceId, ErasedAssetReader};
-use bevy_asset::{Asset, AssetServer};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_worldgen::bevy::pool_templates;
+use mcrs_minecraft_worldgen::bevy::named_templates;
 use mcrs_minecraft_worldgen::tables::template_path;
-use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -63,29 +62,6 @@ fn list_registry_files(
     files.into_iter().collect()
 }
 
-fn request_registry<T: Asset, V>(
-    asset_server: &AssetServer,
-    set: &RegistrySet,
-    loaded: &mut LoadedRegistryAssets,
-    key: RegistryKey<V>,
-) {
-    let registry = key.location().as_static_str();
-    let table = set
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
-    let directory = table.registry().path();
-    for name in table.names() {
-        let path = format!("{}/{directory}/{}.json", name.namespace(), name.path());
-        loaded.push(asset_server.load::<T>(path).untyped());
-    }
-    tracing::info!(
-        registry,
-        count = table.len(),
-        kind = std::any::type_name::<T>(),
-        "requested registry assets"
-    );
-}
-
 fn request_templates(
     asset_server: &AssetServer,
     set: &RegistrySet,
@@ -93,12 +69,11 @@ fn request_templates(
 ) {
     use registry_files::{FILES_TEMPLATE, FOLDER_TEMPLATE};
     let listed = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
-    let named: BTreeSet<ResourceLocation> = set
-        .entries::<TemplatePool, TemplatePool>()
-        .map(|pools| pools.as_slice().iter().flat_map(pool_templates).collect())
-        .unwrap_or_default();
+    let named = named_templates(set).unwrap_or_else(|error| {
+        panic!("the loaded registries cannot list their templates: {error}")
+    });
     let files = match asset_server.get_source(AssetSourceId::Default) {
-        Ok(source) => bevy_tasks::block_on(with_pool_templates(source.reader(), listed, &named)),
+        Ok(source) => bevy_tasks::block_on(with_named_templates(source.reader(), listed, &named)),
         Err(_) => listed,
     };
     let count = files.len();
@@ -117,8 +92,8 @@ fn request_templates(
 }
 
 // A listing sees only the root while a read sees every pack layer, so a
-// template a datapack ships is found by reading the path a pool names.
-async fn with_pool_templates(
+// template a datapack ships is found by reading the path a value names.
+async fn with_named_templates(
     reader: &dyn ErasedAssetReader,
     listed: Vec<String>,
     named: &BTreeSet<ResourceLocation>,
@@ -143,21 +118,7 @@ pub(crate) fn request_data_pack_assets(
     set: Res<RegistrySet>,
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
-    use mcrs_minecraft_worldgen::bevy::{
-        CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, StructureAsset,
-        StructureSetAsset,
-    };
-    use mcrs_minecraft_worldgen_carver::keys::CARVER;
-    use mcrs_minecraft_worldgen_feature::keys::{FEATURE, PLACED_FEATURE, PROCESSOR_LIST};
-    use mcrs_minecraft_worldgen_structure::keys::{STRUCTURE, STRUCTURE_SET};
-    let (server, loaded) = (&asset_server, &mut *loaded);
-    request_registry::<CarverConfigAsset, _>(server, &set, loaded, CARVER);
-    request_registry::<FeatureAsset, _>(server, &set, loaded, FEATURE);
-    request_registry::<PlacedFeatureAsset, _>(server, &set, loaded, PLACED_FEATURE);
-    request_registry::<StructureSetAsset, _>(server, &set, loaded, STRUCTURE_SET);
-    request_registry::<StructureAsset, _>(server, &set, loaded, STRUCTURE);
-    request_registry::<ProcessorListAsset, _>(server, &set, loaded, PROCESSOR_LIST);
-    request_templates(server, &set, loaded);
+    request_templates(&asset_server, &set, &mut loaded);
 }
 
 pub(crate) async fn walk_files(
@@ -199,7 +160,7 @@ mod tests {
     use mcrs_minecraft_assets::packs::layered_reader;
 
     #[test]
-    fn a_pool_template_is_requested_when_any_pack_layer_holds_it() {
+    fn a_named_template_is_requested_when_any_pack_layer_holds_it() {
         let root = Dir::default();
         for path in [
             "minecraft/structure/listed.nbt",
@@ -222,7 +183,7 @@ mod tests {
         .map(|id| ResourceLocation::read(id).unwrap())
         .into();
 
-        let files = bevy_tasks::block_on(with_pool_templates(
+        let files = bevy_tasks::block_on(with_named_templates(
             &*reader,
             vec!["minecraft/structure/listed.nbt".to_owned()],
             &named,
@@ -236,5 +197,73 @@ mod tests {
                 "minecraft/structure/unlisted.nbt",
             ]
         );
+    }
+
+    #[test]
+    fn a_template_named_only_by_an_extra_pack_pool_is_requested() {
+        use crate::packs::{DATAPACK_REPORT, read_packs_from_directory};
+        use crate::registries::{static_registries, world_registries};
+        use bevy_app::{App, TaskPoolPlugin};
+        use bevy_asset::io::AssetSourceBuilder;
+        use bevy_asset::io::memory::MemoryAssetReader;
+        use bevy_asset::{AssetApp, AssetPlugin};
+        use mcrs_minecraft_registry::{Pack, PackFile};
+        use mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin;
+        use mcrs_minecraft_worldgen::tables::template_handle;
+
+        let element = |template: &str| {
+            format!(
+                r#"{{"weight":1,"element":{{"element_type":"minecraft:single_pool_element","location":"{template}","processors":"minecraft:empty","projection":"rigid"}}}}"#
+            )
+        };
+        let pool = format!(
+            r#"{{"fallback":"minecraft:empty","elements":[{},{}]}}"#,
+            element("example:house"),
+            element("example:missing")
+        );
+
+        let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let report = std::fs::read(assets.join(DATAPACK_REPORT)).unwrap();
+        let statics = static_registries().unwrap();
+        let world = world_registries(&report).unwrap();
+        let mut packs = read_packs_from_directory(&assets, &world, &statics).unwrap();
+        packs.push(Pack {
+            name: "extra".to_owned(),
+            files: vec![PackFile {
+                path: "example/worldgen/template_pool/camp.json".to_owned(),
+                bytes: Some(pool.into_bytes()),
+            }],
+            built: Vec::new(),
+        });
+        let set = world
+            .load(&statics, &packs)
+            .unwrap_or_else(|report| panic!("{report}"));
+
+        let root = Dir::default();
+        root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());
+        root.insert_asset(
+            Path::new("mcrs/datapacks/extra/example/structure/house.nbt"),
+            Vec::new(),
+        );
+        let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            AssetSourceBuilder::new(move || {
+                layered_reader(Box::new(MemoryAssetReader { root: root.clone() }), |_| None)
+            }),
+        );
+        app.add_plugins((
+            TaskPoolPlugin::default(),
+            AssetPlugin::default(),
+            WorldgenAssetsPlugin,
+        ));
+        let server = app.world().resource::<AssetServer>().clone();
+
+        let mut loaded = LoadedRegistryAssets::default();
+        request_templates(&server, &set, &mut loaded);
+
+        let requested = |id: &str| template_handle(&server, &ResourceLocation::read(id).unwrap());
+        assert!(requested("example:house").is_some());
+        assert!(requested("example:missing").is_none());
     }
 }
