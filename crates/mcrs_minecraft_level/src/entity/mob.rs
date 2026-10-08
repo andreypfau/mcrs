@@ -13,7 +13,7 @@ use mcrs_minecraft_registry::Id;
 use uuid::Uuid;
 
 #[derive(Component, Clone, Copy, Debug, Deref)]
-pub struct EntityKind(pub Id<EntityType>);
+pub struct EntityKind(pub EntityType);
 
 #[derive(Debug, Clone, Copy, Component, Deref, PartialEq, Eq)]
 pub struct EntityUuid(pub Uuid);

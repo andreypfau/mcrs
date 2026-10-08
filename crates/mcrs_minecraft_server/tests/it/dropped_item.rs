@@ -10,6 +10,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos, rl};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
 use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
@@ -21,12 +22,12 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{ItemStackWithSlot, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
-use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, spawn_block_entities};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::item::pickup::pickup_items;
@@ -115,7 +116,10 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
         .by_name("minecraft:item")
         .unwrap()
         .index();
-    assert_eq!(entity.get::<EntityKind>().unwrap().0.index(), report_id);
+    assert_eq!(
+        entity.get::<EntityKind>().unwrap().0.id().index(),
+        report_id
+    );
     let at = entity.get::<Transform>().unwrap().translation;
     assert_eq!(at, DVec3::new(8.5, FLOOR_TOP + 1.62 - 0.3, 8.5));
     let velocity = entity.get::<Velocity>().unwrap().0;
@@ -252,7 +256,7 @@ fn opening_a_chest_swaps_the_menu_and_sends_its_contents() {
         packets[0].data,
         PacketPayload::OpenScreen(ClientboundOpenScreen {
             container_id: VarInt(1),
-            menu_type: RegistryId(2),
+            menu_type: MenuType::Generic9x3,
             ..
         })
     ));

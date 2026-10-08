@@ -1,10 +1,23 @@
+use crate::mock_connection;
+use bevy_app::{App, Update};
+use bevy_state::app::{AppExtStates, StatesPlugin};
+use bevy_state::prelude::NextState;
+use bytes::BytesMut;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_protocol::Encode;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
+use mcrs_minecraft_protocol::decode::PacketDecoder;
+use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
+use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_server::configuration::{known_pack_offer, registry_data};
+use mcrs_minecraft_server::configuration::{
+    KnownPackOffer, known_pack_offer, on_known_packs_response, registry_data, start_configuration,
+};
 use mcrs_minecraft_world::registries::test_registries;
 
 #[test]
@@ -142,4 +155,69 @@ fn the_known_pack_offer_follows_the_plugin() {
     assert_eq!(offered[0].id, "core");
     assert_eq!(offered[0].version, VERSION.id);
     assert!(known_pack_offer(false).is_empty());
+}
+
+#[test]
+fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
+    let mut app = App::new();
+    app.add_plugins(StatesPlugin)
+        .init_state::<AppState>()
+        .insert_resource(test_registries().clone())
+        .insert_resource(KnownPackOffer(true))
+        .add_systems(Update, start_configuration())
+        .add_observer(on_known_packs_response);
+    let (raw, mut outgoing) = mock_connection::make_mock_raw_connection();
+    let connection = app
+        .world_mut()
+        .spawn((
+            ServerSideConnection { raw: Box::new(raw) },
+            ConnectionState::Configuration,
+        ))
+        .id();
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+    app.update();
+
+    app.world_mut().insert_resource(KnownPackOffer(false));
+    let mut reply = Vec::new();
+    ServerboundSelectKnownPacks {
+        known_packs: known_pack_offer(true),
+    }
+    .encode(&mut reply)
+    .unwrap();
+    app.world_mut().trigger(ReceivedPacketEvent {
+        entity: connection,
+        id: ServerboundSelectKnownPacks::ID,
+        data: reply.into(),
+        timestamp: Instant::now(),
+    });
+    app.world_mut().flush();
+
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(connection)
+        .unwrap()
+        .raw
+        .flush()
+        .unwrap();
+    let mut decoder = PacketDecoder::new();
+    while let Ok(blob) = outgoing.try_recv() {
+        decoder.queue_bytes(BytesMut::from(&blob[..]));
+    }
+    let without_data: usize = std::iter::from_fn(|| decoder.try_next_packet().unwrap())
+        .filter(|frame| frame.id == ClientboundRegistryData::ID)
+        .map(|frame| {
+            let packet = ClientboundRegistryData::decode(&mut &frame.body[..]).unwrap();
+            packet
+                .entries
+                .iter()
+                .filter(|entry| entry.data.is_none())
+                .count()
+        })
+        .sum();
+    assert!(
+        without_data > 0,
+        "the reply matched the offer the connection received, so vanilla entries go without data"
+    );
 }

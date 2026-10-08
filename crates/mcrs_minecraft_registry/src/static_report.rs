@@ -1,5 +1,5 @@
 use crate::names::NameTable;
-use crate::set::RegistrySet;
+use crate::set::{RegistrySet, Values};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::Deserialize;
 use serde::de::{Deserializer, Error as _, MapAccess, Visitor};
@@ -30,7 +30,6 @@ struct RegistryReport {
     #[serde(default)]
     #[allow(dead_code)]
     default: Option<ResourceLocation>,
-    #[allow(dead_code)]
     protocol_id: u16,
     entries: BTreeMap<ResourceLocation, EntryReport>,
 }
@@ -83,12 +82,31 @@ impl<'de> Deserialize<'de> for Tables {
                     let report: RegistryReport = map.next_value().map_err(|error| {
                         A::Error::custom(format_args!("registry {registry}: {error}"))
                     })?;
-                    tables.push(Arc::new(
-                        report.into_table(registry).map_err(A::Error::custom)?,
+                    let protocol_id = report.protocol_id;
+                    tables.push((
+                        protocol_id,
+                        Arc::new(report.into_table(registry).map_err(A::Error::custom)?),
                     ));
                 }
+                tables.sort_by_key(|&(protocol_id, _)| protocol_id);
+                if let Some(pair) = tables.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+                    return Err(A::Error::custom(format_args!(
+                        "registries {} and {} share protocol_id {}",
+                        pair[0].1.registry(),
+                        pair[1].1.registry(),
+                        pair[0].0
+                    )));
+                }
+                let tables: Vec<_> = tables.into_iter().map(|(_, table)| table).collect();
+                let values = Values {
+                    statics: tables
+                        .iter()
+                        .map(|table| table.registry().clone())
+                        .collect(),
+                    ..Values::default()
+                };
                 RegistrySet::from_tables(tables)
-                    .map(Tables)
+                    .map(|set| Tables(set.with_values(values)))
                     .map_err(A::Error::custom)
             }
         }
@@ -127,6 +145,20 @@ mod tests {
         JSON[registry]["entries"][name]["protocol_id"]
             .as_u64()
             .unwrap()
+    }
+
+    #[test]
+    fn static_registries_iterate_in_the_order_of_their_protocol_ids() {
+        let ids: Vec<u64> = SET
+            .statics()
+            .map(|table| {
+                JSON[table.registry().as_str()]["protocol_id"]
+                    .as_u64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(ids.len(), JSON.as_object().unwrap().len());
+        assert!(ids.is_sorted_by(|a, b| a < b));
     }
 
     #[test]

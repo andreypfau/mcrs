@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_item::keys::{Item, MenuType};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, RegistryId, VarInt};
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{Id, RegistryLookup};
 
 const GOLDEN: &str = include_str!("../fixtures/inventory_packets_golden.txt");
@@ -148,10 +148,7 @@ fn container_packets_are_the_games_bytes() {
         "open_screen",
         ClientboundOpenScreen {
             container_id: VarInt(1),
-            menu_type: RegistryId(
-                f.id("menu", &rl!("minecraft:generic_9x3").to_arc())
-                    .unwrap(),
-            ),
+            menu_type: MenuType::Generic9x3,
             title: Text::text("Chest"),
         },
     );

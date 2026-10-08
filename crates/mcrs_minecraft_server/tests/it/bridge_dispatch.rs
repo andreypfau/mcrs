@@ -6,15 +6,16 @@
 //! how many blobs arrive per tick.
 
 use crate::mock_connection;
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
-use mcrs_minecraft_protocol::{RegistryId, VarInt};
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -372,7 +373,7 @@ fn only_test_remains_counted_drop() {
             data: PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                 id: VarInt(2),
                 uuid: Uuid::nil(),
-                kind: RegistryId(128),
+                kind: EntityType::SpruceBoat,
                 pos: DVec3::ZERO,
                 movement: LpVec3(DVec3::ZERO),
                 yaw: ByteAngle::from_degrees(0.0),

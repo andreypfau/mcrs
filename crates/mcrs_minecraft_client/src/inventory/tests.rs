@@ -7,6 +7,7 @@ use bytes::Bytes;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
 };
@@ -21,7 +22,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetPlayerInventory,
 };
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, RegistryId, VarInt};
+use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
@@ -187,15 +188,9 @@ impl Client {
     }
 
     fn open_menu(&mut self, menu_type: &'static str, container_id: i32) -> Entity {
-        let id = registries()
-            .id(
-                "menu",
-                &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type).unwrap(),
-            )
-            .unwrap();
         self.receive(&ClientboundOpenScreen {
             container_id: VarInt(container_id),
-            menu_type: RegistryId(id),
+            menu_type: MenuType::read(menu_type).unwrap(),
             title: Text::text(menu_type),
         });
         let Screen::Container(menu) = self.screen() else {

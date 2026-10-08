@@ -20,7 +20,7 @@ fn the_server_sends_tag_members_in_tag_order() {
             .find(|&id| blocks.name(id).as_str() == group.name.as_str())
             .expect("a sent block tag is in the set");
         let in_tag_order: Vec<u16> = blocks.members(id).map(|member| member.number()).collect();
-        let sent: Vec<u16> = group.entries.iter().map(|member| member.0).collect();
+        let sent: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
         assert_eq!(sent, in_tag_order, "members of {}", group.name);
         if !sent.is_sorted() {
             out_of_id_order.push(group.name.as_str());
@@ -40,7 +40,7 @@ fn the_server_sends_tag_members_in_tag_order() {
         let declared: Vec<&str> = table.names().iter().map(|tag| tag.as_str()).collect();
         assert_eq!(sent, declared, "the tags {name} declares, in table order");
         for (index, group) in registry.tags.iter().enumerate() {
-            let members: Vec<u16> = group.entries.iter().map(|member| member.0).collect();
+            let members: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
             assert_eq!(
                 members,
                 table.members(index),
@@ -49,6 +49,47 @@ fn the_server_sends_tag_members_in_tag_order() {
             );
         }
     }
+}
+
+#[test]
+fn the_tags_packet_follows_the_static_registry_order() {
+    let set = test_registries();
+    let packet = update_tags(set);
+    let synced: Vec<&str> = set
+        .synced()
+        .map(|(table, _)| table.registry().as_str())
+        .collect();
+    let statics_sent: Vec<&str> = packet
+        .registries
+        .iter()
+        .map(|registry| registry.registry.as_str())
+        .filter(|registry| !synced.contains(registry))
+        .collect();
+
+    let report: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let positions: Vec<u64> = statics_sent
+        .iter()
+        .map(|registry| {
+            report[*registry]["protocol_id"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("{registry} has no protocol id in the report"))
+        })
+        .collect();
+    assert!(
+        positions.is_sorted_by(|a, b| a < b),
+        "static registries follow the registry table's order: {statics_sent:?}"
+    );
+    assert!(
+        !statics_sent.is_sorted(),
+        "the table's order matches the name order, so the test cannot tell them apart"
+    );
 }
 
 #[test]
@@ -91,10 +132,6 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     );
 
     let statics_sent = &sent[synced_sent.len()..];
-    assert!(
-        statics_sent.is_sorted_by(|a, b| a < b),
-        "static registries follow, sorted by name: {statics_sent:?}"
-    );
     for registry in statics_sent {
         assert!(
             !synced.contains(registry) && !set.is_world_registry(registry),

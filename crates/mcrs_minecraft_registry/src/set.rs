@@ -23,6 +23,7 @@ pub(crate) struct Values {
     pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
     pub(crate) packs: Box<[Box<str>]>,
     pub(crate) synced: Vec<ResourceLocation<Arc<str>>>,
+    pub(crate) statics: Vec<ResourceLocation<Arc<str>>>,
 }
 
 #[derive(Clone, Default)]
@@ -74,7 +75,16 @@ impl RegistrySet {
             let names = names.iter().map(|&name| name.into());
             tables.push(Arc::new(NameTable::new(registry.into(), names)?));
         }
-        Self::from_tables(tables)
+        let statics = tables
+            .iter()
+            .map(|table| table.registry().clone())
+            .collect();
+        Self::from_tables(tables).map(|set| {
+            set.with_values(Values {
+                statics,
+                ..Values::default()
+            })
+        })
     }
 
     fn of(tables: Tables, values: Arc<Values>) -> Self {
@@ -219,6 +229,13 @@ impl RegistrySet {
                 self.column::<SyncedNbt>(registry.as_str())?,
             ))
         })
+    }
+
+    pub fn statics(&self) -> impl Iterator<Item = &NameTable> {
+        self.values
+            .statics
+            .iter()
+            .filter_map(|registry| Some(&**self.tables.get(registry.as_str())?))
     }
 
     pub fn is_world_registry(&self, registry: &str) -> bool {
@@ -723,6 +740,29 @@ mod tests {
             assert_eq!(index_of("minecraft:plains"), 0);
         });
         assert!(no_scope_here());
+    }
+
+    #[test]
+    fn static_registries_iterate_in_the_order_their_locations_are_listed() {
+        let none: [ResourceLocation<&'static str>; 0] = [];
+        let set = RegistrySet::from_locations(&[
+            (rl!("minecraft:sound_event"), &none),
+            (rl!("minecraft:block"), &none),
+            (rl!("minecraft:fluid"), &none),
+        ])
+        .unwrap();
+        let order: Vec<&str> = set
+            .statics()
+            .map(|table| table.registry().as_str())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "minecraft:sound_event",
+                "minecraft:block",
+                "minecraft:fluid"
+            ]
+        );
     }
 
     #[test]

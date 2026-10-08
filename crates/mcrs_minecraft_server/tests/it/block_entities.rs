@@ -239,7 +239,11 @@ fn every_generated_kind_survives_a_save_load_round_trip_and_reaches_a_client() {
             .find(|(candidate, _)| candidate.position() == read.position())
             .expect("an entry the client did not receive");
         assert_eq!(&read, expected, "the state reaches the client");
-        assert_eq!(kind.0, *expected_kind, "named by its registry index");
+        assert_eq!(
+            kind.id().number(),
+            *expected_kind,
+            "named by its registry index"
+        );
         let pos = expected.position();
         assert_eq!(*packed_xz, (((pos.x & 15) << 4) | (pos.z & 15)) as i8);
         assert_eq!(*y as i32, pos.y);

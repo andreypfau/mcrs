@@ -2,7 +2,7 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_protocol::RegistryId;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload, tags_payload_of};
 use mcrs_minecraft_registry::Registered;
@@ -82,7 +82,7 @@ fn tags_round_trip_through_the_payload_in_tag_order() {
         .map(|group| {
             (
                 group.name.as_str(),
-                group.entries.iter().map(|id| id.0).collect(),
+                group.entries.iter().map(|id| id.0 as u16).collect(),
             )
         })
         .collect();
@@ -116,7 +116,7 @@ fn an_unknown_number_in_a_payload_is_dropped() {
         registry: rl!("minecraft:test_registry").into(),
         tags: vec![TagGroup {
             name: ResourceLocation::read_cow(Cow::Borrowed("minecraft:t")).unwrap(),
-            entries: [2, 99, 0, 3].map(RegistryId).to_vec(),
+            entries: [2, 99, 0, 3, -1, 70_000].map(VarInt).to_vec(),
         }],
     };
 

@@ -95,7 +95,6 @@ pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;
 pub use raw::RawBytes;
-pub use registry::RegistryId;
 use serde::{Deserialize, Serialize};
 pub use teleport_flags::PositionFlag;
 pub use text::Text;

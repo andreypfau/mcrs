@@ -1,4 +1,4 @@
-use crate::RegistryId;
+use crate::VarInt;
 use crate::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{Registry, TagTable, Tags};
@@ -16,7 +16,11 @@ pub fn tags_payload_of(table: &TagTable) -> RegistryTags<'static> {
             .enumerate()
             .map(|(tag, name)| TagGroup {
                 name: name.clone().into(),
-                entries: table.members(tag).iter().copied().map(RegistryId).collect(),
+                entries: table
+                    .members(tag)
+                    .iter()
+                    .map(|&number| VarInt(i32::from(number)))
+                    .collect(),
             })
             .collect(),
     }
@@ -33,7 +37,7 @@ pub fn tags_from_payload<R: 'static>(
             let members = group
                 .entries
                 .iter()
-                .filter_map(|&RegistryId(number)| registry.id(number))
+                .filter_map(|&VarInt(number)| registry.id(u16::try_from(number).ok()?))
                 .collect();
             (group.name.clone().into(), members)
         })

@@ -52,7 +52,7 @@ use crate::world_options::{DimensionList, bake_dimensions};
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct AwaitingKnownPacks;
+pub struct AwaitingKnownPacks(Vec<KnownPack<'static>>);
 
 pub struct ConfigurationStatePlugin;
 
@@ -93,7 +93,7 @@ pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
 }
 
 #[derive(Resource)]
-pub(crate) struct KnownPackOffer(pub bool);
+pub struct KnownPackOffer(pub bool);
 
 pub fn known_pack_offer(offer: bool) -> Vec<KnownPack<'static>> {
     if offer {
@@ -123,25 +123,19 @@ fn on_configuration_enter(
         con.write_packet(&ClientboundCustomPayload(Payload::Brand(Brand {
             brand: identity::BRAND,
         })));
+        let offered = known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0));
         con.write_packet(&ClientboundSelectKnownPacks {
-            known_packs: known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0)),
+            known_packs: offered.clone(),
         });
-        commands.entity(entity).insert(AwaitingKnownPacks);
+        commands.entity(entity).insert(AwaitingKnownPacks(offered));
     }
 }
 
 pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
-    let mut statics: Vec<&str> = set
-        .tables()
-        .map(|table| table.registry().as_str())
-        .filter(|registry| !set.is_world_registry(registry))
-        .collect();
-    statics.sort_unstable();
-    let registries = set
-        .synced()
-        .map(|(table, _)| table.registry().as_str())
-        .chain(statics)
-        .filter_map(|registry| set.tag_table(registry))
+    let synced = set.synced().map(|(table, _)| table);
+    let registries = synced
+        .chain(set.statics())
+        .filter_map(|table| set.tag_table(table.registry().as_str()))
         .filter(|table| !table.is_empty())
         .map(|table| tags_payload_of(table))
         .collect();
@@ -187,14 +181,13 @@ pub fn registry_data<'a>(
 /// synced registry, `ClientboundUpdateTags` from the set's tags, and finally
 /// `ClientboundFinishConfiguration`. Removes the `AwaitingKnownPacks` marker so
 /// the connection is eligible for future reconfiguration.
-fn on_known_packs_response(
+pub fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
-    mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
+    mut query: Query<(Entity, &mut ServerSideConnection, &AwaitingKnownPacks)>,
     set: Res<RegistrySet>,
-    offer: Option<Res<KnownPackOffer>>,
     mut commands: Commands,
 ) {
-    let Ok((entity, mut con)) = query.get_mut(event.entity) else {
+    let Ok((entity, mut con, AwaitingKnownPacks(offered))) = query.get_mut(event.entity) else {
         return;
     };
     let Some(packs_response) = event.decode::<ServerboundSelectKnownPacks>() else {
@@ -206,8 +199,7 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    let offered = known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0));
-    let registries = registry_data(&set, &offered, &packs_response.known_packs);
+    let registries = registry_data(&set, offered, &packs_response.known_packs);
     for packet in &registries {
         con.write_packet(packet);
     }

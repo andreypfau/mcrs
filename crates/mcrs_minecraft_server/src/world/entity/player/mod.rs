@@ -44,7 +44,6 @@ use mcrs_minecraft_protocol::GameEventKind;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::LpVec3;
-use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
@@ -386,7 +385,7 @@ fn network_add(
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: RegistryId::from(mcrs_minecraft_entity::keys::EntityType::Player.id()),
+            kind: mcrs_minecraft_entity::keys::EntityType::Player,
             pos: transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

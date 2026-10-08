@@ -36,7 +36,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEquipment
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassengers;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
+use mcrs_minecraft_protocol::{ProtoStack, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, Id, Registered, RegistryLookup, RegistrySet};
 use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
@@ -121,7 +121,7 @@ fn spawn_one(
     match entity.kind {
         GeneratedKind::Witch { left_handed: left } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Witch.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Witch),
                 Health::full(26.0),
                 left_handed(left),
             ));
@@ -132,7 +132,7 @@ fn spawn_one(
             sound_variant,
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Cat.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Cat),
                 Health::full(10.0),
                 left_handed(left),
             ));
@@ -144,7 +144,7 @@ fn spawn_one(
         }
         GeneratedKind::ElderGuardian { left_handed: left } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::ElderGuardian.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ElderGuardian),
                 Health::full(80.0),
                 left_handed(left),
             ));
@@ -155,7 +155,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Drowned.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Drowned),
                 Health::full(20.0),
                 left_handed(left),
             ));
@@ -173,7 +173,7 @@ fn spawn_one(
             ..
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Chicken.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Chicken),
                 Health::full(4.0),
                 left_handed(left),
             ));
@@ -188,7 +188,7 @@ fn spawn_one(
             variant,
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieNautilus.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieNautilus),
                 Health::full(15.0),
                 left_handed(left),
             ));
@@ -198,14 +198,14 @@ fn spawn_one(
         }
         GeneratedKind::Shulker { left_handed: left } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Shulker.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Shulker),
                 Health::full(30.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::ItemFrame { item, facing } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::ItemFrame.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ItemFrame),
                 ItemFrame {
                     item: Some(stack(item)),
                     facing,
@@ -214,7 +214,7 @@ fn spawn_one(
         }
         GeneratedKind::Evoker { left_handed: left } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Evoker.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Evoker),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -224,7 +224,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Vindicator.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Vindicator),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -234,14 +234,14 @@ fn spawn_one(
         }
         GeneratedKind::Allay { left_handed: left } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Allay.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Allay),
                 Health::full(20.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::Villager { data } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::Villager.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Villager),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(data),
@@ -249,7 +249,7 @@ fn spawn_one(
         }
         GeneratedKind::ZombieVillager { data } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieVillager.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieVillager),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(data),
@@ -260,7 +260,7 @@ fn spawn_one(
             loot_table_seed,
         } => {
             spawned.insert((
-                EntityKind(mcrs_minecraft_entity::keys::EntityType::ChestMinecart.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ChestMinecart),
                 mcrs_minecraft_level::entity::mob::ContainerLoot {
                     table: loot_table,
                     seed: loot_table_seed,
@@ -369,7 +369,7 @@ impl PairingItem<'_, '_> {
         let mut out = vec![PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id,
             uuid: self.uuid.0,
-            kind: RegistryId::from(self.kind.0),
+            kind: self.kind.0,
             pos: self.transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw,
@@ -389,9 +389,7 @@ impl PairingItem<'_, '_> {
                 ClientboundUpdateAttributes {
                     entity_id: id,
                     attributes: vec![AttributeSnapshot {
-                        attribute: RegistryId::from(
-                            mcrs_minecraft_entity::keys::Attribute::MaxHealth.id(),
-                        ),
+                        attribute: mcrs_minecraft_entity::keys::Attribute::MaxHealth,
                         base: f64::from(health.max),
                         modifiers: Vec::new(),
                     }],
@@ -480,8 +478,7 @@ impl PairingItem<'_, '_> {
             );
         }
         if let Some(villager) = self.villager {
-            let zombie =
-                self.kind.0 == mcrs_minecraft_entity::keys::EntityType::ZombieVillager.id();
+            let zombie = self.kind.0 == mcrs_minecraft_entity::keys::EntityType::ZombieVillager;
             if zombie || villager.0 != VillagerData::default() {
                 put(
                     if zombie {
@@ -739,12 +736,7 @@ mod tests {
             panic!("{sent:?}")
         };
         assert_eq!(*id, wire_id(mob));
-        let witch_id = set
-            .registry::<mcrs_minecraft_entity::keys::EntityType>()
-            .unwrap()
-            .by_name("minecraft:witch")
-            .unwrap();
-        assert_eq!(*kind, RegistryId::from(witch_id));
+        assert_eq!(*kind, mcrs_minecraft_entity::keys::EntityType::Witch);
         assert_eq!(*pos, DVec3::new(8.5, 65.0, 8.5));
         assert_eq!(*data, VarInt(0));
         let PacketPayload::SetEntityData(ClientboundSetEntityData { metadata, .. }) = &sent[1].1
