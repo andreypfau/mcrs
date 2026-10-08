@@ -123,7 +123,8 @@ EOF
     fi
 
     if (cd "$root" && MCRS_VANILLA_SERVER="127.0.0.1:$port" \
-        cargo test -p mcrs --test client_joins_vanilla_server -- --ignored --nocapture); then
+        cargo nextest run -p mcrs --run-ignored ignored-only --no-capture \
+        -E 'test(client_joins_vanilla_server)'); then
         echo "verdict: joined"
     else
         echo "verdict: not joined (server log: $log)"

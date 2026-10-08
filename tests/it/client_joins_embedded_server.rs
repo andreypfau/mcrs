@@ -5,7 +5,7 @@ use mcrs_minecraft_client::columns::{BlockSource, ColumnCachePlugin, ColumnStore
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, JoinedGame,
-    PendingTeleports, ServerProfile, offline_player_uuid,
+    PendingTeleports, ServerProfile, SessionRegistryInputs, offline_player_uuid,
 };
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
@@ -16,7 +16,8 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::support::{
-    JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog, insert_session_inputs,
+    JOIN_TIMEOUT, assert_inventory_resolves_through_session, assert_session_registries,
+    drive_client_until_joined, insert_block_catalog, insert_inventory, insert_session_inputs,
 };
 
 #[test]
@@ -67,6 +68,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     client.add_plugins(ColumnCachePlugin);
     insert_block_catalog(&mut client);
     insert_session_inputs(&mut client);
+    insert_inventory(&mut client);
 
     let outcome = drive_client_until_joined(&mut client);
 
@@ -109,6 +111,20 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         received, expected,
         "the registries the session holds beside the statics"
     );
+    let session_order: Vec<String> = world
+        .resource::<SessionRegistryInputs>()
+        .declarations
+        .synced()
+        .map(ToString::to_string)
+        .collect();
+    let server_order: Vec<String> = synced
+        .iter()
+        .map(|(registry, _)| registry.clone())
+        .collect();
+    assert_eq!(
+        session_order, server_order,
+        "the client's declarations sync the registries in the server's order"
+    );
     for (registry, names) in &synced {
         let held: Vec<String> = session
             .table(registry)
@@ -144,4 +160,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         .expect("the login named a dimension type with a height");
     assert!(!store.is_empty(), "no column reached the store");
     assert!(extent.sections > 0, "a dimension of no sections");
+
+    assert_session_registries(&client, connection);
+    assert_inventory_resolves_through_session(&mut client, connection);
 }

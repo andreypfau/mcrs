@@ -6,7 +6,8 @@ use mcrs_minecraft_registry::RegistrySet;
 use std::net::SocketAddr;
 
 use crate::support::{
-    JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog, insert_session_inputs,
+    JOIN_TIMEOUT, assert_inventory_resolves_through_session, assert_session_registries,
+    drive_client_until_joined, insert_block_catalog, insert_inventory, insert_session_inputs,
 };
 
 #[test]
@@ -27,6 +28,7 @@ fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
     client.add_plugins(ColumnCachePlugin);
     insert_block_catalog(&mut client);
     insert_session_inputs(&mut client);
+    insert_inventory(&mut client);
 
     let Some(connection) = drive_client_until_joined(&mut client) else {
         panic!("the client never reached the play state within {JOIN_TIMEOUT:?}");
@@ -47,7 +49,12 @@ fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
     let store = world.resource::<ColumnStore>();
     assert!(!store.is_empty(), "no column reached the store");
 
+    assert_session_registries(&client, connection);
+    assert_inventory_resolves_through_session(&mut client, connection);
+
+    let world = client.world();
     let registries = world.resource::<RegistrySet>();
     println!("registries received: {}", registries.tables().count());
-    println!("columns stored: {}", store.len());
+    println!("synced registries: {}", registries.synced().count());
+    println!("columns stored: {}", world.resource::<ColumnStore>().len());
 }
