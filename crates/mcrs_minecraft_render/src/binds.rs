@@ -51,8 +51,14 @@ impl Bindings {
             )),
         );
         let cull = cull_bind_group(&cull_layout, arenas, frame, hiz, device, pipeline_cache);
-        let quad_cull =
-            quad_cull_bind_group(&quad_cull_layout, arenas, frame, hiz, device, pipeline_cache);
+        let quad_cull = quad_cull_bind_group(
+            &quad_cull_layout,
+            arenas,
+            frame,
+            hiz,
+            device,
+            pipeline_cache,
+        );
         let draw = draw_bind_group(&draw_layout, arenas, frame, sprites, device, pipeline_cache);
         Self {
             view_layout,
@@ -157,7 +163,10 @@ fn quad_cull_layout() -> BindGroupLayoutDescriptor {
                 (2, storage_buffer_sized(false, None)),
                 (3, storage_buffer_sized(false, None)),
                 (4, storage_buffer_read_only_sized(false, None)),
-                (6, texture_2d(TextureSampleType::Float { filterable: false })),
+                (
+                    6,
+                    texture_2d(TextureSampleType::Float { filterable: false }),
+                ),
                 (7, storage_buffer_sized(false, None)),
                 (8, storage_buffer_read_only_sized(false, None)),
                 (9, storage_buffer_read_only_sized(false, None)),

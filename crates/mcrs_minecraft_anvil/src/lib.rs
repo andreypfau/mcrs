@@ -14,10 +14,10 @@ mod tests;
 mod vanilla_files;
 
 pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
+pub use keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
-pub use keys::ChunkStatus;
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;

@@ -267,7 +267,15 @@ mod tests {
         );
         assert_eq!(state(&mut app).1, Some(PermissionLevel(0)));
 
-        for (status, level) in [(26, 2), (24, 0), (28, 4), (23, 4), (29, 4), (25, 1), (27, 3)] {
+        for (status, level) in [
+            (26, 2),
+            (24, 0),
+            (28, 4),
+            (23, 4),
+            (29, 4),
+            (25, 1),
+            (27, 3),
+        ] {
             receive(
                 &mut app,
                 connection,

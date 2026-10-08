@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use bevy_app::{App, TaskPoolPlugin};
 use crate::common::{AIR, TORCH, filled, registry};
+use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
 

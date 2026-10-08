@@ -3,29 +3,26 @@ mod end;
 mod nether;
 mod overworld;
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::GrassColorModifier;
+use mcrs_minecraft_biome::keys::biome;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
-use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_entity::keys::EntityType;
-use mcrs_minecraft_worldgen_feature::keys::placed_feature;
-use mcrs_minecraft_worldgen_carver::keys::carver;
-use mcrs_minecraft_biome::keys::biome;
+use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_sound::keys::sound_event;
-use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
+use mcrs_minecraft_value_provider::IntProvider;
+use mcrs_minecraft_worldgen_carver::keys::carver;
+use mcrs_minecraft_worldgen_feature::keys::placed_feature;
 use serde::Serialize;
-use mcrs_minecraft_biome::Biome;
 
-type BiomeRow = (
-    ResourceKey<Biome, &'static str>,
-    fn() -> Draft,
-);
+type BiomeRow = (ResourceKey<Biome, &'static str>, fn() -> Draft);
 
 #[derive(Clone, Copy)]
 pub struct Mob {

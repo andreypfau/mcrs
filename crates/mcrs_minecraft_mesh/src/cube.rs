@@ -4,9 +4,8 @@ use mcrs_minecraft_core::Direction;
 use crate::ambient;
 use crate::block::{BlockInfo, face_hidden};
 use crate::pack::{
-    MODEL_STEPS,
     FACE_AO, FACE_AO_CORNER_BITS, FACE_BLOCK_LIGHT, FACE_LIGHT_CORNER_BITS, FACE_SKY_LIGHT,
-    FACE_SPRITE, FACE_TINT, FACE_WORDS,
+    FACE_SPRITE, FACE_TINT, FACE_WORDS, MODEL_STEPS,
 };
 
 use super::scratch::{Columns, Scratch, border_index};

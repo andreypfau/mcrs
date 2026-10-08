@@ -73,19 +73,43 @@ fn cull_terrain(
         );
         pass.set_bind_group(1, &terrain.binds.cull, &[]);
         let blended = LayerGroup::Translucent;
-        cull_group(&mut pass, terrain, blended, count, mask, CULL_THREADS, terrain.cull_grid);
+        cull_group(
+            &mut pass,
+            terrain,
+            blended,
+            count,
+            mask,
+            CULL_THREADS,
+            terrain.cull_grid,
+        );
         pass.set_pipeline(scan);
         for (index, _) in terrain.list.drawn(blended, mask) {
             pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
             pass.dispatch_workgroups(1, 1, 1);
         }
-        cull_group(&mut pass, terrain, blended, scatter, mask, CULL_THREADS, terrain.cull_grid);
+        cull_group(
+            &mut pass,
+            terrain,
+            blended,
+            scatter,
+            mask,
+            CULL_THREADS,
+            terrain.cull_grid,
+        );
     }
     {
         let mut pass = timed_compute(encoder, "terrain cull", timestamps.compute(PassSlot::Cull));
         pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
         let opaque = LayerGroup::Opaque;
-        cull_group(&mut pass, terrain, opaque, groups, mask, GROUP_THREADS, terrain.group_grid);
+        cull_group(
+            &mut pass,
+            terrain,
+            opaque,
+            groups,
+            mask,
+            GROUP_THREADS,
+            terrain.group_grid,
+        );
     }
     copy_dispatches(terrain, encoder);
     {
@@ -95,7 +119,14 @@ fn cull_terrain(
             timestamps.compute(PassSlot::CullQuads),
         );
         pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-        cull_indirect(&mut pass, terrain, LayerGroup::Opaque, quads, mask, QUADS_FIRST);
+        cull_indirect(
+            &mut pass,
+            terrain,
+            LayerGroup::Opaque,
+            quads,
+            mask,
+            QUADS_FIRST,
+        );
     }
 }
 
@@ -153,9 +184,8 @@ pub(super) const GROUP_THREADS: u32 = 256;
 pub(super) const GROUPS_PER_STEP: u32 = 2;
 
 // The quad cull gives each quad of a group a lane, and each quad a pass leaves a bit of one word.
-const _: () = assert!(
-    mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32
-);
+const _: () =
+    assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
 
 /// `cull.wgsl` strides over the group arena, so the dispatch is capped by the device instead of
 /// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
@@ -303,7 +333,14 @@ pub(super) fn build_occlusion(
         );
         pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
         for group in LayerGroup::ALL {
-            cull_indirect(&mut pass, terrain, group, groups, &frame.mask, GROUPS_SECOND);
+            cull_indirect(
+                &mut pass,
+                terrain,
+                group,
+                groups,
+                &frame.mask,
+                GROUPS_SECOND,
+            );
         }
     }
     copy_dispatches(terrain, encoder);
@@ -493,7 +530,9 @@ pub(crate) fn draw_gbuffer_second(
     drop(pass);
     // The next frame's first pass tests against this: built from the whole frame's depth,
     // what this pass revived is not hidden again there only to be revived once more.
-    terrain.hiz.build(&params.cache, None, ctx.command_encoder());
+    terrain
+        .hiz
+        .build(&params.cache, None, ctx.command_encoder());
 }
 
 /// The fragment leaves every pixel at depth 0 alone, which is the sky.

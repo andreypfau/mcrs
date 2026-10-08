@@ -64,12 +64,15 @@ impl DrawList {
                 visible_base,
                 args_index: index as u32,
                 counter: 2 * STREAMS as u32 + index as u32,
-                flags: if stream_is_model(draw.stream) { MODEL } else { 0 }
-                    | if stream_pass(draw.stream).writes_depth() {
-                        QUAD_CULL
-                    } else {
-                        0
-                    },
+                flags: if stream_is_model(draw.stream) {
+                    MODEL
+                } else {
+                    0
+                } | if stream_pass(draw.stream).writes_depth() {
+                    QUAD_CULL
+                } else {
+                    0
+                },
                 padding: [0; 2],
             });
             visible_base += draw.quad_count;

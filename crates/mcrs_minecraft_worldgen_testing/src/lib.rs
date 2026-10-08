@@ -1,23 +1,23 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::tags::TagSource;
 use mcrs_minecraft_registry::{
     HolderSet, NameTable, Registry, RegistrySet, TagRules, TagTable, build_tags,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
-use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_worldgen_structure::Structure;
-use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -159,11 +159,22 @@ pub fn corpus_set() -> &'static RegistrySet {
             })
             .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
         for (registry, folder) in [
-            (mcrs_minecraft_block::keys::BLOCK.location().as_static_str(), "block"),
-            (mcrs_minecraft_block::keys::FLUID.location().as_static_str(), "fluid"),
-            (mcrs_minecraft_biome::keys::BIOME.location().as_static_str(), "worldgen/biome"),
             (
-                mcrs_minecraft_worldgen_structure::keys::STRUCTURE.location().as_static_str(),
+                mcrs_minecraft_block::keys::BLOCK.location().as_static_str(),
+                "block",
+            ),
+            (
+                mcrs_minecraft_block::keys::FLUID.location().as_static_str(),
+                "fluid",
+            ),
+            (
+                mcrs_minecraft_biome::keys::BIOME.location().as_static_str(),
+                "worldgen/biome",
+            ),
+            (
+                mcrs_minecraft_worldgen_structure::keys::STRUCTURE
+                    .location()
+                    .as_static_str(),
                 "worldgen/structure",
             ),
         ] {
@@ -303,8 +314,8 @@ fn encoded<T: serde::Serialize>(
     entries
         .into_iter()
         .map(|(id, value)| {
-            let json = serde_json::to_vec(&value)
-                .unwrap_or_else(|e| panic!("{id} does not encode: {e}"));
+            let json =
+                serde_json::to_vec(&value).unwrap_or_else(|e| panic!("{id} does not encode: {e}"));
             (id, json)
         })
         .collect()
@@ -386,25 +397,24 @@ fn shipped_registry<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Reg
 /// tags the corpus ships, and the timelines and world clocks the corpus ships,
 /// with the timeline tags.
 pub fn dimension_type_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let report = corpus_set();
-        let blocks = report
-            .table(mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
-            .expect("the report holds the block registry");
-        let timelines = shipped_registry::<Timeline>("timeline");
-        let clocks = shipped_registry::<WorldClock>("world_clock");
-        let tables = report
-            .tables()
-            .cloned()
-            .chain([Arc::clone(timelines.table()), Arc::clone(clocks.table())]);
-        typed(
-            RegistrySet::from_tables(tables).unwrap_or_else(|e| {
+    static SET: LazyLock<RegistrySet> =
+        LazyLock::new(|| {
+            let report = corpus_set();
+            let blocks = report
+                .table(mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
+                .expect("the report holds the block registry");
+            let timelines = shipped_registry::<Timeline>("timeline");
+            let clocks = shipped_registry::<WorldClock>("world_clock");
+            let tables = report
+                .tables()
+                .cloned()
+                .chain([Arc::clone(timelines.table()), Arc::clone(clocks.table())]);
+            typed(RegistrySet::from_tables(tables).unwrap_or_else(|e| {
                 panic!("the dimension type registries do not join the set: {e}")
-            }),
-        )
-        .with_tags(shipped_tags(blocks, "block"))
+            }))
+            .with_tags(shipped_tags(blocks, "block"))
             .with_tags(shipped_tags(timelines.table(), "timeline"))
-    });
+        });
     &SET
 }
 

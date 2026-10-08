@@ -139,8 +139,7 @@ impl PlacementModifier<Predicate> {
                         let y_face = y == 0 || y == height - 1;
                         for z in 0..length {
                             let z_face = z == 0 || z == length - 1;
-                            let on_edge =
-                                x_face && y_face || z_face && y_face || x_face && z_face;
+                            let on_edge = x_face && y_face || z_face && y_face || x_face && z_face;
                             let on_face = x_face || y_face || z_face;
                             if (*include_edges || !on_edge) && (*include_interior || on_face) {
                                 out.push(BlockPos::new(x + origin.x, y + origin.y, z + origin.z));

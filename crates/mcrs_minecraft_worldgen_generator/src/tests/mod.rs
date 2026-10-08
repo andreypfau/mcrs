@@ -88,12 +88,12 @@ use crate::heightmap::TerrainHeightmaps;
 use crate::stages::{FillContext, fill_column, merge_column, run_region};
 use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
 use crate::task::{CancellationToken, ColumnSource};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_testing::registry;
-use mcrs_minecraft_biome::Biome;
 
 /// `feature`, then every feature written inline inside it, in pre-order.
 pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
@@ -212,14 +212,7 @@ pub fn try_build_program(
         let name = numbered.name(id).expect("an id of the registry has a name");
         tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
-    FeatureProgram::build(
-        &tables,
-        corpus,
-        &blocks().0,
-        &registries,
-        seed,
-        structures,
-    )
+    FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
 }
 
 pub fn surface_ids_over(
@@ -313,7 +306,9 @@ pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables 
 
 pub fn parameter_list_id(
     name: &str,
-) -> mcrs_minecraft_registry::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList> {
+) -> mcrs_minecraft_registry::Id<
+    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
+> {
     parameter_lists()
         .0
         .require_by_name(name)

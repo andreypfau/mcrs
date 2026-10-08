@@ -2185,16 +2185,19 @@ fn a_worldgen_file_that_does_not_parse_stops_the_load() {
 
 #[test]
 fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
-    let refused = load_shipped_and("test/timeline", &[
-        (
-            "first",
-            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
-        ),
-        (
-            "second",
-            timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
-        ),
-    ])
+    let refused = load_shipped_and(
+        "test/timeline",
+        &[
+            (
+                "first",
+                timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+            ),
+            (
+                "second",
+                timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
+            ),
+        ],
+    )
     .err()
     .expect("a marker defined by two timelines of one clock is refused");
 
@@ -2211,16 +2214,19 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
 
 #[test]
 fn a_marker_reused_on_two_clocks_loads() {
-    let set = load_shipped_and("test/timeline", &[
-        (
-            "first",
-            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
-        ),
-        (
-            "second",
-            timeline_file("minecraft:the_end", r#"{"test:marker":2000}"#),
-        ),
-    ])
+    let set = load_shipped_and(
+        "test/timeline",
+        &[
+            (
+                "first",
+                timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+            ),
+            (
+                "second",
+                timeline_file("minecraft:the_end", r#"{"test:marker":2000}"#),
+            ),
+        ],
+    )
     .unwrap_or_else(|report| panic!("the markers are on two clocks: {report}"));
 
     let table = set.table("minecraft:timeline").expect("the timeline table");

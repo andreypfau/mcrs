@@ -45,7 +45,11 @@ impl Geometry {
         let size = (end + end / VISIBLE_HEADROOM as u64)
             .next_multiple_of(GEOMETRY_STEP)
             .min(self.limit.max(end));
-        bevy::log::info!(label = self.label, mb = size >> 20, "growing a terrain arena");
+        bevy::log::info!(
+            label = self.label,
+            mb = size >> 20,
+            "growing a terrain arena"
+        );
         let grown = geometry_buffer(self.label, size, device);
         encoder.copy_buffer_to_buffer(&self.buffer, 0, &grown, 0, self.buffer.size());
         self.buffer = grown;
@@ -135,11 +139,7 @@ impl Arenas {
             ),
             sections: arena("terrain sections", (budget.sections * SECTION_BYTES) as u64),
             visible: visible_list(VISIBLE_STEP, device),
-            batches: Geometry::new(
-                "terrain cull batches",
-                batch_bytes(budget.groups),
-                device,
-            ),
+            batches: Geometry::new("terrain cull batches", batch_bytes(budget.groups), device),
             candidates: Geometry::new(
                 "terrain cull candidates",
                 candidate_bytes(budget.groups),
@@ -173,7 +173,8 @@ impl Arenas {
         if cull {
             let groups = self.groups.buffer.size() as usize / size_of::<Group>();
             self.batches.fit(batch_bytes(groups), device, encoder);
-            self.candidates.fit(candidate_bytes(groups), device, encoder);
+            self.candidates
+                .fit(candidate_bytes(groups), device, encoder);
             cull = true;
         }
         Rebind {

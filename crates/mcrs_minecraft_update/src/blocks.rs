@@ -238,10 +238,7 @@ mod tests {
     fn a_property_value_the_report_lacks_changes_the_state_count() {
         let wider = CHEST.replace(r#"["single", "left"]"#, r#"["single", "left", "right"]"#);
         let found = found(REPORT, &[AIR, &wider]);
-        assert_eq!(
-            found[0],
-            "minecraft:chest: 4 reported states, definition 6"
-        );
+        assert_eq!(found[0], "minecraft:chest: 4 reported states, definition 6");
     }
 
     #[test]
