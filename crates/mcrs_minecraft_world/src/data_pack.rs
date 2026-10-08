@@ -1,12 +1,17 @@
 use crate::LoadedRegistryAssets;
-use bevy_asset::io::AssetSourceId;
+use bevy_asset::io::{AssetReaderError, AssetSourceId, ErasedAssetReader};
 use bevy_asset::{Asset, AssetServer};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::RegistryKey;
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_worldgen::bevy::pool_templates;
+use mcrs_minecraft_worldgen::tables::template_path;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use std::collections::BTreeSet;
+use std::path::Path;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -81,9 +86,21 @@ fn request_registry<T: Asset, V>(
     );
 }
 
-fn request_templates(asset_server: &AssetServer, loaded: &mut LoadedRegistryAssets) {
+fn request_templates(
+    asset_server: &AssetServer,
+    set: &RegistrySet,
+    loaded: &mut LoadedRegistryAssets,
+) {
     use registry_files::{FILES_TEMPLATE, FOLDER_TEMPLATE};
-    let files = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
+    let listed = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
+    let named: BTreeSet<ResourceLocation> = set
+        .entries::<TemplatePool, TemplatePool>()
+        .map(|pools| pools.as_slice().iter().flat_map(pool_templates).collect())
+        .unwrap_or_default();
+    let files = match asset_server.get_source(AssetSourceId::Default) {
+        Ok(source) => bevy_tasks::block_on(with_pool_templates(source.reader(), listed, &named)),
+        Err(_) => listed,
+    };
     let count = files.len();
     for path in files {
         loaded.push(
@@ -97,6 +114,28 @@ fn request_templates(asset_server: &AssetServer, loaded: &mut LoadedRegistryAsse
         count,
         "requested structure templates"
     );
+}
+
+// A listing sees only the root while a read sees every pack layer, so a
+// template a datapack ships is found by reading the path a pool names.
+async fn with_pool_templates(
+    reader: &dyn ErasedAssetReader,
+    listed: Vec<String>,
+    named: &BTreeSet<ResourceLocation>,
+) -> Vec<String> {
+    let mut files: BTreeSet<String> = listed.into_iter().collect();
+    for id in named {
+        let path = template_path(id);
+        if !files.contains(&path)
+            && !matches!(
+                reader.read(Path::new(&path)).await,
+                Err(AssetReaderError::NotFound(_))
+            )
+        {
+            files.insert(path);
+        }
+    }
+    files.into_iter().collect()
 }
 
 pub(crate) fn request_data_pack_assets(
@@ -118,7 +157,7 @@ pub(crate) fn request_data_pack_assets(
     request_registry::<StructureSetAsset, _>(server, &set, loaded, STRUCTURE_SET);
     request_registry::<StructureAsset, _>(server, &set, loaded, STRUCTURE);
     request_registry::<ProcessorListAsset, _>(server, &set, loaded, PROCESSOR_LIST);
-    request_templates(server, loaded);
+    request_templates(server, &set, loaded);
 }
 
 pub(crate) async fn walk_files(
@@ -150,5 +189,52 @@ pub(crate) fn check_registry_assets_ready(
     if registry_assets.all_handles_settled(&asset_server) {
         tracing::info!("all registry assets settled — entering WorldgenFreeze");
         next.set(AppState::WorldgenFreeze);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_asset::io::memory::{Dir, MemoryAssetReader};
+    use mcrs_minecraft_assets::packs::layered_reader;
+
+    #[test]
+    fn a_pool_template_is_requested_when_any_pack_layer_holds_it() {
+        let root = Dir::default();
+        for path in [
+            "minecraft/structure/listed.nbt",
+            "minecraft/structure/unlisted.nbt",
+            "mcrs/datapacks/extra/example/structure/house.nbt",
+            "example/structure/twice.nbt",
+            "mcrs/datapacks/extra/example/structure/twice.nbt",
+            "example/structure/unnamed.nbt",
+        ] {
+            root.insert_asset(Path::new(path), Vec::new());
+        }
+        let reader = layered_reader(Box::new(MemoryAssetReader { root }), |_| None);
+        let named = [
+            "minecraft:listed",
+            "minecraft:unlisted",
+            "example:house",
+            "example:twice",
+            "minecraft:missing",
+        ]
+        .map(|id| ResourceLocation::read(id).unwrap())
+        .into();
+
+        let files = bevy_tasks::block_on(with_pool_templates(
+            &*reader,
+            vec!["minecraft/structure/listed.nbt".to_owned()],
+            &named,
+        ));
+        assert_eq!(
+            files,
+            [
+                "example/structure/house.nbt",
+                "example/structure/twice.nbt",
+                "minecraft/structure/listed.nbt",
+                "minecraft/structure/unlisted.nbt",
+            ]
+        );
     }
 }

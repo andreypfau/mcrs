@@ -102,7 +102,11 @@ pub fn template_handle(
     asset_server: &AssetServer,
     id: &ResourceLocation,
 ) -> Option<Handle<TemplateAsset>> {
-    asset_server.get_handle(format!("{}/structure/{}.nbt", id.namespace(), id.path()))
+    asset_server.get_handle(template_path(id))
+}
+
+pub fn template_path(id: &ResourceLocation) -> String {
+    format!("{}/structure/{}.nbt", id.namespace(), id.path())
 }
 
 pub fn named<'a, R: 'static, T>(
