@@ -42,7 +42,6 @@ use mcrs_minecraft_protocol::tags::tags_payload_of;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -151,9 +150,13 @@ pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
 
 pub fn registry_data<'a>(
     set: &'a RegistrySet,
-    client_known: &HashSet<(&str, &str)>,
+    offered: &[KnownPack],
+    accepted: &[KnownPack],
 ) -> Vec<ClientboundRegistryData<'a>> {
-    let knows_vanilla = client_known.contains(&("minecraft", "core"));
+    let knows_vanilla = accepted == offered
+        && offered
+            .iter()
+            .any(|pack| (pack.namespace, pack.id) == ("minecraft", "core"));
     set.synced()
         .map(|(table, column)| {
             let registry = table.registry().as_str();
@@ -188,6 +191,7 @@ fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     set: Res<RegistrySet>,
+    offer: Option<Res<KnownPackOffer>>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con)) = query.get_mut(event.entity) else {
@@ -197,18 +201,13 @@ fn on_known_packs_response(
         return;
     };
 
-    let client_known: HashSet<(&str, &str)> = packs_response
-        .known_packs
-        .iter()
-        .map(|p| (p.namespace, p.id))
-        .collect();
-
     debug!(
-        client_known_count = client_known.len(),
+        client_known_count = packs_response.known_packs.len(),
         "Received KnownPacks response"
     );
 
-    let registries = registry_data(&set, &client_known);
+    let offered = known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0));
+    let registries = registry_data(&set, &offered, &packs_response.known_packs);
     for packet in &registries {
         con.write_packet(packet);
     }
