@@ -1,15 +1,14 @@
 use crate::bevy::{
     CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, StructureAsset,
-    StructureSetAsset, TemplatePoolAsset,
+    StructureSetAsset, TemplateAsset,
 };
-use bevy_asset::{Asset, AssetServer, Assets};
+use bevy_asset::{Asset, AssetServer, Assets, Handle};
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
@@ -27,7 +26,6 @@ pub struct WorldgenTables {
     pub processor_lists: Entries<StructureProcessorList, Option<StructureProcessorList>>,
     pub structures: Entries<Structure, Option<StructureAsset>>,
     pub structure_sets: Entries<StructureSet, Option<StructureSet>>,
-    pub template_pools: Entries<TemplatePool, Option<TemplatePoolAsset>>,
 }
 
 impl SharedResource for WorldgenTables {
@@ -38,7 +36,6 @@ impl SharedResource for WorldgenTables {
             && self.processor_lists.shares_with(&other.processor_lists)
             && self.structures.shares_with(&other.structures)
             && self.structure_sets.shares_with(&other.structure_sets)
-            && self.template_pools.shares_with(&other.template_pools)
     }
 }
 
@@ -56,7 +53,6 @@ impl Default for WorldgenTables {
             processor_lists: empty(mcrs_minecraft_worldgen_feature::keys::PROCESSOR_LIST),
             structures: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE),
             structure_sets: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE_SET),
-            template_pools: empty(mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL),
         }
     }
 }
@@ -98,6 +94,15 @@ pub fn asset_path<S: AsRef<str>>(
         registry.path(),
         name.path()
     )
+}
+
+/// The loaded template at `<namespace>/structure/<path>.nbt`, if one was
+/// requested and the file exists.
+pub fn template_handle(
+    asset_server: &AssetServer,
+    id: &ResourceLocation,
+) -> Option<Handle<TemplateAsset>> {
+    asset_server.get_handle(format!("{}/structure/{}.nbt", id.namespace(), id.path()))
 }
 
 pub fn named<'a, R: 'static, T>(
@@ -155,7 +160,6 @@ pub fn build_worldgen_tables(
     processor_lists: Res<Assets<ProcessorListAsset>>,
     structures: Res<Assets<StructureAsset>>,
     structure_sets: Res<Assets<StructureSetAsset>>,
-    template_pools: Res<Assets<TemplatePoolAsset>>,
 ) {
     let server = &*asset_server;
     let tables = WorldgenTables {
@@ -165,7 +169,6 @@ pub fn build_worldgen_tables(
         processor_lists: column(&set, server, &processor_lists, |asset| asset.list.clone()),
         structures: column(&set, server, &structures, Clone::clone),
         structure_sets: column(&set, server, &structure_sets, |asset| asset.set.clone()),
-        template_pools: column(&set, server, &template_pools, Clone::clone),
     };
     tracing::info!(
         carvers = tables.carvers.as_slice().len(),
@@ -174,7 +177,6 @@ pub fn build_worldgen_tables(
         processor_lists = tables.processor_lists.as_slice().len(),
         structures = tables.structures.as_slice().len(),
         structure_sets = tables.structure_sets.as_slice().len(),
-        template_pools = tables.template_pools.as_slice().len(),
         "built the worldgen tables"
     );
     commands.insert_resource(tables);

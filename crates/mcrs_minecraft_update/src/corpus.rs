@@ -101,6 +101,7 @@ fn typed_built_ins() -> BTreeMap<String, Vec<u8>> {
     add(&mut built, "noise", builtin::noises());
     add(&mut built, "density_function", builtin::density_functions());
     add(&mut built, "noise_settings", builtin::noise_settings());
+    add(&mut built, "template_pool", builtin::template_pools());
     built
 }
 

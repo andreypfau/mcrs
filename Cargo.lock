@@ -4327,7 +4327,6 @@ dependencies = [
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
  "serde",
- "serde_json",
  "sha2",
 ]
 

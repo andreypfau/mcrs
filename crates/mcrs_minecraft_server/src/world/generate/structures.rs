@@ -1,7 +1,7 @@
 use crate::loaded::Loaded;
 use crate::world_options::DimensionList;
 use bevy_app::{App, Plugin};
-use bevy_asset::{Assets, Handle};
+use bevy_asset::{AssetServer, Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
@@ -14,8 +14,8 @@ use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_
 use mcrs_minecraft_registry::{Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::bevy::TemplateAsset;
-use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
+use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, named, template_handle};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;
@@ -68,6 +68,15 @@ pub fn dimension_tables(
     tables
 }
 
+fn template_pools(registries: &RegistrySet) -> BTreeMap<ResourceLocation, TemplatePool> {
+    let names = registries.loaded_registry::<TemplatePool>();
+    let pools = registries.loaded_entries::<TemplatePool, TemplatePool>();
+    names
+        .iter()
+        .map(|(id, name)| (name.clone(), pools[id].clone()))
+        .collect()
+}
+
 pub struct StructurePlugin;
 
 impl Plugin for StructurePlugin {
@@ -84,6 +93,7 @@ pub(crate) fn build_dimension_structures(
     mut commands: Commands,
     dimensions: Res<DimensionList>,
     tables: Res<WorldgenTables>,
+    asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
@@ -98,21 +108,21 @@ pub(crate) fn build_dimension_structures(
         .map(|(id, set)| (id, set.clone()))
         .collect();
     let structure_assets = named(&registries, &tables.structures);
-    let pool_assets = named(&registries, &tables.template_pools);
-    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pool_assets
+    let pools = template_pools(&registries);
+    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pools
         .values()
-        .map(|asset| &asset.deps)
-        .chain(structure_assets.values().map(|asset| &asset.deps))
-        .flat_map(|deps| deps.templates.iter())
-        .map(|(id, handle)| (id.clone(), handle.clone()))
+        .flat_map(pool_templates)
+        .filter_map(|id| Some((id.clone(), template_handle(&asset_server, &id)?)))
+        .chain(
+            structure_assets
+                .values()
+                .flat_map(|asset| asset.deps.templates.iter())
+                .map(|(id, handle)| (id.clone(), handle.clone())),
+        )
         .collect();
     let structures: BTreeMap<ResourceLocation, Structure> = structure_assets
         .iter()
         .map(|(id, asset)| (id.clone(), asset.structure.clone()))
-        .collect();
-    let pools: BTreeMap<ResourceLocation, TemplatePool> = pool_assets
-        .iter()
-        .map(|(id, asset)| (id.clone(), asset.pool.clone()))
         .collect();
 
     let template = |id: &ResourceLocation| {

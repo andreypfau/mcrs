@@ -31,7 +31,6 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<PlacedFeatureAsset>()
             .init_asset::<StructureSetAsset>()
             .init_asset::<StructureAsset>()
-            .init_asset::<TemplatePoolAsset>()
             .init_asset::<ProcessorListAsset>()
             .init_asset::<TemplateAsset>()
             .register_asset_loader(TemplateLoader);
@@ -50,10 +49,15 @@ pub fn register_worldgen_loaders(app: &mut App, registries: &RegistrySet) {
         .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::new(
             registries.clone(),
         ))
-        .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::new(
-            registries.clone(),
-        ))
         .register_asset_loader(JsonLoader::<ProcessorListAsset>::new(registries.clone()));
+}
+
+/// The structure templates a template pool names, in its elements and in the
+/// features it writes inline.
+pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocation> {
+    let mut refs = References::default();
+    refs.visit_template_pool(pool);
+    refs.templates
 }
 
 /// The registries a worldgen asset can name. Each one is spelled here once and
@@ -145,14 +149,6 @@ registries! {
             PlacedFeature,
             placed_feature,
             visit_placed_feature
-        ),
-        (
-            template_pools,
-            "worldgen/template_pool/{}.json",
-            TemplatePoolAsset,
-            TemplatePool,
-            pool,
-            visit_template_pool
         ),
     }
 }

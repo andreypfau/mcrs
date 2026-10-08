@@ -2,7 +2,7 @@ use crate::loaded::Loaded;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
 use crate::world_options::{DimensionList, WorldSeed};
 use bevy_app::{App, Plugin};
-use bevy_asset::Assets;
+use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
@@ -15,9 +15,10 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::bevy::TemplateAsset;
-use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
+use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, named, template_handle};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
@@ -85,6 +86,7 @@ fn build_dimension_features(
     mut commands: Commands,
     dimensions: Res<DimensionList>,
     tables: Res<WorldgenTables>,
+    asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     structures: Res<DimensionStructures>,
     seed: Res<WorldSeed>,
@@ -97,11 +99,11 @@ fn build_dimension_features(
 
     let features = named(&registries, &tables.features);
     let placed_features = named(&registries, &tables.placed_features);
-    let pools = named(&registries, &tables.template_pools);
+    let pools = registries.loaded_entries::<TemplatePool, TemplatePool>();
 
     // A template is `structure/<id>.nbt`, which is no registry, so the ids come
-    // off the handles the feature, placed-feature and pool values declared: a
-    // pool can inline a template feature.
+    // off the handles the feature and placed-feature values declared and the
+    // elements of the pools: a pool can inline a template feature.
     // chisle: every pool template is cloned for the few an inline template
     // feature might name; upgrade = walk the pool elements for template
     // feature nodes and take only theirs.
@@ -109,9 +111,19 @@ fn build_dimension_features(
         .values()
         .map(|asset| &asset.deps)
         .chain(placed_features.values().map(|asset| &asset.deps))
-        .chain(pools.values().map(|asset| &asset.deps))
         .flat_map(|deps| deps.templates.iter())
-        .filter_map(|(id, handle)| Some((id.clone(), templates.get(handle)?.template.clone())))
+        .map(|(id, handle)| (id.clone(), handle.clone()))
+        .chain(
+            pools
+                .as_slice()
+                .iter()
+                .flat_map(pool_templates)
+                .filter_map(|id| {
+                    let handle = template_handle(&asset_server, &id)?;
+                    Some((id, handle))
+                }),
+        )
+        .filter_map(|(id, handle)| Some((id, templates.get(&handle)?.template.clone())))
         .collect();
     let loaded = LoadedFeatures {
         features: features
