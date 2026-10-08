@@ -2,16 +2,15 @@ use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::Encode;
+use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::configuration::{known_pack_offer, registry_data};
 use mcrs_minecraft_world::registries::test_registries;
-use std::collections::HashSet;
 
 #[test]
 fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
     let set = test_registries();
-    let no_known_packs = HashSet::new();
-    let packets = registry_data(set, &no_known_packs);
+    let packets = registry_data(set, &[], &[]);
 
     let sent: Vec<&str> = packets
         .iter()
@@ -56,8 +55,8 @@ fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
 #[test]
 fn an_entry_of_a_known_pack_is_sent_without_its_data() {
     let set = test_registries();
-    let core = HashSet::from([("minecraft", "core")]);
-    let packets = registry_data(set, &core);
+    let offered = known_pack_offer(true);
+    let packets = registry_data(set, &offered, &offered);
 
     let mut from_other_packs = 0;
     for packet in &packets {
@@ -80,9 +79,40 @@ fn an_entry_of_a_known_pack_is_sent_without_its_data() {
 }
 
 #[test]
+fn every_entry_carries_data_unless_the_client_accepts_exactly_the_offer() {
+    let set = test_registries();
+    let core = |version| KnownPack {
+        namespace: "minecraft",
+        id: "core",
+        version,
+    };
+    let other = KnownPack {
+        namespace: "example",
+        id: "extra",
+        version: "1",
+    };
+    let cases: [(bool, Vec<KnownPack>); 4] = [
+        (false, vec![core(VERSION.id.as_str())]),
+        (true, vec![core("0")]),
+        (true, Vec::new()),
+        (true, vec![core(VERSION.id.as_str()), other]),
+    ];
+    for (offer, accepted) in cases {
+        let packets = registry_data(set, &known_pack_offer(offer), &accepted);
+        assert!(
+            packets
+                .iter()
+                .flat_map(|packet| &packet.entries)
+                .all(|entry| entry.data.is_some()),
+            "offer {offer}, accepted {accepted:?}: an entry is sent without data"
+        );
+    }
+}
+
+#[test]
 fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
     let set = test_registries();
-    let packets = registry_data(set, &HashSet::new());
+    let packets = registry_data(set, &[], &[]);
     assert!(!packets.is_empty());
 
     for packet in &packets {
