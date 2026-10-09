@@ -469,10 +469,24 @@ impl Canvas {
     pub fn template(&self) -> Template {
         let mut palette: Vec<PaletteState> = Vec::new();
         let mut indices: HashMap<PaletteState, i32> = HashMap::new();
-        let blocks = self
+        let mut cells: Vec<(u8, Pos, PaletteState)> = self
             .cells()
             .into_iter()
             .map(|(pos, state)| {
+                let section = if self.block_data.contains_key(&pos) {
+                    2
+                } else if rules::is_full_block(&state) {
+                    0
+                } else {
+                    1
+                };
+                (section, pos, state)
+            })
+            .collect();
+        cells.sort_by_key(|&(section, (x, y, z), _)| (section, y, x, z));
+        let blocks = cells
+            .into_iter()
+            .map(|(_, pos, state)| {
                 let vertical = rules::property(&state, "orientation")
                     .is_some_and(|o| o.starts_with("up") || o.starts_with("down"));
                 let next = palette.len() as i32;

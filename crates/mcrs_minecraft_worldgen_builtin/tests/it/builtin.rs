@@ -90,6 +90,6 @@ fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() 
     });
     assert_eq!(
         digest(templates),
-        "2cca7eff3d5c0fd69e04a71961f2459c37f0f37a56bd94c9f7ceef4bac222410"
+        "69ff9a400f5a9bea339f86ab4806dfc147a6c0228cca6546eb85d3e83f7ba6ed"
     );
 }

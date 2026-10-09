@@ -154,6 +154,118 @@ fn is_structure_void(state: &str) -> bool {
     state.split('[').next() == Some("minecraft:structure_void")
 }
 
+fn check_manifest(dump: &DumpManifest) {
+    let id = &dump.id;
+    let (template, frozen, manifest) = freeze(id);
+    let frozen = frozen.palettes;
+    assert_eq!(manifest.size.map(i32::from), dump.size, "{id}: size");
+    assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
+    let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes) {
+        (Some(p), None) => vec![p],
+        (None, Some(ps)) => ps.iter().map(Vec::as_slice).collect(),
+        _ => unreachable!("freeze accepted it"),
+    };
+    for (p, expected) in dump.palettes.iter().enumerate() {
+        let entries: Vec<_> = file_palettes[p]
+            .iter()
+            .map(|state| resolve_palette_state(corpus(), state).unwrap())
+            .collect();
+        assert_eq!(
+            entries.len(),
+            expected.entries.len(),
+            "{id}[{p}]: entry count"
+        );
+        for (i, text) in expected.entries.iter().enumerate() {
+            assert_eq!(
+                resolve(&parse_state(text)),
+                entries[i].id,
+                "{id}[{p}]: entry {i}"
+            );
+        }
+        let full: HashMap<VoxelId, bool> = entries.iter().map(|e| (e.id, e.full_block)).collect();
+        let sections: Vec<u8> = frozen[p]
+            .iter()
+            .map(|b| match (b.nbt.is_some(), full[&b.state]) {
+                (true, _) => 2,
+                (false, true) => 0,
+                (false, false) => 1,
+            })
+            .collect();
+        assert!(sections.is_sorted(), "{id}[{p}]: sections interleave");
+        let count = |section| sections.iter().filter(|&&s| s == section).count() as u32;
+        assert_eq!(
+            (count(0), count(1), count(2)),
+            (expected.full, expected.other, expected.entity),
+            "{id}[{p}]: section lengths"
+        );
+
+        let jigsaws = &manifest.jigsaws[p];
+        assert_eq!(
+            jigsaws.len(),
+            expected.jigsaws.len(),
+            "{id}[{p}]: jigsaw count"
+        );
+        for (j, (ours, theirs)) in jigsaws.iter().zip(&expected.jigsaws).enumerate() {
+            let at = format!("{id}[{p}] jigsaw {j}");
+            assert_eq!(ours.pos.map(i32::from), theirs.pos, "{at}: pos");
+            assert_eq!(ours.front.name(), theirs.front, "{at}: front");
+            assert_eq!(ours.top.name(), theirs.top, "{at}: top");
+            let joint = match ours.joint {
+                Joint::Rollable => "rollable",
+                Joint::Aligned => "aligned",
+            };
+            assert_eq!(joint, theirs.joint, "{at}: joint");
+            assert_eq!(ours.name.to_string(), theirs.name, "{at}: name");
+            assert_eq!(ours.pool.to_string(), theirs.pool, "{at}: pool");
+            assert_eq!(ours.target.to_string(), theirs.target, "{at}: target");
+            assert_eq!(
+                ours.placement_priority, theirs.placement,
+                "{at}: placement_priority"
+            );
+            assert_eq!(
+                ours.selection_priority, theirs.selection,
+                "{at}: selection_priority"
+            );
+            assert!(
+                !theirs.final_state.is_empty(),
+                "{at}: vanilla failed to parse final_state"
+            );
+            let final_state = (!is_structure_void(&theirs.final_state))
+                .then(|| resolve(&parse_state(&theirs.final_state)));
+            assert_eq!(ours.final_state, final_state, "{at}: final_state");
+        }
+    }
+}
+
+const CAT_BLACK: &str = "minecraft:village/common/animals/cat_black";
+
+fn is_built(id: &str) -> bool {
+    let id = ResourceLocation::read(id).unwrap();
+    !mcrs_minecraft_worldgen_testing::assets_dir()
+        .join(id.namespace())
+        .join("structure")
+        .join(format!("{}.nbt", id.path()))
+        .exists()
+}
+
+#[test]
+fn built_templates_keep_the_oracle_order() {
+    let (_, manifests, _) = read_dump();
+    let with_block_entities = manifests
+        .iter()
+        .filter(|m| m.id != CAT_BLACK && is_built(&m.id))
+        .filter(|m| m.palettes.iter().any(|p| p.entity > 0))
+        .min_by(|a, b| a.id.cmp(&b.id))
+        .expect("a built template carries block entity data");
+    for id in [CAT_BLACK, with_block_entities.id.as_str()] {
+        let dump = manifests
+            .iter()
+            .find(|m| m.id == id)
+            .unwrap_or_else(|| panic!("{id} is not in the oracle dump"));
+        check_manifest(dump);
+    }
+}
+
 mod exhaustive {
     use super::*;
 
@@ -165,88 +277,7 @@ mod exhaustive {
         assert_eq!(listed.len(), 33);
 
         for dump in &manifests {
-            let id = &dump.id;
-            let (template, frozen, manifest) = freeze(id);
-            let frozen = frozen.palettes;
-            assert_eq!(manifest.size.map(i32::from), dump.size, "{id}: size");
-            assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
-            let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes)
-            {
-                (Some(p), None) => vec![p],
-                (None, Some(ps)) => ps.iter().map(Vec::as_slice).collect(),
-                _ => unreachable!("freeze accepted it"),
-            };
-            for (p, expected) in dump.palettes.iter().enumerate() {
-                let entries: Vec<_> = file_palettes[p]
-                    .iter()
-                    .map(|state| resolve_palette_state(corpus(), state).unwrap())
-                    .collect();
-                assert_eq!(
-                    entries.len(),
-                    expected.entries.len(),
-                    "{id}[{p}]: entry count"
-                );
-                for (i, text) in expected.entries.iter().enumerate() {
-                    assert_eq!(
-                        resolve(&parse_state(text)),
-                        entries[i].id,
-                        "{id}[{p}]: entry {i}"
-                    );
-                }
-                let full: HashMap<VoxelId, bool> =
-                    entries.iter().map(|e| (e.id, e.full_block)).collect();
-                let sections: Vec<u8> = frozen[p]
-                    .iter()
-                    .map(|b| match (b.nbt.is_some(), full[&b.state]) {
-                        (true, _) => 2,
-                        (false, true) => 0,
-                        (false, false) => 1,
-                    })
-                    .collect();
-                assert!(sections.is_sorted(), "{id}[{p}]: sections interleave");
-                let count = |section| sections.iter().filter(|&&s| s == section).count() as u32;
-                assert_eq!(
-                    (count(0), count(1), count(2)),
-                    (expected.full, expected.other, expected.entity),
-                    "{id}[{p}]: section lengths"
-                );
-
-                let jigsaws = &manifest.jigsaws[p];
-                assert_eq!(
-                    jigsaws.len(),
-                    expected.jigsaws.len(),
-                    "{id}[{p}]: jigsaw count"
-                );
-                for (j, (ours, theirs)) in jigsaws.iter().zip(&expected.jigsaws).enumerate() {
-                    let at = format!("{id}[{p}] jigsaw {j}");
-                    assert_eq!(ours.pos.map(i32::from), theirs.pos, "{at}: pos");
-                    assert_eq!(ours.front.name(), theirs.front, "{at}: front");
-                    assert_eq!(ours.top.name(), theirs.top, "{at}: top");
-                    let joint = match ours.joint {
-                        Joint::Rollable => "rollable",
-                        Joint::Aligned => "aligned",
-                    };
-                    assert_eq!(joint, theirs.joint, "{at}: joint");
-                    assert_eq!(ours.name.to_string(), theirs.name, "{at}: name");
-                    assert_eq!(ours.pool.to_string(), theirs.pool, "{at}: pool");
-                    assert_eq!(ours.target.to_string(), theirs.target, "{at}: target");
-                    assert_eq!(
-                        ours.placement_priority, theirs.placement,
-                        "{at}: placement_priority"
-                    );
-                    assert_eq!(
-                        ours.selection_priority, theirs.selection,
-                        "{at}: selection_priority"
-                    );
-                    assert!(
-                        !theirs.final_state.is_empty(),
-                        "{at}: vanilla failed to parse final_state"
-                    );
-                    let final_state = (!is_structure_void(&theirs.final_state))
-                        .then(|| resolve(&parse_state(&theirs.final_state)));
-                    assert_eq!(ours.final_state, final_state, "{at}: final_state");
-                }
-            }
+            check_manifest(dump);
         }
 
         let mut states: HashMap<String, VoxelId> = HashMap::new();
