@@ -475,15 +475,15 @@ For checking behaviour against. Paths are relative to
 
 | What | Where |
 | --- | --- |
-| Map and predicate definitions | `world/level/levelgen/Heightmap.java:28-31, 152-168` |
-| Full construction (the fused descent) | `world/level/levelgen/Heightmap.java:43-82` |
-| Incremental update | `world/level/levelgen/Heightmap.java:84-111` |
-| Map sets per generation status | `world/level/chunk/status/ChunkStatus.java:16-24` |
-| Map maintenance by the terrain generator | `world/level/levelgen/NoiseBasedChunkGenerator.java:479-480, 506-507` |
+| Map and predicate definitions | `Heightmap.MATERIAL_MOTION_BLOCKING`, `Heightmap.data`, `Heightmap.isOpaque`, `Heightmap.getRawData`, `Heightmap.getIndex`, `Heightmap.Types` |
+| Full construction (the fused descent) | `Heightmap.copyHeightmap`, `Heightmap.primeHeightmaps` |
+| Incremental update | `Heightmap.primeHeightmaps`, `Heightmap.update` |
+| Map sets per generation status | `ChunkStatus.MAX_STRUCTURE_DISTANCE`, `ChunkStatus.WORLDGEN_HEIGHTMAPS`, `ChunkStatus.FINAL_HEIGHTMAPS` |
+| Map maintenance by the terrain generator | `ChunkTerrainBuilder.fillChunk` |
 | Final maps built after carving | `world/level/chunk/status/ChunkStatusTasks.java`, `buildTerrain`'s `thenApply` |
 | The sky light source map | `world/level/lighting/ChunkSkyLightSources.java` |
 | Seeding sky light by boundaries | `world/level/lighting/SkyLightEngine.java`, `propagateLightSources` |
-| The "light properties unchanged" cut-off | `world/level/lighting/LightEngine.java:42` |
+| The "light properties unchanged" cut-off | `LightEngine.hasDifferentLightProperties` |
 | Serialisation of maps and light | `world/level/chunk/storage/SerializableChunkData.java` |
 | Motion-blocking block tags | `src/main/resources/data/minecraft/tags/block/blocks_motion*.json` |
 
@@ -493,8 +493,8 @@ For checking behaviour against. Paths are relative to
   `WORLD_SURFACE` / `OCEAN_FLOOR`. The predicates in each pair are literally
   identical, and `ImposterProtoChunk` substitutes one for the other on read;
   but the `_WG` pair is frozen before carving while the final pair is live
-  through decoration (`chunk/status/ChunkStatus.java:17-37`,
-  `chunk/ProtoChunk.java:159-173`), and placements read both. Here the pair is
+  through decoration (`ChunkStatus`,
+  `ProtoChunk.setBlockState`), and placements read both. Here the pair is
   kept as a second generation of `SURFACE` and `SOLID` that lives only during
   decoration and is never stored (§4, "On separating maps by lifetime");
   as persisted and sent data there are four maps, not six.

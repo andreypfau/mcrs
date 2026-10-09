@@ -9,7 +9,7 @@ Jigsaw assembly and the template system are the largest part of it because 28
 of the 52 shipped structures are jigsaw structures and every one of them is
 data.
 
-The system is described once and instantiated per edition. Java 26.3 is the
+The system is described once and instantiated per edition. Java, at the version named by `assets/minecraft/version.json`, is the
 primary reference and the only one with sources; Beta 1.7.3 is read from two
 reimplementations; Bedrock is read from the wiki and from Microsoft's
 behaviour-pack reference, which publish formats and behaviours but not the
@@ -18,8 +18,8 @@ random generator. §1.2 says what the three share and §10 says what each adds.
 `worldgen.md` is the authority on invariants and vocabulary; `scattering.md`
 owns the ladder, the window and the read rule (Wn1–Wn5) that materialisation
 runs under; `heightmap.md` owns the maps. Reference paths are relative to
-`~/src/gitlab.com/andreypfau/minecraft/src/main/java/net/minecraft`, version
-`26.3-snapshot-10`, and are cited as data, never as a shape to copy. Beta paths
+`~/src/gitlab.com/andreypfau/minecraft/src/main/java/net/minecraft`, at the version
+named by `assets/minecraft/version.json`, and are cited as data, never as a shape to copy. Beta paths
 are relative to
 `~/src/github.com/Project-Poseidon/src/main/java/net/minecraft/server` (Java)
 and `~/src/github.com/BetrockPlusPlus/src/bpp_shared` (C++); SteelMC paths to
@@ -54,11 +54,11 @@ temporal) and a different cost.
 The first four never read a block. That is the whole content of G1 and it is
 worth restating in the reference's own terms: `createStructures` runs at the
 `structure_starts` status, which has no requirement on any other chunk
-(`world/level/chunk/status/ChunkPyramid.java:13`), and everything a layout
+(`ChunkPyramid.GENERATION_PYRAMID`), and everything a layout
 consults is either a registry, the climate field
-(`structure/Structure.java:289-331`), or the density column evaluated **without**
-a terrain adaptation term (`levelgen/NoiseBasedChunkGenerator.java:157-166`,
-which passes `null` for it, against `:105-121`, which passes the real one for a
+(`Structure.GenerationContext`), or the density column evaluated **without**
+a terrain adaptation term (`NoiseBasedChunkGenerator.getBaseColumn`, which passes an empty context map,
+against `NoiseBasedChunkGenerator.buildTerrain`, which passes the chunk's sampler fields for a
 fill). So a start depends on no other start, the layouts of two cells are
 independent, and the index of §8 is a pure function of the seed that can be
 computed in any order on any thread. Search (§9) reads the same four layers
@@ -83,7 +83,7 @@ names its noise settings; there is no runtime switch.
 
 **E2. Parity is a property of a profile and is stated per profile.**
 
-| Aspect | Java 26.3 | Beta 1.7.3 | Bedrock |
+| Aspect | Java | Beta 1.7.3 | Bedrock |
 | --- | --- | --- | --- |
 | Placement | `random_spread`, `concentric_rings`, `dimension_origin` (P1) | none: no structure sets exist (§10.1) | `random_spread` with the same lattice fields; `concentric_rings` declared without documented fields (§10.2) |
 | Placement random | `LegacyRandom`, 48-bit, additive salt (P2) | — | unpublished; positions differ from Java for the same seed by the wiki's own statement |
@@ -98,8 +98,8 @@ names its noise settings; there is no runtime switch.
 **E3. The seed's width is a profile fact.** Java's placement and layout draws
 see the low 48 bits of the seed and its climate and density fields see all 64
 (R1). Beta's *entire* generator is `java.util.Random` — the terrain octaves
-(`ChunkProviderGenerate.java:33-41`), the biome octaves seeded by
-`seed · 9871`, `seed · 39811`, `seed · 543321` (`WorldChunkManager.java:18-20`),
+(`ChunkProviderGenerate.java`, lines 33-41), the biome octaves seeded by
+`seed · 9871`, `seed · 39811`, `seed · 543321` (`WorldChunkManager.java`, lines 18-20),
 the populate and cave seeds (§10.1) — so a Beta world is a function of the low
 48 bits of its seed and the top 16 are inert. Bedrock's width is unknown. A
 seed searcher (R3) is built on this fact and reads it from the profile.
@@ -120,25 +120,25 @@ every stored value.
 **P1. A structure set is a lattice rule plus a weighted list.** The registry
 `worldgen/structure_set/<id>.json` (21 shipped files) is a list of
 `{structure, weight ≥ 1}` and a `placement` dispatched on `type`
-(`structure/StructureSet.java:12-47`; `placement/StructurePlacements.java:10-12`
+(`StructureSet`; `StructurePlacements.bootstrap`
 registers `random_spread`, `concentric_rings`, `dimension_origin`). The two
 spreading types share `salt` (required, non-negative), `frequency` (0..1,
 default 1), `frequency_reduction_method` (default `default`), `locate_offset`
 (each axis within ±16, default zero) and an optional `exclusion_zone` of
 `{other_set, chunk_count 1..16}`, which the reference marks deprecated
-(`placement/AbstractSpreadingStructurePlacement.java:29-49, 148-167`).
+(`AbstractSpreadingStructurePlacement.placementCodec`, `AbstractSpreadingStructurePlacement.legacyPillagerOutpostReducer`, `AbstractSpreadingStructurePlacement.ExclusionZone`).
 `random_spread` adds `spacing` and `separation`, both 0..4096 with
 `spacing > separation` enforced by the codec, and `spread_type` `linear` or
-`triangular` (`placement/RandomSpreadStructurePlacement.java:15-39`).
+`triangular` (`RandomSpreadStructurePlacement`).
 `concentric_rings` adds `distance` 0..1023, `spread` 0..1023, `count` 1..4095
-and a biome set `preferred_biomes` (`placement/ConcentricRingsStructurePlacement.java:36-43`).
+and a biome set `preferred_biomes` (`ConcentricRingsStructurePlacement.codec`).
 `dimension_origin` has no fields — it is not a spreading placement and carries
 no salt, frequency, offset or exclusion — and matches the *dimension origin*
-only (`placement/DimensionOriginStructurePlacement.java:15-18`). The origin is
-chunk `(0, 0)` (`world/level/chunk/ChunkGenerator.java:117-119`) unless the
+only (`DimensionOriginStructurePlacement.isStructureChunk`). The origin is
+chunk `(0, 0)` (`ChunkGenerator.getOrigin`) unless the
 noise settings carry a non-empty `spawn_target`, in which case it is the chunk
 of the spawn-target search over the climate field
-(`levelgen/NoiseBasedChunkGenerator.java:130-141`), a function of the full
+(`NoiseBasedChunkGenerator.chunkVolume`, `NoiseBasedChunkGenerator.getOrigin`), a function of the full
 seed. No shipped set uses it. Every range is a freeze check (Fe1).
 
 **P2. The cell function.** For `random_spread`, with chunk coordinates `(x, z)`:
@@ -152,20 +152,20 @@ starts_at(x, z) ⟺ cell(gx, gz) = (x, z)
 ```
 
 `floorDiv` rounds toward negative infinity; the seeding is
-`setLargeFeatureWithSalt` (`levelgen/WorldgenRandom.java:66-69`) over a
+`setLargeFeatureWithSalt` (`WorldgenRandom.setLargeFeatureWithSalt`) over a
 `LegacyRandomSource`, the 48-bit congruential generator
-(`levelgen/LegacyRandomSource.java:31-49`), never Xoroshiro; `x` is drawn before
+(`LegacyRandomSource.forkPositional`, `LegacyRandomSource.setSeed`, `LegacyRandomSource.next`), never Xoroshiro; `x` is drawn before
 `z`; `linear` is one `nextInt(limit)`, `triangular` is the integer mean of two
-(`RandomSpreadType.java:23-28`; `RandomSpreadStructurePlacement.java:84-93`).
+(`RandomSpreadType.evaluate`; `RandomSpreadStructurePlacement.getPotentialStructureChunk`).
 Three draws and one hash per cell: the cheapest thing in this document, and
 the thing R2 takes apart bit by bit.
 
 **P3. Three gates, in this order, each a pure function of the seed.**
 `isStructureChunk` is the conjunction of the cell test, the frequency gate and
 the exclusion gate, short-circuited in that order
-(`AbstractSpreadingStructurePlacement.java:89-94`). The frequency gate runs only
+(`AbstractSpreadingStructurePlacement.exclusionZone`, `AbstractSpreadingStructurePlacement.isStructureChunk`). The frequency gate runs only
 when `frequency < 1` and has four spellings, which are data because the corpus
-uses three of them (`:113-146`):
+uses three of them (`AbstractSpreadingStructurePlacement`):
 
 | Method | Seed | Test | Corpus user |
 | --- | --- | --- | --- |
@@ -177,25 +177,24 @@ uses three of them (`:113-146`):
 The argument order of `default` is not a typo to correct: it is the function.
 The exclusion gate asks whether the other set has a start anywhere in the
 `(2n+1)²` square around `(x, z)`, by running the other set's full three-gate
-test on every chunk of that square (`ChunkGeneratorStructureState.java:224-238`).
+test on every chunk of that square (`ChunkGeneratorStructureState.hasStructureChunkInRange`).
 A set may exclude a set that excludes it; the reference would recurse forever
 and SteelMC panics on the cycle. A cycle is a freeze error (§11). One more
 fact about the gates that §9 needs: the reference's *cheap* presence test runs
 the cell test and the frequency gate but not the exclusion gate
-(`structure/StructureCheck.java:112`); the exclusion gate is re-applied when
+(`StructureCheck.checkStart`); the exclusion gate is re-applied when
 the chunk is generated. Here the three gates are one function and every
 consumer sees all three.
 
 **P4. Rings are a per-dimension constant.** For `concentric_rings` the set of
 start chunks is computed once per dimension from the seed alone
-(`ChunkGeneratorStructureState.java:131-196`): a `LegacyRandom` seeded with the
-level seed (zero for flat worlds, `:57, :70`) draws an angle, then for each of
+(`ChunkGeneratorStructureState.generateRingPositions`): a `LegacyRandom` seeded with the
+level seed (zero for flat worlds, `ChunkGeneratorStructureState.createForFlat`, `ChunkGeneratorStructureState.createForNormal`) draws an angle, then for each of
 `count` positions a distance `4·d + 6·d·ring + (nextDouble() − 0.5)·2.5·d` in
 chunks along the current angle, forks a child source, and snaps the position
 to the nearest chunk whose biome is in `preferred_biomes` within 112 blocks of
 the candidate's centre by the reference's horizontal biome search with
-reservoir sampling on the fork (`world/level/biome/BiomeSource.java:47-57,
-103-166`); the angle advances by `2π/spread`, and when a ring fills, `spread`
+reservoir sampling on the fork (`BiomeSource.findBiomeHorizontal`); the angle advances by `2π/spread`, and when a ring fills, `spread`
 grows by `2·spread/(ring+1)`, is clamped to what remains, and the angle jumps by
 a fresh draw. Strongholds are 128 positions on rings of 3, 6, 10, 15, … with
 `distance 32`. The fork per position is what makes the biome searches
@@ -206,8 +205,8 @@ snap reads the climate field and is a 64-bit one (R1).
 **P5. Sets are filtered by the dimension, structures by the biome at the
 site.** A set is live in a dimension when at least one of its structures names
 a biome the dimension's source can produce
-(`ChunkGeneratorStructureState.java:67-79`); within a live set a structure is a
-candidate when it names such a biome (`:101-129`, which also builds the
+(`ChunkGeneratorStructureState.createForNormal`, `ChunkGeneratorStructureState.hasBiomesForStructureSet`); within a live set a structure is a
+candidate when it names such a biome (`ChunkGeneratorStructureState.generatePositions`, which also builds the
 placement list per structure — a structure in two sets has two placements,
 and search groups by placement for that reason). The biome test proper happens
 after the site is chosen, at the site (§3, L2). The `possibleBiomes` of a
@@ -215,17 +214,17 @@ source is the set D4 of `scattering.md` already fixes.
 
 **P6. Selection within a set is a draw with removal.** In a start chunk of a
 set with one entry, that entry is tried. With several, a `LegacyRandom` seeded
-by `setLargeFeatureSeed(seed, x, z)` (`WorldgenRandom.java:58-64`: reseed, two
+by `setLargeFeatureSeed(seed, x, z)` (`WorldgenRandom.setLargeFeatureSeed`: reseed, two
 `nextLong`s, then `x·a ^ z·b ^ seed`) draws `nextInt(total weight)`, walks the
 list in JSON order subtracting weights, tries the entry it lands on, and on
 failure removes it, lowers the total and draws again from the same stream
 until an entry yields a valid start or the list is empty
-(`ChunkGenerator.java:592-635`). So the JSON order of the entries is part of the
+(`ChunkGenerator.createStructures`). So the JSON order of the entries is part of the
 definition, and the number of failed tries is too: it shifts the stream. The
 structure tried gets its own fresh `LegacyRandom` seeded the same way
-(`Structure.java:283-287`), so a layout never sees the selection draws. One
+(`Structure.GenerationContext.makeRandom`), so a layout never sees the selection draws. One
 chunk holds at most one start per *structure*, and a set whose structure
-already has a valid start in the chunk is skipped (`:568-575`), which is
+already has a valid start in the chunk is skipped (`ChunkGenerator.createStructures`), which is
 unobservable under P7 because the index computes each chunk exactly once. The
 one set with many entries is `abandoned_camp` (18 camps, weight 1 each): a
 cell of that set almost always places *some* camp, whichever biome-valid
@@ -234,8 +233,8 @@ variant survives the loop.
 **P7. The index is the placement.** `worldgen.md` §10 rejected placement as a
 stage; nothing in P1–P6 reads a column, so nothing needs one. The reference's
 `structure_starts` status, its radius-8 requirement on four later statuses
-(`ChunkPyramid.java:14-32`) and its `structure_references` scan
-(`ChunkGenerator.java:689-733`) are how a per-chunk store answers "which starts
+(`ChunkPyramid.GENERATION_PYRAMID`) and its `structure_references` scan
+(`ChunkGenerator.createReferences`) are how a per-chunk store answers "which starts
 reach me"; §8 answers the same question from the seed.
 
 ---
@@ -244,27 +243,27 @@ reach me"; §8 answers the same question from the seed.
 
 **L1. A start is a chunk, a structure and a non-empty list of pieces.** The
 reference's `StructureStart` is exactly that plus a counter
-(`structure/StructureStart.java:28-31`); it is valid iff it has a piece
-(`:127-129`), and its bounding box is the union of the piece boxes, inflated by
+(`StructureStart`); it is valid iff it has a piece
+(`StructureStart.isValid`), and its bounding box is the union of the piece boxes, inflated by
 12 on every axis when the structure has a terrain adaptation
-(`:75-83`; `Structure.java:86-88`). A layout that produces no piece is a
+(`StructureStart.getBoundingBox`; `Structure.adjustBoundingBox`). A layout that produces no piece is a
 rejection, and a rejection returns to P6's loop.
 
 **L2. The site is chosen first, tested for biome second, and the pieces are
 built third.** `findGenerationPoint` yields a position and a deferred piece
 builder; the biome of the *chosen position*, sampled at quart resolution
 including its `y`, must be in the structure's `biomes`; only then is the
-builder run (`Structure.java:118-128, 235-237, 289-300, 334-348`). The `y` is
+builder run (`Structure.generate`, `Structure.findValidGenerationPoint`, `Structure.GenerationContext.isValidBiome`, `Structure.GenerationStub.generator`, `Structure.GenerationStub`, `Structure.GenerationStub.getPiecesBuilder`). The `y` is
 not decorative: a stronghold is tested at `y = 0`, a fortress at 64, a
 mineshaft at `50 + offset`, a surface structure at the first occupied height
 of its heightmap. One structure builds its pieces *before* the test: the
-mineshaft carries a filled builder in its stub (`structures/MineshaftStructure.java:36-76`),
+mineshaft carries a filled builder in its stub (`MineshaftStructure`, `MineshaftStructure.findGenerationPoint`, `MineshaftStructure.generatePiecesAndAdjust`),
 so its draws happen whether or not the site passes. For a jigsaw structure the
 site step is exactly: the `start_height` draw, the centre rotation, the centre
 element, the optional named-jigsaw shuffle, the centre's box from the
 template's *size*, the optional column-biome test and free-height query, and
-the padding test (`pools/JigsawPlacement.java:51-141`); every piece after the
-centre is built inside the deferred closure (`:141-186`). The site is a
+the padding test (`JigsawPlacement.addPieces`); every piece after the
+centre is built inside the deferred closure (`JigsawPlacement.addPieces`). The site is a
 necessary condition for a start and is what search pays for (R3, R6); the
 layout is what fill and run pay for.
 
@@ -272,13 +271,13 @@ layout is what fill and run pay for.
 layout reads is `getBaseHeight`: the density tape evaluated over one strip,
 substance applied by the aquifer, walked top-down until the heightmap
 predicate holds, with no beardifier and no blending
-(`NoiseBasedChunkGenerator.java:157-166, 204-252`). `WORLD_SURFACE_WG` stops at
+(`ChunkGenerator.getFirstFreeHeight`, `NoiseBasedChunkGenerator.getBaseColumn`). `WORLD_SURFACE_WG` stops at
 the first non-air cell, which includes water; `OCEAN_FLOOR_WG` at the first
-motion-blocking one (`levelgen/Heightmap.java:28-31, 153-156`). The helpers are
+motion-blocking one (`Heightmap.NOT_AIR`, `Heightmap.MATERIAL_MOTION_BLOCKING`, `Heightmap.Types`). The helpers are
 few and all corner-shaped: the chunk-centre column
-(`Structure.java:138-159`, at block 8,8), the four corners of a box for a mean
-or a minimum (`:172-213`), and the four corners of a 5×5 box offset by the
-rotation (`:215-231`, used by end cities and mansions). The consequence is the
+(`Structure.onTopOfChunkCenter`, `Structure.onTopOfChunkCenterWithoutBiomeCheck`, at block 8,8), the four corners of a box for a mean
+or a minimum (`Structure`), and the four corners of a 5×5 box offset by the
+rotation (`Structure.getLowestY`, `Structure.getLowestYIn5by5Box`, used by end cities and mansions). The consequence is the
 one that matters: **a layout's heights ignore carving, surface rules and every
 other structure**, so the layout is a function of the seed and of nothing that
 any stage of the ladder writes. Under §7 the *materialised* piece will then sit
@@ -286,7 +285,7 @@ on carved, surfaced ground that the layout never saw; that is the reference's
 behaviour too, and the beardifier of §6 exists to close the gap.
 
 **L4. A jigsaw structure is data; the other fifteen types are algorithms whose
-draws are the data.** `structure/StructureType.java:24-41` registers sixteen
+draws are the data.** `StructureType` registers sixteen
 `type`s. `jigsaw` reads its whole layout from the registries (§4). The others —
 `buried_treasure`, `desert_pyramid`, `end_city`, `fortress`, `igloo`,
 `jungle_temple`, `mineshaft`, `nether_fossil`, `ocean_monument`, `ocean_ruin`,
@@ -297,27 +296,27 @@ order is copied verbatim, because a draw moved by one changes every piece
 after it. What is *not* copied is the object graph: a piece is data (L6), a
 generator is a function from a seeded source to a piece list, and the static
 mutable tables the reference keeps between calls
-(`structures/StrongholdPieces.java:68-82`, `NetherFortressPieces.java:33-49`
+(`StrongholdPieces`, `NetherFortressPieces.BRIDGE_PIECE_WEIGHTS`, `NetherFortressPieces.CASTLE_PIECE_WEIGHTS`
 with their `placeCount`s) are locals of that function. Their per-type
 parameters are the `type`-specific JSON fields: `mineshaft_type`, `is_beached`,
 `biome_temp`/`large_probability`/`cluster_probability`, the ruined portal's
 `setups`, the fossil's `height`; everything else is `StructureSettings`:
 `biomes`, `spawn_overrides`, `step`, `terrain_adaptation`
-(`Structure.java:359-377`). The complete list of what a layout may read is the
-reference's generation context (`Structure.java:241-254`): the registries, the
+(`Structure.StructureSettings.CODEC`). The complete list of what a layout may read is the
+reference's generation context (`Structure.GenerationContext`): the registries, the
 height and biome queries, the template manager, the 48-bit random of P6, the
 raw seed, the chunk, the dimension's height range and the biome predicate —
 and nothing that is not a function of those.
 
 **L5. Every structure has a reach, and it is at most eight chunks.** A piece
 farther than eight chunks from its start chunk is not part of the world: the
-reference's reference scan stops there (`ChunkGenerator.java:689-694`;
+reference's reference scan stops there (`ChunkGenerator.createReferences`;
 `ChunkStatus.MAX_STRUCTURE_DISTANCE`), and a jigsaw structure's
 `max_distance_from_center.horizontal` plus its 12-block adaptation margin may
-not exceed 128 (`structures/JigsawStructure.java:33, 74-82`). Fortresses and
+not exceed 128 (`JigsawStructure.MAX_TOTAL_STRUCTURE_RANGE`, `JigsawStructure.verifyRange`). Fortresses and
 strongholds bound their pieces to 112 blocks from the start
-(`NetherFortressPieces.java:3059-3091`, `StrongholdPieces.java:216-242`),
-mineshafts to 80 (`MineshaftPieces.java:85-112`), and end cities and mansions
+(`NetherFortressPieces.NetherBridgePiece.generateAndAddPiece`, `StrongholdPieces.generateAndAddPiece`),
+mineshafts to 80 (`MineshaftPieces.generateAndAddPiece`), and end cities and mansions
 are bounded only by the cap. The index of §8 needs the bound *before* the
 layout exists, and takes the reference's: every structure is looked for
 within eight chunks. A tighter reach derived from `horizontal + margin` is not
@@ -331,17 +330,17 @@ already visited a radius of 8 (§10.1, B3).
 **L6. A piece is its serialised form.** The reference writes each piece as
 `id`, `BB`, `O`, `GD` plus type-specific fields, and a jigsaw piece as its
 element, position, rotation, `ground_level_delta`, junctions and liquid
-settings (`structure/StructurePiece.java:90-99`;
-`structure/PoolElementStructurePiece.java:73-92`); the start as `id`,
+settings (`StructurePiece.createTag`;
+`PoolElementStructurePiece`, `PoolElementStructurePiece.addAdditionalSaveData`); the start as `id`,
 `ChunkX`, `ChunkZ`, `references`, `Children`
-(`StructureStart.java:110-125`). Under the serde rule that layout *is* the Rust
+(`StructureStart.createTag`). Under the serde rule that layout *is* the Rust
 type — one enum over piece kinds, each variant a typed struct, deriving the
 codec that writes the save and the one that would cross the wire — and there
 is no second in-memory shape. Two fields carry more than their name: `GD` is a
 collision tag for end cities and a room flag for monuments
-(`structures/EndCityPieces.java:507-515`) and is stored verbatim; `references`
+(`EndCityPieces.recursiveChildren`) and is stored verbatim; `references`
 is gameplay truth (how many explorer maps have claimed the start, at most one,
-`StructureStart.java:135-149`) and is the one field a layout never sets.
+`StructureStart`) and is the one field a layout never sets.
 
 ---
 
@@ -357,27 +356,27 @@ the data structures are not.
 `project_start_to_heightmap`, `max_distance_from_center` as an int 1..128 or
 `{horizontal 1..128, vertical 1..4064}`, `pool_aliases` (default empty),
 `dimension_padding` as an int or `{bottom, top}` (default 0), `liquid_settings`
-(default `apply_waterlogging`) (`JigsawStructure.java:36-62, 191-213`;
-`pools/DimensionPadding.java:9-22`). A pool is `fallback` plus `elements` of
+(default `apply_waterlogging`) (`JigsawStructure.CODEC`, `JigsawStructure.MaxDistance`;
+`DimensionPadding.RECORD_CODEC`, `DimensionPadding.CODEC`, `DimensionPadding.ZERO`). A pool is `fallback` plus `elements` of
 `{element, weight 1..150}`, and the weights are *expanded*: the pool's working
 list holds each element `weight` times in JSON order, so a weight changes both
 the odds and the number of draws a shuffle spends
-(`pools/StructureTemplatePool.java:29-65`). An element is dispatched on
+(`StructureTemplatePool`). An element is dispatched on
 `element_type`: `single_pool_element` and `legacy_single_pool_element`
 (`location`, `processors`, `projection`, optional `override_liquid_settings`),
 `list_pool_element`, `feature_pool_element`, `empty_pool_element`
-(`pools/StructurePoolElementType.java:8-14`). The legacy form differs from the
+(`StructurePoolElementType`). The legacy form differs from the
 single form in one thing: its ignore processor drops air as well as structure
 blocks and sits *last* in the chain, so a legacy template never carves the
-terrain (`pools/LegacySinglePoolElement.java:32-43`). Aliases are `direct`,
+terrain (`LegacySinglePoolElement`, `LegacySinglePoolElement.getSettings`). Aliases are `direct`,
 `random`, `random_group`, resolved in list order into a map by a
 `LegacyRandom` positioned at the pre-projection start position
-(`pools/alias/PoolAliasLookup.java:19-32`); a duplicate alias is a freeze error.
+(`PoolAliasLookup.create`); a duplicate alias is a freeze error.
 
 **J2. One stream, in one order.** The layout random is the start's
 `LegacyRandom` of P6. Its first draw is `start_height.sample`
-(`JigsawStructure.java:158`); then, in `addPieces`
-(`pools/JigsawPlacement.java:51-186`): the centre rotation (`nextInt(4)` over
+(`JigsawStructure.findGenerationPoint`); then, in `addPieces`
+(`JigsawPlacement.addPieces`): the centre rotation (`nextInt(4)` over
 `NONE, CW90, CW180, CCW90`); the centre element (`nextInt(expanded size)`);
 if `start_jigsaw_name` is set, the centre's jigsaw blocks are *shuffled* with
 this stream before the named one is found (J4). Then the queue of J3 runs and
@@ -385,7 +384,7 @@ each `tryPlacingChildren` spends, per source jigsaw: a shuffle of the target
 pool's expanded list **only if `depth ≠ size`**, a shuffle of the fallback's
 expanded list **always**, and per candidate element a shuffle of the four
 rotations (three draws) and a shuffle of the candidate's jigsaw blocks
-(`:404-420`; `util/Util.java:1161-1168` is the Fisher–Yates from the end,
+(`JigsawPlacement.Placer.tryPlacingChildren`; `Util.shuffle` is the Fisher–Yates from the end,
 `n−1` draws). Skipping the fallback shuffle at maximum depth because "it cannot
 matter" desynchronises every draw after it; SteelMC records the same lesson
 for duplicate pool entries (`steel-worldgen/src/structure/jigsaw.rs:387-392`).
@@ -394,7 +393,7 @@ for duplicate pool entries (`steel-worldgen/src/structure/jigsaw.rs:387-392`).
 centre piece's children are tried first; every accepted piece with
 `depth + 1 ≤ size` is enqueued under its source jigsaw's `placement_priority`;
 the next piece processed is the first of the highest non-empty priority
-(`JigsawPlacement.java:221-263`; `util/SequencedPriorityIterator.java:18-67`).
+(`JigsawPlacement.addPieces`; `SequencedPriorityIterator.add`, `SequencedPriorityIterator.computeNext`, `SequencedPriorityIterator.switchCacheToNextHighestPrioQueue`).
 A piece at depth `size` is still processed but sees only fallbacks (J2). The
 piece list is the centre followed by acceptance order, and the first piece is
 what materialisation's reference position is taken from (§7).
@@ -403,54 +402,54 @@ what materialisation's reference position is taken from (§7).
 order.** The blocks of a template are the palette's `minecraft:jigsaw` entries
 in template order (T2), transformed to the piece's rotation, shuffled with the
 stream, then stably sorted by `selection_priority` descending
-(`pools/SinglePoolElement.java:39-42, 124-141`). The palette used to enumerate
+(`SinglePoolElement.HIGHEST_SELECTION_PRIORITY_FIRST`, `SinglePoolElement.getDataMarkers`, `SinglePoolElement.getShuffledJigsawBlocks`, `SinglePoolElement.sortBySelectionPriority`). The palette used to enumerate
 them is chosen by a positional random of the piece position, and for a
 *candidate* the position is the origin, so the palette is index
 `hash(0,0,0) mod n` — which can differ from the palette later placed at the
-real position (`StructurePlaceSettings.java:110-116, 138-147`; `util/Mth.java:367-371`).
+real position (`StructurePlaceSettings.getRandom`, `StructurePlaceSettings.getRandomPalette`; `Mth.getSeed`).
 Twenty of the 1511 templates carry several palettes. The quirk is data.
 
 **J5. Attachment.** For each source jigsaw, with target position
 `source + front`, a candidate `(element, rotation, jigsaw)` attaches iff
 `canAttach`: the target's front is the source's opposite, the tops agree or
 the source's joint is `rollable`, and the source's `target` equals the target's
-`name` (`world/level/block/JigsawBlock.java:79-91`); the first candidate that
+`name` (`JigsawBlock.canAttach`); the first candidate that
 also fits (J6) wins and the loop moves to the next source jigsaw
-(`JigsawPlacement.java:463-582`). An `empty_pool_element` met in the candidate
-list *breaks* the list: nothing behind it is tried (`:412-415`). The vertical
+(`JigsawPlacement.Placer.tryPlacingChildren`). An `empty_pool_element` met in the candidate
+list *breaks* the list: nothing behind it is tried (`JigsawPlacement.Placer.tryPlacingChildren`). The vertical
 placement is where projection enters: with both sides `rigid`, the target box
 is placed at `source box minY + Δy` where `Δy = sourceJigsawLocalY −
 targetJigsawLocalY + front.stepY`; with either side `terrain_matching`, the
 source jigsaw's column is queried once (L3, `WORLD_SURFACE_WG`, the *free*
 height, i.e. one above the occupied) and the target box's `minY` is that height
-minus the target jigsaw's local `y` (`:474-498`). The `ground_level_delta` of a
+minus the target jigsaw's local `y` (`JigsawPlacement.Placer.tryPlacingChildren`). The `ground_level_delta` of a
 rigid target is the source's minus `Δy`; of a terrain-matching one, the
-element's own (always 1) (`:520-526`). Every accepted attachment records two
+element's own (always 1) (`JigsawPlacement.Placer.tryPlacingChildren`). Every accepted attachment records two
 junctions, one on each piece, holding the *other* jigsaw's `x`, `z`, a ground
-`y` and `Δy` (`:537-574`); they are the only junctions there are and §6 reads
+`y` and `Δy` (`JigsawPlacement.Placer.tryPlacingChildren`); they are the only junctions there are and §6 reads
 them.
 
 **J6. Occupancy is inclusive integer box arithmetic.** The reference tests a
 candidate box, deflated by a quarter block, against a voxel shape that starts
 as the reach box minus the centre piece and loses every accepted box
-(`:143-182, 508-519`). For integer boxes the deflation makes the test exact:
+(`JigsawPlacement.addPieces`, `JigsawPlacement.Placer.tryPlacingChildren`). For integer boxes the deflation makes the test exact:
 a candidate fits iff its box lies within the context's bounds and intersects no
 box already subtracted from that context, with `BoundingBox.intersects`
 semantics (both ends inclusive). There are two kinds of context: the lineage's
 shared one, whose bounds are the reach box `[c − h, c + h]` horizontally and
 `[max(c − v, minY + bottomPad), min(c + v, maxY − topPad)]` vertically
-(`:143-158`), and a per-piece interior one, created the first time a target
+(`JigsawPlacement.addPieces`), and a per-piece interior one, created the first time a target
 position falls *inside* its source piece's box, bounded by that box
-(`:393-402`). A subtracted box is subtracted from the context the attachment
+(`JigsawPlacement.Placer.tryPlacingChildren`). A subtracted box is subtracted from the context the attachment
 used, and children of a piece inherit the context their attachment used. The
 expansion hack grows a candidate's *occupancy* box upward to
 `max(expandTo + 1, height)` when the flag is on and the candidate is at most 16
 tall, where `expandTo` is the tallest element of any pool a jigsaw of the
-candidate would attach inside it (`:424-461, 499-506`). The grown box is not
+candidate would attach inside it (`JigsawPlacement.Placer.tryPlacingChildren`). The grown box is not
 only occupancy: it is the box the accepted piece is constructed with and keeps
-(`PoolElementStructurePiece.java:36-52`), so it is what the start's box unions
+(`PoolElementStructurePiece`), so it is what the start's box unions
 (L1) and what the beardifier reads (§6); only a piece reloaded from the save
-recomputes its box from the element (`:56-66`). SteelMC's `DeflatedQuarters` octree
+recomputes its box from the element (`PoolElementStructurePiece`). SteelMC's `DeflatedQuarters` octree
 (`steel-worldgen/src/structure/box_octree.rs`) is a port of a Fabric mod's
 optimisation, not of the reference; a list of boxes per context is the
 definition, and whether a search structure pays is measured on a village.
@@ -459,9 +458,9 @@ definition, and whether a search structure pays is measured on a village.
 `project_start_to_heightmap` the whole column at the centre's `(x, z)` must
 admit a valid biome (L2's column form), and the centre's ground row
 (`minY + ground_level_delta`) is moved to `start_height + freeHeight(x, z)`
-(`:112-129`); `dimension_padding` then rejects a centre whose box crosses the
-padded floor or ceiling (`:130-137`); the biome test of L2 runs at
-`(centreX, bottomY + anchorY, centreZ)` (`:139-142`).
+(`JigsawPlacement.addPieces`); `dimension_padding` then rejects a centre whose box crosses the
+padded floor or ceiling (`JigsawPlacement.addPieces`); the biome test of L2 runs at
+`(centreX, bottomY + anchorY, centreZ)` (`JigsawPlacement.addPieces`).
 
 **J8. Nothing in J1–J7 reads a block.** The only world queries are L3's height
 and the biome field. Hence a layout is reproducible against the reference bit
@@ -474,13 +473,13 @@ for bit given the same seed and registries, and §13 tests it so.
 **T1. A template is an NBT file and its Rust type is that file.**
 `structure/<path>.nbt`, gzip-compressed, root keys `size`, `blocks`
 (`pos`, `state`, optional `nbt`), `palette` or `palettes` (20 files), `entities`
-(172 files), `DataVersion` (`templatesystem/StructureTemplate.java:726-843`).
-The type derives `Deserialize`/`Serialize` through `mcrs_nbt`; the palette
+(172 files), `DataVersion` (`StructureTemplate.save`, `StructureTemplate.load`).
+The type derives `Deserialize`/`Serialize` through `mcrs_minecraft_nbt`; the palette
 entries resolve to `VoxelId` at freeze. Every shipped template carries
-`DataVersion` 5011 against a world version of 5015. The reference runs the
-structure datafixer over that gap (`templatesystem/loader/TemplateSource.java:81-88`);
-the fixers registered between 5011 and 5015 rename explorer-map items and
-strip one data component (`util/datafix/DataFixers.java:2014-2038`), and a scan
+`DataVersion` 5011 against a world version of 5120. The reference runs the
+structure datafixer over that gap (`TemplateSource.readStructure`);
+the fixers registered between 5011 and 5120 rename explorer-map items and
+strip one data component (`DataFixers.addFixers`), and a scan
 of all 1511 files finds neither. So the template version is pinned at 5011 as
 a named constant and checked at load; a file at any other version is a loud
 error, as the project rule demands, and the pin moves when the corpus does.
@@ -491,7 +490,7 @@ which file it came from.
 **T2. Block order is part of the definition.** After load the blocks are split
 into three lists — with `nbt`; else "full" (collision shape is a full block
 and not dynamic); else "other" — each sorted by `(y, x, z)` and concatenated
-full, other, block-entity (`StructureTemplate.java:152-186, 845-867`). This
+full, other, block-entity (`StructureTemplate.addToLists`, `StructureTemplate.buildInfoList`, `StructureTemplate.loadPalette`). This
 order is the jigsaw enumeration order of J4 and the placement order of T4; it
 is computed once at freeze and is why the block predicate "is a full block"
 must resolve at freeze from the block schema.
@@ -499,41 +498,41 @@ must resolve at freeze from the block schema.
 **T3. Transform.** Mirror first (`LEFT_RIGHT` negates `z`, `FRONT_BACK`
 negates `x`), then rotation about the pivot `(px, pz)`:
 `CCW90 → (px − pz + z, y, px + pz − x)`, `CW90 → (px + pz − z, y, pz − px + x)`,
-`180 → (2px − x, y, 2pz − z)` (`:630-657`); entities use the continuous form
-with `+1` terms (`:659-684`). A piece's bounding box is the transformed box of
-`(0,0,0)`–`(size − 1)` moved to the piece position (`:706-724`), so for a
+`180 → (2px − x, y, 2pz − z)` (`StructureTemplate.transform`); entities use the continuous form
+with `+1` terms (`StructureTemplate.transform`). A piece's bounding box is the transformed box of
+`(0,0,0)`–`(size − 1)` moved to the piece position (`StructureTemplate.getBoundingBox`), so for a
 rotated piece the box minimum is not the position, which is why J5 tracks both.
-Jigsaw pieces never mirror and always pivot at zero (`SinglePoolElement.java:184-205`).
+Jigsaw pieces never mirror and always pivot at zero (`SinglePoolElement.getSettings`).
 
 **T4. Placement is one pass in one order with one clip.** `placeInWorld`
-(`:285-466`): choose the palette (J4's positional draw at the piece position);
+(`StructureTemplate.placeInWorld`): choose the palette (J4's positional draw at the piece position);
 for each block in T2 order compute its world position and **skip it before any
 processor runs** if it lies outside the placement box — unless a `capped`
-processor is in the chain, which sees the whole piece (`:510-532`); run the
+processor is in the chain, which sees the whole piece (`StructureTemplate.processBlockInfos`); run the
 processors in chain order until one drops the block; run every processor's
 `finalizeProcessing` in chain order; then set the survivors, block entities
 with a barrier placed first, loot seeds drawn from the *placement* random, and
-waterlogging by the liquid rules (`:323-407`). The chain for a jigsaw piece is
+waterlogging by the liquid rules (`StructureTemplate.placeInWorld`). The chain for a jigsaw piece is
 `[block_ignore(structure_block), jigsaw_replacement, …processor_list…,
 gravity if terrain_matching]`, update flags 18, shape updates disabled by
-`knownShape` (`SinglePoolElement.java:167, 184-205`). D7 of `scattering.md`
+`knownShape` (`SinglePoolElement.place`, `SinglePoolElement.getSettings`). D7 of `scattering.md`
 already declines the live-world shape updates; jigsaw pieces do not request
 them.
 
 **T5. Processors are a `type`-dispatched enum; their randomness is
-positional.** Eleven types (`templatesystem/StructureProcessorTypes.java:10-20`);
+positional.** Eleven types (`StructureProcessorTypes.bootstrap`);
 the corpus uses `rule` (39 lists), `protected_blocks` (7), `block_rot` (6) and
 `capped` (4), and code injects `block_ignore`, `jigsaw_replacement` and
 `gravity`. `rule` draws from `LegacyRandom(hash(worldPos))` shared across a
 block's rules, in rule order, `input → location → position` short-circuited
-(`templatesystem/ProcessorRule.java:63-74`; `RuleProcessor.java:14-48`);
+(`ProcessorRule.test`; `RuleProcessor`);
 `block_rot` and `block_age` from the settings' positional random; `capped`
 from a positional fork of the level seed at the piece position
-(`CappedProcessor.java:61-62`). Ten rule tests and three position tests are
+(`CappedProcessor.finalizeProcessing`). Ten rule tests and three position tests are
 `predicate_type`-dispatched enums, of which `RuleTest` already exists as a
-serde type (`crates/mcrs_minecraft_worldgen_feature/src/rule_test.rs:6-38`), as
+serde type (`crates/mcrs_minecraft_worldgen_feature/src/rule_test.rs`, `RuleTest`), as
 does the processor list itself, reached today only through the fossil and
-template features (`feature/proto.rs:664-725`). A `location_predicate`,
+template features (`crates/mcrs_minecraft_worldgen_feature/src/proto.rs`, `GeodeLayerSettings`, `StructureProcessor`). A `location_predicate`,
 `protected_blocks` and `lava_submerged_block` read the *world* block at the
 target position: under Wn2 that is the filled window plus the column's own
 writes, and §7 says what that means for a piece placed from several columns.
@@ -542,7 +541,7 @@ writes, and §7 says what that means for a piece placed from several columns.
 raw NBT. Fe1 says validate at load: every template a pool names must exist,
 parse at the pinned version, and resolve its palette, or the freeze fails
 naming the file. The reference substitutes an *empty* template for a missing
-or unreadable one and carries on (`StructureTemplateManager.java:90-121`), so
+or unreadable one and carries on (`StructureTemplateManager`), so
 that a pool with a typo places nothing silently; that is the failure mode Fe1
 forbids. The packed size after freeze (a `u16` position and a `VoxelId` per
 block, one list per template) is a measurement, not a guess; if it is too large
@@ -569,13 +568,13 @@ node B4 owes.
 **A1. The term.** For a column `U`, collect every start within reach whose
 structure has `terrain_adaptation ≠ none`, and from each start every piece
 whose box comes within 12 blocks of `U`'s footprint
-(`levelgen/Beardifier.java:46-104`; `StructurePiece.java:130-134`). A jigsaw
+(`Beardifier.forStructuresInChunk`; `StructurePiece.isCloseToChunk`). A jigsaw
 piece contributes as a *rigid* only if its projection is `rigid`, with its
 `ground_level_delta`; any other piece contributes as a rigid with delta 0; and
 every junction of a jigsaw piece whose `(x, z)` lies strictly inside the
-footprint inflated by 12 contributes as a point (`:62-94`). The union of the
+footprint inflated by 12 contributes as a point (`StructurePiece`). The union of the
 collected boxes and points, inflated by 24, is the affected box; outside it the
-term is exactly zero (`:100, 154-159`).
+term is exactly zero (`StructurePiece.createTag`, `StructurePiece.getWorldX`, `StructurePiece.getWorldY`).
 
 **A2. The formulas.** With `g = box.minY + delta`, `dx`, `dz` the horizontal
 distances to the box (zero inside), `dyg = y − g`:
@@ -592,7 +591,7 @@ beard(dx, dy, dz, yg) = |dx|,|dy|,|dz| < 12 ? −(yg + 0.5) · invsqrt((dx² + (
 K[i][j][k] = exp(−(i² + (j + 0.5)² + k²) / 16),  i, j, k ∈ [−12, 12)
 ```
 
-(`Beardifier.java:161-227`). `K` is 13 824 floats built once per process; the
+(`Beardifier`). `K` is 13 824 floats built once per process; the
 `invsqrt` is the reference's fast inverse square root, part of the strict
 profile's function. The corpus assigns `beard_thin` to villages, outposts,
 camps and fossils, `beard_box` to the ancient city, `bury` to strongholds and
@@ -602,20 +601,19 @@ rest do not.
 **A3. The term is added per block at the root of `final_density`.** In the
 shipped overworld graph the leaf sits as
 `add(min(squeeze(interpolated(…)), noodle), beardifier)`
-(`assets/minecraft/worldgen/density_function/overworld/final_density.json`;
-`NoiseRouterData.java:683-715` for the other dimensions) — outside the
+(`NoiseRouterData`) — outside the
 interpolation, which is B3. SteelMC learned it the hard way: adding at cell
 corners puts the term inside the squeeze and trilerps it
 (`steel-worldgen/src/noise/noise_chunk.rs:474-482`).
 
 **A4. The term is added after the graph, not bound inside it.** The compiler
 folds `minecraft:beardifier` to a declared constant zero with the infinite
-interval (`crates/mcrs_minecraft_worldgen_density/src/compile.rs:316`), and the fold
+interval (`crates/mcrs_minecraft_worldgen_density/src/compile.rs`, `compile`), and the fold
 stays. Because the beardifier is the outermost `add` of `final_density` in
 every shipped router (A3), a fill evaluates the graph over its volume and then
 adds A2 into the density of every block of the volume the affected box
 reaches, before the substance loop reads it — the aquifer decides on bearded
-density, as in `levelgen/NoiseBasedChunkGenerator.java:478-498`. That is the
+density, as in `ChunkTerrainBuilder.fillChunk`. That is the
 graph's value bit for bit, up to the sign of a zero density, which no block
 choice reads. A cell whose block box meets the affected box is filled block by
 block without asking its interval bound; outside the box the term is exactly
@@ -642,18 +640,18 @@ with `r_w = 0`; the radius is wrong and the rest stands.
 
 **M1. The write footprint is one column, like every scattered object.** The
 reference clips each piece to the chunk's writable box — its own 16×16, from
-one above the floor to the ceiling (`ChunkGenerator.java:496-504`;
-`StructureStart.java:85-108`) — and that clip holds for template pieces and
+one above the floor to the ceiling (`ChunkGenerator.getWritableArea`;
+`StructureStart.placeInChunk`) — and that clip holds for template pieces and
 for the grid generators' `placeBlock`. Three hardcoded pieces widen it: the
 ruined portal encapsulates its whole box and spreads netherrack within 14
 blocks of its centre from the one column that holds the centre
-(`structures/RuinedPortalPiece.java:180-198, 258-296`), the nether fossil
+(`RuinedPortalPiece.postProcess`, `RuinedPortalPiece.spreadNetherrack`), the nether fossil
 encapsulates its box from every column it touches
-(`NetherFossilPieces.java:107-121`), and buried treasure and the igloo write a
-neighbour or two unclipped (`BuriedTreasurePieces.java:44-77`;
-`IglooPieces.java:161-178`). Every such write lands within one column of the
+(`NetherFossilPieces.NetherFossilPiece.handleDataMarker`, `NetherFossilPieces.NetherFossilPiece.postProcess`), and buried treasure and the igloo write a
+neighbour or two unclipped (`BuriedTreasurePieces.BuriedTreasurePiece.postProcess`;
+`IglooPieces.IglooPiece.postProcess`). Every such write lands within one column of the
 placing column, which is the radius the reference's region permits
-(`server/level/WorldGenRegion.java:321-350`; `ChunkPyramid.java:30-36`), and
+(`WorldGenRegion.isWithinWriteZone`, `WorldGenRegion.ensureCanWrite`; `ChunkPyramid.GENERATION_PYRAMID`), and
 which Wn5 already routes into a delta. So `r_w = 1`, the ladder of §3.2 needs
 no fourth stage, and a write beyond the ring is the data error S4 already
 names.
@@ -661,9 +659,9 @@ names.
 **M2. The read rule is Wn2, and it changes what a piece may compute.** The
 reference reads the *live* world at placement — heightmaps for the ground of a
 pyramid, blocks for a mineshaft's supports — and freezes some of what it finds
-into the piece for every later chunk (`ScatteredFeaturePiece.java:50-76` stores
+into the piece for every later chunk (`ScatteredFeaturePiece.updateAverageGroundHeight` stores
 the mean height of the columns *inside the first decorating chunk*;
-`ShipwreckPieces.java:170-192` likewise; `BuriedTreasurePieces.java:79` rewrites
+`ShipwreckPieces.ShipwreckPiece.postProcess` likewise; `BuriedTreasurePieces.BuriedTreasurePiece.postProcess` rewrites
 the box). That value depends on which chunk decorated first, which is the
 player's route: it was never part of any reproducible world (S3, D2). Under
 Wn2 a column sees the filled window and its own writes, so two columns placing
@@ -675,7 +673,7 @@ Anything the reference computes at placement and stores on the piece — the
 scattered pieces' height, the shipwreck's adjusted height, the treasure's
 resting block — is either (a) computed at layout by the density heights of
 L3, in the form the reference itself uses when the piece is too large for its
-region (`ShipwreckPieces.java:199-211`: the four-corner minimum or mean), or
+region (`ShipwreckPieces.ShipwreckPiece.isTooBigToFitInWorldGenRegion`, `ShipwreckPieces.ShipwreckPiece.calculateBeachedPosition`, `ShipwreckPieces.ShipwreckPiece.adjustPositionHeight`: the four-corner minimum or mean), or
 (b) computed by every placing column from the `Filled` snapshots only, never
 from own writes, and only when the reads lie within the 3×3 of *every* column
 that can place the piece, which is a check on the piece's extent at freeze.
@@ -692,8 +690,8 @@ column. (b) is used by the one piece whose extent admits it: buried treasure
 reads `OCEAN_FLOOR_WG` of its own column's window at placement and walks down
 to its resting block, leaving the piece box as laid out. Per-column decisions the reference
 makes per chunk — the mineshaft's flooded-shell test on its own clipped box
-(`MineshaftPieces.java:1196-1247`), a mansion's cobblestone footing under its
-own columns (`WoodlandMansionStructure.java:62-92`) — stay per column and read
+(`MineshaftPieces.MineShaftPiece.isInInvalidLocation`), a mansion's cobblestone footing under its
+own columns (`WoodlandMansionStructure.generatePieces`, `WoodlandMansionStructure.afterPlace`) — stay per column and read
 the window as any object does.
 
 **M4. Placement flags are derivable and are dropped.** `hasPlacedChest`,
@@ -710,33 +708,33 @@ spawner, columns nearer than it draw the reference's `nextInt(3)` per
 section and place nothing, and columns farther draw nothing, as the
 reference's chunks do once the flag is set. A reloaded piece carries no
 host, since the reference's tag has no slot for one (the save, §15). The reference's
-unseeded draws — a pyramid's cellar (`DesertPyramidPiece.java:741, 832`), a
-mansion's allay count (`WoodlandMansionPieces.java:1509`) — draw from the
+unseeded draws — a pyramid's cellar (`DesertPyramidPiece.addCellarStairs`, `DesertPyramidPiece.placeCollapsedRoofPiece`), a
+mansion's allay count (`WoodlandMansionPieces.WoodlandMansionPiece.handleDataMarker`) — draw from the
 placement stream instead, the same substitution St1 makes for spawning.
 
 **M5. The step slot, and the stream inside it.** In step `s` a column first
 places the starts of every structure whose `step` is `s`, in the registry
-order of structure ids (path, then namespace: `resources/Identifier.java:152-159`),
+order of structure ids (path, then namespace: `Identifier.compareTo`),
 each structure reseeding the decoration source with
 `decorationSeed + index + 10000·s` — `decorationSeed` being S2's, whose two
 longs pass through `WorldgenRandom.nextLong` — where `index` counts structures of that step
 in that order whether or not they have a start here; then the step's features
-run with their own indices (`ChunkGenerator.java:386-434`; S6). All starts of
+run with their own indices (`ChunkGenerator.applyBiomeDecoration`; S6). All starts of
 one structure that reach the column share one stream in sequence, in the order
 of their source chunks; the reference's order is a hash table's
-(`world/level/chunk/ChunkAccess.java:75`; SteelMC reproduces it,
+(`ChunkAccess.structureReferences`; SteelMC reproduces it,
 `steel-worldgen/src/structure/start.rs:88-98`). Decoration parity is
 unattainable regardless (`worldgen.md` §15), so the order here is ascending
 `(x, z)` of the start chunk, an input of the configuration hash. Every piece of
 a start whose box meets the column is placed, in piece order, with the start's
 reference position — the first piece's box centre at its floor — for the
-position tests of T5 (`StructureStart.java:93-101`); then the structure's
-after-place hook, which two structures define (`DesertPyramidStructure.java:32-66`,
-`WoodlandMansionStructure.java:62-92`).
+position tests of T5 (`StructureStart.placeInChunk`); then the structure's
+after-place hook, which two structures define (`DesertPyramidStructure`, `DesertPyramidStructure.afterPlace`,
+`WoodlandMansionStructure.generatePieces`, `WoodlandMansionStructure.afterPlace`).
 
 **M6. Rungs.** The current ladder cuts the steps into rungs at
 `vegetal_decoration` and `top_layer_modification`
-(`crates/mcrs_minecraft_worldgen_generator/src/feature_program.rs:275-296`).
+(`crates/mcrs_minecraft_worldgen_generator/src/feature_program.rs`, `CompiledFossil`, `CompiledElement`).
 Every structure step — `underground_structures` 3, `surface_structures` 4,
 `strongholds` 5, `underground_decoration` 7 — lies in the first rung, so
 materialisation never straddles a cut and a structure's blocks are merged
@@ -765,7 +763,7 @@ frozen and counted but not placed.
 
 | Value | Category | Owner | Note |
 | --- | --- | --- | --- |
-| Structure sets, structures, pools, processor lists, templates, the frozen tables | truth | the freeze build | cloned into the sub-app once, like the routers (`generate/routers.rs:45-91`) |
+| Structure sets, structures, pools, processor lists, templates, the frozen tables | truth | the freeze build | cloned into the sub-app once, like the routers (`crates/mcrs_minecraft_server/src/world/generate/routers.rs`, `DimensionRouters`, `build_dimension_routers`) |
 | Ring positions per dimension | projection of the seed | the index, at construction | P4; a few hundred kilobytes of biome sampling, once |
 | `site(C, S)` for a chunk `C` and structure `S` | projection of the seed | the index, memoised per chunk | L2; cheap; what search asks (R6) |
 | `starts_at(C)` for a chunk `C` | projection of the seed | the index, memoised per chunk | P2–P6 then §3–§4; expensive (a village layout), reused by fill, run and gameplay |
@@ -778,8 +776,7 @@ frozen and counted but not placed.
 positions, and a concurrent memo from chunk position to an owning slice of
 starts (usually empty), each slot filled once by whichever task asks first.
 Generation lives outside the ECS (X1), and so does the index: it sits beside
-the staging store and the scheduler (`generate/staging.rs:178`;
-`world/chunk.rs:208`) and is handed to fill and run tasks as an owning handle
+the staging store and the scheduler (`crates/mcrs_minecraft_server/src/world/chunk.rs`, `ColumnScheduler`) and is handed to fill and run tasks as an owning handle
 (X7). The sub-app receives the same handle as a read-only resource for the
 consumers of I4. Two tasks racing on one cell compute the same bits (St1); a
 once-cell per slot removes the duplicate work, and nothing else needs a lock.
@@ -801,21 +798,21 @@ query, and memo hits are the norm because neighbouring columns share it.
 
 **I4. Consumers.** Fill (A1); the run of each step slot (M5); the spawner's
 overrides, which ask for every start whose box or whose *pieces* contain a
-position (`ChunkGenerator.java:518-546`; `spawn_overrides.bounding_box` is
+position (`ChunkGenerator.getMobsAt`; `spawn_overrides.bounding_box` is
 `piece` or `full`, serialised as `"full"` for the enum's `STRUCTURE`,
-`world/level/StructureSpawnOverride.java:24-41`; the first structure in
+`StructureSpawnOverride.BoundingBoxType`; the first structure in
 iteration order with a matching override wins, and the nether fortress is
-special-cased before the generic path, `world/level/NaturalSpawner.java:359-369`);
+special-cased before the generic path, `NaturalSpawner.mobsAt`);
 the piece test of the cat spawner and the black-cat variant
-(`world/entity/npc/CatSpawner.java:40-42`; `world/entity/animal/feline/CatVariants.java:57`);
+(`CatSpawner.tick`; `CatVariants.bootstrap`);
 every search of §9; and the save writer (I5). Each reads the same memo through
 the same query; none writes it, except the map's claim (R5).
 
 **I5. The save.** Vanilla tools and vanilla servers reading our world expect
 `structures.starts` keyed by structure id in the start chunk and
 `structures.References` keyed by structure id in every chunk a start reaches
-(`world/level/chunk/storage/SerializableChunkData.java:555-582`), both as
-`mcrs_nbt` writes the types of L6. `starts` is written for the chunks the memo
+(`SerializableChunkData.packStructureData`), both as
+`mcrs_minecraft_nbt` writes the types of L6. `starts` is written for the chunks the memo
 holds; `References` is recomputed at write time by I3, because it is a
 projection and the memo answers it. On load, a stored start *primes* the memo
 for its chunk and the seed is not consulted for it; absent, the seed derives
@@ -829,10 +826,10 @@ world whose datapack changed is refused rather than seamed. A stored
 chunk's slot is kept while any column within its reach is wanted, and a slot
 dropped and recomputed is bit-identical. The reference keeps starts for the
 life of the chunk and re-reads region files to answer `/locate` outside the
-loaded area (`structure/StructureCheck.java:88-142`); with I5's priming that
+loaded area (`StructureCheck.checkStart`, `StructureCheck.canCreateStructure`); with I5's priming that
 path becomes "load the chunk's `starts` tag if the chunk is on disk, else
 derive", and the negative cache the reference keeps for chunks without starts
-on disk (`:59-61, 105-107`, capped at 131 072 entries and cleared wholesale) is
+on disk (`StructureCheck.loadedChunks`, `StructureCheck.featureChecks`, `StructureCheck.chunksWithoutStartsInStorage`, `StructureCheck.checkStart`, capped at 131 072 entries and cleared wholesale) is
 a detail of that path.
 
 ---
@@ -847,17 +844,16 @@ the reference never states because it never needed it.
 
 **R1. Two seeds.** The world seed is 64 bits. Every draw of §2 and §3 goes
 through `LegacyRandomSource.setSeed`, which is `(s ^ 0x5DEECE66D) & (2⁴⁸ − 1)`
-(`levelgen/LegacyRandomSource.java:32-38`); `setLargeFeatureWithSalt` adds the
-seed to the cell hash before it (`WorldgenRandom.java:66-69`), and
+(`LegacyRandomSource.setSeed`); `setLargeFeatureWithSalt` adds the
+seed to the cell hash before it (`WorldgenRandom.setLargeFeatureWithSalt`), and
 `setLargeFeatureSeed` reseeds with the seed, draws two longs and XORs, then
-reseeds again (`:58-64`) — in both the top 16 bits of the seed are discarded
+reseeds again (`WorldgenRandom.setLargeFeatureSeed`) — in both the top 16 bits of the seed are discarded
 before any draw. So the cell function (P2), all four frequency gates (P3), the
-selection stream (P6) and the layout random (L2, `Structure.java:283-287`) are
+selection stream (P6) and the layout random (L2, `Structure.GenerationContext.makeRandom`) are
 functions of the low 48 bits, the *structure seed*. The climate field and the
 density column are not: `RandomState` seeds a Xoroshiro source through
-`upgradeSeedTo128bit`, a full 64-bit mix (`levelgen/RandomState.java:66-118`;
-`levelgen/RandomSupport.java:17-31`; `levelgen/XoroshiroRandomSource.java:16-18,
-44-48`), so the biome test of L2, every height of L3 and the ring snap of P4
+`upgradeSeedTo128bit`, a full 64-bit mix (`RandomState`;
+`RandomSupport.mixStafford13`, `RandomSupport.upgradeSeedTo128bitUnmixed`, `RandomSupport.upgradeSeedTo128bit`; `XoroshiroRandomSource`, `XoroshiroRandomSource.forkPositional`, `XoroshiroRandomSource.setSeed`), so the biome test of L2, every height of L3 and the ring snap of P4
 depend on the whole seed. Consequences: (a) a positional constraint on
 structures is decided at the 48-bit tier and the 2¹⁶ seeds above it are
 either all lifted or all not; (b) constraints on different sets intersect at
@@ -869,11 +865,11 @@ must be ordered by cost.
 **R2. The congruential generator is bit-monotone, and a bounded draw with a
 non-power-of-two limit leaks its low bits.** The state after `setSeed(s)` is
 `(s ^ M) mod 2⁴⁸` and a step is `state·M + 11 mod 2⁴⁸`
-(`LegacyRandomSource.java:41-49`). XOR with a constant, addition and
+(`LegacyRandomSource.next`). XOR with a constant, addition and
 multiplication modulo a power of two carry only upward, so **bit `j` of the
 state after any number of steps is a function of bits `0..j` of `s`**, and
 since `s = gx·A + gz·B + seed + salt` is a sum, of bits `0..j` of the seed.
-A bounded draw is `nextInt(limit)` (`levelgen/BitRandomSource.java:17-32`):
+A bounded draw is `nextInt(limit)` (`BitRandomSource.nextInt`):
 
 ```
 power of two:  (limit · next(31)) >> 31              — the top bits of the state
@@ -941,18 +937,18 @@ materialiser.
 **R4. `/locate` is a walk over cells in the reference's answer order.** The
 command asks the generator for the nearest start of a structure set within
 100 lattice cells, never creating references
-(`server/commands/LocateCommand.java:50, 126-128`;
-`ChunkGenerator.java:177-266`). Structures are grouped by placement; every
+(`LocateCommand.MAX_STRUCTURE_SEARCH_RADIUS`, `LocateCommand.locateStructure`;
+`ChunkGenerator.findNearestMapStructure`). Structures are grouped by placement; every
 `concentric_rings` placement is answered from its whole ring list by true
-minimum distance (`:268-305`, at the chunk centre and `y = 32`); then, for
+minimum distance (`ChunkGenerator.getNearestGeneratedStructure`, at the chunk centre and `y = 32`); then, for
 `radius = 0..100`, every `random_spread` placement scans the *perimeter* of
 the `(2r+1)²` cell square, `x` ascending then `z` ascending, computes the
 potential chunk of each cell and returns the **first** cell whose start is
-present (`:307-340`); the hits of all placements at that radius are compared
+present (`ChunkGenerator.getNearestGeneratedStructure`); the hits of all placements at that radius are compared
 by squared 3-D distance from the player to the locate position (the chunk's
 minimum corner plus `locate_offset`, `y = 0`;
-`placement/StructurePlacement.java:22-28`), and the walk stops at the first
-radius with any hit (`:227-261`). The answer is thus the nearest *among the
+`StructurePlacement.getLocatePos`, `StructurePlacement.locateOffset`), and the walk stops at the first
+radius with any hit (`ChunkGenerator.findNearestMapStructure`). The answer is thus the nearest *among the
 first hit per placement on the first non-empty ring*, not the nearest start:
 observable to a player comparing with a vanilla server, and reproduced as the
 default. A `nearest` mode continues the walk while a ring can still hold a
@@ -964,7 +960,7 @@ reference's `StructureCheck` answers from its memo, else from the region
 file's `structures.starts` tag by a field scan, else by the frequency gate and
 a fresh site step with the pieces discarded — and if that passes it *loads the
 chunk* to `structure_starts` to learn whether the start is valid
-(`StructureCheck.java:88-141`; `ChunkGenerator.java:342-368`). Here the index
+(`StructureCheck.checkStart`, `StructureCheck.canCreateStructure`; `ChunkGenerator.getStructureGeneratingAt`). Here the index
 answers `site(C, S)` from its site level (I2) — the three gates and the site
 step, no chunk — and needs the layout only when a site can pass with no
 piece, which is a per-type fact fixed at freeze: a jigsaw start always has
@@ -991,17 +987,17 @@ with `search_radius` (default 50), `skip_existing_chunks` (default on) and
 *creates a reference*: with the flag the walk demands an unreferenced start
 and claims the one it returns, having first claimed the start the player is
 standing in so the map does not point home
-(`world/level/storage/loot/functions/ExplorationMapFunction.java:37-44, 81-118`;
-`StructureCheck.java:222-229`; `StructureManager.java:211-214`). That claim is
+(`ExplorationMapFunction.MAP_CODEC`, `ExplorationMapFunction.run`, `ExplorationMapFunction.makeExplorationMap`, `ExplorationMapFunction.Builder`;
+`StructureCheck.checkStructureInfo`; `StructureManager.addReference`). That claim is
 the one write any consumer makes and lands on the `references` counter L6
 calls truth. The eye of ender walks `#eye_of_ender_located` at radius 100,
-dolphins `#dolphin_located` at 50 (`world/item/EnderEyeItem.java:85-94`;
-`world/entity/animal/dolphin/Dolphin.java:437-439`). The tags are data
-(`tags/StructureTags.java:8-40`, contents in
-`data/tags/StructureTagsProvider.java:18-86`) and resolve at freeze the way
+dolphins `#dolphin_located` at 50 (`EnderEyeItem.use`;
+`Dolphin.DolphinSwimToTreasureGoal.start`). The tags are data
+(`StructureTags`, contents in
+`StructureTagsProvider.addTags`) and resolve at freeze the way
 biome tags do; two ids are traps for a hand-written table — `cats_spawn_in`
 is plural, and the eight abandoned-camp map tags end in the biome, not in
-`_maps` (`StructureTags.java:33-40`). Every reader receives the `locate`
+`_maps` (`StructureTags`). Every reader receives the `locate`
 position of P1, never a piece position, and a map is drawn from it.
 
 **R6. Cost, and what is memoised.** Per cell: one 48-bit seed, two or three
@@ -1026,8 +1022,8 @@ contains a structure start, a piece, a template or anything named stronghold,
 village, mineshaft or fortress (a search over both trees finds nothing).
 What Beta 1.7.3 has is `WorldGenDungeons`, a feature of the populate step, and
 `MapGenCaves`, a carver with the placement pattern that structures inherited
-(`ChunkProviderGenerate.java:21, 207, 358-363`). The Nether has neither
-(`ChunkProviderHell.java:315-372`). So the Beta profile (E1) has **zero
+(`ChunkProviderGenerate.java`, lines 21, 207 and 358-363). The Nether has neither
+(`ChunkProviderHell.java`, lines 315-372). So the Beta profile (E1) has **zero
 structure sets**, an index that answers nothing, and no template store;
 nothing of §2–§8 is instantiated for it and nothing is stubbed. `/locate`
 under Beta finds nothing, as it should.
@@ -1035,23 +1031,23 @@ under Beta finds nothing, as it should.
 **B2. The dungeon is a scattered object, and its definition is its draws.**
 Populate seeds a `java.util.Random` with the world seed, draws two longs
 forced odd, and reseeds with `x·a + z·b ^ seed` for the chunk
-(`ChunkProviderGenerate.java:329-334`; mcrs already has it,
-`crates/mcrs_minecraft_worldgen_generator/src/lib.rs:760-768`). Dungeons
+(`ChunkProviderGenerate.java`, lines 329-334; mcrs already has it,
+`crates/mcrs_minecraft_worldgen_generator/src/lib.rs`, `multi_noise_palettes`). Dungeons
 are the third decorator, after a water lake gated by `nextInt(4) == 0` and a
-lava lake gated by `nextInt(8) == 0` (`:340-353`), so the draws before the
+lava lake gated by `nextInt(8) == 0` (lines 340-353 of `ChunkProviderGenerate.java`), so the draws before the
 first attempt are the two gates, the lakes' positions and, when a lake
 places, its `nextInt(4) + 4` blobs of six doubles each
-(`WorldGenLakes.java:13-31`). Then eight attempts (`:358-363`), each at
+(`WorldGenLakes.java`, lines 13-31). Then eight attempts (lines 358-363 of `ChunkProviderGenerate.java`), each at
 `x = 16·cx + 8 + nextInt(16)`, `y = nextInt(128)`, `z = 16·cz + 8 + nextInt(16)`,
 and each spending its two size draws `nextInt(2) + 2` per axis *before* any
-test (`WorldGenDungeons.java:10-13`), so a rejected attempt still shifts the
+test (`WorldGenDungeons.java`, lines 10-13), so a rejected attempt still shifts the
 stream. Appendix E gives the rest: the validity scan, the open-side count
-`1..5` (`:39`), the floor draw `nextInt(4)` taken only on the floor layer and
+`1..5` (line 39), the floor draw `nextInt(4)` taken only on the floor layer and
 only for buildable shell blocks in `x` ascending, `y` *descending*, `z`
-ascending order (`:40-56`), two chests of three tries each against exactly
+ascending order (lines 40-56), two chests of three tries each against exactly
 one solid cardinal neighbour with eight loot rolls whose slot draw is spent
-only for a non-null item (`:58-111`), the eleven-way loot table (`:123-127`),
-and the spawner's `nextInt(4)` (`:129-133`). BetrockPlusPlus reproduces every
+only for a non-null item (lines 58-111), the eleven-way loot table (lines 123-127),
+and the spawner's `nextInt(4)` (lines 129-133). BetrockPlusPlus reproduces every
 draw (`world/generator/shared/feature_gen.cpp:101-241`). Under the ladder the
 dungeon is an object of `mcrs:beta_populate` (`scattering.md` D11): its
 origin is shifted by 8 from the column and its shell reaches 4 further, so
@@ -1063,9 +1059,9 @@ for it.
 **B3. The cave map-gen is the placement pattern, fifteen years early.**
 `MapGenBase` visits the `17 × 17` chunks around the target, reseeds per
 *source* chunk with the same odd-forced hash as populate, and lets a source
-chunk's tunnels write into the target array (`MapGenBase.java:7-25`;
-`MapGenCaves.java:173-198` for the per-source draws, `:13-171` for a tunnel
-with its own forked random, `:18`). That is "a source cell decides, a target
+chunk's tunnels write into the target array (`MapGenBase.java`, lines 7-25;
+`MapGenCaves.java`, lines 173-198 for the per-source draws, lines 13-171 for a tunnel
+with its own forked random, line 18). That is "a source cell decides, a target
 receives, within a reach" — the shape of I3 with a reach of 8 and a lattice of
 spacing 1 — and it is what `MapGenStructure` later put a start map on. It is
 also already the carver stage here (`generate/beta_caves.rs`;
@@ -1073,9 +1069,9 @@ also already the carver stage here (`generate/beta_caves.rs`;
 is not a structure and is not made one; it is cited because it explains why
 L5's reach is 8 and why the index needs no new concept for Beta. Two facts
 Betrock records and mcrs must not inherit: its Nether tunnels omit the `0.5`
-vertical scale (`MapGenCavesHell.java:182` against `cave_gen.cpp:60-61`), and
+vertical scale (`MapGenCavesHell.java`, line 182, against `cave_gen.cpp:60-61`), and
 it seeds the Nether's populate, which vanilla never does
-(`ChunkProviderHell.java:315`; `nether/chunk_gen.cpp:355-368`) — a Beta
+(`ChunkProviderHell.java`, line 315; `nether/chunk_gen.cpp:355-368`) — a Beta
 Nether, if ever built, is order-dependent in the reference and reproducible
 only under our own rule.
 
@@ -1160,15 +1156,13 @@ because nothing more is knowable from the sources.
 ## 11. Assets and freeze
 
 Fe1 and Fe2 of `scattering.md` apply unchanged. Four registries and one
-binary asset join the worldgen macro (`crates/mcrs_minecraft_worldgen/src/bevy.rs:110-256`):
+binary asset join the worldgen macro (`crates/mcrs_minecraft_worldgen/src/bevy.rs`):
 `structure_set` (nested: names structures and, through an exclusion zone,
 other sets), `structure` (nested: names pools, a `placed_feature` through a
 feature element is reachable only through a pool), `template_pool` (nested:
 elements name templates, processor lists, placed features, and pools name
 their fallback and each other), `processor_list`, and `structure/<path>.nbt`
-through a loader that gunzips and checks the pin of T1. The stub at
-`crates/mcrs_minecraft_world/src/worldgen/structure_set.rs:13` (a unit struct
-with no loader) is replaced, not extended. The profile (E1) is a field of the
+through a loader that gunzips and checks the pin of T1. The profile (E1) is a field of the
 world preset naming the placement function, the decoders and the generator
 census; the Beta preset names the empty profile.
 
@@ -1192,7 +1186,7 @@ The freeze resolves and checks, naming the asset on failure:
 - every structure tag of R5 resolves to structures that exist.
 
 The pools' expanded lists (J1), the per-pool maximum height the expansion
-hack reads (`StructureTemplatePool.java:87-98`), and the template manifest of
+hack reads (`StructureTemplatePool.getMaxSize`), and the template manifest of
 T6 are frozen tables; the biome holder sets of P5 and the `has_structure/*`
 tags resolve to biome masks the way `BiomeMask` already does. A Bedrock pack
 loads through the dialect of K3 into the same tables and passes the same
@@ -1250,7 +1244,7 @@ Counts, to be replaced by `PERF.md` numbers.
 
 Bit for bit against the reference, where the reference computes without a
 world — each fixture a dump from `tools/vanilla-oracle` carrying
-`WORLD_VERSION` 5015, and a template-version pin of 5011 that fails on
+`WORLD_VERSION` 5120, and a template-version pin of 5011 that fails on
 mismatch (R5 of `worldgen.md`):
 
 - the cell function and the three gates, per shipped set, over a grid of
@@ -1452,7 +1446,7 @@ freeze; the manifest is a table of its own.** T1, T6; the size after packing
 is measured and a per-pool lazy load behind the same manifest is the fallback.
 
 **SD7. The beard is added after the fill of `final_density`, behind a root
-check, not bound as a node kind.** A4; the fold at `compile.rs:316` stays, and
+check, not bound as a node kind.** A4; the fold at `crates/mcrs_minecraft_worldgen_density/src/compile.rs`, `compile` stays, and
 a router whose root is not `add(_, beardifier)` is refused where a live
 structure adapts.
 
@@ -1562,26 +1556,26 @@ source for its generator exists.** §10.2.
 
 | What | Where |
 | --- | --- |
-| The three gates and the cell function | `structure/placement/AbstractSpreadingStructurePlacement.java:89-146`, `RandomSpreadStructurePlacement.java:84-99` |
-| The 48-bit mask and the bounded draw | `levelgen/LegacyRandomSource.java:32-49`; `levelgen/BitRandomSource.java:17-32`; `levelgen/WorldgenRandom.java:58-69` |
-| The 64-bit climate seed | `levelgen/RandomState.java:66-118`; `levelgen/RandomSupport.java:17-31`; `levelgen/XoroshiroRandomSource.java:16-18, 44-48, 114-139` |
-| Rings | `world/level/chunk/ChunkGeneratorStructureState.java:131-196` |
-| Set filtering, selection with removal, the start's random | `ChunkGenerator.java:548-687`, `ChunkGeneratorStructureState.java:60-129`, `Structure.java:283-287` |
-| Site, biome test, height helpers, the generation context | `structure/Structure.java:138-237, 241-331` |
-| The unbearded height query | `levelgen/NoiseBasedChunkGenerator.java:157-166, 204-252` |
-| Reference scan and its radius | `ChunkGenerator.java:689-733`, `ChunkPyramid.java:14-32` |
-| Jigsaw assembly | `structure/pools/JigsawPlacement.java:51-186, 221-263, 348-593`; `util/SequencedPriorityIterator.java` |
-| Pool, elements, aliases | `pools/StructureTemplatePool.java`, `pools/*PoolElement.java`, `pools/alias/PoolAliasLookup.java:19-32` |
-| Template NBT, order, transform, placement | `templatesystem/StructureTemplate.java:152-186, 285-466, 510-557, 630-724, 726-867` |
-| Processors and rule tests | `templatesystem/StructureProcessorTypes.java:10-20`, `ProcessorRule.java:63-74`, `CappedProcessor.java` |
-| Terrain adaptation | `levelgen/Beardifier.java:29-104, 161-227`; `densityfunction/generator/SimpleDensityFunction.java:26-31` |
-| The decoration loop's structure slot and clip | `ChunkGenerator.java:386-434, 496-504`; `StructureStart.java:85-108` |
-| `/locate`, the ring walk, the presence test | `server/commands/LocateCommand.java:50, 126-128`; `ChunkGenerator.java:177-377`; `structure/StructureCheck.java:59-61, 88-141, 222-259`; `placement/StructurePlacement.java:22-28` |
-| Maps, eyes, dolphins, cats, spawn overrides | `loot/functions/ExplorationMapFunction.java:37-44, 81-118`; `item/EnderEyeItem.java:85-94`; `Dolphin.java:437-439`; `npc/CatSpawner.java:40-42`; `ChunkGenerator.java:518-546`; `StructureSpawnOverride.java:12-41` |
-| Structure tags | `tags/StructureTags.java:8-40`; `data/tags/StructureTagsProvider.java:18-86` |
-| Chunk NBT for structures | `world/level/chunk/storage/SerializableChunkData.java:555-582`; `StructureStart.java:110-125` |
-| Template data version and its fixers | `templatesystem/loader/TemplateSource.java:81-88`; `util/datafix/DataFixers.java:2014-2038` |
-| Beta populate, dungeons, caves | Poseidon `ChunkProviderGenerate.java:324-363`, `WorldGenDungeons.java`, `MapGenBase.java:7-25`, `MapGenCaves.java:13-198`; Betrock `world/generator/overworld/chunk_gen.cpp:424-433, 528-755`, `shared/feature_gen.cpp:101-241`, `shared/cave_gen.cpp:17-207` |
+| The three gates and the cell function | `AbstractSpreadingStructurePlacement`, `RandomSpreadStructurePlacement.getPotentialStructureChunk`, `RandomSpreadStructurePlacement.isPlacementChunk` |
+| The 48-bit mask and the bounded draw | `LegacyRandomSource.setSeed`, `LegacyRandomSource.next`; `BitRandomSource.nextInt`; `WorldgenRandom.setLargeFeatureSeed`, `WorldgenRandom.setLargeFeatureWithSalt` |
+| The 64-bit climate seed | `RandomState`; `RandomSupport.mixStafford13`, `RandomSupport.upgradeSeedTo128bitUnmixed`, `RandomSupport.upgradeSeedTo128bit`; `XoroshiroRandomSource`, `XoroshiroRandomSource.forkPositional`, `XoroshiroRandomSource.setSeed`, `XoroshiroRandomSource.XoroshiroPositionalRandomFactory` |
+| Rings | `ChunkGeneratorStructureState.generateRingPositions` |
+| Set filtering, selection with removal, the start's random | `ChunkGenerator.createStructures`, `ChunkGenerator.tryGenerateStructure`, `ChunkGenerator.fetchReferences`, `ChunkGeneratorStructureState`, `Structure.GenerationContext.makeRandom` |
+| Site, biome test, height helpers, the generation context | `Structure`, `Structure.GenerationContext` |
+| The unbearded height query | `ChunkGenerator.getFirstFreeHeight`, `NoiseBasedChunkGenerator.getBaseColumn` |
+| Reference scan and its radius | `ChunkGenerator.createReferences`, `ChunkPyramid.GENERATION_PYRAMID` |
+| Jigsaw assembly | `JigsawPlacement.addPieces`, `JigsawPlacement.Placer.tryPlacingChildren`; `util/SequencedPriorityIterator.java` |
+| Pool, elements, aliases | `pools/StructureTemplatePool.java`, `pools/*PoolElement.java`, `PoolAliasLookup.create` |
+| Template NBT, order, transform, placement | `StructureTemplate.addToLists`, `StructureTemplate.buildInfoList`, `StructureTemplate.placeInWorld`, `StructureTemplate.processBlockInfos`, `StructureTemplate`, `StructureTemplate.save`, `StructureTemplate.load`, `StructureTemplate.loadPalette` |
+| Processors and rule tests | `StructureProcessorTypes.bootstrap`, `ProcessorRule.test`, `CappedProcessor.java` |
+| Terrain adaptation | `Beardifier`; `SimpleDensityFunction.compileSampler` |
+| The decoration loop's structure slot and clip | `ChunkGenerator.applyBiomeDecoration`, `ChunkGenerator.getWritableArea`; `StructureStart.placeInChunk` |
+| `/locate`, the ring walk, the presence test | `LocateCommand.MAX_STRUCTURE_SEARCH_RADIUS`, `LocateCommand.locateStructure`; `ChunkGenerator`; `StructureCheck.loadedChunks`, `StructureCheck.featureChecks`, `StructureCheck.chunksWithoutStartsInStorage`, `StructureCheck.checkStart`, `StructureCheck.canCreateStructure`, `StructureCheck`; `StructurePlacement.getLocatePos`, `StructurePlacement.locateOffset` |
+| Maps, eyes, dolphins, cats, spawn overrides | `ExplorationMapFunction.MAP_CODEC`, `ExplorationMapFunction.run`, `ExplorationMapFunction.makeExplorationMap`, `ExplorationMapFunction.Builder`; `EnderEyeItem.use`; `Dolphin.DolphinSwimToTreasureGoal.start`; `CatSpawner.tick`; `ChunkGenerator.getMobsAt`; `StructureSpawnOverride.CODEC`, `StructureSpawnOverride.BoundingBoxType` |
+| Structure tags | `StructureTags`; `StructureTagsProvider.addTags` |
+| Chunk NBT for structures | `SerializableChunkData.packStructureData`; `StructureStart.createTag` |
+| Template data version and its fixers | `TemplateSource.readStructure`; `DataFixers.addFixers` |
+| Beta populate, dungeons, caves | Poseidon `ChunkProviderGenerate.java` lines 324-363, `WorldGenDungeons.java`, `MapGenBase.java` lines 7-25, `MapGenCaves.java` lines 13-198; Betrock `world/generator/overworld/chunk_gen.cpp:424-433, 528-755`, `shared/feature_gen.cpp:101-241`, `shared/cave_gen.cpp:17-207` |
 
 ### Deliberate divergences from the reference
 
@@ -1666,5 +1660,5 @@ Loot by roll: 0 saddle; 1 iron ×`nextInt(4)+1`; 2 bread; 3 wheat ×`nextInt(4)+
 4 gunpowder ×`nextInt(4)+1`; 5 string ×`nextInt(4)+1`; 6 bucket; 7 golden apple
 iff `nextInt(100) == 0`; 8 redstone ×`nextInt(4)+1` iff `nextInt(2) == 0`;
 9 a record, `13` or `cat` by `nextInt(2)`, iff `nextInt(10) == 0`; 10 cocoa
-beans (`WorldGenDungeons.java:123-127`). The order of the conditional draws is
+beans (`WorldGenDungeons.java`, lines 123-127). The order of the conditional draws is
 the source's and is copied, not the table's.

@@ -56,9 +56,10 @@ display once the engine is faster than it. See DECISIONS.md.
 
 - **floor**: no server reachable, no world, the overworld sky drawn, overlay hidden, fullscreen.
 - **base**: save `two`, spawned by the integrated server at 0/100/0 facing south, overworld,
-  evening. The client asks for a view distance of 8 columns; the server sends a radius of 13,
-  which is 729 columns and 6170 resident sections once settled. Overlay hidden, fullscreen,
-  vsync off. Screenshot: `docs/perf/m1-base-2560x1440.png` (the 3840x2160 frame scaled to 1440p).
+  evening. The readings below were taken at a radius of 13 columns, which is 729 columns and 6170
+  resident sections once settled; at the time the client asked for a view distance of 8 and the server
+  sent 13, whereas the client now asks for 96 and the server sends the radius it is asked for. Overlay hidden, fullscreen,
+  vsync off. Screenshot: `docs/perf/native-base-2560x1440.png` (the 3840x2160 frame scaled to 1440p).
 
 ## Native, 3840x2160 fullscreen, vsync off, overlay hidden
 
@@ -152,7 +153,7 @@ What was found and what it cost, in the order it was taken:
 - Pipeline warm-up needs no work yet: every terrain variant, wireframe included, is queued when
   the view appears, and the sky pipelines are per dimension.
 
-Screenshot: `docs/perf/m2-flight-2560x1440.png`, taken in sprint flight with `MCRS_HOT=1` (the
+Screenshot: `docs/perf/stalls-flight-2560x1440.png`, taken in sprint flight with `MCRS_HOT=1` (the
 3840x2160 frame scaled to 1440p); the 34 ms max in its line is the screenshot readback itself,
 which waits on the GPU.
 
@@ -256,7 +257,7 @@ which is still per resident blended group. Survivors scattered across a long-res
 still pay for the holes between them; a compaction that preserves the order (a prefix sum over
 batches) is the general fix and waits for a scenario that shows the cost.
 
-Screenshot: `docs/perf/m4-base-2560x1440.png`, the base view at 2560x1440 as drawn.
+Screenshot: `docs/perf/gpu-frame-base-2560x1440.png`, the base view at 2560x1440 as drawn.
 
 Gate: the GPU frame is 0.36 ms in the base view and 0.22 ms in flight at 50 000 resident
 sections, and the world pass now follows what is drawn. The empty-frame GPU floor cannot be
@@ -330,8 +331,8 @@ is not meshed until all eight neighbouring columns have arrived, and columns are
 radius 13 before the mesher reaches them, which reads as terrain filling in behind the horizon.
 That is throughput, not a frame cost.
 
-Screenshots: `docs/perf/m5-flight-2560x1440.png`, 82 s into the flight, over ocean;
-`docs/perf/m5-return-2560x1440.png`, 33 s after turning round, where the holes used to be.
+Screenshots: `docs/perf/streaming-flight-2560x1440.png`, 82 s into the flight, over ocean;
+`docs/perf/streaming-return-2560x1440.png`, 33 s after turning round, where the holes used to be.
 
 Gate: the settled flight's worst frame read 1.83, 1.87, 1.90, 2.03 and 2.20 ms over five runs,
 with the main world's own worst frame under 0.95 in each; the frames over 2.0 carry about 0.5 ms
@@ -499,7 +500,7 @@ engine 1.0 to 1.5 ms (main world 0.33 to 0.55), GPU 3.2 ms. The CPU side sits at
 GPU side is three times over it with every quad the cull cannot remove still costing its
 vertices.
 
-Screenshot: `docs/perf/m6-96-2560x1440.png`, the packed build at spawn. A world pass under 1 ms needs about
+Screenshot: `docs/perf/render-distance-96-2560x1440.png`, the packed build at spawn. A world pass under 1 ms needs about
 ten times fewer quads in the vertex shader than this view sends, which no cull can deliver from
 a view where most of the terrain is in front of the camera; that is the size of the distant
 geometry problem at 96 columns.
@@ -608,8 +609,8 @@ Chunk delivery at 96 columns, `Hops p50 ms` on the last line of the flight: spaw
 gen 32, load 19, ready 21, sent 1, received 29, meshed 272 over 8 167 columns on screen, where
 the build at the start of the day read 12 905 ms to mesh over 7 192.
 
-Screenshots: `docs/perf/m7-96-2560x1440.png`, the settled static view 280 s in, at dusk since
-the clock ran from the save's evening; `docs/perf/m7-flight-2560x1440.png`, 110 s into the
+Screenshots: `docs/perf/hardening-96-2560x1440.png`, the settled static view 280 s in, at dusk since
+the clock ran from the save's evening; `docs/perf/hardening-flight-2560x1440.png`, 110 s into the
 flight at maximum speed.
 
 Gates, as they stand at 96 columns: the static engine frame is 1.12 ms at the median and
@@ -657,15 +658,15 @@ about 2% of the stage: with the three counters removed the run reads 0.366 ms ag
 The pre-carve descent is 1.6% of the stage that pays for it and the live centre map updates are
 3.5% of theirs. Neither is worth a second look. `Run` is 14% of the column, which is what had to be known
 before the tree consumer was committed to: the parallel `Run` buys little next to
-the fill, and the halo of Q1 costs nothing extra because the fills it forces are fills the view
-was going to want anyway.
+the fill, and the halo of neighbouring columns that a run requires costs nothing extra because the fills it
+forces are fills the view was going to want anyway.
 
 The live maps cannot be measured by switching them off. Running the same window with the
 predicate table removed places 1658 writes where the live path places 1205: the four final maps
 are read back within the run, not merely written. The figure above is a replay instead — the
 write list one run produced, applied to the same column and the same starting maps.
 
-**D9 is settled: the ring stays paletted and is not unpacked.** A flat ring means unpacking the
+**The ring stays paletted and is not unpacked, and that is settled.** A flat ring means unpacking the
 eight neighbours into dense buffers, at 0.097 ms each: 0.78 ms per run, more than twice the whole
 `Run` stage it would be speeding up, against 3385 reads that are 23% of the run's reads inside a
 stage that is 14% of the column. There is no arrangement of those numbers where it wins, and the
@@ -678,7 +679,8 @@ arithmetic: `window_slot` gives the 3x3 slot as an array index, `FilledSnapshot:
 world y into a `Vec` index with a shift and a subtraction, and the palette answers from there.
 Nothing on that path hashes a section position, which is the whole reason `BulkSectionAccess`
 exists. What the path does still do on every ring read is probe an `FxHashMap` — the unit's own
-ring writes, which Wn2 describes as a bit per cell and the code holds as a map. A run that wrote
+ring writes, which the read rule of the scattering specification describes as a bit per cell and the
+code holds as a map. A run that wrote
 into no neighbour pays one emptiness branch for it; one that did pays a hash. At 3385 reads that
 is tens of microseconds of a 330 microsecond stage, so it is recorded and not acted on.
 `FilledSnapshot::block` also recomputes the slot its caller just computed.
@@ -960,11 +962,7 @@ outside the noise, and that a change in a dependent crate does not rebuild it.
 
 ## Findings not yet acted on
 
-- The client is built without Bevy's `multi_threaded` feature: the ECS runs on the
-  single-threaded executor and rendering is not pipelined, so every stage above is serial on one
-  thread. The cheapest win in the CPU frame is likely turning it on and measuring.
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
-- The client requests a view distance of 8 but the server sends 13; the baseline is taken at 13.
 - The ordered cull still writes a hole for every resident blended group, and survivors scattered
   over a long-resident list still pay for the holes between them.
 - The web build's start-up blocks the page for minutes and re-runs the render start-up schedule.

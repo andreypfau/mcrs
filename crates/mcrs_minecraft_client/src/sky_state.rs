@@ -184,7 +184,7 @@ impl SkyLayout {
         );
     }
 
-    /// The block baked into the shader, rebuilt only when the dimension — or
+    /// The dimension-constant block, rebuilt only when the dimension — or
     /// the biome weights the positional layer reads — changes.
     pub fn constants(
         &self,

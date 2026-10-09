@@ -1451,40 +1451,40 @@ pieces". This is the largest uncertainty in the whole plan.
 ## Appendix: correspondences in Minecraft
 
 For checking behaviour against, not for copying. Paths are relative to
-`src/main/java/net/minecraft/`, version 26.3-pre-1.
+`src/main/java/net/minecraft/`, at the version named by `assets/minecraft/version.json`.
 
 | What | Where |
 | --- | --- |
-| Stages, dependencies, radii | `world/level/chunk/status/ChunkPyramid.java:14-52` |
+| Stages, dependencies, radii | `ChunkPyramid.GENERATION_PYRAMID`, `ChunkPyramid.LOADING_PYRAMID` |
 | Radius accumulation down the chain | `world/level/chunk/status/ChunkStep.java` |
-| Which stages go to the background pool | `world/level/chunk/status/ChunkStatusTasks.java:67, :89, :180, :216` |
-| The sequential executors | `server/level/ChunkMap.java:200, :202` |
-| Write footprint and the read footprint check | `server/level/WorldGenRegion.java:122, :277, :327` |
-| Per-stage profiler instrumentation | `world/level/chunk/status/ChunkStep.java:34-36` |
+| Which stages go to the background pool | `ChunkStatusTasks.generateStructureStarts`, `ChunkStatusTasks.generateStructureReferences`, `ChunkStatusTasks.generateFeatures`, `ChunkStatusTasks.generateSpawn` |
+| The sequential executors | `ChunkMap` |
+| Write footprint and the read footprint check | `WorldGenRegion`, `WorldGenRegion.warnIfReadOutsideWriteZone`, `WorldGenRegion.isWithinWriteZone` |
+| Per-stage profiler instrumentation | `ChunkStep.apply` |
 | The field graph node interface | `world/level/levelgen/densityfunction/DensityFunction.java` |
-| Graph compilation and rewrite rules | `densityfunction/DensityFunctionCompiler.java:17-31`, `DfRewriteRule.java:14` |
-| Interpolation and lattice geometry | `densityfunction/op/InterpolatedFunction.java:114-126, :224-225` |
-| Range choice | `densityfunction/op/RangeChoiceFunction.java:117-136` |
+| Graph compilation and rewrite rules | `DensityFunctionCompiler.optimizerRule`, `DfRewriteRule.SLICE_UNIFORM_AXES` |
+| Interpolation and lattice geometry | `InterpolatedFunction.Sampler.sampleWithBlockStep`, `InterpolatedFunction.Sampler.fillCell` |
+| Range choice | `RangeChoiceFunction.Sampler.sampleVolume` |
 | Vertical surface search | `densityfunction/op/FindTopSurfaceFunction.java` |
 | The surface-world terrain graph | `world/level/levelgen/NoiseRouterData.java` |
-| The fluid level field | `world/level/levelgen/Aquifer.java:96-100, :158-172, :185, :465` |
-| Fill and heightmaps during fill | `world/level/levelgen/NoiseBasedChunkGenerator.java:479-507` |
+| The fluid level field | `Aquifer.NoiseBasedAquifer`, `Aquifer.NoiseBasedAquifer.calculatePressure` |
+| Fill and heightmaps during fill | `ChunkTerrainBuilder.fillChunk`, `ChunkTerrainBuilder.fillColumn` |
 | Surface rules and the context | `world/level/levelgen/material/MaterialSystem.java`, `MaterialRuleContext.java` |
 | The carving mask | `world/level/chunk/CarvingMask.java` |
-| Trajectory pruning by reachability | `world/level/levelgen/carver/WorldCarver.java:83` |
-| The carving source loop | `world/level/levelgen/NoiseBasedChunkGenerator.java:288-400` |
-| Structure placement on a lattice | `levelgen/structure/placement/RandomSpreadStructurePlacement.java:84-92` |
-| Terrain adaptation to structures | `world/level/levelgen/Beardifier.java:31, :226` |
+| Trajectory pruning by reachability | `WorldCarver.canReach` |
+| The carving source loop | `NoiseBasedChunkGenerator.generateCarvingMask` |
+| Structure placement on a lattice | `RandomSpreadStructurePlacement.getPotentialStructureChunk` |
+| Terrain adaptation to structures | `Beardifier.BEARD_KERNEL`, `Beardifier.computeBeardContribution` |
 | Topological sort of objects | `world/level/biome/FeatureSorter.java` |
-| The decoration loop and structure materialisation | `world/level/chunk/ChunkGenerator.java:388-471, :422` |
+| The decoration loop and structure materialisation | `ChunkGenerator.applyBiomeDecoration` |
 | The placement modifier machine | `world/level/levelgen/placement/FeaturePlacer.java` |
 | Biome classification and quantisation | `world/level/biome/Climate.java` |
 | The block-resolution biome query and its perturbation | `world/level/biome/BiomeManager.java` |
-| Batched climate sampling | `world/level/biome/MultiNoiseBiomeSource.java:70-115` |
-| Sections, palette, counters | `world/level/chunk/LevelChunkSection.java:63-105`, `PalettedContainer.java` |
+| Batched climate sampling | `MultiNoiseBiomeSource.createResolver`, `MultiNoiseBiomeSource.createResolverForChunk` |
+| Sections, palette, counters | `LevelChunkSection.setBlockState`, `PalettedContainer.java` |
 | Heightmaps | `world/level/levelgen/Heightmap.java` |
-| The unseeded draw during spawning | `world/level/NaturalSpawner.java:455`, `world/level/Level.java:127` |
-| Storage container codecs | `world/level/chunk/storage/RegionFileVersion.java:26-58` |
+| The unseeded draw during spawning | `NaturalSpawner.spawnMobsForChunkGeneration`, `Level.random` |
+| Storage container codecs | `RegionFileVersion` |
 
 ### Deliberate divergences from the reference
 

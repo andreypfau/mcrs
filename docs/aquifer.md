@@ -3,7 +3,7 @@
 A specification for a from-scratch implementation of the stage that decides
 what fills the void: water, lava, air, or — near the boundary between two bodies
 of water — stone. `worldgen.md` §7 states what the stage *is* (A1–A7); this
-document specifies the 26.3 data it computes, the invariants an implementation
+document specifies the data it computes at the version named by `assets/minecraft/version.json`, the invariants an implementation
 must hold, the bounds that let most of the volume be settled without the
 per-block search, and how the rest is made cheap.
 
@@ -651,32 +651,32 @@ still needs it.
 ## Appendix: correspondences in the reference
 
 For checking against, not for copying. Paths are relative to
-`src/main/java/net/minecraft/`, version 26.3.
+`src/main/java/net/minecraft/`, at the version named by `assets/minecraft/version.json`.
 
 | What | Where |
 | --- | --- |
-| Lattice spacing, jitter, anchor offsets | `world/level/levelgen/Aquifer.java:92-113, :260-262, :286-290, :482-504` |
-| The lattice region of a column | `Aquifer.java:162-175` |
-| The column-wide skip constant | `Aquifer.java:176-185, :251-253` |
-| Surface quantisation and the hash map | `Aquifer.java:188-196` |
-| The batched surface sample | `Aquifer.java:198-233` |
-| Candidate loop, tie rule, four nearest | `Aquifer.java:272-325` |
-| Similarity and its threshold | `Aquifer.java:104, :412-415` |
-| The decision tree and the flag | `Aquifer.java:242-405` |
-| Pressure | `Aquifer.java:417-480` |
-| The thirteen surface offsets and their order | `Aquifer.java:132-146` |
-| Status: surface phase | `Aquifer.java:520-561` |
-| Status: floodedness and level | `Aquifer.java:567-623` |
-| Status: type | `Aquifer.java:625-644` |
-| The sentinel | `world/level/dimension/DimensionType.java:50-52` |
-| The global rule | `world/level/levelgen/NoiseBasedChunkGenerator.java:81-95` |
-| The disabled field | `Aquifer.java:27-41` |
-| Fill and the flag's consumer | `NoiseBasedChunkGenerator.java:479-513` |
-| Carving with `d = 0` | `NoiseBasedChunkGenerator.java:345-372` |
-| The positional factory under `minecraft:aquifer` | `world/level/levelgen/RandomState.java:78, :148-149`, `world/level/levelgen/NoiseChunk.java:45-55` |
-| Positional seeding and the bounded draw | `world/level/levelgen/XoroshiroRandomSource.java:56-75, :114-128`, `util/Mth.java:367-371` |
-| The overworld config | `world/level/levelgen/NoiseRouterData.java:521-545`; `worldgen/noise_settings/overworld.json` |
-| The exclusion function | `world/level/biome/OverworldBiomeBuilder.java:1376-1381` |
+| Lattice spacing, jitter, anchor offsets | `Aquifer.NoiseBasedAquifer`, `Aquifer.NoiseBasedAquifer.computeSubstance` |
+| The lattice region of a column | `Aquifer.NoiseBasedAquifer` |
+| The column-wide skip constant | `Aquifer.NoiseBasedAquifer`, `Aquifer.NoiseBasedAquifer.computeSubstance` |
+| Surface quantisation and the hash map | `Aquifer.NoiseBasedAquifer.surfaceLevel` |
+| The batched surface sample | `Aquifer.NoiseBasedAquifer.maxSurfaceLevel` |
+| Candidate loop, tie rule, four nearest | `Aquifer.NoiseBasedAquifer.computeSubstance` |
+| Similarity and its threshold | `Aquifer.NoiseBasedAquifer.FLOWING_UPDATE_SIMULARITY`, `Aquifer.NoiseBasedAquifer.similarity` |
+| The decision tree and the flag | `Aquifer.NoiseBasedAquifer.getIndex`, `Aquifer.NoiseBasedAquifer.computeSubstance` |
+| Pressure | `Aquifer.NoiseBasedAquifer.calculatePressure` |
+| The thirteen surface offsets and their order | `Aquifer.NoiseBasedAquifer.SURFACE_SAMPLING_OFFSETS_IN_CHUNKS` |
+| Status: surface phase | `Aquifer.NoiseBasedAquifer.computeFluid` |
+| Status: floodedness and level | `Aquifer.NoiseBasedAquifer.computeSurfaceLevel`, `Aquifer.NoiseBasedAquifer.computeRandomizedFluidSurfaceLevel` |
+| Status: type | `Aquifer.NoiseBasedAquifer.computeFluidType` |
+| The sentinel | `DimensionType.MIN_Y`, `DimensionType.WAY_ABOVE_MAX_Y`, `DimensionType.WAY_BELOW_MIN_Y` |
+| The global rule | `NoiseBasedChunkGenerator.createFluidPicker` |
+| The disabled field | `Aquifer.createDisabled` |
+| Fill and the flag's consumer | `ChunkTerrainBuilder.fillChunk`, `ChunkTerrainBuilder.fillColumn` |
+| Carving with `d = 0` | `NoiseBasedChunkGenerator.generateCarvingMask` |
+| The positional factory under `minecraft:aquifer` | `RandomState`, `RandomState.getOrCreateRandomFactory`, `NoiseChunk` |
+| Positional seeding and the bounded draw | `XoroshiroRandomSource.nextInt`, `XoroshiroRandomSource.XoroshiroPositionalRandomFactory`, `Mth.getSeed` |
+| The overworld config | `NoiseRouterData.overworldAquifers`; `worldgen/noise_settings/overworld.json` |
+| The exclusion function | `OverworldBiomeBuilder.deepDarkRegion` |
 
 ### Deliberate divergences from the reference
 
