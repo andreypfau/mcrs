@@ -477,6 +477,38 @@ pub fn line_counts(repo: &Path, head: &Head, paths: &[String]) -> Result<Vec<u64
     }
 }
 
+pub enum Found {
+    AtBase(String),
+    Restored { restored: String, last: String },
+}
+
+pub fn configuration_at(
+    repo: &Path,
+    base: &str,
+    head: &Head,
+    file: &str,
+) -> Result<Option<Found>, String> {
+    if let Some(text) = read_at(repo, base, file)? {
+        return Ok(Some(Found::AtBase(text)));
+    }
+    if is_shallow(repo)? {
+        return Err(format!(
+            "cannot tell from a shallow history whether {file} existed; fetch the full history"
+        ));
+    }
+    let removing =
+        git::text(repo, &["rev-list", "-1", base, "--", file]).map_err(|e| e.to_string())?;
+    let removing = removing.trim();
+    if removing.is_empty() {
+        return Ok(None);
+    }
+    let restored = head_text(repo, head, file)?
+        .ok_or_else(|| format!("{file} was removed from the base; restore it"))?;
+    let last = read_at(repo, &format!("{removing}~1"), file)?
+        .ok_or_else(|| format!("cannot read the last version of {file} before it was removed"))?;
+    Ok(Some(Found::Restored { restored, last }))
+}
+
 pub fn is_shallow(repo: &Path) -> Result<bool, String> {
     git::text(repo, &["rev-parse", "--is-shallow-repository"])
         .map(|answer| answer.trim() == "true")

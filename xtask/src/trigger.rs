@@ -3,6 +3,7 @@ pub enum Check {
     Size,
     GateConfig,
     MutationMarker,
+    UnusedDeps,
     Fmt,
     Clippy,
     Test,
@@ -17,6 +18,7 @@ impl Check {
             Check::Size => "size",
             Check::GateConfig => "gate-config",
             Check::MutationMarker => "mutation-marker",
+            Check::UnusedDeps => "unused-deps",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
             Check::Test => "test",
@@ -73,7 +75,7 @@ impl Trigger {
         match self {
             Trigger::Edit => "after a file is written: change size, mutation markers, formatting",
             Trigger::Commit => {
-                "before a commit: change size, gate configuration, mutation markers, formatting, clippy"
+                "before a commit: change size, gate configuration, mutation markers, unused dependencies, formatting, clippy"
             }
             Trigger::Push => "before a push: every check that ci runs",
             Trigger::Ci => "on every pull request and every push to main: all checks",
@@ -101,11 +103,12 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Size, MutationMarker, Fmt],
-        Trigger::Commit => &[Size, GateConfig, MutationMarker, Fmt, Clippy],
+        Trigger::Commit => &[Size, GateConfig, MutationMarker, UnusedDeps, Fmt, Clippy],
         Trigger::Push | Trigger::Ci => &[
             Size,
             GateConfig,
             MutationMarker,
+            UnusedDeps,
             Fmt,
             Clippy,
             Test,
@@ -271,6 +274,18 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_base_run_trigger_runs_only_git_checks() {
+        let reads_the_head: Vec<_> = checks(Trigger::Policy)
+            .iter()
+            .filter(|check| !check.is_git_only())
+            .collect();
+        assert!(
+            reads_the_head.is_empty(),
+            "the policy trigger runs {reads_the_head:?}, which would run cargo on the head"
+        );
     }
 
     #[test]

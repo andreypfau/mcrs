@@ -1,5 +1,4 @@
-use crate::git;
-use crate::scope::{self, Head};
+use crate::scope::{self, Found, Head};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -31,34 +30,27 @@ pub fn parse_limits(text: &str) -> Result<Limits, String> {
 
 pub fn limits_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Enforced>, String> {
     let short = scope::short(base);
-    if let Some(reference) = scope::read_at(repo, base, LIMITS_FILE)? {
-        let limits = parse_limits(&reference).map_err(|e| {
-            format!(
-                "{LIMITS_FILE} at the base {short} is malformed: {e}; fix it on the base branch"
-            )
-        })?;
-        return Ok(Some(Enforced { limits, reference }));
-    }
-    if scope::is_shallow(repo)? {
-        return Err(format!(
-            "cannot tell from a shallow history whether {LIMITS_FILE} existed; fetch the full history"
-        ));
-    }
-    let removing =
-        git::text(repo, &["rev-list", "-1", base, "--", LIMITS_FILE]).map_err(|e| e.to_string())?;
-    let removing = removing.trim();
-    if removing.is_empty() {
+    let Some(found) = scope::configuration_at(repo, base, head, LIMITS_FILE)? else {
         return Ok(None);
+    };
+    match found {
+        Found::AtBase(reference) => {
+            let limits = parse_limits(&reference).map_err(|e| {
+                format!(
+                    "{LIMITS_FILE} at the base {short} is malformed: {e}; fix it on the base branch"
+                )
+            })?;
+            Ok(Some(Enforced { limits, reference }))
+        }
+        Found::Restored { restored, last } => {
+            let limits = parse_limits(&restored)
+                .map_err(|e| format!("the restored {LIMITS_FILE} is malformed: {e}"))?;
+            Ok(Some(Enforced {
+                limits,
+                reference: last,
+            }))
+        }
     }
-    let restored = scope::head_text(repo, head, LIMITS_FILE)?
-        .ok_or_else(|| format!("{LIMITS_FILE} was removed from the base; restore it"))?;
-    let limits = parse_limits(&restored)
-        .map_err(|e| format!("the restored {LIMITS_FILE} is malformed: {e}"))?;
-    let reference =
-        scope::read_at(repo, &format!("{removing}~1"), LIMITS_FILE)?.ok_or_else(|| {
-            format!("cannot read the last version of {LIMITS_FILE} before it was removed")
-        })?;
-    Ok(Some(Enforced { limits, reference }))
 }
 
 fn is_source(path: &str) -> bool {
