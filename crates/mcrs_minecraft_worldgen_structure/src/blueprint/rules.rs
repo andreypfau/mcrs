@@ -172,6 +172,14 @@ fn is_cube(state: &PaletteState) -> bool {
     !(PARTIAL.contains(&name) || PARTIAL_SUFFIX.iter().any(|suffix| name.ends_with(suffix)))
 }
 
+// chisle: block names stand in for the collision shape until block definitions
+// load without the asset server. A full layer of snow collides one layer short
+// of a cube, and a block with a dynamic shape is not told apart; no built
+// template holds one.
+pub(super) fn is_full_block(state: &PaletteState) -> bool {
+    is_cube(state) && name(state) != "snow"
+}
+
 fn side_sturdy(state: Option<&PaletteState>, side: Direction) -> bool {
     let Some(state) = state else { return false };
     if is_cube(state) {
