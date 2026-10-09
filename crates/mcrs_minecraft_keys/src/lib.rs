@@ -47,4 +47,4 @@ pub mod trial_spawner;
 #[rustfmt::skip]
 pub mod trigger_type;
 
-pub use registry::*;
+pub  use   registry::*;
