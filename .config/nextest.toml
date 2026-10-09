@@ -11,8 +11,10 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 # gpu:: tests run only on a machine with a Metal GPU, through the gpu profile.
 # No test run may take longer than five minutes (global-timeout, inherited by every profile).
 # vanilla_server:: runs only through tools/vanilla-server/run.sh, with the vanilla-server profile.
+# cargo_shear:: tests run the real cargo-shear: the default profile skips them, the ci profile (the push
+# and ci triggers, so every pull request and push to main) and the scheduled full run include them.
 [profile.default]
-default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server)::/)"
+default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server|cargo_shear)::/)"
 slow-timeout = { period = "15s", terminate-after = 4 }
 global-timeout = "5m"
 
@@ -21,6 +23,7 @@ filter = 'test(/(^|::)jar::/)'
 setup = 'fetch-client-jar'
 
 [profile.ci]
+default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server)::/)"
 fail-fast = false
 
 [[profile.ci.scripts]]

@@ -6,6 +6,7 @@ mod metadata;
 mod scope;
 mod size;
 mod trigger;
+mod unused_deps;
 
 use scope::Head;
 use std::io::Write;

@@ -1,5 +1,6 @@
 use crate::scope::{self, Head};
 use crate::size::{self, LIMITS_FILE};
+use crate::unused_deps::{self, EXEMPTIONS_FILE};
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -21,14 +22,19 @@ struct Sides<'a> {
 type Matcher = fn(&str) -> bool;
 type Judge = fn(&Sides) -> Result<Direction, String>;
 
-const DIRECTIONS: [(Matcher, Judge); 3] = [
+const DIRECTIONS: [(Matcher, Judge); 4] = [
     (is_limits_file, limits_direction),
     (is_attributes_file, attributes_direction),
+    (is_exemptions_file, exemptions_direction),
     (is_quality_file, quality_direction),
 ];
 
 fn is_limits_file(path: &str) -> bool {
     path == LIMITS_FILE
+}
+
+fn is_exemptions_file(path: &str) -> bool {
+    path == EXEMPTIONS_FILE
 }
 
 fn is_attributes_file(path: &str) -> bool {
@@ -75,6 +81,22 @@ fn attributes_direction(sides: &Sides) -> Result<Direction, String> {
         Direction::Tightening
     } else {
         Direction::Unchanged
+    })
+}
+
+fn exemptions_direction(sides: &Sides) -> Result<Direction, String> {
+    let Some(base) = sides.base else {
+        return Ok(Direction::Unchanged);
+    };
+    let base = unused_deps::exemption_pairs(base, "at the base")?;
+    let head = sides
+        .head
+        .and_then(|text| unused_deps::exemption_pairs(text, "at the head").ok());
+    Ok(match head {
+        None => Direction::Loosening,
+        Some(head) if !head.is_subset(&base) => Direction::Loosening,
+        Some(head) if head.len() < base.len() => Direction::Tightening,
+        Some(_) => Direction::Unchanged,
     })
 }
 
@@ -202,6 +224,7 @@ mod tests {
         Standard,
         NeverCarried,
         Removed,
+        ExemptionsRemoved,
     }
 
     enum Expect {
@@ -217,6 +240,18 @@ mod tests {
 
     fn del(path: &str) -> Edit {
         (path.to_owned(), None)
+    }
+
+    const EXEMPTIONS: &str = EXEMPTIONS_FILE;
+
+    fn pairs(list: &[(&str, &str)], reason: &str) -> String {
+        list.iter()
+            .map(|(package, dependency)| {
+                format!(
+                    "[[exemption]]\npackage = \"{package}\"\ndependency = \"{dependency}\"\nreason = \"{reason}\"\n\n"
+                )
+            })
+            .collect()
     }
 
     fn crate_change() -> Edit {
@@ -287,7 +322,77 @@ mod tests {
         let raise = || put(LIMITS_FILE, LIMIT_200);
         let loosened = Expect::Pass("gate configuration loosened alone");
         let shipped_alone = "pull request of its own";
+        let one = || pairs(&[("c", "b")], "needed");
+        let two = || pairs(&[("c", "b"), ("a", "b")], "needed");
+        let exemptions = |base: String| vec![put(EXEMPTIONS, &base)];
         vec![
+            Row {
+                base_edits: exemptions(one()),
+                ..row(
+                    "an added exemption beside a crate file fails",
+                    vec![put(EXEMPTIONS, &two()), crate_change()],
+                    Expect::Fail(shipped_alone),
+                )
+            },
+            Row {
+                base_edits: exemptions(one()),
+                ..row(
+                    "an added exemption alone passes",
+                    vec![put(EXEMPTIONS, &two())],
+                    Expect::Pass("gate configuration loosened alone"),
+                )
+            },
+            Row {
+                base_edits: exemptions(two()),
+                ..row(
+                    "a removed exemption beside a crate file passes",
+                    vec![put(EXEMPTIONS, &one()), crate_change()],
+                    Expect::Pass("gate configuration tightened"),
+                )
+            },
+            Row {
+                base_edits: exemptions(one()),
+                ..row(
+                    "a reworded reason beside a crate file passes",
+                    vec![
+                        put(
+                            EXEMPTIONS,
+                            &pairs(&[("c", "b")], "needed by the wasm build"),
+                        ),
+                        crate_change(),
+                    ],
+                    Expect::Pass("no gate change"),
+                )
+            },
+            Row {
+                base_edits: exemptions(one()),
+                ..row(
+                    "a deleted exemption file beside a crate file fails",
+                    vec![del(EXEMPTIONS), crate_change()],
+                    Expect::Fail(shipped_alone),
+                )
+            },
+            Row {
+                base_edits: exemptions(one()),
+                ..row(
+                    "an unparsable exemption file beside a crate file fails",
+                    vec![put(EXEMPTIONS, "not toml ["), crate_change()],
+                    Expect::Fail(shipped_alone),
+                )
+            },
+            row(
+                "an exemption file introduced with two pairs passes beside a crate file",
+                vec![put(EXEMPTIONS, &two()), crate_change()],
+                Expect::Pass("no gate change"),
+            ),
+            Row {
+                base: Base::ExemptionsRemoved,
+                ..row(
+                    "an exemption file added back after an earlier removal passes as an introduction",
+                    vec![put(EXEMPTIONS, &two()), crate_change()],
+                    Expect::Pass("no gate change"),
+                )
+            },
             row("a limit raise alone passes", vec![raise()], loosened),
             row(
                 "a limit raise with a crate file fails",
@@ -523,6 +628,11 @@ mod tests {
         if matches!(row.base, Base::Removed) {
             repo.commit("carry the limits file");
             repo.remove(LIMITS_FILE);
+        }
+        if matches!(row.base, Base::ExemptionsRemoved) {
+            repo.write(EXEMPTIONS, &pairs(&[("c", "b")], "needed"));
+            repo.commit("carry the exemption file");
+            repo.remove(EXEMPTIONS);
         }
         apply(&repo, &row.base_edits);
         repo.commit("base");

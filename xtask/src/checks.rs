@@ -1,13 +1,27 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{gate, marker, size};
+use crate::{gate, marker, size, unused_deps};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub type Outcome = Result<String, String>;
+
+pub(crate) fn capture(
+    root: &Path,
+    program: &str,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Result<std::process::Output, String> {
+    Command::new(program)
+        .args(args)
+        .envs(env.iter().copied())
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
+}
 
 struct Changes {
     base_ref: String,
@@ -115,6 +129,9 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Size => size::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::GateConfig => gate::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::MutationMarker => marker::check(&ctx.root, &ctx.head),
+        Check::UnusedDeps => {
+            unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
+        }
         Check::Fmt => fmt(ctx),
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
