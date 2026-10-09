@@ -11,7 +11,6 @@ use crate::support::{
 };
 
 #[test]
-#[ignore = "needs a running vanilla server; tools/vanilla-server/run.sh starts one and runs this"]
 fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
     let address: SocketAddr = std::env::var("MCRS_VANILLA_SERVER")
         .expect("MCRS_VANILLA_SERVER names the vanilla server to join, as <host>:<port>")

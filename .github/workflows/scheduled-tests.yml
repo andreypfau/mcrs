@@ -1,0 +1,63 @@
+name: scheduled tests
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    runs-on: [self-hosted, mcrs]
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - name: check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+
+
+      - name: install the pinned toolchain
+        run: rustup toolchain install --profile minimal
+
+      - name: restore the build cache
+        if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-on-failure: true
+
+      - name: read the test runner version
+        id: nextest
+        run: echo "version=$(sed -n 's/^nextest-version = "\(.*\)"/\1/p' .config/nextest.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: install the test runner
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: nextest@${{ steps.nextest.outputs.version }}
+
+      - name: locate the client jar
+        id: jar
+        run: echo "dir=$HOME/.minecraft/versions/$(jq -r .id crates/mcrs_minecraft_client_jar/src/release.json)" >> "$GITHUB_OUTPUT"
+
+      - name: restore the client jar
+        id: jar-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.jar.outputs.dir }}
+          key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
+
+      - name: run the full test tier
+        run: scripts/hooks/run-checks full
+
+
+      - name: save the client jar
+        if: github.ref == 'refs/heads/main' && steps.jar-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.jar.outputs.dir }}
+          key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}

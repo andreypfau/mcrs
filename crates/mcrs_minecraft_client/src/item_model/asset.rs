@@ -982,99 +982,102 @@ mod tests {
     }
 
     mod exhaustive {
-        use super::*;
+        mod jar {
+            use super::super::*;
 
-        #[test]
-        fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
-            let mut files = 0;
-            let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
-            let mut properties: BTreeMap<String, usize> = BTreeMap::new();
-            let mut tints: BTreeMap<String, usize> = BTreeMap::new();
-            let mut swap_scales = 0;
-            for (id, bytes) in &corpus() {
-                files += 1;
-                let item = ClientItem::parse(bytes).unwrap_or_else(|error| panic!("{id}: {error}"));
-                let original: Value = serde_json::from_slice(bytes).unwrap();
-                let written = serde_json::to_value(&item).unwrap();
-                assert!(
-                    structurally_equal(&original, &written),
-                    "{id} did not round-trip:\n{original}\n{written}"
-                );
-                if item.swap_animation_scale != 1.0 {
-                    swap_scales += 1;
-                }
-                for node in item.model.walk() {
-                    *kinds.entry(json_str(node, "type")).or_default() += 1;
-                    match node {
-                        UnbakedItemModel::Condition { property, .. } => {
-                            let name = format!("condition {}", json_str(property, "property"));
-                            *properties.entry(name).or_default() += 1;
-                        }
-                        UnbakedItemModel::Select { switch, .. } => {
-                            let name = format!("select {}", json_str(switch, "property"));
-                            *properties.entry(name).or_default() += 1;
-                        }
-                        UnbakedItemModel::RangeDispatch { property, .. } => {
-                            let name = format!("range {}", json_str(property, "property"));
-                            *properties.entry(name).or_default() += 1;
-                        }
-                        UnbakedItemModel::Model { tints: sources, .. } => {
-                            for tint in sources {
-                                *tints.entry(json_str(tint, "type")).or_default() += 1;
+            #[test]
+            fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
+                let mut files = 0;
+                let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+                let mut properties: BTreeMap<String, usize> = BTreeMap::new();
+                let mut tints: BTreeMap<String, usize> = BTreeMap::new();
+                let mut swap_scales = 0;
+                for (id, bytes) in &corpus() {
+                    files += 1;
+                    let item =
+                        ClientItem::parse(bytes).unwrap_or_else(|error| panic!("{id}: {error}"));
+                    let original: Value = serde_json::from_slice(bytes).unwrap();
+                    let written = serde_json::to_value(&item).unwrap();
+                    assert!(
+                        structurally_equal(&original, &written),
+                        "{id} did not round-trip:\n{original}\n{written}"
+                    );
+                    if item.swap_animation_scale != 1.0 {
+                        swap_scales += 1;
+                    }
+                    for node in item.model.walk() {
+                        *kinds.entry(json_str(node, "type")).or_default() += 1;
+                        match node {
+                            UnbakedItemModel::Condition { property, .. } => {
+                                let name = format!("condition {}", json_str(property, "property"));
+                                *properties.entry(name).or_default() += 1;
                             }
+                            UnbakedItemModel::Select { switch, .. } => {
+                                let name = format!("select {}", json_str(switch, "property"));
+                                *properties.entry(name).or_default() += 1;
+                            }
+                            UnbakedItemModel::RangeDispatch { property, .. } => {
+                                let name = format!("range {}", json_str(property, "property"));
+                                *properties.entry(name).or_default() += 1;
+                            }
+                            UnbakedItemModel::Model { tints: sources, .. } => {
+                                for tint in sources {
+                                    *tints.entry(json_str(tint, "type")).or_default() += 1;
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
+                assert_eq!(files, 1658);
+                assert_eq!(swap_scales, 7);
+                let expected_kinds: BTreeMap<String, usize> = [
+                    ("minecraft:model", 2253),
+                    ("minecraft:special", 91),
+                    ("minecraft:select", 71),
+                    ("minecraft:composite", 34),
+                    ("minecraft:condition", 26),
+                    ("minecraft:bundle/selected_item", 17),
+                    ("minecraft:range_dispatch", 8),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v))
+                .collect();
+                assert_eq!(kinds, expected_kinds);
+                let expected_properties: BTreeMap<String, usize> = [
+                    ("select minecraft:trim_material", 29),
+                    ("select minecraft:display_context", 26),
+                    ("condition minecraft:bundle/has_selected_item", 17),
+                    ("select minecraft:block_state", 12),
+                    ("condition minecraft:using_item", 5),
+                    ("range minecraft:compass", 3),
+                    ("range minecraft:time", 2),
+                    ("select minecraft:local_time", 2),
+                    ("condition minecraft:has_component", 2),
+                    ("select minecraft:context_dimension", 1),
+                    ("range minecraft:use_cycle", 1),
+                    ("condition minecraft:fishing_rod/cast", 1),
+                    ("select minecraft:charge_type", 1),
+                    ("range minecraft:crossbow/pull", 1),
+                    ("condition minecraft:broken", 1),
+                    ("range minecraft:use_duration", 1),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v))
+                .collect();
+                assert_eq!(properties, expected_properties);
+                let expected_tints: BTreeMap<String, usize> = [
+                    ("minecraft:dye", 50),
+                    ("minecraft:constant", 11),
+                    ("minecraft:grass", 6),
+                    ("minecraft:potion", 4),
+                    ("minecraft:firework", 1),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v))
+                .collect();
+                assert_eq!(tints, expected_tints);
             }
-            assert_eq!(files, 1658);
-            assert_eq!(swap_scales, 7);
-            let expected_kinds: BTreeMap<String, usize> = [
-                ("minecraft:model", 2253),
-                ("minecraft:special", 91),
-                ("minecraft:select", 71),
-                ("minecraft:composite", 34),
-                ("minecraft:condition", 26),
-                ("minecraft:bundle/selected_item", 17),
-                ("minecraft:range_dispatch", 8),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v))
-            .collect();
-            assert_eq!(kinds, expected_kinds);
-            let expected_properties: BTreeMap<String, usize> = [
-                ("select minecraft:trim_material", 29),
-                ("select minecraft:display_context", 26),
-                ("condition minecraft:bundle/has_selected_item", 17),
-                ("select minecraft:block_state", 12),
-                ("condition minecraft:using_item", 5),
-                ("range minecraft:compass", 3),
-                ("range minecraft:time", 2),
-                ("select minecraft:local_time", 2),
-                ("condition minecraft:has_component", 2),
-                ("select minecraft:context_dimension", 1),
-                ("range minecraft:use_cycle", 1),
-                ("condition minecraft:fishing_rod/cast", 1),
-                ("select minecraft:charge_type", 1),
-                ("range minecraft:crossbow/pull", 1),
-                ("condition minecraft:broken", 1),
-                ("range minecraft:use_duration", 1),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v))
-            .collect();
-            assert_eq!(properties, expected_properties);
-            let expected_tints: BTreeMap<String, usize> = [
-                ("minecraft:dye", 50),
-                ("minecraft:constant", 11),
-                ("minecraft:grass", 6),
-                ("minecraft:potion", 4),
-                ("minecraft:firework", 1),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v))
-            .collect();
-            assert_eq!(tints, expected_tints);
         }
     }
 }

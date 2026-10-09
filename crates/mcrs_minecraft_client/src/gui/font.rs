@@ -205,50 +205,54 @@ pub(crate) fn corpus_font() -> &'static Font {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_ascii_page_measures_like_vanilla() {
-        let font = corpus_font();
-        assert_eq!(font.cell_size, IVec2::splat(8));
-        assert_eq!(font.advance('0', false), 6);
-        assert_eq!(font.advance('i', false), 2);
-        assert_eq!(font.advance('l', false), 3);
-        assert_eq!(font.advance(' ', false), 4);
-        assert_eq!(font.advance('A', true), 7);
-        assert_eq!(font.glyph('A').unwrap().cell, IVec2::new(8, 32));
-        assert_eq!(font.width(&[Span::new("F4", 0)]), 12);
-    }
+    mod jar {
+        use super::*;
 
-    #[test]
-    fn a_space_draws_nothing_and_bold_strikes_twice() {
-        let mut out = Vec::new();
-        draw_text(
-            corpus_font(),
-            IVec2::ZERO,
-            &[
-                Span::new("a b", 0xFFFF_FFFF),
-                Span::new("c", 0xFFFF_FF55).bold(),
-            ],
-            &mut out,
-        );
-        let glyphs: Vec<_> = out
-            .iter()
-            .map(|quad| match quad {
-                GuiQuad::Glyph { origin, glyph, .. } => (*glyph, origin.x),
-                other => panic!("{other:?}"),
-            })
-            .collect();
-        assert_eq!(
-            glyphs,
-            [
-                ('a', 1),
-                ('a', 0),
-                ('b', 11),
-                ('b', 10),
-                ('c', 17),
-                ('c', 18),
-                ('c', 16),
-                ('c', 17),
-            ]
-        );
+        #[test]
+        fn the_ascii_page_measures_like_vanilla() {
+            let font = corpus_font();
+            assert_eq!(font.cell_size, IVec2::splat(8));
+            assert_eq!(font.advance('0', false), 6);
+            assert_eq!(font.advance('i', false), 2);
+            assert_eq!(font.advance('l', false), 3);
+            assert_eq!(font.advance(' ', false), 4);
+            assert_eq!(font.advance('A', true), 7);
+            assert_eq!(font.glyph('A').unwrap().cell, IVec2::new(8, 32));
+            assert_eq!(font.width(&[Span::new("F4", 0)]), 12);
+        }
+
+        #[test]
+        fn a_space_draws_nothing_and_bold_strikes_twice() {
+            let mut out = Vec::new();
+            draw_text(
+                corpus_font(),
+                IVec2::ZERO,
+                &[
+                    Span::new("a b", 0xFFFF_FFFF),
+                    Span::new("c", 0xFFFF_FF55).bold(),
+                ],
+                &mut out,
+            );
+            let glyphs: Vec<_> = out
+                .iter()
+                .map(|quad| match quad {
+                    GuiQuad::Glyph { origin, glyph, .. } => (*glyph, origin.x),
+                    other => panic!("{other:?}"),
+                })
+                .collect();
+            assert_eq!(
+                glyphs,
+                [
+                    ('a', 1),
+                    ('a', 0),
+                    ('b', 11),
+                    ('b', 10),
+                    ('c', 17),
+                    ('c', 18),
+                    ('c', 16),
+                    ('c', 17),
+                ]
+            );
+        }
     }
 }

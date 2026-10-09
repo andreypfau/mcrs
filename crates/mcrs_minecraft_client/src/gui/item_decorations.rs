@@ -58,11 +58,15 @@ mod tests {
         assert_eq!(bar_color(100, 100), 0xFF0000);
     }
 
-    #[test]
-    fn decorations_draw_the_damage_bar_and_the_count() {
-        an_undamaged_stack_shows_no_bar();
-        the_bar_is_two_fills_at_the_slot_bottom();
-        counts_are_right_aligned_with_a_shadow();
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn decorations_draw_the_damage_bar_and_the_count() {
+            an_undamaged_stack_shows_no_bar();
+            the_bar_is_two_fills_at_the_slot_bottom();
+            counts_are_right_aligned_with_a_shadow();
+        }
     }
 
     fn an_undamaged_stack_shows_no_bar() {

@@ -394,16 +394,20 @@ mod tests {
         a.abs_diff_eq(Vec3::from(b), 1e-4)
     }
 
-    #[test]
-    fn item_stacks_evaluate_and_resolve_against_the_corpus() {
-        damage_and_count_ranges_follow_the_stack();
-        bundle_fullness_weighs_children_and_nested_bundles();
-        charge_type_reads_the_loaded_projectiles();
-        has_component_distinguishes_prototype_and_patch();
-        tints_follow_vanilla_colour_rules();
-        a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side();
-        a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted();
-        the_system_resolves_held_stacks_once_per_revision();
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn item_stacks_evaluate_and_resolve_against_the_corpus() {
+            damage_and_count_ranges_follow_the_stack();
+            bundle_fullness_weighs_children_and_nested_bundles();
+            charge_type_reads_the_loaded_projectiles();
+            has_component_distinguishes_prototype_and_patch();
+            tints_follow_vanilla_colour_rules();
+            a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side();
+            a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted();
+            the_system_resolves_held_stacks_once_per_revision();
+        }
     }
 
     fn damage_and_count_ranges_follow_the_stack() {

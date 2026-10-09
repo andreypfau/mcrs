@@ -124,46 +124,50 @@ mod tests {
         assert_eq!(fade(Duration::from_secs(10)), 0.0);
     }
 
-    #[test]
-    fn the_newest_message_sits_forty_pixels_above_the_bottom() {
-        let mut chat = DebugChat::default();
-        chat.feedback(Language::corpus(), "debug.gamemodes.error", Duration::ZERO);
-        let size = GuiSize {
-            width: 400,
-            height: 240,
-            scale: 2,
-        };
-        let mut out = Vec::new();
-        chat_lines(size, corpus_font(), &chat, Duration::from_secs(1), &mut out);
-        assert_eq!(
-            out[0],
-            GuiQuad::Fill {
-                rect: IRect::new(0, 191, 332, 200),
-                color: 0x7F00_0000
-            }
-        );
-        let text: String = chat.messages[0]
-            .spans
-            .iter()
-            .map(|span| span.text.as_str())
-            .collect();
-        assert_eq!(
-            text,
-            "[Debug]: Unable to open game mode switcher; no permission"
-        );
-        assert!(matches!(
-            out[1],
-            GuiQuad::Glyph { origin, glyph: '[', color: 0xFF3F_3F15 } if origin == IVec2::new(5, 193)
-        ));
+    mod jar {
+        use super::*;
 
-        out.clear();
-        chat_lines(
-            size,
-            corpus_font(),
-            &chat,
-            Duration::from_secs(11),
-            &mut out,
-        );
-        assert!(out.is_empty());
+        #[test]
+        fn the_newest_message_sits_forty_pixels_above_the_bottom() {
+            let mut chat = DebugChat::default();
+            chat.feedback(Language::corpus(), "debug.gamemodes.error", Duration::ZERO);
+            let size = GuiSize {
+                width: 400,
+                height: 240,
+                scale: 2,
+            };
+            let mut out = Vec::new();
+            chat_lines(size, corpus_font(), &chat, Duration::from_secs(1), &mut out);
+            assert_eq!(
+                out[0],
+                GuiQuad::Fill {
+                    rect: IRect::new(0, 191, 332, 200),
+                    color: 0x7F00_0000
+                }
+            );
+            let text: String = chat.messages[0]
+                .spans
+                .iter()
+                .map(|span| span.text.as_str())
+                .collect();
+            assert_eq!(
+                text,
+                "[Debug]: Unable to open game mode switcher; no permission"
+            );
+            assert!(matches!(
+                out[1],
+                GuiQuad::Glyph { origin, glyph: '[', color: 0xFF3F_3F15 } if origin == IVec2::new(5, 193)
+            ));
+
+            out.clear();
+            chat_lines(
+                size,
+                corpus_font(),
+                &chat,
+                Duration::from_secs(11),
+                &mut out,
+            );
+            assert!(out.is_empty());
+        }
     }
 }

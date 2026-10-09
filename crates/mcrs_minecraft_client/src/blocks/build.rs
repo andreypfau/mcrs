@@ -424,16 +424,20 @@ fn is_cube_face(quad: &bake::BakedQuad) -> bool {
 #[cfg(test)]
 mod tests {
 
-    #[test]
-    fn block_states_bake_from_the_corpus() {
-        a_fluid_level_reads_back_as_the_height_vanilla_gives_it();
-        ambient_occlusion_reads_its_neighbours_from_the_corpus();
-        a_block_lights_the_mesh_by_what_the_corpus_says_it_emits();
-        a_block_closes_the_sides_its_own_geometry_covers();
-        a_face_hides_behind_a_neighbour_whose_shape_covers_it();
-        a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces();
-        cube_uv_matches_the_vanilla_bake();
-        a_rotated_log_is_not_greedy_meshable();
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn block_states_bake_from_the_corpus() {
+            a_fluid_level_reads_back_as_the_height_vanilla_gives_it();
+            ambient_occlusion_reads_its_neighbours_from_the_corpus();
+            a_block_lights_the_mesh_by_what_the_corpus_says_it_emits();
+            a_block_closes_the_sides_its_own_geometry_covers();
+            a_face_hides_behind_a_neighbour_whose_shape_covers_it();
+            a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces();
+            cube_uv_matches_the_vanilla_bake();
+            a_rotated_log_is_not_greedy_meshable();
+        }
     }
 
     fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {

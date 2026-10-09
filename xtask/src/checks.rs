@@ -224,11 +224,26 @@ fn test(ctx: &Context) -> Outcome {
             ("ci", selection)
         }
     };
+    let local_only = if std::env::var_os("CI").is_some() && ctx.trigger != Trigger::Gpu {
+        local_only_packages(ctx.workspace()?)
+    } else {
+        Vec::new()
+    };
     let mut args = vec!["nextest", "run", "--profile", profile, "--locked"];
     match &selection {
-        Scope::Workspace => args.push("--workspace"),
+        Scope::Workspace => {
+            args.push("--workspace");
+            for name in &local_only {
+                args.extend(["--exclude", name.as_str()]);
+            }
+        }
         Scope::Packages(names) => {
-            for name in names {
+            let kept: Vec<&String> = names.iter().filter(|n| !local_only.contains(n)).collect();
+            if kept.is_empty() {
+                println!("only crates that are tested locally changed; nothing to test here");
+                return Ok(());
+            }
+            for name in kept {
                 args.extend(["-p", name.as_str()]);
             }
         }
@@ -259,6 +274,32 @@ fn gpu_packages(workspace: &Workspace) -> Result<Vec<String>, String> {
         );
     }
     Ok(names)
+}
+
+fn local_only_packages(workspace: &Workspace) -> Vec<String> {
+    let mut names: Vec<String> = workspace
+        .packages
+        .iter()
+        .filter(|p| p.dependencies.iter().any(|d| d.name == "wgpu"))
+        .map(|p| p.name.clone())
+        .collect();
+    loop {
+        let before = names.len();
+        for p in &workspace.packages {
+            if !names.contains(&p.name)
+                && p.dependencies
+                    .iter()
+                    .any(|d| d.local && names.contains(&d.name))
+            {
+                names.push(p.name.clone());
+            }
+        }
+        if names.len() == before {
+            break;
+        }
+    }
+    names.sort();
+    names
 }
 
 pub fn root_of(start: &Path) -> Result<PathBuf, String> {

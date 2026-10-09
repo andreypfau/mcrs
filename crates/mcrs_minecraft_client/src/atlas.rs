@@ -599,16 +599,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn sprites_and_atlases_read_the_resource_pack() {
-        the_mips_of_a_tail_of_stills_match_the_whole_chain();
-        sprites_of_different_sizes_land_in_different_arrays();
-        a_sequence_that_revisits_a_frame_lays_it_down_twice();
-        a_sequence_starting_part_way_through_the_image_starts_there();
-        an_animation_names_its_own_layers_whatever_order_the_interning_took();
-        a_sprite_is_interned_once();
-        every_atlas_parses_and_the_item_trims_permute_into_sprites();
-        the_missing_sprite_is_a_generated_checker();
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn sprites_and_atlases_read_the_resource_pack() {
+            the_mips_of_a_tail_of_stills_match_the_whole_chain();
+            sprites_of_different_sizes_land_in_different_arrays();
+            a_sequence_that_revisits_a_frame_lays_it_down_twice();
+            a_sequence_starting_part_way_through_the_image_starts_there();
+            an_animation_names_its_own_layers_whatever_order_the_interning_took();
+            a_sprite_is_interned_once();
+            every_atlas_parses_and_the_item_trims_permute_into_sprites();
+            the_missing_sprite_is_a_generated_checker();
+        }
     }
 
     fn the_mips_of_a_tail_of_stills_match_the_whole_chain() {
