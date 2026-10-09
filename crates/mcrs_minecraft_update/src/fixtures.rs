@@ -22,7 +22,7 @@ const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests
 
 pub enum Files {
     Named(&'static str),
-    All,
+    Matching(&'static str),
 }
 
 pub struct Output {
@@ -43,9 +43,9 @@ const fn named(file: &'static str, to: &'static str) -> Output {
     }
 }
 
-const fn every_file(to: &'static str) -> Output {
+const fn matching(pattern: &'static str, to: &'static str) -> Output {
     Output {
-        files: Files::All,
+        files: Files::Matching(pattern),
         to,
     }
 }
@@ -66,11 +66,16 @@ pub const FIXTURES: &[Fixture] = &[
     dump(
         "density",
         "dumpOracle",
-        &[every_file(
+        &[matching(
+            "overworld_s*_c*.bin",
             "crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla",
         )],
     ),
-    dump("surface", "dumpSurface", &[every_file(GENERATOR_FIXTURES)]),
+    dump(
+        "surface",
+        "dumpSurface",
+        &[matching("surface_s*_c*.bin", GENERATOR_FIXTURES)],
+    ),
     dump(
         "biome_containers",
         "dumpBiomes",
@@ -280,6 +285,25 @@ pub fn stale(manifest: &Manifest, id: &str) -> Vec<String> {
     missing_or_other.chain(unknown).collect()
 }
 
+fn matches(pattern: &str, name: &str) -> bool {
+    let mut parts = pattern.split('*');
+    let first = parts.next().unwrap_or_default();
+    let Some(mut rest) = name.strip_prefix(first) else {
+        return false;
+    };
+    let mut parts: Vec<&str> = parts.collect();
+    let Some(last) = parts.pop() else {
+        return rest.is_empty();
+    };
+    for part in parts {
+        match rest.find(part) {
+            Some(at) => rest = &rest[at + part.len()..],
+            None => return false,
+        }
+    }
+    rest.ends_with(last)
+}
+
 fn read_non_empty(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
     if bytes.is_empty() {
@@ -294,14 +318,21 @@ fn collect(root: &Path, fixture: &Fixture, out: &Path) -> Result<Vec<(PathBuf, V
         let to = root.join(output.to);
         match output.files {
             Files::Named(name) => found.push((to.join(name), read_non_empty(&out.join(name))?)),
-            Files::All => {
+            Files::Matching(pattern) => {
                 let mut names = Vec::new();
                 for entry in
                     fs::read_dir(out).map_err(|error| format!("{}: {error}", out.display()))?
                 {
                     let entry = entry.map_err(|error| format!("{}: {error}", out.display()))?;
                     if entry.path().is_file() {
-                        names.push(entry.file_name());
+                        let name = entry.file_name();
+                        if !matches(pattern, &name.to_string_lossy()) {
+                            return Err(format!(
+                                "{}: the file does not match {pattern}; widen the fixture's pattern and its .gitattributes line together",
+                                entry.path().display()
+                            ));
+                        }
+                        names.push(name);
                     }
                 }
                 if names.is_empty() {
@@ -530,15 +561,38 @@ mod tests {
         assert_eq!(fs::read(to).unwrap(), b"MC");
     }
 
-    fn an_every_file_output_copies_everything_the_task_wrote() {
+    fn a_pattern_output_copies_everything_the_task_wrote() {
         let fixture = fixture("density");
         let root = root_for(fixture);
-        let out = produce(&[("overworld_a.bin", b"a"), ("overworld_b.bin", b"b")]);
+        let out = produce(&[
+            ("overworld_s1_c0_0.bin", b"a"),
+            ("overworld_s1_c0_0_dense.bin", b"b"),
+        ]);
         let copied = store(&root, fixture, &out).unwrap();
         assert_eq!(copied.len(), 2);
         let to = root.join("crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla");
-        assert_eq!(fs::read(to.join("overworld_a.bin")).unwrap(), b"a");
-        assert_eq!(fs::read(to.join("overworld_b.bin")).unwrap(), b"b");
+        assert_eq!(fs::read(to.join("overworld_s1_c0_0.bin")).unwrap(), b"a");
+        assert_eq!(
+            fs::read(to.join("overworld_s1_c0_0_dense.bin")).unwrap(),
+            b"b"
+        );
+    }
+
+    fn a_pattern_matches_what_its_dump_writes_and_nothing_else() {
+        for (fixture_name, name, expected) in [
+            ("density", "overworld_s-5_c-3_7.bin", true),
+            ("density", "overworld_s42_c0_0_dense.bin", true),
+            ("density", "overworld_s1.bin", false),
+            ("density", "xoverworld_s1_c0_0.bin", false),
+            ("density", "overworld_s1_c0_0.bin.bak", false),
+            ("surface", "surface_s7_c1_2.bin", true),
+            ("surface", "overworld_s7_c1_2.bin", false),
+        ] {
+            let Files::Matching(pattern) = fixture(fixture_name).outputs[0].files else {
+                panic!("{fixture_name} does not carry a pattern");
+            };
+            assert_eq!(matches(pattern, name), expected, "{pattern} against {name}");
+        }
     }
 
     fn a_fixture_with_two_destinations_writes_both() {
@@ -603,10 +657,24 @@ mod tests {
         assert!(store(&root, fixture, &out).is_err());
     }
 
-    fn an_empty_file_among_every_file_is_an_error_and_nothing_is_copied() {
+    fn a_file_outside_the_pattern_fails_the_store_and_copies_nothing() {
         let fixture = fixture("density");
         let root = root_for(fixture);
-        let out = produce(&[("overworld_a.bin", b"a"), ("overworld_b.bin", b"")]);
+        let out = produce(&[("overworld_s1_c0_0.bin", b"a"), ("notes.txt", b"b")]);
+        let error = store(&root, fixture, &out).unwrap_err();
+        assert!(error.contains("notes.txt"), "{error}");
+        assert!(error.contains("overworld_s*_c*.bin"), "{error}");
+        let to = root.join("crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla");
+        assert_eq!(fs::read_dir(to).unwrap().count(), 0);
+    }
+
+    fn an_empty_file_among_a_pattern_output_is_an_error_and_nothing_is_copied() {
+        let fixture = fixture("density");
+        let root = root_for(fixture);
+        let out = produce(&[
+            ("overworld_s1_c0_0.bin", b"a"),
+            ("overworld_s1_c0_1.bin", b""),
+        ]);
         assert!(store(&root, fixture, &out).is_err());
         let to = root.join("crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla");
         assert_eq!(fs::read_dir(to).unwrap().count(), 0);
@@ -721,7 +789,8 @@ mod tests {
     #[test]
     fn storing_copies_every_output_to_its_destination() {
         a_named_output_is_copied_to_its_destination();
-        an_every_file_output_copies_everything_the_task_wrote();
+        a_pattern_output_copies_everything_the_task_wrote();
+        a_pattern_matches_what_its_dump_writes_and_nothing_else();
         a_fixture_with_two_destinations_writes_both();
     }
 
@@ -730,7 +799,8 @@ mod tests {
         a_missing_file_of_two_leaves_both_destinations_untouched();
         an_empty_file_of_two_leaves_both_destinations_untouched();
         a_task_output_with_no_file_is_an_error();
-        an_empty_file_among_every_file_is_an_error_and_nothing_is_copied();
+        an_empty_file_among_a_pattern_output_is_an_error_and_nothing_is_copied();
+        a_file_outside_the_pattern_fails_the_store_and_copies_nothing();
     }
 
     #[test]
@@ -749,5 +819,158 @@ mod tests {
     fn a_failed_capture_records_nothing() {
         a_failing_task_records_nothing();
         a_task_that_wrote_an_empty_file_records_nothing_and_copies_nothing();
+    }
+
+    fn attributes_of(paths: &[String]) -> Vec<(String, bool)> {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+
+        let mut stdin = Vec::new();
+        for path in paths {
+            stdin.extend_from_slice(path.as_bytes());
+            stdin.push(0);
+        }
+        let mut child = Command::new("git")
+            .arg("-C")
+            .arg(repository())
+            .args([
+                "-c",
+                "core.attributesFile=/dev/null",
+                "check-attr",
+                "-z",
+                "--stdin",
+                "linguist-generated",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut pipe = child.stdin.take().unwrap();
+        let output = std::thread::scope(|scope| {
+            scope.spawn(move || pipe.write_all(&stdin).unwrap());
+            child.wait_with_output().unwrap()
+        });
+        assert!(output.status.success(), "git check-attr failed");
+        let mut fields: Vec<&[u8]> = output.stdout.split(|byte| *byte == 0).collect();
+        assert_eq!(fields.pop(), Some(&[][..]));
+        let (triples, rest) = fields.as_chunks::<3>();
+        assert!(rest.is_empty(), "git check-attr wrote a partial triple");
+        triples
+            .iter()
+            .map(|triple| {
+                (
+                    String::from_utf8(triple[0].to_vec()).unwrap(),
+                    triple[2] == b"set",
+                )
+            })
+            .collect()
+    }
+
+    fn tracked_children(directory: &str) -> Vec<String> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repository())
+            .args(["ls-files", "-z", "--", directory])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "git ls-files failed");
+        output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+            .map(|path| String::from_utf8(path.to_vec()).unwrap())
+            .filter(|path| {
+                path.strip_prefix(directory)
+                    .and_then(|rest| rest.strip_prefix('/'))
+                    .is_some_and(|name| !name.contains('/'))
+            })
+            .collect()
+    }
+
+    fn output_probe(output: &Output) -> String {
+        match output.files {
+            Files::Named(name) => format!("{}/{name}", output.to),
+            Files::Matching(pattern) => format!("{}/{}", output.to, pattern.replace('*', "0")),
+        }
+    }
+
+    fn data_probes() -> Vec<String> {
+        let mut probes = vec![
+            format!("{}/version.json", crate::CORPUS),
+            format!("{}/probe.json", crate::CORPUS),
+            crate::DESCRIPTOR.to_owned(),
+            crate::FONT_HINT.to_owned(),
+            MANIFEST.to_owned(),
+        ];
+        for file in crate::REPORT_FILES.into_iter().chain([crate::NAMES_FILE]) {
+            probes.push(format!("{}/{file}", crate::REPORTS));
+        }
+        for directory in crate::DEFINITIONS {
+            probes.push(format!(
+                "{}/{directory}/probe.json",
+                crate::DEFINITIONS_ROOT
+            ));
+        }
+        probes
+    }
+
+    fn written_by(output: &Output, name: &str) -> bool {
+        match output.files {
+            Files::Named(file) => file == name,
+            Files::Matching(pattern) => matches(pattern, name),
+        }
+    }
+
+    #[test]
+    fn the_attributes_mark_every_tool_output_and_no_hand_written_file() {
+        let mut problems = Vec::new();
+
+        let probes: Vec<String> = FIXTURES
+            .iter()
+            .flat_map(|fixture| fixture.outputs)
+            .map(output_probe)
+            .chain(data_probes())
+            .collect();
+        for (path, generated) in attributes_of(&probes) {
+            if !generated {
+                problems.push(format!("{path}: written by the update tool but not marked"));
+            }
+        }
+
+        let mut directories: Vec<&str> = FIXTURES
+            .iter()
+            .flat_map(|fixture| fixture.outputs)
+            .map(|output| output.to)
+            .collect();
+        directories.sort_unstable();
+        directories.dedup();
+        for directory in directories {
+            let children = tracked_children(directory);
+            for (path, generated) in attributes_of(&children) {
+                let name = path.rsplit('/').next().unwrap();
+                let written = FIXTURES
+                    .iter()
+                    .flat_map(|fixture| fixture.outputs)
+                    .filter(|output| output.to == directory)
+                    .any(|output| written_by(output, name));
+                match (written, generated) {
+                    (true, false) => {
+                        problems.push(format!("{path}: written by the update tool but not marked"))
+                    }
+                    (false, true) => {
+                        problems.push(format!("{path}: hand-written but marked generated"))
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        problems.sort();
+        problems.dedup();
+        assert!(
+            problems.is_empty(),
+            "add or narrow the linguist-generated line in .gitattributes:\n{}",
+            problems.join("\n")
+        );
     }
 }
