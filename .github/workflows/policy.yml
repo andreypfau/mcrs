@@ -1,0 +1,47 @@
+name: policy
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: install the pinned toolchain
+        run: rustup toolchain install --profile minimal
+
+      - name: build the checker from the default branch
+        run: cargo build --locked --quiet -p xtask --target-dir target/xtask
+
+      - name: fetch the pull request head as data
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}" "refs/pull/${PR}/head"
+          git cat-file -e "${HEAD_SHA}^{commit}" || { echo "the pull request head moved; a newer run checks it" >&2; exit 1; }
+
+      - name: check the pull request head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: CHECKS_BASE_REF="origin/${BASE_REF}" target/xtask/debug/xtask policy "$HEAD_SHA"
