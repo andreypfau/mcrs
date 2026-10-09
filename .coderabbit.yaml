@@ -1,0 +1,4 @@
+reviews:
+  high_level_summary_in_walkthrough: true
+  auto_review:
+    auto_incremental_review: false
