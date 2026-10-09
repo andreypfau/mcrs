@@ -1,12 +1,13 @@
 use crate::metadata::{Kind, Workspace};
-use crate::scope::{self, Mode, Scope};
+use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
+use crate::{gate, marker, size};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub type Outcome = Result<(), String>;
+pub type Outcome = Result<String, String>;
 
 struct Changes {
     base_ref: String,
@@ -18,16 +19,20 @@ pub struct Context {
     trigger: Trigger,
     root: PathBuf,
     base_ref: String,
+    head: Head,
+    base: OnceCell<Result<String, String>>,
     workspace: OnceCell<Result<Workspace, String>>,
     changes: OnceCell<Result<Changes, String>>,
 }
 
 impl Context {
-    pub fn new(trigger: Trigger, root: PathBuf, base_ref: String) -> Context {
+    pub fn new(trigger: Trigger, root: PathBuf, base_ref: String, head: Head) -> Context {
         Context {
             trigger,
             root,
             base_ref,
+            head,
+            base: OnceCell::new(),
             workspace: OnceCell::new(),
             changes: OnceCell::new(),
         }
@@ -40,6 +45,17 @@ impl Context {
             .map_err(Clone::clone)
     }
 
+    fn base(&self) -> Result<&str, String> {
+        self.base
+            .get_or_init(|| {
+                scope::resolve_base(&self.root, &self.base_ref, &self.head)
+                    .map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map(String::as_str)
+            .map_err(Clone::clone)
+    }
+
     fn changes(&self) -> Result<&Changes, String> {
         self.changes
             .get_or_init(|| self.compute_changes())
@@ -49,14 +65,10 @@ impl Context {
 
     fn compute_changes(&self) -> Result<Changes, String> {
         let workspace = self.workspace()?;
-        let base = scope::resolve_base(&self.root, &self.base_ref).map_err(|e| e.to_string())?;
-        let mode = match self.trigger {
-            Trigger::Edit | Trigger::Commit => Mode::Working,
-            _ => Mode::Committed,
-        };
-        let paths = scope::changed_paths(&self.root, &base, mode)?;
+        let base = self.base()?;
+        let paths = scope::changed_paths(&self.root, base, &self.head)?;
         let bump = scope::touches_root_manifests(&paths)
-            .then(|| scope::manifest_texts(&self.root, &base, mode))
+            .then(|| scope::manifest_texts(&self.root, base, &self.head))
             .flatten()
             .and_then(|texts| scope::version_bump(workspace, &texts));
         if let Some(bump) = &bump {
@@ -92,7 +104,7 @@ impl Context {
 
 fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
     if passed {
-        Ok(())
+        Ok(String::new())
     } else {
         Err(format!("{condition}; {fix}"))
     }
@@ -100,6 +112,9 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
+        Check::Size => size::check(&ctx.root, ctx.base()?, &ctx.head),
+        Check::GateConfig => gate::check(&ctx.root, ctx.base()?, &ctx.head),
+        Check::MutationMarker => marker::check(&ctx.root, &ctx.head),
         Check::Fmt => fmt(ctx),
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
@@ -163,7 +178,7 @@ fn fmt(ctx: &Context) -> Outcome {
     }
     if by_edition.is_empty() {
         println!("no Rust file changed since {}", changes.base_ref);
-        return Ok(());
+        return Ok(String::new());
     }
     let mut passed = true;
     for (edition, files) in by_edition {
@@ -188,7 +203,7 @@ fn clippy(ctx: &Context) -> Outcome {
             Scope::Workspace => args.push("--workspace"),
             Scope::Packages(names) if names.is_empty() => {
                 println!("no crate changed since {}", changes.base_ref);
-                return Ok(());
+                return Ok(String::new());
             }
             Scope::Packages(names) => {
                 for name in names {
@@ -219,7 +234,7 @@ fn test(ctx: &Context) -> Outcome {
                     "no crate changed since {}; nothing to test",
                     changes.base_ref
                 );
-                return Ok(());
+                return Ok(String::new());
             }
             ("ci", selection)
         }
@@ -241,7 +256,7 @@ fn test(ctx: &Context) -> Outcome {
             let kept: Vec<&String> = names.iter().filter(|n| !local_only.contains(n)).collect();
             if kept.is_empty() {
                 println!("only crates that are tested locally changed; nothing to test here");
-                return Ok(());
+                return Ok(String::new());
             }
             for name in kept {
                 args.extend(["-p", name.as_str()]);

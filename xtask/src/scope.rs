@@ -1,15 +1,31 @@
 use crate::git::{self, Failure};
 use crate::metadata::Workspace;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 
 const ROOT_MANIFESTS: [&str; 2] = ["Cargo.toml", "Cargo.lock"];
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Mode {
-    Working,
-    Committed,
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Head {
+    Worktree,
+    Commit(String),
+}
+
+impl Head {
+    pub fn rev(&self) -> &str {
+        match self {
+            Head::Worktree => "HEAD",
+            Head::Commit(sha) => sha,
+        }
+    }
+
+    pub fn source(&self) -> Option<&str> {
+        match self {
+            Head::Worktree => None,
+            Head::Commit(sha) => Some(sha),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,14 +47,14 @@ impl fmt::Display for BaseError {
                 shallow: true,
             } => write!(
                 f,
-                "HEAD and {base_ref} share no commit in this shallow history; fetch the full history with git fetch --unshallow origin"
+                "the head and {base_ref} share no commit in this shallow history; fetch the full history with git fetch --unshallow origin"
             ),
             BaseError::NoMergeBase {
                 base_ref,
                 shallow: false,
             } => write!(
                 f,
-                "HEAD and {base_ref} share no commit because their histories are unrelated; set CHECKS_BASE_REF to a ref this branch descends from"
+                "the head and {base_ref} share no commit because their histories are unrelated; set CHECKS_BASE_REF to a ref this branch descends from"
             ),
             BaseError::Git(message) => write!(
                 f,
@@ -48,7 +64,7 @@ impl fmt::Display for BaseError {
     }
 }
 
-pub fn resolve_base(repo: &Path, base_ref: &str) -> Result<String, BaseError> {
+pub fn resolve_base(repo: &Path, base_ref: &str, head: &Head) -> Result<String, BaseError> {
     let commit = format!("{base_ref}^{{commit}}");
     match git::run(repo, &["rev-parse", "--verify", "--quiet", &commit]) {
         Ok(_) => {}
@@ -59,7 +75,7 @@ pub fn resolve_base(repo: &Path, base_ref: &str) -> Result<String, BaseError> {
         }
         Err(other) => return Err(BaseError::Git(other.to_string())),
     }
-    match git::text(repo, &["merge-base", "HEAD", base_ref]) {
+    match git::text(repo, &["merge-base", head.rev(), base_ref]) {
         Ok(sha) => Ok(sha.trim().to_owned()),
         Err(Failure::Exit { .. }) => {
             let shallow = git::text(repo, &["rev-parse", "--is-shallow-repository"])
@@ -73,18 +89,18 @@ pub fn resolve_base(repo: &Path, base_ref: &str) -> Result<String, BaseError> {
     }
 }
 
-fn diff_args(base: &str, mode: Mode) -> Vec<&str> {
-    match mode {
-        Mode::Working => vec![base],
-        Mode::Committed => vec![base, "HEAD"],
+fn diff_args<'a>(base: &'a str, head: &'a Head) -> Vec<&'a str> {
+    match head {
+        Head::Worktree => vec![base],
+        Head::Commit(sha) => vec![base, sha],
     }
 }
 
-pub fn changed_paths(repo: &Path, base: &str, mode: Mode) -> Result<Vec<String>, String> {
+pub fn changed_paths(repo: &Path, base: &str, head: &Head) -> Result<Vec<String>, String> {
     let mut args = vec!["diff", "--name-only", "-z", "--no-renames"];
-    args.extend(diff_args(base, mode));
+    args.extend(diff_args(base, head));
     let mut paths = null_separated(&git::run(repo, &args).map_err(|e| e.to_string())?);
-    if matches!(mode, Mode::Working) {
+    if matches!(head, Head::Worktree) {
         let untracked = git::run(repo, &["ls-files", "--others", "--exclude-standard", "-z"])
             .map_err(|e| e.to_string())?;
         paths.extend(null_separated(&untracked));
@@ -92,7 +108,7 @@ pub fn changed_paths(repo: &Path, base: &str, mode: Mode) -> Result<Vec<String>,
         paths.dedup();
     }
     let rust_differs = if paths.is_empty() {
-        let mut quiet = diff_args(base, mode);
+        let mut quiet = diff_args(base, head);
         quiet.extend(["--", "*.rs"]);
         git::differs(repo, &quiet).map_err(|e| e.to_string())?
     } else {
@@ -205,11 +221,11 @@ pub struct VersionBump {
     pub to: String,
 }
 
-pub fn manifest_texts(repo: &Path, base: &str, mode: Mode) -> Option<ManifestTexts> {
+pub fn manifest_texts(repo: &Path, base: &str, head: &Head) -> Option<ManifestTexts> {
     let at_base = |file: &str| git::text(repo, &["show", &format!("{base}:{file}")]).ok();
-    let at_head = |file: &str| match mode {
-        Mode::Working => std::fs::read_to_string(repo.join(file)).ok(),
-        Mode::Committed => git::text(repo, &["show", &format!("HEAD:{file}")]).ok(),
+    let at_head = |file: &str| match head {
+        Head::Worktree => std::fs::read_to_string(repo.join(file)).ok(),
+        Head::Commit(sha) => git::text(repo, &["show", &format!("{sha}:{file}")]).ok(),
     };
     Some(ManifestTexts {
         base_toml: at_base("Cargo.toml")?,
@@ -219,13 +235,256 @@ pub fn manifest_texts(repo: &Path, base: &str, mode: Mode) -> Option<ManifestTex
     })
 }
 
+pub fn manifest_version_only(base_toml: &str, head_toml: &str) -> Option<VersionBump> {
+    let from = workspace_version(base_toml)?;
+    let to = workspace_version(head_toml)?;
+    (retarget_manifest(head_toml, &to, &from) == base_toml).then_some(VersionBump { from, to })
+}
+
 pub fn version_bump(workspace: &Workspace, texts: &ManifestTexts) -> Option<VersionBump> {
-    let from = workspace_version(&texts.base_toml)?;
-    let to = workspace_version(&texts.head_toml)?;
+    let bump = manifest_version_only(&texts.base_toml, &texts.head_toml)?;
     let members: Vec<&str> = workspace.packages.iter().map(|p| p.name.as_str()).collect();
-    let manifest_matches = retarget_manifest(&texts.head_toml, &to, &from) == texts.base_toml;
-    let lock_matches = retarget_lock(&texts.head_lock, &to, &from, &members) == texts.base_lock;
-    (manifest_matches && lock_matches).then_some(VersionBump { from, to })
+    let lock_matches =
+        retarget_lock(&texts.head_lock, &bump.to, &bump.from, &members) == texts.base_lock;
+    lock_matches.then_some(bump)
+}
+
+pub fn diff_names(repo: &Path, base: &str, head: &Head) -> Result<Vec<String>, String> {
+    let mut args = vec!["diff", "--name-only", "-z", "--no-renames"];
+    args.extend(diff_args(base, head));
+    paths_of(&git::run(repo, &args).map_err(|e| e.to_string())?)
+}
+
+fn paths_of(listing: &[u8]) -> Result<Vec<String>, String> {
+    listing
+        .split(|&byte| byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| {
+            String::from_utf8(path.to_vec()).map_err(|_| {
+                format!(
+                    "a path that is not valid UTF-8 was found ({}); rename it",
+                    String::from_utf8_lossy(path)
+                )
+            })
+        })
+        .collect()
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Entry {
+    pub path: String,
+    pub from: Option<String>,
+    pub added: Option<u64>,
+    pub deleted: Option<u64>,
+}
+
+pub fn numstat(repo: &Path, base: &str, head: &Head) -> Result<Vec<Entry>, String> {
+    let mut args = vec![
+        "diff",
+        "--numstat",
+        "-z",
+        "-M",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-color",
+    ];
+    args.extend(diff_args(base, head));
+    let listing = git::run(repo, &args).map_err(|e| e.to_string())?;
+    let mut fields = listing.split(|&byte| byte == 0);
+    let mut entries = Vec::new();
+    let utf8 = |bytes: &[u8]| {
+        String::from_utf8(bytes.to_vec())
+            .map_err(|_| "a path that is not valid UTF-8 was found; rename it".to_owned())
+    };
+    while let Some(field) = fields.next() {
+        if field.is_empty() {
+            continue;
+        }
+        let record = utf8(field)?;
+        let mut parts = record.splitn(3, '\t');
+        let (Some(added), Some(deleted), Some(path)) = (parts.next(), parts.next(), parts.next())
+        else {
+            return Err(format!(
+                "git diff --numstat printed an unreadable record: {record}"
+            ));
+        };
+        let count = |text: &str| match text {
+            "-" => Ok(None),
+            digits => digits
+                .parse::<u64>()
+                .map(Some)
+                .map_err(|_| format!("git diff --numstat printed a bad count {text:?}")),
+        };
+        let (added, deleted) = (count(added)?, count(deleted)?);
+        let (from, path) = if path.is_empty() {
+            let (Some(old), Some(new)) = (fields.next(), fields.next()) else {
+                return Err("git diff --numstat ended in the middle of a rename".to_owned());
+            };
+            (Some(utf8(old)?), utf8(new)?)
+        } else {
+            (None, path.to_owned())
+        };
+        entries.push(Entry {
+            path,
+            from,
+            added,
+            deleted,
+        });
+    }
+    Ok(entries)
+}
+
+pub fn attributes(
+    repo: &Path,
+    source: Option<&str>,
+    paths: &[String],
+) -> Result<BTreeMap<String, String>, String> {
+    if paths.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let source = source.map(|rev| format!("--source={rev}"));
+    let mut args = vec![
+        "-c",
+        "core.attributesFile=/dev/null",
+        "check-attr",
+        "-z",
+        "--stdin",
+    ];
+    args.extend(source.as_deref());
+    args.push("linguist-generated");
+    let mut input = Vec::new();
+    for path in paths {
+        input.extend_from_slice(path.as_bytes());
+        input.push(0);
+    }
+    let reply = git::pipe(repo, &args, &input).map_err(|e| e.to_string())?;
+    let fields = paths_of(&reply)?;
+    if fields.len() != paths.len() * 3 {
+        return Err("git check-attr answered for a different number of paths".to_owned());
+    }
+    Ok(fields
+        .chunks(3)
+        .map(|triple| (triple[0].clone(), triple[2].clone()))
+        .collect())
+}
+
+pub fn is_set(value: &str) -> bool {
+    value == "set"
+}
+
+pub fn is_generated_for_review(value: &str) -> bool {
+    !matches!(value, "unspecified" | "unset" | "false")
+}
+
+pub fn tracked(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
+    let listing = match head {
+        Head::Worktree => git::run(repo, &["ls-files", "-z"]),
+        Head::Commit(sha) => git::run(repo, &["ls-tree", "-r", "-z", "--name-only", sha]),
+    };
+    paths_of(&listing.map_err(|e| e.to_string())?)
+}
+
+pub fn blobs(repo: &Path, specs: &[String]) -> Result<Vec<Option<Vec<u8>>>, String> {
+    if specs.is_empty() {
+        return Ok(Vec::new());
+    }
+    if let Some(spec) = specs.iter().find(|spec| spec.contains('\n')) {
+        return Err(format!(
+            "the path in {spec:?} contains a line break; rename it"
+        ));
+    }
+    let mut input = specs.join("\n").into_bytes();
+    input.push(b'\n');
+    let reply = git::pipe(repo, &["cat-file", "--batch"], &input).map_err(|e| e.to_string())?;
+    let mut rest = reply.as_slice();
+    let mut found = Vec::with_capacity(specs.len());
+    for spec in specs {
+        let end = rest
+            .iter()
+            .position(|&byte| byte == b'\n')
+            .ok_or_else(|| format!("git cat-file stopped answering at {spec}"))?;
+        let header = String::from_utf8_lossy(&rest[..end]).into_owned();
+        rest = &rest[end + 1..];
+        if header.ends_with(" missing") {
+            found.push(None);
+            continue;
+        }
+        let mut words = header.rsplitn(3, ' ');
+        let size = words.next().and_then(|size| size.parse::<usize>().ok());
+        let kind = words.next();
+        let (Some(size), Some("blob")) = (size, kind) else {
+            return Err(format!("{spec} is not a file in git"));
+        };
+        if rest.len() < size + 1 {
+            return Err(format!("git cat-file cut {spec} short"));
+        }
+        found.push(Some(rest[..size].to_vec()));
+        rest = &rest[size + 1..];
+    }
+    Ok(found)
+}
+
+pub fn read_at(repo: &Path, rev: &str, path: &str) -> Result<Option<String>, String> {
+    let mut found = blobs(repo, &[format!("{rev}:{path}")])?;
+    Ok(found
+        .pop()
+        .flatten()
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+pub fn head_text(repo: &Path, head: &Head, path: &str) -> Result<Option<String>, String> {
+    let Head::Worktree = head else {
+        return read_at(repo, head.rev(), path);
+    };
+    let literal = format!(":(literal){path}");
+    let listed = git::run(repo, &["ls-files", "-z", "--", &literal]).map_err(|e| e.to_string())?;
+    if listed.is_empty() {
+        return Ok(None);
+    }
+    match std::fs::read(repo.join(path)) {
+        Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("could not read {path}: {e}")),
+    }
+}
+
+pub fn line_count(bytes: &[u8]) -> u64 {
+    let breaks = bytes.iter().filter(|&&byte| byte == b'\n').count() as u64;
+    breaks + u64::from(!bytes.is_empty() && !bytes.ends_with(b"\n"))
+}
+
+pub fn line_counts(repo: &Path, head: &Head, paths: &[String]) -> Result<Vec<u64>, String> {
+    match head {
+        Head::Worktree => paths
+            .iter()
+            .map(|path| {
+                std::fs::read(repo.join(path))
+                    .map(|bytes| line_count(&bytes))
+                    .map_err(|e| format!("could not read {path}: {e}"))
+            })
+            .collect(),
+        Head::Commit(sha) => {
+            let specs: Vec<String> = paths.iter().map(|path| format!("{sha}:{path}")).collect();
+            blobs(repo, &specs)?
+                .into_iter()
+                .zip(paths)
+                .map(|(blob, path)| {
+                    blob.map(|bytes| line_count(&bytes))
+                        .ok_or_else(|| format!("{path} is missing from the head"))
+                })
+                .collect()
+        }
+    }
+}
+
+pub fn is_shallow(repo: &Path) -> Result<bool, String> {
+    git::text(repo, &["rev-parse", "--is-shallow-repository"])
+        .map(|answer| answer.trim() == "true")
+        .map_err(|e| e.to_string())
+}
+
+pub fn short(sha: &str) -> &str {
+    sha.get(..9).unwrap_or(sha)
 }
 
 fn string_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
@@ -303,7 +562,7 @@ fn retarget_lock(lock: &str, head: &str, base: &str, members: &[&str]) -> String
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use serde_json::json;
     use std::path::PathBuf;
@@ -547,10 +806,10 @@ mod tests {
         );
     }
 
-    struct Repo(PathBuf);
+    pub(crate) struct Repo(pub(crate) PathBuf);
 
     impl Repo {
-        fn new(label: &str) -> Repo {
+        pub(crate) fn new(label: &str) -> Repo {
             static NEXT: AtomicUsize = AtomicUsize::new(0);
             let dir = std::env::temp_dir().join(format!(
                 "xtask-{label}-{}-{}",
@@ -561,8 +820,9 @@ mod tests {
             Repo(dir)
         }
 
-        fn git(&self, args: &[&str]) {
-            let status = Command::new("git")
+        fn command(&self, args: &[&str]) -> Command {
+            let mut command = Command::new("git");
+            command
                 .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
                 .args([
                     "-c",
@@ -571,24 +831,61 @@ mod tests {
                     "protocol.file.allow=always",
                 ])
                 .args(args)
-                .current_dir(&self.0)
-                .env_remove("GIT_DIR")
-                .env_remove("GIT_INDEX_FILE")
-                .env_remove("GIT_WORK_TREE")
-                .status()
-                .unwrap();
+                .current_dir(&self.0);
+            for (name, _) in std::env::vars_os() {
+                if name.to_string_lossy().starts_with("GIT_") {
+                    command.env_remove(name);
+                }
+            }
+            command
+        }
+
+        pub(crate) fn git(&self, args: &[&str]) {
+            let status = self.command(args).status().unwrap();
             assert!(status.success(), "git {args:?}");
         }
 
-        fn write(&self, file: &str, text: &str) {
-            let path = self.0.join(file);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, text).unwrap();
+        pub(crate) fn out(&self, args: &[&str]) -> String {
+            let output = self.command(args).output().unwrap();
+            assert!(output.status.success(), "git {args:?}");
+            String::from_utf8(output.stdout).unwrap().trim().to_owned()
         }
 
-        fn commit(&self, message: &str) {
+        pub(crate) fn init(&self) {
+            self.git(&["init", "--quiet", "-b", "main"]);
+        }
+
+        pub(crate) fn write(&self, file: &str, text: &str) {
+            self.write_bytes(file, text.as_bytes());
+        }
+
+        pub(crate) fn write_bytes(&self, file: &str, bytes: &[u8]) {
+            let path = self.0.join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, bytes).unwrap();
+        }
+
+        pub(crate) fn remove(&self, file: &str) {
+            std::fs::remove_file(self.0.join(file)).unwrap();
+        }
+
+        pub(crate) fn rename(&self, from: &str, to: &str) {
+            let target = self.0.join(to);
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::rename(self.0.join(from), target).unwrap();
+        }
+
+        pub(crate) fn commit(&self, message: &str) {
             self.git(&["add", "--all"]);
             self.git(&["commit", "--quiet", "--allow-empty", "-m", message]);
+        }
+
+        pub(crate) fn sha(&self) -> String {
+            self.out(&["rev-parse", "HEAD"])
+        }
+
+        pub(crate) fn status(&self) -> String {
+            self.out(&["status", "--porcelain"])
         }
     }
 
@@ -603,7 +900,7 @@ mod tests {
         let repo = Repo::new("missing");
         repo.git(&["init", "--quiet", "-b", "main"]);
         repo.commit("first");
-        let error = resolve_base(&repo.0, "origin/main").unwrap_err();
+        let error = resolve_base(&repo.0, "origin/main", &Head::Worktree).unwrap_err();
         assert_eq!(
             error,
             BaseError::MissingRef {
@@ -620,7 +917,7 @@ mod tests {
         repo.commit("first");
         repo.git(&["checkout", "--quiet", "--orphan", "other"]);
         repo.commit("second");
-        let error = resolve_base(&repo.0, "main").unwrap_err();
+        let error = resolve_base(&repo.0, "main", &Head::Worktree).unwrap_err();
         assert_eq!(
             error,
             BaseError::NoMergeBase {
@@ -654,7 +951,7 @@ mod tests {
             "origin",
             "main:refs/remotes/origin/main",
         ]);
-        let error = resolve_base(&clone.0, "origin/main").unwrap_err();
+        let error = resolve_base(&clone.0, "origin/main", &Head::Worktree).unwrap_err();
         assert_eq!(
             error,
             BaseError::NoMergeBase {
@@ -672,7 +969,7 @@ mod tests {
         repo.commit("one");
         repo.git(&["checkout", "--quiet", "-b", "topic"]);
         repo.commit("topic");
-        let base = resolve_base(&repo.0, "main").unwrap();
+        let base = resolve_base(&repo.0, "main", &Head::Worktree).unwrap();
         let first = git::text(&repo.0, &["rev-parse", "main"]).unwrap();
         assert_eq!(base, first.trim());
     }
@@ -689,9 +986,10 @@ mod tests {
         repo.commit("rename");
         repo.write("kept.txt", "edited\n");
 
-        let committed = changed_paths(&repo.0, "base", Mode::Committed).unwrap();
+        let tip = Head::Commit(repo.sha());
+        let committed = changed_paths(&repo.0, "base", &tip).unwrap();
         assert_eq!(committed, ["crates/x/new.rs", "crates/x/old name.rs"]);
-        let working = changed_paths(&repo.0, "base", Mode::Working).unwrap();
+        let working = changed_paths(&repo.0, "base", &Head::Worktree).unwrap();
         assert_eq!(
             working,
             ["crates/x/new.rs", "crates/x/old name.rs", "kept.txt"]
@@ -708,12 +1006,13 @@ mod tests {
         repo.write("crates/x/src/new.rs", "fn n() {}\n");
         repo.write("target/built.rs", "fn b() {}\n");
 
+        let tip = Head::Commit(repo.sha());
         assert_eq!(
-            changed_paths(&repo.0, "main", Mode::Committed).unwrap(),
+            changed_paths(&repo.0, "main", &tip).unwrap(),
             Vec::<String>::new()
         );
         assert_eq!(
-            changed_paths(&repo.0, "main", Mode::Working).unwrap(),
+            changed_paths(&repo.0, "main", &Head::Worktree).unwrap(),
             ["crates/x/src/new.rs"]
         );
     }
@@ -724,12 +1023,13 @@ mod tests {
         repo.git(&["init", "--quiet", "-b", "main"]);
         repo.write("a.rs", "fn a() {}\n");
         repo.commit("base");
+        let tip = Head::Commit(repo.sha());
         assert_eq!(
-            changed_paths(&repo.0, "main", Mode::Committed).unwrap(),
+            changed_paths(&repo.0, "main", &tip).unwrap(),
             Vec::<String>::new()
         );
         assert_eq!(
-            changed_paths(&repo.0, "main", Mode::Working).unwrap(),
+            changed_paths(&repo.0, "main", &Head::Worktree).unwrap(),
             Vec::<String>::new()
         );
     }
