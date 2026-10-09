@@ -23,7 +23,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-bytes.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 mcrs_minecraft_worldgen_density = { path = ".", default-features = false, features = ["eval-count"] }

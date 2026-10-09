@@ -6,7 +6,7 @@ sand, grass, gravel, terracotta and snow, by rewriting a strip from the top down
 `worldgen.md` §8 states what the stage *is*: a rewriting system over a strip, its
 context, the memoisation scheme that follows from the context, and the three cost
 facts Sf1–Sf3. That section is not restated here. This document specifies the
-26.3 data model the stage reads, the compiled representation it runs as, and how
+data model of the version named by `assets/minecraft/version.json` that the stage reads, the compiled representation it runs as, and how
 both land on this codebase.
 
 The reference is the authority on the data — the rule and condition kinds, their
@@ -136,7 +136,7 @@ the tape per block.
 
 ## 4. The data model
 
-In 26.3 rules and conditions are **loadable registries**, not a tree embedded in
+At the version named by `assets/minecraft/version.json`, rules and conditions are **loadable registries**, not a tree embedded in
 the noise settings: `worldgen/material_rule/**` and `worldgen/material_condition/**`.
 The noise settings name a rule by id (`material_rule`), and any node inside a
 tree may itself be a bare id string instead of an inline object.
@@ -282,7 +282,7 @@ of guard evaluations may differ between a tight sound set and a loose one.
 
 ## 7. Ore veins
 
-Ore veins are a material rule in 26.3, not a separate pass. The rule holds three
+Ore veins are a material rule at that version, not a separate pass. The rule holds three
 density functions — density, richness and filler gap — plus the ore, raw ore and
 filler states and the raw-ore chance.
 
@@ -489,7 +489,7 @@ load** (S8).
 ## Appendix: correspondences in Minecraft
 
 For checking behaviour against, not for copying. Paths are relative to
-`src/main/java/net/minecraft/`, version 26.3.
+`src/main/java/net/minecraft/`, at the version named by `assets/minecraft/version.json`.
 
 | What | Where |
 | --- | --- |
@@ -500,7 +500,6 @@ For checking behaviour against, not for copying. Paths are relative to
 | Registry ids and holder codecs | `world/level/levelgen/material/MaterialRules.java` |
 | The rule referenced by a dimension | `world/level/levelgen/NoiseGeneratorSettings.java`, field `material_rule` |
 | Where the stage runs in the pipeline | `world/level/levelgen/NoiseBasedChunkGenerator.java` |
-| The one-position re-application after carving | `MaterialSystem.topMaterial` |
 | Clay bands, badlands pillars, icebergs | `MaterialSystem.generateBands`, `erodedBadlandsExtension`, `frozenOceanExtension` |
 | The biome zoom | `world/level/biome/BiomeManager.java` |
 | The preliminary surface level and its interpolation | `world/level/levelgen/NoiseRouterData.java`, `chunk_surface_level` |

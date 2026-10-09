@@ -24,16 +24,11 @@ mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
-mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 
 [features]
@@ -45,7 +40,6 @@ bevy = [
     "dep:mcrs_minecraft_assets",
     "mcrs_minecraft_core/bevy",
     "mcrs_minecraft_registry/bevy",
-    "mcrs_minecraft_worldgen_carver/bevy",
     "mcrs_minecraft_worldgen_density/bevy",
     "mcrs_minecraft_worldgen_surface/bevy",
 ]

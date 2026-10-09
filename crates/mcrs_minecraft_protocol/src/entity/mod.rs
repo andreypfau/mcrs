@@ -21,7 +21,6 @@ use uuid::Uuid;
 
 pub mod minecart;
 pub mod player;
-mod sniffer;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MetadataEntry<'a> {

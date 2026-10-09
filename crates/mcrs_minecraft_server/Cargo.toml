@@ -28,7 +28,6 @@ mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_keys.workspace = true
 fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
@@ -40,7 +39,6 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast", "bevy"] }
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_anvil.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
@@ -48,7 +46,6 @@ bevy_state.workspace = true
 bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_asset.workspace = true
-tokio.workspace = true
 rand.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
@@ -67,10 +64,12 @@ mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
+mcrs_minecraft_anvil.workspace = true
+tokio.workspace = true
 
 [features]
 telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
 
 [[bench]]
-name = "tr07_scale"
+name = "bot_load"
 harness = false

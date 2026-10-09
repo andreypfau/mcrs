@@ -59,7 +59,7 @@ fn check(report: &ScaleReport, bots: usize, cross_dim_rate: f32) {
 
 fn bench_profile(c: &mut Criterion, label: &str, dims: usize, bots: usize) {
     let cross_dim_rate = 0.1;
-    let mut group = c.benchmark_group("tr07_scale");
+    let mut group = c.benchmark_group("bot_load");
     group.sample_size(10);
     group.bench_function(label, |b| {
         b.iter_custom(|iters| {
