@@ -45,9 +45,9 @@ pub fn official_dir() -> PathBuf {
 
 /// Where launchers keep an installed client jar of the pinned release, most likely first.
 pub fn candidates() -> Vec<PathBuf> {
-    #[allow(unused_mut)]
     let id = RELEASE.id;
     let installed = format!("versions/{id}/{id}.jar");
+    #[allow(unused_mut)]
     let mut paths = vec![official_dir().join(&installed)];
     #[cfg(target_os = "macos")]
     {
@@ -720,16 +720,17 @@ mod tests {
     }
 
     fn assert_complete(dir: &Path, release: &Release) {
+        let id = release.id;
         assert!(verify(
             &release.jar,
-            &fs::read(dir.join("sample.jar")).unwrap()
+            &fs::read(dir.join(format!("{id}.jar"))).unwrap()
         ));
         assert!(verify(
             &release.json,
-            &fs::read(dir.join("sample.json")).unwrap()
+            &fs::read(dir.join(format!("{id}.json"))).unwrap()
         ));
-        assert!(!dir.join("sample.jar.part").exists());
-        assert!(!dir.join("sample.jar.part.ranges").exists());
+        assert!(!dir.join(format!("{id}.jar.part")).exists());
+        assert!(!dir.join(format!("{id}.jar.part.ranges")).exists());
     }
 
     fn group_of(jar: &[u8], range: &Range<u64>) -> u32 {
@@ -1054,81 +1055,90 @@ mod tests {
         assert_eq!(attempts.load(Ordering::SeqCst), 1);
     }
 
-    #[test]
-    fn the_font_hint_matches_the_pinned_jar() {
-        let jar = locate(&candidates(), &RELEASE.jar, &Progress::default()).expect(
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn the_font_hint_matches_the_pinned_jar() {
+            let jar = locate(&candidates(), &RELEASE.jar, &Progress::default()).expect(
             "a pinned client jar installed by a launcher, or downloaded by one run of the client",
         );
-        let generated = FontHint::of(&jar, RELEASE.jar.sha1).unwrap();
-        assert_eq!(
-            serde_json::from_str::<FontHint>(RELEASE.font_hint).unwrap(),
-            generated,
-            "src/font_hint.json does not match the pinned jar; the update tool rewrites it"
-        );
-    }
-
-    #[test]
-    #[ignore = "reads the launchers installed on this machine"]
-    fn locates_a_launcher_jar_on_this_machine() {
-        let candidates = candidates();
-        let progress = Progress::default();
-        let found = locate(&candidates, &RELEASE.jar, &progress);
-        println!("checked {candidates:#?}");
-        println!("{}", progress.status.lock().unwrap());
-        assert!(found.is_some());
-    }
-
-    #[test]
-    #[ignore = "downloads the pinned client jar from Mojang into the temp directory"]
-    fn downloads_the_pinned_jar() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .with_test_writer()
-            .try_init();
-        let workers = std::env::var("MCRS_JAR_WORKERS")
-            .ok()
-            .and_then(|workers| workers.parse().ok())
-            .unwrap_or(WORKERS);
-        let dir = std::env::temp_dir().join("mcrs-client-jar-download");
-        if dir.join("sample.jar").exists() {
-            fs::remove_dir_all(&dir).unwrap();
+            let generated = FontHint::of(&jar, RELEASE.jar.sha1).unwrap();
+            assert_eq!(
+                serde_json::from_str::<FontHint>(RELEASE.font_hint).unwrap(),
+                generated,
+                "src/font_hint.json does not match the pinned jar; the update tool rewrites it"
+            );
         }
-        let held = load_ranges(&dir.join("sample.jar.part.ranges"), RELEASE.jar.size);
-        println!(
-            "{} holds {} bytes before the run: {held:?}",
-            dir.display(),
-            held.iter()
-                .map(|range| range.end - range.start)
-                .sum::<u64>()
-        );
-        let started = Instant::now();
-        let progress = Progress::default();
 
-        let (files, rest) = download(
-            &RELEASE,
-            &dir,
-            workers,
-            &progress,
-            |_| true,
-            |fonts| {
-                println!(
-                    "fonts: {} files after {:?}, {} of {} bytes in",
-                    fonts.len(),
-                    started.elapsed(),
-                    progress.done.load(Ordering::Relaxed),
-                    progress.total.load(Ordering::Relaxed)
-                )
-            },
-        );
-        println!(
-            "ready: {} asset files after {:?} with {workers} workers, {} bytes of the jar needed",
-            files.len(),
-            started.elapsed(),
-            progress.total.load(Ordering::Relaxed)
-        );
-        rest.unwrap().finish();
-        println!("complete after {:?}", started.elapsed());
+        #[test]
+        fn locates_a_launcher_jar_on_this_machine() {
+            let candidates = candidates();
+            let progress = Progress::default();
+            let found = locate(&candidates, &RELEASE.jar, &progress);
+            println!("checked {candidates:#?}");
+            println!("{}", progress.status.lock().unwrap());
+            assert!(found.is_some());
+        }
+    }
 
-        assert_complete(&dir, &RELEASE);
+    mod online {
+        use super::*;
+
+        #[test]
+        fn downloads_the_pinned_jar() {
+            let _ = tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::DEBUG)
+                .with_test_writer()
+                .try_init();
+            let workers = std::env::var("MCRS_JAR_WORKERS")
+                .ok()
+                .and_then(|workers| workers.parse().ok())
+                .unwrap_or(WORKERS);
+            let dir = std::env::temp_dir().join("mcrs-client-jar-download");
+            if dir.join(format!("{}.jar", RELEASE.id)).exists() {
+                fs::remove_dir_all(&dir).unwrap();
+            }
+            let held = load_ranges(
+                &dir.join(format!("{}.jar.part.ranges", RELEASE.id)),
+                RELEASE.jar.size,
+            );
+            println!(
+                "{} holds {} bytes before the run: {held:?}",
+                dir.display(),
+                held.iter()
+                    .map(|range| range.end - range.start)
+                    .sum::<u64>()
+            );
+            let started = Instant::now();
+            let progress = Progress::default();
+
+            let (files, rest) = download(
+                &RELEASE,
+                &dir,
+                workers,
+                &progress,
+                |_| true,
+                |fonts| {
+                    println!(
+                        "fonts: {} files after {:?}, {} of {} bytes in",
+                        fonts.len(),
+                        started.elapsed(),
+                        progress.done.load(Ordering::Relaxed),
+                        progress.total.load(Ordering::Relaxed)
+                    )
+                },
+            );
+            println!(
+                "ready: {} asset files after {:?} with {workers} workers, {} bytes of the jar needed",
+                files.len(),
+                started.elapsed(),
+                progress.total.load(Ordering::Relaxed)
+            );
+            rest.unwrap().finish();
+            println!("complete after {:?}", started.elapsed());
+
+            assert_complete(&dir, &RELEASE);
+        }
     }
 }

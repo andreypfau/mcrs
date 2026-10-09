@@ -594,12 +594,16 @@ pub fn resolve_model(pack: &Pack, id: &str) -> Result<ResolvedModel, String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn models_read_the_resource_pack() {
-        the_asset_system_reads_the_pack_the_corpus_holds();
-        a_generated_item_is_front_lit_with_no_gui_transform();
-        a_block_item_is_side_lit_with_the_gui_rotation_of_block_block();
-        a_multipart_fence_picks_up_its_connected_sides();
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn models_read_the_resource_pack() {
+            the_asset_system_reads_the_pack_the_corpus_holds();
+            a_generated_item_is_front_lit_with_no_gui_transform();
+            a_block_item_is_side_lit_with_the_gui_rotation_of_block_block();
+            a_multipart_fence_picks_up_its_connected_sides();
+        }
     }
 
     fn the_asset_system_reads_the_pack_the_corpus_holds() {

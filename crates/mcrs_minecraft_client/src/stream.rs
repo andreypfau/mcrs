@@ -1586,51 +1586,55 @@ mod tests {
             .unwrap_or_else(|report| panic!("{report}"))
     }
 
-    #[test]
-    fn the_tint_table_follows_the_session_biomes() {
-        let mut app = App::new();
-        app.insert_resource(BlockCatalog::new());
-        app.add_systems(
-            Update,
-            derive_biome_tints.run_if(resource_exists::<RegistrySet>),
-        );
-        app.update();
-        assert!(app.world().get_resource::<BiomeTints>().is_none());
+    mod jar {
+        use super::*;
 
-        let first = session(|_| {});
-        app.insert_resource(first.clone());
-        app.update();
-        assert!(
-            app.world().get_resource::<BiomeTints>().is_none(),
-            "the colormaps are read from the pack, which is not in yet"
-        );
+        #[test]
+        fn the_tint_table_follows_the_session_biomes() {
+            let mut app = App::new();
+            app.insert_resource(BlockCatalog::new());
+            app.add_systems(
+                Update,
+                derive_biome_tints.run_if(resource_exists::<RegistrySet>),
+            );
+            app.update();
+            assert!(app.world().get_resource::<BiomeTints>().is_none());
 
-        app.world_mut().resource_mut::<BlockCatalog>().pack =
-            PackLoad::Ready(Pack::shared_corpus());
-        app.update();
-        let tints = app.world().resource::<BiomeTints>().clone();
-        let biomes = |set: &RegistrySet| set.registry::<mcrs_minecraft_biome::Biome>().unwrap();
-        assert_eq!(tints.len(), biomes(&first).len());
+            let first = session(|_| {});
+            app.insert_resource(first.clone());
+            app.update();
+            assert!(
+                app.world().get_resource::<BiomeTints>().is_none(),
+                "the colormaps are read from the pack, which is not in yet"
+            );
 
-        let second = session(|sent| {
-            sent.iter_mut()
-                .find(|sent| sent.registry.as_str() == "minecraft:worldgen/biome")
-                .expect("a server syncs its biomes")
-                .entries
-                .reverse();
-        });
-        app.insert_resource(second.clone());
-        app.update();
-        let replaced = app.world().resource::<BiomeTints>();
-        assert_eq!(replaced.len(), biomes(&second).len());
+            app.world_mut().resource_mut::<BlockCatalog>().pack =
+                PackLoad::Ready(Pack::shared_corpus());
+            app.update();
+            let tints = app.world().resource::<BiomeTints>().clone();
+            let biomes = |set: &RegistrySet| set.registry::<mcrs_minecraft_biome::Biome>().unwrap();
+            assert_eq!(tints.len(), biomes(&first).len());
 
-        let swamp = |set: &RegistrySet| biomes(set).require_by_name("minecraft:swamp").unwrap();
-        assert_ne!(swamp(&first), swamp(&second), "the swamp is numbered anew");
-        assert_eq!(
-            replaced[swamp(&second).index()],
-            tints[swamp(&first).index()],
-            "each biome keeps its tint at its new number"
-        );
+            let second = session(|sent| {
+                sent.iter_mut()
+                    .find(|sent| sent.registry.as_str() == "minecraft:worldgen/biome")
+                    .expect("a server syncs its biomes")
+                    .entries
+                    .reverse();
+            });
+            app.insert_resource(second.clone());
+            app.update();
+            let replaced = app.world().resource::<BiomeTints>();
+            assert_eq!(replaced.len(), biomes(&second).len());
+
+            let swamp = |set: &RegistrySet| biomes(set).require_by_name("minecraft:swamp").unwrap();
+            assert_ne!(swamp(&first), swamp(&second), "the swamp is numbered anew");
+            assert_eq!(
+                replaced[swamp(&second).index()],
+                tints[swamp(&first).index()],
+                "each biome keeps its tint at its new number"
+            );
+        }
     }
 
     fn loader() -> Loader {

@@ -80,13 +80,17 @@ mod tests {
     const WHITE: u32 = 0xFFFF_FFFF;
     const AQUA: u32 = 0xFF55_FFFF;
 
-    #[test]
-    fn a_placeholder_takes_the_argument_spans() {
-        let key = vec![Span::new("F4", AQUA)];
-        assert_eq!(
-            Language::corpus().translate("debug.gamemodes.select_next", WHITE, &[key]),
-            [Span::new("F4", AQUA), Span::new(" Next", WHITE)]
-        );
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn a_placeholder_takes_the_argument_spans() {
+            let key = vec![Span::new("F4", AQUA)];
+            assert_eq!(
+                Language::corpus().translate("debug.gamemodes.select_next", WHITE, &[key]),
+                [Span::new("F4", AQUA), Span::new(" Next", WHITE)]
+            );
+        }
     }
 
     #[test]

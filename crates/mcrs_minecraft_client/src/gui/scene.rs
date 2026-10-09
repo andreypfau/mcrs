@@ -534,33 +534,37 @@ mod tests {
         assert_eq!(GuiSize::of(UVec2::new(1920, 1080), 0).scale, 4);
     }
 
-    #[test]
-    fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
-        let atlas = GuiAtlasData::load(Pack::corpus()).unwrap();
-        for name in GUI_TEXTURES
-            .iter()
-            .filter(|n| **n != "misc/enchanted_glint_item")
-        {
-            assert!(atlas.regions.contains_key(name), "{name}");
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
+            let atlas = GuiAtlasData::load(Pack::corpus()).unwrap();
+            for name in GUI_TEXTURES
+                .iter()
+                .filter(|n| **n != "misc/enchanted_glint_item")
+            {
+                assert!(atlas.regions.contains_key(name), "{name}");
+            }
+            assert_eq!(atlas.region("hud/hotbar").size(), IVec2::new(182, 22));
+            assert_eq!(
+                atlas.region("container/inventory").size(),
+                IVec2::new(176, 166)
+            );
+            assert_eq!(
+                atlas.region("container/gamemode_switcher").size(),
+                IVec2::new(125, 75)
+            );
+            assert_eq!(
+                atlas.region("gamemode_switcher/slot").size(),
+                IVec2::new(26, 26)
+            );
+            assert_eq!(atlas.font.advance('7', false), 6);
+            assert_eq!(atlas.glint.0, 128);
+            assert!(atlas.height <= 512);
+            let blank = atlas.region(BLANK);
+            let start = (blank.min.y as usize * atlas.width as usize + blank.min.x as usize) * 4;
+            assert_eq!(&atlas.pixels[start..start + 4], &[255, 255, 255, 255]);
         }
-        assert_eq!(atlas.region("hud/hotbar").size(), IVec2::new(182, 22));
-        assert_eq!(
-            atlas.region("container/inventory").size(),
-            IVec2::new(176, 166)
-        );
-        assert_eq!(
-            atlas.region("container/gamemode_switcher").size(),
-            IVec2::new(125, 75)
-        );
-        assert_eq!(
-            atlas.region("gamemode_switcher/slot").size(),
-            IVec2::new(26, 26)
-        );
-        assert_eq!(atlas.font.advance('7', false), 6);
-        assert_eq!(atlas.glint.0, 128);
-        assert!(atlas.height <= 512);
-        let blank = atlas.region(BLANK);
-        let start = (blank.min.y as usize * atlas.width as usize + blank.min.x as usize) * 4;
-        assert_eq!(&atlas.pixels[start..start + 4], &[255, 255, 255, 255]);
     }
 }

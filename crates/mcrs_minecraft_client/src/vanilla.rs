@@ -395,20 +395,24 @@ fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_delivered_font_files_draw_the_progress_line() {
-        let mut delivered = None;
-        client_jar::resolve(
-            &Progress::default(),
-            |_| false,
-            |files| delivered = Some(files),
-        );
+    mod jar {
+        use super::*;
 
-        let (font, page) = font_page(delivered.expect("fonts are delivered")).unwrap();
+        #[test]
+        fn the_delivered_font_files_draw_the_progress_line() {
+            let mut delivered = None;
+            client_jar::resolve(
+                &Progress::default(),
+                |_| false,
+                |files| delivered = Some(files),
+            );
 
-        assert_eq!(page.width(), 128);
-        for ch in "0123456789./ MB%".chars() {
-            assert!(font.advance(ch, false) > 0, "{ch:?} has no advance");
+            let (font, page) = font_page(delivered.expect("fonts are delivered")).unwrap();
+
+            assert_eq!(page.width(), 128);
+            for ch in "0123456789./ MB%".chars() {
+                assert!(font.advance(ch, false) > 0, "{ch:?} has no advance");
+            }
         }
     }
 }

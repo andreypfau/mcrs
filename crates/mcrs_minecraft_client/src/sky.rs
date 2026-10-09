@@ -499,13 +499,17 @@ fn log_array(name: &str, image: &Image) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn every_layer_path_names_a_file_in_the_corpus() {
-        for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
-            assert!(
-                crate::model::Pack::corpus().get(&path).is_some(),
-                "{path} is missing"
-            );
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn every_layer_path_names_a_file_in_the_corpus() {
+            for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
+                assert!(
+                    crate::model::Pack::corpus().get(&path).is_some(),
+                    "{path} is missing"
+                );
+            }
         }
     }
 }

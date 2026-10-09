@@ -344,17 +344,21 @@ fn missing_model(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<BakedItemM
 mod tests {
     use super::*;
 
-    #[test]
-    fn every_item_of_the_corpus_bakes() {
-        let models = bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap();
-        assert_eq!(
-            models.by_id.len(),
-            Pack::corpus().entries("items", "json").count()
-        );
-        a_generated_item_is_extruded_and_front_lit(&models);
-        an_unknown_id_is_the_missing_cube_without_display_transforms(&models);
-        range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below(&models);
-        a_composite_of_one_collapses_and_a_special_keeps_only_its_display(&models);
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn every_item_of_the_corpus_bakes() {
+            let models = bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap();
+            assert_eq!(
+                models.by_id.len(),
+                Pack::corpus().entries("items", "json").count()
+            );
+            a_generated_item_is_extruded_and_front_lit(&models);
+            an_unknown_id_is_the_missing_cube_without_display_transforms(&models);
+            range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below(&models);
+            a_composite_of_one_collapses_and_a_special_keeps_only_its_display(&models);
+        }
     }
 
     fn a_generated_item_is_extruded_and_front_lit(models: &ItemModels) {

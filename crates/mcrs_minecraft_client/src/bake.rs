@@ -402,56 +402,61 @@ mod tests {
             .unwrap_or_else(|| panic!("no {dir:?} quad"))
     }
 
-    #[test]
-    fn a_block_bakes_its_geometry_shade_sprites_and_rotation() {
-        let baked = oak_log(&[("axis", "y")]);
-        assert_eq!(baked.quads.len(), 6);
-        assert_eq!(baked.sprites.len(), 2);
-        assert!(baked.ambient_occlusion);
-        for (dir, shade) in [
-            (Dir::Down, 0.5),
-            (Dir::Up, 1.0),
-            (Dir::North, 0.8),
-            (Dir::South, 0.8),
-            (Dir::West, 0.6),
-            (Dir::East, 0.6),
-        ] {
-            let q = quad(&baked, dir);
-            for (i, position) in q.positions.iter().enumerate().take(4) {
-                assert_eq!(*position, corner(dir, i, Vec3::ZERO, Vec3::ONE));
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn a_block_bakes_its_geometry_shade_sprites_and_rotation() {
+            let baked = oak_log(&[("axis", "y")]);
+            assert_eq!(baked.quads.len(), 6);
+            assert_eq!(baked.sprites.len(), 2);
+            assert!(baked.ambient_occlusion);
+            for (dir, shade) in [
+                (Dir::Down, 0.5),
+                (Dir::Up, 1.0),
+                (Dir::North, 0.8),
+                (Dir::South, 0.8),
+                (Dir::West, 0.6),
+                (Dir::East, 0.6),
+            ] {
+                let q = quad(&baked, dir);
+                for (i, position) in q.positions.iter().enumerate().take(4) {
+                    assert_eq!(*position, corner(dir, i, Vec3::ZERO, Vec3::ONE));
+                }
+                assert_eq!(
+                    q.uvs,
+                    [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
+                    "default uv derivation for {dir:?}"
+                );
+                let normal =
+                    (q.positions[1] - q.positions[0]).cross(q.positions[2] - q.positions[0]);
+                assert!(
+                    normal.dot(dir.normal().as_vec3()) > 0.0,
+                    "winding of {dir:?}"
+                );
+                assert_eq!(q.cull, Some(dir));
+                assert_eq!(q.shade, shade, "face shade of {dir:?}");
             }
+            let sprites = |baked: &BakedBlock| {
+                Dir::all().map(|dir| baked.sprites[quad(baked, dir).sprite].clone())
+            };
+            let (top, bark) = ("minecraft:block/oak_log_top", "minecraft:block/oak_log");
             assert_eq!(
-                q.uvs,
-                [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
-                "default uv derivation for {dir:?}"
+                sprites(&baked),
+                [top, top, bark, bark, bark, bark].map(String::from)
             );
-            let normal = (q.positions[1] - q.positions[0]).cross(q.positions[2] - q.positions[0]);
-            assert!(
-                normal.dot(dir.normal().as_vec3()) > 0.0,
-                "winding of {dir:?}"
+
+            let sideways = oak_log(&[("axis", "x")]);
+            assert_eq!(sideways.quads.len(), 6);
+            assert_eq!(
+                sprites(&sideways),
+                [bark, bark, bark, bark, top, top].map(String::from),
+                "a log along X shows its rings on the two X faces"
             );
-            assert_eq!(q.cull, Some(dir));
-            assert_eq!(q.shade, shade, "face shade of {dir:?}");
+
+            let glass = bake(Pack::corpus(), "minecraft:glass", &[]).expect("glass bakes");
+            assert_eq!(glass.sprites, ["minecraft:block/glass"]);
+            assert_eq!(glass.quads.len(), 6);
         }
-        let sprites = |baked: &BakedBlock| {
-            Dir::all().map(|dir| baked.sprites[quad(baked, dir).sprite].clone())
-        };
-        let (top, bark) = ("minecraft:block/oak_log_top", "minecraft:block/oak_log");
-        assert_eq!(
-            sprites(&baked),
-            [top, top, bark, bark, bark, bark].map(String::from)
-        );
-
-        let sideways = oak_log(&[("axis", "x")]);
-        assert_eq!(sideways.quads.len(), 6);
-        assert_eq!(
-            sprites(&sideways),
-            [bark, bark, bark, bark, top, top].map(String::from),
-            "a log along X shows its rings on the two X faces"
-        );
-
-        let glass = bake(Pack::corpus(), "minecraft:glass", &[]).expect("glass bakes");
-        assert_eq!(glass.sprites, ["minecraft:block/glass"]);
-        assert_eq!(glass.quads.len(), 6);
     }
 }

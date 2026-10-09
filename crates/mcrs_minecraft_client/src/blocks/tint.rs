@@ -242,39 +242,44 @@ mod tests {
         TINTS[id.index()]
     }
 
-    #[test]
-    fn tints_come_from_the_loaded_biome_column() {
-        assert_eq!(
-            ["plains", "swamp", "beta_desert"].map(|name| tints_of(&format!("minecraft:{name}"))),
-            [
-                BiomeTint {
-                    grass: Grass::Color(0x91bd59),
-                    foliage: 0x77ab2f,
-                    dry_foliage: 0xa37546,
-                    water: 0x3f76e4,
-                },
-                BiomeTint {
-                    grass: Grass::Swamp,
-                    foliage: 0x6a7039,
-                    dry_foliage: 0x7b5334,
-                    water: 0x617b64,
-                },
-                BiomeTint {
-                    grass: Grass::Color(0xbfb755),
-                    foliage: 0xaea42a,
-                    dry_foliage: 0xa38046,
-                    water: 0x3f76e4,
-                },
-            ]
-        );
-    }
+    mod jar {
+        use super::*;
 
-    #[test]
-    fn biome_tints_read_the_resource_pack() {
-        a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap();
-        a_biome_that_names_its_own_colour_takes_it_over_the_colormap();
-        dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green();
-        swamp_grass_is_one_of_two_colours_by_where_it_grows();
+        #[test]
+        fn tints_come_from_the_loaded_biome_column() {
+            assert_eq!(
+                ["plains", "swamp", "beta_desert"]
+                    .map(|name| tints_of(&format!("minecraft:{name}"))),
+                [
+                    BiomeTint {
+                        grass: Grass::Color(0x91bd59),
+                        foliage: 0x77ab2f,
+                        dry_foliage: 0xa37546,
+                        water: 0x3f76e4,
+                    },
+                    BiomeTint {
+                        grass: Grass::Swamp,
+                        foliage: 0x6a7039,
+                        dry_foliage: 0x7b5334,
+                        water: 0x617b64,
+                    },
+                    BiomeTint {
+                        grass: Grass::Color(0xbfb755),
+                        foliage: 0xaea42a,
+                        dry_foliage: 0xa38046,
+                        water: 0x3f76e4,
+                    },
+                ]
+            );
+        }
+
+        #[test]
+        fn biome_tints_read_the_resource_pack() {
+            a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap();
+            a_biome_that_names_its_own_colour_takes_it_over_the_colormap();
+            dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green();
+            swamp_grass_is_one_of_two_colours_by_where_it_grows();
+        }
     }
 
     fn a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap() {
