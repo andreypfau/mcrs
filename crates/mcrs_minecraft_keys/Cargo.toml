@@ -9,3 +9,4 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_core.workspace = true
+bytes.workspace = true
