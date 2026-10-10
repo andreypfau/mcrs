@@ -16,7 +16,7 @@ concurrency:
 jobs:
   run:
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
     env:
       CHECKS_BASE_REF: origin/${{ github.base_ref || 'main' }}
       CARGO_INCREMENTAL: 0
