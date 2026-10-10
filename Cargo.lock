@@ -3781,6 +3781,7 @@ dependencies = [
 name = "mcrs_minecraft_keys"
 version = "0.5.4"
 dependencies = [
+ "bytes",
  "mcrs_minecraft_core",
 ]
 
