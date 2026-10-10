@@ -40,6 +40,16 @@ jobs:
         with:
           tool: nextest@${{ steps.nextest.outputs.version }}
 
+      - name: read the unused dependency checker version
+        id: cargo-shear-version
+        run: |
+          echo "version=$(sed -n 's/^pub(crate) const VERSION: &str = "\(.*\)";$/\1/p' xtask/src/unused_deps.rs)" >> "$GITHUB_OUTPUT"
+
+      - name: install the unused dependency checker
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: cargo-shear@${{ steps.cargo-shear-version.outputs.version }}
+
       - name: locate the client jar
         id: jar
         run: echo "dir=$HOME/.minecraft/versions/$(jq -r .id crates/mcrs_minecraft_client_jar/src/release.json)" >> "$GITHUB_OUTPUT"
