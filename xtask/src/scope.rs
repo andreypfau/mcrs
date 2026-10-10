@@ -118,6 +118,23 @@ pub fn changed_paths(repo: &Path, base: &str, head: &Head) -> Result<Vec<String>
     Ok(paths)
 }
 
+pub fn staged_paths(repo: &Path, base: &str) -> Result<Vec<String>, String> {
+    let listing = git::run(
+        repo,
+        &[
+            "diff",
+            "--cached",
+            "--diff-filter=d",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            base,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(null_separated(&listing))
+}
+
 fn null_separated(listing: &[u8]) -> Vec<String> {
     listing
         .split(|&byte| byte == 0)

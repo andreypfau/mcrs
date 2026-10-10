@@ -4,10 +4,23 @@ use crate::trigger::{Check, Trigger};
 use crate::{gate, marker, size, unused_deps};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub type Outcome = Result<String, String>;
+
+const WASM32_PACKAGES: [&str; 9] = [
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_keys",
+    "mcrs_minecraft_anvil",
+    "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_game_rule",
+    "mcrs_minecraft_predicate",
+    "mcrs_minecraft_enchantment",
+    "mcrs_minecraft_loot",
+    "mcrs_minecraft_biome_file",
+];
 
 pub(crate) fn capture(
     root: &Path,
@@ -144,17 +157,13 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             )
         }
         Check::Wasm32 => {
-            let args = [
-                "build",
-                "--locked",
-                "--target",
-                "wasm32-unknown-unknown",
-                "-p",
-                "mcrs_minecraft_protocol",
-            ];
+            let mut args = vec!["build", "--locked", "--target", "wasm32-unknown-unknown"];
+            for package in WASM32_PACKAGES {
+                args.extend(["-p", package]);
+            }
             verdict(
                 ctx.exec("cargo", &args)?,
-                "the protocol crate does not build for wasm32-unknown-unknown",
+                "a crate that must run in a browser does not build for wasm32-unknown-unknown",
                 "keep its dependencies free of native-only code",
             )
         }
@@ -176,13 +185,21 @@ fn fmt(ctx: &Context) -> Outcome {
             FIX,
         );
     }
-    let changes = ctx.changes()?;
     let workspace = ctx.workspace()?;
+    let staged = ctx.trigger == Trigger::Commit;
+    let (paths, base_ref) = if staged {
+        (
+            scope::staged_paths(&ctx.root, ctx.base()?)?,
+            ctx.base_ref.as_str(),
+        )
+    } else {
+        let changes = ctx.changes()?;
+        (changes.paths.clone(), changes.base_ref.as_str())
+    };
     let mut by_edition: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
-    for path in changes
-        .paths
+    for path in paths
         .iter()
-        .filter(|p| p.ends_with(".rs") && ctx.root.join(p).exists())
+        .filter(|p| p.ends_with(".rs") && (staged || ctx.root.join(p).exists()))
     {
         let owner = workspace
             .owner(path)
@@ -194,11 +211,17 @@ fn fmt(ctx: &Context) -> Outcome {
             .push(path);
     }
     if by_edition.is_empty() {
-        println!("no Rust file changed since {}", changes.base_ref);
+        println!("no Rust file changed since {base_ref}");
         return Ok(String::new());
     }
     let mut passed = true;
     for (edition, files) in by_edition {
+        if staged {
+            for file in files {
+                passed &= rustfmt_index(ctx, edition, file)?;
+            }
+            continue;
+        }
         let mut args = vec![
             "--check",
             "--edition",
@@ -210,6 +233,32 @@ fn fmt(ctx: &Context) -> Outcome {
         passed &= ctx.exec("rustfmt", &args)?;
     }
     verdict(passed, CONDITION, FIX)
+}
+
+fn rustfmt_index(ctx: &Context, edition: &str, path: &str) -> Result<bool, String> {
+    let blob =
+        crate::git::run(&ctx.root, &["show", &format!(":{path}")]).map_err(|e| e.to_string())?;
+    println!("$ rustfmt --edition {edition} < :{path}");
+    let mut child = Command::new("rustfmt")
+        .args(["--edition", edition, "--config", "skip_children=true"])
+        .current_dir(&ctx.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not run rustfmt: {e}; install it and put it on PATH"))?;
+    let mut stdin = child.stdin.take().ok_or("rustfmt has no standard input")?;
+    stdin
+        .write_all(&blob)
+        .map_err(|e| format!("could not pass {path} to rustfmt: {e}"))?;
+    drop(stdin);
+    let formatted = child
+        .wait_with_output()
+        .map_err(|e| format!("could not wait for rustfmt: {e}"))?;
+    let clean = formatted.status.success() && formatted.stdout == blob;
+    if !clean {
+        println!("{path}: the staged contents are not formatted");
+    }
+    Ok(clean)
 }
 
 fn clippy(ctx: &Context) -> Outcome {
@@ -338,4 +387,54 @@ pub fn root_of(start: &Path) -> Result<PathBuf, String> {
     let top = crate::git::text(start, &["rev-parse", "--show-toplevel"])
         .map_err(|e| format!("{e}; run this from inside the repository"))?;
     Ok(PathBuf::from(top.trim()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metadata::Package;
+    use crate::scope::tests::Repo;
+
+    fn context(repo: &Repo, trigger: Trigger) -> Context {
+        let ctx = Context::new(trigger, repo.0.clone(), "base".to_owned(), Head::Worktree);
+        let workspace = Workspace {
+            packages: vec![Package {
+                name: "x".to_owned(),
+                dir: "crates/x".to_owned(),
+                edition: "2024".to_owned(),
+                dependencies: Vec::new(),
+            }],
+        };
+        ctx.workspace.set(Ok(workspace)).unwrap();
+        ctx
+    }
+
+    #[test]
+    fn the_commit_trigger_formats_what_is_staged_and_nothing_else() {
+        let repo = Repo::new("fmt-staged");
+        repo.init();
+        repo.write("crates/x/src/lib.rs", "fn a() {}\n");
+        repo.commit("base");
+        repo.git(&["branch", "base"]);
+        let formats = |trigger| run(&context(&repo, trigger), Check::Fmt).is_ok();
+        let draft = "crates/x/src/draft.rs";
+
+        repo.write(draft, "fn   b( ){ }\n");
+        assert!(formats(Trigger::Commit), "an untracked file was checked");
+        assert!(!formats(Trigger::Edit));
+
+        repo.git(&["add", draft]);
+        repo.write(draft, "fn b() {}\n");
+        assert!(
+            !formats(Trigger::Commit),
+            "the worktree copy was checked instead of the staged one"
+        );
+
+        repo.git(&["add", draft]);
+        repo.write(draft, "fn   b( ){ }\n");
+        assert!(
+            formats(Trigger::Commit),
+            "an unstaged edit was checked instead of the staged copy"
+        );
+    }
 }
