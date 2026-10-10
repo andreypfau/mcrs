@@ -1,0 +1,9 @@
+[[exemption]]
+package = "mcrs_minecraft_client"
+dependency = "getrandom"
+reason = "The wasm build needs getrandom's wasm_js backend feature, and no source names the crate."
+
+[[exemption]]
+package = "mcrs_minecraft_dimension_environment"
+dependency = "mcrs_minecraft_dimension_environment"
+reason = "Turns on the crate's own bevy feature for its tests."
