@@ -1,6 +1,7 @@
 use crate::floors;
 use crate::mutation::outcomes::{self, Class, Measured};
-use crate::mutation::plan::{self, Plan};
+use crate::mutation::plan::{self, Plan, Unit};
+use crate::mutation::run;
 use crate::scope;
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
@@ -375,13 +376,28 @@ pub(crate) fn read_results(
 ) -> Result<BTreeMap<usize, Vec<Measured>>, String> {
     let mut results = BTreeMap::new();
     let mut problems = Vec::new();
-    for index in 0..plan.shards.len() {
-        match read_shard(&dir.join(index.to_string()).join("mutants.out")) {
-            Ok(Some(measured)) => {
-                results.insert(index, measured);
+    for (index, planned) in plan.shards.iter().enumerate() {
+        let shard = dir.join(index.to_string());
+        let first = match read_shard(&shard.join("mutants.out")) {
+            Ok(Some(first)) => first,
+            Ok(None) => continue,
+            Err(problem) => {
+                problems.push(problem);
+                continue;
             }
-            Ok(None) => {}
-            Err(problem) => problems.push(problem),
+        };
+        let second = match read_shard(&shard.join(run::DEPENDENTS).join("mutants.out")) {
+            Ok(second) => second,
+            Err(problem) => {
+                problems.push(problem);
+                continue;
+            }
+        };
+        match merge_passes(index, &plan.units[planned.unit], first, second) {
+            Ok(merged) => {
+                results.insert(index, merged);
+            }
+            Err(found) => problems.extend(found),
         }
     }
     if problems.is_empty() {
@@ -395,6 +411,70 @@ pub(crate) fn check(repo: &Path, head: &str) -> Result<String, String> {
     let plan = plan::read_plan(repo)?;
     let results = read_results(&repo.join("target/mutation/shards"), &plan)?;
     report(&plan, head, &results)
+}
+
+fn merge_passes(
+    index: usize,
+    unit: &Unit,
+    first: Vec<Measured>,
+    second: Option<Vec<Measured>>,
+) -> Result<Vec<Measured>, Vec<String>> {
+    let package = &unit.package;
+    let at = format!("shard {index} ({package})");
+    let survivors: BTreeSet<String> = outcomes::missed_names(&first).into_iter().collect();
+    let Some(second) = second else {
+        if unit.has_dependents() && !survivors.is_empty() {
+            return Err(vec![format!(
+                "{at}: the second pass is missing, but the first left {} survivors for the dependents to test",
+                survivors.len()
+            )]);
+        }
+        return Ok(first);
+    };
+    if !unit.has_dependents() {
+        return Err(vec![format!(
+            "{at}: the second pass ran, but the unit has no dependents"
+        )]);
+    }
+    if survivors.is_empty() {
+        return Err(vec![format!(
+            "{at}: the second pass ran, but the first left no survivor"
+        )]);
+    }
+    let mut problems = Vec::new();
+    let mut tested: BTreeMap<&str, usize> = BTreeMap::new();
+    for mutant in &second {
+        *tested.entry(&mutant.name).or_default() += 1;
+    }
+    for (name, count) in &tested {
+        if !survivors.contains(*name) {
+            problems.push(format!(
+                "{at}: {name}: the second pass tested it, but the first pass did not leave it alive"
+            ));
+        } else if *count > 1 {
+            problems.push(format!("{at}: {name}: the second pass tested it twice"));
+        }
+    }
+    for name in survivors
+        .iter()
+        .filter(|name| !tested.contains_key(name.as_str()))
+    {
+        problems.push(format!("{at}: {name}: the second pass did not test it"));
+    }
+    if !problems.is_empty() {
+        return Err(problems);
+    }
+    let mut decided: BTreeMap<String, Measured> = second
+        .into_iter()
+        .map(|mutant| {
+            let log_path = format!("{}/{}", run::DEPENDENTS, mutant.log_path);
+            (mutant.name.clone(), Measured { log_path, ..mutant })
+        })
+        .collect();
+    Ok(first
+        .into_iter()
+        .map(|mutant| decided.remove(&mutant.name).unwrap_or(mutant))
+        .collect())
 }
 
 fn read_shard(out: &Path) -> Result<Option<Vec<Measured>>, String> {
@@ -752,5 +832,273 @@ mod tests {
             message.contains("1 mutants in changed code") && message.contains("1 survive"),
             "{message}"
         );
+    }
+
+    mod passes {
+        use super::*;
+
+        const FIRST_LOG: &str = "first.log";
+        const SECOND_LOG: &str = "second.log";
+
+        type Pass<'a> = &'a [(&'a str, Class)];
+
+        struct Row<'a> {
+            name: &'a str,
+            dependents: bool,
+            first: Pass<'a>,
+            second: Option<Pass<'a>>,
+            expected: Result<Vec<(&'a str, Class, &'a str)>, Vec<String>>,
+        }
+
+        fn pass(rows: Pass, log: &str) -> Vec<Measured> {
+            rows.iter()
+                .map(|(name, class)| Measured {
+                    name: (*name).to_owned(),
+                    class: *class,
+                    log_path: log.to_owned(),
+                })
+                .collect()
+        }
+
+        fn failing(
+            parts: &[&str],
+        ) -> Result<Vec<(&'static str, Class, &'static str)>, Vec<String>> {
+            Err(parts.iter().map(|part| (*part).to_owned()).collect())
+        }
+
+        #[test]
+        fn the_second_pass_decides_only_what_the_first_left_alive() {
+            use Class::{Caught, Missed, Timeout, Unviable};
+            let dependents_of_a = "shard 3 (a): ";
+            let rows = [
+                Row {
+                    name: "survivors take the class of their second pass",
+                    dependents: true,
+                    first: &[(ONE, Caught), (TWO, Missed), (THREE, Missed)],
+                    second: Some(&[(TWO, Caught), (THREE, Missed)]),
+                    expected: Ok(vec![
+                        (ONE, Caught, FIRST_LOG),
+                        (TWO, Caught, "dependents/second.log"),
+                        (THREE, Missed, "dependents/second.log"),
+                    ]),
+                },
+                Row {
+                    name: "a survivor that does not build with its dependents is unviable",
+                    dependents: true,
+                    first: &[(ONE, Missed)],
+                    second: Some(&[(ONE, Unviable)]),
+                    expected: Ok(vec![(ONE, Unviable, "dependents/second.log")]),
+                },
+                Row {
+                    name: "no second pass when nothing survived",
+                    dependents: true,
+                    first: &[(ONE, Caught), (TWO, Unviable), (THREE, Timeout)],
+                    second: None,
+                    expected: Ok(vec![
+                        (ONE, Caught, FIRST_LOG),
+                        (TWO, Unviable, FIRST_LOG),
+                        (THREE, Timeout, FIRST_LOG),
+                    ]),
+                },
+                Row {
+                    name: "no second pass for a unit without dependents",
+                    dependents: false,
+                    first: &[(ONE, Missed)],
+                    second: None,
+                    expected: Ok(vec![(ONE, Missed, FIRST_LOG)]),
+                },
+                Row {
+                    name: "a missing second pass",
+                    dependents: true,
+                    first: &[(ONE, Caught), (TWO, Missed)],
+                    second: None,
+                    expected: failing(&[dependents_of_a, "second pass is missing", "1 survivor"]),
+                },
+                Row {
+                    name: "a second-pass mutant the first pass did not leave alive",
+                    dependents: true,
+                    first: &[(ONE, Missed), (TWO, Caught)],
+                    second: Some(&[(ONE, Caught), (TWO, Caught)]),
+                    expected: failing(&[
+                        dependents_of_a,
+                        TWO,
+                        "the first pass did not leave it alive",
+                    ]),
+                },
+                Row {
+                    name: "a survivor the second pass did not test",
+                    dependents: true,
+                    first: &[(ONE, Missed), (TWO, Missed)],
+                    second: Some(&[(ONE, Caught)]),
+                    expected: failing(&[dependents_of_a, TWO, "the second pass did not test it"]),
+                },
+                Row {
+                    name: "a mutant tested twice in the second pass",
+                    dependents: true,
+                    first: &[(ONE, Missed)],
+                    second: Some(&[(ONE, Caught), (ONE, Missed)]),
+                    expected: failing(&[dependents_of_a, ONE, "tested it twice"]),
+                },
+                Row {
+                    name: "a second pass when nothing survived",
+                    dependents: true,
+                    first: &[(ONE, Caught)],
+                    second: Some(&[(ONE, Caught)]),
+                    expected: failing(&[
+                        dependents_of_a,
+                        "second pass ran, but the first left no survivor",
+                    ]),
+                },
+                Row {
+                    name: "a second pass for a unit without dependents",
+                    dependents: false,
+                    first: &[(ONE, Missed)],
+                    second: Some(&[(ONE, Caught)]),
+                    expected: failing(&[
+                        dependents_of_a,
+                        "second pass ran, but the unit has no dependents",
+                    ]),
+                },
+            ];
+            let mut wrong = Vec::new();
+            for Row {
+                name,
+                dependents,
+                first,
+                second,
+                expected,
+            } in rows
+            {
+                let unit = Unit {
+                    package: "a".to_owned(),
+                    test_packages: if dependents {
+                        vec!["a".to_owned(), "b".to_owned()]
+                    } else {
+                        vec!["a".to_owned()]
+                    },
+                    names: Vec::new(),
+                    floor: None,
+                };
+                let found = merge_passes(
+                    3,
+                    &unit,
+                    pass(first, FIRST_LOG),
+                    second.map(|rows| pass(rows, SECOND_LOG)),
+                );
+                match (expected, found) {
+                    (Ok(merged), Ok(found)) => {
+                        let found: Vec<(&str, Class, &str)> = found
+                            .iter()
+                            .map(|m| (m.name.as_str(), m.class, m.log_path.as_str()))
+                            .collect();
+                        if found != merged {
+                            wrong.push(format!("{name}: {found:?}"));
+                        }
+                    }
+                    (Err(parts), Err(problems)) => {
+                        let text = problems.join("; ");
+                        for part in parts {
+                            if !text.contains(&part) {
+                                wrong.push(format!("{name}: {part} not in {text}"));
+                            }
+                        }
+                    }
+                    (expected, found) => {
+                        wrong.push(format!("{name}: expected {expected:?}, found {found:?}"))
+                    }
+                }
+            }
+            assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+        }
+
+        fn outcomes_json(rows: Pass) -> String {
+            let outcome = |name: &str, class: Class| {
+                let (summary, phases) = match class {
+                    Class::Caught => (
+                        "CaughtMutant",
+                        r#"{"phase":"Build","process_status":"Success"},{"phase":"Test","process_status":{"Failure":100}}"#,
+                    ),
+                    Class::Missed => (
+                        "MissedMutant",
+                        r#"{"phase":"Build","process_status":"Success"},{"phase":"Test","process_status":"Success"}"#,
+                    ),
+                    Class::Unviable => (
+                        "Unviable",
+                        r#"{"phase":"Build","process_status":{"Failure":101}}"#,
+                    ),
+                    Class::Timeout => (
+                        "Timeout",
+                        r#"{"phase":"Build","process_status":"Success"},{"phase":"Test","process_status":"Timeout"}"#,
+                    ),
+                };
+                format!(
+                    r#"{{"scenario":{{"Mutant":{{"name":"{name}"}}}},"summary":"{summary}","log_path":"log/{summary}.log","phase_results":[{phases}]}}"#
+                )
+            };
+            let all: Vec<String> = rows
+                .iter()
+                .map(|(name, class)| outcome(name, *class))
+                .collect();
+            format!(r#"{{"outcomes":[{}]}}"#, all.join(","))
+        }
+
+        fn write_pass(shard: &Path, subdirectory: &str, rows: Pass) {
+            let out = shard.join(subdirectory).join("mutants.out");
+            std::fs::create_dir_all(&out).unwrap();
+            std::fs::write(out.join("outcomes.json"), outcomes_json(rows)).unwrap();
+        }
+
+        #[test]
+        fn each_shard_is_read_with_the_second_pass_beside_its_first() {
+            use Class::{Caught, Missed};
+            let mut plan = plan_of(
+                &[("a", &[ONE, TWO]), ("c", &[THREE])],
+                &[(0, 0, 1), (1, 0, 1)],
+            );
+            plan.units[0].test_packages = vec!["a".to_owned(), "b".to_owned()];
+            let root =
+                std::env::temp_dir().join(format!("xtask-read-results-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            write_pass(&root.join("0"), "", &[(ONE, Caught), (TWO, Missed)]);
+            write_pass(&root.join("0"), run::DEPENDENTS, &[(TWO, Caught)]);
+            write_pass(&root.join("1"), "", &[(THREE, Missed)]);
+
+            let found = read_results(&root, &plan).unwrap();
+            type Merged<'a> = Vec<(&'a str, Class, &'a str)>;
+            let summary: Vec<(usize, Merged)> = found
+                .iter()
+                .map(|(index, measured)| {
+                    (
+                        *index,
+                        measured
+                            .iter()
+                            .map(|m| (m.name.as_str(), m.class, m.log_path.as_str()))
+                            .collect(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                summary,
+                [
+                    (
+                        0,
+                        vec![
+                            (ONE, Caught, "log/CaughtMutant.log"),
+                            (TWO, Caught, "dependents/log/CaughtMutant.log"),
+                        ]
+                    ),
+                    (1, vec![(THREE, Missed, "log/MissedMutant.log")]),
+                ]
+            );
+
+            std::fs::remove_dir_all(root.join("0").join(run::DEPENDENTS)).unwrap();
+            std::fs::remove_dir_all(root.join("1")).unwrap();
+            let message = read_results(&root, &plan).unwrap_err();
+            assert!(
+                message.contains("shard 0 (a)") && message.contains("second pass is missing"),
+                "{message}"
+            );
+            std::fs::remove_dir_all(&root).unwrap();
+        }
     }
 }

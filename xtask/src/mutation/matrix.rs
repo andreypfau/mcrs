@@ -177,6 +177,7 @@ impl Measuring<'_> {
                 skip_baseline: false,
                 shard: self.shard,
                 in_diff: None,
+                names: &[],
             },
         )?;
         let measured = run::measured(&out_dir)?;

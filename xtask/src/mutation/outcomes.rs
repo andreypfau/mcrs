@@ -140,6 +140,14 @@ pub(crate) struct Measured {
     pub log_path: String,
 }
 
+pub(crate) fn missed_names(measured: &[Measured]) -> Vec<String> {
+    measured
+        .iter()
+        .filter(|mutant| mutant.class == Class::Missed)
+        .map(|mutant| mutant.name.clone())
+        .collect()
+}
+
 pub(crate) fn parse_measured(json: &str) -> Result<Vec<Measured>, String> {
     let lab: Lab = serde_json::from_str(json).map_err(|e| e.to_string())?;
     let mut seen = std::collections::BTreeSet::new();

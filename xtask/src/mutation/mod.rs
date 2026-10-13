@@ -539,6 +539,92 @@ mod tests {
             assert!(detail.contains("no mutant in changed code"), "{detail}");
         }
 
+        fn low_with_new_functions() -> String {
+            LOW.replace(
+                "#[cfg(test)]",
+                "pub fn triple(x: i32) -> i32 {\n    x * 3\n}\n\npub fn quadruple(x: i32) -> i32 {\n    x * 4\n}\n\npub fn negate(x: i32) -> i32 {\n    -x\n}\n\n#[cfg(test)]",
+            )
+            .replace(
+                "    #[test]\n    fn inc_adds_one",
+                "    #[test]\n    fn triple_multiplies_by_three() {\n        assert_eq!(triple(2), 6);\n    }\n\n    #[test]\n    fn inc_adds_one",
+            )
+        }
+
+        #[test]
+        fn a_mutant_only_a_dependent_catches_is_caught_in_the_second_pass() {
+            const QUADRUPLING: &str = "    #[test]\n    fn quadrupling_multiplies_by_four() {\n        assert_eq!(low::quadruple(2), 8);\n    }\n\n";
+            let repo = Repo::new("two-passes");
+            repo.init();
+            repo.write(".gitignore", "/target\n");
+            repo.write(
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"low\", \"high\"]\nresolver = \"2\"\n\n[profile.mutants]\ninherits = \"test\"\ndebug = \"none\"\n",
+            );
+            repo.write(
+                "low/Cargo.toml",
+                "[package]\nname = \"low\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            );
+            repo.write("low/src/lib.rs", LOW);
+            repo.write(
+                "high/Cargo.toml",
+                "[package]\nname = \"high\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nlow = { path = \"../low\" }\n",
+            );
+            repo.write("high/src/lib.rs", &high(DOUBLING));
+            repo.write(".config/nextest.toml", NEXTEST);
+            repo.write(".cargo/mutants.toml", &format!("{KEYS}exclude_re = []\n"));
+            let status = std::process::Command::new("cargo")
+                .args(["generate-lockfile", "--offline"])
+                .current_dir(&repo.0)
+                .status()
+                .unwrap();
+            assert!(status.success());
+            repo.commit("base");
+            let base = repo.sha();
+            repo.write("low/src/lib.rs", &low_with_new_functions());
+            repo.write(
+                "high/src/lib.rs",
+                &high(&format!("{DOUBLING}{QUADRUPLING}")),
+            );
+            repo.commit("head");
+            let head = repo.sha();
+            let workspace = Workspace::load(&repo.0).unwrap();
+
+            let message = local(&repo.0, &workspace, &base, &head).unwrap_err();
+            assert!(message.contains("negate"), "{message}");
+            assert!(
+                !message.contains("triple") && !message.contains("quadruple"),
+                "{message}"
+            );
+
+            let shard = repo.0.join("target/mutation/out/0");
+            let first = outcomes::load(&shard.join("mutants.out")).unwrap();
+            let second = outcomes::load(&shard.join("dependents/mutants.out")).unwrap();
+            let named = |set: &std::collections::BTreeMap<String, outcomes::Class>, function| {
+                set.keys().filter(|name| name.contains(function)).count()
+            };
+            for function in ["triple", "quadruple", "negate"] {
+                assert!(named(&first, function) > 0, "{function} in {first:?}");
+            }
+            assert_eq!(named(&second, "triple"), 0, "{second:?}");
+            let missed: Vec<&String> = first
+                .iter()
+                .filter(|(_, class)| **class == outcomes::Class::Missed)
+                .map(|(name, _)| name)
+                .collect();
+            let second_names: Vec<&String> = second.keys().collect();
+            assert_eq!(second_names, missed);
+            for (name, class) in &second {
+                let expected = if name.contains("quadruple") {
+                    outcomes::Class::Caught
+                } else {
+                    outcomes::Class::Missed
+                };
+                assert_eq!(*class, expected, "{name}");
+            }
+            assert!(named(&second, "quadruple") > 0, "{second:?}");
+            assert!(named(&second, "negate") > 0, "{second:?}");
+        }
+
         #[test]
         fn the_diff_gate_judges_changed_code() {
             let (repo, unconfigured, configured) = fixture("diff-gate");

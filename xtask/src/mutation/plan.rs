@@ -50,6 +50,12 @@ pub(crate) struct Unit {
     pub floor: Option<u64>,
 }
 
+impl Unit {
+    pub(crate) fn has_dependents(&self) -> bool {
+        self.test_packages.iter().any(|name| *name != self.package)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ShardPlan {

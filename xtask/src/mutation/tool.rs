@@ -37,6 +37,7 @@ pub(crate) fn require_version(tree: &Path) -> Result<(), String> {
     version_matches(&text)
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Spec<'a> {
     pub tree: &'a Path,
     pub config: &'a Path,
@@ -47,13 +48,18 @@ pub(crate) struct Spec<'a> {
     pub files: &'a [String],
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum Mode<'a> {
     List,
+    ListNamed {
+        names: &'a [String],
+    },
     Run {
         test_packages: &'a [String],
         output: &'a Path,
         skip_baseline: bool,
         test_timeout_seconds: u32,
+        names: &'a [String],
     },
 }
 
@@ -88,7 +94,7 @@ fn base(tree: &Path, environment: &[OsString]) -> Command {
 fn command_with(spec: &Spec, environment: &[OsString]) -> Command {
     let mut command = base(spec.tree, environment);
     command.arg("mutants");
-    if let Mode::List = spec.mode {
+    if let Mode::List | Mode::ListNamed { .. } = spec.mode {
         command.args(["--list", "--json"]);
     }
     command
@@ -104,11 +110,19 @@ fn command_with(spec: &Spec, environment: &[OsString]) -> Command {
     for file in spec.files {
         command.arg("--file").arg(file);
     }
+    if let Mode::ListNamed { names } | Mode::Run { names, .. } = spec.mode {
+        for name in names {
+            command
+                .arg("--re")
+                .arg(format!("^{}$", regex::escape(name)));
+        }
+    }
     if let Mode::Run {
         test_packages,
         output,
         skip_baseline,
         test_timeout_seconds,
+        ..
     } = &spec.mode
     {
         command
@@ -215,6 +229,7 @@ mod tests {
                 output: Path::new("/out"),
                 skip_baseline: true,
                 test_timeout_seconds: 360,
+                names: &[],
             },
             shard: Some((2, 5)),
             in_diff: Some(Path::new("/tree/target/mutation/change.diff")),
@@ -271,5 +286,60 @@ mod tests {
         ] {
             assert!(has_pair(&args, flag, value), "{flag} {value} in {args:?}");
         }
+    }
+
+    #[test]
+    fn a_named_run_restricts_cargo_mutants_to_those_exact_mutants() {
+        let names = [
+            "src/a.rs:3:5: replace f::g with (1 + 2) * 3".to_owned(),
+            "src/a.rs:9:5: delete ! in h".to_owned(),
+        ];
+        let packages = ["a".to_owned(), "b".to_owned()];
+        let config = Path::new("/tree/target/mutation/config/gate.toml");
+        let run = Spec {
+            tree: Path::new("/tree"),
+            config,
+            package: "a",
+            mode: Mode::Run {
+                test_packages: &packages,
+                output: Path::new("/out/0/dependents"),
+                skip_baseline: false,
+                test_timeout_seconds: 360,
+                names: &names,
+            },
+            shard: Some((0, 1)),
+            in_diff: None,
+            files: &[],
+        };
+        let list = Spec {
+            mode: Mode::ListNamed { names: &names },
+            ..run
+        };
+        let unrestricted = Spec {
+            mode: Mode::Run {
+                test_packages: &packages,
+                output: Path::new("/out/0"),
+                skip_baseline: false,
+                test_timeout_seconds: 360,
+                names: &[],
+            },
+            ..run
+        };
+        let expected = [
+            r"^src/a\.rs:3:5: replace f::g with \(1 \+ 2\) \* 3$",
+            r"^src/a\.rs:9:5: delete ! in h$",
+        ];
+        for spec in [&run, &list] {
+            let args = arguments(&command_with(spec, &[]));
+            let found: Vec<&str> = args
+                .windows(2)
+                .filter(|pair| pair[0] == "--re")
+                .map(|pair| pair[1].as_str())
+                .collect();
+            assert_eq!(found, expected, "{args:?}");
+            assert!(has_pair(&args, "--shard", "0/1"), "{args:?}");
+        }
+        let args = arguments(&command_with(&unrestricted, &[]));
+        assert!(!args.iter().any(|a| a == "--re"), "{args:?}");
     }
 }

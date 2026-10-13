@@ -253,6 +253,43 @@ pub(crate) fn list_with(
     Ok(mutants)
 }
 
+pub(crate) fn list_named(
+    tree: &Path,
+    config: &Path,
+    package: &str,
+    in_diff: Option<&Path>,
+    names: &[String],
+) -> Result<Vec<String>, String> {
+    let spec = Spec {
+        tree,
+        config,
+        package,
+        mode: Mode::ListNamed { names },
+        shard: None,
+        in_diff,
+        files: &[],
+    };
+    let out = tool::output(tool::command(&spec))?;
+    if !out.status.success() {
+        let said = String::from_utf8_lossy(&out.stderr);
+        let said = said.lines().rev().find(|line| !line.trim().is_empty());
+        return Err(format!(
+            "cargo mutants could not list the survivors of {package}: {}{}",
+            said.unwrap_or("no message").trim(),
+            list_exit_hint(out.status.code())
+        ));
+    }
+    if out.stdout.iter().all(u8::is_ascii_whitespace) {
+        return Ok(Vec::new());
+    }
+    let listed: Vec<Mutant> = serde_json::from_slice(&out.stdout).map_err(|e| {
+        format!(
+            "cargo mutants printed a listing of the survivors of {package} that cannot be read: {e}"
+        )
+    })?;
+    Ok(listed.into_iter().map(|mutant| mutant.name).collect())
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) struct Entry {
     pub line: usize,
