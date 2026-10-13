@@ -59,6 +59,25 @@ pub(crate) fn prepare(repo: &Path, sha: &str) -> Result<Tree, String> {
     Ok(tree)
 }
 
+// chisle: one lane directory stays per distinct lane key, never pruned; the keys are workspace
+// package names, so the count is bounded by the workspace.
+pub(crate) fn prepare_lane(
+    repo: &Path,
+    sha: &str,
+    key: &str,
+    shared: &Tree,
+) -> Result<Tree, String> {
+    let lane = repo.join(BASE).join(format!("lane-{key}"));
+    let tree = Tree {
+        path: lane.join("tree"),
+        target_dir: lane.join("target"),
+        out_dir: shared.out_dir.clone(),
+        lock: None,
+    };
+    force_clean(repo, &tree.path, sha)?;
+    Ok(tree)
+}
+
 fn force_clean(repo: &Path, path: &Path, sha: &str) -> Result<(), String> {
     if !path.join(".git").is_file() {
         if path.exists() {

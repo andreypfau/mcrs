@@ -2,6 +2,7 @@ pub(crate) mod attribution;
 pub(crate) mod classify;
 pub(crate) mod config;
 pub(crate) mod diff;
+pub(crate) mod lanes;
 pub(crate) mod matrix;
 pub(crate) mod outcomes;
 pub(crate) mod plan;
@@ -14,6 +15,7 @@ pub(crate) mod verdict;
 pub(crate) mod worktree;
 
 use crate::metadata::Workspace;
+use crate::mutation::worktree::Tree;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -41,11 +43,69 @@ pub(crate) fn local(
             plan.total_mutants()
         ));
     }
-    for index in 0..plan.shards.len() {
-        run::shard(&tree, repo, &plan, index)?;
-    }
+    let lanes = lanes::lanes(workspace, &plan.units, &plan.shards);
+    let own = lane_trees(repo, head, &lanes, &tree)?;
+    let trees: Vec<&Tree> = own
+        .iter()
+        .map(|own| own.as_ref().unwrap_or(&tree))
+        .collect();
+    run_lanes(&lanes, &trees, |lane_tree, index| {
+        run::shard(lane_tree, repo, &plan, index).map(drop)
+    })?;
     let results = verdict::read_results(&tree.out_dir, &plan)?;
     verdict::report(&plan, head, &results)
+}
+
+fn lane_trees(
+    repo: &Path,
+    head: &str,
+    lanes: &[lanes::Lane],
+    shared: &Tree,
+) -> Result<Vec<Option<Tree>>, String> {
+    let largest = lanes::largest(lanes);
+    lanes
+        .iter()
+        .enumerate()
+        .map(|(index, lane)| {
+            (Some(index) != largest)
+                .then(|| worktree::prepare_lane(repo, head, &lane.key, shared))
+                .transpose()
+        })
+        .collect()
+}
+
+fn run_lanes<F>(lanes: &[lanes::Lane], trees: &[&Tree], run_shard: F) -> Result<(), String>
+where
+    F: Fn(&Tree, usize) -> Result<(), String> + Sync,
+{
+    let failures: Vec<String> = std::thread::scope(|scope| {
+        let running: Vec<_> = lanes
+            .iter()
+            .zip(trees)
+            .map(|(lane, &tree)| {
+                let run_shard = &run_shard;
+                let handle = scope.spawn(move || {
+                    lane.shards
+                        .iter()
+                        .try_for_each(|&index| run_shard(tree, index))
+                });
+                (lane, handle)
+            })
+            .collect();
+        running
+            .into_iter()
+            .filter_map(|(lane, handle)| match handle.join() {
+                Ok(Ok(())) => None,
+                Ok(Err(problem)) => Some(format!("lane {}: {problem}", lane.key)),
+                Err(_) => Some(format!("lane {} panicked", lane.key)),
+            })
+            .collect()
+    });
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("\n"))
+    }
 }
 
 const USAGE: &str = "usage: xtask mutants plan
@@ -302,6 +362,164 @@ fn protected(rest: &[String]) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    mod lanes_run {
+        use super::super::lanes::Lane;
+        use super::super::*;
+        use crate::scope::tests::Repo;
+        use std::sync::Mutex;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::{Duration, Instant};
+
+        fn lane(key: &str, units: usize, shards: &[usize]) -> Lane {
+            Lane {
+                key: key.to_owned(),
+                units: (0..units).collect(),
+                shards: shards.to_vec(),
+            }
+        }
+
+        #[test]
+        fn lanes_run_at_the_same_time_and_their_shards_in_order() {
+            let trees = [
+                worktree::checkout(Path::new("one")),
+                worktree::checkout(Path::new("two")),
+            ];
+            let refs: Vec<&Tree> = trees.iter().collect();
+            let lanes = [lane("one", 1, &[0, 2, 5]), lane("two", 1, &[1, 3])];
+            let started = AtomicUsize::new(0);
+            let order = Mutex::new(Vec::new());
+            let both_running = Mutex::new(Vec::new());
+
+            run_lanes(&lanes, &refs, |tree, index| {
+                if index < 2 {
+                    started.fetch_add(1, Ordering::SeqCst);
+                    let deadline = Instant::now() + Duration::from_secs(10);
+                    while started.load(Ordering::SeqCst) < 2 && Instant::now() < deadline {
+                        std::thread::yield_now();
+                    }
+                    both_running
+                        .lock()
+                        .unwrap()
+                        .push(started.load(Ordering::SeqCst) == 2);
+                }
+                order.lock().unwrap().push((tree.path.clone(), index));
+                Ok(())
+            })
+            .unwrap();
+
+            assert_eq!(*both_running.lock().unwrap(), [true, true]);
+            let order = order.into_inner().unwrap();
+            let of = |name: &str| -> Vec<usize> {
+                order
+                    .iter()
+                    .filter(|(path, _)| path == Path::new(name))
+                    .map(|(_, index)| *index)
+                    .collect()
+            };
+            assert_eq!(of("one"), [0, 2, 5]);
+            assert_eq!(of("two"), [1, 3]);
+        }
+
+        #[test]
+        fn every_failing_lane_is_named_and_the_others_finish() {
+            let trees = [
+                worktree::checkout(Path::new("one")),
+                worktree::checkout(Path::new("two")),
+                worktree::checkout(Path::new("three")),
+            ];
+            let refs: Vec<&Tree> = trees.iter().collect();
+            let lanes = [
+                lane("one", 1, &[0, 1, 2]),
+                lane("two", 1, &[3, 4]),
+                lane("three", 1, &[5, 6]),
+            ];
+            let ran = Mutex::new(Vec::new());
+
+            let problem = run_lanes(&lanes, &refs, |_, index| {
+                ran.lock().unwrap().push(index);
+                match index {
+                    1 => Err("one broke".to_owned()),
+                    5 => Err("three broke".to_owned()),
+                    _ => Ok(()),
+                }
+            })
+            .unwrap_err();
+
+            assert_eq!(problem, "lane one: one broke\nlane three: three broke");
+            let mut ran = ran.into_inner().unwrap();
+            ran.sort_unstable();
+            assert_eq!(ran, [0, 1, 3, 4, 5]);
+        }
+
+        #[test]
+        fn the_largest_lane_shares_the_tree_and_each_other_lane_gets_its_own() {
+            let repo = Repo::new("lane-trees");
+            repo.init();
+            repo.write("tracked.txt", "one\n");
+            repo.commit("first");
+            let head = repo.sha();
+            let shared = worktree::prepare(&repo.0, &head).unwrap();
+            let lanes = [
+                lane("alpha", 1, &[0]),
+                lane("beta", 3, &[1]),
+                lane("gamma", 2, &[2]),
+            ];
+
+            let own = lane_trees(&repo.0, &head, &lanes, &shared).unwrap();
+
+            let paths: Vec<Option<PathBuf>> = own
+                .iter()
+                .map(|tree| tree.as_ref().map(|tree| tree.path.clone()))
+                .collect();
+            let base = repo.0.join("target/mutation");
+            assert_eq!(
+                paths,
+                [
+                    Some(base.join("lane-alpha/tree")),
+                    None,
+                    Some(base.join("lane-gamma/tree"))
+                ]
+            );
+            for tree in own.iter().flatten() {
+                assert!(tree.path.join("tracked.txt").exists());
+                assert_eq!(tree.out_dir, shared.out_dir);
+                assert!(tree.target_dir.ends_with("target"));
+                assert!(!tree.target_dir.starts_with(&shared.target_dir));
+            }
+        }
+
+        #[test]
+        fn a_change_outside_every_package_is_reported_as_not_in_force() {
+            let repo = Repo::new("local-not-in-force");
+            repo.init();
+            repo.write("notes.txt", "one\n");
+            repo.commit("base");
+            let base = repo.sha();
+            repo.write("notes.txt", "two\n");
+            repo.commit("head");
+            let head = repo.sha();
+
+            let detail = local(
+                &repo.0,
+                &Workspace {
+                    packages: Vec::new(),
+                },
+                &base,
+                &head,
+            )
+            .unwrap();
+
+            assert_eq!(
+                detail,
+                format!(
+                    "not in force yet at {}; 0 mutants in changed code",
+                    crate::scope::short(&base)
+                )
+            );
+            assert!(!repo.0.join("target/mutation/tree.lock").exists());
+        }
+    }
+
     mod cargo_mutants {
         use super::super::*;
         use crate::metadata::Package;
@@ -623,6 +841,98 @@ mod tests {
             }
             assert!(named(&second, "quadruple") > 0, "{second:?}");
             assert!(named(&second, "negate") > 0, "{second:?}");
+        }
+
+        fn crate_with(function: &str, factor: u32) -> String {
+            LOW.replace(
+                "#[cfg(test)]",
+                &format!(
+                    "pub fn {function}(x: i32) -> i32 {{\n    x * {factor}\n}}\n\n#[cfg(test)]"
+                ),
+            )
+            .replace(
+                "    #[test]\n    fn inc_adds_one",
+                &format!(
+                    "    #[test]\n    fn {function}_multiplies() {{\n        assert_eq!({function}(2), {});\n    }}\n\n    #[test]\n    fn inc_adds_one",
+                    2 * factor
+                ),
+            )
+        }
+
+        fn built_in(target: &Path, package: &str) -> bool {
+            target.join("mutants/build").join(package).is_dir()
+        }
+
+        fn two_crates(label: &str, second_head: &str) -> (Repo, String, String) {
+            let repo = Repo::new(label);
+            repo.init();
+            repo.write(".gitignore", "/target\n");
+            repo.write(
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"one\", \"two\"]\nresolver = \"2\"\n\n[profile.mutants]\ninherits = \"test\"\ndebug = \"none\"\n",
+            );
+            for name in ["one", "two"] {
+                repo.write(
+                    &format!("{name}/Cargo.toml"),
+                    &format!(
+                        "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"
+                    ),
+                );
+                repo.write(&format!("{name}/src/lib.rs"), LOW);
+            }
+            repo.write(".config/nextest.toml", NEXTEST);
+            repo.write(".cargo/mutants.toml", &format!("{KEYS}exclude_re = []\n"));
+            let status = std::process::Command::new("cargo")
+                .args(["generate-lockfile", "--offline"])
+                .current_dir(&repo.0)
+                .status()
+                .unwrap();
+            assert!(status.success());
+            repo.commit("base");
+            let base = repo.sha();
+            repo.write("one/src/lib.rs", &crate_with("triple", 3));
+            repo.write("two/src/lib.rs", second_head);
+            repo.commit("head");
+            let head = repo.sha();
+            (repo, base, head)
+        }
+
+        #[test]
+        fn unrelated_crates_are_mutated_side_by_side_each_in_its_own_target_directory() {
+            let (repo, base, head) = two_crates("two-lanes", &crate_with("quadruple", 4));
+            let workspace = Workspace::load(&repo.0).unwrap();
+
+            let detail = local(&repo.0, &workspace, &base, &head).unwrap();
+            assert!(
+                detail.contains("10 mutants in changed code: 10 caught"),
+                "{detail}"
+            );
+
+            let mutation = repo.0.join("target/mutation");
+            assert!(built_in(&mutation.join("target"), "one"));
+            assert!(!built_in(&mutation.join("target"), "two"));
+            assert!(built_in(&mutation.join("lane-two/target"), "two"));
+            assert!(!built_in(&mutation.join("lane-two/target"), "one"));
+            assert!(!mutation.join("lane-one").exists());
+            assert!(!mutation.join("tree.lock").exists());
+        }
+
+        #[test]
+        fn a_failing_lane_is_named_after_the_other_lane_has_finished() {
+            let broken = crate_with("quadruple", 4)
+                .replace("assert_eq!(quadruple(2), 8);", "let _: u8 = \"no\";");
+            let (repo, base, head) = two_crates("failing-lane", &broken);
+            let workspace = Workspace::load(&repo.0).unwrap();
+
+            let problem = local(&repo.0, &workspace, &base, &head).unwrap_err();
+            assert!(problem.starts_with("lane two: "), "{problem}");
+            assert!(problem.contains("unmutated build"), "{problem}");
+            assert!(!problem.contains("lane one"), "{problem}");
+            let finished = repo
+                .0
+                .join("target/mutation/out/0/mutants.out/outcomes.json");
+            assert!(finished.exists(), "the other lane did not finish");
+            assert!(!repo.0.join("target/mutation/tree.lock").exists());
         }
 
         #[test]

@@ -170,8 +170,7 @@ pub(crate) fn write_patch(repo: &Path, plan: &Plan) -> Result<PathBuf, String> {
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     let path = dir.join("change.diff");
-    std::fs::write(&path, &plan.diff)
-        .map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    config::write_replacing(&path, &plan.diff)?;
     Ok(path)
 }
 
@@ -430,6 +429,28 @@ mod tests {
             assert!(hint.contains(part), "exit {code}: {hint}");
         }
         assert_eq!(config::list_exit_hint(Some(1)), "");
+    }
+
+    #[test]
+    fn the_change_patch_is_written_where_the_returned_path_says() {
+        let repo = crate::scope::tests::Repo::new("write-patch");
+        let plan = Plan {
+            base: "b".to_owned(),
+            head: "h".to_owned(),
+            in_force: true,
+            baseline: Baseline::Skip,
+            diff: "diff --git a/f b/f\n".to_owned(),
+            units: Vec::new(),
+            shards: Vec::new(),
+            broken: Vec::new(),
+            surface: Vec::new(),
+            matrix: None,
+        };
+
+        let path = write_patch(&repo.0, &plan).unwrap();
+
+        assert_eq!(path, repo.0.join("target/mutation/plan/change.diff"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), plan.diff);
     }
 
     fn chain() -> Workspace {

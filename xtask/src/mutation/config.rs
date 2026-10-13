@@ -140,13 +140,27 @@ fn gate_text(config: &Config) -> String {
     text_with_test_args(config, &config.additional_cargo_test_args)
 }
 
+pub(crate) fn write_replacing(path: &Path, text: &str) -> Result<(), String> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let staged = path.with_file_name(format!(
+        ".{name}.{}.{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::write(&staged, text)
+        .and_then(|()| std::fs::rename(&staged, path))
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&staged);
+            format!("could not write {}: {e}", path.display())
+        })
+}
+
 pub(crate) fn write_gate(repo: &Path, config: &Config) -> Result<PathBuf, String> {
     let dir = repo.join(LISTING_DIR);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     let path = dir.join("gate.toml");
-    std::fs::write(&path, gate_text(config))
-        .map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    write_replacing(&path, &gate_text(config))?;
     Ok(path)
 }
 
@@ -639,6 +653,82 @@ mod tests {
     );
 
     const DOUBLE: &str = r"^src/lib\.rs:\d+:\d+: replace \* with / in double$";
+
+    #[test]
+    fn the_gate_configuration_is_written_where_the_returned_path_says() {
+        use crate::scope::tests::Repo;
+        let repo = Repo::new("write-gate");
+        let config = parse_shape(&with_entries(&entry_line(DOUBLE, "equivalent"))).unwrap();
+
+        let path = write_gate(&repo.0, &config).unwrap();
+
+        assert_eq!(path, repo.0.join("target/mutation/config/gate.toml"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), gate_text(&config));
+    }
+
+    #[test]
+    fn a_file_rewritten_by_many_threads_is_never_seen_empty_or_partial() {
+        use crate::scope::tests::Repo;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let repo = Repo::new("replace-file");
+        let path = repo.0.join("gate.toml");
+        let text = "exclude_re = []\n".repeat(20_000);
+        write_replacing(&path, &text).unwrap();
+        let writing = AtomicBool::new(true);
+        std::thread::scope(|scope| {
+            let writers: Vec<_> = (0..4)
+                .map(|_| {
+                    scope.spawn(|| {
+                        for _ in 0..100 {
+                            write_replacing(&path, &text).unwrap();
+                        }
+                    })
+                })
+                .collect();
+            let reader = scope.spawn(|| {
+                let mut torn = 0;
+                while writing.load(Ordering::Relaxed) {
+                    if std::fs::read_to_string(&path).unwrap() != text {
+                        torn += 1;
+                    }
+                }
+                torn
+            });
+            for writer in writers {
+                writer.join().unwrap();
+            }
+            writing.store(false, Ordering::Relaxed);
+            assert_eq!(reader.join().unwrap(), 0);
+        });
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+        let left: Vec<_> = std::fs::read_dir(&repo.0)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name())
+            .filter(|name| name != "gate.toml")
+            .collect();
+        assert!(left.is_empty(), "{left:?}");
+    }
+
+    #[test]
+    fn a_failed_replacement_leaves_no_staging_file() {
+        use crate::scope::tests::Repo;
+
+        let repo = Repo::new("replace-file-fails");
+        let path = repo.0.join("gate.toml");
+        std::fs::create_dir_all(path.join("occupied")).unwrap();
+
+        assert!(write_replacing(&path, "exclude_re = []\n").is_err());
+
+        let left: Vec<_> = std::fs::read_dir(&repo.0)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name())
+            .filter(|name| name != "gate.toml")
+            .collect();
+        assert!(left.is_empty(), "{left:?}");
+    }
 
     fn entry_line(pattern: &str, reason: &str) -> String {
         format!("    \"{}\", # {reason}\n", pattern.replace('\\', "\\\\"))
