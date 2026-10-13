@@ -1006,9 +1006,20 @@ Timeouts and shard size, each from a measured number:
 - Test timeout 360 s: five times the longest test phase of a gate-scope run (64.65 s, a mutant
   that loops until nextest terminates it after four 15 s periods), 323 s, rounded up to a whole
   minute. The kill-matrix profile gives the same value (five times 65.87 s, 329 s, rounded up).
-- Build timeout 840 s: five times the longest build after the first mutant of a run (163.4 s, in
-  the density gate run), 817 s, rounded up to a whole minute. The first build of core, 511.6 s,
-  is under it, but a core shard may need more.
+- Build timeout: `max(120, ceil(3 x r))` seconds, where `r` is the time to rebuild the run's test
+  scope after the mutated package is marked changed (the modification time of its library source
+  is moved, its content is not), taken right after the unmutated build; each run prints it as
+  `build bound <b> s for <package> with <n> test packages: 3 x a rebuild of <r> s`. A fixed bound had
+  to cover core's first build (511.6 s), which let a mutant that loops the compiler cost 840 s.
+  The factor comes from the ratio of a real mutant's rebuild to the marked-changed rebuild, three
+  repetitions in each of four scopes (the registry crate and the fixtures crate, each alone and with
+  its direct dependents: 43 and 14 packages), the original source restored and rebuilt before every
+  pair: medians 1.08, 1.10, 1.03 and 1.02, largest single ratio 1.30 (11.81 s over 9.09 s, in the
+  fixtures scope with dependents). `k` is the smallest integer that is at least 3 and at least
+  twice the largest ratio, which is 3. The floor is 120 s because the slowest rebuild measured in
+  those scopes was 34.3 s, under a load average above 500, and 120 s is 3.5 times that: a crate whose
+  own rebuild is under a second would otherwise get a bound a load spike could cut. A build that
+  reaches the bound is still refused as unmeasured.
 - Shard size 23 mutants: `floor(3600 / (4 * 38.79))`, so that a shard at the density gate's
   median wall time of 38.79 s, with a factor of four of headroom, stays inside an hour. A sweep
   of 120 such shards is 2,760 mutants.
@@ -1066,6 +1077,59 @@ The merge gate in CI for `b96bb135a6b6309fcddd2c485869d81f4c6ae155` (run 3838521
 run of the pull request that added the fixture loader): 18 mutation shards; the mutation checks
 took 2311 s from the start of the job that lists the shards to the end of the verdict job; the
 longest shard took 2217 s and the shards together 9887 s.
+
+### Opt level of workspace crates under mutation
+
+Scenario: `b2eaa0143244e7b2114e181f08202b7dc307d95a` on the reference machine, cargo-mutants'
+build and test commands run by hand in a clone with its own target directory: `cargo nextest run
+--no-run --cargo-profile mutants` for the build and `cargo nextest run --cargo-profile mutants
+--profile mutants` for the tests, over the two scopes the runner uses. "Own" is the crate alone;
+"deps" is the crate with its direct dependents (43 packages for the registry, 14 for the fixtures
+crate). The mutated crate carries the two probe functions of the section above, and the mutants
+are `*` to `+` and `+ 1` to `- 1` in `probe_weight` for the own scope, `== 0` to `!= 0` and
+`== 1` in `probe_is_empty` for the deps scope; every one is caught. The levels are today's (the
+dev profile's per-crate overrides: 26 crates at 3, server and level at 2), and every one of those
+28 crates at 1 and at 0 through `[profile.mutants.package."<crate>"]`. The rustc line of
+`mcrs_minecraft_registry` carried `-C opt-level=3`, `-C opt-level=1` and no argument
+respectively. Each cell is three repetitions, taken one at a time in rotating order across the
+three levels so that the other builds on the machine (its one-minute load ran between 90 and 890
+during the runs) fall on every level alike. Build plus test is the cost of one mutant; the table
+gives the median of that sum.
+
+| scope | today s | opt-level 1 s | opt-level 0 s |
+|---|---|---|---|
+| registry, own | 1.25 | 1.27 | 1.30 |
+| registry, deps | 40.64 | 36.17 | 46.23 |
+| fixtures, own | 0.97 | 1.05 | 0.97 |
+| fixtures, deps | 18.68 | 18.25 | 11.14 |
+| sum | 61.54 | 56.74 | 59.64 |
+
+The spread of today's repetitions (largest minus smallest build plus test, summed over the four
+scopes) is 6.63 s, and opt-level 1 is 4.80 s faster, which is inside it. Opt-level 0 builds the
+registry's dependents about 5 s faster and runs their tests about 11 s slower, and its deps rows
+are not a suite: `mcrs_minecraft_protocol`'s
+`item::nested::bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing` overflows its
+stack at that level and aborts the process, so every run that includes the protocol crate stops
+at that test (the 11.14 s above is the time to the abort), and a mutant would look caught for a
+reason that has nothing to do with the mutant.
+
+The default-tier tests of the 28 crates, run without a mutant under the `mutants` nextest
+profile (`--no-fail-fast`):
+
+| level | tests | wall s | sum of test durations s | slowest test s | slowest crate sum s |
+|---|---|---|---|---|---|
+| today | 1583 | 18.7 | 246.3 | 5.9, `carving_regions::a_region_slot_equals_the_column_carved_alone` | 93.9, world |
+| opt-level 1 | 1583 | 26.7 | 325.2 | 12.3, the same test | 114.9, world |
+| opt-level 0 | 1583 | 28.0 | 366.6 | 13.1, `carving_regions::a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache` | 126.4, generator |
+
+No test came near the 30 s that is half of the 60 s slow-test kill, none timed out, and no
+crate's summed test time passed 180 s, so neither level needs a crate kept at today's level
+for time; opt-level 0 would need `mcrs_minecraft_protocol` kept for the overflow.
+
+Decision: the `mutants` profile keeps today's opt levels, because opt-level 1 is faster by less
+than the spread of the repetitions and opt-level 0 is not usable. The probes were a registry and
+a fixtures mutant; a crate whose own build is far longer than the registry's 0.8 s (core, world,
+server) was not measured at the lower level.
 
 ## Findings not yet acted on
 

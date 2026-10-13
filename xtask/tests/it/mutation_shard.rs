@@ -1,6 +1,7 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, SystemTime};
 
 const ONE: &str = "src/lib.rs:3:5: replace f -> bool with true";
 const TWO: &str = "src/lib.rs:9:5: replace g -> bool with false";
@@ -8,6 +9,10 @@ const THREE: &str = "src/lib.rs:20:5: replace h -> bool with true";
 
 const FAKE_CARGO: &str = r#"#!/bin/sh
 { printf '%s\n' "$@"; echo '--'; } >> "$FAKE_DIR/calls"
+if [ "$1" = metadata ]; then
+  printf '{"workspace_root":"%s","packages":[{"name":"a","manifest_path":"%s/Cargo.toml","edition":"2024","dependencies":[],"targets":[{"kind":["bin"],"name":"t","src_path":"%s/src/main.rs"},{"kind":["lib"],"name":"a","src_path":"%s/src/lib.rs"}]}]}' "$PWD" "$PWD" "$PWD" "$PWD"
+  exit 0
+fi
 [ "$1" = mutants ] || exit 0
 shift
 list=0
@@ -111,6 +116,7 @@ fn summarize(call: &[String]) -> Option<String> {
     let re = call.iter().filter(|arg| *arg == "--re").count();
     let diff = call.iter().any(|arg| arg == "--in-diff");
     match call[0].as_str() {
+        "metadata" => Some("metadata".to_owned()),
         "nextest" => {
             let packages: Vec<&str> = call
                 .windows(2)
@@ -129,9 +135,10 @@ fn summarize(call: &[String]) -> Option<String> {
                 .find_map(|arg| arg.strip_prefix("--baseline="))
                 .unwrap();
             Some(format!(
-                "run shard={} baseline={baseline} packages={} re={re} diff={diff}",
+                "run shard={} baseline={baseline} packages={} re={re} diff={diff} build_timeout={}",
                 value("--shard").unwrap(),
-                value("--test-package").unwrap()
+                value("--test-package").unwrap(),
+                value("--build-timeout").unwrap()
             ))
         }
         other => panic!("unexpected cargo call {other}"),
@@ -152,6 +159,18 @@ fn run(case: &Case, label: usize) -> Result<(), String> {
     git(&repo, &["add", "README"]);
     git(&repo, &["commit", "--quiet", "-m", "base"]);
     let head = git(&repo, &["rev-parse", "HEAD"]);
+
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    let lib = repo.join("src/lib.rs");
+    std::fs::write(&lib, "pub fn f() {}\n").unwrap();
+    let stale = SystemTime::now() - Duration::from_secs(3600);
+    std::fs::File::options()
+        .write(true)
+        .open(&lib)
+        .unwrap()
+        .set_modified(stale)
+        .unwrap();
+    std::fs::write(repo.join("src/main.rs"), "fn main() {}\n").unwrap();
 
     let cargo = bin.join("cargo");
     std::fs::write(&cargo, FAKE_CARGO).unwrap();
@@ -212,6 +231,10 @@ fn run(case: &Case, label: usize) -> Result<(), String> {
     if found != case.calls {
         problems.push(format!("calls {found:#?}"));
     }
+    let marked = std::fs::metadata(&lib).unwrap().modified().unwrap();
+    if marked <= stale + Duration::from_secs(60) {
+        problems.push("the library source was not marked as changed".to_owned());
+    }
     let shard = repo.join("target/mutation/shards/0");
     if !shard.join("mutants.out/outcomes.json").exists() {
         problems.push("the first pass wrote no outcomes".to_owned());
@@ -244,7 +267,7 @@ fn run(case: &Case, label: usize) -> Result<(), String> {
 
 #[test]
 fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
-    let own_pass = "run shard=1/2 baseline=skip packages=a re=0 diff=true";
+    let own_pass = "run shard=1/2 baseline=skip packages=a re=0 diff=true build_timeout=120";
     let cases = [
         Case {
             name: "the survivors are rerun with the dependents, as one shard",
@@ -257,10 +280,14 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             second: &[(TWO, "caught"), (THREE, "missed")],
             calls: &[
                 "build a",
+                "metadata",
+                "build a",
                 own_pass,
                 "list re=2 diff=true",
                 "build a,b",
-                "run shard=0/1 baseline=skip packages=a,b re=2 diff=true",
+                "metadata",
+                "build a,b",
+                "run shard=0/1 baseline=skip packages=a,b re=2 diff=true build_timeout=120",
             ],
             dependents_written: true,
             list_fails: false,
@@ -277,10 +304,14 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             second: &[(ONE, "caught")],
             calls: &[
                 "build a",
-                "run shard=1/2 baseline=run packages=a re=0 diff=false",
+                "metadata",
+                "build a",
+                "run shard=1/2 baseline=run packages=a re=0 diff=false build_timeout=120",
                 "list re=1 diff=false",
                 "build a,b",
-                "run shard=0/1 baseline=run packages=a,b re=1 diff=false",
+                "metadata",
+                "build a,b",
+                "run shard=0/1 baseline=run packages=a,b re=1 diff=false build_timeout=120",
             ],
             dependents_written: true,
             list_fails: false,
@@ -297,10 +328,14 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             second: &[(ONE, "caught")],
             calls: &[
                 "build a",
-                "run shard=1/2 baseline=run packages=a re=0 diff=true",
+                "metadata",
+                "build a",
+                "run shard=1/2 baseline=run packages=a re=0 diff=true build_timeout=120",
                 "list re=1 diff=true",
                 "build a,b",
-                "run shard=0/1 baseline=run packages=a,b re=1 diff=true",
+                "metadata",
+                "build a,b",
+                "run shard=0/1 baseline=run packages=a,b re=1 diff=true build_timeout=120",
             ],
             dependents_written: true,
             list_fails: false,
@@ -315,7 +350,7 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             first: &[(ONE, "caught"), (TWO, "unviable")],
             listing: &[],
             second: &[],
-            calls: &["build a", own_pass],
+            calls: &["build a", "metadata", "build a", own_pass],
             dependents_written: false,
             list_fails: false,
             failure: None,
@@ -329,7 +364,7 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             first: &[(ONE, "missed")],
             listing: &[ONE],
             second: &[],
-            calls: &["build a", own_pass],
+            calls: &["build a", "metadata", "build a", own_pass],
             dependents_written: false,
             list_fails: false,
             failure: None,
@@ -343,7 +378,13 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             first: &[(TWO, "missed"), (THREE, "missed")],
             listing: &[TWO],
             second: &[],
-            calls: &["build a", own_pass, "list re=2 diff=true"],
+            calls: &[
+                "build a",
+                "metadata",
+                "build a",
+                own_pass,
+                "list re=2 diff=true",
+            ],
             dependents_written: false,
             list_fails: false,
             failure: Some(&["shard 0 (a)", THREE]),
@@ -357,7 +398,13 @@ fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
             first: &[(ONE, "missed")],
             listing: &[ONE],
             second: &[],
-            calls: &["build a", own_pass, "list re=1 diff=true"],
+            calls: &[
+                "build a",
+                "metadata",
+                "build a",
+                own_pass,
+                "list re=1 diff=true",
+            ],
             dependents_written: false,
             list_fails: true,
             failure: Some(&["boom: bad", "exit 5"]),

@@ -1,3 +1,4 @@
+use crate::metadata::{Target, Workspace};
 use crate::mutation::outcomes::{self, Measured};
 use crate::mutation::tool::{self, Mode, Spec};
 use crate::mutation::worktree::Tree;
@@ -5,6 +6,7 @@ use crate::mutation::{config, plan};
 use crate::scope::Head;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::time::{Instant, SystemTime};
 
 pub(crate) struct Run<'a> {
     pub name: &'a str,
@@ -41,8 +43,58 @@ pub(crate) fn build_scope(tree: &Tree, packages: &[String]) -> Result<(), String
     ))
 }
 
+const LIBRARY_KINDS: [&str; 6] = ["lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"];
+
+fn changed_source<'a>(workspace: &'a Workspace, package: &str) -> Result<&'a str, String> {
+    let found = workspace
+        .packages
+        .iter()
+        .find(|p| p.name == package)
+        .ok_or_else(|| format!("{package} is not a package of this workspace"))?;
+    let is_library = |target: &&Target| {
+        target
+            .kinds
+            .iter()
+            .any(|k| LIBRARY_KINDS.contains(&k.as_str()))
+    };
+    found
+        .targets
+        .iter()
+        .find(is_library)
+        .or_else(|| found.targets.first())
+        .map(|target| target.path.as_str())
+        .ok_or_else(|| format!("{package} has no target to build"))
+}
+
+fn mark_changed(path: &Path) -> Result<(), String> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(SystemTime::now()))
+        .map_err(|e| format!("could not mark {} as changed: {e}", path.display()))
+}
+
+fn build_bound(tree: &Tree, run: &Run) -> Result<u32, String> {
+    let workspace = Workspace::load(&tree.path)?;
+    let source = tree.path.join(changed_source(&workspace, run.package)?);
+    mark_changed(&source)?;
+    let started = Instant::now();
+    build_scope(tree, run.test_packages)?;
+    let rebuild = started.elapsed();
+    let bound = tool::build_timeout_seconds(rebuild);
+    println!(
+        "build bound {bound} s for {} with {} test packages: {} x a rebuild of {:.1} s",
+        run.package,
+        run.test_packages.len(),
+        tool::BUILD_TIMEOUT_FACTOR,
+        rebuild.as_secs_f64()
+    );
+    Ok(bound)
+}
+
 pub(crate) fn execute(tree: &Tree, config: &Path, run: &Run) -> Result<PathBuf, String> {
     build_scope(tree, run.test_packages)?;
+    let build_timeout_seconds = build_bound(tree, run)?;
     let output = tree.out_dir.join(run.name);
     if output.exists() {
         std::fs::remove_dir_all(&output)
@@ -59,6 +111,7 @@ pub(crate) fn execute(tree: &Tree, config: &Path, run: &Run) -> Result<PathBuf, 
             output: &output,
             skip_baseline: run.skip_baseline,
             test_timeout_seconds: run.test_timeout_seconds,
+            build_timeout_seconds,
             names: run.names,
         },
         shard: run.shard,
@@ -183,6 +236,97 @@ pub(crate) fn measured(out_dir: &Path) -> Result<Vec<Measured>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metadata::Package;
+    use std::time::Duration;
+
+    fn package(name: &str, targets: &[(&str, &str, &str)]) -> Package {
+        Package {
+            name: name.to_owned(),
+            dir: format!("crates/{name}"),
+            edition: "2024".to_owned(),
+            dependencies: Vec::new(),
+            targets: targets
+                .iter()
+                .map(|(kind, target, path)| Target {
+                    kinds: vec![(*kind).to_owned()],
+                    name: (*target).to_owned(),
+                    path: (*path).to_owned(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn the_marked_source_is_the_library_else_the_first_target() {
+        let workspace = Workspace {
+            packages: vec![
+                package(
+                    "both",
+                    &[
+                        ("bin", "tool", "both/src/main.rs"),
+                        ("lib", "both", "both/src/lib.rs"),
+                    ],
+                ),
+                package(
+                    "macros",
+                    &[
+                        ("test", "it", "macros/tests/it.rs"),
+                        ("proc-macro", "macros", "macros/src/lib.rs"),
+                    ],
+                ),
+                package(
+                    "bins",
+                    &[
+                        ("bin", "first", "bins/src/first.rs"),
+                        ("bin", "second", "bins/src/second.rs"),
+                    ],
+                ),
+                package("empty", &[]),
+            ],
+        };
+        let rows: [(&str, Result<&str, &str>); 5] = [
+            ("both", Ok("both/src/lib.rs")),
+            ("macros", Ok("macros/src/lib.rs")),
+            ("bins", Ok("bins/src/first.rs")),
+            ("empty", Err("empty has no target")),
+            ("absent", Err("absent is not a package")),
+        ];
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|(name, expected)| {
+                let found = changed_source(&workspace, name);
+                match (expected, &found) {
+                    (Ok(path), Ok(source)) if path == source => None,
+                    (Err(part), Err(message)) if message.contains(part) => None,
+                    _ => Some(format!("{name}: expected {expected:?}, found {found:?}")),
+                }
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[test]
+    fn marking_a_file_changed_moves_its_modification_time_and_leaves_its_content() {
+        let dir = std::env::temp_dir().join(format!("xtask-mark-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("lib.rs");
+        std::fs::write(&file, "fn f() {}\n").unwrap();
+        let old = SystemTime::now() - Duration::from_secs(3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        mark_changed(&file).unwrap();
+        let modified = std::fs::metadata(&file).unwrap().modified().unwrap();
+        let content = std::fs::read_to_string(&file).unwrap();
+        let missing = mark_changed(&dir.join("absent.rs"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(modified > old + Duration::from_secs(3000), "{modified:?}");
+        assert_eq!(content, "fn f() {}\n");
+        assert!(missing.unwrap_err().contains("absent.rs"));
+    }
 
     #[test]
     fn the_dependents_pass_must_list_exactly_the_survivors() {

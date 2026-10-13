@@ -1,15 +1,27 @@
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::{Command, Output};
+use std::time::Duration;
 
 pub(crate) const VERSION: &str = "27.1.0";
 pub(crate) const TEST_TIMEOUT_SECONDS: u32 = 360;
-const BUILD_TIMEOUT_SECONDS: u32 = 840;
+pub(crate) const BUILD_TIMEOUT_FACTOR: u32 = 3;
+const BUILD_TIMEOUT_FLOOR_SECONDS: u32 = 120;
 pub(crate) const MATRIX_TEST_TIMEOUT_SECONDS: u32 = 360;
 pub(crate) const MUTANTS_PER_SHARD: usize = 23;
 pub(crate) const SWEEP_MUTANT_BUDGET: usize = 2760;
 
 const SCRUBBED_PREFIXES: [&str; 2] = ["CARGO_MUTANTS_", "NEXTEST_"];
+
+pub(crate) fn build_timeout_seconds(rebuild: Duration) -> u32 {
+    let Some(scaled) = rebuild.checked_mul(BUILD_TIMEOUT_FACTOR) else {
+        return u32::MAX;
+    };
+    let seconds = scaled.as_secs() + u64::from(scaled.subsec_nanos() > 0);
+    u32::try_from(seconds)
+        .unwrap_or(u32::MAX)
+        .max(BUILD_TIMEOUT_FLOOR_SECONDS)
+}
 
 pub(crate) fn version_matches(output: &str) -> Result<(), String> {
     if output.trim() == format!("cargo-mutants {VERSION}") {
@@ -59,6 +71,7 @@ pub(crate) enum Mode<'a> {
         output: &'a Path,
         skip_baseline: bool,
         test_timeout_seconds: u32,
+        build_timeout_seconds: u32,
         names: &'a [String],
     },
 }
@@ -122,6 +135,7 @@ fn command_with(spec: &Spec, environment: &[OsString]) -> Command {
         output,
         skip_baseline,
         test_timeout_seconds,
+        build_timeout_seconds,
         ..
     } = &spec.mode
     {
@@ -135,7 +149,7 @@ fn command_with(spec: &Spec, environment: &[OsString]) -> Command {
             .arg("--timeout")
             .arg(test_timeout_seconds.to_string())
             .arg("--build-timeout")
-            .arg(BUILD_TIMEOUT_SECONDS.to_string())
+            .arg(build_timeout_seconds.to_string())
             .arg("--output")
             .arg(output)
             .arg("--test-package")
@@ -173,6 +187,32 @@ mod tests {
                 (expected, found) => panic!("{output:?}: expected {expected:?}, found {found:?}"),
             }
         }
+    }
+
+    #[test]
+    fn the_build_bound_is_three_rebuilds_and_never_under_two_minutes() {
+        let rows: [(Duration, u32); 9] = [
+            (Duration::ZERO, 120),
+            (Duration::from_secs(10), 120),
+            (Duration::from_secs(39), 120),
+            (Duration::from_millis(39_900), 120),
+            (Duration::from_secs(40), 120),
+            (Duration::from_millis(40_100), 121),
+            (Duration::from_secs(200), 600),
+            (Duration::from_millis(200_200), 601),
+            (Duration::from_secs(u64::MAX / 2), u32::MAX),
+        ];
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter(|(rebuild, bound)| build_timeout_seconds(*rebuild) != *bound)
+            .map(|(rebuild, bound)| {
+                format!(
+                    "{rebuild:?}: expected {bound}, found {}",
+                    build_timeout_seconds(*rebuild)
+                )
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     fn arguments(command: &Command) -> Vec<String> {
@@ -229,6 +269,7 @@ mod tests {
                 output: Path::new("/out"),
                 skip_baseline: true,
                 test_timeout_seconds: 360,
+                build_timeout_seconds: 150,
                 names: &[],
             },
             shard: Some((2, 5)),
@@ -278,7 +319,7 @@ mod tests {
         }
         for (flag, value) in [
             ("--timeout", "360"),
-            ("--build-timeout", "840"),
+            ("--build-timeout", "150"),
             ("--output", "/out"),
             ("--test-package", "a,b"),
             ("--shard", "2/5"),
@@ -305,6 +346,7 @@ mod tests {
                 output: Path::new("/out/0/dependents"),
                 skip_baseline: false,
                 test_timeout_seconds: 360,
+                build_timeout_seconds: 275,
                 names: &names,
             },
             shard: Some((0, 1)),
@@ -321,6 +363,7 @@ mod tests {
                 output: Path::new("/out/0"),
                 skip_baseline: false,
                 test_timeout_seconds: 360,
+                build_timeout_seconds: 275,
                 names: &[],
             },
             ..run
@@ -341,5 +384,6 @@ mod tests {
         }
         let args = arguments(&command_with(&unrestricted, &[]));
         assert!(!args.iter().any(|a| a == "--re"), "{args:?}");
+        assert!(has_pair(&args, "--build-timeout", "275"), "{args:?}");
     }
 }
