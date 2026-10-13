@@ -55,10 +55,11 @@ pub enum Trigger {
     Gpu,
     Policy,
     Mutation,
+    MutationLocal,
 }
 
 impl Trigger {
-    pub const ALL: [Trigger; 8] = [
+    pub const ALL: [Trigger; 9] = [
         Trigger::Edit,
         Trigger::Commit,
         Trigger::Push,
@@ -67,6 +68,7 @@ impl Trigger {
         Trigger::Gpu,
         Trigger::Policy,
         Trigger::Mutation,
+        Trigger::MutationLocal,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -79,6 +81,7 @@ impl Trigger {
             Trigger::Gpu => "gpu",
             Trigger::Policy => "policy",
             Trigger::Mutation => "mutation",
+            Trigger::MutationLocal => "mutation-local",
         }
     }
 
@@ -100,12 +103,15 @@ impl Trigger {
             Trigger::Mutation => {
                 "by hand only, never in a hook or in CI: the surviving mutants in changed code, from shards run beforehand"
             }
+            Trigger::MutationLocal => {
+                "on demand on this machine: the surviving mutants in changed code, as the pull request's mutation check judges them"
+            }
         }
     }
 
     pub const fn is_local(self) -> bool {
         match self {
-            Trigger::Edit | Trigger::Commit | Trigger::Push => true,
+            Trigger::Edit | Trigger::Commit | Trigger::Push | Trigger::MutationLocal => true,
             Trigger::Ci | Trigger::Full | Trigger::Gpu | Trigger::Policy | Trigger::Mutation => {
                 false
             }
@@ -169,7 +175,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
         ],
         Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Policy => &[Size, GateConfig, MutationMarker, Floors, Parity],
-        Trigger::Mutation => &[Mutation],
+        Trigger::Mutation | Trigger::MutationLocal => &[Mutation],
     }
 }
 
@@ -240,7 +246,7 @@ mod tests {
             .collect();
         Trigger::ALL
             .into_iter()
-            .filter(|t| t.is_local())
+            .filter(|&t| t.is_local() && t != Trigger::MutationLocal)
             .flat_map(|t| table(t).iter().map(move |&c| (t, c)))
             .filter(|(_, c)| !on_pull_requests.contains(c))
             .collect()
@@ -278,12 +284,40 @@ mod tests {
     }
 
     #[test]
-    fn mutants_run_only_from_the_mutation_trigger_which_no_hook_and_no_pull_request_runs() {
-        assert_eq!(checks(Trigger::Mutation), [Check::Mutation]);
+    fn mutants_run_only_from_the_mutation_triggers_which_no_hook_and_no_pull_request_runs() {
+        let manual = [Trigger::Mutation, Trigger::MutationLocal];
+        for trigger in manual {
+            assert_eq!(checks(trigger), [Check::Mutation], "{trigger:?}");
+            assert!(!trigger.runs_on_every_pull_request(), "{trigger:?}");
+        }
         assert!(!Trigger::Mutation.is_local());
-        assert!(!Trigger::Mutation.runs_on_every_pull_request());
-        for trigger in Trigger::ALL.into_iter().filter(|&t| t != Trigger::Mutation) {
+        for trigger in Trigger::ALL.into_iter().filter(|t| !manual.contains(t)) {
             assert!(!checks(trigger).contains(&Check::Mutation), "{trigger:?}");
+        }
+        assert_eq!(
+            Trigger::parse("mutation-local"),
+            Some(Trigger::MutationLocal)
+        );
+    }
+
+    #[test]
+    fn usage_lists_the_hook_and_on_demand_triggers_under_this_machine_and_the_rest_apart() {
+        let text = usage();
+        let (here, elsewhere) = text
+            .split_once("triggers that run in CI or on demand:")
+            .expect("both headings");
+        let listed = |section: &str, name: &str| {
+            section
+                .lines()
+                .any(|line| line.trim_start().split(' ').next() == Some(name))
+        };
+        for name in ["edit", "commit", "push", "mutation-local"] {
+            assert!(listed(here, name), "{name} is not listed for this machine");
+            assert!(!listed(elsewhere, name), "{name} is listed apart");
+        }
+        for name in ["ci", "full", "gpu", "policy", "mutation"] {
+            assert!(listed(elsewhere, name), "{name} is not listed apart");
+            assert!(!listed(here, name), "{name} is listed for this machine");
         }
     }
 

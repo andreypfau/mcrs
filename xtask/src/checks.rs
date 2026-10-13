@@ -194,10 +194,15 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             let Head::Commit(head) = &ctx.head else {
                 return Err("the mutation check reads a commit, not the working tree".to_owned());
             };
-            if ctx.trigger == Trigger::Mutation {
-                mutation::verdict::check(&ctx.root, head)
-            } else {
-                mutation::local(&ctx.root, ctx.workspace()?, ctx.base()?, head)
+            match ctx.trigger {
+                Trigger::Mutation => mutation::verdict::check(&ctx.root, head),
+                Trigger::MutationLocal => {
+                    mutation::local(&ctx.root, ctx.workspace()?, ctx.base()?, head)
+                }
+                other => Err(format!(
+                    "the mutation check does not run under the {} trigger",
+                    other.name()
+                )),
             }
         }
     }
