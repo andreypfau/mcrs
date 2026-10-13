@@ -1014,6 +1014,59 @@ Timeouts and shard size, each from a measured number:
   of 120 such shards is 2,760 mutants.
 - The jar-fetching setup script adds about 0.41 s to a run that selects a `jar::` test.
 
+### The gate's cost at 4fe86dc75
+
+Scenario: `4fe86dc75295e0f996828d7297988fb5769b493b` (0.5.7) on an Apple M4 Max with 16 logical
+cores and 128 GiB, cargo-mutants 27.1.0, cargo-nextest 0.9.143 (60fa45f63, 2026-08-04), rustc
+1.100.0-nightly (5db7f4be8, 2026-09-01). Each probe is a commit on top of that one, in a separate
+clone with its own target directories, and the hook is `scripts/hooks/run-checks push` with the
+default base (`origin/main`, which is `4fe86dc75`). A run of the same hook on the first probe,
+untimed, comes first so that every target directory is warm. The probes add two small functions
+and their tests at the end of a crate:
+
+- registry: `probe_weight` is tested by the registry itself; `probe_is_empty` only by
+  `mcrs_minecraft_update`, a direct dependent that has no dependent of its own;
+- fixtures: the same two functions, with `probe_is_empty` tested only by
+  `mcrs_minecraft_worldgen_feature_place`, the dev-dependent of the fixtures crate with the fewest
+  dependents of its own after the client and the generator;
+- fixtures and check runner: the fixtures change together with the same two functions at the end
+  of `xtask/src/git.rs`, both tested in the check runner.
+
+Each function has 6 and 3 mutants, and every one is caught. The hook's time is wall time from the
+shell; "mutation check" is the `mutation:` line of the same run; the medians are over the mutants
+of that run, from the build and test durations in `outcomes.json`. Load is the one-minute
+average `uptime` printed when the run started and ended; the machine was shared with other work
+and the hook's own parallel compiles are part of it, so every time is an upper bound.
+
+| probe | push hook s | mutation check s | mutants | caught / missed / timeout / unviable | build s | test s | load at start / end |
+|---|---|---|---|---|---|---|---|
+| registry | 341 | 262.3 | 9 | 9 / 0 / 0 / 0 | 15.98 | 8.57 | 44.3 / 46.8 |
+| fixtures | 399 | 228.5 | 9 | 9 / 0 / 0 / 0 | 5.75 | 4.42 | 46.8 / 68.6 |
+| fixtures and check runner | 469 | 254.4 | 18 | 18 / 0 / 0 / 0 | 3.11 | 9.80 | 68.6 / 15.8 |
+
+Every other check of the hook together takes 79 s, 170 s and 215 s on these runs, and the
+workspace test check is most of it (41.7 s, 132.2 s and 185.4 s); the mutation check is more than
+half of the hook on each probe.
+
+The workspace test run on the same tree, `cargo nextest run --workspace --no-fail-fast` after a
+build: 2191 tests run, all passed, 122 skipped by the default filter. Wall time 32.7 s (a first
+run of the same tree read 39.5 s); the durations of the 2191 tests sum to 400.7 s, and 36 of them
+take more than 2 s. Summed by crate: `mcrs_minecraft_world` 107.5 s, `mcrs_minecraft_server`
+97.0 s (89.1 s of it in its `it` integration binary), `xtask` 47.9 s,
+`mcrs_minecraft_worldgen_generator` 46.5 s, `mcrs_minecraft_client` 39.1 s. The one-minute load
+was 16.9 at the start and 24.7 at the end.
+
+Opt levels under the `mutants` profile, read from the `-C opt-level` argument of `cargo build
+--profile mutants -v` after touching each crate's `lib.rs`: `mcrs_minecraft_registry` 3,
+`mcrs_minecraft_server` 2 and `mcrs_minecraft_fixtures` 0 (no argument, because the dev profile
+lists no override for it). The dev profile's per-crate overrides therefore apply to every mutant
+rebuild.
+
+The merge gate in CI for `b96bb135a6b6309fcddd2c485869d81f4c6ae155` (run 38385214863, the last
+run of the pull request that added the fixture loader): 18 mutation shards; the mutation checks
+took 2311 s from the start of the job that lists the shards to the end of the verdict job; the
+longest shard took 2217 s and the shards together 9887 s.
+
 ## Findings not yet acted on
 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
