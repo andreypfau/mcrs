@@ -70,7 +70,6 @@ pub(super) fn derive_decode(item: TokenStream) -> Result<TokenStream> {
                 decode_split_for_impl(input.generics, lifetime.clone());
 
             Ok(quote! {
-                #[allow(unused_imports)]
                 impl #impl_generics ::mcrs_minecraft_protocol::__private::Decode<#lifetime> for #input_name #ty_generics
                 #where_clause
                 {
@@ -142,7 +141,6 @@ pub(super) fn derive_decode(item: TokenStream) -> Result<TokenStream> {
                 decode_split_for_impl(input.generics, lifetime.clone());
 
             Ok(quote! {
-                #[allow(unused_imports)]
                 impl #impl_generics ::mcrs_minecraft_protocol::__private::Decode<#lifetime> for #input_name #ty_generics
                 #where_clause
                 {

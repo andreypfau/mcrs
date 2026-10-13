@@ -44,7 +44,6 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
             };
 
             Ok(quote! {
-                #[allow(unused_imports)]
                 impl #impl_generics ::mcrs_minecraft_protocol::__private::Encode for #input_name #ty_generics
                 #where_clause
                 {
@@ -142,7 +141,6 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
                 .collect::<TokenStream>();
 
             Ok(quote! {
-                #[allow(unused_imports, unreachable_code)]
                 impl #impl_generics ::mcrs_minecraft_protocol::__private::Encode for #input_name #ty_generics
                 #where_clause
                 {

@@ -1045,10 +1045,8 @@ macro_rules! dispatch {
     (@check false $value:ident) => {};
     (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], []) => {
         impl<$($gp),*> $ty {
-            #[allow(dead_code)]
             pub const KINDS: &[$gen] = &[$(<$gen>::$g),+];
 
-            #[allow(dead_code)]
             pub fn kind(&self) -> $gen {
                 match self {
                     $( Self::$d { .. } => <$gen>::$g, )+
@@ -1081,7 +1079,6 @@ macro_rules! dispatch {
             fn deserialize<D: $crate::dispatch::__serde::Deserializer<'de>>(
                 deserializer: D,
             ) -> ::core::result::Result<Self, D::Error> {
-                #[allow(clippy::match_single_binding)]
                 fn pick(location: &str) -> $crate::dispatch::Pick {
                     use $crate::dispatch::Pick;
                     match <$gen>::find(location) {
@@ -1369,6 +1366,7 @@ mod tests {
             r#"{"type":"minecraft:circle"}"#
         );
         assert_eq!(Wide::Square.kind(), Shape::Square);
+        assert_eq!(Wide::KINDS, [Shape::Circle, Shape::Square, Shape::Hexagon]);
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -9,11 +9,24 @@ pub struct StaticKey<R> {
 
 impl<R> StaticKey<R> {
     #[doc(hidden)]
-    pub const fn new(number: u16, location: ResourceLocation<&'static str>) -> Self {
-        StaticKey {
-            id: Id::from_number(number),
-            location,
+    pub const fn at(
+        entries: &[ResourceLocation<&'static str>],
+        location: ResourceLocation<&'static str>,
+    ) -> Self {
+        let wanted = location.as_static_str().as_bytes();
+        let mut remaining = entries;
+        let mut position: u16 = 0;
+        while let [entry, rest @ ..] = remaining {
+            if same_bytes(entry.as_static_str().as_bytes(), wanted) {
+                return StaticKey {
+                    id: Id::from_number(position),
+                    location,
+                };
+            }
+            remaining = rest;
+            position += 1;
         }
+        panic!("a static key's location is not among its entries")
     }
 
     pub const fn id(self) -> Id<R> {
@@ -27,6 +40,17 @@ impl<R> StaticKey<R> {
     pub const fn as_static_str(self) -> &'static str {
         self.location.as_static_str()
     }
+}
+
+const fn same_bytes(mut left: &[u8], mut right: &[u8]) -> bool {
+    while let ([a, left_rest @ ..], [b, right_rest @ ..]) = (left, right) {
+        if *a != *b {
+            return false;
+        }
+        left = left_rest;
+        right = right_rest;
+    }
+    left.is_empty() && right.is_empty()
 }
 
 impl<R> Clone for StaticKey<R> {
@@ -67,19 +91,13 @@ pub use serde as __serde;
 #[macro_export]
 macro_rules! static_keys {
     ($registry:ty; $($name:ident = $location:literal,)*) => {
-        #[allow(non_camel_case_types, clippy::upper_case_acronyms, dead_code)]
-        #[repr(u16)]
-        enum Position {
-            $($name,)*
-        }
+        pub const ENTRIES: &[$crate::static_key::StaticLocation] =
+            &[$($crate::static_key::__rl!($location)),*];
 
         $(
             pub const $name: $crate::StaticKey<$registry> =
-                $crate::StaticKey::new(Position::$name as u16, $crate::static_key::__rl!($location));
+                $crate::StaticKey::at(ENTRIES, $crate::static_key::__rl!($location));
         )*
-
-        pub const ENTRIES: &[$crate::static_key::StaticLocation] =
-            &[$($crate::static_key::__rl!($location)),*];
     };
 }
 
@@ -256,6 +274,7 @@ mod tests {
             super::Fixed;
             AIR = "minecraft:air",
             STONE = "minecraft:stone",
+            STONE_SLAB = "minecraft:stone_slab",
         }
     }
 
@@ -263,6 +282,7 @@ mod tests {
     fn a_key_is_numbered_by_its_position_and_names_its_location() {
         assert_eq!(fixed::AIR.id().number(), 0);
         assert_eq!(fixed::STONE.id().number(), 1);
+        assert_eq!(fixed::STONE_SLAB.id().number(), 2);
         assert_eq!(fixed::STONE.as_static_str(), "minecraft:stone");
         assert_eq!(
             fixed::ENTRIES[fixed::STONE.id().index()],
