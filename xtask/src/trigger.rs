@@ -7,6 +7,7 @@ pub enum Check {
     MutationMarker,
     Floors,
     Parity,
+    Clones,
     UnusedDeps,
     MutationConfig,
     Fmt,
@@ -28,6 +29,7 @@ impl Check {
             Check::MutationMarker => "mutation-marker",
             Check::Floors => "floors",
             Check::Parity => "parity",
+            Check::Clones => "clones",
             Check::UnusedDeps => "unused-deps",
             Check::MutationConfig => "mutation-config",
             Check::Fmt => "fmt",
@@ -41,18 +43,40 @@ impl Check {
     }
 
     #[cfg(test)]
-    pub const fn is_git_only(self) -> bool {
-        matches!(
-            self,
+    pub const fn runs(self) -> Runs {
+        match self {
             Check::Size
-                | Check::GateConfig
-                | Check::Suppressions
-                | Check::Bypasses
-                | Check::MutationMarker
-                | Check::Floors
-                | Check::Parity
-        )
+            | Check::GateConfig
+            | Check::Suppressions
+            | Check::Bypasses
+            | Check::MutationMarker
+            | Check::Floors
+            | Check::Parity => Runs::GitData,
+            Check::Clones => Runs::PinnedToolOverExportedFiles,
+            Check::UnusedDeps
+            | Check::MutationConfig
+            | Check::Fmt
+            | Check::Clippy
+            | Check::Test
+            | Check::NoBevy
+            | Check::Wasm32
+            | Check::ExportedBuild
+            | Check::Mutation => Runs::Cargo,
+        }
     }
+
+    #[cfg(test)]
+    pub const fn is_git_only(self) -> bool {
+        matches!(self.runs(), Runs::GitData)
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Runs {
+    GitData,
+    PinnedToolOverExportedFiles,
+    Cargo,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -108,7 +132,7 @@ impl Trigger {
             Trigger::Full => "the whole test suite, exhaustive sweeps included",
             Trigger::Gpu => "the tests that need a Metal GPU",
             Trigger::Policy => {
-                "in CI from the default branch: the git-only checks on a pull request head read as git data"
+                "in CI from the default branch: the git-only checks and the clone scan on a pull request head read as data"
             }
             Trigger::Mutation => {
                 "by hand only, never in a hook or in CI: mutation markers, floors and configuration, then the surviving mutants in changed code, from shards run beforehand"
@@ -158,6 +182,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             Suppressions,
             Bypasses,
             Parity,
+            Clones,
             UnusedDeps,
             Fmt,
             Clippy,
@@ -172,6 +197,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             Suppressions,
             Bypasses,
             Parity,
+            Clones,
             UnusedDeps,
             Fmt,
             Clippy,
@@ -181,7 +207,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             ExportedBuild,
         ],
         Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Policy => &[Size, GateConfig, Suppressions, Bypasses, Parity],
+        Trigger::Policy => &[Size, GateConfig, Suppressions, Bypasses, Parity, Clones],
         Trigger::Mutation => &[MutationMarker, Floors, MutationConfig, Mutation],
         Trigger::MutationLocal => &[Mutation],
     }
@@ -463,15 +489,32 @@ mod tests {
     }
 
     #[test]
-    fn the_base_run_trigger_runs_only_git_checks() {
-        let reads_the_head: Vec<_> = checks(Trigger::Policy)
+    fn the_base_run_trigger_builds_and_runs_nothing_from_the_head() {
+        let listed = checks(Trigger::Policy);
+        let cargo: Vec<_> = listed
             .iter()
-            .filter(|check| !check.is_git_only())
+            .filter(|check| check.runs() == Runs::Cargo)
             .collect();
         assert!(
-            reads_the_head.is_empty(),
-            "the policy trigger runs {reads_the_head:?}, which would run cargo on the head"
+            cargo.is_empty(),
+            "the policy trigger runs {cargo:?}, which would run cargo on the head"
         );
+        let tools: Vec<_> = listed
+            .iter()
+            .filter(|check| check.runs() == Runs::PinnedToolOverExportedFiles)
+            .collect();
+        assert_eq!(tools, [&Check::Clones]);
+        for check in [
+            Check::UnusedDeps,
+            Check::Fmt,
+            Check::Clippy,
+            Check::Test,
+            Check::NoBevy,
+            Check::Wasm32,
+            Check::ExportedBuild,
+        ] {
+            assert!(!listed.contains(&check), "policy lists {check:?}");
+        }
     }
 
     #[test]

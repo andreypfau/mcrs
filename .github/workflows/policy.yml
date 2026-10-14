@@ -31,6 +31,18 @@ jobs:
       - name: build the checker from the default branch
         run: cargo build --locked --quiet -p xtask --target-dir target/xtask
 
+      - name: read the clone detector version
+        id: jscpd-version
+        run: |
+          echo "version=$(sed -n 's/^pub(crate) const VERSION: &str = "\(.*\)";$/\1/p' xtask/src/clones.rs)" >> "$GITHUB_OUTPUT"
+
+      - name: install the clone detector
+        env:
+          JSCPD_VERSION: ${{ steps.jscpd-version.outputs.version }}
+        run: |
+          test -n "${JSCPD_VERSION}"
+          npm install --global --ignore-scripts "jscpd@${JSCPD_VERSION}"
+
       - name: fetch the pull request head as data
         env:
           PR: ${{ github.event.pull_request.number }}

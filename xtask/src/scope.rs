@@ -272,7 +272,7 @@ pub fn diff_names(repo: &Path, base: &str, head: &Head) -> Result<Vec<String>, S
     paths_of(&git::run(repo, &args).map_err(|e| e.to_string())?)
 }
 
-fn paths_of(listing: &[u8]) -> Result<Vec<String>, String> {
+pub(crate) fn paths_of(listing: &[u8]) -> Result<Vec<String>, String> {
     listing
         .split(|&byte| byte == 0)
         .filter(|path| !path.is_empty())

@@ -13,13 +13,15 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 # vanilla_server:: runs only through tools/vanilla-server/run.sh, with the vanilla-server profile.
 # cargo_shear:: tests run the real cargo-shear: the default profile skips them, the ci profile (the push
 # and ci triggers, so every pull request and push to main) and the scheduled full run include them.
+# jscpd:: tests run the real jscpd: the default and full profiles skip them, the ci profile (every pull
+# request and push to main) runs them, and the scheduled full run installs no jscpd.
 # cargo_mutants:: tests run the real cargo-mutants. No hook and no CI workflow runs them: only the
 # mutants-tool profile does, by hand.
 # The mutants profile is what cargo-mutants runs its tests with for every mutant; mutants-matrix runs the same
 # tests but lists every failing one. Both inherit the default filter, so no test of the sets the default
 # profile skips ever runs under mutation.
 [profile.default]
-default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server|cargo_shear|cargo_mutants)::/)"
+default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server|cargo_shear|cargo_mutants|jscpd)::/)"
 slow-timeout = { period = "15s", terminate-after = 4 }
 global-timeout = "5m"
 
@@ -36,7 +38,7 @@ filter = 'test(/(^|::)jar::/)'
 setup = 'fetch-client-jar'
 
 [profile.full]
-default-filter = "not test(/(^|::)(gpu|vanilla_server|cargo_mutants)::/)"
+default-filter = "not test(/(^|::)(gpu|vanilla_server|cargo_mutants|jscpd)::/)"
 slow-timeout = { period = "60s", terminate-after = 5 }
 
 [[profile.full.scripts]]

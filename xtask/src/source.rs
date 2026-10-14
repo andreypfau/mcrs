@@ -656,6 +656,7 @@ pub(crate) mod fixture {
         head: Vec<Edit>,
         at: At,
         changed: Option<Vec<String>>,
+        force: bool,
         verdict: Verdict,
     }
 
@@ -666,6 +667,7 @@ pub(crate) mod fixture {
             head,
             at: At::Commit,
             changed: None,
+            force: false,
             verdict,
         }
     }
@@ -673,6 +675,11 @@ pub(crate) mod fixture {
     impl Row {
         pub(crate) fn at(mut self, at: At) -> Row {
             self.at = at;
+            self
+        }
+
+        pub(crate) fn forced(mut self) -> Row {
+            self.force = true;
             self
         }
 
@@ -717,6 +724,9 @@ pub(crate) mod fixture {
         let head = match row.at {
             At::Worktree => Head::Worktree,
             At::Commit | At::DetachedAtBase => {
+                if row.force {
+                    repo.git(&["add", "--force", "--all"]);
+                }
                 repo.commit("head");
                 let head = Head::Commit(repo.sha());
                 if matches!(row.at, At::DetachedAtBase) {

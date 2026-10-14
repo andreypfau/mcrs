@@ -58,6 +58,30 @@ jobs:
         with:
           tool: cargo-shear@${{ steps.cargo-shear-version.outputs.version }}
 
+      - name: read the clone detector version
+        id: jscpd-version
+        run: |
+          echo "version=$(sed -n 's/^pub(crate) const VERSION: &str = "\(.*\)";$/\1/p' xtask/src/clones.rs)" >> "$GITHUB_OUTPUT"
+
+      - name: install node for the clone detector
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: install the clone detector
+        env:
+          JSCPD_VERSION: ${{ steps.jscpd-version.outputs.version }}
+        run: |
+          test -n "${JSCPD_VERSION}"
+          # The self-hosted runner's glibc is older than the 2.32 the gnu build needs, the package's
+          # launcher always picks the gnu build on a glibc host, and npm refuses to install the
+          # musl build there; npm pack does not check the platform, and the musl build is static.
+          dir="$(mktemp -d)"
+          npm pack --ignore-scripts --pack-destination "${dir}" "jscpd-linux-x64-musl@${JSCPD_VERSION}"
+          tar -xzf "${dir}/jscpd-linux-x64-musl-${JSCPD_VERSION}.tgz" -C "${dir}"
+          install -m 0755 "${dir}/package/bin/jscpd" "$(npm prefix --global)/bin/jscpd"
+          jscpd --version
+
       - name: locate the client jar
         id: jar
         run: echo "dir=$HOME/.minecraft/versions/$(jq -r .id crates/mcrs_minecraft_client_jar/src/release.json)" >> "$GITHUB_OUTPUT"

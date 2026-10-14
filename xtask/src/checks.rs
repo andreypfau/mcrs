@@ -1,7 +1,9 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{bypasses, floors, gate, marker, mutation, parity, size, suppressions, unused_deps};
+use crate::{
+    bypasses, clones, floors, gate, marker, mutation, parity, size, suppressions, unused_deps,
+};
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -152,6 +154,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Suppressions => scanner_check(ctx, suppressions::check),
         Check::Bypasses => scanner_check(ctx, bypasses::check),
         Check::Parity => parity_check(ctx),
+        Check::Clones => clones::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::UnusedDeps => {
             unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
         }
