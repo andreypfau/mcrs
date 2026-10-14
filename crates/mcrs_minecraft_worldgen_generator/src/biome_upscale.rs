@@ -50,6 +50,10 @@ fn cell_span(cell: usize) -> Range<usize> {
     (cell * QuartPos::SIZE).saturating_sub(2)..(cell * QuartPos::SIZE + 2).min(EDGE)
 }
 
+#[expect(
+    clippy::excessive_nesting,
+    reason = "fills the upscaled cells of each quart cell in y, z, x order, so the corner blend reads beside the loops that place it"
+)]
 pub fn upscale_biomes(
     grid: &BiomeGrid,
     zoom_seed: i64,

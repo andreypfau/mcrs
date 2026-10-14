@@ -947,6 +947,10 @@ pub(crate) mod tests {
 
     const ROW_WORKERS: usize = 8;
 
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "pulls row indices off a shared counter inside each worker and ends the worker when the rows run out, so the claim loop stays in the closure that owns the results"
+    )]
     pub(crate) fn judge_rows_in_parallel<T: Sync>(
         rows: &[T],
         judge: impl Fn(&T) -> Option<String> + Sync,

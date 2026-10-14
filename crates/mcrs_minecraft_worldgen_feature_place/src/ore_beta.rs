@@ -16,6 +16,10 @@ pub struct OreConfig {
 ///   - no blob overlap-cull pre-pass
 ///   - no air-exposure discard
 ///   - stone-only replacement via `target`
+#[expect(
+    clippy::excessive_nesting,
+    reason = "follows back2beta's ore blob loops over x, y and z with the target test inline, so it reads against that source and keeps its order of draws"
+)]
 pub fn place_beta_ore<R: Random>(
     config: &OreConfig,
     origin: BlockPos,

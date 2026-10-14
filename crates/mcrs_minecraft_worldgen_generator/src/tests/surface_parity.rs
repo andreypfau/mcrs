@@ -86,6 +86,10 @@ mod exhaustive {
     /// Nothing is tolerated: every position of every dump matches, whether the
     /// density left it empty or filled it with rock.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "compares each position of the surfaced column with the dump and records the first miss in place, so a failure names where the surface first differs"
+    )]
     fn a_surfaced_column_matches_the_vanilla_chunk() {
         let ids = biome_ids();
         let mut differ: BTreeMap<(String, &str), usize> = BTreeMap::new();

@@ -555,6 +555,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "resolves ids on two threads many times over, so a set that leaks into another thread fails inside the loop that exposes it"
+    )]
     fn two_threads_with_two_sets_resolve_to_their_own_ids() {
         assert!(no_scope_here());
         let first = set_of(&PLAINS_FIRST);

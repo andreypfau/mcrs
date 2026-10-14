@@ -1125,6 +1125,10 @@ mod tests {
         /// keeps the pair live through the carvers, so at the fill the terrain
         /// maps and the final maps are one descent over the same blocks.
         #[test]
+        #[expect(
+            clippy::excessive_nesting,
+            reason = "compares the terrain maps and the final maps of each column of the chunk with a loop per axis, so a mismatch names its cell"
+        )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
             use crate::heightmap::heightmap_predicates;
             use crate::tests::{beta_carver_table, block_tags, blocks};

@@ -154,6 +154,10 @@ mod exhaustive {
 
     /// Every root the compiler supports, over all fifteen lattice dumps.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "keeps the worst deviation of each root while comparing every cell of every lattice dump, so the failure names the root and the cell"
+    )]
     fn supported_roots_match_the_vanilla_oracle() {
         let dumps = lattice_dumps();
 

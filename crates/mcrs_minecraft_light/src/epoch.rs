@@ -179,6 +179,10 @@ impl LightJob {
         clippy::too_many_lines,
         reason = "runs the stages of one epoch in order under one span each, because erasing must finish before anything is filled"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "seeds the block emission of each erased cell inside the stage that erases it, because erasing must finish before anything is filled"
+    )]
     pub fn run(self) -> LightUpdate {
         let LightJob {
             registry,

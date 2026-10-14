@@ -25,6 +25,10 @@ pub fn light_weight(level: u8) -> f32 {
 /// Per output cell, x fastest then z then y: the known colours mixed by weight
 /// in RGB, and the default type's share of the weight in A. The default tint is
 /// left to shading, so an unlit cell is `[0, 0, 0, 255]`.
+#[expect(
+    clippy::excessive_nesting,
+    reason = "mixes the known colours of each output cell lane by lane, weighted by light, with the channel sums inline"
+)]
 pub fn resolve(
     region: &Region,
     lanes: &Lanes,

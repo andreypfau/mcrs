@@ -80,6 +80,10 @@ fn find_dim(world: &World, key: &ResourceKey<Dimension>) -> Option<Entity> {
     clippy::too_many_lines,
     reason = "one pump drains every channel a dimension's connections feed, because rollback and teardown need the one `&mut App` it holds"
 )]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "places a spawned session inside the arm that receives it, because the in-flight move and the placement must settle in the one pump that holds the app"
+)]
 pub fn pump_channels(app: &mut App) {
     let world = app.world_mut();
 

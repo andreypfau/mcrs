@@ -63,6 +63,10 @@ impl LevelField {
 
     /// Brings the field in line with the sources at `changed`, recording into `before` the
     /// level every section it moved held when the update began.
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "relaxes the neighbours of each seed at its level in the order the levels drain, so the propagation reads as one pass over the field"
+    )]
     pub fn update(
         &mut self,
         changed: &[SectionPos],

@@ -228,6 +228,10 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         clippy::too_many_arguments,
         reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "walks the box in y, z, x order with the palette and count bookkeeping of each changed cell inline, so the fill and its palette order read in one place"
+    )]
     pub fn fill_box(
         &mut self,
         x0: usize,

@@ -373,6 +373,10 @@ struct Pending<'s> {
     clippy::too_many_lines,
     reason = "resolves tag files, references and cycles in the reference's order in one pass so the stages read against it"
 )]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "adds the members of a nested tag that were not seen yet inside the one pass that resolves references and cycles in the reference's order"
+)]
 pub fn build_tags(
     names: &NameTable,
     rules: TagRules,

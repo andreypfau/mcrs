@@ -965,6 +965,10 @@ pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
     clippy::too_many_lines,
     reason = "one pass over the columns in back2beta's iteration order, interleaving the surface depth, beach and bedrock draws on one random stream"
 )]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "branches on back2beta's per-column depth cases inside the one pass, because its surface, beach and bedrock draws interleave on one generator"
+)]
 pub fn apply_beta_surface(
     column: &ColumnBlocks,
     block_x: i32,

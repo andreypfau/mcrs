@@ -89,6 +89,10 @@ fn the_tiled_sources_match_point_sampling() {
 }
 
 #[test]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "checks each carved cell of the sections against bedrock at and below Y -60 and skips the stone, so a miss names its height"
+)]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);

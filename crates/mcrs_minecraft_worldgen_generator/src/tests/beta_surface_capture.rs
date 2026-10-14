@@ -301,6 +301,10 @@ mod exhaustive {
         clippy::too_many_lines,
         reason = "one parity gate over every captured column: compares the surface, the bedrock band and the biome of each and classifies each mismatch by cause"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "flattens the sections of each captured column into one array by height before comparing it, so a parity miss names the column and the height"
+    )]
     fn beta_surface_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();

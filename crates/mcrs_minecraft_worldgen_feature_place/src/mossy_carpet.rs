@@ -216,6 +216,10 @@ mod tests {
     /// The carpet occupies `100..100 + SHAPE_COUNT`.
     const CARPET_BASE: u16 = 100;
 
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "enumerates the carpet states by the base flag and the shape of each of the four sides, so the fixture covers every combination in one table"
+    )]
     fn states(attaching: &[VoxelId]) -> MossyCarpetStates {
         let mut by_shape = [AIR; SHAPE_COUNT];
         let mut by_state = HashMap::default();

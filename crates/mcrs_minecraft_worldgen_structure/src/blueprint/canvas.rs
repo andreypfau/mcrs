@@ -131,6 +131,10 @@ impl Canvas {
 
     /// Rings of stairs facing inward from `min` to `[x, z]` of `max`, each a
     /// layer higher and a block smaller, with `lining` just inside each ring.
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "lays the rings of the hip roof from the outside in, with the lining test for each cell inline, so the roof reads as the reference builds it"
+    )]
     pub fn hip_roof(
         &mut self,
         stairs: &str,

@@ -303,6 +303,66 @@ const DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 1883;
 
 mod exhaustive {
     use super::*;
+    use mcrs_minecraft_biome::source::BiomeSource;
+
+    struct BetaPipeline {
+        router: NoiseRouter,
+        biome_source: BiomeSource,
+        table: CarverBiomeTable,
+        y_sections: Vec<i32>,
+        cancel: CancellationToken,
+    }
+
+    impl BetaPipeline {
+        fn new() -> Self {
+            let (biome_source, _) = build_beta_biome_source();
+            Self {
+                router: build_beta_router(),
+                table: crate::tests::beta_carver_table(&biome_source),
+                biome_source,
+                y_sections: (0..8).collect(),
+                cancel: CancellationToken::new(),
+            }
+        }
+
+        fn carved_column(
+            &self,
+            chunk_x: i32,
+            chunk_z: i32,
+        ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
+            let mut sections = generate_column(
+                chunk_x,
+                chunk_z,
+                &self.y_sections,
+                &self.router,
+                &ColumnBiomes::new(Some(&self.biome_source), None).unwrap(),
+                &self.cancel,
+            );
+            let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
+            let column = ColumnBlocks::from_sections(&sections, &self.y_sections);
+            apply_beta_surface(
+                &column,
+                chunk_x * 16,
+                chunk_z * 16,
+                &self.router,
+                &self.biome_source,
+                crate::tests::corpus(),
+                &mut rng,
+            );
+            column.write_back(&mut sections);
+            let column = ColumnBlocks::from_sections(&sections, &self.y_sections);
+            carve(
+                &column,
+                chunk_x,
+                chunk_z,
+                self.router.world_seed as i64,
+                &self.router,
+                &self.table,
+            );
+            column.write_back(&mut sections);
+            sections
+        }
+    }
 
     /// Carve-mask parity gate: for each chunk in the fixture corpus, build a full
     /// 16x16 section palette from `pre_cave` bytes, carve it at seed
@@ -315,6 +375,10 @@ mod exhaustive {
     #[expect(
         clippy::too_many_lines,
         reason = "one parity gate: carves the captured chunk, converts the result back to Beta blocks and compares it with the capture, so the setup and the comparison read together"
+    )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "compares each cell of the carved chunk with the capture across the chunk's three axes, so a mismatch names its position"
     )]
     fn beta_cave_parity_gate() {
         let corpus = load_corpus();
@@ -455,44 +519,15 @@ mod exhaustive {
     /// Integration smoke: a Beta column generated through the full path (terrain +
     /// surface + caves) at seed 12345 has cave air below the surface and lava at/below Y 10.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "finds the surface from the top of each carved column, then checks for cave air and lava below it section by section, with the per-cell test inline"
+    )]
     fn generate_column_beta_has_caves() {
-        let router = build_beta_router();
-        let (biome_source, _) = build_beta_biome_source();
-        let cancel = CancellationToken::new();
+        let pipeline = BetaPipeline::new();
+        let y_sections = &pipeline.y_sections;
         let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
-        let table = crate::tests::beta_carver_table(&biome_source);
-
-        let world_seed = router.world_seed as i64;
-        let y_sections: Vec<i32> = (0..8).collect();
-
-        let chunk_x = 0i32;
-        let chunk_z = 0i32;
-
-        let mut sections = generate_column(
-            chunk_x,
-            chunk_z,
-            &y_sections,
-            &router,
-            &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
-            &cancel,
-        );
-
-        let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-        let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        apply_beta_surface(
-            &column,
-            chunk_x * 16,
-            chunk_z * 16,
-            &router,
-            &biome_source,
-            crate::tests::corpus(),
-            &mut rng,
-        );
-        column.write_back(&mut sections);
-
-        let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
-        column.write_back(&mut sections);
+        let sections = pipeline.carved_column(0, 0);
 
         let air = ids.air;
         let lava = ids.lava;
@@ -558,44 +593,21 @@ mod exhaustive {
     /// deep can only come from the carver. Prints per-chunk counts and requires at
     /// least one chunk to contain deep cave air.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "scans the sections below Y 32 of every generated chunk for cave air cell by cell, with the per-cell test inline"
+    )]
     fn beta_real_pipeline_has_cave_air_below_y32() {
-        let router = build_beta_router();
-        let (biome_source, _) = build_beta_biome_source();
-        let cancel = CancellationToken::new();
-        let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
-        let table = crate::tests::beta_carver_table(&biome_source);
-        let world_seed = router.world_seed as i64;
-        let y_sections: Vec<i32> = (0..8).collect();
-        let air = ids.air;
+        let pipeline = BetaPipeline::new();
+        let y_sections = &pipeline.y_sections;
+        let air = BetaCaveBlockIds::resolve(crate::tests::corpus()).air;
 
         let mut chunks_with_air = 0usize;
         let mut total_air = 0usize;
 
         for chunk_x in 0..8i32 {
             for chunk_z in 0..8i32 {
-                let mut sections = generate_column(
-                    chunk_x,
-                    chunk_z,
-                    &y_sections,
-                    &router,
-                    &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
-                    &cancel,
-                );
-                let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-                let column = ColumnBlocks::from_sections(&sections, &y_sections);
-                apply_beta_surface(
-                    &column,
-                    chunk_x * 16,
-                    chunk_z * 16,
-                    &router,
-                    &biome_source,
-                    crate::tests::corpus(),
-                    &mut rng,
-                );
-                column.write_back(&mut sections);
-                let column = ColumnBlocks::from_sections(&sections, &y_sections);
-                carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
-                column.write_back(&mut sections);
+                let sections = pipeline.carved_column(chunk_x, chunk_z);
 
                 let mut air_below_32 = 0usize;
                 for (si, &sy) in y_sections.iter().enumerate() {

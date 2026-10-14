@@ -106,6 +106,10 @@ mod tests {
     /// The scan as `MapGenCaves` writes it: an outer Y loop from `y_max + 1`
     /// down to `y_min - 1` that jumps to the bottom cap once it is past the
     /// border strips. Kept as the oracle the bitmask is checked against.
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "keeps the reference's loops over y, z and x with the water test inline, because it is the oracle the bitmask is checked against"
+    )]
     fn reference_scan(
         is_water: &impl Fn(i32, i32, i32) -> bool,
         x_min: i32,

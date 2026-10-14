@@ -201,6 +201,10 @@ impl CompiledTreeDecorator {
         clippy::too_many_lines,
         reason = "one arm per tree decorator kind, in the reference's declaration order, so each reads against its kind"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "tests the air at each candidate position inside the arm of its decorator kind, so each kind keeps the reference's order of draws"
+    )]
     pub fn place<W: WorldGenVolume>(
         &self,
         ctx: &mut DecoratorContext<W>,
@@ -903,6 +907,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "replays the draws per log height and facing and skips the blocked cells, so the expected draw count is visible beside the placement"
+    )]
     fn cocoa_draws_the_age_only_where_it_writes() {
         let placed = place(
             &decorator(r#"{"type":"minecraft:cocoa","probability":1.0}"#, None),

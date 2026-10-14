@@ -28,6 +28,10 @@ impl PlacementModifier<Predicate> {
         clippy::too_many_lines,
         reason = "one arm per placement modifier, in the reference's declaration order, so each reads against its kind"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "emits the positions of a box in the reference's x, y, z order with the edge and face test inline, so the order of positions matches it"
+    )]
     pub(super) fn apply<W: WorldGenVolume, R: Random>(
         &self,
         volume: &W,

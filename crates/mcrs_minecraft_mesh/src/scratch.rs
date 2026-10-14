@@ -81,6 +81,10 @@ impl Scratch {
         }
     }
 
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "loads the section and its apron cell by cell, filling the light, fluid and cube column bits in the same pass so each cell is read once"
+    )]
     pub(super) fn load(&mut self, world: &impl BlockView, catalog: &[BlockInfo], base: [i32; 3]) {
         *self.cube_columns = [[0; COLUMNS]; 3];
         *self.occlude_columns = [[0; COLUMNS]; 3];

@@ -703,6 +703,10 @@ mod modern {
     }
 
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "compares the column sampler with the per-position sampler with the plain and smeared cases inline, bit for bit"
+    )]
     fn column_matches_per_position_bit_for_bit() {
         let lattice = GradientNoise::from_random(&mut LegacyRandom::new(845));
         let plain = PerlinNoise::from_gradient(lattice.clone());

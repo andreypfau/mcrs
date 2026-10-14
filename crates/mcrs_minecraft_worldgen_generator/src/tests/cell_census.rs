@@ -62,6 +62,10 @@ mod exhaustive {
     /// density in its cell, and every cell the bound settles must hold only
     /// densities of the sign it settled on.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "checks the densities of each lattice cell against the bound the cell settled on, one loop per axis"
+    )]
     fn a_cell_bound_contains_every_density_inside_it() {
         use bevy_math::IVec3;
         use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;

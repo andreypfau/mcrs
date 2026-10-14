@@ -355,6 +355,10 @@ fn matrix(
     clippy::too_many_lines,
     reason = "times the pinned grid and the natural one over the same columns and reports both, so the two figures read against each other"
 )]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "times the natural grid column by column with a loop per axis, so its figure covers the same cells as the pinned grid beside it"
+)]
 fn natural(
     router: &NoiseRouter,
     material: &MaterialProgram,

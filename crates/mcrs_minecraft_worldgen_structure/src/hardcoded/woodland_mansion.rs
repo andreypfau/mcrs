@@ -580,6 +580,10 @@ impl Placer<'_> {
         clippy::too_many_lines,
         reason = "places the mansion's walls, roofs and floors in the reference's order, so the pieces come out in the order it lists them"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "chooses the door directions of each room and the wall or door piece of each side inside the one pass over the grid, so the pieces keep the reference's order"
+    )]
     fn create_mansion(&mut self, origin: IVec3, rotation: Rotation, mansion: &MansionGrid) {
         let mut data = PlacementData {
             position: origin,
@@ -860,6 +864,10 @@ impl Placer<'_> {
     #[expect(
         clippy::too_many_lines,
         reason = "lays the roof of one floor cell by cell with the reference's case for each direction, so each case reads against it"
+    )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "lays the roof of a floor cell by cell with the reference's neighbour test for each direction, so each case reads against it"
     )]
     fn create_roof(
         &mut self,

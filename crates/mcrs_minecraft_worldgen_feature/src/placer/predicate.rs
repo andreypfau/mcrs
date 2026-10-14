@@ -42,6 +42,10 @@ pub enum Predicate {
 }
 
 impl Predicate {
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "tests every cell of the volume in the reference's x, z, y order and stops at the first miss"
+    )]
     pub fn test<W: WorldGenVolume>(&self, volume: &W, pos: BlockPos) -> bool {
         match self {
             Predicate::True => true,

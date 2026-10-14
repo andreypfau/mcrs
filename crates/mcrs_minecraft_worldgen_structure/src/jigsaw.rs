@@ -180,6 +180,10 @@ impl Assembly<'_> {
         clippy::too_many_lines,
         reason = "expands one piece's jigsaw connections with the reference's random draws in the reference's order, so the sequence reads against it"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "tries every jigsaw connection of one piece against each candidate with the reference's rigid and projection cases inline, so the random draws keep its order"
+    )]
     fn attach_children(&mut self, source: usize, space: usize, depth: i32) {
         let frozen = self.frozen;
         let size = self.config.size.0;

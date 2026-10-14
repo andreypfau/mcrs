@@ -185,6 +185,10 @@ pub struct Reference {
 }
 
 impl Reference {
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "computes the sky and block light of every cell by brute force over the region, so the oracle reads cell by cell with no shared helper to share a bug with"
+    )]
     pub fn compute(world: &LightWorld, min: BlockPos, max: BlockPos) -> Self {
         let registry = world.registry().clone();
         let dim = (max.x - min.x + 1, max.y - min.y + 1, max.z - min.z + 1);

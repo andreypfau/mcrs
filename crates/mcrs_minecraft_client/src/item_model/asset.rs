@@ -986,6 +986,10 @@ mod tests {
             use super::super::*;
 
             #[test]
+            #[expect(
+                clippy::excessive_nesting,
+                reason = "reads every shipped item model asset and matches each model kind inside the per-file loop, so a failure names the file and the kind"
+            )]
             fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
                 let mut files = 0;
                 let mut kinds: BTreeMap<String, usize> = BTreeMap::new();

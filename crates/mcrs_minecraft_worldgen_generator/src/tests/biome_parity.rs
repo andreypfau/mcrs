@@ -66,6 +66,10 @@ mod exhaustive {
     use super::*;
 
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "compares the stored biome of every block of the chunk with the reference across three axes, so a mismatch names its block"
+    )]
     fn the_stored_biomes_match_the_reference_block_for_block() {
         let (table, ids) = overworld_table();
         let mut names = vec![""; ids.len()];

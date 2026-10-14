@@ -340,6 +340,10 @@ impl Layout {
     }
 
     /// Each type's `addChildren`.
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "dispatches each mineshaft piece's child placement by piece type and direction, kept whole so it reads against the reference's addChildren"
+    )]
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use Orientation::*;
         let piece = self.piece(index);

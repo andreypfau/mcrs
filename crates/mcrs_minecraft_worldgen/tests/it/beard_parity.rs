@@ -132,6 +132,10 @@ mod exhaustive {
     use super::*;
 
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "compares the sampled and the filled beard of every cell with the reference across three axes, so a mismatch names its cell"
+    )]
     fn sample_and_fill_match_the_reference_bit_for_bit() {
         let (_, cases) = read_dump();
         assert!(!cases.is_empty(), "the dump holds no cases");

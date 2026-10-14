@@ -2223,6 +2223,10 @@ pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {
 /// Every state of `pale_moss_carpet` both ways, and the four masks a side
 /// asks of the block it would climb. `None` where the corpus has no such
 /// block, which is what a datapack that drops it leaves behind.
+#[expect(
+    clippy::excessive_nesting,
+    reason = "builds the property list of every carpet state in both directions with the boolean spelled in place, so each state reads as it is looked up"
+)]
 fn mossy_carpet_states(resolver: &Resolver<'_>) -> Compiled<Option<MossyCarpetStates>> {
     const BLOCK: Block = Block::PaleMossCarpet;
     const SIDES: [WallSide; 3] = [WallSide::None, WallSide::Low, WallSide::Tall];

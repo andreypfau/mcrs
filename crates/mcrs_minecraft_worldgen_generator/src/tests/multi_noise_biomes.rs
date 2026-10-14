@@ -57,6 +57,10 @@ fn y_sections() -> Vec<i32> {
 }
 
 #[test]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "folds every step of the six climate parameters into a digest of the table's lookups, one loop per parameter, so a changed lookup shows"
+)]
 fn the_overworld_parameter_list_builds_the_overworld_table() {
     const STEPS: [f32; 5] = [-1.0, -0.5, 0.0, 0.5, 1.0];
     const DEPTHS: [f32; 5] = [-0.5, 0.0, 0.2, 0.55, 1.0];

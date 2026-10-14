@@ -128,6 +128,10 @@ mod load {
         }
 
         /// Colours are numbered from 1 in the order the files come.
+        #[expect(
+            clippy::excessive_nesting,
+            reason = "walks each file's entries, their member blocks and the matching states in order, recording which entry claimed each state so a double claim names both"
+        )]
         pub fn from_files(
             files: impl IntoIterator<Item = (String, Vec<u8>)>,
             blocks: &BlockDefinitions,

@@ -84,6 +84,10 @@ fn a_louder_barrier_widens_the_shell_and_stays_exact() {
     check_parity(&loud);
 }
 
+#[expect(
+    clippy::excessive_nesting,
+    reason = "compares the aquifer of every cell of the region with the reference across three axes, so a mismatch names its cell"
+)]
 fn check_parity(router: &NoiseRouter) {
     let mut ws = Workspace::new();
     let cell = router.cell_size().unwrap();

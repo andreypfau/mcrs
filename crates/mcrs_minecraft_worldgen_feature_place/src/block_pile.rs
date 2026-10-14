@@ -111,6 +111,10 @@ mod tests {
     /// The two radii, then two floats at every cell of the box and a third
     /// wherever the radial test failed, in x, then y, then z order.
     #[test]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "walks the box in the reference's x, y, z order and checks the floats each cell spends, so the order is visible in the loops"
+    )]
     fn every_cell_of_the_box_spends_its_floats_in_the_references_order() {
         let cfg = config();
         let mut volume = ground(DIRT);

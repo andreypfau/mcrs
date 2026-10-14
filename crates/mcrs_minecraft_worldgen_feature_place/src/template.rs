@@ -674,6 +674,10 @@ impl CompiledProcessor {
         clippy::too_many_lines,
         reason = "one arm per processor kind, in the reference's declaration order, so each reads against its kind"
     )]
+    #[expect(
+        clippy::excessive_nesting,
+        reason = "applies the property-copying processor inside its arm of the processor match, so each kind reads against the reference"
+    )]
     fn process<W: WorldGenVolume, R: Random>(
         &self,
         volume: &W,

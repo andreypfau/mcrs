@@ -16,6 +16,10 @@ mod support;
 
 use support::{build_settings_router, corpus};
 
+#[expect(
+    clippy::excessive_nesting,
+    reason = "dumps each column of the chunk cell by cell with a loop per axis, so the output order is the loop order"
+)]
 fn main() {
     let prefix = std::env::args().nth(1).expect("output prefix");
     let cancel = CancellationToken::new();

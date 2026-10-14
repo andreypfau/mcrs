@@ -875,6 +875,10 @@ mod tests {
             clippy::too_many_lines,
             reason = "a table of first and second passes with the class each survivor ends in"
         )]
+        #[expect(
+            clippy::excessive_nesting,
+            reason = "checks that every part of an expected failure appears in the reported problems, inside the table of first and second passes"
+        )]
         fn the_second_pass_decides_only_what_the_first_left_alive() {
             use Class::{Caught, Missed, Timeout, Unviable};
             let dependents_of_a = "shard 3 (a): ";

@@ -74,6 +74,10 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     clippy::too_many_lines,
     reason = "one comparison of the bedrock band against the captured back2beta chunk, with its expected values inline"
 )]
+#[expect(
+    clippy::excessive_nesting,
+    reason = "scans each block of the captured section for surface blocks of grass, dirt and sand, with the comparison inline"
+)]
 fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
     let (biome_source, _) = build_beta_biome_source();
