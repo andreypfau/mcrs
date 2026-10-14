@@ -2507,6 +2507,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fancy-regex"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "998b056554fbe42e03ae0e152895cd1a7e1002aec800fdc6635d20270260c46f"
+dependencies = [
+ "bit-set 0.8.0",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4055,6 +4066,18 @@ dependencies = [
  "bevy_math",
  "md-5",
  "rand_xoshiro",
+]
+
+[[package]]
+name = "mcrs_minecraft_registries"
+version = "0.5.8"
+dependencies = [
+ "fancy-regex",
+ "fixedbitset",
+ "mcrs_minecraft_core",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
 ]
 
 [[package]]
@@ -6101,6 +6124,17 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]

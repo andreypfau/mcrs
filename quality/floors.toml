@@ -172,5 +172,10 @@ floor = "unmeasured"
 [crate.mcrs_minecraft_worldgen_testing]
 floor = "unmeasured"
 
+[crate.mcrs_minecraft_registries]
+floor = "unmeasured"
+
 [crate.xtask]
 floor = "unmeasured"
+
+
