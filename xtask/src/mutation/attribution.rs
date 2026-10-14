@@ -330,6 +330,10 @@ error: test run failed
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "real nextest output for each failure shape followed by the rows that parse synthetic lines"
+    )]
     fn nextest_failure_lines_name_the_tests_a_mutant_failed() {
         for (name, text, binary, test) in REAL {
             let found = failing_tests(&section(text)).unwrap_or_else(|e| panic!("{name}: {e}"));

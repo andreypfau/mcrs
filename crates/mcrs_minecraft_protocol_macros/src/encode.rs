@@ -5,6 +5,10 @@ use syn::{Data, DeriveInput, Error, Fields, LitInt, Result, parse2};
 
 use crate::{add_trait_bounds, pair_variants_with_discriminants};
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the whole Encode expansion for structs and enums sits in one place"
+)]
 pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
     let mut input = parse2::<DeriveInput>(item)?;
 

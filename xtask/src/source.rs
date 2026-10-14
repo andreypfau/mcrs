@@ -251,7 +251,10 @@ impl Walk<'_> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the file, module path, attributes and items of one module plus the owner, the inline path and the visitor it reports to"
+    )]
     fn items(
         &mut self,
         path: &str,

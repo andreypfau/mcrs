@@ -414,6 +414,10 @@ mod tests {
             .collect()
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of gate-configuration changes with their expected outcome, one row per rule"
+    )]
     fn rows() -> Vec<Row> {
         let raise = || put(LIMITS_FILE, LIMIT_200);
         let loosened = Expect::Pass("gate configuration loosened alone");

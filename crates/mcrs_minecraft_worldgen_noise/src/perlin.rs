@@ -294,7 +294,10 @@ impl Lane {
 
 impl GradientNoise {
     #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the three section coordinates, the three local coordinates and the first fade of one lattice-cell sample"
+    )]
     pub(crate) fn sample_and_lerp(
         &self,
         section_x: i32,
@@ -522,10 +525,10 @@ fn cell_blend(
 }
 
 #[derive(Clone, Copy)]
-#[cfg_attr(feature = "fast", allow(dead_code))]
+#[cfg(any(test, not(feature = "fast")))]
 pub(crate) struct CellCorners(pub [usize; 8]);
 
-#[cfg_attr(feature = "fast", allow(dead_code))]
+#[cfg(any(test, not(feature = "fast")))]
 impl CellCorners {
     #[inline(always)]
     pub(crate) fn sample(
@@ -546,7 +549,7 @@ impl CellCorners {
 /// lerps are affine with constant weights, so the whole cell collapses to two lines that
 /// the y smoothstep interpolates between.
 #[derive(Clone, Copy)]
-#[cfg_attr(not(feature = "fast"), allow(dead_code))]
+#[cfg(any(test, feature = "fast"))]
 pub(crate) struct CellLine {
     lower_at_0: f32,
     lower_slope: f32,
@@ -554,7 +557,7 @@ pub(crate) struct CellLine {
     upper_slope: f32,
 }
 
-#[cfg_attr(not(feature = "fast"), allow(dead_code))]
+#[cfg(any(test, feature = "fast"))]
 impl CellLine {
     #[inline(always)]
     pub(crate) fn new(

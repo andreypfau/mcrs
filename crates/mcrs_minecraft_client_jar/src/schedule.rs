@@ -228,6 +228,10 @@ fn unpack(
 
 /// Fetches the jar's `assets/` half in priority order: fonts, then the central directory,
 /// then textures, then everything else. Font files go to `fonts` as soon as they are in.
+#[expect(
+    clippy::too_many_lines,
+    reason = "fetches the asset half in its fixed priority order, fonts then directory then textures then the rest, so the order reads top to bottom"
+)]
 pub(crate) async fn assets(
     source: &impl Source,
     release: &Release<'_>,

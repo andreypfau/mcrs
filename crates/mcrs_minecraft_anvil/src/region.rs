@@ -97,6 +97,10 @@ impl RegionFile {
     /// Lays out a whole new file at `out`: every slot not in `replaced` keeps its
     /// record byte for byte, and each replaced chunk is stored zlib-compressed.
     /// The file is written beside `out` and renamed into place.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lays out the new region file in one pass, header then sectors then payloads, so the code reads in file order"
+    )]
     pub fn write(&self, replaced: &[(ColumnPos, Vec<u8>)], out: &Path) -> Result<(), AnvilError> {
         let at = |kind: ErrorKind| AnvilError {
             path: out.to_path_buf(),

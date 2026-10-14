@@ -122,6 +122,23 @@ mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features 
 mcrs_minecraft_fixtures = { path = "crates/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)'] }
+
+[workspace.lints.clippy]
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+too_many_lines = "warn"
+excessive_nesting = "warn"
+too_many_arguments = "warn"
+disallowed_types = "warn"
+disallowed_macros = "warn"
+disallowed_methods = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+type_complexity = "allow"
+
 [dependencies]
 bevy_app.workspace = true
 bevy_log.workspace = true

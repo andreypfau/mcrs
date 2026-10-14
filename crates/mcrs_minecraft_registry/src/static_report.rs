@@ -28,7 +28,10 @@ pub fn shipped_report() -> &'static RegistrySet {
 #[serde(deny_unknown_fields)]
 struct RegistryReport {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "listed so deny_unknown_fields accepts the report; nothing reads the default entry"
+    )]
     default: Option<ResourceLocation>,
     protocol_id: u16,
     entries: BTreeMap<ResourceLocation, EntryReport>,

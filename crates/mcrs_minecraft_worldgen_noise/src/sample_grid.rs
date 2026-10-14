@@ -11,7 +11,10 @@ pub struct SampleGrid {
     step_block: IVec3,
 }
 
-#[allow(clippy::len_without_is_empty)]
+#[expect(
+    clippy::len_without_is_empty,
+    reason = "the constructor requires a positive size on every axis, so a grid is never empty"
+)]
 impl SampleGrid {
     pub fn new(size: IVec3, min_block: IVec3, step_block: IVec3) -> Self {
         assert!(

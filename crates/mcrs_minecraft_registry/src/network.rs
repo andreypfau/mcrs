@@ -93,6 +93,10 @@ impl WorldRegistries {
     /// registries in the order they arrived, their entries in the order they
     /// were listed, then the tags. An entry without data is read from `known`.
     /// Any entry that cannot be read refuses the build.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "rebuilds the client's registries in the order the server sent them, entries before tags, in one pass that reads against the wire order"
+    )]
     pub fn from_network(
         &self,
         statics: &RegistrySet,

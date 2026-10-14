@@ -47,26 +47,33 @@ pub fn official_dir() -> PathBuf {
 pub fn candidates() -> Vec<PathBuf> {
     let id = RELEASE.id;
     let installed = format!("versions/{id}/{id}.jar");
-    #[allow(unused_mut)]
     let mut paths = vec![official_dir().join(&installed)];
-    #[cfg(target_os = "macos")]
-    {
-        let support = home().join("Library/Application Support");
-        paths.push(support.join(format!(
-            "PrismLauncher/libraries/com/mojang/minecraft/{id}/minecraft-{id}-client.jar"
-        )));
-        for settings in ["tlauncher-2.0.properties", "legacy.properties"] {
-            let Ok(text) = fs::read_to_string(support.join("tlauncher").join(settings)) else {
-                continue;
-            };
-            paths.extend(
-                text.lines()
-                    .filter_map(|line| line.strip_prefix("minecraft.gamedir="))
-                    .map(|dir| Path::new(dir.trim()).join(&installed)),
-            );
-        }
+    paths.extend(third_party_launcher_jars(id, &installed));
+    paths
+}
+
+#[cfg(target_os = "macos")]
+fn third_party_launcher_jars(id: &str, installed: &str) -> Vec<PathBuf> {
+    let support = home().join("Library/Application Support");
+    let mut paths = vec![support.join(format!(
+        "PrismLauncher/libraries/com/mojang/minecraft/{id}/minecraft-{id}-client.jar"
+    ))];
+    for settings in ["tlauncher-2.0.properties", "legacy.properties"] {
+        let Ok(text) = fs::read_to_string(support.join("tlauncher").join(settings)) else {
+            continue;
+        };
+        paths.extend(
+            text.lines()
+                .filter_map(|line| line.strip_prefix("minecraft.gamedir="))
+                .map(|dir| Path::new(dir.trim()).join(installed)),
+        );
     }
     paths
+}
+
+#[cfg(not(target_os = "macos"))]
+fn third_party_launcher_jars(_id: &str, _installed: &str) -> Vec<PathBuf> {
+    Vec::new()
 }
 
 /// The first of `paths` whose size and SHA-1 are the artifact's. Anything else, including a

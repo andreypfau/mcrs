@@ -6,6 +6,9 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true

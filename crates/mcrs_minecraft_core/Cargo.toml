@@ -7,6 +7,9 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true

@@ -215,6 +215,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of sweep pairs with the floor each leaves"
+    )]
     fn a_floor_rises_only_when_two_sweeps_agree() {
         struct Row {
             name: &'static str,

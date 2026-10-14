@@ -127,7 +127,10 @@ pub struct WorldRegistries {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DatapackReport {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "listed so deny_unknown_fields accepts the report; nothing reads it"
+    )]
     others: serde::de::IgnoredAny,
     registries: BTreeMap<Name, Flags>,
 }
@@ -137,7 +140,10 @@ struct DatapackReport {
 struct Flags {
     elements: bool,
     stable: bool,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "listed so deny_unknown_fields accepts the report; the load decides tags from the packs"
+    )]
     tags: bool,
 }
 
@@ -512,6 +518,10 @@ impl WorldRegistries {
         set.scope(|| (codec.encode)(&**column, index))
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "loads every registry in the order the reference does, one pass from pack scan to tag resolution, so each step reads against the reference"
+    )]
     pub fn load(&self, statics: &RegistrySet, packs: &[Pack]) -> Result<RegistrySet, LoadReport> {
         let mut report = LoadReport::new();
 
@@ -1382,6 +1392,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of tag-loading scenarios whose six cases read side by side"
+    )]
     fn tag_outcomes_on_the_load() {
         let cases: [(&str, Vec<PackFile>, Expect); 6] = [
             (

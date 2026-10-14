@@ -305,6 +305,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of formatting-only edits that leave the test surface unchanged"
+    )]
     fn formatting_alone_leaves_the_test_surface_unchanged() {
         let base = || lib("", ASSERT);
         let rows = vec![

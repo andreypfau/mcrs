@@ -723,6 +723,10 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of histories and budgets with the crates each sweep takes"
+    )]
     fn the_sweep_plan_takes_the_stalest_crates_within_the_budget() {
         struct Row<'a> {
             name: &'a str,

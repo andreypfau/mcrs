@@ -213,6 +213,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of tests and files that must stay silent"
+    )]
     fn tests_that_fail_a_warning_condition_stay_silent() {
         let loads = "use mcrs_minecraft_fixtures::fixture;\nfn load() {\n    fixture(\"x\");\n}\n";
         let rows: [(&str, &str, String, &[&str]); 17] = [

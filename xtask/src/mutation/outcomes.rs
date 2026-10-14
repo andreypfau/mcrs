@@ -241,6 +241,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of build and test outcomes with the class each is given"
+    )]
     fn a_test_phase_counts_as_caught_only_on_a_test_failure() {
         let ok = "\"Success\"";
         type Row<'a> = (

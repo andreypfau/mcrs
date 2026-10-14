@@ -127,6 +127,10 @@ pub(super) struct UploadParams<'w> {
     budget: Res<'w, TerrainBudget>,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "spends one byte budget across tint, sprite and geometry uploads, resuming a half-copied geometry upload at the top of the same loop"
+)]
 pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEncoder) {
     let UploadParams {
         terrain,

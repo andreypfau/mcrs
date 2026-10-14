@@ -369,6 +369,10 @@ struct Pending<'s> {
     path: &'s str,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "resolves tag files, references and cycles in the reference's order in one pass so the stages read against it"
+)]
 pub fn build_tags(
     names: &NameTable,
     rules: TagRules,

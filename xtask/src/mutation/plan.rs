@@ -478,6 +478,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of changes with the crates each one sweeps"
+    )]
     fn a_test_change_sweeps_the_crate_and_its_floored_dependencies() {
         use crate::floors::tests::{measured, unmeasured};
         let at = |name: &str, floor: &str, counts| measured(name, floor, counts).text();

@@ -741,7 +741,10 @@ mod test {
     fn a_string_tag_is_no_number_on_the_stream() {
         #[derive(Deserialize, Debug)]
         struct Fields {
-            #[allow(dead_code)]
+            #[expect(
+                dead_code,
+                reason = "the test only decodes into the struct; it never reads the field back"
+            )]
             value: i64,
         }
 

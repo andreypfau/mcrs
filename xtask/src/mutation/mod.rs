@@ -936,6 +936,10 @@ mod tests {
         }
 
         #[test]
+        #[expect(
+            clippy::too_many_lines,
+            reason = "a table of diff-gate rows run against one shared repository"
+        )]
         fn the_diff_gate_judges_changed_code() {
             let (repo, unconfigured, configured) = fixture("diff-gate");
 

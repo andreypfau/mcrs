@@ -154,7 +154,10 @@ fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
     local
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the face, slice, grid position, size, base, drop and fluid flag that are the fields of one packed quad"
+)]
 #[inline]
 fn pack_quad(
     face: usize,

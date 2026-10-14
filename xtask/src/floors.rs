@@ -790,6 +790,10 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of floor and count rows that read side by side"
+    )]
     fn a_floor_equals_its_counts_rounded_down() {
         let eighty_three = || measured("a", "0.83", EIGHTY_THREE).text();
         let rows: Vec<(&str, String, Wanted)> = vec![
@@ -917,6 +921,10 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of floor changes and expected failures that read side by side"
+    )]
     fn floors_never_fall() {
         let at = |floor, counts| measured("a", floor, counts).text();
         let base = || at("0.83", EIGHTY_THREE);

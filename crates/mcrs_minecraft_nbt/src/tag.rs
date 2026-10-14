@@ -468,6 +468,10 @@ impl Serialize for NbtTag {
 }
 
 impl<'de> Deserialize<'de> for NbtTag {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the visitor type and its impls are local to the deserializer they serve"
+    )]
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct NbtTagVisitor {
             json_numbers: bool,

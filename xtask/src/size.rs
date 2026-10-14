@@ -238,6 +238,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of change shapes with the size verdict each gets"
+    )]
     fn rows() -> Vec<Row> {
         vec![
             row("a hundred files pass", nothing, |r| many(r, 100), counts(100, 100, 0, 0, 0)),

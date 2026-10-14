@@ -261,6 +261,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of routes to a fixture, each with whether parity refuses it"
+    )]
     fn parity_refuses_every_route_to_a_fixture_but_the_loader() {
         let rows: [(&str, &str, bool); 19] = [
             (

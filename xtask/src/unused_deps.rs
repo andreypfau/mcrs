@@ -313,6 +313,10 @@ pub(crate) fn check(
     check_with(repo, base, head, workspace, &[])
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "sorts the tool's findings, applies the base's exemptions and reports stale ones in one pass, so the verdict reads from findings to message"
+)]
 fn check_with(
     repo: &Path,
     base: &str,
@@ -715,6 +719,10 @@ mod tests {
             }
         }
 
+        #[expect(
+            clippy::too_many_lines,
+            reason = "a table of workspace changes with the unused-dependency findings each produces"
+        )]
         fn cases() -> Vec<Case> {
             let none = || exemptions(&[]);
             let c_b = || exemptions(&[("c", "b")]);

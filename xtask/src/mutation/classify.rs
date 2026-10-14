@@ -1163,6 +1163,10 @@ mod tests {
     const LOWLEVEL: Target = ("lowlevel", "lowlevel", "lowlevel/src/lib.rs", true);
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one fixture and one counterexample for each protected category, in a single table"
+    )]
     fn each_protected_category_matches_its_fixture_and_not_its_counterexample() {
         struct Case {
             category: &'static str,

@@ -666,6 +666,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of outcome counts with the verdict each gets against its floor"
+    )]
     fn a_sweep_below_its_floor_fails() {
         use Class::{Caught, Missed, Timeout, Unviable};
         struct Row {
@@ -867,6 +871,10 @@ mod tests {
         }
 
         #[test]
+        #[expect(
+            clippy::too_many_lines,
+            reason = "a table of first and second passes with the class each survivor ends in"
+        )]
         fn the_second_pass_decides_only_what_the_first_left_alive() {
             use Class::{Caught, Missed, Timeout, Unviable};
             let dependents_of_a = "shard 3 (a): ";

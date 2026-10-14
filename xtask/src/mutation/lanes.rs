@@ -141,6 +141,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one build-graph fixture per way packages can share dependencies, asserted together"
+    )]
     fn units_are_split_where_their_build_graphs_share_no_package() {
         let diamond = workspace(&[
             ("shared", &[]),

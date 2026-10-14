@@ -480,6 +480,10 @@ pub enum TextContent<I: TextTypes> {
 /// A present `type` admits only the codec it names, otherwise the first codec
 /// that accepts the map wins.
 impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the representation structs of each content shape sit beside the untagged dispatch they feed"
+    )]
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct TextRepr {
@@ -1050,7 +1054,6 @@ mod java_uri {
 /// Action to take when mouse-hovering on the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
-#[allow(clippy::enum_variant_names)]
 pub enum HoverEvent<I: TextTypes> {
     ShowText {
         value: Text<I>,
@@ -1141,7 +1144,10 @@ mod lenient_uuid {
     }
 }
 
-#[allow(clippy::self_named_constructors)]
+#[expect(
+    clippy::self_named_constructors,
+    reason = "Text::text is the plain-text constructor; callers write it by that name"
+)]
 impl<I: TextTypes> Text<I> {
     /// Constructs a new plain text object.
     pub fn text(plain: impl Into<Cow<'static, str>>) -> Self {

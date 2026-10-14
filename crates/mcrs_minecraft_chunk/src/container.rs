@@ -224,7 +224,10 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     /// occurrence, swap_remove when a count reaches zero), so serialized output
     /// is bit-identical. Palette index lookups are memoized across the box,
     /// avoiding the per-block reverse-index hashing of repeated `set` calls.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+    )]
     pub fn fill_box(
         &mut self,
         x0: usize,

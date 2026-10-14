@@ -145,6 +145,10 @@ fn summarize(call: &[String]) -> Option<String> {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "builds a throwaway repository with a fake cargo, runs the shard against it and checks the calls, marks and outcomes it left"
+)]
 fn run(case: &Case, label: usize) -> Result<(), String> {
     let root = std::env::temp_dir().join(format!("xtask-shard-{}-{label}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
@@ -266,6 +270,10 @@ fn run(case: &Case, label: usize) -> Result<(), String> {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "a table of shard scenarios with the tool calls each must make"
+)]
 fn a_shard_tests_its_survivors_against_the_dependents_and_nothing_else() {
     let own_pass = "run shard=1/2 baseline=skip packages=a re=0 diff=true build_timeout=120";
     let cases = [

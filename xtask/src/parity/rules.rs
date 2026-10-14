@@ -676,6 +676,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table of sources that do or do not reach the loader within their file"
+    )]
     fn a_parity_test_must_reach_the_loader_within_its_file() {
         let loads: [(&str, &[&str]); 14] = [
             (
