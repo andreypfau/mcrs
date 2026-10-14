@@ -87,11 +87,9 @@ impl Trigger {
 
     pub const fn description(self) -> &'static str {
         match self {
-            Trigger::Edit => {
-                "after a file is written: change size, mutation markers, fixture parity, formatting"
-            }
+            Trigger::Edit => "after a file is written: change size, fixture parity, formatting",
             Trigger::Commit => {
-                "before a commit: change size, gate configuration, mutation markers, mutation floors, fixture parity, unused dependencies, mutation configuration, formatting, clippy"
+                "before a commit: change size, gate configuration, fixture parity, unused dependencies, formatting, clippy"
             }
             Trigger::Push => "before a push: every check that ci runs",
             Trigger::Ci => "on every pull request and every push to main: all checks",
@@ -101,7 +99,7 @@ impl Trigger {
                 "in CI from the default branch: the git-only checks on a pull request head read as git data"
             }
             Trigger::Mutation => {
-                "by hand only, never in a hook or in CI: the surviving mutants in changed code, from shards run beforehand"
+                "by hand only, never in a hook or in CI: mutation markers, floors and configuration, then the surviving mutants in changed code, from shards run beforehand"
             }
             Trigger::MutationLocal => {
                 "on demand on this machine: the surviving mutants in changed code, as the pull request's mutation check judges them"
@@ -131,26 +129,13 @@ impl Trigger {
 pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
-        Trigger::Edit => &[Size, MutationMarker, Parity, Fmt],
-        Trigger::Commit => &[
-            Size,
-            GateConfig,
-            MutationMarker,
-            Floors,
-            Parity,
-            UnusedDeps,
-            MutationConfig,
-            Fmt,
-            Clippy,
-        ],
+        Trigger::Edit => &[Size, Parity, Fmt],
+        Trigger::Commit => &[Size, GateConfig, Parity, UnusedDeps, Fmt, Clippy],
         Trigger::Push => &[
             Size,
             GateConfig,
-            MutationMarker,
-            Floors,
             Parity,
             UnusedDeps,
-            MutationConfig,
             Fmt,
             Clippy,
             Test,
@@ -161,11 +146,8 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
         Trigger::Ci => &[
             Size,
             GateConfig,
-            MutationMarker,
-            Floors,
             Parity,
             UnusedDeps,
-            MutationConfig,
             Fmt,
             Clippy,
             Test,
@@ -174,8 +156,9 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             ExportedBuild,
         ],
         Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Policy => &[Size, GateConfig, MutationMarker, Floors, Parity],
-        Trigger::Mutation | Trigger::MutationLocal => &[Mutation],
+        Trigger::Policy => &[Size, GateConfig, Parity],
+        Trigger::Mutation => &[MutationMarker, Floors, MutationConfig, Mutation],
+        Trigger::MutationLocal => &[Mutation],
     }
 }
 
@@ -284,15 +267,25 @@ mod tests {
     }
 
     #[test]
-    fn mutants_run_only_from_the_mutation_triggers_which_no_hook_and_no_pull_request_runs() {
+    fn every_mutation_check_runs_only_from_the_manual_mutation_triggers_which_no_hook_and_no_pull_request_runs()
+     {
+        let mutation_checks = [
+            Check::MutationMarker,
+            Check::Floors,
+            Check::MutationConfig,
+            Check::Mutation,
+        ];
         let manual = [Trigger::Mutation, Trigger::MutationLocal];
+        assert_eq!(checks(Trigger::Mutation), mutation_checks);
+        assert_eq!(checks(Trigger::MutationLocal), [Check::Mutation]);
+        assert!(!Trigger::Mutation.is_local());
         for trigger in manual {
-            assert_eq!(checks(trigger), [Check::Mutation], "{trigger:?}");
             assert!(!trigger.runs_on_every_pull_request(), "{trigger:?}");
         }
-        assert!(!Trigger::Mutation.is_local());
         for trigger in Trigger::ALL.into_iter().filter(|t| !manual.contains(t)) {
-            assert!(!checks(trigger).contains(&Check::Mutation), "{trigger:?}");
+            for check in mutation_checks {
+                assert!(!checks(trigger).contains(&check), "{trigger:?} {check:?}");
+            }
         }
         assert_eq!(
             Trigger::parse("mutation-local"),
@@ -385,37 +378,6 @@ mod tests {
                     "{trigger:?} lists {late:?} after another check"
                 );
             }
-        }
-    }
-
-    #[test]
-    fn the_mutation_configuration_is_checked_after_unused_deps_and_before_fmt() {
-        let runs_it = [Trigger::Commit, Trigger::Push, Trigger::Ci];
-        for trigger in Trigger::ALL {
-            let listed = checks(trigger);
-            let position = listed.iter().position(|&c| c == Check::MutationConfig);
-            if !runs_it.contains(&trigger) {
-                assert_eq!(position, None, "{trigger:?}");
-                continue;
-            }
-            let position = position.unwrap_or_else(|| panic!("{trigger:?} lacks the check"));
-            assert_eq!(listed[position - 1], Check::UnusedDeps, "{trigger:?}");
-            assert_eq!(listed[position + 1], Check::Fmt, "{trigger:?}");
-        }
-    }
-
-    #[test]
-    fn floors_are_judged_right_after_the_mutation_marker_wherever_a_pull_request_is() {
-        let runs_it = [Trigger::Commit, Trigger::Push, Trigger::Ci, Trigger::Policy];
-        for trigger in Trigger::ALL {
-            let listed = checks(trigger);
-            let position = listed.iter().position(|&c| c == Check::Floors);
-            if !runs_it.contains(&trigger) {
-                assert_eq!(position, None, "{trigger:?}");
-                continue;
-            }
-            let position = position.unwrap_or_else(|| panic!("{trigger:?} lacks the check"));
-            assert_eq!(listed[position - 1], Check::MutationMarker, "{trigger:?}");
         }
     }
 

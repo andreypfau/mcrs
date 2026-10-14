@@ -50,20 +50,6 @@ jobs:
         with:
           tool: cargo-shear@${{ steps.cargo-shear-version.outputs.version }}
 
-      - name: read the mutation testing tool version
-        id: cargo-mutants-version
-        run: |
-          echo "version=$(sed -n 's/^pub(crate) const VERSION: &str = "\(.*\)";$/\1/p' xtask/src/mutation/tool.rs)" >> "$GITHUB_OUTPUT"
-
-      # The release binary needs glibc 2.39, newer than the self-hosted runner's, and no static build is published.
-      - name: build the mutation testing tool unless this version is installed
-        env:
-          VERSION: ${{ steps.cargo-mutants-version.outputs.version }}
-        run: |
-          if [ "$(cargo mutants --version 2>/dev/null)" != "cargo-mutants $VERSION" ]; then
-            cargo install --locked --force cargo-mutants --version "$VERSION"
-          fi
-
       - name: locate the client jar
         id: jar
         run: echo "dir=$HOME/.minecraft/versions/$(jq -r .id crates/mcrs_minecraft_client_jar/src/release.json)" >> "$GITHUB_OUTPUT"
