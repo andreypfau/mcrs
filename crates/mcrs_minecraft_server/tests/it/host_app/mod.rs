@@ -9,8 +9,6 @@
 //! `BEVY_ASSET_ROOT` is set process-wide in `.cargo/config.toml`, so no
 //! per-test env mutation is needed here.
 
-#![allow(dead_code)]
-
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};

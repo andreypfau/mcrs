@@ -60,6 +60,10 @@ pub fn sync_stack_slots(world: &mut World) {
     set.scope(|| sync_slots(world));
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass over open menus and dropped items decides which slots each viewer lacks and sends them"
+)]
 fn sync_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
     let set = world.resource::<RegistrySet>().clone();

@@ -1,5 +1,4 @@
 #![recursion_limit = "2048"]
-#![allow(unexpected_cfgs, clippy::type_complexity, clippy::too_many_arguments)]
 
 extern crate core;
 

@@ -89,6 +89,10 @@ pub fn spawn_generated_entities(
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one spawn builds every component a generated entity carries, so the components read against the entity's data"
+)]
 fn spawn_one(
     commands: &mut Commands,
     dim: InDimension,
@@ -504,7 +508,10 @@ fn remove(entity: Entity) -> PacketPayload {
 /// tracking range of it, horizontally, as the reference decides it.
 // chisle: every mob is re-evaluated whenever any transform or observer set changes; index
 // mobs per column when their count makes that a cost.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
@@ -656,6 +663,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the scenario spawns a witch, pairs it with the player, then removes its section, and the assertions between the steps need the one world"
+    )]
     fn a_witch_is_paired_with_the_player_holding_its_column_and_removed_with_its_section() {
         let mut app = App::new();
         app.add_schedule(Schedule::new(FixedPostUpdate));

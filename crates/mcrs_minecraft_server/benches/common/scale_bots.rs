@@ -17,8 +17,6 @@
 //! dependency on process-global metric atomics, that routing landed every
 //! packet and that teardown leaves no session behind.
 
-#![allow(dead_code)]
-
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use std::time::Instant;
 
@@ -41,6 +39,10 @@ use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 /// Per-run report: the functional invariants the bench asserts on, all local
 /// to this run's `World`, alongside soft observational telemetry.
 #[derive(Debug)]
+#[expect(
+    dead_code,
+    reason = "the bot_load bench, the only target that includes this module, asserts on the entity, queue and teardown counts and leaves the rest of the run's telemetry unread"
+)]
 pub struct ScaleReport {
     pub profile_name: String,
     pub dims: usize,
@@ -81,6 +83,10 @@ impl ScaleReport {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the harness builds its world, injects the bots' packets and tears the sessions down in one tick loop, so the run reads as the sequence it measures"
+)]
 pub fn run_profile_ticks(
     name: &str,
     dims: usize,

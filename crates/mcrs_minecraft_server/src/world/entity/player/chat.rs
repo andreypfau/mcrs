@@ -45,6 +45,10 @@ impl Plugin for ChatPlugin {
 /// dimension sub-app, so any client-facing effect must route through the
 /// bridge (`OutboundPlayerPacket`) rather than touching `ServerSideConnection`
 /// directly, which is host-resident.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the debug slash-command handler matches each command in one place, where its effect and reply are read together"
+)]
 fn handle_command(
     event: On<ReceivedPacketEvent>,
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,

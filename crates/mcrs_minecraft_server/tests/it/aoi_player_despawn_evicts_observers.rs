@@ -45,6 +45,10 @@ struct TestDimTick;
 /// closure) as the existing topology test above. Observer O does NOT move
 /// between warm-up and removal — the fix must work for stationary observers.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the three assertions follow one observer through warm-up, disconnect and eviction in a single world"
+)]
 fn disconnect_path_evicts_stationary_observer_three_assertions() {
     // --- Main App setup ---
     let mut main_app = App::new();

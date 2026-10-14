@@ -31,6 +31,10 @@ impl Plugin for ArrivalPlugin {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn resolve_arrivals(
     mut reader: MessageReader<InboundEntitySpawn>,
     mut block_writer: MessageWriter<BlockSetRequest>,

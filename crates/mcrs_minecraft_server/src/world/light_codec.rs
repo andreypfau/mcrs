@@ -63,7 +63,10 @@ pub fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ 
 /// component's `LightStorage`. The `has_sky_light` flag is consulted only for
 /// `TopPadding` (sky synthesis is gated on the dimension having a sky) and for
 /// the Loaded+sky-missing-in-skyless-dim row.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the packer fills the three wire buffers in one pass, so each buffer and the row's layer, sky flag and bit index stay separate parameters"
+)]
 pub fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
@@ -305,6 +308,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the column of 24 synthetic chunks is built and its wire order checked in one scenario"
+    )]
     fn codec_wire_ordering_invariant_holds_for_synthetic_24_chunk_column() {
         // Synthesize a column-shaped iter_wire output that exercises every
         // matrix row at least once. Wire-ordering invariant:

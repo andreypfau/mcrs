@@ -21,6 +21,10 @@ use crate::support::{
 };
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the test follows one client through login, configuration and join against the embedded server, and each phase needs the connection the last left"
+)]
 fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     let mut server = App::new();
     server.add_plugins(MinecraftServerPlugin::embedded());

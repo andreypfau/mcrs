@@ -43,7 +43,6 @@ pub const TRACKING_RADIUS_BLOCKS_SQ: f64 = 80.0 * 80.0;
         fields(moved_players = tracing::field::Empty)
     )
 )]
-#[allow(clippy::type_complexity)]
 pub fn update_tracked_by(
     mut moved_players: Query<
         (Entity, &Transform, &InDimension, &mut TrackedBy),

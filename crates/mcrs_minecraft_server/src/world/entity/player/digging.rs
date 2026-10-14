@@ -122,6 +122,10 @@ fn tick_digging(
         })
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
     dimensions: Query<&SectionIndex>,
@@ -378,6 +382,10 @@ pub fn extract_tool_data(
     (has_correct_tool, speed)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn handle_player_will_destroy_block(
     mut reader: MessageReader<PlayerWillDestroyBlock>,
     mut writer: MessageWriter<BlockSetRequest>,

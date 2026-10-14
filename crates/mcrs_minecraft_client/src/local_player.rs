@@ -230,7 +230,6 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
     old_transform.0 = *transform;
 }
 
-#[allow(clippy::type_complexity)]
 fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,

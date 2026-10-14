@@ -457,6 +457,10 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the drag scenario is one sequence of clicks and slot checks that the drag test calls"
+)]
 fn a_click_during_a_drag_resets_it_and_is_swallowed() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);

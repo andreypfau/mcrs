@@ -80,7 +80,10 @@ fn decoration_steps(
 /// from the block definitions and tags, so a datapack that changes any of them
 /// is picked up here. A name that resolves to nothing stops the server naming
 /// the entry.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn build_dimension_features(
     mut commands: Commands,
     dimensions: Res<DimensionList>,

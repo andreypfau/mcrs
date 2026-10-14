@@ -129,6 +129,10 @@ struct Refusal {
     mentions: &'static [&'static str],
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the table of refused fixture requests reads as one list of cases, so a new refusal is one more entry"
+)]
 fn refusals() -> Vec<Refusal> {
     vec![
         Refusal {

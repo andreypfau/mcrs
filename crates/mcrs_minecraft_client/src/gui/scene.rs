@@ -341,7 +341,10 @@ fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
     commands.insert_resource(language);
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass over the scene's quads emits vertices and closes flat draw ranges as it goes, so the range bookkeeping stays in a single frame"
+)]
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,

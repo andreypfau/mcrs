@@ -1,5 +1,3 @@
-#![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
-
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
@@ -79,6 +77,10 @@ fn main() {
 }
 
 #[cfg(not(target_family = "wasm"))]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the client's entry point builds the whole app, and its plugins, resources and systems read top to bottom in the order they are added"
+)]
 fn main() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();

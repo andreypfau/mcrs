@@ -6,10 +6,7 @@
 //! adds wall-clock-coupled flakiness; the direct schedule run makes the
 //! tests deterministic.
 
-#![allow(dead_code)]
-
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
-use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
@@ -93,24 +90,4 @@ pub fn spawn_player_in_dim_with_host_anchor(
             HostAnchor(host_anchor),
         ))
         .id()
-}
-
-/// Run a single FixedPreUpdate schedule pass.
-pub fn run_fixed_pre_update(app: &mut App) {
-    app.world_mut().run_schedule(FixedPreUpdate);
-}
-
-/// Run a single FixedPostUpdate schedule pass.
-pub fn run_fixed_post_update(app: &mut App) {
-    app.world_mut().run_schedule(FixedPostUpdate);
-}
-
-/// Drain the host's outbound bus, returning every packet emitted since
-/// the last call. The cursor pattern matches the production extract
-/// closure but we read here for assertions instead.
-pub fn drain_outbound(app: &mut App) -> Vec<OutboundPlayerPacket> {
-    let mut buf = app
-        .world_mut()
-        .resource_mut::<Messages<OutboundPlayerPacket>>();
-    buf.drain().collect()
 }

@@ -142,6 +142,10 @@ fn srgb_texture(
     texture.create_view(&TextureViewDescriptor::default())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one render-world prepare step creates the GUI pass's textures, pipelines and bind group in the order each depends on the last"
+)]
 pub(super) fn prepare_gui_pass(
     pass: Option<ResMut<GuiPass>>,
     atlas: Option<Res<GuiAtlas>>,

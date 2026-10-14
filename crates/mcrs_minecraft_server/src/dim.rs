@@ -76,6 +76,10 @@ fn find_dim(world: &World, key: &ResourceKey<Dimension>) -> Option<Entity> {
 ///
 /// Runs outside the ECS schedule, because rollback and teardown both need
 /// `&mut App`, and as often as the loop idles between ticks.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pump drains every channel a dimension's connections feed, because rollback and teardown need the one `&mut App` it holds"
+)]
 pub fn pump_channels(app: &mut App) {
     let world = app.world_mut();
 

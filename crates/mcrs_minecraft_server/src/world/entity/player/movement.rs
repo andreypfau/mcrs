@@ -132,7 +132,6 @@ fn process_movement(
     })
 }
 
-#[allow(clippy::type_complexity)]
 fn teleport(
     mut clients: Query<
         (&HostAnchor, &mut TeleportState, &Transform),

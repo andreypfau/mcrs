@@ -162,7 +162,10 @@ fn spawn_icons(world: &mut World) {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn switch_game_mode(
     keys: Res<ButtonInput<KeyCode>>,
     mut screen: ResMut<Screen>,

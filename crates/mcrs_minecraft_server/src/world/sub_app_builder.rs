@@ -158,6 +158,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
 ///   anchor the label.
 /// - A separate `Dimension` entity lives inside the sub-app's `World`,
 ///   carrying the per-dim components that the simulation queries against.
+#[expect(
+    clippy::too_many_lines,
+    reason = "a dimension's sub-app is assembled in the order its schedules, extraction and plugins require, and each step relies on the previous one"
+)]
 pub fn spawn_dim_subapp(
     app: &mut App,
     request: &DimSpawnRequest,

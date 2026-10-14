@@ -8,6 +8,9 @@ publish = false
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_core.workspace = true
 serde.workspace = true

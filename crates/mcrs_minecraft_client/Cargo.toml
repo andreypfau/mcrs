@@ -4,6 +4,9 @@ description = "Minecraft client: window, asset corpus, environment registries an
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_dimension.workspace = true

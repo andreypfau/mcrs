@@ -143,6 +143,14 @@ pub struct PlayerBundle {
 /// simulation-side entity and signals the host to attach the session via
 /// `OutboundPlayerAttached`. Sessions and `ServerSideConnection` are
 /// host-resident and must NOT be accessed here.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one system turns an inbound player spawn into the full set of player components, which read against each other"
+)]
 fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,

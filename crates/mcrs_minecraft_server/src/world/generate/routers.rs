@@ -37,7 +37,6 @@ pub struct DimensionRouter {
 /// Runs at `OnEnter(AppState::Playing)`, before the spawn requests are
 /// enqueued, from the loaded registry set, so no sub-app exists yet to miss a
 /// router.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_dimension_routers(
     mut commands: Commands,
     dimensions: Res<DimensionList>,

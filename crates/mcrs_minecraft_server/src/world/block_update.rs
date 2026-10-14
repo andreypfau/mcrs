@@ -52,6 +52,10 @@ use crate::world::entity::player::HostAnchor;
     feature = "telemetry-tracy",
     tracing::instrument(name = "block_update::update_client_blocks_per_dim", skip_all)
 )]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn update_client_blocks_per_dim(
     mut placed: MessageReader<BlockPlaced>,
     sections: Query<(&InDimension, &ChunkBlocks)>,

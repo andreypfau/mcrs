@@ -8,6 +8,9 @@ publish = false
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_light_color.workspace = true
 mcrs_minecraft_light.workspace = true

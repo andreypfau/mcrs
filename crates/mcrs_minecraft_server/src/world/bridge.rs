@@ -156,6 +156,10 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "encoding, the drop-oldest policy, overflow kicks and the single blob per socket read against each other, and kicking needs the one sequential walk"
+)]
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,

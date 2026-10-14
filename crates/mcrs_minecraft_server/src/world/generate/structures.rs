@@ -79,7 +79,6 @@ impl Plugin for StructurePlugin {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_dimension_structures(
     mut commands: Commands,
     dimensions: Res<DimensionList>,

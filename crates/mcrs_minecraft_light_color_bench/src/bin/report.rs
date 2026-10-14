@@ -92,6 +92,10 @@ struct Measured {
     texels: HashMap<SectionPos, Box<[[u8; 4]]>>,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the report binary measures every scene, then renders its table and notes in one pass over the results"
+)]
 fn main() {
     let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/light_color_bench");
     std::fs::create_dir_all(&out).expect("the report directory is writable");

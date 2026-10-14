@@ -68,7 +68,6 @@ fn tick_fov(sprint: Single<&Sprint, With<Player>>, mut fov: Single<&mut FovFilte
 
 /// `Camera.alignWithEntity`, and the only writer of the player's and the camera's render
 /// transforms.
-#[allow(clippy::type_complexity)]
 fn align_render_transforms(
     time: Res<Time<Fixed>>,
     player: Single<

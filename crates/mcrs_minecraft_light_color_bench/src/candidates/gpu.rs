@@ -214,6 +214,10 @@ fn output_cells() -> impl Iterator<Item = [u32; 3]> {
 }
 
 impl Gpu {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "device setup requests the adapter, device, pipelines and bind group layouts in the order each needs the previous"
+    )]
     pub fn new() -> Result<Gpu, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::METAL,
@@ -384,6 +388,10 @@ impl Gpu {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one dispatch creates its buffers, encodes the compute passes and reads back the timestamps, in the order the queue executes them"
+    )]
     fn dispatch(&self, pool: &wgpu::Buffer, jobs: &Jobs) -> Dispatched {
         let clock = Instant::now();
         let device = &self.device;

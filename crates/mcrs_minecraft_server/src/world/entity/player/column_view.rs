@@ -229,7 +229,6 @@ fn handle_batch_acknowledgement(on: On<ReceivedPacketEvent>, mut players: Query<
 /// column, as vanilla's chunk map does, so what the client holds is exactly what the server
 /// counts as sent: a forget from any other radius leaves a column the server will never send
 /// again.
-#[allow(clippy::type_complexity)]
 pub(crate) fn update_view(
     mut players: Query<
         (
@@ -602,7 +601,14 @@ fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
 /// The rate is the client's: each batch is bracketed by a start and a finish, and the client
 /// answers with the columns a tick it managed. Chunks are sent at Critical priority so they
 /// are never dropped by the bridge.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one system picks the nearest columns, encodes them and brackets the batch, and the rate and priority rules read against each other"
+)]
 pub(crate) fn send_column_queue(
     mut players: Query<(Entity, &mut ColumnView, &InDimension, &HostAnchor)>,
     chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>)>,

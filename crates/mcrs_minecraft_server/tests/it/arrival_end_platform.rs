@@ -109,6 +109,10 @@ fn drain_inbox(
 /// drives ticks, then asserts via BlockPalette::get that obsidian is present at every
 /// floor position and that the 3 blocks above center are air.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the test arrives a player at the End and checks the platform's floor and the air above it in the one world the arrival built"
+)]
 fn end_platform_creates_obsidian_floor_and_clears_above() {
     // Platform origin: place the center at x=8, z=8 so the 5x5 floor (-2..=2)
     // stays entirely within chunk (0, 3, 0) — avoids pre-loading multiple chunks.

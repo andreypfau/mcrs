@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::LazyLock;
 
 use bevy_app::App;

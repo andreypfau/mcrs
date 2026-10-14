@@ -379,6 +379,10 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
 ///
 /// Every unit that could write into it has run and its delta has been merged,
 /// so nothing writes into the column after this.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn deliver_merged_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
@@ -691,6 +695,10 @@ fn square(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
 /// Nothing here waits. A column whose neighbourhood is not ready yet is simply
 /// not dispatched this pass, and the walk moves on to the next thing that is —
 /// so a stalled neighbourhood costs a comparison, never a worker.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the dispatch walk derives each rung's requests from what the views want and what the store holds, and the rungs depend on the ones below"
+)]
 pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Res<FillContext>,

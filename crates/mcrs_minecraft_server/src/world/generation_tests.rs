@@ -152,6 +152,10 @@ fn force_eviction(
 /// Drive the real scheduler — the same four systems the dimension runs — to the
 /// delivery of every wanted column, and read the blocks back off the delivered
 /// sections.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the helper drives the dimension's real systems to delivery and reads the blocks back, and the scheduling and the read-back share one world"
+)]
 fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region, usize) {
     let y_sections = &dim.ctx.y_sections;
     // The pool is one per test binary, so its thread count is whichever test

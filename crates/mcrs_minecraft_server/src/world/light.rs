@@ -176,6 +176,10 @@ fn feed_column_surfaces(
 
 /// Turns a published light change into a `ClientboundLightUpdate` carrying only
 /// the rows that changed, for the players that already hold the column.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
     sections: Query<(&SectionPos, &InDimension)>,

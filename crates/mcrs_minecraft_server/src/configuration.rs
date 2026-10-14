@@ -297,6 +297,10 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 ///
 /// If no live label entity exists yet (dims still loading), the session stays
 /// unplaced and the emit is retried next tick.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
