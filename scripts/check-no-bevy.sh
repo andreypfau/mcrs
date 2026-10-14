@@ -16,6 +16,7 @@ crates=(
     mcrs_minecraft_text
     mcrs_minecraft_profile
     mcrs_minecraft_block
+    mcrs_minecraft_simulation
     mcrs_minecraft_block_predicate
     mcrs_minecraft_particle
     mcrs_minecraft_sound
