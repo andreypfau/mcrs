@@ -5,13 +5,17 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+#[cfg(test)]
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
+#[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
+#[cfg(test)]
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
 use crate::feature_program::FeatureProgram;
@@ -26,8 +30,11 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
 
-use super::{block_tags, blocks, build_program, corpus_features, generate_region, one_step};
+#[cfg(test)]
+use super::generate_region;
+use super::{block_tags, blocks, build_program, corpus_features, one_step};
 use mcrs_minecraft_biome::Biome;
+#[cfg(test)]
 use mcrs_minecraft_block::keys::Block;
 
 /// The three biomes of the step-6 checkpoint, each with the tree feature its
@@ -184,6 +191,7 @@ pub(super) fn dimension_with(
     (ctx, y_sections)
 }
 
+#[cfg(test)]
 pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let key: mcrs_minecraft_core::tag_key::TagKey<Block, std::sync::Arc<str>> =
@@ -202,6 +210,7 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     mask
 }
 
+#[cfg(test)]
 /// How many logs and leaves a region carries, and how many separate trunks the
 /// logs form — a trunk is a run of logs with no log below it.
 pub(super) struct Census {
@@ -210,6 +219,7 @@ pub(super) struct Census {
     pub trunks: usize,
 }
 
+#[cfg(test)]
 pub(super) fn decorate_region(
     biome: &str,
     placed_id: &str,
@@ -269,13 +279,16 @@ pub(super) fn decorate_region(
         .collect()
 }
 
+#[cfg(test)]
 /// The seeds the band below was measured over, and the region each is measured
 /// on: twenty-five columns around the origin, which the overworld router puts
 /// on land for all four.
 const SEEDS: [u64; 4] = [4242, 7331, 0xC0FFEE, 987654321];
+#[cfg(test)]
 const RADIUS: i32 = 2;
 
 mod exhaustive {
+    #[cfg(test)]
     use super::*;
 
     /// A regression guard: each of the three biomes decorates, and how much it
@@ -324,6 +337,7 @@ mod exhaustive {
     }
 }
 
+#[cfg(test)]
 /// `fancy_oak_bees` is the corpus's own tree with a `beehive` decorator that
 /// always fires; what the corpus places it through is a one-in-a-hundred
 /// rarity filter, which no region this size would reach.
@@ -381,6 +395,7 @@ fn a_generated_bee_nest_carries_its_occupants() {
     }
 }
 
+#[cfg(test)]
 fn states_of(name: &str) -> std::ops::Range<u16> {
     let entry = blocks()
         .0

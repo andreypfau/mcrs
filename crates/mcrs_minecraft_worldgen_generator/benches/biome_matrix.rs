@@ -9,6 +9,7 @@
 //!   mode = matrix   per-biome surface cost over one fixed patch of terrain
 //!        = natural  same columns with the real biomes vs. the pinned biome
 
+mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -30,12 +31,9 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
 
-#[path = "../src/tests/support.rs"]
-mod support;
-
+use common::support::{corpus, router_blocks};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in};
-use support::{corpus, router_blocks};
 
 fn parameter_lists() -> Registry<MultiNoiseBiomeSourceParameterList> {
     Registry::new(
@@ -210,7 +208,10 @@ fn main() {
 }
 
 /// One pass of the surface stage over every column, with the grid pinned.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one pinned column of the benchmark: the noise router, material rules and biome ids, the section list and cancel token, the grid's side and offset, the biome source, and the column and scratch it reuses"
+)]
 fn run_pinned(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -260,7 +261,10 @@ fn run_pinned(
     total
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offsets"
+)]
 fn matrix(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -343,7 +347,14 @@ fn matrix(
 /// The pinned grid against the real one, on the same columns: how much of a
 /// biome's measured cost is its rules and how much is the terrain the climate
 /// actually pairs it with.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offset"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "times the pinned grid and the natural one over the same columns and reports both, so the two figures read against each other"
+)]
 fn natural(
     router: &NoiseRouter,
     material: &MaterialProgram,

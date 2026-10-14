@@ -110,7 +110,10 @@ impl ColumnProgram {
 impl FillContext {
     /// One context for a dimension, with every table its stages read resolved
     /// here and never again per column.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the router, material rules, blocks, sections and biome source of one dimension and each optional table its column stages are built from, every one its own input"
+    )]
     pub fn build(
         router: Arc<NoiseRouter>,
         material: Option<Arc<MaterialProgram>>,
@@ -255,6 +258,10 @@ fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeigh
 /// it was saved with, and never runs its own program again; it is still a
 /// legitimate input to its neighbours' runs. `None` means the column was
 /// cancelled part-way.
+#[expect(
+    clippy::too_many_lines,
+    reason = "loads a saved column or runs the column's stages in order, so the order its neighbours rely on reads in one place"
+)]
 pub fn fill_column(
     ctx: &FillContext,
     col: ColumnPos,

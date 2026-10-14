@@ -437,6 +437,10 @@ pub fn compile_tree(
     })
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one arm per block state provider type, each compiled the way the reference's provider of that type is"
+)]
 pub(super) fn compile_provider(
     provider: &BlockStateProvider,
     r: &Resolver<'_>,

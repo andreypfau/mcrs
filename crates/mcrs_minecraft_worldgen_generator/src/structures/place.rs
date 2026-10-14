@@ -48,7 +48,10 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
 
 /// `StructureStart.placeInChunk` for every start of `step` reaching the column:
 /// one stream per structure, shared by all of its starts and pieces here.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the frozen structures and program, the run and region, the starts of one step, the clip and the decoration seed of one step's placement"
+)]
 pub fn place_structures<W: WorldGenVolume>(
     frozen: &FrozenStructures,
     program: &FeatureProgram,
@@ -109,7 +112,14 @@ fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
 /// `StructureStart.placeInChunk` for one start: every piece whose box meets
 /// the clip, in piece order, with the first piece's box centre at its floor as
 /// the reference position, then the structure's after-place hook.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the frozen structures and program, the run and region, the start, the clip, the random source and the liquid settings of one structure start"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "places each piece of one start in piece order and then runs the structure's after-place hook, as the reference's placeInChunk does"
+)]
 pub fn place_start<W: WorldGenVolume>(
     frozen: &FrozenStructures,
     program: &FeatureProgram,
@@ -448,7 +458,10 @@ pub fn place_start<W: WorldGenVolume>(
 }
 
 /// `StructurePoolElement.place` over a compiled element.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the program, the run and region, the element with its position, reference, rotation and clip, the random source and the liquid settings of one jigsaw element's placement"
+)]
 pub fn place_element<W: WorldGenVolume>(
     program: &FeatureProgram,
     run: &mut Run,

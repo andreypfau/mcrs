@@ -1,29 +1,47 @@
 use mcrs_minecraft_worldgen_testing::registry;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::collections::BTreeSet;
 use std::sync::{Arc, LazyLock};
 
+#[cfg(test)]
 use fixedbitset::FixedBitSet;
+#[cfg(test)]
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
+use mcrs_minecraft_core::ResourceLocation;
+#[cfg(test)]
+use mcrs_minecraft_core::VERSION;
+#[cfg(test)]
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+#[cfg(test)]
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
+#[cfg(test)]
 use mcrs_minecraft_registry::{Registry, TagRules, Tags, build_tags};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature::template::Projection;
-use mcrs_minecraft_worldgen_feature::template::{
-    PaletteState, ResolvedState, Template, TemplateBlock,
-};
+use mcrs_minecraft_worldgen_feature::template::Template;
+#[cfg(test)]
+use mcrs_minecraft_worldgen_feature::template::{PaletteState, ResolvedState, TemplateBlock};
 use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
-use mcrs_minecraft_worldgen_structure::{MineshaftType, OceanTemperature, Structure, StructureSet};
+#[cfg(test)]
+use mcrs_minecraft_worldgen_structure::{MineshaftType, OceanTemperature};
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files};
 
 use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
+#[cfg(test)]
 use crate::features::possible_biomes;
-use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
+#[cfg(test)]
+use crate::structures::live_sets;
+use crate::structures::{StructureInputs, VariantInputs, freeze, resolve_palette_state};
+#[cfg(test)]
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
+use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
+#[cfg(test)]
+use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, StructureKind};
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
     let bytes = mcrs_minecraft_worldgen_testing::template(id)?;
@@ -93,6 +111,7 @@ pub(super) fn variant_inputs() -> VariantInputs<'static> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn frozen() -> &'static FrozenStructures {
     frozen_shared()
 }
@@ -118,6 +137,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
     &FROZEN
 }
 
+#[cfg(test)]
 fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::FrozenStructure {
     let frozen = frozen();
     let id = ResourceLocation::read(id).unwrap();
@@ -132,6 +152,7 @@ fn the_corpus_freezes() {
     each_dimension_source_keeps_the_sets_its_biomes_admit();
 }
 
+#[cfg(test)]
 fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
@@ -171,6 +192,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     assert!(!picked.contains(&rl!("minecraft:all_black").to_arc()));
 }
 
+#[cfg(test)]
 fn every_hardcoded_type_freezes_its_own_config() {
     let biome = |name: &str| corpus_biomes().by_name(name).unwrap().index();
     let StructureKind::Mineshaft {
@@ -236,6 +258,7 @@ fn every_hardcoded_type_freezes_its_own_config() {
     ));
 }
 
+#[cfg(test)]
 fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     let frozen = frozen();
     for structure in corpus_registries().structures.values() {
@@ -280,6 +303,7 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     assert!(houses.max_size > 1);
 }
 
+#[cfg(test)]
 fn live_set_names(source: &BiomeSource) -> Vec<String> {
     let frozen = frozen();
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
@@ -297,12 +321,14 @@ fn live_set_names(source: &BiomeSource) -> Vec<String> {
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn preset(name: &str) -> BiomeSource {
     BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(
         crate::tests::parameter_list_id(name),
     ))
 }
 
+#[cfg(test)]
 fn each_dimension_source_keeps_the_sets_its_biomes_admit() {
     let every: Vec<String> = frozen().sets.iter().map(|set| set.id.to_string()).collect();
     let overworld: Vec<String> = every
@@ -330,6 +356,7 @@ fn each_dimension_source_keeps_the_sets_its_biomes_admit() {
     );
 }
 
+#[cfg(test)]
 fn parse<T: serde::de::DeserializeOwned>(
     entries: &[(&str, &str)],
 ) -> BTreeMap<ResourceLocation, T> {
@@ -346,12 +373,14 @@ fn parse<T: serde::de::DeserializeOwned>(
         .collect()
 }
 
+#[cfg(test)]
 fn no_tags<R: 'static>(registry: &Registry<R>) -> Tags<R> {
     let (table, problems) = build_tags(registry.table(), TagRules::World, &[], None);
     assert!(problems.is_empty(), "{problems:?}");
     Tags::new(Arc::new(table))
 }
 
+#[cfg(test)]
 /// Freeze a synthetic corpus with no templates, biomes or tags loaded.
 fn try_freeze(
     sets: &[(&str, &str)],
@@ -361,6 +390,7 @@ fn try_freeze(
     try_freeze_with(sets, structures, pools, |_| None, &|_| None)
 }
 
+#[cfg(test)]
 fn try_freeze_with(
     sets: &[(&str, &str)],
     structures: &[(&str, &str)],
@@ -393,18 +423,22 @@ fn try_freeze_with(
     })
 }
 
+#[cfg(test)]
 fn check(sets: &[(&str, &str)], structures: &[(&str, &str)], pools: &[(&str, &str)]) -> String {
     try_freeze(sets, structures, pools)
         .err()
         .expect("the check fires")
 }
 
+#[cfg(test)]
 const EMPTY_POOL: &str = r#"{"elements": [], "fallback": "minecraft:empty"}"#;
 
+#[cfg(test)]
 fn jigsaw(extra: &str) -> String {
     jigsaw_reaching(80, extra)
 }
 
+#[cfg(test)]
 fn jigsaw_reaching(max_distance_from_center: i32, extra: &str) -> String {
     format!(
         r#"{{"type": "minecraft:jigsaw", "biomes": [], "spawn_overrides": {{}}, "step": "surface_structures",
@@ -413,6 +447,7 @@ fn jigsaw_reaching(max_distance_from_center: i32, extra: &str) -> String {
     )
 }
 
+#[cfg(test)]
 fn spread(extra: &str) -> String {
     format!(
         r#"{{"structures": [{{"structure": "minecraft:s", "weight": 1}}],
@@ -524,6 +559,7 @@ fn a_list_imposes_its_projection_on_every_member() {
     ));
 }
 
+#[cfg(test)]
 fn template_with_a_jigsaw_to(pool: &str) -> Template {
     let mut nbt = NbtCompound::new();
     nbt.put("id", "minecraft:jigsaw");

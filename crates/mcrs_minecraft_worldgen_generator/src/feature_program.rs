@@ -416,7 +416,10 @@ impl FeatureProgram {
     /// Resolve every name the tables carry, or say which asset does not
     /// resolve. A feature whose shape this build has no code for is not an
     /// error: it is logged, keeps its slot and places nothing.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "resolves every name the feature tables carry in one pass, from the climate and resolver to the trees and the steps, so an unresolved asset is reported where the build reaches it"
+    )]
     pub fn build(
         tables: &FeatureTables,
         corpus: &LoadedFeatures,
@@ -743,6 +746,10 @@ impl Generator {
     }
 
     /// Place this feature at `at`; true when it wrote anything.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per generator kind, each placing a feature the way the reference's feature of that kind does"
+    )]
     pub fn place<W: WorldGenVolume>(
         &self,
         run: &mut Run,
@@ -1200,6 +1207,10 @@ fn compile_structures(
         .collect()
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "compiles each feature type to its generator with one arm per type, so every arm reads against the reference's feature of that type"
+)]
 fn compile_generator(
     feature: &Feature,
     trees: &Arc<TreeTables>,
@@ -2636,7 +2647,6 @@ impl ShapeMasks {
 }
 
 impl<'a> Resolver<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         blocks: &'a BlockDefinitions,
         registries: &RegistrySet,

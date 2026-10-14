@@ -1,4 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+mod common;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
@@ -6,10 +7,7 @@ use mcrs_minecraft_worldgen_generator::generate_column;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::hint::black_box;
 
-#[path = "../src/tests/support.rs"]
-mod support;
-
-use support::build_settings_router;
+use common::support::build_settings_router;
 
 /// Full overworld dimension: y -64..320.
 fn y_sections() -> Vec<i32> {

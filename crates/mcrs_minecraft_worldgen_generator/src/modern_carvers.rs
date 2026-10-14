@@ -558,7 +558,10 @@ fn column_mask_bytes(height: HeightContext) -> usize {
 /// `water` answers Beta's abort. It is built the first time a Beta carver
 /// starts in the column, off the blocks as filled: nothing writes to the column
 /// until the whole mask is marked.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the water mask, the chunk position and world seed, and the router, workspace, biome table and height context that one chunk's carving reads"
+)]
 pub(crate) fn carve_sources(
     water: impl Fn() -> WaterMask,
     chunk_x: i32,
@@ -610,7 +613,6 @@ pub(crate) fn carve_sources(
 
 /// Every modern carver of every source within reach of any column of the
 /// square at `origin`, walked once into the masks of all its columns.
-#[allow(clippy::too_many_arguments)]
 fn carve_region(
     origin: (i32, i32),
     width: i32,
@@ -647,7 +649,6 @@ fn carve_region(
 /// The mask of the carvers of every source that reaches this chunk, which is
 /// its slot of the region the chunk falls in: marked before any block of the
 /// column is decided.
-#[allow(clippy::too_many_arguments)]
 pub fn modern_carving_mask(
     chunk_x: i32,
     chunk_z: i32,
@@ -745,7 +746,10 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
 /// Every carver of every biome that reaches this chunk, applied to a column no
 /// material rule decides.
 #[cfg(test)]
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context, block ids and fluid that one chunk's carving reads"
+)]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,
     chunk_x: i32,

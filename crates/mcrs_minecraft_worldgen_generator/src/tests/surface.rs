@@ -1,35 +1,50 @@
 use super::{corpus, router_blocks};
+#[cfg(test)]
 use crate::ColumnBiomes;
+#[cfg(test)]
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+#[cfg(test)]
 use crate::surface::{Visit, descend_strip, set_block};
+#[cfg(test)]
 use crate::task::CancellationToken;
+use crate::{ColumnBlocks, SurfaceStates};
+#[cfg(test)]
 use crate::{
-    ColumnBlocks, NO_TOP, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
-    multi_noise_grid, multi_noise_palettes, spans_dimension,
+    NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any, multi_noise_grid,
+    multi_noise_palettes, spans_dimension,
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
+#[cfg(test)]
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::{Registry, RegistrySet};
+#[cfg(test)]
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
+    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
+#[cfg(test)]
+use mcrs_minecraft_worldgen_surface::{MaterialScratch, NO_WATER};
 use mcrs_minecraft_worldgen_testing::{registry, registry_in};
 use std::collections::{BTreeMap, HashMap};
 
+#[cfg(test)]
 const AIR: VoxelId = VoxelId(0);
 
+#[cfg(test)]
 const STONE: VoxelId = VoxelId(1);
 
+#[cfg(test)]
 const WATER: VoxelId = VoxelId(2);
 
+#[cfg(test)]
 /// Every visit the descent made, as `(y, depth_above, depth_below, water)`.
 fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i32)> {
     let mut seen = Vec::new();
@@ -127,6 +142,7 @@ fn writing_air_at_the_top_lowers_the_height_and_writing_a_block_raises_it() {
     assert_eq!(tops[0], NO_TOP);
 }
 
+#[cfg(test)]
 /// The preset's biomes numbered as the palette numbers them.
 pub(super) fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
@@ -151,6 +167,7 @@ fn registry_of(ids: &HashMap<String, u16>) -> Registry<Biome> {
     super::ordered_biome_registry(&names)
 }
 
+#[cfg(test)]
 /// The overworld preset's climate table over the biomes `ids` numbers.
 fn table_over(ids: &HashMap<String, u16>) -> MultiNoiseBiomeTable {
     MultiNoiseBiomeTable::of_preset(Preset::Overworld, &registry_of(ids))
@@ -191,16 +208,19 @@ pub fn overworld_material_router(
     .expect("the overworld material rule compiles")
 }
 
+#[cfg(test)]
 fn surface_ids(
     ids: &HashMap<String, u16>,
 ) -> mcrs_minecraft_registry::shared::Resolved<SurfaceIds> {
     super::surface_ids_over(&registry_of(ids))
 }
 
+#[cfg(test)]
 fn surface_states() -> SurfaceStates {
     SurfaceStates::new(&super::blocks().0)
 }
 
+#[cfg(test)]
 /// Fill one column and run the surface pass over it, returning the blocks.
 pub(super) fn surfaced_column(
     router: &NoiseRouter,
@@ -315,6 +335,10 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
 /// opens to air and the dirt it bared is surfaced again as the new top, while
 /// the fill's own water is never carved.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scenario: surfaces the same columns with and without carving and compares them, so the carved and uncarved columns read side by side"
+)]
 fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);
@@ -495,6 +519,7 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
     );
 }
 
+#[cfg(test)]
 /// How many distinct biomes a column's widened grid holds. One means the fold
 /// over the whole column already settles every biome condition, and the
 /// per-strip fold never runs.
@@ -590,6 +615,7 @@ pub fn fill_context(
     }
 }
 
+#[cfg(test)]
 /// A `minecraft:fixed` source answers one biome at every quart cell, so the
 /// rules that biome selects run over whatever terrain the noise gives. Badlands
 /// is the case worth pinning: it is the sole user of the clay band table, and
@@ -671,6 +697,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     );
 }
 
+#[cfg(test)]
 /// The same column under constant biome containers, with the shortcuts on and off.
 fn surfaced_column_fixed(
     router: &NoiseRouter,
@@ -734,6 +761,7 @@ mod exhaustive {
     }
 }
 
+#[cfg(test)]
 fn settled_badlands_runs_write_the_bands_the_descent_would(columns: &[(i32, i32)]) {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);

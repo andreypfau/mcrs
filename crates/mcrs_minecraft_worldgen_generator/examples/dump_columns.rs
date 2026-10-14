@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 use std::io::Write;
 
 #[path = "../src/tests/support.rs"]
+#[expect(
+    dead_code,
+    reason = "the example compiles the shared test helpers whole and calls only the few it needs"
+)]
 mod support;
 
 use support::{build_settings_router, corpus};

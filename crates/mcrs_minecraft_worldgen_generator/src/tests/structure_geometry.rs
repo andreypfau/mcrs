@@ -403,6 +403,10 @@ fn projected(expected: &NbtCompound, ours: &NbtCompound) -> NbtCompound {
     canonical(&out)
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "compares one chunk's blocks, block entities, spawns and random state with the oracle's and reports every difference as a line, so each check sits beside the field it covers"
+)]
 fn compare_chunk(
     label: &str,
     expected: &DumpChunk,

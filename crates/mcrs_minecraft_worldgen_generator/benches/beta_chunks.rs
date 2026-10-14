@@ -5,6 +5,7 @@
 //! Mirrors the server's Beta `Filled` stage: terrain, surface, caves. Ores run
 //! in the `Run` stage over a region; `the_ladder_costs` in the tests times that.
 
+mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
@@ -24,11 +25,8 @@ use mcrs_minecraft_worldgen_generator::{
     fill_column_dense_any,
 };
 
-#[path = "../src/tests/support.rs"]
-mod support;
-
+use common::support::{build_settings_router, corpus};
 use mcrs_minecraft_biome::Biome;
-use support::{build_settings_router, corpus};
 
 fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)

@@ -1,7 +1,3 @@
-// Other crates' tests reach these helpers through `test-support`, where the
-// `#[test]` functions that also use them are compiled out.
-#![cfg_attr(not(test), allow(dead_code, unused_imports))]
-
 #[cfg(test)]
 mod base_height;
 #[cfg(test)]

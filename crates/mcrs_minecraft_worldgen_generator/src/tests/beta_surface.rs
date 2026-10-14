@@ -1,17 +1,26 @@
+#[cfg(test)]
 use crate::ColumnBiomes;
+#[cfg(test)]
 use mcrs_minecraft_core::LocalPos;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
+#[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
+#[cfg(test)]
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_registry::Registry;
 
+#[cfg(test)]
 use super::build_beta_router;
+#[cfg(test)]
 use crate::ColumnBlocks;
+#[cfg(test)]
 use crate::task::CancellationToken;
+#[cfg(test)]
 use crate::{apply_beta_surface, generate_column};
 use mcrs_minecraft_biome::Biome;
 
+#[cfg(test)]
 type GeneratedSections = Vec<
     Option<(
         mcrs_minecraft_level::palette::BlockPalette,
@@ -61,6 +70,10 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
 ///
 /// This test FAILS (RED) until idx is corrected to z_local*16 + x_local.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one comparison of the bedrock band against the captured back2beta chunk, with its expected values inline"
+)]
 fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
     let (biome_source, _) = build_beta_biome_source();
@@ -208,6 +221,10 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
 /// Root-cause probe: The test also evaluates the scale/depth noise samplers at three
 /// sampling modes and prints d5/d6/d7 for (24,-16).
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one comparison of the terrain tops against the captured back2beta chunk, with its noise probes beside the assertions"
+)]
 fn beta_terrain_height_matches_back2beta_oracle() {
     #[derive(serde::Deserialize)]
     struct CorpusRoot {

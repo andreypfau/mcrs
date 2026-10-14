@@ -97,7 +97,10 @@ fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCav
 
 /// Beta's carving of one column: the source loop every dimension shares, with
 /// Beta's carver in it, then Beta's own fill of what it freed.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context and block ids that one chunk's carving reads"
+)]
 pub fn apply_beta_carvers(
     column: &ColumnBlocks,
     chunk_x: i32,

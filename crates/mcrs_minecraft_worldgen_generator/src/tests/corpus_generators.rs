@@ -3,23 +3,36 @@
 //! A feature without a generator keeps its index and its seed and places
 //! nothing, so a gap here is silent in the world and loud only in this census.
 
+#[cfg(test)]
 use mcrs_minecraft_worldgen_testing::{corpus_set, registry};
+#[cfg(test)]
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
+#[cfg(test)]
+use std::sync::LazyLock;
 
+#[cfg(test)]
 use mcrs_minecraft_block_predicate::provider::Holder;
+#[cfg(test)]
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 
+#[cfg(test)]
 use crate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
 use crate::features::FeatureTables;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
-use super::{biome_registry, blocks, build_program, corpus_features, one_step, registries_over};
+#[cfg(test)]
+use super::{biome_registry, blocks, build_program, registries_over};
+use super::{corpus_features, one_step};
 
+#[cfg(test)]
 const BIOME: &str = "minecraft:badlands";
 
+#[cfg(test)]
 /// The corpus features this build still cannot place.
 // chisle: `desert_well`, `sulfur_spring` and the fossils place their
 // templates without the neighbour-shape pass the reference runs afterwards, so
@@ -27,6 +40,7 @@ const BIOME: &str = "minecraft:badlands";
 // may recompute its thickness; the upgrade is that post pass over the region.
 const EXPECTED_MISSING: [&str; 0] = [];
 
+#[cfg(test)]
 /// Every feature of the corpus as one step, each placed under its own id.
 fn corpus_tables() -> (FeatureTables, &'static LoadedFeatures) {
     let corpus = corpus_features();
@@ -46,6 +60,7 @@ fn corpus_tables() -> (FeatureTables, &'static LoadedFeatures) {
     (one_step(step, BIOME), corpus)
 }
 
+#[cfg(test)]
 fn corpus_program() -> &'static (FeatureTables, FeatureProgram) {
     static PROGRAM: LazyLock<(FeatureTables, FeatureProgram)> = LazyLock::new(|| {
         let (tables, corpus) = corpus_tables();
@@ -55,6 +70,7 @@ fn corpus_program() -> &'static (FeatureTables, FeatureProgram) {
     &PROGRAM
 }
 
+#[cfg(test)]
 /// The step position of the corpus feature `name`, and the program's generator for it.
 fn generator_of<'a>(
     tables: &FeatureTables,
@@ -73,6 +89,7 @@ fn generator_of<'a>(
     program.generator_at(0, index)
 }
 
+#[cfg(test)]
 /// The ids whose feature this build can actually write a block for.
 ///
 /// Compiling to a generator is not enough: a container whose every entry is a
@@ -106,10 +123,12 @@ fn the_corpus_features_compile_to_their_shapes() {
     the_pale_garden_carpet_compiles_to_a_shape_table();
 }
 
+#[cfg(test)]
 fn id(name: &str) -> ResourceLocation {
     ResourceLocation::read(name).unwrap()
 }
 
+#[cfg(test)]
 /// Which of the corpus's features still have no generator, read off the
 /// registry rather than written by hand: the gap is loud here or nowhere.
 fn the_census_of_what_still_places_nothing() {
@@ -127,6 +146,7 @@ fn the_census_of_what_still_places_nothing() {
     );
 }
 
+#[cfg(test)]
 /// The sixteen selectors that reach a fallen tree kept their chance draw and
 /// placed nothing for that entry; now the entry has a generator of its own.
 fn the_tree_selectors_reach_their_fallen_entry() {
@@ -147,6 +167,7 @@ fn the_tree_selectors_reach_their_fallen_entry() {
     );
 }
 
+#[cfg(test)]
 /// `simple_random_selector` picks with one `nextInt(size)`, which is what a
 /// weighted selector over `size` ones does — and the compile says so.
 fn a_simple_random_selector_compiles_to_equal_weights() {
@@ -159,6 +180,7 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
     assert!(features.iter().all(|(weight, _)| *weight == 1));
 }
 
+#[cfg(test)]
 /// The three flower features whose block comes out of a noise sampler, and
 /// which of the three shapes each takes.
 fn the_noise_state_providers_resolve_to_a_sampler() {
@@ -221,6 +243,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
     }
 }
 
+#[cfg(test)]
 /// `pale_moss` rolls for a `minecraft:pale_moss_patch` on the tree's own random
 /// source, so a pale oak can only run once that patch does: running it without
 /// the patch's draws would move every later object of the column.
@@ -259,6 +282,7 @@ pub(super) fn every_placed_feature() -> FeatureTables {
     one_step(step, "minecraft:plains")
 }
 
+#[cfg(test)]
 /// Every feature type the corpus uses, and every feature written with it: the
 /// type of each file, plus the type of every feature written inline inside one,
 /// which a census over file ids cannot see.
@@ -305,9 +329,11 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
         .collect()
 }
 
+#[cfg(test)]
 /// The feature types no generator places.
 const EXPECTED_MISSING_TYPES: [&str; 0] = [];
 
+#[cfg(test)]
 /// Every feature type the corpus uses, derived from the assets rather than
 /// listed here, against the generators this build has. A datapack that adds a
 /// type this build cannot place fails here rather than in a silent world.
@@ -348,6 +374,7 @@ fn every_feature_type_the_corpus_uses_compiles_to_a_generator() {
     );
 }
 
+#[cfg(test)]
 /// Every block a `simple_block` feature can hand its region, read out of the
 /// asset: every name under `to_place` that the block registry resolves,
 /// whatever key the provider happens to hold it under.
@@ -366,6 +393,7 @@ fn nested_simple_blocks(value: &serde_json::Value) -> Vec<&serde_json::Value> {
     out
 }
 
+#[cfg(test)]
 fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>) {
     match to_place {
         serde_json::Value::String(name) => {
@@ -397,6 +425,7 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
     }
 }
 
+#[cfg(test)]
 /// The pale garden's carpet is the one `simple_block` state the reference does
 /// not simply write: `MossyCarpetBlock.placeAt` builds the shape from the walls
 /// beside it. The compile has to hand the placer the table that lets it.

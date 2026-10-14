@@ -128,7 +128,10 @@ pub struct StructureIndex {
 }
 
 impl StructureIndex {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the structure tables and seed, the noise router, the biome lookup, the heightmap predicates, the world states, the climate, and the accessor's bottom and height of one dimension's structure index"
+    )]
     pub fn new(
         tables: Arc<DimensionStructureTables>,
         seed: i64,

@@ -312,6 +312,10 @@ mod exhaustive {
     /// The fixed-terrain input (pre_cave from the corpus) removes f32 terrain
     /// divergence by construction, so any carve-mask mismatch is a real parity bug.
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one parity gate: carves the captured chunk, converts the result back to Beta blocks and compares it with the capture, so the setup and the comparison read together"
+    )]
     fn beta_cave_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();

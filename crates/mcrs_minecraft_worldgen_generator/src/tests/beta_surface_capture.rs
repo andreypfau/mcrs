@@ -297,6 +297,10 @@ mod exhaustive {
     /// emits a band-grouped, cause-classified mismatch report rather than any silent
     /// path change — per the gate-failure protocol, the phase halts for user review.
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one parity gate over every captured column: compares the surface, the bedrock band and the biome of each and classifies each mismatch by cause"
+    )]
     fn beta_surface_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();

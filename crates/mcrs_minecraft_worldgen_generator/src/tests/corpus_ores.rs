@@ -1,29 +1,39 @@
 //! The corpus's own ore features, compiled the way the freeze compiles them,
 //! and the band their veins land in.
 
+#[cfg(test)]
 use mcrs_minecraft_core::BlockPos;
+#[cfg(test)]
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mcrs_minecraft_block_predicate::provider::Holder;
+#[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
+#[cfg(test)]
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
 use mcrs_minecraft_worldgen_feature::proto::Feature;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{OreScratch, place_modern_ore};
 
+#[cfg(test)]
 use crate::ColumnBlocks;
-use crate::feature_program::{FeatureProgram, Generator};
+use crate::feature_program::FeatureProgram;
+#[cfg(test)]
+use crate::feature_program::Generator;
 use crate::features::FeatureTables;
+#[cfg(test)]
 use crate::stages::{ColumnRegion, FillContext, decoration_seed, dimension_y_sections};
+#[cfg(test)]
 use crate::staging::{FilledSnapshot, RegionSnapshots, region_column};
 
-use super::{
-    biome_registry, blocks, build_program, build_settings_router, corpus_features,
-    fill_context_with, flat_snapshot, one_step,
-};
+use super::{biome_registry, build_program, corpus_features, one_step};
+#[cfg(test)]
+use super::{blocks, build_settings_router, fill_context_with, flat_snapshot};
 use mcrs_minecraft_biome::Biome;
 
 /// The one biome of these tables, so that every ore is carried and the `biome`
@@ -87,6 +97,7 @@ pub(super) fn ore_program(tables: &FeatureTables) -> FeatureProgram {
     program
 }
 
+#[cfg(test)]
 /// Which rock a band is measured on. The corpus's ore targets are two disjoint
 /// families — the overworld's stone and deepslate replaceables, and the
 /// nether's netherrack — so a single column of one rock would leave half the
@@ -97,6 +108,7 @@ enum Terrain {
     Nether,
 }
 
+#[cfg(test)]
 impl Terrain {
     fn settings(self) -> &'static str {
         match self {
@@ -123,10 +135,12 @@ impl Terrain {
     }
 }
 
+#[cfg(test)]
 fn state(name: &str) -> VoxelId {
     VoxelId::from(blocks().0.default_state(name).0)
 }
 
+#[cfg(test)]
 fn snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, terrain: Terrain) -> FilledSnapshot {
     flat_snapshot(
         col,
@@ -136,6 +150,7 @@ fn snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, terrain: Terrain) -> Filled
     )
 }
 
+#[cfg(test)]
 /// One column decorated by the whole ore table, counting the veins each feature
 /// placed and the blocks the column and its ring took.
 fn veins_of(
@@ -186,6 +201,7 @@ fn veins_of(
     (counts, written)
 }
 
+#[cfg(test)]
 /// The nine columns every band is measured over: one decoration seed each.
 const UNITS: [ColumnPos; 9] = [
     ColumnPos::new(0, 0),
@@ -256,4 +272,5 @@ fn the_corpus_ore_counts_stay_in_the_band_the_first_run_set() {
     );
 }
 
+#[cfg(test)]
 const RECORDED: &str = include_str!("fixtures/corpus_ore_bands.txt");

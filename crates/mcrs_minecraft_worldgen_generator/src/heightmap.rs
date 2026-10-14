@@ -167,7 +167,10 @@ pub struct TerrainHeightmaps {
 /// The order is mandatory: `MOTION`'s descent stops at the topmost `SOLID`
 /// block, which satisfies `MOTION` too, so `SOLID` must already carry this
 /// write before `MOTION` is asked.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four heightmaps one block write updates, the block's position, the kinds it touches, the predicates and the reader of the column below"
+)]
 pub fn apply_write(
     surface: &mut ColumnHeights,
     solid: &mut ColumnHeights,
@@ -340,7 +343,10 @@ fn close(
     open.is_empty()
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the heightmap an edit moves and its kind, the block's position, the kinds the write touches, the floor, the predicates and the reader of the column"
+)]
 pub(crate) fn apply_edit(
     map: &mut ColumnHeights,
     kind: HeightmapKinds,

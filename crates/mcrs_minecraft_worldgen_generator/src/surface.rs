@@ -90,7 +90,14 @@ pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
 /// The surface gradients read the tops the fill left, so a pillar or an
 /// iceberg changes neither its neighbours' steepness nor their gradient rules;
 /// a strip's own descent still starts above its pillar.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its section position, the tops, biomes and first section, the router, material program, ids and states, and the scratch and carving of one surface pass"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "rewrites every strip of the column from the top down in one pass, so the descent, the pillars and the icebergs read in the reference's order"
+)]
 pub fn apply_material_surface(
     column: &ColumnBlocks,
     section_x: i32,
@@ -393,7 +400,10 @@ pub(crate) fn set_block(
 
 /// The pillars of eroded badlands, built before the rule pass so the rules
 /// paint them.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its tops, the material program, the strip's chunk, block and height coordinates, the bottom, and the stone and fluid blocks of one eroded-badlands pillar"
+)]
 fn eroded_badlands(
     column: &ColumnBlocks,
     tops: &mut [i32; 256],
@@ -441,7 +451,10 @@ fn eroded_badlands(
 
 /// The icebergs of frozen ocean, built after the rule pass so the rules do not
 /// touch them, and never where the carvers opened the column.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its tops, the material program, the minimum surface level, the strip's coordinates and height, sea level, the fluid, the states and the carving of one frozen-ocean iceberg"
+)]
 fn frozen_ocean(
     column: &ColumnBlocks,
     tops: &mut [i32; 256],

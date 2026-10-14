@@ -301,7 +301,10 @@ struct FillBuffers {
 /// corners, and only the rest are filled block by block.
 ///
 /// Returns `false` if the column was cancelled part-way.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard and the cancel token of one column fill"
+)]
 fn fill_column(
     column: &ColumnBlocks,
     block_x: i32,
@@ -393,7 +396,10 @@ fn fill_column(
 }
 
 /// The block-by-block fallback for a router whose cells do not tile a section.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard, the reused buffers and the cancel token of one dense column fill"
+)]
 fn fill_column_dense(
     column: &ColumnBlocks,
     block_x: i32,
@@ -459,7 +465,10 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
     );
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and the sampled volume with its index and origin, the noise router, the tops, fluid and beard, and the buffers one block fill reuses"
+)]
 fn fill_blocks(
     column: &ColumnBlocks,
     index: usize,
@@ -537,7 +546,6 @@ fn volume_barrier<'a>(
 }
 
 /// The block the terrain fill places at one position: `VoxelId(0)` is air.
-#[allow(clippy::too_many_arguments)]
 fn column_block(
     default_block: VoxelId,
     density: f32,
@@ -576,7 +584,10 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
 /// One above the topmost block of the unfilled terrain column at `(x, z)`
 /// satisfying `kind`, over the noise range clipped to the accessor range, or
 /// the floor of that range when no block does.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the noise router and its workspace, the predicates and kind of the heightmap, the column, and the accessor's bottom and height of one height query"
+)]
 pub fn base_height(
     router: &NoiseRouter,
     ws: &mut Workspace,
@@ -878,7 +889,10 @@ pub fn generate_column(
 /// Beta is data here like any other preset: `beta.json` describes its terrain as
 /// density functions, so it runs the same graph, the same cell fill and the same
 /// packing as the overworld. `None` means the column was cancelled.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the column and its section position and list, the noise router, the biomes, the beard and the cancel token of one dense fill"
+)]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
     section_x: i32,
@@ -947,6 +961,10 @@ pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
 ///
 /// The caller seeds `rng` once per chunk with [`beta_surface_rng`].
 /// `rng` must be threaded across section calls so the stream is continuous.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass over the columns in back2beta's iteration order, interleaving the surface depth, beach and bedrock draws on one random stream"
+)]
 pub fn apply_beta_surface(
     column: &ColumnBlocks,
     block_x: i32,

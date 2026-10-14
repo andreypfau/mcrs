@@ -2,6 +2,7 @@
 //!
 //! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed] [column_offset]
 
+mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -29,12 +30,9 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
 
-#[path = "../src/tests/support.rs"]
-mod support;
-
+use common::support::{corpus, router_blocks};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
-use support::{corpus, router_blocks};
 
 const ABSENT_BIOME: u16 = 250;
 
@@ -107,6 +105,10 @@ struct Stages {
     pack: Duration,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "reads the arguments, builds the router and material rules, then times each stage over the same region and prints the table of costs"
+)]
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let side: i32 = args.first().and_then(|s| s.parse().ok()).unwrap_or(8);
