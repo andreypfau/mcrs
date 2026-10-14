@@ -3,7 +3,7 @@ use std::fs;
 
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_registries::{
-    AvailablePack, Diagnostic, Features, KnownPack, PackSelection, pack_stack,
+    AvailablePack, Diagnostic, Features, KnownPack, Level, PackSelection, pack_stack,
 };
 
 use crate::support::{META, assets, rl};
@@ -32,7 +32,7 @@ struct Case {
     world_features: Option<&'static [&'static str]>,
     safe_mode: bool,
     stack: &'static [&'static str],
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<(Diagnostic, Level)>,
 }
 
 fn assert_stacks(cases: Vec<Case>) {
@@ -45,7 +45,8 @@ fn assert_stacks(cases: Vec<Case>) {
         );
         let ids: Vec<&str> = stack.packs().iter().map(|p| p.id()).collect();
         assert_eq!(ids, case.stack, "{}", case.name);
-        let found: Vec<Diagnostic> = diagnostics.iter().cloned().collect();
+        let found: Vec<(Diagnostic, Level)> =
+            diagnostics.iter().map(|d| (d.clone(), d.level())).collect();
         assert_eq!(found, case.diagnostics, "{}", case.name);
     }
 }
@@ -64,9 +65,12 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             world_features: Some(&["vanilla"]),
             safe_mode: false,
             stack: &["vanilla", "file/b", "file/a"],
-            diagnostics: vec![Diagnostic::PackFound {
-                pack: "file/a".into(),
-            }],
+            diagnostics: vec![(
+                Diagnostic::PackFound {
+                    pack: "file/a".into(),
+                },
+                Level::Info,
+            )],
         },
         Case {
             name: "new packs append in ascending id with the zip name kept whole",
@@ -80,12 +84,18 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             safe_mode: false,
             stack: &["vanilla", "file/a.zip", "file/b"],
             diagnostics: vec![
-                Diagnostic::PackFound {
-                    pack: "file/a.zip".into(),
-                },
-                Diagnostic::PackFound {
-                    pack: "file/b".into(),
-                },
+                (
+                    Diagnostic::PackFound {
+                        pack: "file/a.zip".into(),
+                    },
+                    Level::Info,
+                ),
+                (
+                    Diagnostic::PackFound {
+                        pack: "file/b".into(),
+                    },
+                    Level::Info,
+                ),
             ],
         },
         Case {
@@ -95,9 +105,12 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             world_features: None,
             safe_mode: false,
             stack: &["vanilla"],
-            diagnostics: vec![Diagnostic::MissingPack {
-                pack: "file/gone".into(),
-            }],
+            diagnostics: vec![(
+                Diagnostic::MissingPack {
+                    pack: "file/gone".into(),
+                },
+                Level::Warning,
+            )],
         },
         Case {
             name: "safe mode keeps only the built-in pack",
@@ -121,14 +134,13 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             world_features: None,
             safe_mode: false,
             stack: &["vanilla"],
-            diagnostics: vec![Diagnostic::EmptyStack],
+            diagnostics: vec![(Diagnostic::EmptyStack, Level::Info)],
         },
     ]);
 }
 
 #[test]
 fn world_features_gate_which_packs_join_the_stack() {
-    let trade = fs::read(assets().join("minecraft/datapacks/trade_rebalance/pack.mcmeta")).unwrap();
     assert_stacks(vec![
         Case {
             name: "packs requesting a feature the world lacks are removed or not appended",
@@ -142,14 +154,20 @@ fn world_features_gate_which_packs_join_the_stack() {
             safe_mode: false,
             stack: &["vanilla"],
             diagnostics: vec![
-                Diagnostic::PackFeaturesDisabled {
-                    pack: "file/sel".into(),
-                    features: vec![rl("t:extra")],
-                },
-                Diagnostic::PackNotAppended {
-                    pack: "file/new".into(),
-                    features: vec![rl("t:extra")],
-                },
+                (
+                    Diagnostic::PackFeaturesDisabled {
+                        pack: "file/sel".into(),
+                        features: vec![rl("t:extra")],
+                    },
+                    Level::Warning,
+                ),
+                (
+                    Diagnostic::PackNotAppended {
+                        pack: "file/new".into(),
+                        features: vec![rl("t:extra")],
+                    },
+                    Level::Info,
+                ),
             ],
         },
         Case {
@@ -164,6 +182,13 @@ fn world_features_gate_which_packs_join_the_stack() {
             stack: &["vanilla", "file/sel"],
             diagnostics: vec![],
         },
+    ]);
+}
+
+#[test]
+fn feature_packs_join_only_for_a_world_feature_no_pack_provides() {
+    let trade = fs::read(assets().join("minecraft/datapacks/trade_rebalance/pack.mcmeta")).unwrap();
+    assert_stacks(vec![
         Case {
             name: "a world feature no selected pack provides appends its feature pack",
             selection: selection(&["vanilla"], &[]),
@@ -175,9 +200,12 @@ fn world_features_gate_which_packs_join_the_stack() {
             world_features: Some(&["vanilla", "trade_rebalance"]),
             safe_mode: false,
             stack: &["vanilla", "trade_rebalance"],
-            diagnostics: vec![Diagnostic::FeaturePackAppended {
-                pack: "trade_rebalance".into(),
-            }],
+            diagnostics: vec![(
+                Diagnostic::FeaturePackAppended {
+                    pack: "trade_rebalance".into(),
+                },
+                Level::Info,
+            )],
         },
         Case {
             name: "a selected feature pack is not appended twice",
@@ -190,9 +218,25 @@ fn world_features_gate_which_packs_join_the_stack() {
             world_features: Some(&["vanilla", "trade_rebalance", "t:extra"]),
             safe_mode: false,
             stack: &["vanilla", "trade_rebalance", "t_extra"],
-            diagnostics: vec![Diagnostic::FeaturePackAppended {
-                pack: "t_extra".into(),
-            }],
+            diagnostics: vec![(
+                Diagnostic::FeaturePackAppended {
+                    pack: "t_extra".into(),
+                },
+                Level::Info,
+            )],
+        },
+        Case {
+            name: "feature packs are not appended while every world feature is provided",
+            selection: selection(&["vanilla", "file/sel"], &[]),
+            available: vec![
+                AvailablePack::vanilla(),
+                AvailablePack::directory("sel", EXTRA),
+                AvailablePack::feature("t_extra", EXTRA),
+            ],
+            world_features: Some(&["vanilla", "t:extra"]),
+            safe_mode: false,
+            stack: &["vanilla", "file/sel"],
+            diagnostics: vec![],
         },
         Case {
             name: "a feature pack is never appended as a new pack",
@@ -269,6 +313,10 @@ fn assert_metadata_outcomes(cases: &[(&str, Option<&str>, Outcome)]) {
             (false, [Diagnostic::UnavailablePack { .. }]) => Outcome::Unavailable,
             other => panic!("{name}: unexpected {other:?}"),
         };
+        assert!(
+            about_pack.iter().all(|d| d.level() == Level::Warning),
+            "{name}: {about_pack:?}"
+        );
         assert_eq!(&observed, outcome, "{name}");
     }
 }
@@ -334,6 +382,13 @@ fn pack_metadata_shape_decides_availability() {
                 r#"{"pack":{"description":"x","min_format":122,"max_format":122},"overlays":{"entries":[{"directory":"o"}]}}"#,
             ),
             Outcome::OverlaySkipped,
+        ),
+        (
+            "an overlay with only legacy formats applies",
+            Some(
+                r#"{"pack":{"description":"x","min_format":122,"max_format":122},"overlays":{"entries":[{"directory":"o","formats":122}]}}"#,
+            ),
+            Outcome::Available,
         ),
     ]);
 }

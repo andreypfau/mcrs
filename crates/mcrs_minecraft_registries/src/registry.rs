@@ -58,7 +58,7 @@ impl Names {
 pub struct Registry<R: RegistryType> {
     key: ResourceLocation,
     names: Arc<Names>,
-    values: Box<[R::Value]>,
+    values: Arc<[R::Value]>,
     origins: Box<[PackIndex]>,
 }
 
@@ -72,7 +72,7 @@ impl<R: RegistryType> Registry<R> {
         Self {
             key,
             names,
-            values: values.into_boxed_slice(),
+            values: values.into(),
             origins: origins.into_boxed_slice(),
         }
     }
@@ -87,6 +87,10 @@ impl<R: RegistryType> Registry<R> {
 
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
+    }
+
+    pub fn values(&self) -> &Arc<[R::Value]> {
+        &self.values
     }
 
     pub fn get(&self, id: Id<R>) -> Option<&R::Value> {

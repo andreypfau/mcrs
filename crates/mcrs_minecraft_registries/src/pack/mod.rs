@@ -11,7 +11,7 @@ pub use stack::pack_stack;
 
 pub(crate) const VANILLA: &str = "vanilla";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackKind {
     Vanilla,
     Feature,
@@ -182,10 +182,6 @@ pub struct PackFiles {
 }
 
 impl PackFiles {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn insert(&mut self, pack: &str, path: impl Into<String>, bytes: impl Into<Vec<u8>>) {
         self.packs
             .entry(pack.to_owned())

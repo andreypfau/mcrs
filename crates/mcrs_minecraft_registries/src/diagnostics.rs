@@ -143,7 +143,7 @@ impl Diagnostic {
             | Diagnostic::EmptyRegistry { registry }
             | Diagnostic::TooManyEntries { registry, .. }
             | Diagnostic::Validation { registry, .. }
-            | Diagnostic::Declaration { registry, .. } => Some((root(), registry.clone())),
+            | Diagnostic::Declaration { registry, .. } => Some((ROOT.into(), registry.clone())),
             _ => None,
         }
     }
@@ -151,23 +151,12 @@ impl Diagnostic {
 
 const ROOT: StaticResourceLocation = ResourceLocation::new_static("minecraft:root");
 
-fn root() -> ResourceLocation {
-    ROOT.into()
-}
-
-fn names(list: &[ResourceLocation]) -> String {
-    list.iter()
-        .map(ResourceLocation::as_str)
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn write_missing(f: &mut fmt::Formatter<'_>, missing: &[Missing]) -> fmt::Result {
-    for (n, member) in missing.iter().enumerate() {
+fn list<T: fmt::Display>(f: &mut fmt::Formatter<'_>, items: &[T]) -> fmt::Result {
+    for (n, item) in items.iter().enumerate() {
         if n > 0 {
             f.write_str(", ")?;
         }
-        write!(f, "{member}")?;
+        write!(f, "{item}")?;
     }
     Ok(())
 }
@@ -204,17 +193,21 @@ impl fmt::Display for Diagnostic {
                 f,
                 "overlay {directory} of data pack {pack} skipped: {reason}"
             ),
-            Diagnostic::PackFeaturesDisabled { pack, features } => write!(
-                f,
-                "data pack {pack} removed: it requests disabled features {}",
-                names(features)
-            ),
+            Diagnostic::PackFeaturesDisabled { pack, features } => {
+                write!(
+                    f,
+                    "data pack {pack} removed: it requests disabled features "
+                )?;
+                list(f, features)
+            }
             Diagnostic::PackFound { pack } => write!(f, "found new data pack {pack}"),
-            Diagnostic::PackNotAppended { pack, features } => write!(
-                f,
-                "new data pack {pack} not enabled: it requests disabled features {}",
-                names(features)
-            ),
+            Diagnostic::PackNotAppended { pack, features } => {
+                write!(
+                    f,
+                    "new data pack {pack} not enabled: it requests disabled features "
+                )?;
+                list(f, features)
+            }
             Diagnostic::FeaturePackAppended { pack } => {
                 write!(f, "enabled feature pack {pack} for the world's features")
             }
@@ -247,7 +240,7 @@ impl fmt::Display for Diagnostic {
                 missing,
             } => {
                 write!(f, "tag #{tag} in {registry} failed, missing ")?;
-                write_missing(f, missing)
+                list(f, missing)
             }
             Diagnostic::Entry {
                 pack,
@@ -270,7 +263,7 @@ impl fmt::Display for Diagnostic {
             }
             Diagnostic::Unresolved { missing, .. } => {
                 f.write_str("unresolved references ")?;
-                write_missing(f, missing)
+                list(f, missing)
             }
             Diagnostic::EmptyRegistry { .. } => f.write_str("the registry must not be empty"),
             Diagnostic::TooManyEntries { count, .. } => {
@@ -311,7 +304,6 @@ impl Diagnostics {
             (None, Some(_)) => Ordering::Greater,
             (Some(_), None) => Ordering::Less,
         });
-        keyed.dedup_by(|(later, _), (earlier, _)| later.is_some() && later == earlier);
         self.0
             .extend(keyed.into_iter().map(|(_, diagnostic)| diagnostic));
     }

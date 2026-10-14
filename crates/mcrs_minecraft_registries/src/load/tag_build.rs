@@ -198,7 +198,9 @@ fn tag_target(index: &Index, member: &Member) -> Option<usize> {
     index.get(&member.name).copied()
 }
 
-fn required_tag_edges(index: &Index, node: &Node) -> Vec<(usize, Member, PackIndex)> {
+type RequiredEdge = (usize, Member, PackIndex);
+
+fn required_tag_edges(index: &Index, node: &Node) -> Vec<RequiredEdge> {
     node.members
         .iter()
         .filter(|(member, _)| member.tag && member.required)
@@ -273,9 +275,14 @@ fn fail_absent_members(
     absent_elements_fail_load: bool,
 ) -> Vec<Missing> {
     let mut unresolved = Vec::new();
-    for node in nodes {
-        let members = node.members.clone();
-        for (member, pack) in &members {
+    for Node {
+        name,
+        members,
+        failed,
+        missing: misses,
+    } in nodes
+    {
+        for (member, pack) in members.iter() {
             let resolves = match member.tag {
                 true => tag_target(index, member).is_some(),
                 false => names.get(&member.name).is_some(),
@@ -283,32 +290,31 @@ fn fail_absent_members(
             if !member.required || resolves {
                 continue;
             }
-            if member.tag || !absent_elements_fail_load {
-                node.fail(member, pack_id(stack, *pack));
-            } else {
-                node.failed = true;
-                unresolved.push(missing(&node.name, member, pack_id(stack, *pack)));
+            *failed = true;
+            let miss = missing(name, member, pack_id(stack, *pack));
+            match member.tag || !absent_elements_fail_load {
+                true => misses.push(miss),
+                false => unresolved.push(miss),
             }
         }
     }
     unresolved
 }
 
-fn fail_required_cycles(nodes: &mut [Node], index: &Index, stack: &PackStack) -> Vec<Vec<usize>> {
-    let required: Vec<Vec<usize>> = nodes
+fn fail_required_cycles(
+    nodes: &mut [Node],
+    edges: &[Vec<RequiredEdge>],
+    stack: &PackStack,
+) -> Vec<Vec<usize>> {
+    let required: Vec<Vec<usize>> = edges
         .iter()
-        .map(|node| {
-            required_tag_edges(index, node)
-                .into_iter()
-                .map(|e| e.0)
-                .collect()
-        })
+        .map(|edges| edges.iter().map(|edge| edge.0).collect())
         .collect();
     let required_component = components(&required);
-    for (at, node) in nodes.iter_mut().enumerate() {
-        for (to, member, pack) in required_tag_edges(index, node) {
-            if same_component(&required_component, to, at) {
-                node.fail(&member, pack_id(stack, pack));
+    for ((at, node), edges) in nodes.iter_mut().enumerate().zip(edges) {
+        for (to, member, pack) in edges {
+            if same_component(&required_component, *to, at) {
+                node.fail(member, pack_id(stack, *pack));
             }
         }
     }
@@ -317,7 +323,7 @@ fn fail_required_cycles(nodes: &mut [Node], index: &Index, stack: &PackStack) ->
 
 fn propagate_failures(
     nodes: &mut [Node],
-    index: &Index,
+    edges: &[Vec<RequiredEdge>],
     required: &[Vec<usize>],
     stack: &PackStack,
 ) {
@@ -330,15 +336,15 @@ fn propagate_failures(
         .collect();
     while let Some(failed) = queue.pop() {
         for &holder in targets(&dependents, failed) {
-            let Some(node) = nodes.get_mut(holder) else {
+            let (Some(node), Some(edges)) = (nodes.get_mut(holder), edges.get(holder)) else {
                 continue;
             };
             if node.failed {
                 continue;
             }
-            for (to, member, pack) in required_tag_edges(index, node) {
-                if to == failed {
-                    node.fail(&member, pack_id(stack, pack));
+            for (to, member, pack) in edges {
+                if *to == failed {
+                    node.fail(member, pack_id(stack, *pack));
                 }
             }
             queue.push(holder);
@@ -447,16 +453,12 @@ fn number(
     previous: Option<&TagTable>,
 ) -> Vec<(ResourceLocation, Option<Vec<u16>>)> {
     let mut numbered: Vec<(ResourceLocation, Option<Vec<u16>>)> = Vec::new();
-    let mut placed = HashSet::new();
     for name in previous.into_iter().flat_map(TagTable::names) {
         let members = index.get(name).and_then(|&at| resolved.get_mut(at)?.take());
-        placed.insert(name.clone());
         numbered.push((name.clone(), members));
     }
     for (node, slot) in nodes.iter().zip(resolved.iter_mut()) {
-        if !placed.contains(&node.name)
-            && let Some(members) = slot.take()
-        {
+        if let Some(members) = slot.take() {
             numbered.push((node.name.clone(), Some(members)));
         }
     }
@@ -480,8 +482,12 @@ pub(crate) fn build(
         .collect();
     let unresolved =
         fail_absent_members(&mut nodes, &index, names, stack, absent_elements_fail_load);
-    let required = fail_required_cycles(&mut nodes, &index, stack);
-    propagate_failures(&mut nodes, &index, &required, stack);
+    let required_edges: Vec<_> = nodes
+        .iter()
+        .map(|node| required_tag_edges(&index, node))
+        .collect();
+    let required = fail_required_cycles(&mut nodes, &required_edges, stack);
+    propagate_failures(&mut nodes, &required_edges, &required, stack);
     let edges = acyclic_live_edges(&nodes, &index, &required);
     let resolved = resolve(&nodes, &index, names, &edges);
 

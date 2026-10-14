@@ -2,7 +2,7 @@ use mcrs_minecraft_registries::Diagnostic;
 
 use crate::support::{
     Block, DamageType, Enchantment, Item, LootTable, META, Packs, damage, declarations, get, names,
-    rl, tag,
+    rl, tag, value,
 };
 
 fn startup() -> Packs {
@@ -64,14 +64,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
         after.registry::<DamageType>().unwrap()
     ));
     assert_eq!(names::<DamageType>(&after), ["t:x", "t:y"]);
-    let damage_types = after.registry::<DamageType>().unwrap();
-    assert_eq!(
-        damage_types
-            .get(get::<DamageType>(&after, "t:x"))
-            .unwrap()
-            .message_id,
-        "t:x"
-    );
+    assert_eq!(value::<DamageType>(&after, "t:x").message_id, "t:x");
     assert_eq!(names::<LootTable>(&after), ["t:l2"]);
 
     let damage_tags = after.tags::<DamageType>().unwrap();
@@ -96,37 +89,28 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     assert_eq!(listed, ["t:t"]);
     let stone = get::<Item>(&after, "stone");
     assert!(!item_tags.contains(old_item_tag, stone));
-    let enchantment = after
-        .registry::<Enchantment>()
-        .unwrap()
-        .get(get::<Enchantment>(&after, "t:e"))
-        .unwrap();
+    let enchantment = value::<Enchantment>(&after, "t:e");
     let supported = enchantment.supported_items.as_ref().unwrap();
-    assert!(!supported.contains(item_tags, stone));
-    assert_eq!(supported.ids(item_tags).count(), 0);
+    assert!(!supported.contains(&item_tags, stone));
+    assert_eq!(supported.ids(&item_tags).count(), 0);
     let before_items = before.tags::<Item>().unwrap();
     assert!(before_items.contains(old_item_tag, stone));
 
     let newer = item_tags.by_name(&rl("t:j")).unwrap();
     assert_eq!(before_items.members(newer).count(), 0);
     assert_eq!(before_items.name(newer), None);
-    assert_eq!(item_tags.name(old_item_tag), Some(&rl("t:i")));
     assert!(!before_items.contains(newer, get::<Item>(&before, "dirt")));
 
     let (restored, _) = startup().load_after(&declarations(), Some(&after)).unwrap();
     let restored_items = restored.tags::<Item>().unwrap();
     assert_eq!(restored_items.by_name(&rl("t:i")), Some(old_item_tag));
-    let enchantment = restored
-        .registry::<Enchantment>()
-        .unwrap()
-        .get(get::<Enchantment>(&restored, "t:e"))
-        .unwrap();
+    let enchantment = value::<Enchantment>(&restored, "t:e");
     assert!(
         enchantment
             .supported_items
             .as_ref()
             .unwrap()
-            .contains(restored_items, stone)
+            .contains(&restored_items, stone)
     );
 }
 
@@ -145,14 +129,17 @@ fn a_reload_that_breaks_a_reloadable_entry_fails() {
 }
 
 #[test]
-fn a_world_entry_keeps_its_origin_pack_when_a_reload_shifts_the_stack() {
+fn an_entry_origin_follows_the_stack_of_its_stage_when_a_reload_shifts_the_stack() {
     let (before, _) = startup().load(&declarations()).unwrap();
     let packs = Packs::new()
         .feature("trade_rebalance", META.into())
-        .world("a", &[]);
+        .world("a", &[("data/t/loot_table/l.json", "{}")])
+        .world("b", &[("data/t/loot_table/l.json", "{}")]);
     let (after, _) = packs.load_after(&declarations(), Some(&before)).unwrap();
     let pack = after.origin(get::<DamageType>(&after, "t:x")).unwrap();
     assert_eq!((pack.id(), pack.known_pack()), ("file/a", None));
+    let pack = after.origin(get::<LootTable>(&after, "t:l")).unwrap();
+    assert_eq!(pack.id(), "file/b");
     let offered: Vec<&str> = after.known_packs().map(|k| k.id.as_str()).collect();
     assert_eq!(offered, ["core"]);
 }

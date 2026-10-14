@@ -5,15 +5,14 @@ use std::sync::Arc;
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::ctx::LoadCtx;
-use super::{STATIC_RANK, Stage, Table, TagEntry};
+use super::{Stage, Table};
 use crate::json;
 use crate::pack::PackIndex;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
-use crate::tags::{TagTable, Tags};
 
 pub(crate) enum Source<'f> {
     File { path: &'f str, bytes: &'f [u8] },
-    BuiltIn,
+    BuiltIn { set: usize },
 }
 
 pub(crate) struct EntrySource<'f> {
@@ -36,10 +35,10 @@ pub(crate) enum Kind<'a> {
 }
 
 impl Kind<'_> {
-    pub(crate) fn rank(&self) -> u8 {
+    pub(crate) fn stage(&self) -> Option<Stage> {
         match self {
-            Kind::Fixed(_) => STATIC_RANK,
-            Kind::Data(data) => data.stage().rank(),
+            Kind::Fixed(_) => None,
+            Kind::Data(data) => Some(data.stage()),
         }
     }
 }
@@ -48,7 +47,6 @@ pub(crate) trait Erased: Send + Sync {
     fn key(&self) -> &ResourceLocation;
     fn registry_type(&self) -> TypeId;
     fn kind(&self) -> Kind<'_>;
-    fn wrap_tags(&self, table: Arc<TagTable>) -> TagEntry;
 }
 
 pub(crate) trait ErasedFixed {
@@ -58,7 +56,7 @@ pub(crate) trait ErasedFixed {
 
 pub(crate) trait ErasedData {
     fn stage(&self) -> Stage;
-    fn built_in_names(&self) -> &[ResourceLocation];
+    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])>;
     fn must_not_be_empty(&self) -> bool;
     fn build(
         &self,
@@ -81,7 +79,13 @@ pub struct DataDeclaration<R: RegistryType> {
     stage: Stage,
     non_empty: bool,
     validator: Option<Validator<R>>,
-    built_in: Option<(Vec<ResourceLocation>, BuiltIn<R>)>,
+    built_in: Vec<BuiltInSet<R>>,
+}
+
+struct BuiltInSet<R: RegistryType> {
+    pack: String,
+    names: Vec<ResourceLocation>,
+    value: BuiltIn<R>,
 }
 
 impl<R: RegistryType> DataDeclaration<R>
@@ -103,13 +107,18 @@ where
 
     pub fn built_in(
         mut self,
+        pack: &str,
         names: Vec<ResourceLocation>,
         value: impl Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<R::Value, String>
         + Send
         + Sync
         + 'static,
     ) -> Self {
-        self.built_in = Some((names, Box::new(value)));
+        self.built_in.push(BuiltInSet {
+            pack: pack.to_owned(),
+            names,
+            value: Box::new(value),
+        });
         self
     }
 
@@ -118,20 +127,18 @@ where
         ctx: &LoadCtx<'_>,
         name: &ResourceLocation,
         source: &Source<'_>,
-    ) -> Decoded<R> {
+    ) -> Result<R::Value, (Option<String>, String)> {
         match source {
             Source::File { bytes, .. } => {
                 json::read_seed(bytes, ctx.value::<R::Value>()).map_err(|e| (e.field, e.message))
             }
-            Source::BuiltIn => match &self.built_in {
-                Some((_, value)) => value(name, ctx).map_err(|message| (None, message)),
+            Source::BuiltIn { set } => match self.built_in.get(*set) {
+                Some(set) => (set.value)(name, ctx).map_err(|message| (None, message)),
                 None => Err((None, "no built-in value is declared".to_owned())),
             },
         }
     }
 }
-
-type Decoded<R> = Result<<R as RegistryType>::Value, (Option<String>, String)>;
 
 pub struct Declaration {
     pub(crate) inner: Box<dyn Erased>,
@@ -147,7 +154,7 @@ impl Declaration {
             stage,
             non_empty: false,
             validator: None,
-            built_in: None,
+            built_in: Vec::new(),
         }
     }
 
@@ -176,13 +183,6 @@ where
     }
 }
 
-fn wrap<R: RegistryType>(table: Arc<TagTable>) -> TagEntry {
-    TagEntry {
-        typed: Box::new(Tags::<R>::new(Arc::clone(&table))),
-        table,
-    }
-}
-
 impl<R: RegistryType> Erased for DataDeclaration<R>
 where
     R::Value: ReadValue,
@@ -198,10 +198,6 @@ where
     fn kind(&self) -> Kind<'_> {
         Kind::Data(self)
     }
-
-    fn wrap_tags(&self, table: Arc<TagTable>) -> TagEntry {
-        wrap::<R>(table)
-    }
 }
 
 impl<R: RegistryType> ErasedData for DataDeclaration<R>
@@ -212,8 +208,11 @@ where
         self.stage
     }
 
-    fn built_in_names(&self) -> &[ResourceLocation] {
-        self.built_in.as_ref().map_or(&[], |(names, _)| names)
+    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])> {
+        self.built_in
+            .iter()
+            .map(|set| (set.pack.as_str(), set.names.as_slice()))
+            .collect()
     }
 
     fn must_not_be_empty(&self) -> bool {
@@ -242,7 +241,7 @@ where
                     pack: entry.pack,
                     file: match entry.source {
                         Source::File { path, .. } => Some(path.to_owned()),
-                        Source::BuiltIn => None,
+                        Source::BuiltIn { .. } => None,
                     },
                     reported_as_unresolved: ctx.settle(before, true),
                     field,
@@ -292,10 +291,6 @@ impl<R: RegistryType<Value = ()>> Erased for Fixed<R> {
 
     fn kind(&self) -> Kind<'_> {
         Kind::Fixed(self)
-    }
-
-    fn wrap_tags(&self, table: Arc<TagTable>) -> TagEntry {
-        wrap::<R>(table)
     }
 }
 

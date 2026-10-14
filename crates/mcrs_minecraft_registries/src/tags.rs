@@ -12,7 +12,7 @@ use crate::registry::RegistryType;
 #[derive(Debug)]
 struct Tag {
     name: ResourceLocation,
-    members: Box<[u16]>,
+    members: Option<Box<[u16]>>,
     row: FixedBitSet,
 }
 
@@ -32,10 +32,10 @@ impl TagTable {
                 if resolved.is_some() {
                     index.insert(name.clone(), number);
                 }
-                let members = resolved.unwrap_or_default();
+                let row = resolved.iter().flatten().map(|&id| usize::from(id));
                 Tag {
-                    row: members.iter().map(|&id| usize::from(id)).collect(),
-                    members: members.into_boxed_slice(),
+                    row: row.collect(),
+                    members: resolved.map(Vec::into_boxed_slice),
                     name,
                 }
             })
@@ -47,6 +47,13 @@ impl TagTable {
         self.tags.iter().map(|tag| &tag.name)
     }
 
+    pub(crate) fn resolved(&self) -> impl Iterator<Item = (u32, &ResourceLocation, &[u16])> {
+        self.tags
+            .iter()
+            .zip(0..=u32::MAX)
+            .filter_map(|(tag, number)| Some((number, &tag.name, tag.members.as_deref()?)))
+    }
+
     pub(crate) fn get(&self, name: &ResourceLocation) -> Option<u32> {
         self.index.get(name).copied()
     }
@@ -56,7 +63,9 @@ impl TagTable {
     }
 
     fn members(&self, number: usize) -> &[u16] {
-        self.tag(number).map_or(&[], |tag| &tag.members)
+        self.tag(number)
+            .and_then(|tag| tag.members.as_deref())
+            .unwrap_or_default()
     }
 
     fn contains(&self, number: usize, id: usize) -> bool {
@@ -98,10 +107,8 @@ impl<R: RegistryType> Tags<R> {
 
     pub fn iter(&self) -> impl Iterator<Item = (TagId<R>, &ResourceLocation)> {
         self.table
-            .names()
-            .zip(0..=u32::MAX)
-            .filter(|(name, _)| self.table.index.contains_key(*name))
-            .map(|(name, number)| (TagId::new(number), name))
+            .resolved()
+            .map(|(number, name, _)| (TagId::new(number), name))
     }
 }
 

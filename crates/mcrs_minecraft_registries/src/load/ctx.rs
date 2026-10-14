@@ -12,35 +12,49 @@ use serde::de::value::{
 };
 use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 
-use super::Table;
+use super::declaration::Erased;
+use super::{Stage, Table};
 use crate::diagnostics::{Missing, Referrer};
 use crate::id::{Id, TagId};
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
 use crate::tags::{IdSet, Ref, TagTable};
 
-pub(crate) struct Slot {
-    pub(crate) key: ResourceLocation,
-    pub(crate) rank: u8,
+pub(crate) struct Slot<'d> {
+    pub(crate) declaration: &'d dyn Erased,
     pub(crate) names: Option<Arc<Names>>,
     pub(crate) tags: Option<Arc<TagTable>>,
     pub(crate) table: Option<Table>,
 }
 
+impl Slot<'_> {
+    pub(crate) fn key(&self) -> &ResourceLocation {
+        self.declaration.key()
+    }
+
+    pub(crate) fn stage(&self) -> Option<Stage> {
+        self.declaration.kind().stage()
+    }
+}
+
 pub struct LoadCtx<'a> {
-    slots: &'a [Slot],
+    slots: &'a [Slot<'a>],
     by_type: &'a HashMap<TypeId, usize>,
-    rank: u8,
+    stage: Option<Stage>,
     referrer: RefCell<Option<(ResourceLocation, ResourceLocation)>>,
     unresolved: RefCell<Vec<(usize, Missing)>>,
     pending: Cell<Option<usize>>,
 }
 
 impl<'a> LoadCtx<'a> {
-    pub(crate) fn new(slots: &'a [Slot], by_type: &'a HashMap<TypeId, usize>, rank: u8) -> Self {
+    pub(crate) fn new(
+        slots: &'a [Slot<'a>],
+        by_type: &'a HashMap<TypeId, usize>,
+        stage: Option<Stage>,
+    ) -> Self {
         Self {
             slots,
             by_type,
-            rank,
+            stage,
             referrer: RefCell::new(None),
             unresolved: RefCell::new(Vec::new()),
             pending: Cell::new(None),
@@ -115,7 +129,7 @@ impl<'a> LoadCtx<'a> {
         slot.table.as_ref()?.registry.downcast_ref::<Registry<R>>()
     }
 
-    fn visible<R: 'static>(&self) -> Result<(usize, &'a Slot), String> {
+    fn visible<R: 'static>(&self) -> Result<(usize, &'a Slot<'a>), String> {
         let declared = self
             .by_type
             .get(&TypeId::of::<R>())
@@ -123,18 +137,18 @@ impl<'a> LoadCtx<'a> {
         let Some((index, slot)) = declared else {
             return Err("the referenced registry is not declared".to_owned());
         };
-        match slot.rank > self.rank {
+        match slot.stage() > self.stage {
             true => Err(format!(
                 "{} loads after this entry, so it cannot be referenced here",
-                slot.key
+                slot.key()
             )),
             false => Ok((index, slot)),
         }
     }
 
-    fn miss(&self, index: usize, slot: &Slot, name: &ResourceLocation, tag: bool) -> String {
+    fn miss(&self, index: usize, slot: &Slot<'_>, name: &ResourceLocation, tag: bool) -> String {
         let referrer = self.referrer.borrow().clone();
-        if slot.rank == self.rank
+        if slot.stage() == self.stage
             && let Some((registry, entry)) = referrer
         {
             let mut misses = self.unresolved.borrow_mut();
@@ -149,8 +163,8 @@ impl<'a> LoadCtx<'a> {
             ));
         }
         match tag {
-            true => format!("unknown tag #{name} of {}", slot.key),
-            false => format!("unknown entry {name} of {}", slot.key),
+            true => format!("unknown tag #{name} of {}", slot.key()),
+            false => format!("unknown entry {name} of {}", slot.key()),
         }
     }
 
@@ -172,8 +186,8 @@ impl<'a> LoadCtx<'a> {
     }
 }
 
-fn not_loaded(slot: &Slot) -> String {
-    format!("{} is not loaded yet", slot.key)
+fn not_loaded(slot: &Slot<'_>) -> String {
+    format!("{} is not loaded yet", slot.key())
 }
 
 fn identifier<E: de::Error>(text: &str) -> Result<ResourceLocation, E> {

@@ -12,7 +12,10 @@ use crate::support::{
 fn block_tags(files: &[(&str, &str)]) -> Packs {
     let files: Vec<(String, &str)> = files
         .iter()
-        .map(|(name, body)| (format!("data/t/tags/block/{name}.json"), *body))
+        .map(|(name, body)| {
+            let (namespace, path) = name.split_once(':').unwrap_or(("t", name));
+            (format!("data/{namespace}/tags/block/{path}.json"), *body)
+        })
         .collect();
     let files: Vec<(&str, &str)> = files.iter().map(|(p, b)| (p.as_str(), *b)).collect();
     Packs::new().world("a", &files)
@@ -176,7 +179,7 @@ fn a_schema_invalid_tag_file_still_makes_the_tag_exist_and_malformed_json_does_n
 #[test]
 fn cycles_fail_when_required_and_drop_one_optional_edge_otherwise() {
     type Expected<'a> = &'a [(&'a str, Option<&'a [&'a str]>)];
-    let cases: [(&[(&str, &str)], Expected<'_>); 7] = [
+    let cases: [(&[(&str, &str)], Expected<'_>); 8] = [
         (
             &[
                 ("a", r##"{"values":["#t:b"]}"##),
@@ -204,6 +207,22 @@ fn cycles_fail_when_required_and_drop_one_optional_edge_otherwise() {
             &[
                 ("t:a", Some(&["minecraft:x", "minecraft:y"])),
                 ("t:b", Some(&["minecraft:y"])),
+            ],
+        ),
+        (
+            &[
+                (
+                    "z:a",
+                    r##"{"values":["x",{"id":"#a:b","required":false}]}"##,
+                ),
+                (
+                    "a:b",
+                    r##"{"values":["y",{"id":"#z:a","required":false}]}"##,
+                ),
+            ],
+            &[
+                ("z:a", Some(&["minecraft:x", "minecraft:y"])),
+                ("a:b", Some(&["minecraft:y"])),
             ],
         ),
         (
@@ -259,6 +278,7 @@ fn a_failed_tag_is_reported_with_every_missing_member_and_its_pack() {
             "a",
             &[
                 ("data/minecraft/tags/block/bad.json", r#"{"values":[3]}"#),
+                ("data/minecraft/tags/item/bad.json", r#"{"values":[3]}"#),
                 (
                     "data/minecraft/tags/block/t.json",
                     r#"{"values":["t:nope"]}"#,
@@ -305,11 +325,18 @@ fn a_failed_tag_is_reported_with_every_missing_member_and_its_pack() {
             },
         ],
     };
+    let skipped = |d: &Diagnostic, registry: &str| {
+        matches!(d, Diagnostic::TagFileSkipped { registry: r, tag, pack, .. }
+            if *r == rl(registry) && *tag == rl("bad") && pack == "file/a")
+    };
     assert!(
-        matches!(interesting[0], Diagnostic::TagFileSkipped { tag, pack, .. } if *tag == rl("bad") && pack == "file/a"),
+        matches!(
+            interesting.as_slice(),
+            [block, item, _] if skipped(block, "block") && skipped(item, "item")
+        ),
         "{interesting:?}"
     );
-    assert_eq!(interesting[1..], [&failed]);
+    assert_eq!(interesting[2..], [&failed]);
     let text = failed.to_string();
     for part in ["minecraft:t", "t:nope", "#t:gone", "file/a", "file/b"] {
         assert!(text.contains(part), "{text}");
@@ -318,7 +345,7 @@ fn a_failed_tag_is_reported_with_every_missing_member_and_its_pack() {
 
 #[test]
 fn a_missing_required_entry_of_a_data_pack_registry_fails_the_startup_load() {
-    let report = Packs::new()
+    let result = Packs::new()
         .world(
             "a",
             &[
@@ -329,10 +356,9 @@ fn a_missing_required_entry_of_a_data_pack_registry_fails_the_startup_load() {
                 ),
             ],
         )
-        .load(&declarations())
-        .unwrap_err();
+        .load(&declarations());
     assert_eq!(
-        report_errors(&report),
+        report_errors(&result),
         [Diagnostic::Unresolved {
             registry: rl("damage_type"),
             missing: vec![Missing {

@@ -21,8 +21,8 @@ mod tags;
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
 pub use id::{Id, Key, TagId};
 pub use load::{
-    DataDeclaration, Declaration, IdSeed, IdSetSeed, LoadCtx, RefSeed, Registries, Stage,
-    ValueSeed, load,
+    DataDeclaration, Declaration, IdSeed, IdSetSeed, LoadCtx, RefSeed, Registries, RegistryView,
+    Stage, StageScope, StageView, ValueSeed, load, load_with,
 };
 pub use pack::{
     AvailablePack, Features, KnownPack, PackFiles, PackIndex, PackSelection, PackStack,
@@ -30,3 +30,24 @@ pub use pack::{
 };
 pub use registry::{ReadValue, Registry, RegistryType};
 pub use tags::{IdSet, Ref, Tags};
+
+#[doc(hidden)]
+pub use serde as __serde;
+
+// chisle: a value read this way resolves its references through whatever thread-local scope the
+// caller installs around the stage, not through the `LoadCtx` seeds; giving the type a seed-based
+// `ReadValue` retires its use of this macro, and the macro goes with the last one.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! read_with_serde {
+    ($($value:ty),+ $(,)?) => {$(
+        impl $crate::ReadValue for $value {
+            fn read<'de, D: $crate::__serde::Deserializer<'de>>(
+                _: &$crate::LoadCtx<'_>,
+                deserializer: D,
+            ) -> ::core::result::Result<Self, D::Error> {
+                <Self as $crate::__serde::Deserialize<'de>>::deserialize(deserializer)
+            }
+        }
+    )+};
+}

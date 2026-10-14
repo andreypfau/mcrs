@@ -1,12 +1,14 @@
 use std::mem::size_of;
 
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Id, Level, Stage};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Id, Level, LoadCtx, Stage};
 
 use crate::support::{
     Damage, DamageType, LootTable, Packs, damage, declarations, get, names, report_errors, rl, tag,
+    value,
 };
 
-pub fn with_damage(packs: Packs, pack: &str, names: &[&str]) -> Packs {
+fn with_damage(packs: Packs, pack: &str, names: &[&str]) -> Packs {
     let files: Vec<(String, String)> = names
         .iter()
         .map(|name| {
@@ -85,9 +87,8 @@ fn an_id_is_two_bytes_and_a_registry_past_its_range_fails_to_load() {
     packs
         .files_mut()
         .insert("file/a", "data/t/loot_table/e65536.json", "{}");
-    let report = packs.load(&declarations()).unwrap_err();
     assert_eq!(
-        report_errors(&report),
+        report_errors(&packs.load(&declarations())),
         [Diagnostic::TooManyEntries {
             registry: rl("loot_table"),
             count: 65_537,
@@ -112,10 +113,8 @@ fn the_highest_pack_replaces_the_whole_file_without_merging() {
             )],
         );
     let (registries, _) = packs.load(&declarations()).unwrap();
-    let registry = registries.registry::<DamageType>().unwrap();
-    let x = get::<DamageType>(&registries, "t:x");
     assert_eq!(
-        registry.get(x).unwrap(),
+        value::<DamageType>(&registries, "t:x"),
         &Damage {
             message_id: "high".into(),
             exhaustion: 2.0
@@ -270,19 +269,37 @@ fn an_applicable_overlay_overrides_the_base_tree_of_its_pack() {
         )
         .load(&declarations())
         .unwrap();
-    let registry = registries.registry::<DamageType>().unwrap();
     assert_eq!(names::<DamageType>(&registries), ["t:x", "t:y"]);
-    let message = |name: &str| {
-        registry
-            .get(get::<DamageType>(&registries, name))
-            .unwrap()
-            .message_id
-            .clone()
-    };
+    let message = |name: &str| value::<DamageType>(&registries, name).message_id.clone();
     assert_eq!(
         (message("t:x"), message("t:y")),
         ("later".into(), "overlay".into())
     );
+}
+
+#[test]
+fn a_registry_outside_minecraft_reads_the_directories_of_its_path_alone() {
+    let files = [
+        ("data/u/things/a.json", damage("a")),
+        ("data/u/t/things/b.json", damage("b")),
+        (
+            "data/u/tags/things/g.json",
+            r#"{"values":["u:a"]}"#.to_owned(),
+        ),
+        (
+            "data/u/tags/t/things/h.json",
+            r#"{"values":["u:a"]}"#.to_owned(),
+        ),
+    ];
+    let files: Vec<(&str, &str)> = files.iter().map(|(p, c)| (*p, c.as_str())).collect();
+    let declarations = [Declaration::data::<DamageType>(rl("t:things"), Stage::World).into()];
+    let (registries, _) = Packs::new().world("a", &files).load(&declarations).unwrap();
+    assert_eq!(names::<DamageType>(&registries), ["u:a"]);
+    assert_eq!(
+        tag::<DamageType>(&registries, "u:g"),
+        Some(vec!["u:a".to_owned()])
+    );
+    assert_eq!(tag::<DamageType>(&registries, "u:h"), None);
 }
 
 #[test]
@@ -326,7 +343,7 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
     enum Expected {
         Loads(&'static str),
         Field(&'static str),
-        Unlocated,
+        Fails,
     }
     let cases: [(&[u8], Expected); 7] = [
         (
@@ -337,20 +354,20 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
             b"{\"message_id\":\"a\xFFb\",\"exhaustion\":0.1}",
             Expected::Loads("a\u{FFFD}b"),
         ),
-        (br#"{"message_id":"a"}"#, Expected::Unlocated),
+        (br#"{"message_id":"a"}"#, Expected::Fails),
         (
             br#"{"message_id":"a","exhaustion":"bad"}"#,
             Expected::Field("exhaustion"),
         ),
         (
             br#"{"message_id":"a","exhaustion":0.1,"exhaustion":5.0}"#,
-            Expected::Unlocated,
+            Expected::Fails,
         ),
         (
             br#"{"message_id":"a","exhaustion":0.1} // x"#,
-            Expected::Unlocated,
+            Expected::Fails,
         ),
-        (b"", Expected::Unlocated),
+        (b"", Expected::Fails),
     ];
     for (content, expected) in cases {
         let shown = String::from_utf8_lossy(content);
@@ -360,11 +377,7 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
             .load(&declarations());
         if let Expected::Loads(message_id) = expected {
             let (registries, _) = result.unwrap_or_else(|d| panic!("{shown}: {d:?}"));
-            let value = registries
-                .registry::<DamageType>()
-                .unwrap()
-                .get(get::<DamageType>(&registries, "t:x"))
-                .unwrap();
+            let value = value::<DamageType>(&registries, "t:x");
             assert_eq!(value.message_id, message_id, "{shown}");
             continue;
         }
@@ -385,18 +398,14 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
 }
 
 #[test]
-fn built_in_entries_behave_as_files_of_the_built_in_pack() {
+fn built_in_entries_behave_as_files_of_their_pack() {
     let declaration = || -> Vec<Declaration> {
         vec![
             Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
                 .built_in(
+                    "file/a",
                     vec![rl("plains"), rl("desert"), rl("forest"), rl("ocean")],
-                    |name, _| {
-                        Ok(Damage {
-                            message_id: format!("built {}", name.path()),
-                            exhaustion: 0.0,
-                        })
-                    },
+                    built("built"),
                 )
                 .into(),
         ]
@@ -404,21 +413,28 @@ fn built_in_entries_behave_as_files_of_the_built_in_pack() {
     let filter = r#"{"pack":{"description":"x","min_format":122,"max_format":122},
         "filter":{"block":[{"namespace":"^minecraft$","path":"^damage_type/ocean\\.json$"}]}}"#;
     let packs = Packs::new()
-        .vanilla(&[(
-            "data/minecraft/damage_type/forest.json",
-            &damage("vanilla file"),
-        )])
         .world(
             "a",
+            &[(
+                "data/minecraft/damage_type/forest.json",
+                &damage("own file"),
+            )],
+        )
+        .world(
+            "b",
             &[
                 (
                     "data/minecraft/damage_type/plains.json",
-                    &damage("pack file"),
+                    &damage("higher file"),
                 ),
                 ("data/t/damage_type/aaa.json", &damage("aaa")),
             ],
         )
-        .world_with_meta("b", filter, &[]);
+        .world_with_meta("c", filter, &[])
+        .world(
+            "d",
+            &[("data/minecraft/damage_type/ocean.json", &damage("top file"))],
+        );
     let (registries, _) = packs.load(&declaration()).unwrap();
     let registry = registries.registry::<DamageType>().unwrap();
     assert_eq!(
@@ -427,22 +443,71 @@ fn built_in_entries_behave_as_files_of_the_built_in_pack() {
             "t:aaa",
             "minecraft:desert",
             "minecraft:forest",
+            "minecraft:ocean",
             "minecraft:plains"
-        ]
+        ],
     );
     let value = |name: &str| {
         let id = get::<DamageType>(&registries, name);
         let origin = registries.origin(id).unwrap().id().to_owned();
         (registry.get(id).unwrap().message_id.clone(), origin)
     };
-    assert_eq!(value("desert"), ("built desert".into(), "vanilla".into()));
-    assert_eq!(value("forest"), ("vanilla file".into(), "vanilla".into()));
-    assert_eq!(value("plains"), ("pack file".into(), "file/a".into()));
+    assert_eq!(value("desert"), ("built desert".into(), "file/a".into()));
+    assert_eq!(value("forest"), ("own file".into(), "file/a".into()));
+    assert_eq!(value("plains"), ("higher file".into(), "file/b".into()));
+    assert_eq!(value("ocean"), ("top file".into(), "file/d".into()));
+}
 
-    let (registries, _) = Packs::new()
-        .world("a", &[])
-        .disable("vanilla")
-        .load(&declaration())
-        .unwrap();
-    assert!(registries.registry::<DamageType>().unwrap().is_empty());
+fn built(
+    prefix: &'static str,
+) -> impl Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<Damage, String> + Send + Sync + 'static {
+    move |name, _| {
+        Ok(Damage {
+            message_id: format!("{prefix} {}", name.path()),
+            exhaustion: 0.0,
+        })
+    }
+}
+
+#[test]
+fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
+    let declaration = || -> Vec<Declaration> {
+        vec![
+            Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
+                .built_in("file/a", vec![rl("shared"), rl("high")], built("a"))
+                .built_in("vanilla", vec![rl("shared"), rl("low")], built("vanilla"))
+                .into(),
+        ]
+    };
+    let cases: [(&str, Packs, &[(&str, &str, &str)]); 2] = [
+        (
+            "both packs",
+            Packs::new().world("a", &[]),
+            &[
+                ("high", "a high", "file/a"),
+                ("low", "vanilla low", "vanilla"),
+                ("shared", "a shared", "file/a"),
+            ],
+        ),
+        (
+            "file/a absent",
+            Packs::new(),
+            &[
+                ("low", "vanilla low", "vanilla"),
+                ("shared", "vanilla shared", "vanilla"),
+            ],
+        ),
+    ];
+    for (case, packs, expected) in cases {
+        let (registries, _) = packs.load(&declaration()).unwrap();
+        let registry = registries.registry::<DamageType>().unwrap();
+        let entries: Vec<(&str, &str, &str)> = registry
+            .iter()
+            .map(|(id, name, value)| {
+                let origin = registries.origin(id).unwrap().id();
+                (name.path(), value.message_id.as_str(), origin)
+            })
+            .collect();
+        assert_eq!(entries, expected, "{case}");
+    }
 }

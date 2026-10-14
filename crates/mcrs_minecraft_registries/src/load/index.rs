@@ -24,16 +24,9 @@ pub(crate) struct Directories {
 }
 
 impl Directories {
-    pub(crate) fn directory(key: &ResourceLocation) -> String {
-        match key.namespace() {
-            "minecraft" => key.path().to_owned(),
-            namespace => format!("{namespace}/{}", key.path()),
-        }
-    }
-
     pub(crate) fn insert(&mut self, key: &ResourceLocation, slot: usize, has_entries: bool) {
         self.by_path
-            .insert(Self::directory(key), (slot, has_entries));
+            .insert(key.path().to_owned(), (slot, has_entries));
     }
 
     fn find<'p>(&self, path: &'p str, tag: bool) -> Option<(usize, &'p str)> {
@@ -60,18 +53,14 @@ pub(crate) struct Candidate<'f> {
     bytes: &'f [u8],
 }
 
-pub(crate) struct Visibility {
-    hidden: HashSet<(PackIndex, String)>,
+pub(crate) struct Visibility<'t> {
+    hidden: HashSet<(PackIndex, &'t str, &'t str)>,
 }
 
-fn visibility_key(pack: PackIndex, namespace: &str, relative: &str) -> (PackIndex, String) {
-    (pack, format!("{namespace}/{relative}"))
-}
-
-impl Visibility {
+impl<'t> Visibility<'t> {
     pub(crate) fn new(
         stack: &PackStack,
-        tested: &[(PackIndex, &str, &str)],
+        tested: &[(PackIndex, &'t str, &'t str)],
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
         let mut hidden = HashSet::new();
@@ -83,7 +72,7 @@ impl Visibility {
             let hides: Result<Vec<_>, String> = below
                 .filter_map(
                     |&(at, namespace, relative)| match filter.hides(namespace, relative) {
-                        Ok(true) => Some(Ok(visibility_key(at, namespace, relative))),
+                        Ok(true) => Some(Ok((at, namespace, relative))),
                         Ok(false) => None,
                         Err(reason) => Some(Err(reason)),
                     },
@@ -101,13 +90,12 @@ impl Visibility {
     }
 
     pub(crate) fn hidden(&self, pack: PackIndex, namespace: &str, relative: &str) -> bool {
-        self.hidden
-            .contains(&visibility_key(pack, namespace, relative))
+        self.hidden.contains(&(pack, namespace, relative))
     }
 }
 
-impl Candidate<'_> {
-    pub(crate) fn tested(&self) -> (PackIndex, &str, &str) {
+impl<'f> Candidate<'f> {
+    pub(crate) fn tested(&self) -> (PackIndex, &'f str, &'f str) {
         (self.pack, self.namespace, self.relative)
     }
 }
@@ -118,7 +106,7 @@ fn roots(overlays: &[String]) -> impl Iterator<Item = String> + '_ {
 
 pub(crate) fn assign<'f>(
     candidates: Vec<Candidate<'f>>,
-    visibility: &Visibility,
+    visibility: &Visibility<'_>,
     slots: usize,
 ) -> Vec<SlotFiles<'f>> {
     let mut out: Vec<SlotFiles<'f>> = (0..slots).map(|_| SlotFiles::default()).collect();
@@ -181,21 +169,18 @@ pub(crate) fn candidates<'f>(
             let Some((slot, file)) = directories.find(inside, tag) else {
                 continue;
             };
-            let invalid = || Diagnostic::InvalidFileName {
-                pack: pack.id().to_owned(),
-                zip: pack.kind() == PackKind::Zip,
-                namespace: namespace.to_owned(),
-                path: relative.to_owned(),
+            let name = match file.strip_suffix(".json") {
+                Some(stem) => ResourceLocation::new(namespace, stem).ok(),
+                None if ResourceLocation::new(namespace, relative).is_ok() => continue,
+                None => None,
             };
-            if ResourceLocation::new(namespace, relative).is_err() {
-                diagnostics.push(invalid());
-                continue;
-            }
-            let Some(stem) = file.strip_suffix(".json") else {
-                continue;
-            };
-            let Ok(name) = ResourceLocation::new(namespace, stem) else {
-                diagnostics.push(invalid());
+            let Some(name) = name else {
+                diagnostics.push(Diagnostic::InvalidFileName {
+                    pack: pack.id().to_owned(),
+                    zip: pack.kind() == PackKind::Zip,
+                    namespace: namespace.to_owned(),
+                    path: relative.to_owned(),
+                });
                 continue;
             };
             out.push(Candidate {

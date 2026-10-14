@@ -5,7 +5,8 @@ use std::sync::Arc;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{
     AvailablePack, Declaration, Diagnostic, Diagnostics, Features, Id, IdSet, LoadCtx, PackFiles,
-    PackSelection, PackStack, ReadValue, Ref, Registries, RegistryType, Stage, load, pack_stack,
+    PackSelection, PackStack, ReadValue, Ref, Registries, RegistryType, Stage, StageScope,
+    load_with, pack_stack,
 };
 use serde::de::value::StrDeserializer;
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
@@ -83,6 +84,7 @@ pub struct Enchant {
     pub exclusive_set: Option<IdSet<Enchantment>>,
     pub damage_types: Option<IdSet<DamageType>>,
     pub merchant_predicate: Option<Ref<Predicate>>,
+    pub damage: Option<Ref<DamageType>>,
     pub preferred: Option<Id<Enchantment>>,
 }
 
@@ -103,6 +105,7 @@ impl ReadValue for Enchant {
                     exclusive_set: None,
                     damage_types: None,
                     merchant_predicate: None,
+                    damage: None,
                     preferred: None,
                 };
                 while let Some(key) = map.next_key::<String>()? {
@@ -119,6 +122,7 @@ impl ReadValue for Enchant {
                         "merchant_predicate" => {
                             out.merchant_predicate = Some(map.next_value_seed(self.0.reference())?)
                         }
+                        "damage" => out.damage = Some(map.next_value_seed(self.0.reference())?),
                         "preferred" => {
                             let text = map.next_value::<String>()?;
                             let seed = self.0.id::<Enchantment>();
@@ -139,15 +143,14 @@ impl ReadValue for Enchant {
     }
 }
 
-pub const BLOCKS: [&str; 8] = ["stone", "dirt", "a", "b", "c", "d", "x", "y"];
-
-pub fn blocks() -> Declaration {
-    Declaration::fixed::<Block>(rl("block"), BLOCKS.iter().map(|b| rl(b)).collect())
-}
-
 pub fn declarations() -> Vec<Declaration> {
     vec![
-        blocks(),
+        Declaration::fixed::<Block>(
+            rl("block"),
+            ["stone", "dirt", "a", "b", "c", "d", "x", "y"]
+                .map(rl)
+                .to_vec(),
+        ),
         Declaration::fixed::<Item>(rl("item"), vec![rl("stone"), rl("dirt")]),
         Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
         Declaration::data::<Enchantment>(rl("enchantment"), Stage::World).into(),
@@ -165,13 +168,6 @@ pub struct Packs {
     available: Vec<AvailablePack>,
     files: PackFiles,
     features: Features,
-    safe_mode: bool,
-}
-
-impl Default for Packs {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Packs {
@@ -179,13 +175,12 @@ impl Packs {
         Self {
             selection: PackSelection::default(),
             available: vec![AvailablePack::vanilla()],
-            files: PackFiles::new(),
+            files: PackFiles::default(),
             features: Features {
                 known: vec![rl("vanilla"), rl("trade_rebalance")],
                 vanilla: vec![rl("vanilla")],
                 world: None,
             },
-            safe_mode: false,
         }
     }
 
@@ -229,23 +224,12 @@ impl Packs {
         self
     }
 
-    pub fn disable(mut self, id: &str) -> Self {
-        self.selection.enabled.retain(|enabled| enabled != id);
-        self.selection.disabled.push(id.to_owned());
-        self
-    }
-
     pub fn files_mut(&mut self) -> &mut PackFiles {
         &mut self.files
     }
 
     pub fn stack(&self) -> (PackStack, Diagnostics) {
-        pack_stack(
-            &self.selection,
-            &self.available,
-            &self.features,
-            self.safe_mode,
-        )
+        pack_stack(&self.selection, &self.available, &self.features, false)
     }
 
     pub fn load(
@@ -260,8 +244,17 @@ impl Packs {
         declarations: &[Declaration],
         previous: Option<&Registries>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
+        self.load_with(declarations, previous, &mut |_, decode| decode())
+    }
+
+    pub fn load_with(
+        &self,
+        declarations: &[Declaration],
+        previous: Option<&Registries>,
+        scope: &mut StageScope<'_>,
+    ) -> Result<(Registries, Diagnostics), Diagnostics> {
         let (stack, _) = self.stack();
-        load(declarations, Arc::new(stack), &self.files, previous)
+        load_with(declarations, Arc::new(stack), &self.files, previous, scope)
     }
 }
 
@@ -293,12 +286,20 @@ pub fn get<R: RegistryType>(registries: &Registries, name: &str) -> Id<R> {
         .unwrap_or_else(|| panic!("{name} is an entry"))
 }
 
-pub fn report_errors(report: &Diagnostics) -> Vec<Diagnostic> {
-    report
-        .iter()
-        .filter(|d| d.report_key().is_some())
-        .cloned()
-        .collect()
+pub fn value<'r, R: RegistryType>(registries: &'r Registries, name: &str) -> &'r R::Value {
+    registries
+        .registry::<R>()
+        .expect("the registry is loaded")
+        .get(get::<R>(registries, name))
+        .unwrap()
+}
+
+pub fn report_errors<T>(result: &Result<T, Diagnostics>) -> Vec<Diagnostic> {
+    let Err(report) = result else {
+        return Vec::new();
+    };
+    let errors = report.iter().filter(|d| d.report_key().is_some());
+    errors.cloned().collect()
 }
 
 pub fn report(diagnostics: &Diagnostics) -> Vec<String> {

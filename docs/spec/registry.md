@@ -276,7 +276,7 @@ marker and the clock.
 | tag of any registry R | `data/<ns>/tags/<registry path of R>/<p>.json` | tag `#<ns>:<p>` |
 
   - `<p>` may contain `/`. Subdirectories become path segments.
-  - The registry path can itself contain `/`, for example `worldgen/biome`. The registry's namespace is not part of the directory.
+  - The registry path can itself contain `/`, for example `worldgen/biome`. The registry's namespace is not part of the directory, whatever it is: a registry `m:things` reads `data/<ns>/things/` and `data/<ns>/tags/things/`. Two registries whose keys share a path, such as `minecraft:things` and `m:things`, would read the same files; this implementation refuses such a set of declarations at load.
   - Files that do not end in `.json` are ignored.
   - A file is ignored, with a log line, when the namespace directory name or the file's relative path is not a valid identifier (REG-ID-001). One example is an uppercase letter. The line names the namespace and the path. A directory pack logs it as an error and a zip pack as a warning; either way loading continues.
   - The `.json` test is case-sensitive. A file ending in `.JSON` is not read; its name is also not a valid identifier, so it is ignored with the log line above.
@@ -576,6 +576,7 @@ Provenance: `source_suggested`. Confidence: medium. The experiment is under REG-
 - **Numeric semantics:** none.
 - **Postconditions:** a world pack file at the same path overrides one of them; a filter in a higher pack can hide one.
 - **Edge cases:** of these five, only `worldgen/biome` is synced (REG-NET-004). A vanilla client fills an absent-data biome from the same file in its own copy of the `vanilla` pack (REG-NET-007).
+- **Local rule: entries built in code.** This implementation may build an entry in code instead of reading its file. Such an entry names the pack it belongs to, which may be any pack in the stack, and behaves in every respect as a file of that pack at `data/<namespace>/<R path>/<path>.json`: ordering, override, filtering and known-pack attribution. A real file at the same path in the same pack replaces the built entry. An entry built for a pack that is not in the stack does not exist. The game has no such entries; the observable result must equal the one the files would give.
 - **Invariants:** the counts below equal the entry names `names.json` lists for each registry.
 - **Conformance tests:** on a stack with no pack other than `vanilla`, the entry counts are:
 
