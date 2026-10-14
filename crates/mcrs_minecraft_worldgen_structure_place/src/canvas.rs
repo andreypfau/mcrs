@@ -147,7 +147,10 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
     }
 
     /// `generateMaybeBox`: one float per cell, drawn before any test.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the random source, the probability, the box's two corners, the edge and fill blocks, and the air-skip and inside-only flags of the reference's probabilistic box fill"
+    )]
     pub fn generate_maybe_box<R: Random>(
         &mut self,
         rng: &mut R,
@@ -282,7 +285,10 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
     }
 
     /// `createDispenser`, with the dispenser already facing as the caller asked.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the random source, the dispenser's blocks, its position and its loot table, which the reference passes as separate values"
+    )]
     pub fn create_dispenser<R: Random>(
         &mut self,
         rng: &mut R,

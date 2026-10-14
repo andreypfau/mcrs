@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;
@@ -178,12 +176,6 @@ impl Neighbourhood {
         {
             cells[LocalPos::from(pos).index()] = id.0;
         }
-    }
-
-    pub fn cells<'a>(
-        &'a self,
-    ) -> impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]> + 'a {
-        |pos| self.section(pos)
     }
 
     pub fn block_min(&self) -> BlockPos {

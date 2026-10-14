@@ -108,7 +108,10 @@ impl OceanRuinBlocks {
 
 /// `OceanRuinPiece.postProcess` for one column: the template at its fixed
 /// floor, then the chest and drowned markers the column holds.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the ruin's blocks, configuration, structure and piece, the frozen structures, the column's reference and clip, the region, the two lists the placement fills and the random source"
+)]
 pub fn place_ocean_ruin<W: WorldGenVolume>(
     blocks: &OceanRuinBlocks,
     frozen: &FrozenStructures,

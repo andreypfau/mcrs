@@ -70,6 +70,10 @@ impl Target {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "checks the owners, then builds every registry's key module and the owning crates' files in one pass, so each error reads against its check"
+)]
 pub fn generate(
     registries: &registries::Report,
     datapack: &names::Datapack,
@@ -619,6 +623,9 @@ fn catalog_manifest(owning: &[&str]) -> String {
          \n\
          [lib]\n\
          doctest = false\n\
+         \n\
+         [lints]\n\
+         workspace = true\n\
          \n\
          [dependencies]\n\
          mcrs_minecraft_core.workspace = true\n",

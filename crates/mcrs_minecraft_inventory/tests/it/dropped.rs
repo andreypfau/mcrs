@@ -127,7 +127,7 @@ fn merging_dropped_items_keeps_the_longer_delay_and_the_younger_age() {
 }
 
 #[test]
-#[cfg_attr(not(debug_assertions), ignore)]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "held and dropped")]
 fn inserting_dropped_on_a_held_stack_panics() {
     let mut world = world();

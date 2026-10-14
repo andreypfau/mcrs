@@ -39,7 +39,10 @@ impl NetherFossilBlocks {
 /// `NetherFossilPiece.postProcess` for one column: the clip widened to the
 /// whole fossil, so every column the piece touches writes all of it, then
 /// the dried ghast drawn positionally at the fossil's centre.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the fossil's blocks, template and piece, the column's clip and reference, the volume, the random source and the two lists one column's paint fills"
+)]
 pub fn paint_nether_fossil<W: WorldGenVolume>(
     b: &NetherFossilBlocks,
     template: &FrozenTemplate,

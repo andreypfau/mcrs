@@ -1,9 +1,3 @@
-#![allow(
-    clippy::type_complexity,
-    clippy::needless_borrow,
-    clippy::too_many_arguments
-)]
-
 pub mod chat_type;
 #[rustfmt::skip]
 pub mod keys;

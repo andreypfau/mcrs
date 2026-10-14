@@ -7,6 +7,9 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [[test]]
 name = "it"
 path = "tests/it/main.rs"

@@ -7,7 +7,6 @@ use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-#[allow(clippy::large_enum_variant)]
 pub enum ChunkGenerator {
     Noise(NoiseChunkGenerator),
     Flat(FlatChunkGenerator),

@@ -497,7 +497,10 @@ fn straight_stairs_down<W: WorldGenVolume, R: Random>(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the blocks, the canvas, the random source, the entry door and the four flags that say which of the crossing's side exits are open"
+)]
 fn five_crossing<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -568,6 +571,10 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
     );
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lays out the library's shelves, torches, fences and ladder for both heights in the reference's order, so each call reads against it"
+)]
 fn library<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,

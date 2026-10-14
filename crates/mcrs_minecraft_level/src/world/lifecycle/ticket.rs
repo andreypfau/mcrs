@@ -349,6 +349,10 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn spawn_chunks(
     mut dims: Query<(Entity, &mut SectionLevels, &mut SectionIndex)>,
     mut commands: Commands,

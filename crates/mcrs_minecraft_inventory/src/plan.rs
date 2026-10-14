@@ -285,6 +285,10 @@ impl<'a> Planner<'a> {
     }
 
     /// A click on the open menu, validated against the layout by the caller.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per input kind of a container click, each applying the game's rule for that input to the snapshot"
+    )]
     pub fn click(&mut self, click: Click) {
         let player = self.snapshot.player;
         let carried_slot = self.snapshot.carried();

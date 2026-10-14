@@ -65,7 +65,10 @@ fn shipwreck_loot(
 
 /// `ShipwreckPiece.postProcess` for one column, the piece already at the
 /// height its layout fixed.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the processor chain, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+)]
 pub fn paint_shipwreck<W: WorldGenVolume>(
     chain: &CompiledChain,
     template: &FrozenTemplate,
@@ -139,7 +142,10 @@ impl IglooBlocks {
 /// The trapdoor write is not clipped: the reference writes it from every
 /// chunk the top touches, and a neighbour that never placed the shaft sees
 /// terrain below the trapdoor and writes snow into the entrance column.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the igloo's blocks, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+)]
 pub fn paint_igloo<W: WorldGenVolume>(
     b: &IglooBlocks,
     template: &FrozenTemplate,

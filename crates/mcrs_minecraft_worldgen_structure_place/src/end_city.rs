@@ -34,7 +34,10 @@ impl EndCityChains {
 /// `EndCityPiece.postProcess` for one column: the template, then its data
 /// markers in block order — a chest's loot table under a `Chest` marker, a
 /// shulker at a `Sentry`, the elytra frame at `Elytra` facing the piece's south.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the chains, the frozen structures and the piece, the column's clip and reference, the volume, the random source and the two lists the piece fills, which the reference's post-process takes as separate values"
+)]
 pub fn place_end_city_piece<W: WorldGenVolume>(
     chains: &EndCityChains,
     frozen: &FrozenStructures,

@@ -69,6 +69,10 @@ struct MenuFold {
 
 /// Every click of a tick folds through one snapshot per player, so a later
 /// click sees the earlier one and the player gets one transaction.
+#[expect(
+    clippy::too_many_lines,
+    reason = "folds every click of the tick through one snapshot per player and then applies each player's transaction, so a later click sees the earlier one"
+)]
 pub fn handle_container_clicks(
     world: &World,
     mut requests: MessageReader<ContainerClickRequest>,

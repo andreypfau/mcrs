@@ -88,7 +88,6 @@ pub struct InTransit {
     pub move_id: MoveId,
 }
 
-#[allow(clippy::type_complexity)]
 fn add_entity_to_chunk(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
@@ -120,7 +119,6 @@ fn add_entity_to_chunk(
         });
 }
 
-#[allow(clippy::type_complexity)]
 fn add_old_transform(
     entities: Query<
         (Entity, &Transform),
@@ -139,7 +137,6 @@ fn add_old_transform(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn update_chunk_entities(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
@@ -242,7 +239,6 @@ pub struct EntityNetworkRemoveEvent {
     pub player: Entity,
 }
 
-#[allow(clippy::type_complexity)]
 fn add_player_synced_entities(
     mut commands: Commands,
     new_players: Query<
@@ -262,7 +258,6 @@ fn add_player_synced_entities(
     });
 }
 
-#[allow(clippy::type_complexity)]
 fn sync_entities(
     dim_players: Query<&DimensionPlayers>,
     player_data: Query<

@@ -11,7 +11,10 @@ use crate::corpus;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ReportBlock {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the report is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     properties: Option<IgnoredAny>,
     states: Vec<ReportState>,
 }

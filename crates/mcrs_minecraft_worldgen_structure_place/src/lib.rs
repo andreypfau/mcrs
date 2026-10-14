@@ -77,7 +77,10 @@ pub(crate) fn ignore_blocks(
 /// `TemplateStructurePiece.postProcess`: the palette drawn from the piece's
 /// position, then the template placed with positional randomness. The palette
 /// comes back when anything was placed.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the template, its position, rotation, mirror and pivot, the clip, the processor chain, the waterlog and entity flags, the volume, the random source and the two lists of one positional placement"
+)]
 pub fn place_positional<W: WorldGenVolume>(
     template: &FrozenTemplate,
     position: IVec3,

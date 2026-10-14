@@ -75,6 +75,10 @@ impl DesertPyramidBlocks {
 /// `DesertPyramidPiece.postProcess` for one column, `bounds` already sunk to
 /// its floor. The first draw is the reference's ground-height offset, spent
 /// here and read from the start chunk's stream by the caller.
+#[expect(
+    clippy::too_many_lines,
+    reason = "paints the pyramid's shell, chambers, floor pattern and chests as one run of canvas calls in the reference's order, so it reads against it"
+)]
 pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     b: &DesertPyramidBlocks,
     c: &mut PieceCanvas<'_, W>,

@@ -146,6 +146,10 @@ pub enum TransactionError {
     Stack(#[from] StackError),
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one arm per operation kind, each editing the stacks and slots it names"
+)]
 fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), TransactionError> {
     match *op {
         Op::Transfer { from, to, count } => {

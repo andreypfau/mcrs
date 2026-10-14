@@ -38,7 +38,10 @@ impl WoodlandMansionBlocks {
 /// data markers inside the clip in palette order, a chest facing as the
 /// marker names it, or the mobs the marker spawns with the block under them
 /// cleared.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the mansion's blocks, template, manifest and piece, the column's reference and clip, the volume, the random source and the two lists one column's placement fills"
+)]
 pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     b: &WoodlandMansionBlocks,
     template: &FrozenTemplate,

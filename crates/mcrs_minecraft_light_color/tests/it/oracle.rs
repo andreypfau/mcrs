@@ -8,6 +8,12 @@ use mcrs_minecraft_light_color::region::{Palette, Region, section_bricks, sectio
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use proptest::prelude::*;
 
+impl Neighbourhood {
+    fn cells<'a>(&'a self) -> impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]> + 'a {
+        |pos| self.section(pos)
+    }
+}
+
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
 
 fn resolve_one(levels: &[(LightType, u8)]) -> [u8; 4] {

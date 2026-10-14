@@ -123,6 +123,10 @@ type ExplosionEntity = Entity;
 type ChunkEntity = Entity;
 type DimEntity = Entity;
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn tick_explode(
     mut explosions: Query<
         (

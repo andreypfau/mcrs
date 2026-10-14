@@ -122,7 +122,6 @@ impl DimensionTypeConfig {
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn update_index(
     entities: Query<
         (
@@ -160,7 +159,6 @@ fn update_index(
         })
 }
 
-#[allow(clippy::type_complexity)]
 fn add_old_in_dimension(
     mut commands: Commands,
     new_players: Query<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,

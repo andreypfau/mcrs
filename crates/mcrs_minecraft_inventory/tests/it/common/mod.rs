@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;

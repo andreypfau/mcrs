@@ -181,7 +181,10 @@ fn processors(
 /// centre, then the whole template from that column, netherrack spread within
 /// fourteen blocks of the centre, drip columns under the portal, and vines or
 /// leaves over the box.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the portal's blocks, piece and template, the volume, the two lists the placement fills, the column's reference and clip, and the random source"
+)]
 pub fn place_ruined_portal<W: WorldGenVolume>(
     b: &RuinedPortalBlocks,
     piece: &RuinedPortalPiece,

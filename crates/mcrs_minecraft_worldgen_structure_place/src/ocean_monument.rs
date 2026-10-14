@@ -227,6 +227,10 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lays out the monument's wings, core, chambers and pillars as one run of canvas calls in the reference's order, so it reads against it"
+)]
 fn building<W: WorldGenVolume>(r: &mut Room<'_, '_, W>) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
     let water_height = r.c.volume.extent().sea_level.max(64) - r.c.bounds.min.y;
@@ -1035,6 +1039,10 @@ fn penthouse<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, rng: &mut WorldgenRando
     r.spawn_elder(rng, 6, 1, 6);
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "builds the walls, lamps and openings of one room for each design in the reference's order, so each case reads against it"
+)]
 fn simple_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,
     rng: &mut WorldgenRandom,

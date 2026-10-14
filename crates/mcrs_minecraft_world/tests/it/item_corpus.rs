@@ -236,7 +236,10 @@ fn the_item_corpus_resolves_against_the_block_corpus() {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawFile {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the corpus file is read with deny_unknown_fields, so its format version is declared and never read"
+    )]
     format_version: IgnoredAny,
     #[serde(rename = "minecraft:item")]
     item: RawItem,
@@ -247,9 +250,15 @@ struct RawFile {
 struct RawItem {
     description: RawDescription,
     components: BTreeMap<String, IgnoredAny>,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the corpus file is read with deny_unknown_fields, so the key is declared and never read"
+    )]
     block_placer: Option<IgnoredAny>,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the corpus file is read with deny_unknown_fields, so the key is declared and never read"
+    )]
     crafting_remainder: Option<IgnoredAny>,
 }
 

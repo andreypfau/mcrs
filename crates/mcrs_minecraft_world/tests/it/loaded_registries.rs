@@ -875,6 +875,10 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of malformed registry files and the entries each error must name, so every case reads against its expectation"
+)]
 fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
     let stone = r#"{"id":"minecraft:stone"}"#;
     let wolf_assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
@@ -1555,6 +1559,10 @@ fn every_dialog_type_round_trips() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of out-of-range dialog values, each against the field its error must name"
+)]
 fn a_dialog_value_outside_its_range_fails() {
     let dialog = |fields: &str| format!(r#"{{"title":"t",{fields}}}"#);
     let notice = |fields: &str| dialog(&format!(r#""type":"minecraft:notice",{fields}"#));

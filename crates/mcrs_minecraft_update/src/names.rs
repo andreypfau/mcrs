@@ -41,7 +41,10 @@ impl fmt::Display for Row {
     }
 }
 
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "the datapack listing is read with deny_unknown_fields, so its other registries key is declared and never read"
+)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Datapack {
@@ -49,7 +52,10 @@ pub struct Datapack {
     pub registries: BTreeMap<String, Flags>,
 }
 
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "the flags are read with deny_unknown_fields, so the stable and tags keys are declared and never read"
+)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Flags {

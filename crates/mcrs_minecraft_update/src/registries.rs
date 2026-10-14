@@ -8,7 +8,10 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Registry {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the report is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     #[serde(default)]
     pub default: Option<String>,
     pub protocol_id: u16,
