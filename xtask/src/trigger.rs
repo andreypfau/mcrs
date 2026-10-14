@@ -102,7 +102,7 @@ impl Trigger {
                 "by hand only, never in a hook or in CI: mutation markers, floors and configuration, then the surviving mutants in changed code, from shards run beforehand"
             }
             Trigger::MutationLocal => {
-                "on demand on this machine: the surviving mutants in changed code, as the pull request's mutation check judges them"
+                "on demand on this machine: the surviving mutants in changed code"
             }
         }
     }
