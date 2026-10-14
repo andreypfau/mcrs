@@ -9,6 +9,7 @@ mod parity;
 mod scope;
 mod size;
 mod source;
+mod suppressions;
 mod trigger;
 mod unused_deps;
 

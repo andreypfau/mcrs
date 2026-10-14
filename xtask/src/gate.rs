@@ -63,17 +63,17 @@ pub(crate) fn lints_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Li
 }
 
 #[derive(Deserialize)]
-struct Manifest {
-    lints: Option<toml::Table>,
-    workspace: Option<WorkspaceTable>,
+pub(crate) struct Manifest {
+    pub(crate) lints: Option<toml::Table>,
+    pub(crate) workspace: Option<WorkspaceTable>,
 }
 
-#[derive(Deserialize)]
-struct WorkspaceTable {
+#[derive(Deserialize, Default)]
+pub(crate) struct WorkspaceTable {
     #[serde(default)]
-    members: Vec<String>,
+    pub(crate) members: Vec<String>,
     #[serde(default)]
-    exclude: Vec<String>,
+    pub(crate) exclude: Vec<String>,
     lints: Option<LintTable>,
 }
 
@@ -173,11 +173,11 @@ fn by_set<T: Ord>(before: &BTreeSet<T>, after: &BTreeSet<T>) -> Direction {
     }
 }
 
-fn parse_manifest(text: &str) -> Result<Manifest, String> {
+pub(crate) fn parse_manifest(text: &str) -> Result<Manifest, String> {
     toml::from_str(text).map_err(|e| e.message().to_owned())
 }
 
-fn inherits_workspace(lints: Option<&toml::Table>) -> bool {
+pub(crate) fn inherits_workspace(lints: Option<&toml::Table>) -> bool {
     lints.is_some_and(|table| {
         table.len() == 1 && table.get("workspace") == Some(&toml::Value::Boolean(true))
     })
@@ -364,7 +364,7 @@ fn glob_matches(pattern: &str, dir: &str) -> Result<bool, String> {
             .all(|(pattern, segment)| segment_matches(pattern, segment)))
 }
 
-fn any_glob_matches(patterns: &[String], dir: &str) -> Result<bool, String> {
+pub(crate) fn any_glob_matches(patterns: &[String], dir: &str) -> Result<bool, String> {
     for pattern in patterns {
         if glob_matches(pattern, dir)? {
             return Ok(true);

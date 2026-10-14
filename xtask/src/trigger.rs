@@ -2,6 +2,7 @@
 pub enum Check {
     Size,
     GateConfig,
+    Suppressions,
     MutationMarker,
     Floors,
     Parity,
@@ -21,6 +22,7 @@ impl Check {
         match self {
             Check::Size => "size",
             Check::GateConfig => "gate-config",
+            Check::Suppressions => "suppressions",
             Check::MutationMarker => "mutation-marker",
             Check::Floors => "floors",
             Check::Parity => "parity",
@@ -40,7 +42,12 @@ impl Check {
     pub const fn is_git_only(self) -> bool {
         matches!(
             self,
-            Check::Size | Check::GateConfig | Check::MutationMarker | Check::Floors | Check::Parity
+            Check::Size
+                | Check::GateConfig
+                | Check::Suppressions
+                | Check::MutationMarker
+                | Check::Floors
+                | Check::Parity
         )
     }
 }
@@ -87,9 +94,11 @@ impl Trigger {
 
     pub const fn description(self) -> &'static str {
         match self {
-            Trigger::Edit => "after a file is written: change size, fixture parity, formatting",
+            Trigger::Edit => {
+                "after a file is written: change size, lint suppressions, fixture parity, formatting"
+            }
             Trigger::Commit => {
-                "before a commit: change size, gate configuration, fixture parity, unused dependencies, formatting, clippy"
+                "before a commit: change size, gate configuration, lint suppressions, fixture parity, unused dependencies, formatting, clippy"
             }
             Trigger::Push => "before a push: every check that ci runs",
             Trigger::Ci => "on every pull request and every push to main: all checks",
@@ -129,11 +138,20 @@ impl Trigger {
 pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
-        Trigger::Edit => &[Size, Parity, Fmt],
-        Trigger::Commit => &[Size, GateConfig, Parity, UnusedDeps, Fmt, Clippy],
+        Trigger::Edit => &[Size, Suppressions, Parity, Fmt],
+        Trigger::Commit => &[
+            Size,
+            GateConfig,
+            Suppressions,
+            Parity,
+            UnusedDeps,
+            Fmt,
+            Clippy,
+        ],
         Trigger::Push => &[
             Size,
             GateConfig,
+            Suppressions,
             Parity,
             UnusedDeps,
             Fmt,
@@ -146,6 +164,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
         Trigger::Ci => &[
             Size,
             GateConfig,
+            Suppressions,
             Parity,
             UnusedDeps,
             Fmt,
@@ -156,7 +175,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             ExportedBuild,
         ],
         Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Policy => &[Size, GateConfig, Parity],
+        Trigger::Policy => &[Size, GateConfig, Suppressions, Parity],
         Trigger::Mutation => &[MutationMarker, Floors, MutationConfig, Mutation],
         Trigger::MutationLocal => &[Mutation],
     }

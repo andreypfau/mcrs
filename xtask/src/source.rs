@@ -1,10 +1,13 @@
 use crate::git;
 use crate::scope::{self, Head};
-use proc_macro2::{Span, TokenStream, TokenTree};
+use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
+use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Attribute, Expr, ExprLit, Item, Lit, LitStr, Macro, Meta};
+use syn::{AttrStyle, Attribute, Expr, ExprLit, Item, Lit, LitStr, Macro, Meta, Token};
 
 pub type Files = BTreeMap<String, String>;
 
@@ -314,10 +317,218 @@ impl Walk<'_> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Level {
+    Allow,
+    Expect,
+    Warn,
+    Deny,
+    Forbid,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct LintAttr {
+    pub level: Level,
+    pub inner: bool,
+    pub lints: Vec<String>,
+    pub reason: Option<String>,
+    pub line: usize,
+}
+
+impl Level {
+    fn of(path: &syn::Path) -> Option<Level> {
+        let name = path.get_ident()?.to_string();
+        Some(match name.as_str() {
+            "allow" => Level::Allow,
+            "expect" => Level::Expect,
+            "warn" => Level::Warn,
+            "deny" => Level::Deny,
+            "forbid" => Level::Forbid,
+            _ => return None,
+        })
+    }
+}
+
+type Metas = Punctuated<Meta, Token![,]>;
+
+fn path_text(path: &syn::Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn lint_attr(meta: &Meta, inner: bool, found: &mut Vec<LintAttr>) {
+    let Meta::List(list) = meta else {
+        return;
+    };
+    if list.path.is_ident("cfg_attr") {
+        if let Ok(args) = list.parse_args_with(Metas::parse_terminated) {
+            for nested in args.iter().skip(1) {
+                lint_attr(nested, inner, found);
+            }
+        }
+        return;
+    }
+    let Some(level) = Level::of(&list.path) else {
+        return;
+    };
+    let mut lints = Vec::new();
+    let mut reason = None;
+    match list.parse_args_with(Metas::parse_terminated) {
+        Ok(args) => {
+            for arg in &args {
+                match arg {
+                    Meta::NameValue(pair) if pair.path.is_ident("reason") => {
+                        reason = Some(match &pair.value {
+                            Expr::Lit(ExprLit {
+                                lit: Lit::Str(text),
+                                ..
+                            }) => text.value(),
+                            _ => String::new(),
+                        });
+                    }
+                    other => lints.push(path_text(other.path())),
+                }
+            }
+        }
+        Err(_) => lints.push(list.tokens.to_string()),
+    }
+    found.push(LintAttr {
+        level,
+        inner,
+        lints,
+        reason,
+        line: line(list.path.span()),
+    });
+}
+
+fn lint_attrs_in_tokens(stream: &TokenStream, found: &mut Vec<LintAttr>) {
+    walk_tokens(stream, &mut |tokens, at| {
+        let TokenTree::Punct(pound) = &tokens[at] else {
+            return;
+        };
+        if pound.as_char() != '#' {
+            return;
+        }
+        let inner =
+            matches!(tokens.get(at + 1), Some(TokenTree::Punct(bang)) if bang.as_char() == '!');
+        let Some(TokenTree::Group(group)) = tokens.get(at + 1 + usize::from(inner)) else {
+            return;
+        };
+        if group.delimiter() != Delimiter::Bracket {
+            return;
+        }
+        if let Ok(meta) = syn::parse2::<Meta>(group.stream()) {
+            lint_attr(&meta, inner, found);
+        }
+    });
+}
+
+struct LintWalk(Vec<LintAttr>);
+
+impl<'ast> Visit<'ast> for LintWalk {
+    fn visit_attribute(&mut self, attr: &'ast Attribute) {
+        lint_attr(
+            &attr.meta,
+            matches!(attr.style, AttrStyle::Inner(_)),
+            &mut self.0,
+        );
+        if let Meta::List(list) = &attr.meta {
+            lint_attrs_in_tokens(&list.tokens, &mut self.0);
+        }
+        visit::visit_attribute(self, attr);
+    }
+
+    fn visit_macro(&mut self, mac: &'ast Macro) {
+        lint_attrs_in_tokens(&mac.tokens, &mut self.0);
+    }
+}
+
+pub fn lint_attributes(file: &syn::File) -> Vec<LintAttr> {
+    let mut walk = LintWalk(Vec::new());
+    walk.visit_file(file);
+    walk.0
+}
+
+#[derive(Deserialize)]
+struct ManifestName {
+    package: Option<PackageName>,
+}
+
+#[derive(Deserialize)]
+struct PackageName {
+    name: String,
+}
+
+pub struct PackageMap(Vec<(String, String)>);
+
+impl PackageMap {
+    pub fn new(manifests: &Files) -> Result<PackageMap, String> {
+        let mut owners = Vec::new();
+        for (path, text) in manifests {
+            let manifest: ManifestName = toml::from_str(text)
+                .map_err(|e| format!("{path} does not parse: {}", e.message()))?;
+            if let Some(package) = manifest.package {
+                owners.push((parent(path).to_owned(), package.name));
+            }
+        }
+        owners.sort_by_key(|(dir, _)| std::cmp::Reverse(dir.len()));
+        Ok(PackageMap(owners))
+    }
+
+    pub fn contains(&self, package: &str) -> bool {
+        self.0.iter().any(|(_, name)| name == package)
+    }
+
+    pub fn owner(&self, path: &str) -> &str {
+        self.0
+            .iter()
+            .find(|(dir, _)| {
+                dir.is_empty()
+                    || path
+                        .strip_prefix(dir.as_str())
+                        .is_some_and(|rest| rest.starts_with('/'))
+            })
+            .map_or("", |(_, name)| name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::scope::tests::Repo;
+
+    #[test]
+    fn a_file_belongs_to_the_package_in_its_longest_directory_prefix() {
+        let manifests = files(&[
+            ("Cargo.toml", "[package]\nname = \"root\"\n[workspace]\n"),
+            ("crates/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+            (
+                "crates/a/tests/it/Cargo.toml",
+                "[package]\nname = \"nested\"\n",
+            ),
+            ("crates/virtual/Cargo.toml", "[workspace]\nmembers = []\n"),
+        ]);
+        let packages = PackageMap::new(&manifests).unwrap();
+        let owners: Vec<&str> = [
+            "src/main.rs",
+            "crates/a/src/lib.rs",
+            "crates/a/tests/it/main.rs",
+            "crates/ab/src/lib.rs",
+            "crates/virtual/src/lib.rs",
+        ]
+        .iter()
+        .map(|path| packages.owner(path))
+        .collect();
+        assert_eq!(owners, ["root", "a", "nested", "root", "root"]);
+        let broken = files(&[("crates/x/Cargo.toml", "[package\n")]);
+        let error = PackageMap::new(&broken)
+            .err()
+            .expect("a malformed manifest");
+        assert!(error.contains("crates/x/Cargo.toml"), "{error}");
+    }
 
     fn files(rows: &[(&str, &str)]) -> Files {
         rows.iter()
