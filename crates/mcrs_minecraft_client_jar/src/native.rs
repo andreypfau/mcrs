@@ -17,11 +17,7 @@ const CHUNK: u64 = 1 << 20;
 const READ: usize = 64 << 10;
 // chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
 pub const WORKERS: usize = 4;
-const MIN_BACKOFF: Duration = if cfg!(test) {
-    Duration::from_millis(10)
-} else {
-    Duration::from_secs(1)
-};
+const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 #[cfg(not(windows))]
@@ -119,6 +115,7 @@ pub fn resolve(
             &RELEASE,
             &official_dir().join("versions").join(RELEASE.id),
             WORKERS,
+            FIRST_BACKOFF,
             progress,
             pick,
             fonts,
@@ -139,6 +136,7 @@ pub fn download(
     release: &'static Release<'static>,
     dir: &Path,
     workers: usize,
+    first_backoff: Duration,
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
     mut fonts: impl FnMut(Files),
@@ -147,7 +145,9 @@ pub fn download(
     let part = with_suffix(&jar, ".part");
     let sidecar = with_suffix(&part, ".ranges");
     *progress.status.lock().unwrap() = format!("Opening {}", part.display());
-    let (file, held) = match retry(progress, || open(release, &jar, &part, &sidecar)) {
+    let (file, held) = match retry(progress, first_backoff, || {
+        open(release, &jar, &part, &sidecar)
+    }) {
         Opened::Installed(bytes) => return (local(&bytes, pick, fonts), None),
         Opened::Part(file, held) => (file, held),
     };
@@ -156,6 +156,7 @@ pub fn download(
         file,
         url: release.jar.url.to_owned(),
         sidecar,
+        first_backoff,
         queue: Mutex::new(Queue::resume(held)),
         changed: Condvar::new(),
         stop: AtomicBool::new(false),
@@ -221,6 +222,7 @@ struct Shared {
     file: File,
     url: String,
     sidecar: PathBuf,
+    first_backoff: Duration,
     queue: Mutex<Queue>,
     changed: Condvar,
     stop: AtomicBool,
@@ -355,7 +357,7 @@ pub fn get(url: &str) -> Result<Vec<u8>, String> {
 
 fn work(shared: &Shared, id: usize) {
     let agent = agent();
-    let mut backoff = MIN_BACKOFF;
+    let mut backoff = shared.first_backoff;
     while let Some(chunk) = shared.next_chunk() {
         tracing::debug!(
             worker = id,
@@ -367,7 +369,7 @@ fn work(shared: &Shared, id: usize) {
         let mut reached = chunk.range.start;
         let result = shared.fetch(&agent, &chunk.range, &mut reached);
         if reached > chunk.range.start {
-            backoff = MIN_BACKOFF;
+            backoff = shared.first_backoff;
         }
         let failure = result
             .err()
@@ -423,7 +425,8 @@ impl Remainder {
         for worker in self.workers.drain(..) {
             let _ = worker.join();
         }
-        retry(&quiet, || {
+        let first_backoff = self.shared.first_backoff;
+        retry(&quiet, first_backoff, || {
             fs::rename(&self.part, &self.jar)
                 .map_err(|error| format!("cannot move {} into place: {error}", self.jar.display()))
         });
@@ -433,6 +436,7 @@ impl Remainder {
             self.release,
             &self.jar.with_file_name(format!("{}.json", self.release.id)),
             &quiet,
+            first_backoff,
         );
     }
 }
@@ -445,12 +449,12 @@ impl Drop for Remainder {
 
 /// Writes the version JSON the official launcher expects next to the jar, unless a valid one
 /// is already there.
-fn write_json(release: &Release, path: &Path, progress: &Progress) {
+fn write_json(release: &Release, path: &Path, progress: &Progress, first_backoff: Duration) {
     if locate(&[path.to_owned()], &release.json, progress).is_some() {
         return;
     }
     let agent = agent();
-    let bytes = retry(progress, || {
+    let bytes = retry(progress, first_backoff, || {
         let bytes = agent
             .get(release.json.url)
             .call()
@@ -465,15 +469,19 @@ fn write_json(release: &Release, path: &Path, progress: &Progress) {
         }
     });
     let temporary = with_suffix(path, ".part");
-    retry(progress, || {
+    retry(progress, first_backoff, || {
         fs::write(&temporary, &bytes)
             .and_then(|()| fs::rename(&temporary, path))
             .map_err(|error| format!("cannot write {}: {error}", path.display()))
     });
 }
 
-fn retry<T>(progress: &Progress, mut attempt: impl FnMut() -> Result<T, String>) -> T {
-    let mut backoff = MIN_BACKOFF;
+fn retry<T>(
+    progress: &Progress,
+    first_backoff: Duration,
+    mut attempt: impl FnMut() -> Result<T, String>,
+) -> T {
+    let mut backoff = first_backoff;
     loop {
         match attempt() {
             Ok(value) => return value,
@@ -577,6 +585,8 @@ mod tests {
     use crate::{directory_digest, sha1_hex};
 
     use super::*;
+
+    const TEST_BACKOFF: Duration = Duration::from_millis(10);
 
     fn scratch(name: &str) -> PathBuf {
         let dir =
@@ -831,6 +841,7 @@ mod tests {
             release,
             &dir,
             1,
+            TEST_BACKOFF,
             &progress,
             |_| true,
             |fonts| delivered.push(fonts),
@@ -883,7 +894,15 @@ mod tests {
         let release = release(&jar, &server.url, hint_text(&hint(&jar)));
         let dir = scratch("parallel");
 
-        let (files, rest) = download(release, &dir, 4, &Progress::default(), |_| true, drop);
+        let (files, rest) = download(
+            release,
+            &dir,
+            4,
+            TEST_BACKOFF,
+            &Progress::default(),
+            |_| true,
+            drop,
+        );
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -932,6 +951,7 @@ mod tests {
                 release,
                 &dir,
                 2,
+                TEST_BACKOFF,
                 &Progress::default(),
                 |_| true,
                 |f| delivered.push(f),
@@ -965,7 +985,15 @@ mod tests {
         let release = release(&jar, &server.url, hint_text(&hint(&jar)));
         let dir = scratch("no-range");
 
-        let (files, rest) = download(release, &dir, 4, &Progress::default(), |_| true, drop);
+        let (files, rest) = download(
+            release,
+            &dir,
+            4,
+            TEST_BACKOFF,
+            &Progress::default(),
+            |_| true,
+            drop,
+        );
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -985,7 +1013,15 @@ mod tests {
         )
         .unwrap();
 
-        let (files, rest) = download(release, &dir, 2, &Progress::default(), |_| true, drop);
+        let (files, rest) = download(
+            release,
+            &dir,
+            2,
+            TEST_BACKOFF,
+            &Progress::default(),
+            |_| true,
+            drop,
+        );
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -1006,7 +1042,15 @@ mod tests {
         let release = release(&jar, &server.url, hint_text(&hint(&jar)));
         let dir = scratch("restart");
 
-        let (first, rest) = download(release, &dir, 2, &Progress::default(), |_| true, drop);
+        let (first, rest) = download(
+            release,
+            &dir,
+            2,
+            TEST_BACKOFF,
+            &Progress::default(),
+            |_| true,
+            drop,
+        );
         drop(rest);
         let before = server.requests.lock().unwrap().len();
         let held = load_ranges(&dir.join("sample.jar.part.ranges"), jar.len() as u64);
@@ -1015,6 +1059,7 @@ mod tests {
             release,
             &dir,
             2,
+            TEST_BACKOFF,
             &Progress::default(),
             |_| true,
             |f| delivered.push(f),
@@ -1060,6 +1105,30 @@ mod tests {
 
         assert!(error.contains("404"), "{error}");
         assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn retry_waits_the_backoff_it_was_given_and_doubles_it() {
+        let progress = Progress::default();
+        let mut statuses = Vec::new();
+
+        let value = retry(&progress, Duration::from_millis(7), || {
+            statuses.push(progress.status.lock().unwrap().clone());
+            if statuses.len() <= 2 {
+                Err("unreachable".to_owned())
+            } else {
+                Ok(statuses.len())
+            }
+        });
+
+        assert_eq!(value, 3);
+        assert_eq!(
+            statuses[1..],
+            [
+                "unreachable; retrying in 7ms",
+                "unreachable; retrying in 14ms"
+            ]
+        );
     }
 
     mod jar {
@@ -1124,6 +1193,7 @@ mod tests {
                 &RELEASE,
                 &dir,
                 workers,
+                TEST_BACKOFF,
                 &progress,
                 |_| true,
                 |fonts| {
