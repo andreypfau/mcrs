@@ -325,7 +325,7 @@ pub fn check(repo: &Path, head: &Head) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scope::tests::Repo;
+    use crate::scope::tests::{Repo, judge_rows_in_parallel};
     use std::os::unix::fs::PermissionsExt;
 
     const SEP: &str = "::";
@@ -492,25 +492,54 @@ mod tests {
         }
     }
 
+    struct Case {
+        name: &'static str,
+        path: &'static str,
+        bytes: Vec<u8>,
+        place: Place,
+    }
+
+    fn cases(rows: Vec<(&'static str, &'static str, Vec<u8>)>, places: &[Place]) -> Vec<Case> {
+        rows.into_iter()
+            .flat_map(|(name, path, bytes)| {
+                places.iter().map(move |&place| Case {
+                    name,
+                    path,
+                    bytes: bytes.clone(),
+                    place,
+                })
+            })
+            .collect()
+    }
+
+    fn fail_naming(label: &str, cases: &[Case], needs: impl Fn(&Case) -> Vec<String> + Sync) {
+        judge_rows_in_parallel(cases, |case| {
+            let (repo, head) = setup(label, case.place, &[(case.path, case.bytes.clone())]);
+            let (name, place) = (case.name, case.place);
+            match check(&repo.0, &head) {
+                Ok(found) => Some(format!("{name} ({place:?}): passed with {found:?}")),
+                Err(message) => needs(case)
+                    .iter()
+                    .any(|part| !message.contains(part.as_str()))
+                    .then(|| format!("{name} ({place:?}): {message}")),
+            }
+        });
+    }
+
     #[test]
     fn the_mutation_marker_fails_in_every_form_and_place() {
-        for (name, path, template) in forms() {
-            for place in [Place::Commit, Place::Staged] {
-                let (repo, head) = setup("marker", place, &[(path, form(&template))]);
-                let message = check(&repo.0, &head).unwrap_err();
-                assert!(
-                    message.contains(&format!("{path}:2")),
-                    "{name} ({place:?}): {message}"
-                );
-            }
-        }
-
-        let marker = form("fn f() {}\n#[{M}{::}{S}]\n");
-        for place in [Place::WorkingTreeOnly, Place::IndexOnly] {
-            let (repo, head) = setup("marker", place, &[("src/a.rs", marker.clone())]);
-            let message = check(&repo.0, &head).unwrap_err();
-            assert!(message.contains("src/a.rs:2"), "{place:?}: {message}");
-        }
+        let forms = forms()
+            .into_iter()
+            .map(|(name, path, template)| (name, path, form(&template)))
+            .collect();
+        let mut all = cases(forms, &[Place::Commit, Place::Staged]);
+        let bare = vec![(
+            "the bare attribute",
+            "src/a.rs",
+            form("fn f() {}\n#[{M}{::}{S}]\n"),
+        )];
+        all.extend(cases(bare, &[Place::WorkingTreeOnly, Place::IndexOnly]));
+        fail_naming("marker", &all, |case| vec![format!("{}:2", case.path)]);
     }
 
     #[test]
@@ -586,16 +615,15 @@ mod tests {
             ("a file with a NUL byte", "src/b.rs", "// a\0b\n{MARK}\n"),
             ("a manifest", "crates/x/Cargo.toml", "# {MARK}\n"),
         ];
-        for (name, path, template) in rows {
-            for place in [Place::Commit, Place::Staged] {
-                let (repo, head) = setup("in-place", place, &[(path, marked(template))]);
-                let message = check(&repo.0, &head).unwrap_err();
-                assert!(
-                    message.contains(path) && message.contains("in-place"),
-                    "{name} ({place:?}): {message}"
-                );
-            }
-        }
+        let rows = rows
+            .into_iter()
+            .map(|(name, path, template)| (name, path, marked(template)))
+            .collect();
+        fail_naming(
+            "in-place",
+            &cases(rows, &[Place::Commit, Place::Staged]),
+            |case| vec![case.path.to_owned(), "in-place".to_owned()],
+        );
     }
 
     #[test]
@@ -627,13 +655,15 @@ mod tests {
                 "[build-dependencies.mutants]\nversion = \"25\"\n",
             ),
         ];
-        for (name, path, text) in rows {
-            for place in [Place::Commit, Place::Staged] {
-                let (repo, head) = setup("manifest", place, &[(path, text.as_bytes().to_vec())]);
-                let message = check(&repo.0, &head).unwrap_err();
-                assert!(message.contains(path), "{name} ({place:?}): {message}");
-            }
-        }
+        let rows = rows
+            .into_iter()
+            .map(|(name, path, text)| (name, path, text.as_bytes().to_vec()))
+            .collect();
+        fail_naming(
+            "manifest",
+            &cases(rows, &[Place::Commit, Place::Staged]),
+            |case| vec![case.path.to_owned()],
+        );
     }
 
     #[test]

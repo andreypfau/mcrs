@@ -658,7 +658,7 @@ pub(crate) fn check(repo: &Path, base: &str, head: &Head) -> Result<String, Stri
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::scope::tests::Repo;
+    use crate::scope::tests::{Repo, judge_rows_in_parallel};
 
     pub(crate) struct Spec<'a> {
         pub(crate) name: &'a str,
@@ -1240,8 +1240,7 @@ pub(crate) mod tests {
                 Err("missing at the head"),
             ),
         ];
-        let mut wrong = Vec::new();
-        for (name, past, head_file, expected) in rows {
+        judge_rows_in_parallel(&rows, |(name, past, head_file, expected)| {
             let repo = Repo::new("floors-history");
             repo.init();
             seed(&repo);
@@ -1256,7 +1255,7 @@ pub(crate) mod tests {
             }
             repo.commit("base");
             let base = repo.sha();
-            match &head_file {
+            match head_file {
                 Some(text) => repo.write(FLOORS_FILE, text),
                 None if repo.0.join(FLOORS_FILE).exists() => repo.remove(FLOORS_FILE),
                 None => {}
@@ -1269,11 +1268,8 @@ pub(crate) mod tests {
                 (Err(message), Err(part)) => message.contains(part),
                 _ => false,
             };
-            if !ok {
-                wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
-            }
-        }
-        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+            (!ok).then(|| format!("{name}: expected {expected:?}, found {found:?}"))
+        });
     }
 
     pub(crate) fn workspace_of(names: &[&str]) -> Workspace {

@@ -278,7 +278,10 @@ mod tests {
         FLOORS_FILE,
         tests::{measured, unmeasured},
     };
-    use crate::scope::{resolve_base, tests::Repo};
+    use crate::scope::{
+        resolve_base,
+        tests::{Repo, judge_rows_in_parallel},
+    };
     use crate::size::{self, LIMITS_FILE};
 
     const LIMIT_100: &str = "[size]\nmax_files = 100\n";
@@ -954,32 +957,37 @@ mod tests {
         (repo, base, head)
     }
 
-    fn verify(name: &str, what: &str, found: Result<String, String>, expect: &Expect) {
+    fn verify(
+        name: &str,
+        what: &str,
+        found: Result<String, String>,
+        expect: &Expect,
+    ) -> Option<String> {
         match (expect, found) {
-            (Expect::Pass(part), Ok(detail)) => {
-                assert!(detail.contains(part), "{name} ({what}): {detail}")
-            }
-            (Expect::Fail(part), Err(message)) => {
-                assert!(message.contains(part), "{name} ({what}): {message}")
-            }
-            (_, other) => panic!("{name} ({what}): {other:?}"),
+            (Expect::Pass(part), Ok(detail)) if detail.contains(part) => None,
+            (Expect::Pass(_), Ok(detail)) => Some(format!("{name} ({what}): {detail}")),
+            (Expect::Fail(part), Err(message)) if message.contains(part) => None,
+            (Expect::Fail(_), Err(message)) => Some(format!("{name} ({what}): {message}")),
+            (_, other) => Some(format!("{name} ({what}): {other:?}")),
         }
     }
 
     #[test]
     fn gate_config_requires_loosened_configuration_to_ship_alone() {
-        for row in rows() {
-            let (repo, base, head) = build(&row);
-            verify(
+        judge_rows_in_parallel(&rows(), |row| {
+            let (repo, base, head) = build(row);
+            let gate = verify(
                 row.name,
                 "gate-config",
                 check(&repo.0, &base, &head),
                 &row.gate,
             );
-            if let Some(expect) = &row.size {
-                verify(row.name, "size", size::check(&repo.0, &base, &head), expect);
-            }
-        }
+            let size = row.size.as_ref().and_then(|expect| {
+                verify(row.name, "size", size::check(&repo.0, &base, &head), expect)
+            });
+            let problems: Vec<String> = [gate, size].into_iter().flatten().collect();
+            (!problems.is_empty()).then(|| problems.join("\n"))
+        });
     }
 
     #[test]

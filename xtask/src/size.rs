@@ -163,7 +163,10 @@ pub fn check(repo: &Path, base: &str, head: &Head) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scope::{resolve_base, tests::Repo};
+    use crate::scope::{
+        resolve_base,
+        tests::{Repo, judge_rows_in_parallel},
+    };
     use std::os::unix::fs::PermissionsExt;
 
     const LIMIT: &str = "[size]\nmax_files = 100\n";
@@ -426,17 +429,17 @@ mod tests {
 
     #[test]
     fn size_counts_files_and_lines_against_the_base_limit() {
-        for row in rows() {
+        judge_rows_in_parallel(&rows(), |row| {
             let (repo, base, head) = history("size", row.limits, row.base, row.head);
-            let found = check(&repo.0, &base, &head);
-            match (&row.expect, found) {
-                (Expect::Pass(detail), Ok(found)) => assert_eq!(&found, detail, "{}", row.name),
+            match (&row.expect, check(&repo.0, &base, &head)) {
+                (Expect::Pass(detail), Ok(found)) => (&found != detail)
+                    .then(|| format!("{}: expected {detail:?}, found {found:?}", row.name)),
                 (Expect::Fail(part), Err(message)) => {
-                    assert!(message.contains(part), "{}: {message}", row.name)
+                    (!message.contains(part)).then(|| format!("{}: {message}", row.name))
                 }
-                (_, other) => panic!("{}: {other:?}", row.name),
+                (_, other) => Some(format!("{}: {other:?}", row.name)),
             }
-        }
+        });
     }
 
     #[test]

@@ -945,6 +945,49 @@ pub(crate) mod tests {
         }
     }
 
+    const ROW_WORKERS: usize = 8;
+
+    pub(crate) fn judge_rows_in_parallel<T: Sync>(
+        rows: &[T],
+        judge: impl Fn(&T) -> Option<String> + Sync,
+    ) {
+        let next = AtomicUsize::new(0);
+        let workers = std::thread::available_parallelism()
+            .map_or(1, usize::from)
+            .min(ROW_WORKERS)
+            .min(rows.len());
+        let mut judged: Vec<(usize, Option<String>)> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..workers)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut mine = Vec::new();
+                        loop {
+                            let index = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(row) = rows.get(index) else {
+                                break mine;
+                            };
+                            mine.push((index, judge(row)));
+                        }
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|handle| {
+                    handle
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect()
+        });
+        judged.sort_by_key(|(index, _)| *index);
+        let wrong: Vec<String> = judged
+            .into_iter()
+            .filter_map(|(_, problem)| problem)
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
     #[test]
     fn a_missing_base_ref_is_named() {
         let repo = Repo::new("missing");
