@@ -1131,6 +1131,112 @@ than the spread of the repetitions and opt-level 0 is not usable. The probes wer
 a fixtures mutant; a crate whose own build is far longer than the registry's 0.8 s (core, world,
 server) was not measured at the lower level.
 
+### The gate's cost after testing each mutant against its own crate first
+
+Scenario: the last commit of the change, `30342fc5b`, against `4fe86dc75` (0.5.7), on the same Apple M4 Max
+with 16 logical cores and 128 GiB, the same probes (the three commits of the section above),
+the same scripts and the same tool versions. The hook is `scripts/hooks/run-checks push`; the
+on-demand run is `scripts/hooks/run-checks mutation-local`. Both are judged against the
+commit the probes sit on, so only the probe's own functions count as changed code. An untimed
+run of both triggers on every probe comes first, so the target directories (including the
+second lane's) are warm, as they were for the section above. Load is the one-minute average
+`uptime` printed when the run started and ended. The machine was shared and its load moved
+between 10 and 900 during this work, so **no pair of rows below is a controlled comparison**:
+the before and after rows were taken at different times under different load, and every time is an
+upper bound. The controlled comparisons are the per-test ones listed after the tables, each
+taken before and after on the same machine in alternation and reported as a median of three.
+
+Push hook, wall time in seconds (target: under 300):
+
+| probe | before | after | after / before | load before (start / end) | load after (start / end) |
+|---|---|---|---|---|---|
+| registry | 341 | 82 | 0.24 | 44 / 47 | 75 / 34 |
+| fixtures | 399 | 79 | 0.20 | 47 / 69 | 42 / 23 |
+| fixtures and check runner | 469 | 115 | 0.25 | 69 / 16 | 168 / 259 |
+
+Before, the hook ran the mutants of the changed code (the `mutation` check, more than half of
+its time on every probe); after, it runs none, and neither does CI: mutants run by hand only.
+The same mutants, run on demand with `mutation-local`, take the time below. Hook plus on-demand
+run, summed:
+
+| probe | before (hook with mutants) | after (hook, then `mutation-local`) | after / before |
+|---|---|---|---|
+| registry | 341 | 239 | 0.70 |
+| fixtures | 399 | 199 | 0.50 |
+| fixtures and check runner | 469 | 247 | 0.53 |
+
+Mutants of the changed code, time of the `mutation` check in seconds and medians over the
+mutants of the run in seconds. Before there was one pass, every mutant against its own crate
+and all its direct dependents. After, the first pass runs every mutant against its own crate
+and the second pass only the survivors of the first against the dependents:
+
+| probe | mutants caught, before / after | check before | check after | after / before | build before | test before | build, first pass | test, first pass | build, second pass | test, second pass | load before | load after |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| registry | 9 / 9 | 262.3 | 156.5 | 0.60 | 15.98 | 8.57 | 0.82 | 0.43 | 17.78 | 15.85 | 44 / 47 | 34 / 42 |
+| fixtures | 9 / 9 | 228.5 | 119.7 | 0.52 | 5.75 | 4.42 | 0.65 | 0.43 | 9.32 | 16.40 | 47 / 69 | 23 / 168 |
+| fixtures and check runner | 18 / 18 | 254.4 | 131.3 | 0.52 | 3.11 | 9.80 | 1.40 | 4.20 | 8.56 | 15.66 | 69 / 16 | 259 / 98 |
+
+Every mutant has the same outcome as in the run before (checked per mutant name from the
+`outcomes.json` of both runs): 9, 9 and 18 mutants, all caught. The second pass holds only
+the mutants whose tests live in a dependent crate (`probe_is_empty`).
+
+Workspace tests, `cargo nextest run --workspace --no-fail-fast` after a build:
+
+| | before | after | after / before |
+|---|---|---|---|
+| tests run | 2191 | 2203 | |
+| failed | 0 | 0 | |
+| wall time s | 32.7 | 30.4 | 0.93 |
+| sum of test durations s | 400.7 | 441.3 | 1.10 |
+| tests over 2 s | 36 | 56 | 1.56 |
+| server crate, summed s | 97.0 | 96.6 | 1.00 |
+| server integration binary, summed s | 89.1 | 86.7 | 0.97 |
+| world crate, summed s | 107.5 | 91.9 | 0.85 |
+| check runner crate, summed s | 47.9 | 60.7 | 1.27 |
+| worldgen generator crate, summed s | 46.5 | 80.7 | 1.74 |
+| client crate, summed s | 39.1 | 42.6 | 1.09 |
+| load (start / end) | 17 / 25 | 20 / 86 | |
+
+Summed durations grow with load, because a test that waits for a core is charged for the wait,
+so compare the sums only with the load row beside them. The count of tests run differs by 12.
+
+What each change did, with the intermediate rows of the same probes (push hook wall time and
+`mutation` check time in seconds, one-minute load at the end of the run in brackets). The
+rows are in the order the changes were made; none is a controlled comparison either:
+
+| state | registry hook | fixtures hook | check runner hook | registry check | fixtures check | check runner check |
+|---|---|---|---|---|---|---|
+| before the change | 341 (47) | 399 (69) | 469 (16) | 262.3 (47) | 228.5 (69) | 254.4 (16) |
+| mutants out of the hook | 108 (165) | 87 (53) | 74 (35) | - | - | - |
+| + each mutant against its own crate first | 79 (33) | 76 (43) | 127 (283) | 137.3 (46) | 95.4 (49) | 231.7 (68) |
+| + build bound from the measured rebuild | 88 (139) | 79 (38) | 83 (66) | 162.5 (93) | 101.7 (115) | 266.1 (101) |
+| + unrelated build graphs side by side | 94 (28) | 79 (28) | 86 (54) | 162.2 (38) | 102.7 (47) | 203.1 (24) |
+| + test changes (after) | 82 (34) | 79 (23) | 115 (259) | 156.5 (42) | 119.7 (168) | 131.3 (98) |
+
+- Mutants out of the hook: `run-checks push` runs no mutant. The mutants of changed code run on
+  demand with `run-checks mutation-local`. This is the change that removes the `mutation` check
+  (262.3, 228.5 and 254.4 s) from the hook.
+- Two passes: a mutant is tested against its own crate first, and only a survivor is rebuilt
+  against the dependents, so a mutant caught in its own crate pays the first-pass build and test
+  medians of the table above instead of a rebuild of every dependent. The verdict is unchanged: a
+  mutant is missed only if it survives the second pass.
+- Opt level of the workspace crates under mutation: measured, nothing kept. Opt-level 1 was 4.80 s
+  faster over the four measured scopes, inside the 6.63 s spread of today's repetitions, and
+  opt-level 0 overflows the stack in a protocol test.
+- Build bound: `max(120, 3 x the measured rebuild)` replaces the fixed 840 s. On these probes the
+  bound is 120 s and no mutant reaches it, so the probes do not move; it caps a mutant that makes
+  the compiler loop.
+- Side-by-side lanes: units whose build graphs share no package run at the same time, each in its
+  own worktree and target directory. Only the fixtures-and-check-runner probe has two such units.
+- Test changes (per-test medians of three runs on the same machine, before and after in
+  alternation, so these are the controlled numbers): the gate-configuration table of the check
+  runner 16.2 s to 3.6 s run alone and the six slow check-runner tables together 24 s to 10 s
+  (their tests as a mutant's xtask test run); the four worldgen carving comparisons 16.2 s to 9.3 s,
+  the other cases kept in the `exhaustive` tier; twelve server tests that each booted an app
+  became seven tests with the former checks as named rows, 23.8 s to 7.5 s; the worldgen
+  parse-failure test 0.66 s to 0.01 s, and two world tests that each booted the playing app
+  (2.06 s each) became one at 1.55 s.
+
 ## Findings not yet acted on
 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
