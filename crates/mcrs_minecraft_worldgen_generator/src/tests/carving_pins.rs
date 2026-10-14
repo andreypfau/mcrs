@@ -144,9 +144,8 @@ const MASK_DIGESTS: [u64; 6] = [
     17836901075532815685,
 ];
 
-#[test]
-fn the_per_column_mask_is_what_it_was() {
-    let digests = mask_sets()
+fn assert_masks_are_pinned(sets: &[MaskSet], pinned: &[u64]) {
+    let digests = sets
         .iter()
         .map(|set| {
             let (router, table) = world(set.dimension, set.seed);
@@ -160,7 +159,12 @@ fn the_per_column_mask_is_what_it_was() {
             (set.label(), digest)
         })
         .collect();
-    assert_pinned(digests, &MASK_DIGESTS);
+    assert_pinned(digests, pinned);
+}
+
+#[test]
+fn the_per_column_mask_is_what_it_was() {
+    assert_masks_are_pinned(&mask_sets()[..1], &MASK_DIGESTS[..1]);
 }
 
 fn material_router(
@@ -310,27 +314,26 @@ fn column_sets() -> Vec<ColumnSet> {
     let nether = [(0, 0), (-1, -1), (1, -2), (-3, 2), (8, -8), (-20, -24)];
     vec![
         set(Dimension::Overworld, 12345, true, &land),
-        set(Dimension::Overworld, 845, true, &ocean),
-        set(Dimension::Nether, 12345, true, &nether),
         set(Dimension::Overworld, 12345, false, &land[..3]),
+        set(Dimension::Overworld, 845, true, &ocean),
         set(Dimension::Overworld, 845, false, &ocean[..3]),
+        set(Dimension::Nether, 12345, true, &nether),
         set(Dimension::Nether, 12345, false, &nether[..3]),
     ]
 }
 
 const COLUMN_DIGESTS: [u64; 6] = [
     17617883404800145981,
-    2042699211622126630,
-    9191105234893699405,
     1624805763646232669,
+    2042699211622126630,
     15624454957044676763,
+    9191105234893699405,
     11861930964516073630,
 ];
 
-#[test]
-fn the_carved_column_is_what_it_was() {
+fn assert_columns_are_pinned(sets: &[ColumnSet], pinned: &[u64]) {
     let mut keys = HashMap::new();
-    let digests = column_sets()
+    let digests = sets
         .iter()
         .map(|set| {
             let mut context = carving_context(set.dimension, set.seed);
@@ -343,5 +346,24 @@ fn the_carved_column_is_what_it_was() {
             (set.label(), digest)
         })
         .collect();
-    assert_pinned(digests, &COLUMN_DIGESTS);
+    assert_pinned(digests, pinned);
+}
+
+#[test]
+fn the_carved_column_is_what_it_was() {
+    assert_columns_are_pinned(&column_sets()[..2], &COLUMN_DIGESTS[..2]);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_per_column_mask_of_every_other_set_is_what_it_was() {
+        assert_masks_are_pinned(&mask_sets()[1..], &MASK_DIGESTS[1..]);
+    }
+
+    #[test]
+    fn the_carved_ocean_and_nether_columns_are_what_they_were() {
+        assert_columns_are_pinned(&column_sets()[2..], &COLUMN_DIGESTS[2..]);
+    }
 }

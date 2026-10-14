@@ -84,15 +84,10 @@ fn assert_regions_match_columns(
 fn a_region_slot_equals_the_column_carved_alone() {
     let overworld = build_settings_router("overworld", 12345);
     let ocean = build_settings_router("overworld", 845);
-    let nether = build_settings_router("nether", 12345);
-    let carved = [
-        assert_regions_match_columns(&overworld, Preset::Overworld, 4, &square(8, -8, 4)),
-        assert_regions_match_columns(&ocean, Preset::Overworld, 4, &square(-4, -4, 4)),
-        assert_regions_match_columns(&nether, Preset::Nether, 4, &square(-4, 0, 4)),
-    ];
+    let carved = assert_regions_match_columns(&overworld, Preset::Overworld, 4, &square(8, -8, 4));
     assert!(
-        carved.iter().all(|&carved| carved > 0),
-        "a region carved nothing, so nothing was compared: land, ocean, nether {carved:?}"
+        carved > 0,
+        "the land region carved nothing, so nothing was compared"
     );
 
     a_column_below_zero_belongs_to_the_region_below_zero(&overworld);
@@ -468,7 +463,7 @@ fn assert_blocks_independent_of_region_order_and_cache(seed: u64, surfaced: bool
 
 #[test]
 fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache() {
-    assert_blocks_independent_of_region_order_and_cache(845, true);
+    assert_blocks_independent_of_region_order_and_cache(12345, true);
 }
 
 type Pair = ((i32, i32), (i32, i32));
@@ -625,6 +620,20 @@ mod exhaustive {
     use super::*;
 
     #[test]
+    fn an_ocean_and_a_nether_region_slot_equal_the_column_carved_alone() {
+        let ocean = build_settings_router("overworld", 845);
+        let nether = build_settings_router("nether", 12345);
+        let carved = [
+            assert_regions_match_columns(&ocean, Preset::Overworld, 4, &square(-4, -4, 4)),
+            assert_regions_match_columns(&nether, Preset::Nether, 4, &square(-4, 0, 4)),
+        ];
+        assert!(
+            carved.iter().all(|&carved| carved > 0),
+            "a region carved nothing, so nothing was compared: ocean, nether {carved:?}"
+        );
+    }
+
+    #[test]
     fn a_region_slot_equals_the_per_column_sources_at_every_width_and_origin() {
         let mut carved = 0;
         for seed in [12345, 845, 7] {
@@ -654,7 +663,7 @@ mod exhaustive {
 
     #[test]
     fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache_at_every_seed() {
-        for (seed, surfaced) in [(12345, true), (845, false)] {
+        for (seed, surfaced) in [(845, true), (845, false)] {
             assert_blocks_independent_of_region_order_and_cache(seed, surfaced);
         }
     }
