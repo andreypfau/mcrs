@@ -7,6 +7,9 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_value_provider.workspace = true
 bevy_reflect = { workspace = true, optional = true }

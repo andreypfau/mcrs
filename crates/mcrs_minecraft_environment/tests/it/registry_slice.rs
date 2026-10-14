@@ -276,14 +276,20 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     struct Flattened {
         #[serde(flatten)]
         holder: Holder,
-        #[allow(dead_code)]
+        #[expect(
+            dead_code,
+            reason = "the flattened struct must accept the extra key, and the test never reads it back"
+        )]
         extra: u32,
     }
 
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum Either {
-        #[allow(dead_code)]
+        #[expect(
+            dead_code,
+            reason = "the untagged enum tries a number before a clock, and the test never reads the number"
+        )]
         Number(u32),
         Clock(Id<WorldClock>),
     }

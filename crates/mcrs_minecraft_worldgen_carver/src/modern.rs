@@ -62,7 +62,10 @@ pub fn carve_source_into<T: CarveTarget>(
 }
 
 /// `CaveWorldCarver.carve`.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the carver's configuration, the chunk and source positions, the water mask, the carving mask and the random source of one cave carving pass"
+)]
 pub fn carve_caves<R: Random>(
     config: &CarverConfig,
     context: HeightContext,
@@ -169,7 +172,10 @@ fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &
 
 /// `CaveWorldCarver.createRoom`: one ellipsoid at the sine table's quarter
 /// turn, offset a block east of the cave's origin.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the target, the room's centre, thickness, vertical scale and shape, which the reference passes as separate values"
+)]
 fn create_room_into<T: CarveTarget>(
     target: &mut T,
     live: T::Live,

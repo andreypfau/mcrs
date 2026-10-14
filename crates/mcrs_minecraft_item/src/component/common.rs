@@ -335,7 +335,6 @@ macro_rules! ordinal_enum {
 
     };
 }
-#[allow(unused_imports)]
 pub(crate) use ordinal_enum;
 
 ordinal_enum! {

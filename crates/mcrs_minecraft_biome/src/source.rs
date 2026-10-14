@@ -86,7 +86,6 @@ pub fn beta_biome_from_climate(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-#[allow(clippy::large_enum_variant)]
 pub enum BiomeSource {
     MultiNoise(MultiNoiseBiomeSource),
     TheEnd,

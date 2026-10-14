@@ -253,7 +253,6 @@ impl PlacedFeature {
 /// `config` wrapper.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-#[allow(clippy::large_enum_variant)]
 pub enum Feature {
     Bamboo {
         probability: UnitFloat,

@@ -844,6 +844,10 @@ fn sample_matcher_tags() -> Vec<(&'static str, u8)> {
     ]
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "builds one matcher of every kind in a single literal, so the case reads as the value it describes"
+)]
 fn sample_matchers() -> DataComponentMatchers {
     use crate::component::{CustomData, Damage, MaxStackSize};
     use mcrs_minecraft_core::codec::Bounded;

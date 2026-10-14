@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;

@@ -161,7 +161,10 @@ where
     /// `top` is the highest non-air block of the column and `biomes` every biome
     /// the column stores: a set narrower than what `biome_at` can answer folds a
     /// condition that should have matched to `never` and writes the wrong block.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the router, program and scratch, the two biome lookups, the column position, its top and the biomes it stores, which define one column's evaluator"
+    )]
     pub fn new(
         router: &'a NoiseRouter,
         program: &'a MaterialProgram,

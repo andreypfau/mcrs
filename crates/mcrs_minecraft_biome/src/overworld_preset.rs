@@ -203,7 +203,10 @@ impl Builder {
 
     /// A surface biome is entered twice, once for each end of the depth range,
     /// so the search reaches it whether the column is at the surface or below.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    )]
     fn surface(
         &mut self,
         temperature: Parameter,
@@ -228,7 +231,10 @@ impl Builder {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    )]
     fn underground(
         &mut self,
         temperature: Parameter,
@@ -251,7 +257,10 @@ impl Builder {
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    )]
     fn bottom(
         &mut self,
         temperature: Parameter,
@@ -274,7 +283,10 @@ impl Builder {
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the six climate parameters, the offset and the biome that are the fields of one parameter point"
+    )]
     fn emit(
         &mut self,
         temperature: Parameter,
@@ -438,6 +450,10 @@ impl Builder {
         self.add_mid_slice(Parameter::span(HIGH_END, 1.0));
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists the peak-band biome entries in the reference's order, so the table reads against the reference's own"
+    )]
     fn add_peaks(&mut self, weirdness: Parameter) {
         for t in 0..5 {
             for h in 0..5 {
@@ -554,6 +570,10 @@ impl Builder {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists the high-slice biome entries in the reference's order, so the table reads against the reference's own"
+    )]
     fn add_high_slice(&mut self, weirdness: Parameter) {
         for t in 0..5 {
             for h in 0..5 {
@@ -681,6 +701,10 @@ impl Builder {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists the mid-slice biome entries in the reference's order, so the table reads against the reference's own"
+    )]
     fn add_mid_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
         let (coast, near, mid, far) = (
@@ -845,6 +869,10 @@ impl Builder {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists the low-slice biome entries in the reference's order, so the table reads against the reference's own"
+    )]
     fn add_low_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
         let (coast, near, mid, far) = (
@@ -978,6 +1006,10 @@ impl Builder {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists the valley biome entries in the reference's order, so the table reads against the reference's own"
+    )]
     fn add_valleys(&mut self, weirdness: Parameter) {
         let full = self.full_range;
         let (frozen, unfrozen) = (self.frozen, self.unfrozen);

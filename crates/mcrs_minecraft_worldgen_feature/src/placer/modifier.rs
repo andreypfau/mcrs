@@ -24,6 +24,10 @@ pub fn biome_info_noise(x: f64, z: f64) -> f64 {
 }
 
 impl PlacementModifier<Predicate> {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per placement modifier, in the reference's declaration order, so each reads against its kind"
+    )]
     pub(super) fn apply<W: WorldGenVolume, R: Random>(
         &self,
         volume: &W,

@@ -19,7 +19,10 @@ pub trait CarveTarget {
         thickness: f32,
     ) -> Option<Self::Live>;
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the walker's live state, the ellipsoid's centre, its two radii and its shape"
+    )]
     fn carve(
         &mut self,
         live: Self::Live,

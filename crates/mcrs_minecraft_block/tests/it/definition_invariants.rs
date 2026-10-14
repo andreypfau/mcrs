@@ -7,7 +7,10 @@ use serde::de::IgnoredAny;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct File {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     format_version: IgnoredAny,
     #[serde(rename = "minecraft:block")]
     block: Block,
@@ -27,20 +30,35 @@ struct Block {
 #[serde(deny_unknown_fields)]
 struct Description {
     identifier: String,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     properties: Option<IgnoredAny>,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     protocol_id: IgnoredAny,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     base_state_id: IgnoredAny,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     default_state_id: IgnoredAny,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Permutation {
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the file is read with deny_unknown_fields, so the field is declared and never read"
+    )]
     condition: IgnoredAny,
     components: BTreeMap<String, IgnoredAny>,
 }

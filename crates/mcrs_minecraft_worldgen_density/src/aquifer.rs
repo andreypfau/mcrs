@@ -485,7 +485,10 @@ impl<'a> FluidField<'a> {
         Some(fluid_state)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the position, the lazily sampled noise, the two fluid statuses and the barrier sampler of one pressure computation, in the order the reference takes them"
+    )]
     fn pressure(
         &self,
         x: i32,

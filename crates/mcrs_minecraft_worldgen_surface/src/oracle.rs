@@ -107,6 +107,10 @@ impl<'a> MaterialOracle<'a> {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per condition kind, evaluated as the reference's rule tape does, so each reads against it"
+    )]
     fn condition<
         B: FnMut(i32, i32, i32) -> u16,
         R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
@@ -313,6 +317,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "compares the tape with the oracle over the whole context range from one shared setup, so the sweep reads in one place"
+    )]
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
         let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();

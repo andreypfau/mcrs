@@ -30,6 +30,10 @@ fn arg<T: std::str::FromStr>(n: usize) -> Option<T> {
     std::env::args().nth(n).and_then(|a| a.parse().ok())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "an example that reads top to bottom: build the world, queue every column, run the budgeted epochs and print the report"
+)]
 fn main() {
     let radius: i32 = arg(1).unwrap_or(16);
     let defaults = LightBudget::default();

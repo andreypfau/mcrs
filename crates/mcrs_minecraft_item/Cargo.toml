@@ -15,6 +15,9 @@ bevy = [
     "mcrs_minecraft_registry/bevy",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_dimension.workspace = true

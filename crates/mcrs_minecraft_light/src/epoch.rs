@@ -175,6 +175,10 @@ impl LightJob {
     /// interleaving because it only ever raises values, but erasing lowers
     /// them, and an erase racing a fill would silently drop light that nothing
     /// will resend.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "runs the stages of one epoch in order under one span each, because erasing must finish before anything is filled"
+    )]
     pub fn run(self) -> LightUpdate {
         let LightJob {
             registry,

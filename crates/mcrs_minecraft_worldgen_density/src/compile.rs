@@ -287,6 +287,10 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per proto density function, in the reference's declaration order, so each reads against it"
+    )]
     pub fn compile(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
         let function = match holder {
             DensityFunctionHolder::Value(value) => return Ok(self.constant(value.value.0 as f32)),

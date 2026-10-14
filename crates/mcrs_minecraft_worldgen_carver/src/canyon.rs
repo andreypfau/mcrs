@@ -16,7 +16,10 @@ use crate::modern::RANGE;
 /// integrator: it damps its rotations differently, redraws its radii every
 /// step, never splits, and its cross-section is modulated by a per-height
 /// width table rather than being a plain ellipsoid.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the carver's configuration, the chunk and source positions, the water mask, the carving mask and the random source of one canyon carving pass"
+)]
 pub fn carve_canyon<R: Random>(
     config: &CarverConfig,
     context: HeightContext,
@@ -79,7 +82,10 @@ pub fn carve_canyon_into<T: CarveTarget, R: Random>(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the position, shape, thickness, angles, distance, vertical scale and random source of one step of a canyon walk, each fed to the reference's arithmetic in order"
+)]
 fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,
     target: &mut T,

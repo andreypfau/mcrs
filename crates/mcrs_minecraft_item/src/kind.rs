@@ -141,7 +141,10 @@ macro_rules! for_each_data_component {
     };
 }
 
-#[allow(non_upper_case_globals)]
+#[expect(
+    non_upper_case_globals,
+    reason = "each data_components! row names its flags in lower case and the macro splices them in as identifiers"
+)]
 mod flag {
     pub(super) const persistent: u8 = 1;
     pub(super) const transient: u8 = 2;

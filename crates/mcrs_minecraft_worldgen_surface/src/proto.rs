@@ -26,7 +26,10 @@ pub enum MaterialConditionHolder {
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
-#[allow(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "the ore vein variant holds three density holders and three block states in line, and boxing them would add a pointer to every block rule"
+)]
 pub enum MaterialRule {
     Block {
         result_state: BlockState,

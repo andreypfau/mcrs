@@ -35,7 +35,10 @@ pub enum CarveShape<'a> {
 /// Returns false if nothing was rasterised: either the ellipsoid misses the
 /// target chunk entirely, or water touches the shell of its bounds and Beta's
 /// abort applies. Modern carvers pass an empty water mask and never abort.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the chunk, the ellipsoid's centre and two radii, its shape, and the water and carving masks it writes"
+)]
 pub fn carve_ellipsoid(
     chunk_x: i32,
     chunk_z: i32,

@@ -386,6 +386,10 @@ fn id_or(
 }
 
 impl Template {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "checks the data version, palettes, blocks and entities in turn and then freezes each palette, so each error reads against the stage that raises it"
+    )]
     pub fn freeze(
         &self,
         id: &ResourceLocation,
@@ -921,6 +925,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one case per error freeze names, each built from the same valid template, so the cases read as the error enum"
+    )]
     fn each_error_is_named() {
         let planks = state("minecraft:oak_planks", &[]);
         let ok = template(vec![planks.clone()], vec![block([0, 0, 0], 0, None)]);

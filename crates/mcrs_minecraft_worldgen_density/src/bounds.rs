@@ -27,6 +27,10 @@ pub enum Bounds {
 
 /// Interval arithmetic over the operators. `at` answers for a node's inputs,
 /// which are always resolved first.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one arm per node kind, in the node's declaration order, so each interval rule reads against its kind"
+)]
 pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {
         // A fold can land a NaN in a constant, and nothing is known about it.

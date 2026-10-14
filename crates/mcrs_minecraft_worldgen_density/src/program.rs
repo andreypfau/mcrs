@@ -538,7 +538,10 @@ impl Lattice {
     }
 }
 
-#[allow(clippy::len_without_is_empty)]
+#[expect(
+    clippy::len_without_is_empty,
+    reason = "len counts the nodes callers size their tables by, and nothing asks whether a program is empty"
+)]
 impl Program {
     pub fn new(
         nodes: Vec<Node>,
@@ -776,7 +779,10 @@ impl Program {
         ws.sliced = sliced;
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the workspace, the volume, the surface node with its density and upper bound, and the lower bound and cell height of one top-surface fill"
+    )]
     fn fill_top_surface(
         &self,
         ws: &mut Workspace,
@@ -815,7 +821,10 @@ impl Program {
     /// `FindTopSurfaceFunction.Sampler.findSurfaceFrom`, probing one batch of
     /// cell boundaries per nested fill so the descent still stops at the first
     /// positive density.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the workspace, both grids, the column index, the density and upper bound nodes, and the lower bound and cell height of one surface descent"
+    )]
     fn find_top_surface(
         &self,
         ws: &mut Workspace,
@@ -949,6 +958,10 @@ impl Program {
         });
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per node kind, in the node's declaration order, so each fill reads against its kind"
+    )]
     fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid) {
         if let &Node::Slice {
             input,
@@ -1327,7 +1340,10 @@ fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
 /// The outer loop walks cells rather than samples: a cell spans the block range
 /// `[cell_base, cell_base + cell_y)`, so comparing against that bound advances
 /// the run without a division per position.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the output, the block origin, the two grids, the lattice values and the two cell sizes of one trilinear interpolation"
+)]
 fn interpolate(
     out: &mut [f32],
     bx: i32,
