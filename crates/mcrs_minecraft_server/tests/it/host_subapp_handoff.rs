@@ -32,6 +32,27 @@ use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 
 use crate::support;
 use mcrs_minecraft_dimension::Dimension;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+
+fn row(failed: &mut Vec<String>, name: &str, check: impl FnOnce()) {
+    if let Err(payload) = catch_unwind(AssertUnwindSafe(check)) {
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or("panicked");
+        failed.push(format!("{name}: {message}"));
+    }
+}
+
+fn rows_hold(failed: Vec<String>) {
+    assert!(
+        failed.is_empty(),
+        "failing rows, the first is the cause:\n{}",
+        failed.join("\n")
+    );
+}
 
 /// Build a minimal host-side App with the bus substrate and the systems
 /// under test.
@@ -131,18 +152,15 @@ fn live_dimension(app: &mut App, key: ResourceKey<Dimension>) -> (Entity, flume:
 /// entity exists (with a registered channel), the host must send exactly one
 /// `ToDim::Spawn` into the dim's control channel and mark the session as
 /// joining that label.
-fn game_transition_emits_initial_spawn() {
-    let mut app = build_host_app();
-
-    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
-
-    let (dim_label, ctl_rx) = live_dimension(
-        &mut app,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-    );
+fn game_transition_emits_initial_spawn(
+    app: &mut App,
+    dim_label: Entity,
+    ctl_rx: &flume::Receiver<ToDim>,
+) {
+    let (connection_entity, host_anchor) = spawn_accepted_connection(app);
 
     // Transition to Game — the emit system should pick this up
-    transition_to_game(&mut app, connection_entity);
+    transition_to_game(app, connection_entity);
     app.update();
 
     let spawns: Vec<ToDim> = ctl_rx
@@ -364,23 +382,14 @@ fn no_duplicate_spawn_on_reread() {
     );
 }
 
-#[test]
-fn joining_players_share_the_baked_dimension_list() {
-    use std::sync::Arc;
-
-    let mut app = build_host_app();
-    let list = support::dimension_list_with_extra();
-    let baked = Arc::clone(list.keys());
-    app.insert_resource(list);
-
-    let (_, ctl_rx) = live_dimension(
-        &mut app,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-    );
-
+fn joining_players_share_the_baked_dimension_list(
+    app: &mut App,
+    ctl_rx: &flume::Receiver<ToDim>,
+    baked: &Arc<[ResourceKey<Dimension>]>,
+) {
     for _ in 0..2 {
-        let (connection, _) = spawn_accepted_connection(&mut app);
-        transition_to_game(&mut app, connection);
+        let (connection, _) = spawn_accepted_connection(app);
+        transition_to_game(app, connection);
     }
     app.update();
 
@@ -393,19 +402,44 @@ fn joining_players_share_the_baked_dimension_list() {
         .collect();
     assert_eq!(lists.len(), 2);
     for sent in &lists {
-        assert!(Arc::ptr_eq(sent, &baked));
+        assert!(Arc::ptr_eq(sent, baked));
     }
 }
 
 #[test]
-fn entering_the_game_spawns_the_player_once() {
-    game_transition_emits_initial_spawn();
-    no_live_dim_no_spawn();
-    no_duplicate_spawn_on_reread();
+fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list() {
+    let mut failed = Vec::new();
+    row(
+        &mut failed,
+        "no live dimension sends no spawn",
+        no_live_dim_no_spawn,
+    );
+    row(
+        &mut failed,
+        "a re-read does not spawn a second player",
+        no_duplicate_spawn_on_reread,
+    );
+
+    let mut app = build_host_app();
+    let list = support::dimension_list_with_extra();
+    let baked = Arc::clone(list.keys());
+    app.insert_resource(list);
+    let (dim_label, ctl_rx) = live_dimension(
+        &mut app,
+        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+    );
+    row(&mut failed, "the transition sends one spawn", || {
+        game_transition_emits_initial_spawn(&mut app, dim_label, &ctl_rx)
+    });
+    row(
+        &mut failed,
+        "joining players share the baked dimension list",
+        || joining_players_share_the_baked_dimension_list(&mut app, &ctl_rx, &baked),
+    );
+    rows_hold(failed);
 }
 
-#[test]
-fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
+fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc(app: &App) {
     use mcrs_minecraft_block::definition::Blocks;
     use mcrs_minecraft_inventory::ShulkerBoxes;
     use mcrs_minecraft_item::Items;
@@ -426,15 +460,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Resolved<FillIds>>(),
         type_name::<ShulkerBoxes>(),
     ];
-
-    let mut app = crate::host_app::make_host_app();
-    crate::host_app::materialise_sub_apps(
-        &mut app,
-        &[
-            ("minecraft:overworld", "minecraft:overworld"),
-            ("minecraft:the_nether", "minecraft:the_nether"),
-        ],
-    );
 
     let candidates: Vec<String> = app
         .world()
@@ -487,6 +512,26 @@ fn is_registry_type(name: &str) -> bool {
     )
 }
 
+#[test]
+fn every_shared_registry_reaches_every_dimension_and_stays_unchanged_on_the_second_tick() {
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+
+    let mut failed = Vec::new();
+    row(
+        &mut failed,
+        "every shared registry reaches every dimension as the host's Arc",
+        || every_shared_registry_reaches_every_dimension_as_the_hosts_arc(&app),
+    );
+    row(
+        &mut failed,
+        "a shared registry is not changed on the second tick",
+        || a_shared_registry_is_not_changed_on_the_second_tick(&mut app),
+    );
+    rows_hold(failed);
+}
+
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
 const NETHER: (&str, &str) = ("minecraft:the_nether", "minecraft:the_nether");
 
@@ -500,16 +545,11 @@ fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<Dimension>)> {
         .collect()
 }
 
-#[test]
-fn a_shared_registry_is_not_changed_on_the_second_tick() {
+fn a_shared_registry_is_not_changed_on_the_second_tick(app: &mut App) {
     use mcrs_minecraft_level::world::sub_app::DimAppLabel;
     use mcrs_minecraft_registry::shared::SharedRegistries;
 
-    let mut app = crate::host_app::make_host_app();
-    crate::host_app::drive_to_playing(&mut app);
-    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
-
-    let labels = dimension_labels(&mut app);
+    let labels = dimension_labels(app);
     assert_eq!(labels.len(), 2);
     let overworld = labels
         .iter()
