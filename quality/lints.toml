@@ -1,0 +1,10 @@
+[suppressions]
+
+[bypasses]
+
+[clones]
+min_tokens = 70
+exclude = [
+    "crates/*/src/keys/**",
+    "crates/mcrs_minecraft_keys/src/**",
+]
