@@ -1,5 +1,8 @@
 use crate::common::run_to_playing;
-use crate::{biome_tags, structure_assets, tag_pipeline, timeline_pipeline, world_registry_ids};
+use crate::{
+    biome_tags, loaded_registries, structure_assets, tag_pipeline, timeline_pipeline,
+    world_registry_ids,
+};
 
 #[test]
 fn the_data_pack_reaches_playing_with_every_registry_in_place() {
@@ -15,4 +18,5 @@ fn the_data_pack_reaches_playing_with_every_registry_in_place() {
     timeline_pipeline::the_shipped_time_markers_reach_the_overworld_clock(&app);
     timeline_pipeline::the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(&app);
     world_registry_ids::the_running_app_numbers_world_registries_as_the_loader_does(&app);
+    loaded_registries::worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(&app);
 }

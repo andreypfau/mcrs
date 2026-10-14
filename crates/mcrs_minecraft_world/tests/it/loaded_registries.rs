@@ -2157,8 +2157,35 @@ pub(crate) fn load_shipped_and(
         .map_err(|report| report.to_string())
 }
 
+fn one_self_contained_file_of_each_registry_that_must_not_be_empty() -> Vec<(String, String)> {
+    VARIANT_REGISTRIES
+        .iter()
+        .map(|registry| {
+            let path = registry.trim_start_matches("minecraft:");
+            let directory = assets().join("minecraft").join(path);
+            let mut files: Vec<_> = std::fs::read_dir(&directory)
+                .unwrap_or_else(|e| panic!("{}: {e}", directory.display()))
+                .map(|entry| entry.unwrap().path())
+                .filter(|file| file.extension().is_some_and(|ext| ext == "json"))
+                .collect();
+            files.sort();
+            files
+                .into_iter()
+                .find_map(|file| {
+                    let text = std::fs::read_to_string(&file).unwrap();
+                    (!text.contains("\"biomes\"") && !text.contains("\"structures\"")).then(|| {
+                        let name = file.file_name().unwrap().to_str().unwrap();
+                        (format!("minecraft/{path}/{name}"), text)
+                    })
+                })
+                .unwrap_or_else(|| panic!("{registry} has no file free of biome and structure"))
+        })
+        .collect()
+}
+
 #[test]
 fn a_worldgen_file_that_does_not_parse_stops_the_load() {
+    let needed = one_self_contained_file_of_each_registry_that_must_not_be_empty();
     for registry in [
         "carver",
         "feature",
@@ -2168,9 +2195,17 @@ fn a_worldgen_file_that_does_not_parse_stops_the_load() {
         "structure_set",
     ] {
         let directory = format!("test/worldgen/{registry}");
-        let refused = load_shipped_and(&directory, &[("broken", r#"{"bad":true}"#.to_owned())])
-            .err()
-            .unwrap_or_else(|| panic!("a malformed {registry} file is accepted"));
+        let broken = format!("{directory}/broken.json");
+        let mut files: Vec<(&str, &str)> = needed
+            .iter()
+            .map(|(path, json)| (path.as_str(), json.as_str()))
+            .collect();
+        files.push((&broken, r#"{"bad":true}"#));
+        let refused = load_text(&files);
+        assert!(
+            !refused.is_empty(),
+            "a malformed {registry} file is accepted"
+        );
 
         let (header, line) = refused.split_once('\n').expect("a header and one line");
         assert_eq!(
@@ -2293,15 +2328,13 @@ fn trial_spawners_have_names_and_no_values() {
     assert_eq!(named, shipped);
 }
 
-#[test]
-fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets() {
+pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app: &App) {
     fn parsed<T: 'static>(set: &RegistrySet, registry: &str) -> usize {
         set.column::<T>(registry)
             .unwrap_or_else(|| panic!("{registry} is not parsed by the loader"))
             .len()
     }
 
-    let app = crate::common::run_to_playing();
     let set = app.world().resource::<RegistrySet>();
     let server = app.world().resource::<AssetServer>();
 
