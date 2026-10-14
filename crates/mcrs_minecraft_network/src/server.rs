@@ -166,8 +166,10 @@ pub(crate) struct SharedNetworkState(pub(crate) Arc<SharedNetworkStateInner>);
 
 pub(crate) struct SharedNetworkStateInner {
     pub(crate) tokio_handle: Handle,
-    // Held to keep the runtime alive for the process lifetime; dropping it shuts down all tasks.
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the runtime is held only so dropping it does not shut down the server's tasks, and nothing reads it"
+    )]
     tokio_runtime: Option<Runtime>,
     pub(crate) new_connections_send: Sender<Box<RawConnection>>,
 }

@@ -6,7 +6,10 @@ mod decoder_advances_reader;
 mod entity_movement_codecs;
 mod entity_packets;
 mod frames_golden;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "the identifier rows module is shared with the core crate's tests, and only some of its helpers are read here"
+)]
 #[path = "../../../mcrs_minecraft_core/tests/it/identifier_rows.rs"]
 mod identifier_rows;
 mod identifier_wire;

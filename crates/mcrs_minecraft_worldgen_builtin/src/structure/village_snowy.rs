@@ -562,6 +562,10 @@ fn medium_house_1(c: &mut Canvas, v: Village) {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lays the house's blocks as one run of canvas calls in the order of the reference's template, so it reads against it"
+)]
 fn medium_house_2(c: &mut Canvas, v: Village) {
     c.walls(&K.wood, &K.wood, [3, 0, 1], [11, 6, 4]);
     c.solid(&S.spruce_planks, [4, 0, 2], [10, 0, 3]);

@@ -576,6 +576,10 @@ impl Placer<'_> {
             }));
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "places the mansion's walls, roofs and floors in the reference's order, so the pieces come out in the order it lists them"
+    )]
     fn create_mansion(&mut self, origin: IVec3, rotation: Rotation, mansion: &MansionGrid) {
         let mut data = PlacementData {
             position: origin,
@@ -810,7 +814,10 @@ impl Placer<'_> {
             .relative(pos, (x - self.start_x) * 8)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the placement data, the grid, the heading and the start and end cells of one wall traversal, which the reference passes as separate values"
+    )]
     fn traverse_outer_walls(
         &mut self,
         data: &mut PlacementData,
@@ -850,6 +857,10 @@ impl Placer<'_> {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lays the roof of one floor cell by cell with the reference's case for each direction, so each case reads against it"
+    )]
     fn create_roof(
         &mut self,
         roof_origin: IVec3,

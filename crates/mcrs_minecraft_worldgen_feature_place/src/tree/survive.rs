@@ -177,6 +177,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one case per survive rule, each against the support the reference reads for it"
+    )]
     fn each_rule_reads_its_support_where_the_reference_does() {
         let hanging_propagule = SurviveRule::SupportedBy {
             offset_y: 1,

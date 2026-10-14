@@ -176,6 +176,10 @@ impl Assembly<'_> {
             .unwrap_or(0)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "expands one piece's jigsaw connections with the reference's random draws in the reference's order, so the sequence reads against it"
+    )]
     fn attach_children(&mut self, source: usize, space: usize, depth: i32) {
         let frozen = self.frozen;
         let size = self.config.size.0;

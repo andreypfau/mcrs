@@ -63,6 +63,10 @@ fn predicates_match_the_vanilla_codecs() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of malformed predicates and the message the game raises for each"
+)]
 fn predicate_errors_read_like_vanilla() {
     in_samples(|| {
         let error = |kind: DataComponentType, json: &str| -> String {

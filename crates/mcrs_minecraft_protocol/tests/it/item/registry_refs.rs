@@ -301,6 +301,10 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "builds one tag per float-bearing component through a shared helper, so every number rule is checked against the game in one place"
+)]
 fn nbt_floats_keep_vanillas_number_semantics() {
     in_samples(|| {
         use mcrs_minecraft_nbt::tag::NbtTag;

@@ -139,7 +139,14 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     true
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the cluster's configuration, volume, random source and position, the offsets of the column, and its water, speleothem, height and density rolls"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "draws one column's stalagmite and stalactite with the reference's random draws in the reference's order, so the sequence reads against it"
+)]
 fn place_cluster_column<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,

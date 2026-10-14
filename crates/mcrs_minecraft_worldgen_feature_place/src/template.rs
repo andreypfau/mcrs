@@ -670,6 +670,10 @@ pub struct Processed {
 }
 
 impl CompiledProcessor {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per processor kind, in the reference's declaration order, so each reads against its kind"
+    )]
     fn process<W: WorldGenVolume, R: Random>(
         &self,
         volume: &W,
@@ -856,7 +860,10 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 // jigsaw kinds (village villagers and animals, cushions, golems, piglins, the
 // hoglin, outpost allays) are frozen but stay unplaced; the upgrade is a
 // finalized `GeneratedKind` per kind.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "runs the processor chain over every block of the palette and then writes the blocks and their block entities, in the reference's order"
+)]
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
     volume: &mut W,

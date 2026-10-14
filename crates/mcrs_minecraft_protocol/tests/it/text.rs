@@ -338,6 +338,10 @@ fn vanilla_nbt_bytes_decode_to_the_same_json_and_re_encode_to_the_same_tags() {
 
 /// Values the reference jar produced for these inputs.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of inputs and the JSON the reference jar produced for each"
+)]
 fn vanilla_json_edge_cases() {
     for (input, json) in [
         (

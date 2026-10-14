@@ -89,6 +89,10 @@ fn inv_sqrt(value: f64) -> f64 {
 
 /// `GeodeFeature.place`: a distance field over budded points, shelled in four
 /// layers, optionally cracked, and then studded with crystals.
+#[expect(
+    clippy::too_many_lines,
+    reason = "shells the distance field in four layers, cracks it and studs it with crystals in the reference's order, so the random draws match it"
+)]
 pub fn place_geode<W: WorldGenVolume>(
     config: &CompiledGeode,
     volume: &mut W,

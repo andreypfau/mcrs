@@ -342,8 +342,7 @@ macro_rules! tables {
     })*) => {
         $(
             pub mod $table {
-                #[allow(unused_imports, unused_import_braces)]
-                use $($module)*::{$($($ty,)?)*};
+                use $($module)* as rows;
 
                 pub const NAMES: &[&str] = &[$($name),*];
                 pub const TYPED: &[&str] = &[$($(typed_name!($name, $ty),)?)*];
@@ -358,7 +357,7 @@ macro_rules! tables {
                 };
 
                 $($(
-                    impl $(<$lt>)? $crate::Packet for $ty $(<$lt>)? {
+                    impl $(<$lt>)? $crate::Packet for rows::$ty $(<$lt>)? {
                         const ID: i32 = $crate::packets::table::row_of(NAMES, $name);
                         const NAME: &'static str = $name;
                         const SIDE: $crate::PacketSide = SIDE;
@@ -368,7 +367,7 @@ macro_rules! tables {
 
                 #[derive(Debug)]
                 pub enum $enum $(<$tlt>)? {
-                    $($($ty($ty $(<$lt>)?),)?)*
+                    $($($ty(rows::$ty $(<$lt>)?),)?)*
                 }
 
                 // chisle: a linear chain over this table's typed rows; the dispatcher
@@ -378,8 +377,8 @@ macro_rules! tables {
                     r: &mut &$($tlt)? [u8],
                 ) -> anyhow::Result<$crate::packets::table::Decoded<$enum $(<$tlt>)?>> {
                     $($(
-                        if id == <$ty as $crate::Packet>::ID {
-                            return <$ty as $crate::Decode>::decode(r)
+                        if id == <rows::$ty as $crate::Packet>::ID {
+                            return <rows::$ty as $crate::Decode>::decode(r)
                                 .map($enum::$ty)
                                 .map($crate::packets::table::Decoded::Packet)
                                 .map_err(|error| {

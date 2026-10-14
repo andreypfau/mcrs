@@ -89,6 +89,10 @@ fn flags(spec: &[bool; 7]) -> PlayerInputFlags {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one check per serverbound packet in the game's declaration order, each against its captured bytes"
+)]
 fn every_packet_decodes_the_games_bytes() {
     check(
         "attack",

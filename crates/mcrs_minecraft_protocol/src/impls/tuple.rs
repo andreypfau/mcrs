@@ -3,13 +3,11 @@ use std::io::Write;
 use crate::{Decode, Encode};
 
 macro_rules! impl_tuple {
-    ($($ty:ident)*) => {
-        #[allow(non_snake_case)]
+    ($($ty:ident $idx:tt)*) => {
         impl<$($ty: Encode,)*> Encode for ($($ty,)*) {
             fn encode(&self, mut _w: impl Write) -> anyhow::Result<()> {
-                let ($($ty,)*) = self;
                 $(
-                    $ty.encode(&mut _w)?;
+                    self.$idx.encode(&mut _w)?;
                 )*
                 Ok(())
             }
@@ -24,7 +22,7 @@ macro_rules! impl_tuple {
 }
 
 impl_tuple!();
-impl_tuple!(A);
-impl_tuple!(A B);
-impl_tuple!(A B C);
-impl_tuple!(A B C D);
+impl_tuple!(A 0);
+impl_tuple!(A 0 B 1);
+impl_tuple!(A 0 B 1 C 2);
+impl_tuple!(A 0 B 1 C 2 D 3);

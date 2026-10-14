@@ -100,7 +100,10 @@ impl EncodeCtx for MobEffectDetails {
 }
 
 impl DecodeCtx<'_> for MobEffectDetails {
-    #[allow(clippy::only_used_in_recursion)]
+    #[expect(
+        clippy::only_used_in_recursion,
+        reason = "the registry lookup is only handed to the hidden effect's nested decode, which the trait fixes to take it"
+    )]
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let amplifier = VarInt::decode(r)?.0.clamp(0, 255);
         let duration = VarInt::decode(r)?.0;

@@ -8,6 +8,9 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[lints]
+workspace = true
+
 [dependencies]
 mcrs_minecraft_dimension.workspace = true
 anyhow.workspace = true

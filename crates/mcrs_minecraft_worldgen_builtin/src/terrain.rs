@@ -218,7 +218,10 @@ fn mountain_ridge(c: &Coordinates, modulation: f32, saddle: bool) -> ProtoSpline
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the coordinates, the low-valley, hill, tall-hill, mountain, plain and swamp values and the extreme-hills and saddle flags that shape one erosion spline, which the reference passes as separate values"
+)]
 fn erosion_offset(
     c: &Coordinates,
     low_valley: f32,

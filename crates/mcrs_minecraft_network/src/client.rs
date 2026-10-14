@@ -231,7 +231,13 @@ pub struct ChunkCacheRadius(pub i32);
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Resource)]
-struct ClientRuntime(#[allow(dead_code)] Runtime);
+struct ClientRuntime(
+    #[expect(
+        dead_code,
+        reason = "the runtime is held only so its tasks live as long as the process, and nothing reads it"
+    )]
+    Runtime,
+);
 
 /// Without it a lost connection only logs: a test harness or a browser tab
 /// outlives its connection, a windowed client has nothing left to show.

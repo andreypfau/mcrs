@@ -71,6 +71,10 @@ pub fn place_modern_ore<W: WorldGenVolume>(
         )
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lays out the ore blob's spheres, drops the ones another contains and fills the rest's boxes in the reference's single pass, so the arithmetic reads against it"
+)]
 fn do_place<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &mut W,

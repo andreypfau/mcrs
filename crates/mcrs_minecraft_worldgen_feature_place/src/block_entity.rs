@@ -871,6 +871,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists one block entity of every kind with its own field values, so each kind is covered by the same fixture"
+    )]
     fn one_of_each() -> Vec<GeneratedBlockEntity> {
         use GeneratedBlockEntity::*;
         let mut sherds = NbtCompound::new();

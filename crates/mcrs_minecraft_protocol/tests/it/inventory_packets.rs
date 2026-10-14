@@ -108,6 +108,10 @@ fn plain(f: &Fixture, path: &str, n: i32) -> RawStack {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of the game's bytes for every container packet, so each packet reads against its capture"
+)]
 fn container_packets_are_the_games_bytes() {
     let f = &fixture();
     check(

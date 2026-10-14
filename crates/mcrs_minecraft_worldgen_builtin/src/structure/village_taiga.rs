@@ -1174,6 +1174,10 @@ fn taiga_tannery_1(c: &mut Canvas) {
     west_entrance(c, [1, 0, 5], COBBLE);
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lays the temple's blocks as one run of canvas calls in the order of the reference's template, so it reads against it"
+)]
 fn temple_1(c: &mut Canvas) {
     let ground = [
         8, 8, 0, 10, 12, 0, 8, 12, 1, 4, 12, 2, 4, 12, 3, 1, 12, 4, 1, 12, 5, 1, 10, 6, 1, 9, 7, 1,

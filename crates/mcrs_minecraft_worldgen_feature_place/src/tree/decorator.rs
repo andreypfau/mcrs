@@ -197,6 +197,10 @@ impl<W> TreeSink<W> for EntitiesOnly {
 }
 
 impl CompiledTreeDecorator {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per tree decorator kind, in the reference's declaration order, so each reads against its kind"
+    )]
     pub fn place<W: WorldGenVolume>(
         &self,
         ctx: &mut DecoratorContext<W>,

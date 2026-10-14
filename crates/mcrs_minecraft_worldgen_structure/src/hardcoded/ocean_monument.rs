@@ -115,6 +115,10 @@ fn grid_has_room(x: i32, y: i32, z: i32) -> bool {
 }
 
 /// `MonumentBuilding.generateRoomGraph`.
+#[expect(
+    clippy::too_many_lines,
+    reason = "builds the monument's room graph and draws its openings in the reference's order, so the random draws match it"
+)]
 fn room_graph(rng: &mut LegacyRandom) -> Graph {
     let mut slot = [None; 75];
     let mut rooms = Vec::new();

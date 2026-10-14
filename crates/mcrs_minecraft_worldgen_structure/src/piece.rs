@@ -1371,6 +1371,10 @@ pub struct PieceNbt<'a> {
 }
 
 impl Serialize for PieceNbt<'_> {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per piece kind, each writing that kind's tag, in the reference's kind order"
+    )]
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let tag = match self.piece {
             Piece::Jigsaw(piece) => {
@@ -1732,6 +1736,10 @@ pub struct PieceSeed<'a>(pub PieceContext<'a>);
 impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
     type Value = Piece;
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per piece tag, each rebuilding that kind's piece, in the reference's kind order"
+    )]
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Piece, D::Error> {
         match <PieceTag as Deserialize>::deserialize(deserializer)? {
             PieceTag::Jigsaw {
@@ -2367,6 +2375,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "lists one fixture per piece kind with the fields the game writes for it, so the cases read as the kinds"
+    )]
     fn cases() -> Vec<Case> {
         use Field::*;
         let mut cases = vec![
