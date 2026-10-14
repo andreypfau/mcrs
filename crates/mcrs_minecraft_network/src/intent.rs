@@ -11,6 +11,11 @@ use tracing::debug;
 
 pub(crate) const MOTD: &str = "mcrs Server";
 
+#[expect(
+    clippy::disallowed_macros,
+    clippy::disallowed_types,
+    reason = "the status response is still written as a JSON literal; its typed form also needs the player count from the engine"
+)]
 pub(crate) async fn handle_intent<S: ByteStream>(
     shared: SharedNetworkState,
     mut io: PacketIo<S>,

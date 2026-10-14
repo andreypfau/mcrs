@@ -1,3 +1,12 @@
+#![expect(
+    clippy::disallowed_types,
+    reason = "the update tool parses the game's JSON reports as they come"
+)]
+#![cfg_attr(
+    test,
+    expect(clippy::disallowed_macros, reason = "test input is written as JSON")
+)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;

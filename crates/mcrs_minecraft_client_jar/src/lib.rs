@@ -1,3 +1,11 @@
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_methods,
+        reason = "a test takes its worker count from the environment"
+    )
+)]
+
 use std::fmt::Write;
 use std::io::Read;
 use std::ops::Range;

@@ -1,3 +1,12 @@
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_macros,
+        clippy::disallowed_types,
+        reason = "test input is written as JSON"
+    )
+)]
+
 use crate::biome_upscale::upscale_biomes;
 use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};

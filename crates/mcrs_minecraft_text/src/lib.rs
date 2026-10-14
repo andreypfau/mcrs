@@ -1,3 +1,12 @@
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_macros,
+        clippy::disallowed_types,
+        reason = "test input is written as JSON"
+    )
+)]
+
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};

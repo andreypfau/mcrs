@@ -1,3 +1,8 @@
+#![cfg_attr(
+    test,
+    expect(clippy::disallowed_macros, reason = "test input is written as JSON")
+)]
+
 use std::{
     fmt::Display,
     io::{self, Read, Seek},

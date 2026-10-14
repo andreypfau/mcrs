@@ -1,4 +1,8 @@
 //! Measures what a bulk world load costs the light engine, batch by batch.
+#![expect(
+    clippy::disallowed_methods,
+    reason = "the example takes its batch size and priority from the environment"
+)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

@@ -1,3 +1,8 @@
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a build script reads the variables cargo sets for it"
+)]
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

@@ -1,3 +1,8 @@
+#![expect(
+    clippy::disallowed_methods,
+    reason = "the server binary reads its settings from the environment"
+)]
+
 use std::path::PathBuf;
 use std::time::Duration;
 

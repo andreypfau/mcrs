@@ -1,5 +1,9 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
+#![expect(
+    clippy::disallowed_types,
+    reason = "test support re-encodes a value into JSON for comparison"
+)]
 
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;

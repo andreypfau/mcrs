@@ -1,3 +1,11 @@
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_methods,
+        reason = "a test rewrites the generated shader header when asked through the environment"
+    )
+)]
+
 pub mod ambient;
 pub mod arena;
 pub mod block;

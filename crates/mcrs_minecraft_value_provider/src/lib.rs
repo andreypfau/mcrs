@@ -1,3 +1,8 @@
+#![cfg_attr(
+    test,
+    expect(clippy::disallowed_types, reason = "test input is written as JSON")
+)]
+
 #[rustfmt::skip]
 pub mod keys;
 

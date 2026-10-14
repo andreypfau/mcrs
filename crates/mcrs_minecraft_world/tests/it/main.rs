@@ -1,3 +1,10 @@
+#![expect(
+    clippy::disallowed_methods,
+    clippy::disallowed_macros,
+    clippy::disallowed_types,
+    reason = "test input is written as JSON, and the test finds the reference sources through the environment"
+)]
+
 mod biome_tags;
 mod block_definition_corpus;
 mod common;

@@ -1,3 +1,16 @@
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a developer tool: its checks are driven by environment variables"
+)]
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_macros,
+        clippy::disallowed_types,
+        reason = "test input is written as JSON"
+    )
+)]
+
 mod bypasses;
 mod checks;
 mod clones;

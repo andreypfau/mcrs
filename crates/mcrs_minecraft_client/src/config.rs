@@ -62,6 +62,10 @@ pub(crate) fn knob(name: &str) -> Option<String> {
 }
 
 #[cfg(not(target_family = "wasm"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the MCRS_ development knobs are read from the process environment"
+)]
 fn from_environment(name: &str) -> Option<String> {
     std::env::var(format!("MCRS_{name}")).ok()
 }
@@ -239,6 +243,10 @@ pub fn gpu_hot() -> Option<u32> {
 
 /// `PROBE=0` leaves passes untimed and `PROBE=1` times every frame. Otherwise a pass is timed
 /// only while the F3 overlay, the stats log or a scripted capture reads the figures.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the Metal HUD encoder timing switch is set by the system's profiling overlay, in the process environment"
+)]
 pub fn pass_timestamps() -> bool {
     let overlay_times_encoders =
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");

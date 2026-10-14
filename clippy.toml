@@ -1,3 +1,16 @@
 too-many-lines-threshold = 100
 too-many-arguments-threshold = 7
 excessive-nesting-threshold = 6
+disallowed-types = [
+  { path = "serde_json::Value", reason = "express the shape as Deserialize and Serialize; a JSON value loses NBT integer widths" },
+  { path = "serde_json::Map", reason = "express the shape as Deserialize and Serialize; a JSON value loses NBT integer widths" },
+]
+disallowed-macros = [
+  { path = "serde_json::json", reason = "express the shape as Deserialize and Serialize; a JSON value loses NBT integer widths" },
+]
+disallowed-methods = [
+  { path = "std::env::var", reason = "library configuration comes through the plugin" },
+  { path = "std::env::var_os", reason = "library configuration comes through the plugin" },
+  { path = "std::env::vars", reason = "library configuration comes through the plugin" },
+  { path = "std::env::vars_os", reason = "library configuration comes through the plugin" },
+]

@@ -21,12 +21,23 @@ const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 #[cfg(not(windows))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the launcher directory is an operating-system location, not configuration"
+)]
 fn home() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .expect("HOME is set")
 }
 
+#[cfg_attr(
+    windows,
+    expect(
+        clippy::disallowed_methods,
+        reason = "the launcher directory is an operating-system location, not configuration"
+    )
+)]
 pub fn official_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     return home().join("Library/Application Support/minecraft");

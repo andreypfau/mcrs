@@ -1,6 +1,14 @@
 // wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
 // `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
+#![cfg_attr(
+    test,
+    expect(
+        clippy::disallowed_macros,
+        clippy::disallowed_types,
+        reason = "test input is written as JSON"
+    )
+)]
 
 use std::path::{Path, PathBuf};
 
