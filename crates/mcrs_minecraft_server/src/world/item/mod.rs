@@ -9,6 +9,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, handle_container_clicks, tick_drop_throttles,
 };
+use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 /// The set numbers every registry; the block definitions answer block states.
@@ -33,6 +34,7 @@ pub struct ItemPlugin;
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(FixedUpdate, (StackSet::Mutate, StackSet::Sync).chain())
+            .configure_sets(FixedUpdate, StackSet::Sync.in_set(TickSet::Output))
             .add_message::<ContainerClickRequest>()
             .add_message::<click::CreativeSlotRequest>()
             .add_message::<click::CloseContainerRequest>()
@@ -53,7 +55,9 @@ impl Plugin for ItemPlugin {
                     click::handle_drop_actions,
                 )
                     .chain()
-                    .in_set(StackSet::Mutate),
+                    .in_set(StackSet::Mutate)
+                    .in_set(TickSet::Input)
+                    .after(crate::world::entity::player::movement::process_movement),
             )
             .add_systems(FixedUpdate, sync::sync_stack_slots.in_set(StackSet::Sync));
     }

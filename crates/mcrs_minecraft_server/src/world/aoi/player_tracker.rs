@@ -39,13 +39,18 @@ impl Plugin for PlayerTrackerPlugin {
         app.add_message::<ColumnHeld>();
         app.add_observer(announce_held_columns);
         app.add_observer(withdraw_held_columns);
+        app.configure_sets(
+            FixedPostUpdate,
+            PlayerTrackerSet.after(VoxelUpdateSet::NetworkSync),
+        );
         // Must stay in FixedPreUpdate: the drain owns PlayerLeftView emission
         // for removed players. update_tracked_by (FixedPostUpdate) never sees
         // the left-view transition because the drain clears TrackedBy before
         // update_tracked_by runs.
         app.add_systems(
             FixedPreUpdate,
-            crate::world::aoi::drain_player_despawn::drain_inbound_player_despawn,
+            crate::world::aoi::drain_player_despawn::drain_inbound_player_despawn
+                .after(crate::world::sub_app_builder::DimInboxDrain),
         );
         app.add_systems(
             FixedPostUpdate,

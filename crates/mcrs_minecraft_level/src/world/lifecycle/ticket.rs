@@ -6,6 +6,7 @@ use crate::entity::physics::Transform;
 use crate::entity::player::Player;
 use crate::entity::{Despawned, InTransit};
 use crate::palette::ChunkBlocks;
+use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::level::{ENTITY_TICKING_LEVEL, FULL_LEVEL, SectionLevels};
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
@@ -38,6 +39,7 @@ impl Plugin for TicketPlugin {
         app.add_message::<SectionStageChanged>();
         app.init_resource::<SimulationDistance>();
         app.add_observer(release_simulation_ticket);
+        app.configure_sets(FixedUpdate, ChunkSpawnSet.in_set(TickSet::Project));
         app.add_systems(
             FixedUpdate,
             (

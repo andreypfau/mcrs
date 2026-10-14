@@ -81,7 +81,8 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             FixedPostUpdate,
             (
-                crate::world::bridge::run_outbound_flush,
+                crate::world::bridge::run_outbound_flush
+                    .after(bevy_ecs::message::signal_message_update_system),
                 crate::world::bridge::bridge_inbound,
             )
                 .chain(),

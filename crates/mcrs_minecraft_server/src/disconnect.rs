@@ -355,10 +355,15 @@ impl Plugin for DisconnectProtocolPlugin {
         app.init_resource::<OverflowCounter>();
         app.init_resource::<DimDespawnQueue>();
         app.add_observer(on_player_disconnect);
-        app.add_systems(First, drain_pending_disconnects);
+        app.add_systems(
+            First,
+            drain_pending_disconnects.after(bevy_ecs::message::MessageUpdateSystems),
+        );
         app.add_systems(
             Update,
-            filter_inflight_for_disconnect.after(crate::world::bridge::bridge_inbound_to_channel),
+            filter_inflight_for_disconnect
+                .after(crate::world::bridge::bridge_inbound_to_channel)
+                .before(crate::world::bridge::bridge_player_attach),
         );
     }
 }

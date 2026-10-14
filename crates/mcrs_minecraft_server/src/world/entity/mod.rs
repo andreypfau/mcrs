@@ -10,6 +10,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, ContainsEntity, On};
 use bevy_ecs::query::With;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
@@ -48,7 +49,10 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(MobTrackerPlugin);
         app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);
-        app.add_systems(FixedPreUpdate, dispatch_inbound_to_dim);
+        app.add_systems(
+            FixedPreUpdate,
+            dispatch_inbound_to_dim.after(crate::world::sub_app_builder::DimInboxDrain),
+        );
     }
 }
 

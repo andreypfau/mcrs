@@ -53,6 +53,7 @@ mod movement_clientbound_only;
 mod op_level;
 mod play_state_delivery;
 mod run_server_loop_exit;
+mod schedule_ambiguity;
 mod session_lifecycle;
 mod startup_tables;
 mod subapp_lifecycle;

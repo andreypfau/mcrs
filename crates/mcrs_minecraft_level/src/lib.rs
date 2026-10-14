@@ -7,5 +7,6 @@ pub mod explosion;
 pub mod palette;
 pub mod server_loop;
 pub mod session;
+pub mod tick;
 pub mod voxel_update;
 pub mod world;

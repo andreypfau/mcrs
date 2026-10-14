@@ -37,6 +37,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
+use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::ByteAngle;
@@ -109,10 +110,16 @@ impl Plugin for DimPlayerPlugin {
                 despawn_inbound_player.after(consume_inbound_player_spawn),
             ),
         );
-        app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
+        app.add_systems(
+            FixedUpdate,
+            (despawn_on_confirm, unhide_on_rollback)
+                .in_set(TickSet::Input)
+                .before(movement::process_movement),
+        );
         app.add_systems(
             FixedUpdate,
             persistence::autosave_players
+                .in_set(TickSet::Output)
                 .after(StackSet::Sync)
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );

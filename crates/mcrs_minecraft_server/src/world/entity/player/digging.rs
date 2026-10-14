@@ -20,6 +20,7 @@ use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::experience::BlockDestroyed;
 use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_protocol::VarInt;
@@ -44,16 +45,20 @@ impl Plugin for DiggingPlugin {
             FixedUpdate,
             tick_digging
                 .in_set(StackSet::Mutate)
+                .in_set(TickSet::Simulate)
                 .before(crate::world::entity::item::spawn_block_drops),
         );
         app.add_systems(
             Update,
             (
-                (player_start_destroy_block, handle_player_will_destroy_block)
-                    .run_if(resource_exists::<RegistrySet>),
                 player_abort_destroy_block,
+                player_start_destroy_block.run_if(resource_exists::<RegistrySet>),
                 player_stop_destroy_block,
-            ),
+                handle_player_will_destroy_block.run_if(resource_exists::<RegistrySet>),
+            )
+                .chain()
+                .after(super::send_op_level)
+                .before(mcrs_minecraft_level::experience::award_block_experience),
         );
     }
 }

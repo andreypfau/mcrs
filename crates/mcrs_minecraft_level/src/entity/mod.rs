@@ -1,6 +1,7 @@
 use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
 use crate::session::MoveId;
+use crate::tick::TickSet;
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
 use crate::world::storage::section::Section;
 use crate::world::storage::section::SectionIndex;
@@ -27,13 +28,13 @@ impl Plugin for EntityPlugin {
             FixedPreUpdate,
             (add_entity_to_chunk, add_player_synced_entities),
         );
-        app.add_systems(FixedUpdate, sync_entities);
+        app.add_systems(FixedUpdate, sync_entities.in_set(TickSet::Project));
         app.add_systems(
             FixedPostUpdate,
             (
                 remove_entity_despawned,
                 add_old_transform,
-                update_chunk_entities,
+                update_chunk_entities.before(crate::world::dimension::update_old_in_dimensions),
                 update_old_transforms,
             )
                 .chain(),

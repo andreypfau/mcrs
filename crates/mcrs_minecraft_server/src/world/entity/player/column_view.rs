@@ -25,7 +25,9 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
-use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
+use mcrs_minecraft_level::world::storage::column::{
+    ColumnIndex, ColumnLifecycleSet, ColumnPos as EngineColumnPos,
+};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -63,7 +65,12 @@ pub struct ColumnViewSet;
 impl Plugin for ColumnViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<crate::Lighting>();
-        app.configure_sets(FixedUpdate, (ColumnViewSet, ChunkSpawnSet).chain());
+        app.configure_sets(
+            FixedUpdate,
+            ColumnViewSet
+                .after(ColumnLifecycleSet)
+                .before(ChunkSpawnSet),
+        );
         app.add_systems(
             FixedUpdate,
             (

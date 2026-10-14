@@ -59,13 +59,19 @@ pub struct ConfigurationStatePlugin;
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(bevy_app::Startup, bake_dimensions);
-        app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
+        app.add_systems(
+            bevy_app::FixedPreUpdate,
+            start_configuration()
+                .after(mcrs_minecraft_network::NetworkSet::SpawnConnections)
+                .before(crate::keep_alive::handle_keepalive),
+        );
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
         app.add_observer(on_game_configuration_ack);
-        // Runs in Update, before bridge_player_attach, so the spawn is sent
-        // into the control channel before the same tick's dim drain.
-        app.add_systems(Update, emit_initial_player_spawn);
+        app.add_systems(
+            Update,
+            emit_initial_player_spawn.before(crate::world::bridge::bridge_inbound_to_channel),
+        );
     }
 }
 

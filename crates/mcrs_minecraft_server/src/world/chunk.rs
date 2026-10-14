@@ -63,6 +63,7 @@ impl Plugin for ChunkPlugin {
                 dispatch_column_generation.run_if(resource_exists::<FillContext>),
             )
                 .chain()
+                .in_set(mcrs_minecraft_level::tick::TickSet::Project)
                 .after(mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet),
         );
     }

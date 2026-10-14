@@ -1,11 +1,14 @@
 use crate::world::entity::EntityOwner;
-use crate::world::entity::explosive::primed_tnt::{DEFAULT_FUSE_DURATION, PrimedTntBundle};
+use crate::world::entity::explosive::primed_tnt::{
+    DEFAULT_FUSE_DURATION, PrimedTntBundle, update_fuse_durations,
+};
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::On;
 use bevy_ecs::query::{Has, With};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query, Res};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
@@ -14,6 +17,7 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::explosion::{BlockExplodedEvent, Detonator};
+use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use rand::{RngExt, rng};
 
@@ -21,7 +25,12 @@ pub struct TntBlockPlugin;
 
 impl Plugin for TntBlockPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_systems(bevy_app::FixedUpdate, player_will_destroy_tnt);
+        app.add_systems(
+            bevy_app::FixedUpdate,
+            player_will_destroy_tnt
+                .in_set(TickSet::Simulate)
+                .before(update_fuse_durations),
+        );
         app.add_observer(tnt_block_exploded);
     }
 }

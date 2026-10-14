@@ -36,7 +36,10 @@ impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.init_resource::<ServerTicks>();
-        app.add_systems(bevy_app::First, advance_server_ticks);
+        app.add_systems(
+            bevy_app::First,
+            advance_server_ticks.after(bevy_ecs::message::MessageUpdateSystems),
+        );
         app.add_observer(start_login_clock);
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
@@ -46,6 +49,8 @@ impl bevy_app::Plugin for LoginPlugin {
             bevy_app::Update,
             (end_slow_logins, finish_awaiting_logins)
                 .chain()
+                .after(mcrs_minecraft_network::event::run_event_loop)
+                .before(crate::configuration::emit_initial_player_spawn)
                 .run_if(any_with_component::<LoginStarted>),
         );
     }

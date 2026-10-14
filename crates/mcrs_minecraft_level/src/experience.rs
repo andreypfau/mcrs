@@ -108,7 +108,7 @@ fn process_block_experience(
     value as i32
 }
 
-fn award_block_experience(
+pub fn award_block_experience(
     mut destroyed: MessageReader<BlockDestroyed>,
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,

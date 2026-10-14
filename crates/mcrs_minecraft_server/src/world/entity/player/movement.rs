@@ -4,8 +4,11 @@ use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{
     Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
 };
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_level::tick::TickSet;
+use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
@@ -25,8 +28,11 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_packets);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
-        app.add_systems(FixedUpdate, process_movement);
-        app.add_systems(FixedPostUpdate, teleport);
+        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::Input));
+        app.add_systems(
+            FixedPostUpdate,
+            teleport.before(VoxelUpdateSet::NetworkSync),
+        );
     }
 }
 
@@ -109,7 +115,7 @@ pub struct PlayerMovement {
     look: Option<Rotation>,
 }
 
-fn process_movement(
+pub(crate) fn process_movement(
     mut reader: MessageReader<PlayerMovement>,
     mut query: Query<(Mut<TeleportState>, Mut<Transform>)>,
 ) {

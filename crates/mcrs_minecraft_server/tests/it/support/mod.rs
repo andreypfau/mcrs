@@ -1,6 +1,9 @@
 use std::sync::LazyLock;
+use std::time::{Duration, Instant};
 
 use bevy_app::App;
+use bevy_state::state::State;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
@@ -116,5 +119,13 @@ pub fn pickaxe_tagged_tool(registries: &RegistrySet) -> Tool {
         default_mining_speed: 1.0,
         damage_per_block: Bounded(1),
         can_destroy_blocks_in_creative: true,
+    }
+}
+
+pub fn update_until_playing(app: &mut App) {
+    let deadline = Instant::now() + Duration::from_secs(45);
+    while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
+        assert!(Instant::now() < deadline, "never reached Playing");
+        app.update();
     }
 }

@@ -1,8 +1,4 @@
-use std::time::{Duration, Instant};
-
 use bevy_app::App;
-use bevy_state::state::State;
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
@@ -85,11 +81,7 @@ fn spawned_dimensions(plugin: MinecraftServerPlugin) -> Vec<String> {
     });
     app.finish();
     app.cleanup();
-    let deadline = Instant::now() + Duration::from_secs(45);
-    while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
-        assert!(Instant::now() < deadline, "never reached Playing");
-        app.update();
-    }
+    crate::support::update_until_playing(&mut app);
     app.world()
         .resource::<DimSpawnQueue>()
         .0

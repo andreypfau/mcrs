@@ -1,6 +1,8 @@
 use crate::aoi::PlayerObservers;
+use crate::tick::TickSet;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged};
+use crate::world::lifecycle::ticket::ChunkSpawnSet;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
@@ -244,6 +246,12 @@ pub struct ColumnPlugin;
 
 impl Plugin for ColumnPlugin {
     fn build(&self, app: &mut App) {
+        app.configure_sets(
+            FixedUpdate,
+            ColumnLifecycleSet
+                .in_set(TickSet::Project)
+                .before(ChunkSpawnSet),
+        );
         app.add_systems(
             FixedUpdate,
             (

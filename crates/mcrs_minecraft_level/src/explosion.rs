@@ -1,5 +1,6 @@
 use crate::entity::physics::Transform;
 use crate::palette::ChunkBlocks;
+use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::level::SectionLevels;
 use crate::world::storage::section::SectionIndex;
@@ -7,6 +8,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
@@ -19,7 +21,7 @@ pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, tick_explode);
+        app.add_systems(FixedUpdate, tick_explode.in_set(TickSet::Simulate));
     }
 }
 
@@ -127,7 +129,7 @@ type DimEntity = Entity;
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
-fn tick_explode(
+pub fn tick_explode(
     mut explosions: Query<
         (
             ExplosionEntity,

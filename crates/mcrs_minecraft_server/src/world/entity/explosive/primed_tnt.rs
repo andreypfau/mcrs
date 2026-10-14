@@ -6,11 +6,13 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Query};
 use bevy_ecs::query::{With, Without};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius};
+use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius, tick_explode};
+use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -19,7 +21,12 @@ pub struct PrimedTntPlugin;
 
 impl Plugin for PrimedTntPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, update_fuse_durations);
+        app.add_systems(
+            FixedUpdate,
+            update_fuse_durations
+                .in_set(TickSet::Simulate)
+                .before(tick_explode),
+        );
     }
 }
 
@@ -73,7 +80,7 @@ impl Default for Fuse {
     }
 }
 
-fn update_fuse_durations(
+pub(crate) fn update_fuse_durations(
     mut query: Query<
         (Entity, &mut Fuse, &Transform, &InDimension),
         (With<PrimedTnt>, Without<Explosion>),

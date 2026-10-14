@@ -1,11 +1,12 @@
 use crate::entity::Despawned;
 use crate::entity::player::Player;
+use crate::tick::TickSet;
 use crate::world::lifecycle::level::SectionLevels;
 use crate::world::lifecycle::ticket::SectionTickets;
 use crate::world::storage::column::ColumnIndex;
 use crate::world::storage::section::SectionIndex;
 use crate::world::storage::section::SectionPlugin;
-use bevy_app::{App, FixedPostUpdate, Plugin};
+use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
@@ -21,6 +22,17 @@ pub struct DimensionPlugin;
 
 impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
+        app.configure_sets(
+            FixedUpdate,
+            (
+                TickSet::Input,
+                TickSet::Simulate,
+                TickSet::WorldWrite,
+                TickSet::Project,
+                TickSet::Output,
+            )
+                .chain(),
+        );
         app.add_plugins(SectionPlugin);
         app.add_plugins(crate::world::storage::column::ColumnPlugin);
         // Dimension entities are spawned by the game layer; this plugin only
@@ -175,7 +187,7 @@ fn add_old_in_dimension(
     });
 }
 
-fn update_old_in_dimensions(
+pub(crate) fn update_old_in_dimensions(
     mut clients: Query<(&mut OldInDimension, &InDimension), Changed<InDimension>>,
 ) {
     clients

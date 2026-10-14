@@ -34,7 +34,10 @@ impl Plugin for BlockUpdatePlugin {
             app.world().contains_resource::<Messages<BlockPlaced>>(),
             "BlockUpdatePlugin requires Messages<BlockPlaced> registered by the per-dim sub-app builder before add_plugins",
         );
-        app.configure_sets(FixedUpdate, VoxelUpdateSet::ApplyChanges);
+        app.configure_sets(
+            FixedUpdate,
+            VoxelUpdateSet::ApplyChanges.in_set(crate::tick::TickSet::WorldWrite),
+        );
         app.configure_sets(FixedPostUpdate, VoxelUpdateSet::NetworkSync);
         app.add_systems(
             FixedUpdate,

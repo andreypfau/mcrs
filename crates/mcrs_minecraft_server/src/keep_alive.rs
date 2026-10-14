@@ -4,6 +4,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
@@ -23,8 +24,11 @@ pub struct KeepAlivePlugin;
 
 impl Plugin for KeepAlivePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(bevy_app::FixedPreUpdate, handle_keepalive);
-        app.add_systems(bevy_app::FixedPreUpdate, new_connection);
+        app.add_systems(
+            bevy_app::FixedPreUpdate,
+            (handle_keepalive, new_connection)
+                .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
+        );
         app.add_observer(handle_keepalive_response);
     }
 }
