@@ -1,3 +1,4 @@
+mod bypasses;
 mod checks;
 mod floors;
 mod gate;

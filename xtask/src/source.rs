@@ -1,4 +1,6 @@
+use crate::gate::{Lints, lints_at};
 use crate::git;
+use crate::parity::Selection;
 use crate::scope::{self, Head};
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use serde::Deserialize;
@@ -404,23 +406,28 @@ fn lint_attr(meta: &Meta, inner: bool, found: &mut Vec<LintAttr>) {
     });
 }
 
+pub fn attribute_at(tokens: &[TokenTree], at: usize) -> Option<(Meta, bool)> {
+    let TokenTree::Punct(pound) = &tokens[at] else {
+        return None;
+    };
+    if pound.as_char() != '#' {
+        return None;
+    }
+    let inner = matches!(tokens.get(at + 1), Some(TokenTree::Punct(bang)) if bang.as_char() == '!');
+    let Some(TokenTree::Group(group)) = tokens.get(at + 1 + usize::from(inner)) else {
+        return None;
+    };
+    if group.delimiter() != Delimiter::Bracket {
+        return None;
+    }
+    syn::parse2::<Meta>(group.stream())
+        .ok()
+        .map(|meta| (meta, inner))
+}
+
 fn lint_attrs_in_tokens(stream: &TokenStream, found: &mut Vec<LintAttr>) {
     walk_tokens(stream, &mut |tokens, at| {
-        let TokenTree::Punct(pound) = &tokens[at] else {
-            return;
-        };
-        if pound.as_char() != '#' {
-            return;
-        }
-        let inner =
-            matches!(tokens.get(at + 1), Some(TokenTree::Punct(bang)) if bang.as_char() == '!');
-        let Some(TokenTree::Group(group)) = tokens.get(at + 1 + usize::from(inner)) else {
-            return;
-        };
-        if group.delimiter() != Delimiter::Bracket {
-            return;
-        }
-        if let Ok(meta) = syn::parse2::<Meta>(group.stream()) {
+        if let Some((meta, inner)) = attribute_at(tokens, at) {
             lint_attr(&meta, inner, found);
         }
     });
@@ -495,8 +502,257 @@ impl PackageMap {
     }
 }
 
+pub(crate) const MANIFEST: &str = "Cargo.toml";
+
+pub(crate) struct Tree<'a> {
+    pub(crate) repo: &'a Path,
+    pub(crate) head: Head,
+    pub(crate) paths: Vec<String>,
+    pub(crate) manifests: Files,
+    pub(crate) packages: PackageMap,
+}
+
+impl<'a> Tree<'a> {
+    pub(crate) fn read(repo: &'a Path, head: Head) -> Result<Tree<'a>, String> {
+        let paths = scope::tracked(repo, &head)?;
+        let manifest_paths: Vec<String> = paths
+            .iter()
+            .filter(|path| file_name(path) == MANIFEST)
+            .cloned()
+            .collect();
+        let manifests = read_files(repo, &head, &manifest_paths)?;
+        let packages = PackageMap::new(&manifests)?;
+        Ok(Tree {
+            repo,
+            head,
+            paths,
+            manifests,
+            packages,
+        })
+    }
+
+    pub(crate) fn in_scope(&self, path: &str, scope: Option<&BTreeSet<String>>) -> bool {
+        scope.is_none_or(|owners| owners.contains(self.packages.owner(path)))
+    }
+
+    pub(crate) fn read_rust(&self, keep: impl Fn(&str) -> bool) -> Result<Files, String> {
+        let rust: Vec<String> = self
+            .paths
+            .iter()
+            .filter(|path| path.ends_with(".rs") && keep(path))
+            .cloned()
+            .collect();
+        read_files(self.repo, &self.head, &rust)
+    }
+}
+
+pub(crate) struct Trees<'a> {
+    pub(crate) in_force: bool,
+    pub(crate) head: Tree<'a>,
+    pub(crate) base: Tree<'a>,
+    pub(crate) scope: Option<BTreeSet<String>>,
+}
+
+impl<'a> Trees<'a> {
+    pub(crate) fn read(
+        repo: &'a Path,
+        base: &str,
+        head: &Head,
+        selection: &Selection,
+        in_force: impl Fn(&Lints) -> bool,
+    ) -> Result<Trees<'a>, String> {
+        let in_force = lints_at(repo, base, head)?.is_some_and(|lints| in_force(&lints));
+        let head = Tree::read(repo, head.clone())?;
+        let base = Tree::read(repo, Head::Commit(base.to_owned()))?;
+        let scope = scoped(selection, &head, &base);
+        Ok(Trees {
+            in_force,
+            head,
+            base,
+            scope,
+        })
+    }
+}
+
+const SHOWN: usize = 25;
+
+pub(crate) fn failure<'a>(findings: impl IntoIterator<Item = &'a String>, fix: &str) -> String {
+    let findings: Vec<&String> = findings.into_iter().collect();
+    let shown: Vec<&str> = findings
+        .iter()
+        .take(SHOWN)
+        .map(|line| line.as_str())
+        .collect();
+    let more = findings.len() - shown.len();
+    let tail = if more > 0 {
+        format!("; and {more} more")
+    } else {
+        String::new()
+    };
+    format!("{}{tail}; {fix}", shown.join("; "))
+}
+
+pub(crate) fn verdict(
+    findings: &BTreeSet<String>,
+    fix: &str,
+    clean: impl FnOnce() -> String,
+) -> Result<String, String> {
+    if findings.is_empty() {
+        Ok(clean())
+    } else {
+        Err(failure(findings, fix))
+    }
+}
+
+pub(crate) fn scoped(selection: &Selection, head: &Tree, base: &Tree) -> Option<BTreeSet<String>> {
+    let Selection::Changed(paths) = selection else {
+        return None;
+    };
+    Some(
+        paths
+            .iter()
+            .flat_map(|path| [head.packages.owner(path), base.packages.owner(path)])
+            .map(str::to_owned)
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+pub(crate) mod fixture {
+    use super::*;
+    use crate::scope::tests::Repo;
+
+    pub(crate) type Edit = (&'static str, Option<String>);
+
+    pub(crate) fn files(rows: &[(&str, &str)]) -> Files {
+        rows.iter()
+            .map(|(path, text)| ((*path).to_owned(), (*text).to_owned()))
+            .collect()
+    }
+
+    pub(crate) fn put(path: &'static str, text: &str) -> Edit {
+        (path, Some(text.to_owned()))
+    }
+
+    pub(crate) fn del(path: &'static str) -> Edit {
+        (path, None)
+    }
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum At {
+        Commit,
+        Worktree,
+        DetachedAtBase,
+    }
+
+    pub(crate) enum Verdict {
+        Pass(&'static [&'static str]),
+        Fail(&'static [&'static str]),
+    }
+
+    pub(crate) struct Row {
+        name: String,
+        base: Vec<Edit>,
+        head: Vec<Edit>,
+        at: At,
+        changed: Option<Vec<String>>,
+        verdict: Verdict,
+    }
+
+    pub(crate) fn row(name: &str, base: Vec<Edit>, head: Vec<Edit>, verdict: Verdict) -> Row {
+        Row {
+            name: name.to_owned(),
+            base,
+            head,
+            at: At::Commit,
+            changed: None,
+            verdict,
+        }
+    }
+
+    impl Row {
+        pub(crate) fn at(mut self, at: At) -> Row {
+            self.at = at;
+            self
+        }
+
+        pub(crate) fn changed(mut self, paths: &[&str]) -> Row {
+            self.changed = Some(paths.iter().map(|p| (*p).to_owned()).collect());
+            self
+        }
+    }
+
+    fn apply(repo: &Repo, edits: &[Edit]) {
+        for (path, text) in edits {
+            match text {
+                Some(text) => repo.write(path, text),
+                None => repo.remove(path),
+            }
+        }
+    }
+
+    pub(crate) type Judge = fn(&Path, &str, &Head, Selection) -> Result<String, String>;
+
+    pub(crate) fn judge(
+        label: &str,
+        standard: &BTreeMap<&'static str, String>,
+        check: Judge,
+        row: &Row,
+    ) -> Option<String> {
+        let repo = Repo::new(label);
+        repo.init();
+        let mut base = standard.clone();
+        for (path, text) in &row.base {
+            match text {
+                Some(text) => base.insert(path, text.clone()),
+                None => base.remove(path),
+            };
+        }
+        for (path, text) in &base {
+            repo.write(path, text);
+        }
+        repo.commit("base");
+        let base_sha = repo.sha();
+        apply(&repo, &row.head);
+        let head = match row.at {
+            At::Worktree => Head::Worktree,
+            At::Commit | At::DetachedAtBase => {
+                repo.commit("head");
+                let head = Head::Commit(repo.sha());
+                if matches!(row.at, At::DetachedAtBase) {
+                    repo.git(&["checkout", "--quiet", "--detach", &base_sha]);
+                }
+                head
+            }
+        };
+        let status = repo.status();
+        let selection = match &row.changed {
+            Some(paths) => Selection::Changed(paths),
+            None => Selection::Every,
+        };
+        let found = check(&repo.0, &base_sha, &head, selection);
+        if repo.status() != status {
+            return Some(format!("{}: the check changed the working tree", row.name));
+        }
+        let wrong = match (&row.verdict, &found) {
+            (Verdict::Pass(needles), Ok(detail)) => needles
+                .iter()
+                .find(|needle| !detail.contains(*needle))
+                .map(|needle| format!("passed without {needle:?}")),
+            (Verdict::Fail(needles), Err(message)) => needles
+                .iter()
+                .find(|needle| !message.contains(*needle))
+                .map(|needle| format!("failed without {needle:?}")),
+            (Verdict::Pass(_), Err(message)) => Some(format!("failed: {message}")),
+            (Verdict::Fail(_), Ok(detail)) => Some(format!("passed: {detail}")),
+        };
+        wrong.map(|what| format!("{}: {what}; got {found:?}", row.name))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::fixture::files;
     use super::*;
     use crate::scope::tests::Repo;
 
@@ -528,12 +784,6 @@ mod tests {
             .err()
             .expect("a malformed manifest");
         assert!(error.contains("crates/x/Cargo.toml"), "{error}");
-    }
-
-    fn files(rows: &[(&str, &str)]) -> Files {
-        rows.iter()
-            .map(|(path, text)| ((*path).to_owned(), (*text).to_owned()))
-            .collect()
     }
 
     fn names_in_modules(root: &str, files: &Files) -> Vec<String> {

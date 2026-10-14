@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{floors, gate, marker, mutation, parity, size, suppressions, unused_deps};
+use crate::{bypasses, floors, gate, marker, mutation, parity, size, suppressions, unused_deps};
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -149,7 +149,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::GateConfig => gate::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::MutationMarker => marker::check(&ctx.root, &ctx.head),
         Check::Floors => floors::check(&ctx.root, ctx.base()?, &ctx.head),
-        Check::Suppressions => suppressions_check(ctx),
+        Check::Suppressions => scanner_check(ctx, suppressions::check),
+        Check::Bypasses => scanner_check(ctx, bypasses::check),
         Check::Parity => parity_check(ctx),
         Check::UnusedDeps => {
             unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
@@ -221,13 +222,16 @@ fn parity_check(ctx: &Context) -> Outcome {
     parity::check(&ctx.root, base, &ctx.head, selection, annotate)
 }
 
-fn suppressions_check(ctx: &Context) -> Outcome {
+fn scanner_check(
+    ctx: &Context,
+    check: fn(&Path, &str, &Head, parity::Selection) -> Outcome,
+) -> Outcome {
     let base = ctx.base()?;
     if ctx.trigger != Trigger::Edit {
-        return suppressions::check(&ctx.root, base, &ctx.head, parity::Selection::Every);
+        return check(&ctx.root, base, &ctx.head, parity::Selection::Every);
     }
     let changed = scope::changed_paths(&ctx.root, base, &ctx.head)?;
-    suppressions::check(
+    check(
         &ctx.root,
         base,
         &ctx.head,

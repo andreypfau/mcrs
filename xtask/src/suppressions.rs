@@ -1,13 +1,12 @@
-use crate::gate::{self, any_glob_matches, inherits_workspace, parse_manifest};
+use crate::checks::Outcome;
+use crate::gate::{any_glob_matches, inherits_workspace, parse_manifest};
 use crate::parity::Selection;
 use crate::scope::{self, Head};
-use crate::source::{self, Files, Level, LintAttr, PackageMap};
+use crate::source::{self, Files, Level, LintAttr, MANIFEST, PackageMap, Tree, Trees, verdict};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-const MANIFEST: &str = "Cargo.toml";
-const SHOWN: usize = 25;
 const FIX: &str = "use #[expect(<lint>, reason = \"...\")] at the item where the lint fires, with a reason that says why the lint is wrong there, or fix the code; a crate's count may not rise";
 const CRATE_WIDE: [&str; 3] = [
     "clippy::too_many_lines",
@@ -130,45 +129,9 @@ fn scan_sources(files: &Files, packages: &PackageMap) -> Scan {
     scan
 }
 
-struct Tree<'a> {
-    repo: &'a Path,
-    head: Head,
-    paths: Vec<String>,
-    manifests: Files,
-    packages: PackageMap,
-}
-
-impl<'a> Tree<'a> {
-    fn read(repo: &'a Path, head: Head) -> Result<Tree<'a>, String> {
-        let paths = scope::tracked(repo, &head)?;
-        let manifest_paths: Vec<String> = paths
-            .iter()
-            .filter(|path| source::file_name(path) == MANIFEST)
-            .cloned()
-            .collect();
-        let manifests = source::read_files(repo, &head, &manifest_paths)?;
-        let packages = PackageMap::new(&manifests)?;
-        Ok(Tree {
-            repo,
-            head,
-            paths,
-            manifests,
-            packages,
-        })
-    }
-
-    fn in_scope(&self, path: &str, scope: Option<&BTreeSet<String>>) -> bool {
-        scope.is_none_or(|owners| owners.contains(self.packages.owner(path)))
-    }
-
+impl Tree<'_> {
     fn scan(&self, scope: Option<&BTreeSet<String>>) -> Result<Scan, String> {
-        let rust: Vec<String> = self
-            .paths
-            .iter()
-            .filter(|path| path.ends_with(".rs") && self.in_scope(path, scope))
-            .cloned()
-            .collect();
-        let files = source::read_files(self.repo, &self.head, &rust)?;
+        let files = self.read_rust(|path| self.in_scope(path, scope))?;
         Ok(scan_sources(&files, &self.packages))
     }
 
@@ -380,38 +343,18 @@ fn over_base(now: &Scan, before: &Scan, existed: &PackageMap) -> BTreeSet<String
     over
 }
 
-fn scoped(selection: &Selection, head: &Tree, base: &Tree) -> Option<BTreeSet<String>> {
-    let Selection::Changed(paths) = selection else {
-        return None;
-    };
-    Some(
-        paths
-            .iter()
-            .flat_map(|path| [head.packages.owner(path), base.packages.owner(path)])
-            .map(str::to_owned)
-            .collect(),
-    )
-}
-
-pub(crate) fn check(
-    repo: &Path,
-    base: &str,
-    head: &Head,
-    selection: Selection,
-) -> Result<String, String> {
-    let in_force =
-        gate::lints_at(repo, base, head)?.is_some_and(|lints| lints.suppressions.is_some());
-    let at_head = Tree::read(repo, head.clone())?;
-    let at_base = Tree::read(repo, Head::Commit(base.to_owned()))?;
-    let scope = scoped(&selection, &at_head, &at_base);
-    let now = at_head.scan(scope.as_ref())?;
+pub(crate) fn check(repo: &Path, base: &str, head: &Head, selection: Selection) -> Outcome {
+    let trees = Trees::read(repo, base, head, &selection, |lints| {
+        lints.suppressions.is_some()
+    })?;
+    let now = trees.head.scan(trees.scope.as_ref())?;
     if !now.unparsed.is_empty() {
         return Err(now.unparsed.join("; "));
     }
-    let before = at_base.scan(scope.as_ref())?;
-    let over = over_base(&now, &before, &at_base.packages);
-    let manifests = at_head.unopted(scope.as_ref())?;
-    if !in_force {
+    let before = trees.base.scan(trees.scope.as_ref())?;
+    let over = over_base(&now, &before, &trees.base.packages);
+    let manifests = trees.head.unopted(trees.scope.as_ref())?;
+    if !trees.in_force {
         return Ok(format!(
             "not in force yet at {}; {} allow sites, {} expect findings, {} manifests not opted in, {} packages over their base count",
             scope::short(base),
@@ -425,38 +368,25 @@ pub(crate) fn check(
     findings.extend(now.allows.iter().cloned());
     findings.extend(now.expects.iter().cloned());
     findings.extend(manifests);
-    findings.extend(at_head.configuration(&selection)?);
+    findings.extend(trees.head.configuration(&selection)?);
     findings.extend(over);
-    if findings.is_empty() {
+    verdict(&findings, FIX, || {
         let packages: BTreeSet<&str> = now.sites.iter().map(|site| site.package.as_str()).collect();
-        return Ok(format!(
+        format!(
             "no allow; {} expect lint paths in {} packages",
             now.sites.len(),
             packages.len()
-        ));
-    }
-    let shown: Vec<&str> = findings.iter().map(String::as_str).take(SHOWN).collect();
-    let more = findings.len() - shown.len();
-    let tail = if more > 0 {
-        format!("; and {more} more")
-    } else {
-        String::new()
-    };
-    Err(format!("{}{tail}; {FIX}", shown.join("; ")))
+        )
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scope::tests::{Repo, judge_rows_in_parallel};
+    use crate::scope::tests::judge_rows_in_parallel;
+    use crate::source::fixture::{self, At, Row, Verdict, del, files, put, row};
     use std::collections::BTreeMap;
     use std::process::Command;
-
-    fn files(rows: &[(&str, &str)]) -> Files {
-        rows.iter()
-            .map(|(path, text)| ((*path).to_owned(), (*text).to_owned()))
-            .collect()
-    }
 
     fn scan_one(source: &str) -> Scan {
         let tree = files(&[("lib.rs", source)]);
@@ -681,60 +611,6 @@ mod tests {
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n\n{lints}")
     }
 
-    type Edit = (&'static str, Option<String>);
-
-    fn put(path: &'static str, text: &str) -> Edit {
-        (path, Some(text.to_owned()))
-    }
-
-    fn del(path: &'static str) -> Edit {
-        (path, None)
-    }
-
-    #[derive(Clone, Copy)]
-    enum At {
-        Commit,
-        Worktree,
-        DetachedAtBase,
-    }
-
-    enum Verdict {
-        Pass(&'static [&'static str]),
-        Fail(&'static [&'static str]),
-    }
-
-    struct Row {
-        name: String,
-        base: Vec<Edit>,
-        head: Vec<Edit>,
-        at: At,
-        changed: Option<Vec<String>>,
-        verdict: Verdict,
-    }
-
-    fn row(name: &str, base: Vec<Edit>, head: Vec<Edit>, verdict: Verdict) -> Row {
-        Row {
-            name: name.to_owned(),
-            base,
-            head,
-            at: At::Commit,
-            changed: None,
-            verdict,
-        }
-    }
-
-    impl Row {
-        fn at(mut self, at: At) -> Row {
-            self.at = at;
-            self
-        }
-
-        fn changed(mut self, paths: &[&str]) -> Row {
-            self.changed = Some(paths.iter().map(|p| (*p).to_owned()).collect());
-            self
-        }
-    }
-
     fn standard() -> BTreeMap<&'static str, String> {
         BTreeMap::from([
             ("Cargo.toml", ROOT.to_owned()),
@@ -747,64 +623,8 @@ mod tests {
         ])
     }
 
-    fn apply(repo: &Repo, edits: &[Edit]) {
-        for (path, text) in edits {
-            match text {
-                Some(text) => repo.write(path, text),
-                None => repo.remove(path),
-            }
-        }
-    }
-
     fn judge(row: &Row) -> Option<String> {
-        let repo = Repo::new("suppressions");
-        repo.init();
-        let mut base = standard();
-        for (path, text) in &row.base {
-            match text {
-                Some(text) => base.insert(path, text.clone()),
-                None => base.remove(path),
-            };
-        }
-        for (path, text) in &base {
-            repo.write(path, text);
-        }
-        repo.commit("base");
-        let base_sha = repo.sha();
-        apply(&repo, &row.head);
-        let head = match row.at {
-            At::Worktree => Head::Worktree,
-            At::Commit | At::DetachedAtBase => {
-                repo.commit("head");
-                let head = Head::Commit(repo.sha());
-                if matches!(row.at, At::DetachedAtBase) {
-                    repo.git(&["checkout", "--quiet", "--detach", &base_sha]);
-                }
-                head
-            }
-        };
-        let status = repo.status();
-        let selection = match &row.changed {
-            Some(paths) => Selection::Changed(paths),
-            None => Selection::Every,
-        };
-        let found = check(&repo.0, &base_sha, &head, selection);
-        if repo.status() != status {
-            return Some(format!("{}: the check changed the working tree", row.name));
-        }
-        let wrong = match (&row.verdict, &found) {
-            (Verdict::Pass(needles), Ok(detail)) => needles
-                .iter()
-                .find(|needle| !detail.contains(*needle))
-                .map(|needle| format!("passed without {needle:?}")),
-            (Verdict::Fail(needles), Err(message)) => needles
-                .iter()
-                .find(|needle| !message.contains(*needle))
-                .map(|needle| format!("failed without {needle:?}")),
-            (Verdict::Pass(_), Err(message)) => Some(format!("failed: {message}")),
-            (Verdict::Fail(_), Ok(detail)) => Some(format!("passed: {detail}")),
-        };
-        wrong.map(|what| format!("{}: {what}; got {found:?}", row.name))
+        fixture::judge("suppressions", &standard(), check, row)
     }
 
     fn config_rows() -> Vec<Row> {
