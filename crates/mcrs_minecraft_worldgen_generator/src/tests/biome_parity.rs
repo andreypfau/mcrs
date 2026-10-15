@@ -7,15 +7,15 @@ use super::multi_noise_biomes::overworld_table;
 use crate::multi_noise_palettes;
 
 const MAGIC: &[u8; 8] = b"MCBIOME0";
-pub(super) const BLOCKS: usize = 16 * 16 * 16;
+const BLOCKS: usize = 16 * 16 * 16;
 
-pub(super) struct Column {
+struct Column {
     seed: u64,
-    pub(super) chunk_x: i32,
-    pub(super) chunk_z: i32,
+    chunk_x: i32,
+    chunk_z: i32,
     min_section: i32,
     palette: Vec<String>,
-    pub(super) sections: Vec<Vec<u32>>,
+    sections: Vec<Vec<u32>>,
 }
 
 impl Column {
@@ -28,7 +28,7 @@ impl Column {
     }
 }
 
-pub(super) fn read_dump() -> Vec<Column> {
+fn read_dump() -> Vec<Column> {
     let mut r = bytes::Bytes::from(fixture("biome_containers").dump(MAGIC));
     let columns = (0..r.get_u32_le())
         .map(|_| {

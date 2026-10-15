@@ -35,7 +35,7 @@ pub(crate) struct DumpSeed {
     pub(crate) dims: Vec<DumpDim>,
 }
 
-pub(crate) fn read_dump() -> Vec<DumpSeed> {
+fn read_dump() -> Vec<DumpSeed> {
     let source = fixture("structure_placement").file("structure_cells.bin");
     let mut r = bytes::Bytes::from(source.dump(MAGIC));
     let seeds = (0..r.get_u32_le())

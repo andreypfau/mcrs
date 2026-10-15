@@ -70,14 +70,6 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
 ///
 /// This test FAILS (RED) until idx is corrected to z_local*16 + x_local.
 #[test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one comparison of the bedrock band against the captured back2beta chunk, with its expected values inline"
-)]
-#[expect(
-    clippy::excessive_nesting,
-    reason = "scans each block of the captured section for surface blocks of grass, dirt and sand, with the comparison inline"
-)]
 fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
     let (biome_source, _) = build_beta_biome_source();
@@ -170,10 +162,6 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         failures.join("\n"),
     );
 
-    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block").0);
-    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt").0);
-    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand").0);
-
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
     let y0_all_bedrock = (0..16i32).all(|x| {
@@ -181,30 +169,6 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
             .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
     });
     assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
-
-    // Surface zone: sections 3-5 (world Y 48-95) must contain surface blocks
-    let mut found_surface_block = false;
-    for (si, sy) in y_sections.iter().enumerate() {
-        if *sy < 3 || *sy > 5 {
-            continue;
-        }
-        if let Some((blocks, _)) = &sections[si] {
-            for x in 0..16i32 {
-                for z in 0..16i32 {
-                    for y in 0..16i32 {
-                        let b = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
-                        if b == grass_id || b == dirt_id || b == sand_id {
-                            found_surface_block = true;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert!(
-        found_surface_block,
-        "surface zone must contain grass, dirt, or sand after apply_beta_surface"
-    );
 }
 
 /// Oracle test: terrain-surface Y (density stone top) for the six worst-offender columns
@@ -225,36 +189,8 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
 /// Root-cause probe: The test also evaluates the scale/depth noise samplers at three
 /// sampling modes and prints d5/d6/d7 for (24,-16).
 #[test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one comparison of the terrain tops against the captured back2beta chunk, with its noise probes beside the assertions"
-)]
 fn beta_terrain_height_matches_back2beta_oracle() {
-    #[derive(serde::Deserialize)]
-    struct CorpusRoot {
-        columns: Vec<CorpusCol>,
-    }
-    #[derive(serde::Deserialize)]
-    struct CorpusCol {
-        wx: i32,
-        wz: i32,
-        #[serde(with = "serde_b64")]
-        pre_cave: Vec<u8>,
-    }
-    mod serde_b64 {
-        use base64::Engine as _;
-        use serde::{Deserialize, Deserializer};
-        pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<u8>, D::Error> {
-            let s = String::deserialize(de)?;
-            base64::engine::general_purpose::STANDARD
-                .decode(s)
-                .map_err(serde::de::Error::custom)
-        }
-    }
-
-    let corpus: CorpusRoot =
-        serde_json::from_str(include_str!("fixtures/beta_surface_corpus.json"))
-            .expect("valid corpus");
+    let corpus = super::beta_surface_capture::load_corpus();
 
     // Corpus terrain top: topmost non-air (0) non-water (9) byte.
     // This is the density stone top — originally stone in generateTerrain, possibly

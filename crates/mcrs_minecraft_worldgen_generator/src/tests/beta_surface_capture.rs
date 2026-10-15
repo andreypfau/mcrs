@@ -19,17 +19,19 @@ use crate::{apply_beta_surface, generate_column};
 // ── Corpus deserialization ────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
-struct BetaSurfaceCorpus {
-    columns: Vec<ColumnFixture>,
+pub(super) struct BetaSurfaceCorpus {
+    pub(super) columns: Vec<ColumnFixture>,
 }
 
 #[derive(serde::Deserialize)]
-struct ColumnFixture {
-    wx: i32,
-    wz: i32,
+pub(super) struct ColumnFixture {
+    pub(super) wx: i32,
+    pub(super) wz: i32,
     biome_id: u8,
     #[serde(with = "serde_base64")]
-    pre_cave: Vec<u8>,
+    pub(super) pre_cave: Vec<u8>,
+    #[serde(with = "serde_base64")]
+    pub(super) post_cave: Vec<u8>,
 }
 
 mod serde_base64 {
@@ -44,7 +46,7 @@ mod serde_base64 {
     }
 }
 
-fn load_corpus() -> BetaSurfaceCorpus {
+pub(super) fn load_corpus() -> BetaSurfaceCorpus {
     serde_json::from_str(include_str!("fixtures/beta_surface_corpus.json"))
         .expect("valid corpus JSON")
 }

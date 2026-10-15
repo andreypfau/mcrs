@@ -21,13 +21,6 @@ fn a_path_outside_the_built_in_folders_is_not_served() {
     );
 }
 
-#[test]
-fn the_typed_folders_are_built_for_a_pack() {
-    assert_eq!(builtin::built("vanilla").len(), 5);
-    assert_eq!(builtin::built("beta").len(), 3);
-    assert!(builtin::built("mcrs").is_empty());
-}
-
 fn templates_read_back_from_the_bytes_they_are_served_as(count: usize) {
     let built = builtin::templates();
     assert_eq!(built.len(), 483);

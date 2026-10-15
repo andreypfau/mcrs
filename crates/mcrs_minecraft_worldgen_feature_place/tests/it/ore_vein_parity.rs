@@ -38,7 +38,7 @@ pub(crate) struct DumpCase {
     placements: Vec<([i32; 3], String)>,
 }
 
-pub(crate) fn read_dump() -> Vec<DumpCase> {
+fn read_dump() -> Vec<DumpCase> {
     let source = fixture("ore_vein");
     let mut r = bytes::Bytes::from(source.dump(MAGIC));
     let case_count = r.get_u32_le() as usize;

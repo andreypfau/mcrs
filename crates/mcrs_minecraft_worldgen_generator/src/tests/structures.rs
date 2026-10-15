@@ -467,6 +467,14 @@ fn the_jigsaw_range_plus_its_terrain_margin_stays_within_128() {
         )
         .is_ok()
     );
+    assert_eq!(
+        check(
+            &[],
+            &[("minecraft:s", &jigsaw_reaching(117, adapted))],
+            &[("minecraft:empty", EMPTY_POOL)]
+        ),
+        "minecraft:s: max_distance_from_center 117 plus the terrain adaptation margin 12 exceeds 128"
+    );
 }
 
 #[test]

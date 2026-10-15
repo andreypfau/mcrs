@@ -80,23 +80,42 @@ fn assert_regions_match_columns(
     carved
 }
 
+fn land() -> NoiseRouter {
+    build_settings_router("overworld", 12345)
+}
+
 #[test]
 fn a_region_slot_equals_the_column_carved_alone() {
-    let overworld = build_settings_router("overworld", 12345);
-    let ocean = build_settings_router("overworld", 845);
-    let carved = assert_regions_match_columns(&overworld, Preset::Overworld, 4, &square(8, -8, 4));
+    let carved = assert_regions_match_columns(&land(), Preset::Overworld, 4, &square(8, -8, 4));
     assert!(
         carved > 0,
         "the land region carved nothing, so nothing was compared"
     );
+}
 
-    a_column_below_zero_belongs_to_the_region_below_zero(&overworld);
-    a_source_past_a_columns_reach_does_not_carve_it_through_a_shared_region(&overworld);
-    a_region_is_built_once_for_all_its_columns(&overworld);
-    the_region_cache_holds_at_most_its_capacity(&overworld);
-    two_seeds_do_not_share_a_region(&overworld, &ocean);
-    two_heights_do_not_share_a_region(&overworld);
-    a_region_of_one_column_is_not_kept(&overworld);
+#[test]
+fn a_region_is_keyed_by_its_floor_reach_and_capacity() {
+    let router = land();
+    a_column_below_zero_belongs_to_the_region_below_zero(&router);
+    a_source_past_a_columns_reach_does_not_carve_it_through_a_shared_region(&router);
+    the_region_cache_holds_at_most_its_capacity(&router);
+}
+
+#[test]
+fn a_region_is_built_once_for_all_its_columns() {
+    a_region_shared_by_threads_is_built_once(&land());
+}
+
+#[test]
+fn two_seeds_do_not_share_a_region() {
+    two_seeds_do_not_share_one(&land(), &build_settings_router("overworld", 845));
+}
+
+#[test]
+fn two_heights_or_one_column_do_not_share_a_region() {
+    let router = land();
+    two_heights_do_not_share_one(&router);
+    a_region_of_one_column_is_not_kept(&router);
 }
 
 fn a_column_below_zero_belongs_to_the_region_below_zero(router: &NoiseRouter) {
@@ -166,7 +185,7 @@ fn a_source_past_a_columns_reach_does_not_carve_it_through_a_shared_region(route
     assert!(carved > 0, "the canyons carved nothing");
 }
 
-fn a_region_is_built_once_for_all_its_columns(router: &NoiseRouter) {
+fn a_region_shared_by_threads_is_built_once(router: &NoiseRouter) {
     let seed = router.world_seed;
     let height = extent(router);
     let shared = table(Preset::Overworld, 4, 4);
@@ -266,7 +285,7 @@ fn the_region_cache_holds_at_most_its_capacity(router: &NoiseRouter) {
     }
 }
 
-fn two_seeds_do_not_share_a_region(first: &NoiseRouter, second: &NoiseRouter) {
+fn two_seeds_do_not_share_one(first: &NoiseRouter, second: &NoiseRouter) {
     let shared = table(Preset::Overworld, 2, 4);
     let alone = table(Preset::Overworld, 1, 0);
     let mut ws = Workspace::new();
@@ -300,7 +319,7 @@ fn two_seeds_do_not_share_a_region(first: &NoiseRouter, second: &NoiseRouter) {
     assert_eq!(shared.region_entries_for_test(), Some(2));
 }
 
-fn two_heights_do_not_share_a_region(router: &NoiseRouter) {
+fn two_heights_do_not_share_one(router: &NoiseRouter) {
     let seed = router.world_seed;
     let tall = extent(router);
     let short = HeightContext {
@@ -407,12 +426,38 @@ fn generate(
     })
 }
 
-fn assert_blocks_independent_of_region_order_and_cache(seed: u64, surfaced: bool) {
-    let columns = square(-4, -2, 4)
+#[derive(Clone, Copy)]
+enum Order {
+    AsGiven,
+    Reversed,
+    Strided,
+}
+
+type Configuration = (i32, usize, Order, usize);
+
+const EVERY_CONFIGURATION: [Configuration; 6] = [
+    (4, 16, Order::AsGiven, 1),
+    (4, 2, Order::Reversed, 1),
+    (3, 1, Order::Strided, 1),
+    (8, 3, Order::Strided, 1),
+    (4, 16, Order::AsGiven, 4),
+    (3, 2, Order::Reversed, 4),
+];
+
+fn spread_columns() -> Vec<(i32, i32)> {
+    square(-4, -2, 4)
         .into_iter()
         .chain(square(4, 4, 3))
-        .collect::<Vec<_>>();
-    let mut reversed = columns.clone();
+        .collect()
+}
+
+fn assert_blocks_independent_of_region_order_and_cache(
+    seed: u64,
+    surfaced: bool,
+    columns: &[(i32, i32)],
+    configurations: &[Configuration],
+) {
+    let mut reversed = columns.to_vec();
     reversed.reverse();
     let strided: Vec<_> = (0..columns.len())
         .map(|index| columns[(index * 7) % columns.len()])
@@ -435,23 +480,21 @@ fn assert_blocks_independent_of_region_order_and_cache(seed: u64, surfaced: bool
     };
 
     with(&mut context, 1, 0);
-    let expected = generate(&context, &columns, 1);
+    let expected = generate(&context, columns, 1);
     assert!(
         expected.values().any(|blocks| blocks.contains(&0)),
         "the baseline generated no air at all"
     );
 
-    for (width, capacity, order, threads) in [
-        (4, 16, &columns, 1),
-        (4, 2, &reversed, 1),
-        (3, 1, &strided, 1),
-        (8, 3, &strided, 1),
-        (4, 16, &columns, 4),
-        (3, 2, &reversed, 4),
-    ] {
+    for &(width, capacity, order, threads) in configurations {
+        let order = match order {
+            Order::AsGiven => columns,
+            Order::Reversed => &reversed,
+            Order::Strided => &strided,
+        };
         with(&mut context, width, capacity);
         let got = generate(&context, order, threads);
-        for column in &columns {
+        for column in columns {
             assert!(
                 got[column] == expected[column],
                 "seed {seed} surfaced {surfaced}: column {column:?} differs at width {width}, \
@@ -463,7 +506,12 @@ fn assert_blocks_independent_of_region_order_and_cache(seed: u64, surfaced: bool
 
 #[test]
 fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache() {
-    assert_blocks_independent_of_region_order_and_cache(12345, true);
+    assert_blocks_independent_of_region_order_and_cache(
+        12345,
+        true,
+        &square(-2, -2, 3),
+        &[EVERY_CONFIGURATION[2], EVERY_CONFIGURATION[5]],
+    );
 }
 
 type Pair = ((i32, i32), (i32, i32));
@@ -613,7 +661,7 @@ fn assert_blocks_independent_of_width(
 
 #[test]
 fn a_columns_blocks_do_not_depend_on_the_region_width() {
-    assert_blocks_independent_of_width(845, -4, 8, &[4], 1, 3);
+    assert_blocks_independent_of_width(845, -2, 4, &[2], 1, 3);
 }
 
 mod exhaustive {
@@ -663,13 +711,19 @@ mod exhaustive {
 
     #[test]
     fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache_at_every_seed() {
-        for (seed, surfaced) in [(845, true), (845, false)] {
-            assert_blocks_independent_of_region_order_and_cache(seed, surfaced);
+        for (seed, surfaced) in [(12345, true), (845, true), (845, false)] {
+            assert_blocks_independent_of_region_order_and_cache(
+                seed,
+                surfaced,
+                &spread_columns(),
+                &EVERY_CONFIGURATION,
+            );
         }
     }
 
     #[test]
     fn a_columns_blocks_do_not_depend_on_the_region_width_at_every_seed() {
+        assert_blocks_independent_of_width(845, -4, 8, &[4], 1, 3);
         for seed in [845, 12345, 7, 1] {
             for origin in [-8, -5] {
                 assert_blocks_independent_of_width(seed, origin, 16, &[2, 3, 4, 5, 8], 4, 5);

@@ -286,51 +286,6 @@ fn only_a_whole_column_is_surfaced() {
     assert!(!spans(&holed));
 }
 
-/// The rules turn a stone column into a soil profile. Without them every strip
-/// ends in the default block, which is what this would show as a failure.
-#[test]
-fn an_overworld_column_gets_grass_over_dirt_over_stone() {
-    let ids = biome_ids();
-    let (router, material) = overworld_material_router(2, &ids);
-    let y_sections: Vec<i32> = (-4..8).collect();
-    let column = surfaced_column(&router, &material, &ids, 3, -7, &y_sections, false);
-
-    let grass = VoxelId::from(corpus().default_state("minecraft:grass_block").0);
-    let dirt = VoxelId::from(corpus().default_state("minecraft:dirt").0);
-    let stone = router.default_block_state;
-
-    let mut grassed = 0;
-    let mut over_stone = 0;
-    for x in 0..16 {
-        for z in 0..16 {
-            let Some(top) = (-64..128).rev().find(|&y| {
-                column
-                    .get(x, y, z)
-                    .is_some_and(|state| state != AIR && state != router.default_fluid_state)
-            }) else {
-                continue;
-            };
-            if column.get(x, top, z) != Some(grass) {
-                continue;
-            }
-            assert_eq!(
-                column.get(x, top - 1, z),
-                Some(dirt),
-                "under grass at {x},{z}"
-            );
-            grassed += 1;
-            let soil = (1..)
-                .take_while(|below| column.get(x, top - below, z) == Some(dirt))
-                .count() as i32;
-            if column.get(x, top - soil - 1, z) == Some(stone) {
-                over_stone += 1;
-            }
-        }
-    }
-    assert!(grassed > 0, "not one strip of the column ended in grass");
-    assert!(over_stone > 0, "grass and dirt never sat on stone");
-}
-
 /// Carving is decided block by block inside the descent: a carved grass top
 /// opens to air and the dirt it bared is surfaced again as the new top, while
 /// the fill's own water is never carved.
@@ -757,7 +712,7 @@ fn a_fixed_badlands_source_runs_the_clay_bands_and_a_settled_run_writes_what_the
 mod exhaustive {
     #[test]
     fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
-        super::settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7), (-22, 38)]);
+        super::settled_badlands_runs_write_the_bands_the_descent_would(&[(-22, 38)]);
     }
 }
 

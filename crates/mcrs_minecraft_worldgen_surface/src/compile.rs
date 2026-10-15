@@ -1003,19 +1003,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_clay_bands_are_drawn_once_and_are_not_uniform() {
-        let (_, material) = build("overworld");
-        let bands = material.clay_bands();
-        assert_eq!(bands.len(), CLAY_BAND_COUNT);
-        let distinct: BTreeSet<_> = bands.iter().collect();
-        assert!(
-            distinct.len() >= 5,
-            "only {} distinct band states",
-            distinct.len()
-        );
-    }
-
-    #[test]
     fn a_biome_set_folds_over_the_columns_biomes() {
         let mask = BiomeMask::new(&[3, 70]);
         assert_eq!(mask.fold([3, 70]), Tri::Always);

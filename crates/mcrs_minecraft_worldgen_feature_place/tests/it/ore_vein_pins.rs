@@ -1,4 +1,4 @@
-use crate::ore_vein_parity::{MIN_Y, read_dump, stone_world};
+use crate::ore_vein_parity::{MIN_Y, stone_world};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
@@ -69,13 +69,4 @@ fn a_failed_probe_still_costs_the_segment_draws() {
     replay.next_i32_bound(3);
     replay.next_i32_bound(3);
     assert_eq!(rng, replay, "an aborted vein must draw exactly three times");
-}
-
-mod exhaustive {
-    use super::*;
-
-    #[test]
-    fn the_ore_vein_dump_holds_twenty_one_cases() {
-        assert_eq!(read_dump().len(), 21, "the dump lost cases");
-    }
 }

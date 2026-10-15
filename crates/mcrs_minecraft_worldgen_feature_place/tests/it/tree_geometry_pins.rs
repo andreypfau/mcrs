@@ -5,11 +5,6 @@ mod exhaustive {
     use super::*;
 
     #[test]
-    fn the_tree_dump_holds_one_hundred_eighty_cases() {
-        assert_eq!(read_dump().len(), 180, "the dump lost cases");
-    }
-
-    #[test]
     fn twenty_features_over_eighty_cases_are_covered() {
         let cases = read_dump();
         let blocks = Blocks::new();

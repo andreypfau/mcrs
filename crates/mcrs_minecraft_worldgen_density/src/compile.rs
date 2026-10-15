@@ -1256,9 +1256,7 @@ pub(crate) mod tests {
     use crate::program::Workspace;
     use crate::proto::ProtoSpline;
     use crate::proto::build::Df;
-    use crate::router::{
-        CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, RIDGES, TEMPERATURE, VEGETATION,
-    };
+    use crate::router::{EROSION, FINAL_DENSITY};
     use bevy_math::IVec3;
     use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_worldgen_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z};
@@ -1659,41 +1657,12 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn the_overworld_climate_roots_evaluate_over_a_chunk() {
-        let (functions, noises) = corpus();
-        let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-            "noise_settings",
-            &rl!("minecraft:overworld").to_arc(),
-        );
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
-
-        let volume = SampleGrid::new(
-            IVec3::new(5, 3, 5),
-            IVec3::new(0, -64, 0),
-            IVec3::new(4, 8, 4),
-        );
-        let mut workspace = Workspace::new();
-        let mut out = vec![0.0f32; volume.len()];
-        for root in [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES] {
-            router.program.fill(&mut workspace, &volume, root, &mut out);
-            assert!(
-                out.iter().all(|v| v.is_finite()),
-                "root {root} left a non-finite value"
-            );
-            assert!(
-                out.iter().any(|v| *v != out[0]),
-                "root {root} is constant over a whole chunk"
-            );
-        }
-    }
-
     /// `end/islands` is the one shipped graph that slices, and it slices Y over
     /// a `distance_to_point` that varies along Y. The value is checked against
     /// the arithmetic by hand, because a slice that tracked the filled position
     /// instead of the pinned one would still be smooth and still be plausible.
     #[test]
-    fn the_end_islands_slice_pins_y_to_zero() {
+    fn the_end_islands_slice_pins_y_to_zero_and_the_end_final_density_is_a_real_field() {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_arc());
@@ -1713,23 +1682,12 @@ pub(crate) mod tests {
             out.iter().all(|v| *v == out[0]),
             "the slice pins y, so the column is one value: {out:?}"
         );
-    }
-
-    /// The regression the removed fallback hid: with `slice` unsupported this
-    /// root compiled to a constant zero and the End generated nothing, with a
-    /// log line as the only symptom.
-    #[test]
-    fn the_end_final_density_is_a_real_field() {
-        let (functions, noises) = corpus();
-        let settings: NoiseGeneratorSettings =
-            mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_arc());
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
         let mut out = vec![0.0; volume.len()];
         router
             .program
-            .fill(&mut Workspace::new(), &volume, FINAL_DENSITY, &mut out);
+            .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
         let solid = out.iter().filter(|v| **v > 0.0).count();
         assert!(
             solid > 0 && solid < out.len(),

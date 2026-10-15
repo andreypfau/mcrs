@@ -16,46 +16,13 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::beta_surface::build_beta_biome_source;
+use super::beta_surface_capture::{ColumnFixture, load_corpus};
 use super::build_beta_router;
 use crate::ColumnBlocks;
 use crate::modern_carvers::CarverBiomeTable;
 use crate::stages::extent;
 use crate::task::CancellationToken;
 use crate::{BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_column};
-
-// ── Corpus deserialization ────────────────────────────────────────────────────
-
-#[derive(serde::Deserialize)]
-struct BetaSurfaceCorpus {
-    columns: Vec<ColumnFixture>,
-}
-
-#[derive(serde::Deserialize)]
-struct ColumnFixture {
-    wx: i32,
-    wz: i32,
-    #[serde(with = "serde_base64")]
-    pre_cave: Vec<u8>,
-    #[serde(with = "serde_base64")]
-    post_cave: Vec<u8>,
-}
-
-mod serde_base64 {
-    use base64::Engine as _;
-    use serde::{Deserialize, Deserializer};
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<u8>, D::Error> {
-        let s = String::deserialize(de)?;
-        base64::engine::general_purpose::STANDARD
-            .decode(s)
-            .map_err(serde::de::Error::custom)
-    }
-}
-
-fn load_corpus() -> BetaSurfaceCorpus {
-    serde_json::from_str(include_str!("fixtures/beta_surface_corpus.json"))
-        .expect("valid corpus JSON")
-}
 
 // ── Block ID mapping ──────────────────────────────────────────────────────────
 

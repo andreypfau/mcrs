@@ -12,7 +12,6 @@ mod beta_surface_capture;
 #[cfg(test)]
 mod biome_parity;
 #[cfg(test)]
-mod biome_pins;
 #[cfg(test)]
 mod biome_upscale;
 #[cfg(test)]

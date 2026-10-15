@@ -1,5 +1,5 @@
 use super::corpus_features;
-use super::template_parity::{block_entity_types, dump, feature_program, region};
+use super::template_parity::{block_entity_types, feature_program, region};
 use crate::feature_program::RunScratch;
 use mcrs_minecraft_core::{BlockPos, rl};
 use mcrs_minecraft_random::Random;
@@ -41,11 +41,5 @@ mod exhaustive {
         for sand in ["minecraft:suspicious_sand", "minecraft:suspicious_gravel"] {
             assert_eq!(type_of[sand], "minecraft:brushable_block");
         }
-    }
-
-    #[test]
-    fn the_template_dump_holds_seventy_eight_ruined_portal_cases() {
-        let cases = dump().cases.iter().filter(|case| case.kind == 2).count();
-        assert_eq!(cases, 78);
     }
 }

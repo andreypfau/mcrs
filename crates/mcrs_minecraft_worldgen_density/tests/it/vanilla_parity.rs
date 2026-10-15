@@ -25,17 +25,17 @@ const DIVERGENCE_BUDGET: Option<f32> = None;
 #[cfg(feature = "fast")]
 const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
 
-pub(crate) struct DumpVolume {
-    pub(crate) name: String,
+struct DumpVolume {
+    name: String,
     size: [i32; 3],
     min: [i32; 3],
     step: [i32; 3],
-    pub(crate) values: Vec<f32>,
+    values: Vec<f32>,
 }
 
-pub(crate) struct Dump {
+struct Dump {
     seed: i64,
-    pub(crate) volumes: Vec<DumpVolume>,
+    volumes: Vec<DumpVolume>,
 }
 
 struct Reader<'a> {
@@ -95,7 +95,7 @@ fn read_dump(name: &str, data: &[u8]) -> Dump {
     Dump { seed, volumes }
 }
 
-pub(crate) fn lattice_dumps() -> Vec<FixtureFile> {
+fn lattice_dumps() -> Vec<FixtureFile> {
     fixture("density")
         .files()
         .into_iter()
@@ -103,7 +103,7 @@ pub(crate) fn lattice_dumps() -> Vec<FixtureFile> {
         .collect()
 }
 
-pub(crate) fn dense_dump() -> Dump {
+fn dense_dump() -> Dump {
     let file = fixture("density").file("overworld_s42_c0_0_dense.bin");
     read_dump(file.name(), &file.dump(MAGIC))
 }
@@ -149,78 +149,83 @@ struct Diff {
     example: Option<(usize, f32, f32)>,
 }
 
+fn assert_supported_roots_match_the_vanilla_oracle(dumps: &[FixtureFile]) {
+    let mut report: BTreeMap<String, Diff> = BTreeMap::new();
+    let mut seen_names: Vec<String> = Vec::new();
+
+    for file in dumps {
+        let dump = read_dump(file.name(), &file.dump(MAGIC));
+        let router = overworld_router(dump.seed as u64);
+
+        for v in &dump.volumes {
+            if !seen_names.contains(&v.name) {
+                seen_names.push(v.name.clone());
+            }
+            let Some(root) = ROOT_NAMES.iter().position(|n| *n == v.name) else {
+                continue;
+            };
+            let ours = fill(&router, root, v);
+            assert_eq!(ours.len(), v.values.len(), "{} size", v.name);
+            let slot = report.entry(v.name.clone()).or_default();
+            for (i, (&got, &want)) in ours.iter().zip(&v.values).enumerate() {
+                slot.checked += 1;
+                if got.to_bits() != want.to_bits() {
+                    let d = (got - want).abs();
+                    if d.partial_cmp(&slot.worst).is_none_or(Ordering::is_gt) {
+                        slot.worst = d;
+                        slot.example = Some((i, got, want));
+                    }
+                    slot.mismatched += 1;
+                }
+            }
+        }
+    }
+
+    let mut lines = Vec::new();
+    lines.push(format!("dump volume names: {seen_names:?}"));
+    let mut bad = false;
+    for (name, d) in &report {
+        lines.push(format!(
+            "{name}: {}/{} mismatched, worst abs diff {:e}{}",
+            d.mismatched,
+            d.checked,
+            d.worst,
+            match d.example {
+                Some((i, got, want)) => format!(" (index {i}: got {got:e}, want {want:e})"),
+                None => String::new(),
+            }
+        ));
+        let within = match DIVERGENCE_BUDGET {
+            None => d.mismatched == 0,
+            Some(budget) => d.worst <= budget,
+        };
+        if !within {
+            bad = true;
+        }
+    }
+    println!("{}", lines.join("\n"));
+    assert!(
+        !report.is_empty(),
+        "no root was compared\n{}",
+        lines.join("\n")
+    );
+    assert!(!bad, "{}", lines.join("\n"));
+}
+
+#[test]
+fn supported_roots_match_the_vanilla_oracle_at_the_origin() {
+    assert_supported_roots_match_the_vanilla_oracle(&[
+        fixture("density").file("overworld_s42_c0_0.bin")
+    ]);
+}
+
 mod exhaustive {
     use super::*;
 
-    /// Every root the compiler supports, over all fifteen lattice dumps.
+    /// Every root the compiler supports, over every lattice dump.
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "keeps the worst deviation of each root while comparing every cell of every lattice dump, so the failure names the root and the cell"
-    )]
     fn supported_roots_match_the_vanilla_oracle() {
-        let dumps = lattice_dumps();
-
-        let mut report: BTreeMap<String, Diff> = BTreeMap::new();
-        let mut seen_names: Vec<String> = Vec::new();
-
-        for file in &dumps {
-            let dump = read_dump(file.name(), &file.dump(MAGIC));
-            let router = overworld_router(dump.seed as u64);
-
-            for v in &dump.volumes {
-                if !seen_names.contains(&v.name) {
-                    seen_names.push(v.name.clone());
-                }
-                let Some(root) = ROOT_NAMES.iter().position(|n| *n == v.name) else {
-                    continue;
-                };
-                let ours = fill(&router, root, v);
-                assert_eq!(ours.len(), v.values.len(), "{} size", v.name);
-                let slot = report.entry(v.name.clone()).or_default();
-                for (i, (&got, &want)) in ours.iter().zip(&v.values).enumerate() {
-                    slot.checked += 1;
-                    if got.to_bits() != want.to_bits() {
-                        let d = (got - want).abs();
-                        if d.partial_cmp(&slot.worst).is_none_or(Ordering::is_gt) {
-                            slot.worst = d;
-                            slot.example = Some((i, got, want));
-                        }
-                        slot.mismatched += 1;
-                    }
-                }
-            }
-        }
-
-        let mut lines = Vec::new();
-        lines.push(format!("dump volume names: {seen_names:?}"));
-        let mut bad = false;
-        for (name, d) in &report {
-            lines.push(format!(
-                "{name}: {}/{} mismatched, worst abs diff {:e}{}",
-                d.mismatched,
-                d.checked,
-                d.worst,
-                match d.example {
-                    Some((i, got, want)) => format!(" (index {i}: got {got:e}, want {want:e})"),
-                    None => String::new(),
-                }
-            ));
-            let within = match DIVERGENCE_BUDGET {
-                None => d.mismatched == 0,
-                Some(budget) => d.worst <= budget,
-            };
-            if !within {
-                bad = true;
-            }
-        }
-        println!("{}", lines.join("\n"));
-        assert!(
-            !report.is_empty(),
-            "no root was compared\n{}",
-            lines.join("\n")
-        );
-        assert!(!bad, "{}", lines.join("\n"));
+        assert_supported_roots_match_the_vanilla_oracle(&lattice_dumps());
     }
 
     /// The dense dump is the only fixture that reaches the off-lattice interpolation

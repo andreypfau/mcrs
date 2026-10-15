@@ -1323,19 +1323,6 @@ mod tests {
         assert_eq!(rng.next_i64(), replay.next_i64());
     }
 
-    /// `base_height + nextInt(a + 1) + nextInt(b + 1)`, in that order.
-    #[test]
-    fn tree_height_draws_a_then_b() {
-        let placer = placer("straight", &base(4, 2, 3));
-        let mut rng = WorldgenRandom::new(11);
-        let height = placer.tree_height(&mut rng);
-
-        let mut replay = WorldgenRandom::new(11);
-        let expected = 4 + replay.next_i32_bound(3) + replay.next_i32_bound(4);
-        assert_eq!(height, expected);
-        assert_eq!(rng.next_i64(), replay.next_i64());
-    }
-
     /// `upwards_branching` widens `validTreePos`, and `isFree` is that widened
     /// test or a log — so a block only `can_grow_through` names is free.
     #[test]

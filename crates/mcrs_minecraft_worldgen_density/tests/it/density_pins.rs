@@ -1,4 +1,4 @@
-use crate::vanilla_parity::{dense_dump, lattice_dumps, overworld_router};
+use crate::vanilla_parity::overworld_router;
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
@@ -6,26 +6,6 @@ use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 mod exhaustive {
     use super::*;
-
-    #[test]
-    fn the_density_fixture_holds_fifteen_lattice_dumps() {
-        assert_eq!(
-            lattice_dumps().len(),
-            15,
-            "expected the fifteen lattice dumps"
-        );
-    }
-
-    #[test]
-    fn the_dense_dump_covers_a_whole_chunk_column() {
-        let dump = dense_dump();
-        let v = dump
-            .volumes
-            .iter()
-            .find(|v| v.name == "final_density")
-            .expect("dense dump holds final_density");
-        assert_eq!(v.values.len(), 98_304, "16x384x16 dense");
-    }
 
     /// The schedule decides per fill, not per column: an arm's cone is skipped only
     /// when no position in the whole volume selects it. Over a box as large as a

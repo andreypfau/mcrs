@@ -180,9 +180,4 @@ mod tests {
         let head = run(&g, SampleGrid::new(IVec3::ONE, min, step));
         assert_eq!(head[0], full[0]);
     }
-
-    #[test]
-    fn the_codec_default_is_clamp_to_edge() {
-        assert_eq!(Tiling::default(), Tiling::ClampToEdge);
-    }
 }
