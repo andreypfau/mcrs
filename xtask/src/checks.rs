@@ -345,24 +345,7 @@ fn rustfmt_index(ctx: &Context, edition: &str, path: &str) -> Result<bool, Strin
 }
 
 fn clippy(ctx: &Context) -> Outcome {
-    let mut args = vec!["clippy"];
-    if ctx.trigger == Trigger::Commit {
-        let changes = ctx.changes()?;
-        match &changes.scope {
-            Scope::Workspace => args.push("--workspace"),
-            Scope::Packages(names) if names.is_empty() => {
-                println!("no crate changed since {}", changes.base_ref);
-                return Ok(String::new());
-            }
-            Scope::Packages(names) => {
-                for name in names {
-                    args.extend(["-p", name.as_str()]);
-                }
-            }
-        }
-    } else {
-        args.push("--workspace");
-    }
+    let mut args = vec!["clippy", "--workspace"];
     args.extend(["--all-targets", "--locked", "--", "-D", "warnings"]);
     verdict(
         ctx.exec("cargo", &args)?,

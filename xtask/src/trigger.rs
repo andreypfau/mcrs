@@ -125,9 +125,11 @@ impl Trigger {
                 "after a file is written: change size, lint suppressions, test bypasses, fixture parity, formatting"
             }
             Trigger::Commit => {
-                "before a commit: change size, gate configuration, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting, clippy"
+                "before a commit: change size, gate configuration, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
             }
-            Trigger::Push => "before a push: every check that ci runs",
+            Trigger::Push => {
+                "before a push: the commit checks and the clone scan; ci runs clippy, the tests and the builds"
+            }
             Trigger::Ci => "on every pull request and every push to main: all checks",
             Trigger::Full => "the whole test suite, exhaustive sweeps included",
             Trigger::Gpu => "the tests that need a Metal GPU",
@@ -174,7 +176,6 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             Parity,
             UnusedDeps,
             Fmt,
-            Clippy,
         ],
         Trigger::Push => &[
             Size,
@@ -185,11 +186,6 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             Clones,
             UnusedDeps,
             Fmt,
-            Clippy,
-            Test,
-            NoBevy,
-            Wasm32,
-            ExportedBuild,
         ],
         Trigger::Ci => &[
             Size,
