@@ -145,9 +145,16 @@ mod tests {
     }
 
     #[test]
-    fn an_id_outside_sixteen_bits_is_a_decode_error() {
+    fn only_an_id_within_sixteen_bits_decodes() {
+        let mut widest = Vec::new();
+        encode_registry_id(u16::MAX, &mut widest).unwrap();
+        assert_eq!(widest, var_int(65535));
+        assert_eq!(
+            decode_registry_id(&mut widest.as_slice()).unwrap(),
+            u16::MAX
+        );
         for (name, decode) in DECODERS {
-            for raw in [-1, i32::MIN, 65537, i32::MAX] {
+            for raw in [-1, i32::MIN, 65536, 65537, i32::MAX] {
                 let bytes = var_int(raw);
                 assert!(decode(&mut bytes.as_slice()).is_err(), "{name} {raw}");
             }
@@ -308,13 +315,5 @@ mod tests {
         let mut bytes = Vec::new();
         id.encode(&mut bytes).unwrap();
         assert_eq!(bytes, var_int(2));
-    }
-
-    #[test]
-    fn the_widest_id_round_trips_in_var_int_bytes() {
-        let mut bytes = Vec::new();
-        encode_registry_id(u16::MAX, &mut bytes).unwrap();
-        assert_eq!(bytes, var_int(65535));
-        assert_eq!(decode_registry_id(&mut bytes.as_slice()).unwrap(), u16::MAX);
     }
 }

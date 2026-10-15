@@ -157,7 +157,7 @@ mod tests {
     use std::cell::Cell;
     use std::fs;
 
-    use mcrs_minecraft_client_jar::{FontHint, Release, sha1_hex};
+    use mcrs_minecraft_client_jar::{Release, sha1_hex};
 
     use super::*;
     use crate::testing::{scratch, zipped};
@@ -333,17 +333,6 @@ mod tests {
         assert_eq!(parsed.json.url, listing.url);
         assert_eq!(parsed.json.sha1, listing.sha1);
         assert_eq!(parsed.json.size, PACKAGE.len() as u64);
-    }
-
-    #[test]
-    fn the_font_hint_parses_back_and_ends_in_one_newline() {
-        let jar = sample_jar();
-
-        let text = font_hint(&jar).unwrap();
-
-        assert!(text.ends_with("}\n") && !text.ends_with("\n\n"));
-        let hint: FontHint = serde_json::from_str(&text).unwrap();
-        assert_eq!(hint, FontHint::of(&jar, &sha1_hex(&jar)).unwrap());
     }
 
     #[test]

@@ -401,72 +401,137 @@ mod test {
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Test {
+    struct Egg {
+        food: String,
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct Pinned {
         byte: i8,
         short: i16,
         int: i32,
         long: i64,
         float: f32,
         string: String,
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Egg {
-        food: String,
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Breakfast {
-        food: Egg,
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct TestList {
         option: Option<Egg>,
-        nested_compound: Breakfast,
-        compounds: Vec<Test>,
-        list_string: Vec<String>,
-        empty: Vec<Test>,
+        eggs: Vec<Egg>,
+        words: Vec<String>,
+        empty: Vec<Egg>,
+        pair: (i32, i32),
+    }
+
+    fn named(name: &str, id: u8) -> Vec<u8> {
+        let mut bytes = vec![id];
+        bytes.extend_from_slice(&(name.len() as u16).to_be_bytes());
+        bytes.extend_from_slice(name.as_bytes());
+        bytes
+    }
+
+    fn text(value: &str) -> Vec<u8> {
+        [&(value.len() as u16).to_be_bytes()[..], value.as_bytes()].concat()
+    }
+
+    fn egg(food: &str) -> Vec<u8> {
+        [named("food", 8), text(food), vec![0]].concat()
+    }
+
+    /// The unnamed root, written out field by field from the binary NBT layout.
+    fn pinned_payload() -> Vec<u8> {
+        [
+            named("byte", 1),
+            vec![0xFE],
+            named("short", 2),
+            vec![0x01, 0x02],
+            named("int", 3),
+            vec![0x00, 0x01, 0x00, 0x03],
+            named("long", 4),
+            vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE],
+            named("float", 5),
+            vec![0x3F, 0xC0, 0x00, 0x00],
+            named("string", 8),
+            text("hi"),
+            named("option", 10),
+            egg("x"),
+            named("eggs", 9),
+            vec![10, 0, 0, 0, 1],
+            egg("y"),
+            named("words", 9),
+            vec![8, 0, 0, 0, 2],
+            text("a"),
+            text("bc"),
+            named("empty", 9),
+            vec![0, 0, 0, 0, 0],
+            named("pair", 9),
+            vec![3, 0, 0, 0, 2, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF],
+            vec![0],
+        ]
+        .concat()
+    }
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(bytes).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    fn gunzip(bytes: &[u8]) -> Vec<u8> {
+        use std::io::Read;
+        let mut out = Vec::new();
+        flate2::read::GzDecoder::new(bytes)
+            .read_to_end(&mut out)
+            .unwrap();
+        out
     }
 
     #[test]
-    fn test_list() {
-        let test1 = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
+    fn a_struct_is_written_as_the_pinned_bytes_and_read_back_from_them() {
+        use crate::nbt_compress::{
+            from_gzip_bytes, read_gzip_compound_tag, to_gzip_bytes_vec,
+            write_gzip_compound_tag_to_bytes,
         };
 
-        let test2 = Test {
-            byte: 13,
-            short: 342,
-            int: -4313,
-            long: -132334,
-            float: -69.420,
-            string: "Hello compounds".to_string(),
-        };
-
-        let list_compound = TestList {
+        let value = Pinned {
+            byte: -2,
+            short: 258,
+            int: 65_539,
+            long: -2,
+            float: 1.5,
+            string: "hi".to_owned(),
             option: Some(Egg {
-                food: "Skibid".to_string(),
+                food: "x".to_owned(),
             }),
-            nested_compound: Breakfast {
-                food: Egg {
-                    food: "Over easy".to_string(),
-                },
-            },
-            compounds: vec![test1, test2],
-            list_string: vec!["".to_string(), "abcbcbcbbc".to_string()],
+            eggs: vec![Egg {
+                food: "y".to_owned(),
+            }],
+            words: vec!["a".to_owned(), "bc".to_owned()],
             empty: vec![],
+            pair: (1, -1),
         };
+        let unnamed = [vec![10], pinned_payload()].concat();
+        let named = [vec![10, 0, 0], pinned_payload()].concat();
 
-        let mut bytes = Vec::new();
-        to_bytes_unnamed(&list_compound, &mut bytes).unwrap();
-        let recreated_struct: TestList = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-        assert_eq!(list_compound, recreated_struct);
+        let mut written = Vec::new();
+        to_bytes_unnamed(&value, &mut written).unwrap();
+        assert_eq!(written, unnamed);
+        let read: Pinned = from_bytes_unnamed(Cursor::new(&unnamed)).unwrap();
+        assert_eq!(read, value);
+
+        let mut written = Vec::new();
+        to_bytes(&value, &mut written).unwrap();
+        assert_eq!(written, named);
+        let read: Pinned = from_bytes(Cursor::new(&named)).unwrap();
+        assert_eq!(read, value);
+
+        assert_eq!(gunzip(&to_gzip_bytes_vec(&value).unwrap()), named);
+        let read: Pinned = from_gzip_bytes(Cursor::new(gzip(&named))).unwrap();
+        assert_eq!(read, value);
+        let compound = read_gzip_compound_tag(Cursor::new(gzip(&named))).unwrap();
+        assert_eq!(compound.get_int("int"), Some(65_539));
+        assert_eq!(
+            gunzip(&write_gzip_compound_tag_to_bytes(&compound).unwrap()),
+            named
+        );
     }
 
     #[test]
@@ -658,7 +723,7 @@ mod test {
         to_bytes_unnamed(&-7i32, &mut bytes).unwrap();
         assert_eq!(bytes, unhex("03fffffff9"));
         assert_eq!(from_bytes_unnamed::<i32>(Cursor::new(&bytes)).unwrap(), -7);
-        assert!(from_bytes_unnamed::<Test>(Cursor::new(&bytes)).is_err());
+        assert!(from_bytes_unnamed::<Pinned>(Cursor::new(&bytes)).is_err());
 
         assert!(matches!(
             to_bytes_unnamed(&None::<i32>, &mut Vec::new()),
@@ -691,21 +756,6 @@ mod test {
             crate::from_tag::<tag::NbtTag>(tag::NbtTag::Double(1.0)).unwrap(),
             tag::NbtTag::Double(1.0)
         );
-    }
-
-    #[test]
-    fn test_tuple_ok() {
-        #[derive(Serialize, Deserialize, PartialEq, Debug)]
-        struct GoodData {
-            x: (i32, i32),
-        }
-
-        let value = GoodData { x: (1, 2) };
-        let mut bytes = Vec::new();
-        to_bytes(&value, &mut bytes).unwrap();
-
-        let reconstructed = from_bytes(Cursor::new(bytes)).unwrap();
-        assert_eq!(value, reconstructed);
     }
 
     #[test]

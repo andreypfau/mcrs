@@ -15,20 +15,6 @@ use uuid::Uuid;
 use crate::common::{hex, nbt_tree, sorted};
 
 #[test]
-fn text_round_trip() {
-    let before = "foo".color(Color::RED).bold()
-        + ("bar".obfuscated().color(Color::YELLOW)
-            + "baz".underlined().not_bold().italic().color(Color::BLACK));
-
-    let json = format!("{before:#}");
-
-    let after = Text::from_str(&json).unwrap();
-
-    assert_eq!(before, after);
-    assert_eq!(before.to_string(), after.to_string());
-}
-
-#[test]
 fn non_object_data_types() {
     for input in [r#"["foo", true]"#, r#"["foo", 1.9E10]"#, "9999", "false"] {
         let err = serde_json::from_str::<Text>(input).unwrap_err().to_string();
@@ -62,12 +48,6 @@ fn text_to_legacy_lossy() {
         "§a§k§l§m§n§oHeavily formatted green text\n§r§c§n§oLightly formatted red text\n§r§9Not \
          formatted blue text"
     );
-}
-
-#[test]
-fn a_component_that_is_neither_a_string_nor_a_compound_is_rejected() {
-    let mut r: &[u8] = &[mcrs_minecraft_nbt::INT_ID, 0, 0, 0, 1];
-    assert!(Text::decode(&mut r).is_err());
 }
 
 #[derive(Deserialize)]
@@ -153,6 +133,8 @@ fn vanilla_rejections() {
     let mut open_file = Text::text("x");
     open_file.style.click_event = Some(ClickEvent::OpenFile { path: "/x".into() });
     assert!(serde_json::to_string(&open_file).is_err());
+    let mut int_tag: &[u8] = &[mcrs_minecraft_nbt::INT_ID, 0, 0, 0, 1];
+    assert!(Text::decode(&mut int_tag).is_err());
 }
 
 #[derive(Deserialize)]

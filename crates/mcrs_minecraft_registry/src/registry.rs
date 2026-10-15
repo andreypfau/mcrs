@@ -231,31 +231,24 @@ mod tests {
 
     const UNSORTED: [&str; 3] = ["minecraft:plains", "minecraft:desert", "minecraft:forest"];
 
-    #[test]
-    fn ids_are_positions_and_name_their_entries() {
-        let registry = registry(&UNSORTED);
-        assert_eq!(registry.len(), 3);
-        let indices: Vec<usize> = registry.ids().map(Id::index).collect();
-        assert_eq!(indices, [0, 1, 2]);
-        for (position, text) in UNSORTED.iter().enumerate() {
-            let id = registry.by_name(text).unwrap();
-            assert_eq!(id.index(), position);
-            assert_eq!(registry.name(id).unwrap().as_str(), *text);
-        }
-    }
-
     fn build(names: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
         Registry::new(TestRegistry::KEY, names.iter().map(|text| name(text)))
     }
 
     #[test]
-    fn index_follows_the_table_order() {
+    fn ids_are_positions_in_the_table_order() {
         let registry = registry(&UNSORTED);
+        assert_eq!(registry.len(), 3);
+        let indices: Vec<usize> = registry.ids().map(Id::index).collect();
+        assert_eq!(indices, [0, 1, 2]);
         let names: Vec<_> = registry
             .ids()
             .map(|id| registry.name(id).unwrap().as_str())
             .collect();
         assert_eq!(names, UNSORTED);
+        for (position, text) in UNSORTED.iter().enumerate() {
+            assert_eq!(registry.by_name(text).unwrap().index(), position);
+        }
         assert_eq!(
             registry.by_name("minecraft:desert").map(Id::number),
             Some(1)

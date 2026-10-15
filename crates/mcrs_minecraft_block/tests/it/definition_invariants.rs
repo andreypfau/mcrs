@@ -63,15 +63,18 @@ struct Permutation {
     components: BTreeMap<String, IgnoredAny>,
 }
 
-fn files() -> Vec<(PathBuf, File)> {
-    crate::common::definition_files()
-}
-
 #[test]
-fn a_definition_file_is_named_after_its_identifier() {
-    let files = files();
+fn every_definition_file_is_named_after_its_identifier_and_states_a_component_once() {
+    let files: Vec<(PathBuf, File)> = crate::common::definition_files();
     assert!(!files.is_empty(), "no block definition was read");
-    let mismatches = files
+    assert!(
+        files
+            .iter()
+            .any(|(_, file)| !file.block.permutations.is_empty()),
+        "no block with a permutation was read"
+    );
+
+    let misnamed = files
         .iter()
         .filter_map(|(path, file)| {
             let identifier = &file.block.description.identifier;
@@ -80,24 +83,14 @@ fn a_definition_file_is_named_after_its_identifier() {
                 .then(|| format!("{}: identifier is {identifier}", path.display()))
         })
         .collect();
-    crate::common::assert_no_mismatches("files not named after their identifier", mismatches);
-}
+    crate::common::assert_no_mismatches("files not named after their identifier", misnamed);
 
-#[test]
-fn a_component_is_not_stated_both_for_the_block_and_in_a_permutation() {
-    let files = files();
-    assert!(
-        files
-            .iter()
-            .any(|(_, file)| !file.block.permutations.is_empty()),
-        "no block with a permutation was read"
-    );
-    let mut mismatches = Vec::new();
+    let mut stated_twice = Vec::new();
     for (path, file) in &files {
         for permutation in &file.block.permutations {
             for key in permutation.components.keys() {
                 if file.block.components.contains_key(key) {
-                    mismatches.push(format!(
+                    stated_twice.push(format!(
                         "{}: {key} is in the block and in a permutation",
                         path.display()
                     ));
@@ -105,5 +98,5 @@ fn a_component_is_not_stated_both_for_the_block_and_in_a_permutation() {
             }
         }
     }
-    crate::common::assert_no_mismatches("components stated twice", mismatches);
+    crate::common::assert_no_mismatches("components stated twice", stated_twice);
 }

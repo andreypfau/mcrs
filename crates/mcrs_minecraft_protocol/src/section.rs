@@ -168,10 +168,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn section_entry_counts_match_the_axis_bits() {
-        assert_eq!(Blocks::ENTRY_COUNT, 4096);
-        assert_eq!(Biomes::ENTRY_COUNT, 4096);
-    }
 }

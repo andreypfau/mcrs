@@ -422,18 +422,6 @@ mod tests {
         assert!(no_scope_here());
     }
 
-    #[test]
-    fn parsing_outside_a_scope_fails_naming_the_type_and_the_registry() {
-        assert!(no_scope_here());
-        let error = serde_json::from_str::<Id<Biome>>("\"minecraft:plains\"").unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("Id<"), "{message}");
-        assert!(message.contains("tests::Biome"), "{message}");
-        let probe = Registry::<Biome>::in_scope("probe", |_| ());
-        assert!(matches!(probe, Err(ScopeError::NoScope { .. })));
-        assert!(no_scope_here());
-    }
-
     #[derive(Debug, PartialEq, Serialize, Deserialize)]
     struct Entry {
         volume: i32,

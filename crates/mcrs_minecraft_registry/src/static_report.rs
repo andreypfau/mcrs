@@ -165,11 +165,14 @@ mod tests {
     }
 
     #[test]
-    fn every_report_entry_has_its_protocol_id() {
+    fn every_report_entry_has_its_protocol_id_by_full_and_by_bare_registry_name() {
+        use crate::lookup::RegistryLookup;
+
         let registries = JSON.as_object().unwrap();
         assert_eq!(SET.tables().count(), registries.len());
         for (registry, report) in registries {
             let table = SET.table(registry).unwrap();
+            let bare = registry.strip_prefix("minecraft:").unwrap();
             let entries = report["entries"].as_object().unwrap();
             assert_eq!(table.len(), entries.len(), "{registry}");
             for (name, entry) in entries {
@@ -180,8 +183,19 @@ mod tests {
                     "{registry} {name}"
                 );
                 assert_eq!(table.name(stated as usize).unwrap().as_str(), name);
+                let location = ResourceLocation::read(name).unwrap();
+                let stated = u16::try_from(stated).unwrap();
+                assert_eq!(SET.id(bare, &location), Some(stated), "{registry} {name}");
+                assert_eq!(SET.name(bare, stated), Some(&location), "{registry} {name}");
             }
+            let absent = rl!("minecraft:not_an_entry").to_arc();
+            assert_eq!(SET.id(bare, &absent), None);
+            assert_eq!(SET.name(bare, u16::MAX), None);
         }
+        let stone = rl!("minecraft:stone").to_arc();
+        assert_eq!(SET.id("minecraft:item", &stone), None);
+        assert_eq!(SET.id("no_such_registry", &stone), None);
+        assert_eq!(SET.name("no_such_registry", 0), None);
     }
 
     #[test]

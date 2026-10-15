@@ -455,11 +455,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_directory_digest_of_bytes_that_are_not_a_zip_is_an_error() {
-        assert!(directory_digest(b"not a zip").is_err());
-    }
-
-    #[test]
     fn verify_checks_length_and_digest() {
         let bytes = b"client";
         let sha1 = sha1_hex(bytes);

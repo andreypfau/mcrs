@@ -71,29 +71,37 @@ fn ids_follow_the_file_name_then_the_namespace() {
     }
 }
 
-#[test]
-fn an_id_is_two_bytes_and_a_registry_past_its_range_fails_to_load() {
-    assert!(size_of::<Id<LootTable>>() <= 2);
+fn loot_tables(count: u32) -> Packs {
     let mut packs = Packs::new().world("a", &[]);
-    for n in 0..65_536u32 {
+    for n in 0..count {
         packs
             .files_mut()
             .insert("file/a", format!("data/t/loot_table/e{n:05}.json"), "{}");
     }
-    let (registries, _) = packs.load(&declarations()).unwrap();
-    let last = get::<LootTable>(&registries, "t:e65535");
-    assert_eq!(last.number(), u16::MAX);
-
     packs
-        .files_mut()
-        .insert("file/a", "data/t/loot_table/e65536.json", "{}");
+}
+
+#[test]
+fn an_id_is_two_bytes_and_a_registry_past_its_range_fails_to_load() {
+    assert!(size_of::<Id<LootTable>>() <= 2);
     assert_eq!(
-        report_errors(&packs.load(&declarations())),
+        report_errors(&loot_tables(65_537).load(&declarations())),
         [Diagnostic::TooManyEntries {
             registry: rl("loot_table"),
             count: 65_537,
         }]
     );
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn a_registry_at_the_end_of_the_id_range_loads() {
+        let (registries, _) = loot_tables(65_536).load(&declarations()).unwrap();
+        let last = get::<LootTable>(&registries, "t:e65535");
+        assert_eq!(last.number(), u16::MAX);
+    }
 }
 
 #[test]

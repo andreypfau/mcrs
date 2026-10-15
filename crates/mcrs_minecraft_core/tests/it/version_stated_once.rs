@@ -82,6 +82,12 @@ impl Value {
         }
     }
 
+    // A number may be written with `_` separators, so its digits only appear once those are gone.
+    fn may_be_in(&self, text: &str) -> bool {
+        let value = self.shown();
+        text.contains(value) || (text.contains('_') && text.replace('_', "").contains(value))
+    }
+
     fn shown(&self) -> &str {
         match self {
             Value::Text(v) | Value::Number(v) => v,
@@ -197,6 +203,9 @@ fn no_source_file_states_a_version_value() {
     for path in &files {
         let text =
             std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        if !values.iter().any(|value| value.may_be_in(&text)) {
+            continue;
+        }
         for (index, line) in text.lines().enumerate() {
             for value in &values {
                 if value.states(line) {

@@ -741,6 +741,13 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
+    fn runtime() -> Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
     fn client_app(runtime: &Runtime) -> (App, mpsc::Sender<crate::ReceivedPacket>, Entity) {
         let _guard = runtime.enter();
         let (raw, _outgoing, inbound) = RawConnection::new_for_test_full(8);
@@ -762,7 +769,7 @@ mod tests {
 
     #[test]
     fn a_closed_connection_ends_the_session() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let (mut app, inbound, _) = client_app(&runtime);
         app.update();
         assert!(app.should_exit().is_none());
@@ -773,7 +780,7 @@ mod tests {
 
     #[test]
     fn a_disconnect_packet_ends_the_session() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let (mut app, inbound, entity) = client_app(&runtime);
         deliver(
             &runtime,
@@ -795,7 +802,7 @@ mod tests {
         use mcrs_minecraft_protocol::packets::common::serverbound::{ModList, Payload};
         use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundCustomPayload;
 
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let _guard = runtime.enter();
         let (raw, mut outgoing, _inbound) = RawConnection::new_for_test_full(8);
         let mut connection = ClientConnection { raw: Box::new(raw) };
@@ -1066,7 +1073,7 @@ mod tests {
 
     #[test]
     fn the_end_of_configuration_inserts_the_session_registries_before_acknowledging() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
         client.deliver(
             &runtime,
@@ -1095,7 +1102,7 @@ mod tests {
 
     #[test]
     fn a_registry_split_across_packets_is_read_as_one() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
         client.deliver(&runtime, &probe_data(&["minecraft:zeta"]));
         client.deliver(&runtime, &probe_data(&["minecraft:alpha"]));
@@ -1124,7 +1131,7 @@ mod tests {
 
     #[test]
     fn a_registry_entry_that_does_not_parse_drops_the_connection() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
         let mut data = probe_data(&["minecraft:good", "minecraft:bad"]);
         data.entries[1].data = Some(Cow::Owned(mcrs_minecraft_nbt::to_nbt_tag(&"text").unwrap()));
@@ -1157,7 +1164,7 @@ mod tests {
     fn the_vanilla_pack_is_accepted_only_by_a_client_that_holds_its_entries() {
         use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
 
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let vanilla = || KnownPack {
             namespace: "minecraft",
             id: "core",
@@ -1213,7 +1220,7 @@ mod tests {
 
     #[test]
     fn without_declarations_the_end_of_configuration_drops_the_connection() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::new(&runtime, ConnectionState::Configuration);
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.app.update();
@@ -1225,7 +1232,7 @@ mod tests {
 
     #[test]
     fn a_login_in_the_frame_of_the_finish_is_read_against_the_session_registries() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
         client.deliver(&runtime, &probe_data(&["minecraft:a"]));
         client.deliver(&runtime, &ClientboundFinishConfiguration);
@@ -1244,7 +1251,7 @@ mod tests {
     fn a_respawn_moves_the_current_dimension_to_the_key_and_type_it_names() {
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
 
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client.app.insert_resource(statics());
         let current = |client: &Harness| {
@@ -1300,7 +1307,7 @@ mod tests {
             }]),
         };
 
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client.app.insert_resource(statics().with(cats).unwrap());
 
@@ -1315,7 +1322,7 @@ mod tests {
 
     #[test]
     fn a_login_naming_a_type_outside_the_session_registries_drops_the_connection() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client.app.insert_resource(statics());
         client.deliver(&runtime, &login(7, 4));
@@ -1343,7 +1350,7 @@ mod tests {
 
     #[test]
     fn re_entering_configuration_acknowledges_and_rebuilds_at_its_end() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
         client.deliver(&runtime, &probe_data(&["minecraft:a", "minecraft:b"]));
         client.deliver(&runtime, &ClientboundFinishConfiguration);
@@ -1379,7 +1386,7 @@ mod tests {
 
     #[test]
     fn a_tag_update_in_play_replaces_the_session_registries() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         let before = session_of_probe(
             &["minecraft:a", "minecraft:b", "minecraft:c"],
@@ -1415,7 +1422,7 @@ mod tests {
 
     #[test]
     fn tag_updates_arriving_in_one_frame_all_apply() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client.app.insert_resource(session_of_probe(
             &["minecraft:a", "minecraft:b"],
@@ -1436,7 +1443,7 @@ mod tests {
 
     #[test]
     fn a_tag_update_naming_an_id_outside_its_registry_drops_the_connection() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client
             .app
@@ -1458,7 +1465,7 @@ mod tests {
 
     #[test]
     fn without_the_resource_a_closed_connection_only_logs() {
-        let runtime = Runtime::new().unwrap();
+        let runtime = runtime();
         let (mut app, inbound, _) = client_app(&runtime);
         app.world_mut().remove_resource::<ExitOnDisconnect>();
         drop(inbound);

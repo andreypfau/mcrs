@@ -1157,16 +1157,6 @@ mod tests {
                 "src/font_hint.json does not match the pinned jar; the update tool rewrites it"
             );
         }
-
-        #[test]
-        fn locates_a_launcher_jar_on_this_machine() {
-            let candidates = candidates();
-            let progress = Progress::default();
-            let found = locate(&candidates, &RELEASE.jar, &progress);
-            println!("checked {candidates:#?}");
-            println!("{}", progress.status.lock().unwrap());
-            assert!(found.is_some());
-        }
     }
 
     mod online {

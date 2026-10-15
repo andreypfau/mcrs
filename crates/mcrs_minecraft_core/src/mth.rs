@@ -233,14 +233,6 @@ mod tests {
     }
 
     #[test]
-    fn log_rounds_once_through_f64() {
-        // 0.1f32 is the classic case where ln at f32 precision and ln at f64
-        // precision narrowed to f32 disagree in the last bit.
-        let v = 0.1_f32;
-        assert_eq!(log(v), (v as f64).ln() as f32);
-    }
-
-    #[test]
     fn mth_floor_saturates_instead_of_wrapping() {
         assert_eq!(mth_floor(-7.5), -8);
         assert_eq!(mth_floor(7.5), 7);

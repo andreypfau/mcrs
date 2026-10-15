@@ -445,7 +445,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
     assert_eq!(loaded, listed.tags["minecraft:block"]);
 
     for (tag_id, _) in tags.iter() {
-        let members: Vec<_> = tags.members(tag_id).collect();
+        let members: BTreeSet<_> = tags.members(tag_id).collect();
         for (id, _, _) in registry.iter() {
             assert_eq!(tags.contains(tag_id, id), members.contains(&id));
         }

@@ -60,12 +60,8 @@ mod tests {
     }
 
     #[test]
-    fn equal_bytes_pass_the_check() {
+    fn only_the_embedded_bytes_pass_and_another_id_is_refused_naming_both_ids() {
         assert!(check_corpus_version(VERSION_JSON.as_bytes()).is_ok());
-    }
-
-    #[test]
-    fn another_id_is_refused_naming_both_ids() {
         let other = replaced(&VERSION.id, "other-id");
         let message = check_corpus_version(other.as_bytes()).unwrap_err();
         assert!(message.contains("other-id"), "{message}");

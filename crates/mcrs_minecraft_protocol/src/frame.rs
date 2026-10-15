@@ -378,17 +378,20 @@ mod tests {
     }
 
     #[test]
-    fn a_frame_of_one_byte_is_returned() {
-        let mut buf = BytesMut::from(&[1, 0x2A][..]);
-        assert_eq!(split_frame(&mut buf).unwrap(), Bytes::from_static(&[0x2A]));
-        assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn a_padded_length_frames_by_the_bytes_read() {
-        let mut buf = BytesMut::from(&[0x81, 0x80, 0x00, 0x2A][..]);
-        assert_eq!(split_frame(&mut buf).unwrap(), Bytes::from_static(&[0x2A]));
-        assert!(buf.is_empty());
+    fn each_call_splits_off_one_frame_by_the_bytes_its_length_took() {
+        let two = [&framed(&[1, 2, 3])[..], &framed(&[4, 5])[..]].concat();
+        let cases: [(&[u8], &[&[u8]]); 3] = [
+            (&[1, 0x2A], &[&[0x2A]]),
+            (&[0x81, 0x80, 0x00, 0x2A], &[&[0x2A]]),
+            (&two, &[&[1, 2, 3], &[4, 5]]),
+        ];
+        for (input, frames) in cases {
+            let mut buf = BytesMut::from(input);
+            for frame in frames {
+                assert_eq!(&split_frame(&mut buf).unwrap()[..], *frame, "{input:?}");
+            }
+            assert!(buf.is_empty(), "{input:?}");
+        }
     }
 
     #[test]
@@ -406,21 +409,6 @@ mod tests {
             assert!(split_frame(&mut buf).is_err(), "{case:?}");
             assert_eq!(&buf[..], case);
         }
-    }
-
-    #[test]
-    fn two_frames_in_one_buffer_split_one_per_call() {
-        let mut buf = framed(&[1, 2, 3]);
-        let second = framed(&[4, 5]);
-        buf.extend_from_slice(&second);
-
-        assert_eq!(
-            split_frame(&mut buf).unwrap(),
-            Bytes::from_static(&[1, 2, 3])
-        );
-        assert_eq!(buf, second);
-        assert_eq!(split_frame(&mut buf).unwrap(), Bytes::from_static(&[4, 5]));
-        assert!(buf.is_empty());
     }
 
     #[test]

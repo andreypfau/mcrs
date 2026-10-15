@@ -504,11 +504,12 @@ mod tests {
             .collect()
     }
 
-    fn tracked_children(directory: &str) -> Vec<String> {
+    fn tracked_children(directories: &[&str]) -> Vec<String> {
         let output = std::process::Command::new("git")
             .arg("-C")
             .arg(repository())
-            .args(["ls-files", "-z", "--", directory])
+            .args(["ls-files", "-z", "--"])
+            .args(directories)
             .output()
             .unwrap();
         assert!(output.status.success(), "git ls-files failed");
@@ -518,9 +519,8 @@ mod tests {
             .filter(|path| !path.is_empty())
             .map(|path| String::from_utf8(path.to_vec()).unwrap())
             .filter(|path| {
-                path.strip_prefix(directory)
-                    .and_then(|rest| rest.strip_prefix('/'))
-                    .is_some_and(|name| !name.contains('/'))
+                path.rsplit_once('/')
+                    .is_some_and(|(parent, _)| directories.contains(&parent))
             })
             .collect()
     }
@@ -575,24 +575,21 @@ mod tests {
             .collect();
         directories.sort_unstable();
         directories.dedup();
-        for directory in directories {
-            let children = tracked_children(directory);
-            for (path, generated) in attributes_of(&children) {
-                let name = path.rsplit('/').next().unwrap();
-                let written = table()
-                    .iter()
-                    .flat_map(|fixture| &fixture.outputs)
-                    .filter(|output| output.to == directory)
-                    .any(|output| output.files.matches(name));
-                match (written, generated) {
-                    (true, false) => {
-                        problems.push(format!("{path}: written by the update tool but not marked"))
-                    }
-                    (false, true) => {
-                        problems.push(format!("{path}: hand-written but marked generated"))
-                    }
-                    _ => {}
+        for (path, generated) in attributes_of(&tracked_children(&directories)) {
+            let (directory, name) = path.rsplit_once('/').unwrap();
+            let written = table()
+                .iter()
+                .flat_map(|fixture| &fixture.outputs)
+                .filter(|output| output.to == directory)
+                .any(|output| output.files.matches(name));
+            match (written, generated) {
+                (true, false) => {
+                    problems.push(format!("{path}: written by the update tool but not marked"))
                 }
+                (false, true) => {
+                    problems.push(format!("{path}: hand-written but marked generated"))
+                }
+                _ => {}
             }
         }
 

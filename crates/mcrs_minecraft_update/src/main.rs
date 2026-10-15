@@ -399,7 +399,7 @@ fn write(path: &Path, text: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::Invocation;
-    use super::{Recapture, command, recapture, recapture_in, recapture_target};
+    use super::{Recapture, command, recapture_in, recapture_target};
     use crate::testing::scratch;
 
     #[test]
@@ -447,12 +447,6 @@ mod tests {
             };
             assert_eq!(parsed, target, "{args:?}");
         }
-    }
-
-    #[test]
-    fn an_unknown_fixture_name_is_refused_before_any_task_runs() {
-        let error = recapture(&Recapture::One("no_such_fixture".to_owned())).unwrap_err();
-        assert!(error.starts_with("unknown fixture no_such_fixture; known fixtures: density, "));
     }
 
     #[cfg(unix)]

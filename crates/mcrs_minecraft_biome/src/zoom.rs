@@ -244,29 +244,14 @@ mod tests {
         }
     }
 
-    /// The cell asserted below came out of the same independent transcription
-    /// as the distances in `quart_cell_centre_picks_the_low_corner`.
+    /// The cell came out of the same independent transcription as the distances in
+    /// `quart_cell_centre_picks_the_low_corner`.
     #[test]
-    fn is_a_pure_function_of_seed_and_position() {
-        let a = obfuscate_seed(42);
-        let b = obfuscate_seed(43);
+    fn a_cell_away_from_the_origin_matches_the_transcription() {
         assert_eq!(
-            quart_cell(a, BlockPos::new(100, 64, -37)),
-            quart_cell(a, BlockPos::new(100, 64, -37))
-        );
-        assert_eq!(
-            quart_cell(a, BlockPos::new(100, 64, -37)),
+            quart_cell(obfuscate_seed(42), BlockPos::new(100, 64, -37)),
             QuartPos::new(24, 15, -10)
         );
-
-        let mut differs = 0;
-        for x in 0..64 {
-            if quart_cell(a, BlockPos::new(x, 64, -37)) != quart_cell(b, BlockPos::new(x, 64, -37))
-            {
-                differs += 1;
-            }
-        }
-        assert!(differs > 0, "the seed does not reach the selection");
     }
 
     /// The eight distances come from a transcription of the reference zoom

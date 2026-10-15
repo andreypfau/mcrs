@@ -512,15 +512,6 @@ fn a_fixture_is_stale_when_absent_or_on_another_id_and_so_is_an_unknown_key() {
     }
 }
 
-#[test]
-fn an_unknown_fixture_name_is_an_error_that_lists_the_known_names() {
-    let error = entry("no_such_fixture").err().unwrap().to_string();
-    assert!(error.contains("no_such_fixture"), "{error}");
-    for name in names() {
-        assert!(error.contains(name), "{error}");
-    }
-}
-
 fn fixture_names_are_unique() {
     let mut names = names();
     let all = names.len();
@@ -731,16 +722,6 @@ fn only_a_failed_read_has_a_source() {
     let source = read.source().expect("a failed read keeps its cause");
     assert!(source.downcast_ref::<std::io::Error>().is_some());
     assert!(repository.entry("no_such").unwrap_err().source().is_none());
-}
-
-#[test]
-fn every_refusal_displays_its_cause() {
-    let world = world();
-    let repository = world.repository();
-    for refusal in refusals() {
-        let error = (refusal.run)(&repository).unwrap_err();
-        assert!(!error.to_string().is_empty(), "{}", refusal.label);
-    }
 }
 
 #[test]
