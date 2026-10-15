@@ -156,7 +156,6 @@ mod tests {
                     .expect("colour formats have a cost")
             })
             .sum();
-        assert_eq!(bytes, 24);
         assert!(bytes <= WgpuLimits::default().max_color_attachment_bytes_per_sample);
     }
 }

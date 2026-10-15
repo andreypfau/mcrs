@@ -54,6 +54,10 @@ pub struct Equipment {
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Baby;
 
+const _: () = assert!(size_of::<CatVariant>() <= 4);
+const _: () = assert!(size_of::<ChickenVariant>() <= 4);
+const _: () = assert!(size_of::<ZombieNautilusVariant>() <= 2);
+
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CatVariant {
     pub variant: Id<CatVariantValue>,
@@ -101,15 +105,3 @@ pub struct EntityInSection(pub Entity);
 #[derive(Component, Debug, Default, Deref)]
 #[relationship_target(relationship = EntityInSection, linked_spawn)]
 pub struct SectionMobs(Vec<Entity>);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn variant_components_stay_sixteen_bits_per_id() {
-        assert!(size_of::<CatVariant>() <= 4);
-        assert!(size_of::<ChickenVariant>() <= 4);
-        assert!(size_of::<ZombieNautilusVariant>() <= 2);
-    }
-}

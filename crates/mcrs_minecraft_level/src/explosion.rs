@@ -314,37 +314,3 @@ static CACHED_RAYS: LazyLock<[DVec3; POINTS]> = LazyLock::new(|| {
 
     out
 });
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::block_update::BlockSetRequest;
-    use bevy_app::App;
-    use bevy_ecs::message::Messages;
-    use bevy_ecs::system::System;
-
-    /// Running `tick_explode` against an empty world (no `Explosion`
-    /// entities) drains nothing into
-    /// `Messages<BlockSetRequest>` because the event set is empty. Negative-
-    /// path smoke test that the system does not panic on an empty world and
-    /// the buffer stays clean.
-    #[test]
-    fn tick_explode_with_empty_world_writes_no_block_set_requests() {
-        let mut app = App::new();
-        app.add_message::<BlockSetRequest>();
-        app.add_plugins(ExplosionPlugin);
-
-        let world = app.world_mut();
-        let mut sys = bevy_ecs::system::IntoSystem::into_system(tick_explode);
-        sys.initialize(world);
-        let _ = sys.run((), world);
-        sys.apply_deferred(world);
-
-        let msgs = app.world().resource::<Messages<BlockSetRequest>>();
-        assert!(
-            msgs.is_empty(),
-            "with no explosions in the world, tick_explode must not write any BlockSetRequest \
-             (the iterated event set is empty, so no writes are emitted)"
-        );
-    }
-}

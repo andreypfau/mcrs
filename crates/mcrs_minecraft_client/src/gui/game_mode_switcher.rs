@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn the_icons_appear_once_the_item_corpus_arrives_after_startup() {
+    fn the_icons_are_spawned_from_each_session_item_table_once_it_arrives() {
         let mut app = App::new();
         add_icon_spawning(&mut app);
         app.update();
@@ -410,15 +410,6 @@ mod tests {
         let icons: Vec<_> = holders.iter(app.world()).collect();
         assert_eq!(icons.len(), 1);
         assert!((0..4).all(|index| icons[0].get(index).is_some()));
-    }
-
-    #[test]
-    fn the_icons_are_spawned_again_from_the_next_session_item_table() {
-        let mut app = App::new();
-        add_icon_spawning(&mut app);
-        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
-        app.update();
-        app.update();
         let mut stacks = app
             .world_mut()
             .query_filtered::<Entity, With<mcrs_minecraft_item::ItemStack>>();

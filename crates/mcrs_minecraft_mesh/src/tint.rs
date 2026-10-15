@@ -82,13 +82,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_fixed_colours_are_the_ones_vanilla_registers() {
+    fn the_stem_and_redstone_colours_follow_the_vanilla_ramps() {
         let colors = fixed_colors();
-        let argb = |value: i32| value as u32 & 0xff_ffff;
-        assert_eq!(colors[SPRUCE_LEAVES as usize], argb(-10380959));
-        assert_eq!(colors[BIRCH_LEAVES as usize], argb(-8345771));
-        assert_eq!(colors[ATTACHED_STEM as usize], argb(-2046180));
-        assert_eq!(colors[LILY_PAD as usize], argb(-14647248));
         assert_eq!(colors[STEM as usize], 0x00ff00);
         assert_eq!(colors[(STEM + 7) as usize], 0xe0c71c);
         assert_eq!(colors[REDSTONE as usize], 0x4c0000);

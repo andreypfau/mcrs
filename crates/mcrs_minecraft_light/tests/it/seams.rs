@@ -58,39 +58,25 @@ fn two_by_two_water_columns_arriving_one_at_a_time_match_one_pass() {
 /// the whole column moves when the top arrives, and every cell below it is a
 /// source that has to be relit — not just the fifteen under the new section.
 #[test]
-fn a_column_arriving_bottom_half_first_matches_one_pass() {
-    let mut world = world();
+fn a_column_arriving_in_pieces_bottom_up_matches_one_pass() {
     let half = SECTIONS_Y / 2;
-    let lower: Vec<Edit> = (0..half)
-        .map(|y| Edit::LoadSection {
-            entity: 0,
-            pos: SectionPos::new(0, y, 0),
-            blocks: Arc::new(filled(AIR)),
-        })
-        .collect();
-    world.update_now(lower);
-    let upper: Vec<Edit> = (half..SECTIONS_Y)
-        .map(|y| Edit::LoadSection {
-            entity: 0,
-            pos: SectionPos::new(0, y, 0),
-            blocks: Arc::new(filled(AIR)),
-        })
-        .collect();
-    world.update_now(upper);
-    check(&world, 1, 1);
-}
-
-#[test]
-fn a_column_arriving_one_section_at_a_time_bottom_up_matches_one_pass() {
-    let mut world = world();
-    for y in 0..SECTIONS_Y {
-        world.update_now([Edit::LoadSection {
-            entity: 0,
-            pos: SectionPos::new(0, y, 0),
-            blocks: Arc::new(filled(AIR)),
-        }]);
+    let halves = [0..half, half..SECTIONS_Y];
+    let sections: Vec<_> = (0..SECTIONS_Y).map(|y| y..y + 1).collect();
+    for pieces in [halves.as_slice(), sections.as_slice()] {
+        let mut world = world();
+        for piece in pieces {
+            let loads: Vec<Edit> = piece
+                .clone()
+                .map(|y| Edit::LoadSection {
+                    entity: 0,
+                    pos: SectionPos::new(0, y, 0),
+                    blocks: Arc::new(filled(AIR)),
+                })
+                .collect();
+            world.update_now(loads);
+        }
+        check(&world, 1, 1);
     }
-    check(&world, 1, 1);
 }
 
 /// Sea level across whole chunks: water below, open air above. The surface is

@@ -9,15 +9,12 @@
 
 use crate::mock_connection;
 
-use bevy_app::{App, TaskPoolPlugin, Update};
-use bevy_asset::AssetPlugin;
+use bevy_app::{App, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
-use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
@@ -28,14 +25,9 @@ use mcrs_minecraft_server::world::bridge::{
     forward_pending_inbound,
 };
 use mcrs_minecraft_server::world::bridge_queue::{InboundRateBucket, OutboundQueue};
-use mcrs_minecraft_server::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket,
-};
+use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-
-use crate::support;
 
 // ---------------------------------------------------------------------------
 // e2e_join_releases_joining_world
@@ -44,37 +36,14 @@ use crate::support;
 /// Build a host `App` with the full join + delivery stack wired as systems
 /// so a real `app.update()` pump exercises the entire production path.
 ///
-/// Compared with `build_host_app` in `host_subapp_handoff.rs`, this variant
-/// additionally registers `bridge_outbound` and `dispatch_encode` so that
-/// outbound packets flow all the way to the mock socket.
 fn build_join_host_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin {
-        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
-    });
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    app.add_plugins(TimePlugin);
-    app.insert_resource(Time::<Fixed>::from_hz(20.0));
-    app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
-    app.init_resource::<DimSpawnQueue>();
-    app.init_resource::<DimDespawnQueue>();
-    support::insert_registries(&mut app);
+    let mut app = crate::host_app::make_host_app();
     app.insert_resource(crate::support::dimension_list_with_extra());
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
     app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
-    app.add_message::<OutboundPlayerPacket>();
-    app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
-    app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.add_message::<InboundPlayerDespawn>();
 
     app.add_systems(
         Update,

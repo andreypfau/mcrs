@@ -148,17 +148,14 @@ fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
 }
 
 #[test]
-fn the_known_pack_offer_follows_the_plugin() {
+fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
     let offered = known_pack_offer(true);
     assert_eq!(offered.len(), 1);
     assert_eq!(offered[0].namespace, "minecraft");
     assert_eq!(offered[0].id, "core");
     assert_eq!(offered[0].version, VERSION.id);
     assert!(known_pack_offer(false).is_empty());
-}
 
-#[test]
-fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()

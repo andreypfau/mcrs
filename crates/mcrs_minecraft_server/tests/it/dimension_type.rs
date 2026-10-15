@@ -157,15 +157,18 @@ fn every_join_into_a_dimension_sends_the_type_of_its_entry(app: &mut App) {
     );
 }
 
-#[test]
-fn every_preset_spawns_its_dimensions_with_their_entry_types_and_beta_joins_send_them() {
+fn presets_spawn_their_dimensions_with_their_entry_types(include: impl Fn(&str) -> bool) {
     let presets = test_registries().registry::<WorldPreset>().unwrap();
     assert!(presets.len() > 1, "the shipped presets are loaded");
 
     let mut failed = Vec::new();
-    let mut beta_rows_ran = false;
+    let mut ran = false;
     for preset_id in presets.ids() {
         let name = presets.name(preset_id).unwrap().as_str();
+        if !include(name) {
+            continue;
+        }
+        ran = true;
         let dimensions = support::preset(name);
         let mut app = host_spawning(&dimensions);
         row(
@@ -180,7 +183,6 @@ fn every_preset_spawns_its_dimensions_with_their_entry_types_and_beta_joins_send
             },
         );
         if name == "minecraft:beta" {
-            beta_rows_ran = true;
             row(
                 &mut failed,
                 "a dimension named unlike its type spawns with its entry type",
@@ -193,8 +195,22 @@ fn every_preset_spawns_its_dimensions_with_their_entry_types_and_beta_joins_send
             );
         }
     }
-    assert!(beta_rows_ran, "the beta preset is shipped");
+    assert!(ran, "no shipped preset was selected");
     rows_hold(failed);
+}
+
+#[test]
+fn the_beta_preset_spawns_its_dimensions_with_their_entry_types_and_joins_send_them() {
+    presets_spawn_their_dimensions_with_their_entry_types(|name| name == "minecraft:beta");
+}
+
+mod exhaustive {
+    #[test]
+    fn every_other_preset_spawns_its_dimensions_with_their_entry_types() {
+        super::presets_spawn_their_dimensions_with_their_entry_types(|name| {
+            name != "minecraft:beta"
+        });
+    }
 }
 
 #[test]

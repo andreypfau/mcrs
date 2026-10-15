@@ -5,12 +5,10 @@
 //! Without an explicit push into DisconnectedThisTick at drain time,
 //! in-flight bus messages for the queued anchor that land on tick M's
 //! bus would slip past filter_inflight_for_disconnect.
-//!
-//! These tests verify the deferred-drain path pushes into DisconnectedThisTick
-//! and the filter clears the set at end-of-tick.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_server::disconnect::{
@@ -50,37 +48,56 @@ fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
 }
 
 #[test]
-fn drain_clears_disconnected_this_tick_via_filter_at_end_of_update() {
-    // Companion check: ensure the filter system clears
-    // DisconnectedThisTick at the end, so a second tick that does NOT
-    // touch the queue does not retain stale anchors.
+fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(3).unwrap();
     let host_anchor = app.world_mut().spawn_empty().id();
+    let other = app.world_mut().spawn_empty().id();
     insert_player(&mut app, host_anchor, dim);
-    {
-        let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
-        budget.0 = 0;
-    }
-    {
-        let mut q = app.world_mut().resource_mut::<PendingDisconnectQueue>();
-        assert!(q.push_back(host_anchor));
-    }
+    app.world_mut().resource_mut::<DisconnectBudget>().0 = 0;
+    assert!(
+        app.world_mut()
+            .resource_mut::<PendingDisconnectQueue>()
+            .push_back(host_anchor)
+    );
 
     app.world_mut()
         .run_system_once(drain_pending_disconnects)
         .expect("drain runs");
+    assert_eq!(
+        app.world()
+            .resource::<DisconnectedThisTick>()
+            .host_anchors
+            .as_slice(),
+        [host_anchor],
+        "the drained anchor is marked as disconnected this tick"
+    );
+
+    let mut attached = app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerAttached>>();
+    attached.write(OutboundPlayerAttached { host_anchor });
+    attached.write(OutboundPlayerAttached { host_anchor: other });
     app.world_mut()
         .run_system_once(filter_inflight_for_disconnect)
         .expect("filter runs");
 
-    // Filter clears host_anchors at end-of-system.
+    let kept: Vec<Entity> = app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerAttached>>()
+        .drain()
+        .map(|message| message.host_anchor)
+        .collect();
+    assert_eq!(
+        kept,
+        [other],
+        "only the drained anchor's message is dropped"
+    );
     assert!(
         app.world()
             .resource::<DisconnectedThisTick>()
             .host_anchors
             .is_empty(),
-        "filter_inflight_for_disconnect must clear DisconnectedThisTick \
-         at end-of-system so the next tick starts fresh"
+        "the next tick starts with no disconnected anchor"
     );
 }

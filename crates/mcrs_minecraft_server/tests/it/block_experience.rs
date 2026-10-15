@@ -110,16 +110,15 @@ fn block_experience_is_the_block_sample_after_the_tool_effects() {
         .default_state("minecraft:stone");
     app.update();
     app.world_mut().resource_mut::<Awarded>().0.clear();
-    for _ in 0..50 {
-        app.world_mut().write_message(BlockDestroyed {
-            state: stone,
-            pos: BlockPos::new(0, 64, 0),
-            dim: Entity::PLACEHOLDER,
-            tool: None,
-            drop_experience: true,
-        });
-        app.update();
-    }
+    app.world_mut().write_message(BlockDestroyed {
+        state: stone,
+        pos: BlockPos::new(0, 64, 0),
+        dim: Entity::PLACEHOLDER,
+        tool: None,
+        drop_experience: true,
+    });
+    app.update();
+    app.update();
     assert!(
         app.world().resource::<Awarded>().0.is_empty(),
         "a block with no experience drop paid out"

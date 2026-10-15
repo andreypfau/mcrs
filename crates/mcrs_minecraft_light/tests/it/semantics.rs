@@ -362,8 +362,7 @@ fn the_frontier_never_needs_more_than_fifteen_rounds() {
     assert!(worst > 0, "the test did no work at all");
 }
 
-#[test]
-fn the_result_does_not_depend_on_the_thread_schedule() {
+fn rebuilds_agree_whatever_the_thread_schedule(rebuilds: usize) {
     fn build() -> TestWorld {
         let mut world = TestWorld::new(3, 3, 3);
         let mut terrain = Vec::new();
@@ -384,7 +383,7 @@ fn the_result_does_not_depend_on_the_thread_schedule() {
     }
 
     let first = build();
-    for _ in 0..4 {
+    for _ in 0..rebuilds {
         let again = build();
         for y in 0..48 {
             for z in 0..48 {
@@ -400,6 +399,11 @@ fn the_result_does_not_depend_on_the_thread_schedule() {
             }
         }
     }
+}
+
+#[test]
+fn the_result_does_not_depend_on_the_thread_schedule() {
+    rebuilds_agree_whatever_the_thread_schedule(1);
 }
 
 #[test]
@@ -507,6 +511,11 @@ fn a_section_the_epoch_recomputed_but_did_not_change_keeps_its_buffer() {
 
 mod exhaustive {
     use super::*;
+
+    #[test]
+    fn four_rebuilds_agree_whatever_the_thread_schedule() {
+        rebuilds_agree_whatever_the_thread_schedule(4);
+    }
 
     #[test]
     fn a_batch_of_edits_over_a_large_world_agrees_with_the_reference() {

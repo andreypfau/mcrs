@@ -20,6 +20,8 @@ use super::value::{
 use crate::attribute::MobSpawnSettings;
 use crate::keys::{Activity, EnvironmentAttribute};
 
+const _: () = assert!(size_of::<AttributeValue>() <= 32);
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
     Bool(bool),
@@ -820,11 +822,6 @@ mod tests {
         for spec in ENVIRONMENT_ATTRIBUTES.values() {
             assert!(spec.default.is_of(spec.ty), "{}", spec.id);
         }
-    }
-
-    #[test]
-    fn an_attribute_value_stays_small_enough_to_clone_per_frame() {
-        assert!(size_of::<AttributeValue>() <= 32);
     }
 
     #[test]

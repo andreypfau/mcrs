@@ -242,6 +242,14 @@ fn entering_configuration_clears_the_play_world() {
     assert!(world.resource::<WorldClocks>().is_empty());
     assert!(world.get::<CurrentDimension>(connection).is_none());
 
+    let changed = world.resource_ref::<ColumnStore>().last_changed();
+    set_connection_state(&mut app, connection, ConnectionState::Configuration);
+    assert_eq!(
+        app.world().resource_ref::<ColumnStore>().last_changed(),
+        changed,
+        "a client holding no columns writes none of its state"
+    );
+
     app.update();
     app.update();
     assert!(
@@ -308,38 +316,6 @@ fn a_respawn_into_another_dimension_replaces_the_client_world() {
         app.world().resource::<ColumnStore>().len(),
         1,
         "a respawn into the same dimension keeps its columns"
-    );
-}
-
-#[test]
-fn clearing_twice_or_before_play_is_harmless() {
-    let mut app = play_app();
-    app.update();
-    let changed = app.world().resource_ref::<ColumnStore>().last_changed();
-
-    let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
-    app.update();
-    set_connection_state(&mut app, connection, ConnectionState::Configuration);
-    set_connection_state(&mut app, connection, ConnectionState::Configuration);
-
-    let world = app.world();
-    assert!(world.resource::<ColumnStore>().is_empty());
-    assert_eq!(
-        world.resource_ref::<ColumnStore>().last_changed(),
-        changed,
-        "a client holding no columns writes none of its state"
-    );
-    assert!(world.get_resource::<Items>().is_none());
-    assert!(world.get_resource::<ClockTimeMarkers>().is_none());
-    assert!(world.get_resource::<SkyEnvironment>().is_none());
-    assert!(world.resource::<WorldClocks>().is_empty());
-
-    let registries = session_registries(&app, |_| {});
-    app.insert_resource(registries);
-    app.update();
-    assert!(
-        app.world().get_resource::<Items>().is_some(),
-        "the tables are built once a set exists"
     );
 }
 

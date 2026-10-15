@@ -93,18 +93,21 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
 fn settle(app: &mut App, label: DimAppLabel) {
     for _ in 0..400 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(2));
         let world = app
             .sub_apps()
             .sub_apps
             .get(&label.intern())
             .expect("the dimension sub-app exists")
             .world();
-        if !world.resource::<LightEpoch>().is_running()
+        let running = world.resource::<LightEpoch>().is_running();
+        if !running
             && world.resource::<PendingEdits>().is_empty()
             && world.resource::<LightWorkQueue>().0.is_empty()
         {
             return;
+        }
+        if running {
+            std::thread::sleep(std::time::Duration::from_millis(2));
         }
     }
     panic!("light never settled");
@@ -412,13 +415,15 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let mut lit: Vec<(ColumnPos, usize)> = Vec::new();
     for tick in 0..400 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(2));
         let world = app
             .sub_apps_mut()
             .sub_apps
             .get_mut(&label.intern())
             .expect("the dimension sub-app exists")
             .world_mut();
+        if world.resource::<LightEpoch>().is_running() {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
         let newly: Vec<ColumnPos> = world
             .query_filtered::<&SectionPos, bevy_ecs::prelude::With<BlockLight>>()
             .iter(world)

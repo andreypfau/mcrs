@@ -1,29 +1,23 @@
 //! Integration tests for the host→SubApp player-connection handoff on initial
 //! join: the host-side emit, the per-dim consumer and the full round-trip.
 
-use bevy_app::{App, TaskPoolPlugin, Update};
-use bevy_asset::AssetPlugin;
+use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
-use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
-use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
-use mcrs_minecraft_server::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PlayerTransferSnapshot,
-};
+use mcrs_minecraft_server::world::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
@@ -57,31 +51,11 @@ fn rows_hold(failed: Vec<String>) {
 /// Build a minimal host-side App with the bus substrate and the systems
 /// under test.
 fn build_host_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin {
-        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
-    });
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    app.add_plugins(TimePlugin);
-    app.insert_resource(Time::<Fixed>::from_hz(20.0));
-    app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
-    app.init_resource::<DimSpawnQueue>();
-    app.init_resource::<DimDespawnQueue>();
-    support::insert_registries(&mut app);
+    let mut app = crate::host_app::make_host_app();
     app.insert_resource(support::dimension_list_with_extra());
 
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimChannelsResource>();
-    app.add_message::<OutboundPlayerPacket>();
-    app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
-    app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.add_message::<InboundPlayerDespawn>();
     app.add_systems(Update, (bridge_inbound_to_channel, bridge_player_attach));
 
     app.add_plugins(LoginPlugin);

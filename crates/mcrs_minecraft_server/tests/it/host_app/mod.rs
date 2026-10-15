@@ -1,14 +1,3 @@
-//! Shared host-app fixtures for the per-dim sub-app integration tests.
-//!
-//! Each integration test file (`tests/*.rs`) compiles as its own binary, so
-//! a built `App` cannot be shared across tests — but the construction itself
-//! was copy-pasted across several files. This module is the single source of
-//! truth for that setup: the host `App` wired for the production sub-app
-//! builder path, plus the small enqueue/drain helpers the tests drive it with.
-//!
-//! `BEVY_ASSET_ROOT` is set process-wide in `.cargo/config.toml`, so no
-//! per-test env mutation is needed here.
-
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};

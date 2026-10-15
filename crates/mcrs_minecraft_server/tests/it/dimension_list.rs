@@ -1,8 +1,12 @@
 use bevy_app::App;
+use bevy_state::state::State;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
+use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
@@ -10,6 +14,7 @@ use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 
 use crate::support::preset;
 
@@ -36,7 +41,7 @@ fn scratch_world(tag: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn a_save_supplies_the_dimension_list_whatever_the_preset_names() {
+fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_builds_the_tables() {
     let set = test_registries();
     let mut dimensions = preset("minecraft:normal");
     dimensions.insert(
@@ -54,11 +59,14 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names() {
     )
     .unwrap();
 
-    let spawned = spawned_dimensions(MinecraftServerPlugin {
+    let mut app = booted(MinecraftServerPlugin {
         world: Some(world.clone()),
         preset: "test:absent".to_owned(),
         ..MinecraftServerPlugin::embedded()
     });
+    app.update();
+    the_startup_tables_and_clocks_exist_after_the_first_update(&app);
+    let spawned = spawned_dimensions(app);
     assert_eq!(
         spawned,
         [
@@ -71,7 +79,7 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names() {
     std::fs::remove_dir_all(world).unwrap();
 }
 
-fn spawned_dimensions(plugin: MinecraftServerPlugin) -> Vec<String> {
+fn booted(plugin: MinecraftServerPlugin) -> App {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
         asset_path: Some(ASSETS.to_owned()),
@@ -81,6 +89,41 @@ fn spawned_dimensions(plugin: MinecraftServerPlugin) -> Vec<String> {
     });
     app.finish();
     app.cleanup();
+    app
+}
+
+fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
+    assert_ne!(
+        *app.world().resource::<State<AppState>>().get(),
+        AppState::Playing,
+        "the update must not have reached Playing, or it proves nothing about Startup"
+    );
+    assert!(
+        app.world().get_resource::<BlockLightRegistry>().is_some(),
+        "no block light table after the first update"
+    );
+    assert!(
+        app.world().get_resource::<HeightmapPredicates>().is_some(),
+        "no heightmap predicates after the first update"
+    );
+    let clocks = app.world().resource::<WorldClocks>();
+    let registered = app
+        .world()
+        .resource::<RegistrySet>()
+        .registry::<WorldClock>()
+        .expect("the world clock registry is loaded");
+    assert!(!registered.is_empty());
+    assert_eq!(
+        clocks.len(),
+        registered.len(),
+        "the clocks held after the first update differ from the registry's"
+    );
+    for id in registered.ids() {
+        assert!(clocks.get(id).is_some(), "{id:?} is not seeded");
+    }
+}
+
+fn spawned_dimensions(mut app: App) -> Vec<String> {
     crate::support::update_until_playing(&mut app);
     app.world()
         .resource::<DimSpawnQueue>()
@@ -90,15 +133,19 @@ fn spawned_dimensions(plugin: MinecraftServerPlugin) -> Vec<String> {
         .collect()
 }
 
-#[test]
-fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
-    let lobby = Dimensions::from([(
-        key("mcrs:lobby"),
-        debug_dimension(test_registries(), "minecraft:overworld"),
-    )]);
-    let spawned = spawned_dimensions(MinecraftServerPlugin {
-        dimensions: Some(lobby),
-        ..MinecraftServerPlugin::embedded()
-    });
-    assert_eq!(spawned, ["mcrs:lobby"]);
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
+        let lobby = Dimensions::from([(
+            key("mcrs:lobby"),
+            debug_dimension(test_registries(), "minecraft:overworld"),
+        )]);
+        let spawned = spawned_dimensions(booted(MinecraftServerPlugin {
+            dimensions: Some(lobby),
+            ..MinecraftServerPlugin::embedded()
+        }));
+        assert_eq!(spawned, ["mcrs:lobby"]);
+    }
 }

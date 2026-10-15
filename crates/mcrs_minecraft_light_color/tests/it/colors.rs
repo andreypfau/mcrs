@@ -8,6 +8,11 @@ use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::corpus::{asset_server, blocks};
+use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::AssetPlugin;
+use mcrs_minecraft_light_color::item::ItemLights;
+use mcrs_minecraft_light_color::plugin::LightColorPlugin;
+use mcrs_minecraft_world::resolvers::run_resolvers;
 
 fn block(id: &str) -> &'static BlockEntry {
     blocks()
@@ -49,6 +54,33 @@ fn light_colours_load_against_the_block_corpus() {
     a_candle_predicate_colours_only_the_lit_states();
     a_state_claimed_twice_fails_naming_both_files();
     more_than_255_colours_fail();
+    the_plugin_holds_the_colour_table_and_item_lights_after_the_first_update();
+}
+
+fn the_plugin_holds_the_colour_table_and_item_lights_after_the_first_update() {
+    let mut app = App::new();
+    app.add_plugins((
+        TaskPoolPlugin::default(),
+        AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        },
+    ));
+    app.insert_resource(blocks().clone());
+    app.insert_resource(crate::corpus::items().clone());
+    app.insert_resource(test_registries().clone());
+    app.add_plugins(LightColorPlugin);
+    run_resolvers(app.world_mut(), test_registries()).unwrap_or_else(|report| panic!("{report}"));
+    app.update();
+    let colors = app
+        .world()
+        .get_resource::<LightColors>()
+        .expect("the colour table after the first update");
+    assert_eq!(colors.type_count(), 14, "13 colours and the default");
+    assert!(
+        app.world().get_resource::<ItemLights>().is_some(),
+        "the item light table after the first update"
+    );
 }
 
 fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {

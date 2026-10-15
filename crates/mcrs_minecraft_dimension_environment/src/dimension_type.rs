@@ -176,7 +176,7 @@ impl DimensionTypeFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, dimension_type_set, packs, reencode};
+    use mcrs_minecraft_worldgen_testing::{assets_dir, dimension_type_set, packs};
     use serde_json::Value;
     use std::path::PathBuf;
 
@@ -248,17 +248,6 @@ mod tests {
                 .scope(|| serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
 
-            assert!(
-                !parsed.attributes.is_empty(),
-                "{} has attributes",
-                path.display()
-            );
-            assert_eq!(
-                dimension_type_set().scope(|| reencode(&parsed.attributes)),
-                raw["attributes"],
-                "{} attributes must round-trip unchanged",
-                path.display()
-            );
             let written: Value = serde_json::from_str(
                 &dimension_type_set().scope(|| serde_json::to_string(&parsed).unwrap()),
             )

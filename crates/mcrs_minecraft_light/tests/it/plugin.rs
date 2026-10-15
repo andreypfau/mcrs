@@ -5,18 +5,19 @@ use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
 
-// The epoch runs on a worker thread, so the loop has to give it a chance to
-// finish rather than spinning the schedule.
 fn settle(app: &mut App) {
-    for _ in 0..200 {
+    for _ in 0..1000 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(5));
         let world = app.world();
-        if !world.resource::<LightEpoch>().is_running()
+        let running = world.resource::<LightEpoch>().is_running();
+        if !running
             && world.resource::<PendingEdits>().is_empty()
             && world.resource::<LightWorkQueue>().0.is_empty()
         {
             return;
+        }
+        if running {
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
     }
     panic!("light never settled");

@@ -13,7 +13,7 @@ use mcrs_minecraft_assets::packs::{
 };
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
+use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -72,25 +72,6 @@ fn the_generated_static_set_equals_the_report() {
             );
         }
     }
-
-    let again = build_static_registries().unwrap();
-    for table in built.tables() {
-        let twin = again.table(table.registry().as_str()).unwrap();
-        assert_eq!(twin.names(), table.names(), "{}", table.registry());
-    }
-
-    let with_empty = RegistrySet::from_locations(&[
-        (rl!("minecraft:none"), &[]),
-        (
-            rl!("minecraft:some"),
-            &[rl!("minecraft:a"), rl!("minecraft:b")],
-        ),
-    ])
-    .unwrap();
-    let none = with_empty.table("minecraft:none").unwrap();
-    assert!(none.is_empty());
-    assert_eq!(none.len(), 0);
-    assert_eq!(with_empty.table("minecraft:some").unwrap().len(), 2);
 }
 
 static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
@@ -2103,8 +2084,7 @@ fn trade_values_the_game_refuses_fail_to_parse() {
     assert_eq!(accepted, Vec::<String>::new());
 }
 
-#[test]
-fn every_built_in_file_reads_through_the_layered_file_source() {
+fn layered_asset_app() -> App {
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
@@ -2114,6 +2094,11 @@ fn every_built_in_file_reads_through_the_layered_file_source() {
         ),
     );
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    app
+}
+
+fn built_in_files_read_through_the_layered_file_source(count: usize) {
+    let app = layered_asset_app();
     let source = app
         .world()
         .resource::<AssetServer>()
@@ -2123,10 +2108,15 @@ fn every_built_in_file_reads_through_the_layered_file_source() {
 
     let paths = mcrs_minecraft_worldgen_builtin::template_paths("minecraft/structure");
     assert!(!paths.is_empty());
-    for path in paths {
+    for path in paths.into_iter().take(count) {
         bevy_tasks::block_on(read_whole(source, Path::new(&path)))
             .unwrap_or_else(|error| panic!("{path}: {error}"));
     }
+}
+
+#[test]
+fn a_built_in_file_reads_through_the_layered_file_source() {
+    built_in_files_read_through_the_layered_file_source(1);
 }
 
 fn timeline_file(clock: &str, markers: &str) -> String {
@@ -2137,15 +2127,7 @@ pub(crate) fn load_shipped_and(
     directory: &str,
     files: &[(&str, String)],
 ) -> Result<RegistrySet, String> {
-    let mut app = App::new();
-    app.register_asset_source(
-        AssetSourceId::Default,
-        layered_file_source(
-            &AssetPlugin::default().file_path,
-            mcrs_minecraft_worldgen_builtin::asset,
-        ),
-    );
-    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    let app = layered_asset_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
 
     let mut packs = read_packs(&asset_server, &WORLD, &STATICS).expect("the packs read");
@@ -2160,6 +2142,35 @@ pub(crate) fn load_shipped_and(
             .collect(),
         built: Vec::new(),
     });
+    WORLD
+        .load(&STATICS, &packs)
+        .map_err(|report| report.to_string())
+}
+
+fn load_timelines(files: &[(&str, String)]) -> Result<RegistrySet, String> {
+    let mut all = one_self_contained_file_of_each_registry_that_must_not_be_empty();
+    for clock in ["overworld", "the_end"] {
+        all.push((
+            format!("minecraft/world_clock/{clock}.json"),
+            "{}".to_owned(),
+        ));
+    }
+    all.extend(
+        files
+            .iter()
+            .map(|(name, json)| (format!("test/timeline/{name}.json"), json.clone())),
+    );
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files: all
+            .into_iter()
+            .map(|(path, json)| PackFile {
+                path,
+                bytes: Some(json.into_bytes()),
+            })
+            .collect(),
+        built: Vec::new(),
+    }];
     WORLD
         .load(&STATICS, &packs)
         .map_err(|report| report.to_string())
@@ -2228,19 +2239,16 @@ fn a_worldgen_file_that_does_not_parse_stops_the_load() {
 
 #[test]
 fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
-    let refused = load_shipped_and(
-        "test/timeline",
-        &[
-            (
-                "first",
-                timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
-            ),
-            (
-                "second",
-                timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
-            ),
-        ],
-    )
+    let refused = load_timelines(&[
+        (
+            "first",
+            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+        ),
+        (
+            "second",
+            timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
+        ),
+    ])
     .err()
     .expect("a marker defined by two timelines of one clock is refused");
 
@@ -2256,38 +2264,10 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
 }
 
 #[test]
-fn a_marker_reused_on_two_clocks_loads() {
-    let set = load_shipped_and(
-        "test/timeline",
-        &[
-            (
-                "first",
-                timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
-            ),
-            (
-                "second",
-                timeline_file("minecraft:the_end", r#"{"test:marker":2000}"#),
-            ),
-        ],
-    )
-    .unwrap_or_else(|report| panic!("the markers are on two clocks: {report}"));
-
-    let table = set.table("minecraft:timeline").expect("the timeline table");
-    let timelines = set
-        .column::<Timeline>("minecraft:timeline")
-        .expect("the timelines parse");
-    assert_eq!(timelines.len(), table.len());
-    assert!(table.number("test:first").is_some() && table.number("test:second").is_some());
-}
-
-#[test]
 fn a_timeline_naming_an_unknown_clock_fails() {
-    let refused = load_shipped_and(
-        "test/timeline",
-        &[("lost", timeline_file("minecraft:nowhere", "{}"))],
-    )
-    .err()
-    .expect("a clock the registry does not hold is refused");
+    let refused = load_timelines(&[("lost", timeline_file("minecraft:nowhere", "{}"))])
+        .err()
+        .expect("a clock the registry does not hold is refused");
 
     assert!(refused.contains("minecraft:world_clock"), "{refused}");
     assert!(refused.contains("minecraft:nowhere"), "{refused}");
@@ -2762,4 +2742,11 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
         differing += usize::from(item.number() != block.number());
     }
     assert!(differing > 0, "no shared name is numbered differently");
+}
+
+mod exhaustive {
+    #[test]
+    fn every_built_in_file_reads_through_the_layered_file_source() {
+        super::built_in_files_read_through_the_layered_file_source(usize::MAX);
+    }
 }

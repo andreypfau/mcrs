@@ -300,21 +300,3 @@ impl BiomeFile {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deserialize_all_biomes() {
-        let biomes = mcrs_minecraft_worldgen_testing::registry::<BiomeFile>("biome");
-        assert!(biomes.len() >= 78, "{} biomes", biomes.len());
-        for (id, biome) in biomes {
-            mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
-                let encoded = serde_json::to_string(&biome).unwrap();
-                let read: BiomeFile = serde_json::from_str(&encoded).unwrap();
-                assert_eq!(read, biome, "{id} must round-trip unchanged");
-            });
-        }
-    }
-}

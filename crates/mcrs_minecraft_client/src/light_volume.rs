@@ -832,10 +832,13 @@ mod tests {
         for _ in 0..5000 {
             app.update();
             queue.take(&mut commands);
-            if app.world().resource::<LightVolumeFeed>().idle() {
+            let feed = app.world().resource::<LightVolumeFeed>();
+            if feed.idle() {
                 return commands;
             }
-            std::thread::sleep(Duration::from_millis(1));
+            if !feed.building.is_empty() {
+                std::thread::sleep(Duration::from_millis(1));
+            }
         }
         panic!("the feeder did not settle");
     }

@@ -187,3 +187,61 @@ fn handle_accept_teleportation(
         state.pending_teleports = state.pending_teleports.saturating_sub(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::bus::PacketTarget;
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+
+    #[test]
+    fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        let moved_anchor = world.spawn_empty().id();
+        let moved = world
+            .spawn((
+                HostAnchor(moved_anchor),
+                Transform::default().with_translation(DVec3::new(1.0, 0.0, 0.0)),
+                TeleportState::default(),
+            ))
+            .id();
+        let synced_anchor = world.spawn_empty().id();
+        let synced = world
+            .spawn((
+                HostAnchor(synced_anchor),
+                Transform::default(),
+                TeleportState::default(),
+            ))
+            .id();
+
+        world.run_system_once(teleport).unwrap();
+
+        let sent: Vec<_> = world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .collect();
+        assert_eq!(sent.len(), 1, "only the moved player is told");
+        assert!(
+            matches!(sent[0].target, PacketTarget::SinglePlayer(anchor) if anchor == moved_anchor)
+        );
+        let PacketPayload::PlayerPosition(position) = &sent[0].data else {
+            panic!("a move is sent as a player position");
+        };
+        assert_eq!(position.teleport_id.0, 0);
+        assert_eq!(position.position, DVec3::new(1.0, 0.0, 0.0));
+
+        let state = world.get::<TeleportState>(moved).unwrap();
+        assert_eq!(
+            (state.pending_teleports(), state.teleport_id_counter()),
+            (1, 1)
+        );
+        let state = world.get::<TeleportState>(synced).unwrap();
+        assert_eq!(
+            (state.pending_teleports(), state.teleport_id_counter()),
+            (0, 0)
+        );
+    }
+}

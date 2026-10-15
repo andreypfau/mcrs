@@ -48,10 +48,7 @@ pub fn session_registries(app: &App, edit: impl FnOnce(&mut Vec<NetworkRegistry>
         .unwrap_or_else(|report| panic!("{report}"))
 }
 
-#[test]
-fn the_client_boots_without_local_world_registries() {
-    let app = boot(|_| {});
-
+fn the_client_boots_without_local_world_registries(app: &App) {
     assert!(
         app.world().get_resource::<RegistrySet>().is_none(),
         "world registries are session data, so none exists before a server sends them"
@@ -75,8 +72,10 @@ fn the_client_boots_without_local_world_registries() {
 }
 
 #[test]
-fn every_dimension_type_of_a_filled_session_has_its_environment() {
+fn the_client_boots_without_world_registries_and_every_dimension_type_of_a_filled_session_has_its_environment()
+ {
     let app = boot(|_| {});
+    the_client_boots_without_local_world_registries(&app);
     let registries = session_registries(&app, |_| {});
 
     let types = registries
