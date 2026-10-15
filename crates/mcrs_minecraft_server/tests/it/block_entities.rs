@@ -22,7 +22,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{
     BeeOccupant, EndGatewayData, GeneratedBlockEntity,
 };

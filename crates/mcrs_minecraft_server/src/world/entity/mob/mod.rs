@@ -617,7 +617,7 @@ mod tests {
     fn a_cat_holds_the_ids_its_set_numbers_its_variants_by() {
         use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant as CatVariantValue};
 
-        let set = mcrs_minecraft_world::registries::test_registries();
+        let set = mcrs_minecraft_world::registry_load::test_registries();
         let variants = set.registry::<CatVariantValue>().unwrap();
         let sounds = set.registry::<CatSoundVariant>().unwrap();
         let name = |text: &str| ResourceLocation::read(text).unwrap();

@@ -18,7 +18,7 @@ pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
 }
 
 pub fn in_data_pack<T>(run: impl FnOnce() -> T) -> T {
-    mcrs_minecraft_world::registries::test_registries().scope(run)
+    mcrs_minecraft_world::registry_load::test_registries().scope(run)
 }
 
 pub use crate::common::{hex, nbt_tree};

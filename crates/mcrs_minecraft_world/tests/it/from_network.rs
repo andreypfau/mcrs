@@ -9,8 +9,9 @@ use mcrs_minecraft_registry::{
 };
 use mcrs_minecraft_world::packs::{DATAPACK_REPORT, known_pack_entries};
 use mcrs_minecraft_world::registries::{
-    registries_as_sent, static_registries, tags_as_sent, test_registries, world_registries,
+    registries_as_sent, static_registries, tags_as_sent, world_registries,
 };
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::assets;
 
@@ -133,7 +134,7 @@ fn a_known_pack_entry_is_filled_from_the_local_pack() {
 fn an_entry_without_data_outside_the_known_packs_fails() {
     let server = test_registries();
     let beta = (0..server.table(BIOME).unwrap().len())
-        .find(|&id| server.pack_of(BIOME, id) == Some("beta"))
+        .find(|&id| server.pack_of(BIOME, id) == Some("file/beta"))
         .expect("the beta pack adds a biome");
     let beta_name = server.table(BIOME).unwrap().name(beta).unwrap().to_string();
 

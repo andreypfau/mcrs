@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;

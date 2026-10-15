@@ -36,3 +36,5 @@ pub trait Noise {
         amplitude: f32,
     );
 }
+
+mcrs_minecraft_registries::read_with_serde!(crate::proto::NoiseParam);

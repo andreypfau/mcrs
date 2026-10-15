@@ -53,6 +53,15 @@ impl LoadReport {
         self.record(registry, Some(entry), Some(file), message.to_string());
     }
 
+    pub(crate) fn unfiled(
+        &mut self,
+        registry: &ResourceLocation<Arc<str>>,
+        entry: Option<&str>,
+        message: String,
+    ) {
+        self.record(registry, entry, None, message);
+    }
+
     pub(crate) fn whole_registry(
         &mut self,
         registry: &ResourceLocation<Arc<str>>,

@@ -12,6 +12,9 @@ use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registry::{Registered, RegistrySet};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_world::registry_load::{
+    DirectoryPacks, LoadedRegistries, PackEntry, PackSource, RegistryLoadError, load_registries,
+};
 use serde::Deserialize;
 
 pub fn items() -> &'static Items {
@@ -90,13 +93,10 @@ pub fn run_to_playing() -> App {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
     app.add_plugins(StatesPlugin);
-    bevy_asset::AssetApp::register_asset_source(
+    mcrs_minecraft_assets::packs::register_pack_sources(
         &mut app,
-        bevy_asset::io::AssetSourceId::Default,
-        mcrs_minecraft_assets::packs::layered_file_source(
-            "assets",
-            mcrs_minecraft_worldgen_builtin::asset,
-        ),
+        "assets",
+        mcrs_minecraft_worldgen_builtin::asset,
     );
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
@@ -117,5 +117,142 @@ pub fn run_to_playing() -> App {
             std::time::Instant::now() < deadline,
             "never reached Playing"
         );
+    }
+}
+
+pub fn plugin_app() -> App {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(StatesPlugin);
+    mcrs_minecraft_assets::packs::register_pack_sources(
+        &mut app,
+        assets().to_str().unwrap(),
+        mcrs_minecraft_worldgen_builtin::asset,
+    );
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
+    app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
+    app.add_plugins(MinecraftWorldPlugin);
+    app.finish();
+    app.cleanup();
+    app
+}
+
+pub struct RemovedOnDrop(pub PathBuf);
+
+impl RemovedOnDrop {
+    pub fn temp(name: &str) -> Self {
+        Self(std::env::temp_dir().join(format!("{name}_{}", std::process::id())))
+    }
+}
+
+impl Drop for RemovedOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+pub const TEST_PACK: &str = "mcrs/datapacks/zz_test";
+
+pub struct WithFiles {
+    base: DirectoryPacks,
+    files: BTreeMap<String, Option<Vec<u8>>>,
+    hidden: Vec<String>,
+}
+
+impl WithFiles {
+    pub fn over_assets() -> Self {
+        Self {
+            base: DirectoryPacks::new(assets()),
+            files: BTreeMap::new(),
+            hidden: Vec::new(),
+        }
+    }
+
+    pub fn with<P, B>(mut self, path: P, bytes: B) -> Self
+    where
+        P: Into<String>,
+        B: Into<Vec<u8>>,
+    {
+        self.files.insert(path.into(), Some(bytes.into()));
+        self
+    }
+
+    pub fn unreadable(mut self, path: &str) -> Self {
+        self.files.insert(path.to_owned(), None);
+        self
+    }
+
+    pub fn pack(self, root: &str) -> Self {
+        let metadata = std::fs::read(assets().join("mcrs/datapacks/beta/pack.mcmeta")).unwrap();
+        self.with(format!("{root}/pack.mcmeta"), metadata)
+    }
+
+    pub fn test_pack<P: AsRef<str>, T: AsRef<str>>(files: &[(P, T)]) -> Self {
+        files.iter().fold(
+            Self::over_assets().pack(TEST_PACK),
+            |source, (path, text)| {
+                source.with(
+                    format!("{TEST_PACK}/{}", path.as_ref()),
+                    text.as_ref().as_bytes(),
+                )
+            },
+        )
+    }
+
+    pub fn hiding(mut self, directory: &str) -> Self {
+        self.hidden.push(directory.to_owned());
+        self
+    }
+
+    fn is_hidden(&self, path: &str) -> bool {
+        self.hidden.iter().any(|hidden| {
+            path == hidden
+                || path
+                    .strip_prefix(hidden.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+        })
+    }
+
+    pub fn load(&self) -> Result<LoadedRegistries, RegistryLoadError> {
+        load_registries(self)
+    }
+}
+
+impl PackSource for WithFiles {
+    fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+        match self.files.get(path) {
+            Some(Some(bytes)) => Ok(bytes.clone()),
+            Some(None) => Err(format!("{path}: unreadable")),
+            None if self.is_hidden(path) => Err(format!("{path}: hidden")),
+            None => self.base.read(path),
+        }
+    }
+
+    fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String> {
+        let mut listed = match self.is_hidden(directory) {
+            true => Vec::new(),
+            false => self.base.list(directory)?,
+        };
+        listed.retain(|entry| !self.is_hidden(&format!("{directory}/{}", entry.name)));
+        let prefix = format!("{directory}/");
+        for path in self.files.keys() {
+            let Some(rest) = path.strip_prefix(&prefix) else {
+                continue;
+            };
+            let (name, directory) = match rest.split_once('/') {
+                Some((name, _)) => (name, true),
+                None => (rest, false),
+            };
+            if !listed.iter().any(|entry| entry.name == name) {
+                listed.push(PackEntry {
+                    name: name.to_owned(),
+                    directory,
+                });
+            }
+        }
+        Ok(listed)
     }
 }

@@ -2,7 +2,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 

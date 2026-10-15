@@ -32,7 +32,7 @@ use mcrs_minecraft_server::world::item::click::{
 };
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn opened() -> (World, Entity) {
     let (mut world, player, _anchor) = world();

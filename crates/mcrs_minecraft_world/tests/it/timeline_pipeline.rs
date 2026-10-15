@@ -15,7 +15,7 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_registry::{Id, RegistrySet};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -193,7 +193,10 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
             .unwrap_or_else(|| panic!("{rl} has no pack"));
         let root = match pack {
             "vanilla" => "assets/minecraft".to_owned(),
-            pack => format!("assets/{PACKS_ROOT}/{pack}/minecraft"),
+            pack => format!(
+                "assets/{PACKS_ROOT}/{}/minecraft",
+                pack.trim_start_matches("file/")
+            ),
         };
         let raw: serde_json::Value = serde_json::from_slice(
             &std::fs::read(format!("{root}/dimension_type/{}.json", rl.path())).unwrap(),

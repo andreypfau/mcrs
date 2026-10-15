@@ -1,6 +1,6 @@
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen::router::{build_dimension_router, dimension_beardifier_placement};
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use std::cell::RefCell;

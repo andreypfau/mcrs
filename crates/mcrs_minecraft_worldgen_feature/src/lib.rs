@@ -146,3 +146,10 @@ mod tests {
         });
     }
 }
+
+mcrs_minecraft_registries::read_with_serde!(
+    crate::proto::Feature,
+    crate::proto::PlacedFeature,
+    crate::proto::StructureProcessorList,
+    crate::pool::TemplatePool
+);

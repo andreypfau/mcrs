@@ -16,8 +16,7 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::VANILLA_PACK;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -40,6 +39,7 @@ use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::tags::tags_payload_of;
 use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_world::registry_load::{KnownPacks, StackedKnownPack};
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ use crate::world_options::{DimensionList, bake_dimensions};
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct AwaitingKnownPacks(Vec<KnownPack<'static>>);
+pub struct AwaitingKnownPacks(Vec<StackedKnownPack>);
 
 pub struct ConfigurationStatePlugin;
 
@@ -101,15 +101,15 @@ pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
 #[derive(Resource)]
 pub struct KnownPackOffer(pub bool);
 
-pub fn known_pack_offer(offer: bool) -> Vec<KnownPack<'static>> {
-    if offer {
-        vec![KnownPack {
-            namespace: "minecraft",
-            id: "core",
-            version: VERSION.id.as_str(),
-        }]
-    } else {
-        Vec::new()
+pub fn known_pack_offer(offer: bool, known: &KnownPacks) -> Vec<StackedKnownPack> {
+    if offer { known.0.clone() } else { Vec::new() }
+}
+
+pub fn offered_pack(pack: &StackedKnownPack) -> KnownPack<'_> {
+    KnownPack {
+        namespace: &pack.known.namespace,
+        id: &pack.known.id,
+        version: &pack.known.version,
     }
 }
 
@@ -119,6 +119,7 @@ fn on_configuration_enter(
         (Changed<ConnectionState>, Without<AwaitingKnownPacks>),
     >,
     offer: Option<Res<KnownPackOffer>>,
+    known: Res<KnownPacks>,
     mut commands: Commands,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
@@ -129,9 +130,10 @@ fn on_configuration_enter(
         con.write_packet(&ClientboundCustomPayload(Payload::Brand(Brand {
             brand: identity::BRAND,
         })));
-        let offered = known_pack_offer(offer.as_deref().is_none_or(|offer| offer.0));
+        let offer = offer.as_deref().is_none_or(|offer| offer.0);
+        let offered = known_pack_offer(offer, &known);
         con.write_packet(&ClientboundSelectKnownPacks {
-            known_packs: offered.clone(),
+            known_packs: offered.iter().map(offered_pack).collect(),
         });
         commands.entity(entity).insert(AwaitingKnownPacks(offered));
     }
@@ -150,13 +152,14 @@ pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
 
 pub fn registry_data<'a>(
     set: &'a RegistrySet,
-    offered: &[KnownPack],
+    offered: &[StackedKnownPack],
     accepted: &[KnownPack],
 ) -> Vec<ClientboundRegistryData<'a>> {
-    let knows_vanilla = accepted == offered
-        && offered
-            .iter()
-            .any(|pack| (pack.namespace, pack.id) == ("minecraft", "core"));
+    let known: Vec<&str> = offered
+        .iter()
+        .filter(|pack| accepted.contains(&offered_pack(pack)))
+        .map(|pack| pack.pack.as_str())
+        .collect();
     set.synced()
         .map(|(table, column)| {
             let registry = table.registry().as_str();
@@ -166,11 +169,12 @@ pub fn registry_data<'a>(
                 .zip(column)
                 .enumerate()
                 .map(|(id, (name, network))| {
-                    let from_vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
+                    let client_knows = set
+                        .pack_of(registry, id)
+                        .is_some_and(|pack| known.contains(&pack));
                     Entry {
                         id: ResourceLocation::read_cow(name.as_str()).unwrap(),
-                        data: (!(knows_vanilla && from_vanilla))
-                            .then_some(Cow::Borrowed(&network.0)),
+                        data: (!client_knows).then_some(Cow::Borrowed(&network.0)),
                     }
                 })
                 .collect();

@@ -7,7 +7,7 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::Items;
 
 use super::definitions::load_item_definitions;
-use crate::registries::test_registries;
+use crate::registry_load::test_registries;
 
 /// The whole vanilla corpus, loaded once per process; for tests and tools
 /// that have no app to hand it an asset server from.

@@ -2,7 +2,7 @@ use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::{Entries, Registry};
 
-use crate::registries::test_registries;
+use crate::registry_load::test_registries;
 
 pub fn test_enchantment_effects() -> Entries<EnchantmentData, Option<EnchantmentEffects>> {
     test_registries()

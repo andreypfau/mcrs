@@ -13,7 +13,7 @@ use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_world::item::{test_enchantment_effects, test_enchantment_registry};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);

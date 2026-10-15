@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::corpus::{asset_server, blocks};

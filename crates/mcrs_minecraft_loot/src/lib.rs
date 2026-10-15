@@ -15,3 +15,12 @@ pub use function::LootItemFunction;
 pub use number::{FloatExpression, IntExpression};
 pub use slot::SlotSource;
 pub use table::{LootPool, LootTableBody, LootTableFile};
+
+mcrs_minecraft_registries::read_with_serde!(
+    crate::condition::LootCondition,
+    crate::function::LootItemFunction,
+    crate::slot::SlotSource,
+    crate::LootTableFile,
+    crate::number::IntExpression,
+    crate::number::FloatExpression
+);

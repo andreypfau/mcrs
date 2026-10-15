@@ -10,7 +10,7 @@ use mcrs_minecraft_light_color::item::{
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
 use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 

@@ -10,7 +10,7 @@ use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use uuid::Uuid;
 

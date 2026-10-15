@@ -20,13 +20,17 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::{Diagnostic, Level};
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{HolderSet, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
+use mcrs_minecraft_registry::{HolderSet, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
-use mcrs_minecraft_world::packs::{load_from_directory, read_packs_from_directory};
+use mcrs_minecraft_world::packs::read_packs_from_directory;
 use mcrs_minecraft_world::registries::{
-    load_registries, read_packs, reloadable_registries,
-    static_registries as build_static_registries, test_registries, world_registries,
+    read_packs, reloadable_registries, static_registries as build_static_registries,
+    world_registries,
+};
+use mcrs_minecraft_world::registry_load::{
+    KnownPacks, RegistryLoadError, test_known_packs, test_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -36,7 +40,10 @@ use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
-use crate::common::{assets, datapack_report, declared_registries, loaded_names};
+use crate::common::{
+    RemovedOnDrop, WithFiles, assets, datapack_report, declared_registries, loaded_names,
+    plugin_app,
+};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
@@ -80,22 +87,23 @@ static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
 });
 
 fn load_text(files: &[(&str, &str)]) -> String {
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files: files
-            .iter()
-            .map(|(path, json)| PackFile {
-                path: (*path).to_owned(),
-                bytes: Some(json.as_bytes().to_vec()),
-            })
-            .collect(),
-        built: Vec::new(),
-    }];
-    WORLD
-        .load(&STATICS, &packs)
+    WithFiles::test_pack(files)
+        .load()
         .err()
-        .map(|report| report.to_string())
+        .map(|error| error.to_string())
         .unwrap_or_default()
+}
+
+fn errors_of<T>(loaded: Result<T, RegistryLoadError>) -> Vec<Diagnostic> {
+    match loaded {
+        Ok(_) => Vec::new(),
+        Err(RegistryLoadError::Load(diagnostics)) => diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.level() == Level::Error)
+            .cloned()
+            .collect(),
+        Err(error) => panic!("the load stops before the loader runs: {error}"),
+    }
 }
 
 fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
@@ -266,7 +274,7 @@ fn vanilla_noise_settings_are_built_entries_not_files() {
                 .count()
         };
         assert_eq!(
-            (from(VANILLA_PACK), from("beta")),
+            (from(VANILLA_PACK), from("file/beta")),
             (vanilla, beta),
             "{registry}"
         );
@@ -433,9 +441,13 @@ fn the_banner_pattern_column_follows_the_name_table() {
 fn a_local_entry_comes_from_its_pack() {
     let set = test_registries();
     for (registry, name, pack) in [
-        ("minecraft:dimension_type", "minecraft:beta", "beta"),
+        ("minecraft:dimension_type", "minecraft:beta", "file/beta"),
         ("minecraft:dimension_type", "minecraft:overworld", "vanilla"),
-        ("minecraft:worldgen/world_preset", "minecraft:beta", "beta"),
+        (
+            "minecraft:worldgen/world_preset",
+            "minecraft:beta",
+            "file/beta",
+        ),
         (
             "minecraft:worldgen/world_preset",
             "minecraft:normal",
@@ -444,7 +456,7 @@ fn a_local_entry_comes_from_its_pack() {
         (
             "minecraft:worldgen/noise_settings",
             "minecraft:beta",
-            "beta",
+            "file/beta",
         ),
         (
             "minecraft:worldgen/noise_settings",
@@ -459,9 +471,13 @@ fn a_local_entry_comes_from_its_pack() {
         (
             "minecraft:worldgen/density_function",
             "minecraft:beta/temperature",
-            "beta",
+            "file/beta",
         ),
-        ("minecraft:worldgen/noise", "mcrs:beta/temperature", "beta"),
+        (
+            "minecraft:worldgen/noise",
+            "mcrs:beta/temperature",
+            "file/beta",
+        ),
         ("minecraft:worldgen/noise", "minecraft:ridge", "vanilla"),
     ] {
         let id = set
@@ -478,6 +494,7 @@ fn packs_follow_vanilla_in_name_order() {
         |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
     let root = Dir::default();
     root.insert_asset_text(Path::new("minecraft/banner_pattern/a.json"), &pattern("a"));
+    root.insert_asset_text(Path::new("mcrs/datapacks/extra/pack.mcmeta"), "{}");
     root.insert_asset_text(
         Path::new("mcrs/datapacks/extra/minecraft/banner_pattern/b.json"),
         &pattern("b"),
@@ -559,48 +576,63 @@ fn contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Option<String>)>
         .collect()
 }
 
+fn tag_contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Vec<u16>)>> {
+    set.tables()
+        .filter_map(|table| {
+            let tags = set.tag_table(table.registry().as_str())?;
+            let rows = tags
+                .names()
+                .iter()
+                .enumerate()
+                .map(|(tag, name)| (name.to_string(), tags.members(tag).to_vec()))
+                .collect();
+            Some((table.registry().to_string(), rows))
+        })
+        .collect()
+}
+
+fn synced_contents(set: &RegistrySet) -> Vec<(String, Vec<NbtTag>)> {
+    set.synced()
+        .map(|(table, column)| {
+            let values = column.iter().map(|value| value.0.clone()).collect();
+            (table.registry().to_string(), values)
+        })
+        .collect()
+}
+
 #[test]
 fn the_plugin_and_the_directory_reader_load_equal_sets() {
-    let mut app = App::new();
-    app.register_asset_source(
-        AssetSourceId::Default,
-        layered_file_source(
-            &AssetPlugin::default().file_path,
-            mcrs_minecraft_worldgen_builtin::asset,
-        ),
-    );
-    app.add_plugins((
-        TaskPoolPlugin::default(),
-        AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..Default::default()
-        },
-    ));
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    let through_assets = load_registries(&asset_server, build_static_registries().unwrap())
-        .unwrap_or_else(|report| panic!("{report}"));
-    let through_directory =
-        load_from_directory(&assets()).unwrap_or_else(|report| panic!("{report}"));
+    let app = plugin_app();
+    let through_plugin = app.world().resource::<RegistrySet>();
+    let through_directory = test_registries();
 
-    let (assets, directory) = (contents(&through_assets), contents(&through_directory));
-    assert!(assets.len() > 100, "the corpus loads few registries");
+    let (plugin, directory) = (contents(through_plugin), contents(through_directory));
+    assert!(plugin.len() > 100, "the corpus loads few registries");
     assert_eq!(
-        assets.keys().collect::<Vec<_>>(),
+        plugin.keys().collect::<Vec<_>>(),
         directory.keys().collect::<Vec<_>>()
     );
-    for (registry, from_assets) in &assets {
-        assert_eq!(from_assets, &directory[registry], "{registry}");
+    for (registry, from_plugin) in &plugin {
+        assert_eq!(from_plugin, &directory[registry], "{registry}");
     }
+    assert_eq!(
+        synced_contents(through_plugin),
+        synced_contents(through_directory)
+    );
+    assert_eq!(
+        tag_contents(through_plugin),
+        tag_contents(through_directory)
+    );
+    assert_eq!(app.world().resource::<KnownPacks>(), test_known_packs());
 }
 
 #[test]
 fn a_pack_directory_without_a_namespace_has_no_files() {
-    let root = std::env::temp_dir().join(format!("mcrs_empty_pack_{}", std::process::id()));
-    std::fs::create_dir_all(root.join(PACKS_ROOT).join("empty")).unwrap();
+    let root = RemovedOnDrop::temp("mcrs_empty_pack");
+    std::fs::create_dir_all(root.0.join(PACKS_ROOT).join("empty")).unwrap();
 
-    let packs = read_packs_from_directory(&root, &WORLD, &STATICS)
+    let packs = read_packs_from_directory(&root.0, &WORLD, &STATICS)
         .unwrap_or_else(|report| panic!("{report}"));
-    std::fs::remove_dir_all(&root).unwrap();
 
     let names: Vec<_> = packs.iter().map(|pack| pack.name.as_str()).collect();
     assert_eq!(names, [VANILLA_PACK, "empty"]);
@@ -610,15 +642,15 @@ fn a_pack_directory_without_a_namespace_has_no_files() {
 #[cfg(unix)]
 #[test]
 fn an_unreadable_registry_file_is_a_report_entry_naming_its_path() {
-    let root = std::env::temp_dir().join(format!("mcrs_unreadable_pack_{}", std::process::id()));
+    let root = RemovedOnDrop::temp("mcrs_unreadable_pack");
     let biomes = root
+        .0
         .join(PACKS_ROOT)
         .join("broken/minecraft/worldgen/biome");
     std::fs::create_dir_all(&biomes).unwrap();
-    std::os::unix::fs::symlink(root.join("absent.json"), biomes.join("ghost.json")).unwrap();
+    std::os::unix::fs::symlink(root.0.join("absent.json"), biomes.join("ghost.json")).unwrap();
 
-    let refused = read_packs_from_directory(&root, &WORLD, &STATICS).err();
-    std::fs::remove_dir_all(&root).unwrap();
+    let refused = read_packs_from_directory(&root.0, &WORLD, &STATICS).err();
 
     let message = refused
         .expect("a file that does not read is refused")
@@ -638,7 +670,9 @@ fn shipped_file(
     let root = if pack == VANILLA_PACK {
         assets()
     } else {
-        assets().join(PACKS_ROOT).join(pack)
+        assets()
+            .join(PACKS_ROOT)
+            .join(pack.trim_start_matches("file/"))
     };
     root.join(namespace)
         .join(registry_path)
@@ -675,7 +709,7 @@ fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(Strin
                 let built_typed = BUILT_WORLDGEN.contains(&registry.as_str());
                 assert!(
                     (pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome")
-                        || (built_typed && (pack == VANILLA_PACK || pack == "beta")),
+                        || (built_typed && (pack == VANILLA_PACK || pack == "file/beta")),
                     "{registry}/{name}: {} is not a file and the entry is not a built one",
                     file.display()
                 );
@@ -760,28 +794,64 @@ fn every_shipped_file_of_a_parsed_reloadable_registry_round_trips() {
     );
 }
 
+fn json_at(path: &Path) -> serde_json::Value {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
 #[test]
 fn a_loaded_holder_set_answers_membership_through_the_tags() {
     let set = test_registries();
+    let registry = "minecraft:sulfur_cube_archetype";
+    let names = set.table(registry).expect("the archetypes have names");
     let archetypes = set
-        .column::<SulfurCubeArchetype>("minecraft:sulfur_cube_archetype")
+        .column::<SulfurCubeArchetype>(registry)
         .expect("the archetypes are parsed by the loader");
     let items = set.registry::<Item>().unwrap();
     let tags = set.tags::<Item>().unwrap();
-    assert!(!archetypes.is_empty());
-    for archetype in archetypes {
-        let first = archetype
-            .items
-            .ids(&tags)
-            .next()
-            .expect("an archetype names at least one item");
-        assert!(archetype.items.contains(first, &tags));
-        let outside = items
-            .ids()
-            .find(|id| !archetype.items.ids(&tags).any(|member| member == *id))
-            .expect("an item lies outside the set");
-        assert!(!archetype.items.contains(outside, &tags));
+
+    let mut checked = 0;
+    for (name, archetype) in names.names().iter().zip(archetypes) {
+        let file = json_at(
+            &assets()
+                .join("minecraft/sulfur_cube_archetype")
+                .join(format!("{}.json", name.path())),
+        );
+        let Some(tag) = file["items"]
+            .as_str()
+            .and_then(|items| items.strip_prefix('#'))
+        else {
+            continue;
+        };
+        let tag = ResourceLocation::read(tag).unwrap();
+        let listed = json_at(
+            &assets()
+                .join(tag.namespace())
+                .join("tags/item")
+                .join(format!("{}.json", tag.path())),
+        );
+        let listed: Vec<&str> = listed["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_str().unwrap())
+            .collect();
+        if listed.iter().any(|value| value.starts_with('#')) {
+            continue;
+        }
+        for (id, item) in items.iter() {
+            assert_eq!(
+                archetype.items.contains(id, &tags),
+                listed.contains(&item.as_str()),
+                "{item} in the items of {name}"
+            );
+        }
+        checked += 1;
     }
+    assert!(
+        checked > 0,
+        "no archetype names a tag of direct items, so the test checks nothing"
+    );
 }
 
 #[test]
@@ -1007,10 +1077,24 @@ const VARIANT_REGISTRIES: [&str; 13] = [
 
 #[test]
 fn an_empty_variant_registry_fails_the_load() {
-    let text = load_text(&[]);
+    let without_variants =
+        VARIANT_REGISTRIES
+            .iter()
+            .fold(WithFiles::over_assets(), |source, registry| {
+                let path = registry.trim_start_matches("minecraft:");
+                source
+                    .hiding(&format!("minecraft/{path}"))
+                    .hiding(&format!("minecraft/tags/{path}"))
+            });
+    let errors = errors_of(without_variants.load());
     for registry in VARIANT_REGISTRIES {
-        let message = format!("Registry must be non-empty: {registry}");
-        assert!(text.contains(&message), "{message} missing from:\n{text}");
+        assert!(
+            errors.iter().any(|error| matches!(
+                error,
+                Diagnostic::EmptyRegistry { registry: empty } if empty.as_str() == registry
+            )),
+            "{registry} is not refused as empty: {errors:?}"
+        );
     }
 }
 
@@ -2126,85 +2210,16 @@ fn timeline_file(clock: &str, markers: &str) -> String {
 pub(crate) fn load_shipped_and(
     directory: &str,
     files: &[(&str, String)],
-) -> Result<RegistrySet, String> {
-    let app = layered_asset_app();
-    let asset_server = app.world().resource::<AssetServer>().clone();
-
-    let mut packs = read_packs(&asset_server, &WORLD, &STATICS).expect("the packs read");
-    packs.push(Pack {
-        name: "extra".to_owned(),
-        files: files
-            .iter()
-            .map(|(name, json)| PackFile {
-                path: format!("{directory}/{name}.json"),
-                bytes: Some(json.clone().into_bytes()),
-            })
-            .collect(),
-        built: Vec::new(),
-    });
-    WORLD
-        .load(&STATICS, &packs)
-        .map_err(|report| report.to_string())
-}
-
-fn load_timelines(files: &[(&str, String)]) -> Result<RegistrySet, String> {
-    let mut all = one_self_contained_file_of_each_registry_that_must_not_be_empty();
-    for clock in ["overworld", "the_end"] {
-        all.push((
-            format!("minecraft/world_clock/{clock}.json"),
-            "{}".to_owned(),
-        ));
-    }
-    all.extend(
-        files
-            .iter()
-            .map(|(name, json)| (format!("test/timeline/{name}.json"), json.clone())),
-    );
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files: all
-            .into_iter()
-            .map(|(path, json)| PackFile {
-                path,
-                bytes: Some(json.into_bytes()),
-            })
-            .collect(),
-        built: Vec::new(),
-    }];
-    WORLD
-        .load(&STATICS, &packs)
-        .map_err(|report| report.to_string())
-}
-
-fn one_self_contained_file_of_each_registry_that_must_not_be_empty() -> Vec<(String, String)> {
-    VARIANT_REGISTRIES
+) -> Result<RegistrySet, RegistryLoadError> {
+    let files: Vec<(String, &str)> = files
         .iter()
-        .map(|registry| {
-            let path = registry.trim_start_matches("minecraft:");
-            let directory = assets().join("minecraft").join(path);
-            let mut files: Vec<_> = std::fs::read_dir(&directory)
-                .unwrap_or_else(|e| panic!("{}: {e}", directory.display()))
-                .map(|entry| entry.unwrap().path())
-                .filter(|file| file.extension().is_some_and(|ext| ext == "json"))
-                .collect();
-            files.sort();
-            files
-                .into_iter()
-                .find_map(|file| {
-                    let text = std::fs::read_to_string(&file).unwrap();
-                    (!text.contains("\"biomes\"") && !text.contains("\"structures\"")).then(|| {
-                        let name = file.file_name().unwrap().to_str().unwrap();
-                        (format!("minecraft/{path}/{name}"), text)
-                    })
-                })
-                .unwrap_or_else(|| panic!("{registry} has no file free of biome and structure"))
-        })
-        .collect()
+        .map(|(name, json)| (format!("{directory}/{name}.json"), json.as_str()))
+        .collect();
+    WithFiles::test_pack(&files).load().map(|loaded| loaded.set)
 }
 
 #[test]
 fn a_worldgen_file_that_does_not_parse_stops_the_load() {
-    let needed = one_self_contained_file_of_each_registry_that_must_not_be_empty();
     for registry in [
         "carver",
         "feature",
@@ -2213,51 +2228,53 @@ fn a_worldgen_file_that_does_not_parse_stops_the_load() {
         "structure",
         "structure_set",
     ] {
-        let directory = format!("test/worldgen/{registry}");
-        let broken = format!("{directory}/broken.json");
-        let mut files: Vec<(&str, &str)> = needed
-            .iter()
-            .map(|(path, json)| (path.as_str(), json.as_str()))
-            .collect();
-        files.push((&broken, r#"{"bad":true}"#));
-        let refused = load_text(&files);
+        let broken = format!("test/worldgen/{registry}/broken.json");
+        let errors = errors_of(WithFiles::test_pack(&[(&broken, r#"{"bad":true}"#)]).load());
+        let [
+            Diagnostic::Entry {
+                registry: refused,
+                entry,
+                file,
+                message,
+                ..
+            },
+        ] = errors.as_slice()
+        else {
+            panic!("{registry}: one entry error expected: {errors:?}");
+        };
+        assert_eq!(refused.as_str(), format!("minecraft:worldgen/{registry}"));
+        assert_eq!(entry.as_str(), "test:broken");
         assert!(
-            !refused.is_empty(),
-            "a malformed {registry} file is accepted"
+            file.as_deref().is_some_and(|file| file.ends_with(&broken)),
+            "{registry}: {file:?}"
         );
-
-        let (header, line) = refused.split_once('\n').expect("a header and one line");
-        assert_eq!(
-            header, "registry load failed: 1 errors in 1 registries",
-            "{registry}"
-        );
-        let key = format!("minecraft:worldgen/{registry}/test:broken ({directory}/broken.json): ");
-        assert!(line.starts_with(&key), "{registry}: {line}");
-        assert!(line.len() > key.len(), "{registry}: no reason in {line}");
+        assert!(!message.is_empty(), "{registry}: no reason");
     }
 }
 
 #[test]
 fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
-    let refused = load_timelines(&[
-        (
-            "first",
-            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
-        ),
-        (
-            "second",
-            timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
-        ),
-    ])
-    .err()
-    .expect("a marker defined by two timelines of one clock is refused");
-
-    let (header, line) = refused.split_once('\n').expect("a header and one line");
-    assert_eq!(header, "registry load failed: 1 errors in 1 registries");
-    let key = "minecraft:timeline/test:second (test/timeline/second.json): ";
-    let message = line
-        .strip_prefix(key)
-        .unwrap_or_else(|| panic!("the line is keyed by the second timeline: {line}"));
+    let refused = load_shipped_and(
+        "test/timeline",
+        &[
+            (
+                "first",
+                timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+            ),
+            (
+                "second",
+                timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
+            ),
+        ],
+    );
+    let errors = errors_of(refused);
+    let [Diagnostic::Validation { registry, message }] = errors.as_slice() else {
+        panic!("one validation error expected: {errors:?}");
+    };
+    assert_eq!(registry.as_str(), "minecraft:timeline");
+    let message = message
+        .strip_prefix("test:second: ")
+        .unwrap_or_else(|| panic!("the error names the second timeline: {message}"));
     assert!(message.contains("test:marker"), "{message}");
     assert!(message.contains("minecraft:overworld"), "{message}");
     assert!(message.contains("more than once"), "{message}");
@@ -2265,16 +2282,22 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
 
 #[test]
 fn a_timeline_naming_an_unknown_clock_fails() {
-    let refused = load_timelines(&[("lost", timeline_file("minecraft:nowhere", "{}"))])
-        .err()
-        .expect("a clock the registry does not hold is refused");
+    let refused = load_shipped_and(
+        "test/timeline",
+        &[("lost", timeline_file("minecraft:nowhere", "{}"))],
+    )
+    .err()
+    .expect("a clock the registry does not hold is refused")
+    .to_string();
 
-    assert!(refused.contains("minecraft:world_clock"), "{refused}");
-    assert!(refused.contains("minecraft:nowhere"), "{refused}");
-    assert!(
-        refused.contains("minecraft:timeline/test:lost (test/timeline/lost.json)"),
-        "{refused}"
-    );
+    for part in [
+        "minecraft:world_clock",
+        "minecraft:nowhere",
+        "minecraft:timeline/test:lost: ",
+        "test/timeline/lost.json",
+    ] {
+        assert!(refused.contains(part), "{part} missing from:\n{refused}");
+    }
 }
 
 fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {

@@ -9,7 +9,7 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 pub fn items() -> &'static Items {
     &test_corpus().1

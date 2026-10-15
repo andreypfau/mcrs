@@ -12,8 +12,9 @@ use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_network::client::SessionRegistryInputs;
 use mcrs_minecraft_registry::{NetworkRegistry, RegistrySet};
 use mcrs_minecraft_world::registries::{
-    registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent, test_registries,
+    registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent,
 };
+use mcrs_minecraft_world::registry_load::test_registries;
 
 pub fn boot(extra: impl FnOnce(&mut App)) -> App {
     let assets = asset_corpus().to_string_lossy().into_owned();

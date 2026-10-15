@@ -8,6 +8,7 @@
 mod biome_tags;
 mod block_definition_corpus;
 mod common;
+mod data_pack_stack;
 mod dimension_list;
 mod dimension_router_set;
 mod from_network;

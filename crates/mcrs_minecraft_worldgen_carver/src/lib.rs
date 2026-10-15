@@ -112,3 +112,5 @@ pub fn carve_ellipsoid(
     }
     true
 }
+
+mcrs_minecraft_registries::read_with_serde!(crate::config::CarverConfig);

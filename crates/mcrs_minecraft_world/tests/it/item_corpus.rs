@@ -18,7 +18,7 @@ use serde::de::IgnoredAny;
 
 use crate::common::items;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/").to_owned() + CORPUS_DIRECTORY;

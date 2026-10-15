@@ -7,6 +7,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_item::damage_type::DamageType;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::PacketDecoder;
@@ -15,10 +17,162 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSel
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
-    KnownPackOffer, known_pack_offer, on_known_packs_response, registry_data, start_configuration,
+    KnownPackOffer, known_pack_offer, offered_pack, on_known_packs_response, registry_data,
+    start_configuration,
 };
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::packs::load_from_directory;
+use mcrs_minecraft_world::registry_load::{KnownPacks, test_known_packs, test_registries};
+use std::path::{Path, PathBuf};
+
+pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
+
+fn served(root: &Path) -> (RegistrySet, KnownPacks) {
+    let mut app = App::new();
+    app.add_plugins(MinecraftServerPlugin {
+        asset_path: Some(root.to_str().unwrap().to_owned()),
+        announce_on_lan: false,
+        ..MinecraftServerPlugin::embedded()
+    });
+    app.finish();
+    app.cleanup();
+    let world = app.world();
+    (
+        world.resource::<RegistrySet>().clone(),
+        world.resource::<KnownPacks>().clone(),
+    )
+}
+
+#[cfg(unix)]
+struct RemovedOnDrop(PathBuf);
+
+#[cfg(unix)]
+impl Drop for RemovedOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[cfg(unix)]
+fn assets_with_pack(pack: &str, files: &[(&str, &str)]) -> RemovedOnDrop {
+    let assets = Path::new(ASSETS).canonicalize().unwrap();
+    let root =
+        RemovedOnDrop(std::env::temp_dir().join(format!("mcrs_{pack}_{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&root.0);
+    let packs = root.0.join("mcrs/datapacks");
+    std::fs::create_dir_all(&packs).unwrap();
+    std::os::unix::fs::symlink(assets.join("minecraft"), root.0.join("minecraft")).unwrap();
+    for entry in std::fs::read_dir(assets.join("mcrs")).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_name() != "datapacks" {
+            std::os::unix::fs::symlink(entry.path(), root.0.join("mcrs").join(entry.file_name()))
+                .unwrap();
+        }
+    }
+    for entry in std::fs::read_dir(assets.join("mcrs/datapacks")).unwrap() {
+        let entry = entry.unwrap();
+        std::os::unix::fs::symlink(entry.path(), packs.join(entry.file_name())).unwrap();
+    }
+    let metadata = std::fs::read(assets.join("mcrs/datapacks/beta/pack.mcmeta")).unwrap();
+    let files = files.iter().map(|(path, text)| (*path, text.as_bytes()));
+    for (path, bytes) in std::iter::once(("pack.mcmeta", &metadata[..])).chain(files) {
+        let file = packs.join(pack).join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, bytes).unwrap();
+    }
+    root
+}
+
+fn sent_entry<'a>(
+    packets: &'a [ClientboundRegistryData<'_>],
+    registry: &str,
+    entry: &str,
+) -> &'a mcrs_minecraft_protocol::registry::Entry<'a> {
+    packets
+        .iter()
+        .find(|packet| packet.registry.as_str() == registry)
+        .and_then(|packet| packet.entries.iter().find(|sent| sent.id.as_str() == entry))
+        .unwrap_or_else(|| panic!("{registry}/{entry} is not sent"))
+}
+
+#[cfg(unix)]
+#[test]
+fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
+    let root = assets_with_pack(
+        "zz_override",
+        &[(
+            "minecraft/damage_type/arrow.json",
+            r#"{"exhaustion":0.75,"message_id":"arrow","scaling":"when_caused_by_living_non_player"}"#,
+        )],
+    );
+    let (set, known) = served(&root.0);
+
+    let registry = "minecraft:damage_type";
+    let table = set.table(registry).unwrap();
+    let arrow = usize::from(table.number("minecraft:arrow").unwrap());
+    assert_eq!(
+        set.column::<DamageType>(registry).unwrap()[arrow].exhaustion,
+        0.75
+    );
+    assert_eq!(set.pack_of(registry, arrow), Some("file/zz_override"));
+
+    let offered = known_pack_offer(true, &known);
+    let accepted: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
+    let packets = registry_data(&set, &offered, &accepted);
+    let sent = sent_entry(&packets, registry, "minecraft:arrow")
+        .data
+        .as_deref()
+        .expect("a client that knows the vanilla pack still receives the replaced entry");
+    assert_eq!(
+        sent.extract_compound()
+            .and_then(|arrow| arrow.get("exhaustion")),
+        Some(&NbtTag::Float(0.75))
+    );
+    assert!(
+        sent_entry(&packets, registry, "minecraft:cactus")
+            .data
+            .is_none(),
+        "an entry the pack leaves alone still comes from the vanilla pack"
+    );
+}
+
+#[test]
+fn the_registry_packets_are_those_the_old_loader_sends() {
+    let old = load_from_directory(Path::new(ASSETS)).unwrap_or_else(|report| panic!("{report}"));
+    let new = test_registries();
+    let core = known_pack_offer(true, test_known_packs());
+    for offered in [Vec::new(), core] {
+        let accepted: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
+        let (from_old, from_new) = (
+            registry_data(&old, &offered, &accepted),
+            registry_data(new, &offered, &accepted),
+        );
+        let registries = |packets: &[ClientboundRegistryData]| {
+            packets
+                .iter()
+                .map(|packet| packet.registry.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(registries(&from_old), registries(&from_new));
+        for (old, new) in from_old.iter().zip(&from_new) {
+            let entries = |packet: &ClientboundRegistryData| {
+                packet
+                    .entries
+                    .iter()
+                    .map(|entry| (entry.id.to_string(), entry.data.as_deref().cloned()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                entries(old),
+                entries(new),
+                "{} differs with offer {offered:?}",
+                old.registry
+            );
+        }
+    }
+}
 
 #[test]
 fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
@@ -65,53 +219,58 @@ fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
     );
 }
 
-#[test]
-fn an_entry_of_a_known_pack_is_sent_without_its_data() {
-    let set = test_registries();
-    let offered = known_pack_offer(true);
-    let packets = registry_data(set, &offered, &offered);
+const OTHER_PACK: KnownPack<'static> = KnownPack {
+    namespace: "example",
+    id: "extra",
+    version: "1",
+};
 
-    let mut from_other_packs = 0;
-    for packet in &packets {
-        let registry = packet.registry.as_str();
-        for (id, entry) in packet.entries.iter().enumerate() {
-            let vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
-            assert_eq!(
-                entry.data.is_none(),
-                vanilla,
-                "{registry}/{}: data is sent exactly when the entry is not from the vanilla pack",
-                entry.id
-            );
-            from_other_packs += usize::from(!vanilla);
+#[test]
+fn an_entry_of_an_accepted_pack_is_sent_without_its_data() {
+    let set = test_registries();
+    let offered = known_pack_offer(true, test_known_packs());
+    let exactly: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
+    let with_another = exactly.iter().cloned().chain([OTHER_PACK]).collect();
+
+    for accepted in [exactly, with_another] {
+        let packets = registry_data(set, &offered, &accepted);
+        let mut from_other_packs = 0;
+        for packet in &packets {
+            let registry = packet.registry.as_str();
+            for (id, entry) in packet.entries.iter().enumerate() {
+                let vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
+                assert_eq!(
+                    entry.data.is_none(),
+                    vanilla,
+                    "{registry}/{}: data is sent exactly when the entry is not from the vanilla pack, accepted {accepted:?}",
+                    entry.id
+                );
+                from_other_packs += usize::from(!vanilla);
+            }
         }
+        assert!(
+            from_other_packs > 0,
+            "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
+        );
     }
-    assert!(
-        from_other_packs > 0,
-        "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
-    );
 }
 
 #[test]
-fn every_entry_carries_data_unless_the_client_accepts_exactly_the_offer() {
+fn every_entry_carries_data_unless_the_client_accepts_an_offered_pack() {
     let set = test_registries();
     let core = |version| KnownPack {
         namespace: "minecraft",
         id: "core",
         version,
     };
-    let other = KnownPack {
-        namespace: "example",
-        id: "extra",
-        version: "1",
-    };
     let cases: [(bool, Vec<KnownPack>); 4] = [
         (false, vec![core(VERSION.id.as_str())]),
         (true, vec![core("0")]),
         (true, Vec::new()),
-        (true, vec![core(VERSION.id.as_str()), other]),
+        (true, vec![OTHER_PACK]),
     ];
     for (offer, accepted) in cases {
-        let packets = registry_data(set, &known_pack_offer(offer), &accepted);
+        let packets = registry_data(set, &known_pack_offer(offer, test_known_packs()), &accepted);
         assert!(
             packets
                 .iter()
@@ -149,17 +308,23 @@ fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
 
 #[test]
 fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
-    let offered = known_pack_offer(true);
-    assert_eq!(offered.len(), 1);
-    assert_eq!(offered[0].namespace, "minecraft");
-    assert_eq!(offered[0].id, "core");
-    assert_eq!(offered[0].version, VERSION.id);
-    assert!(known_pack_offer(false).is_empty());
+    let offered = known_pack_offer(true, test_known_packs());
+    let offered: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
+    assert_eq!(
+        offered,
+        [KnownPack {
+            namespace: "minecraft",
+            id: "core",
+            version: VERSION.id.as_str(),
+        }]
+    );
+    assert!(known_pack_offer(false, test_known_packs()).is_empty());
 
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
         .insert_resource(test_registries().clone())
+        .insert_resource(test_known_packs().clone())
         .insert_resource(KnownPackOffer(true))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
@@ -179,8 +344,9 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
 
     app.world_mut().insert_resource(KnownPackOffer(false));
     let mut reply = Vec::new();
+    let offered = known_pack_offer(true, test_known_packs());
     ServerboundSelectKnownPacks {
-        known_packs: known_pack_offer(true),
+        known_packs: offered.iter().map(offered_pack).collect(),
     }
     .encode(&mut reply)
     .unwrap();

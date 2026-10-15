@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use bevy_app::App;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{declared_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;

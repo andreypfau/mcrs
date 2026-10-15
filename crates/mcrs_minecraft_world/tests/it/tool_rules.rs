@@ -1,7 +1,7 @@
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::Tool;
 use mcrs_minecraft_world::item::tool::{is_correct_for_drops, mining_speed};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::items;
 

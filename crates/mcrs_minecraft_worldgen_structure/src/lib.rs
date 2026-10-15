@@ -574,3 +574,5 @@ mod tests {
         );
     }
 }
+
+mcrs_minecraft_registries::read_with_serde!(crate::Structure, crate::StructureSet);

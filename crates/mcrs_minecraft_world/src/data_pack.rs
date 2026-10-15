@@ -165,6 +165,7 @@ mod tests {
         for path in [
             "minecraft/structure/listed.nbt",
             "minecraft/structure/unlisted.nbt",
+            "mcrs/datapacks/extra/pack.mcmeta",
             "mcrs/datapacks/extra/example/structure/house.nbt",
             "example/structure/twice.nbt",
             "mcrs/datapacks/extra/example/structure/twice.nbt",
@@ -241,6 +242,7 @@ mod tests {
 
         let root = Dir::default();
         root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());
+        root.insert_asset(Path::new("mcrs/datapacks/extra/pack.mcmeta"), Vec::new());
         root.insert_asset(
             Path::new("mcrs/datapacks/extra/example/structure/house.nbt"),
             Vec::new(),

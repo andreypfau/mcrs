@@ -1,4 +1,5 @@
 pub mod chat_type;
+mod declarations;
 #[rustfmt::skip]
 pub mod keys;
 #[cfg(feature = "bevy")]
@@ -11,6 +12,7 @@ pub mod packs;
 #[cfg(feature = "bevy")]
 mod plugin;
 pub mod registries;
+pub mod registry_load;
 #[cfg(feature = "bevy")]
 pub mod resolvers;
 // The save on disk is native-only; the browser receives world state over the network.

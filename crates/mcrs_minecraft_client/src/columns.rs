@@ -1281,7 +1281,7 @@ mod tests {
         use mcrs_minecraft_protocol::GameMode;
         use mcrs_minecraft_registry::Id;
 
-        let registries = mcrs_minecraft_world::registries::test_registries();
+        let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionType>().unwrap();
         let named = |key: &str, dimension: ResourceKey<Dimension>| {
             CurrentDimension::of(&PlayerSpawnInfo::new(

@@ -1,3 +1,4 @@
+use crate::assembly::AssemblyError;
 use crate::id::Id;
 use crate::names::NameTable;
 use crate::registry::Registry;
@@ -89,6 +90,44 @@ impl TagTable {
 
     pub(crate) fn number(&self, tag: &str) -> Option<usize> {
         self.numbers.get(tag).map(|&number| usize::from(number))
+    }
+
+    #[doc(hidden)]
+    pub fn numbered<T, M>(names: &NameTable, tags: T) -> Result<TagTable, AssemblyError>
+    where
+        T: IntoIterator<Item = (Name, M)>,
+        M: IntoIterator<Item = u16>,
+    {
+        let registry = names.registry();
+        let mut seen = HashSet::new();
+        let mut checked = Vec::new();
+        for (tag, members) in tags {
+            if !seen.insert(tag.clone()) {
+                return Err(AssemblyError::DuplicateTag {
+                    registry: registry.clone(),
+                    tag,
+                });
+            }
+            let members: Box<[u16]> = members.into_iter().collect();
+            if let Some(&member) = members
+                .iter()
+                .find(|&&member| usize::from(member) >= names.len())
+            {
+                return Err(AssemblyError::MemberOutOfRange {
+                    registry: registry.clone(),
+                    tag,
+                    member,
+                });
+            }
+            checked.push((tag, members));
+        }
+        if checked.len() > usize::from(u16::MAX) + 1 {
+            return Err(AssemblyError::TooManyTags {
+                registry: registry.clone(),
+                len: checked.len(),
+            });
+        }
+        Ok(assemble(names, checked.into_iter()))
     }
 }
 

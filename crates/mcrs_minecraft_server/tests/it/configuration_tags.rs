@@ -1,6 +1,62 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::configuration::update_tags;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::packs::load_from_directory;
+use mcrs_minecraft_world::registry_load::test_registries;
+
+use crate::configuration_registries::ASSETS;
+
+type SentTags = Vec<(String, BTreeMap<String, BTreeSet<String>>)>;
+
+fn sent_tags(set: &RegistrySet, packet: &ClientboundUpdateTags) -> SentTags {
+    packet
+        .registries
+        .iter()
+        .map(|registry| {
+            let name = registry.registry.as_str();
+            let table = set
+                .table(name)
+                .unwrap_or_else(|| panic!("{name} has no table"));
+            let tags = registry
+                .tags
+                .iter()
+                .map(|tag| {
+                    let members = tag
+                        .entries
+                        .iter()
+                        .map(|member| {
+                            let member = usize::try_from(member.0).unwrap();
+                            table.name(member).unwrap().to_string()
+                        })
+                        .collect();
+                    (tag.name.to_string(), members)
+                })
+                .collect();
+            (name.to_owned(), tags)
+        })
+        .collect()
+}
+
+#[test]
+fn the_tags_packet_names_the_tags_and_members_the_old_loader_sends() {
+    let old = load_from_directory(Path::new(ASSETS)).unwrap_or_else(|report| panic!("{report}"));
+    let new = test_registries();
+    let (from_old, from_new) = (update_tags(&old), update_tags(new));
+    let (old_tags, new_tags) = (sent_tags(&old, &from_old), sent_tags(new, &from_new));
+    let registries = |tags: &SentTags| {
+        tags.iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(registries(&old_tags), registries(&new_tags));
+    for ((registry, old), (_, new)) in old_tags.iter().zip(&new_tags) {
+        assert_eq!(old, new, "{registry}");
+    }
+}
 
 #[test]
 fn the_server_sends_tag_members_in_tag_order() {

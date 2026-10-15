@@ -1,3 +1,4 @@
+use crate::assembly::AssemblyError;
 use crate::names::NameTable;
 use crate::report::LoadReport;
 use crate::set::{Column, RegistrySet};
@@ -518,6 +519,103 @@ impl WorldRegistries {
         set.scope(|| (codec.encode)(&**column, index))
     }
 
+    fn synced_columns<F>(&self, set: &RegistrySet, mut fail: F) -> Vec<(&Name, Vec<SyncedNbt>)>
+    where
+        F: FnMut(&Name, Option<usize>, String),
+    {
+        set.scope(|| {
+            let mut columns = Vec::with_capacity(self.sync_order.len());
+            for registry in &self.sync_order {
+                let Some(project) = self
+                    .declared
+                    .get(registry.as_str())
+                    .and_then(|declaration| declaration.sync.as_ref())
+                else {
+                    fail(
+                        registry,
+                        None,
+                        "the registry declares no projection".to_owned(),
+                    );
+                    continue;
+                };
+                let Some(table) = set.table(registry.as_str()) else {
+                    fail(
+                        registry,
+                        None,
+                        "the registry set holds no such registry".to_owned(),
+                    );
+                    continue;
+                };
+                let mut column = Vec::with_capacity(table.len());
+                for index in 0..table.len() {
+                    match project(set, registry.as_str(), index) {
+                        Some(Ok(tag)) => column.push(SyncedNbt(tag)),
+                        Some(Err(error)) => fail(registry, Some(index), error.to_string()),
+                        None => {
+                            fail(
+                                registry,
+                                None,
+                                "the registry set holds no column the projection reads".to_owned(),
+                            );
+                            break;
+                        }
+                    }
+                }
+                columns.push((registry, column));
+            }
+            columns
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn sync(&self, set: RegistrySet) -> Result<RegistrySet, LoadReport> {
+        let mut report = LoadReport::new();
+        let columns = self.synced_columns(&set, |registry, index, message| {
+            let entry = index.and_then(|index| set.table(registry.as_str())?.name(index));
+            report.unfiled(registry, entry.map(ResourceLocation::as_str), message);
+        });
+        if !report.is_empty() {
+            return Err(report);
+        }
+        columns
+            .into_iter()
+            .try_fold(set.clone(), |set, (registry, column)| {
+                set.with_synced(registry.as_str(), column.into())
+            })
+            .map_err(LoadReport::invalid)
+    }
+
+    /// An unsplit column shares `values`.
+    #[doc(hidden)]
+    pub fn attach<T: Send + Sync + 'static>(
+        &self,
+        set: RegistrySet,
+        registry: &str,
+        values: Arc<[T]>,
+    ) -> Result<RegistrySet, AssemblyError> {
+        let codec = self
+            .declared
+            .get(registry)
+            .and_then(|declaration| declaration.codec.as_ref())
+            .ok_or_else(|| AssemblyError::NotParsed {
+                registry: registry.to_owned(),
+            })?;
+        if codec.value_type != TypeId::of::<T>() {
+            return Err(AssemblyError::WrongValueType {
+                registry: registry.to_owned(),
+                parses: codec.value_name,
+                given: std::any::type_name::<T>(),
+            });
+        }
+        match &codec.split {
+            Some(split) => {
+                let len = values.len();
+                set.with_columns(registry, len, (split.columns)(&values))
+            }
+            None => set.with_column(registry, values),
+        }
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "loads every registry in the order the reference does, one pass from pack scan to tag resolution, so each step reads against the reference"
@@ -806,31 +904,23 @@ impl WorldRegistries {
             return Err(report);
         }
 
-        set.scope(|| {
-            for registry in &self.sync_order {
-                let project = self.declared[registry.as_str()]
-                    .sync
-                    .as_ref()
-                    .expect("a registry in the sync order has a projection");
-                let loaded = world
-                    .iter()
-                    .find(|loaded| loaded.registry == registry)
-                    .expect("a synced registry is loaded");
-                let mut column = Vec::with_capacity(loaded.table.len());
-                for index in 0..loaded.table.len() {
-                    match project(&set, registry.as_str(), index)
-                        .expect("a loaded registry holds the columns its projection reads")
-                    {
-                        Ok(tag) => column.push(SyncedNbt(tag)),
-                        Err(error) => loaded.report(&mut report, index, error),
-                    }
-                }
-                values.columns.entry(registry.clone()).or_default().insert(
-                    TypeId::of::<SyncedNbt>(),
-                    Arc::new(Arc::<[SyncedNbt]>::from(column)),
-                );
+        let synced = self.synced_columns(&set, |registry, index, message| {
+            match index.and_then(|index| {
+                Some((
+                    world.iter().find(|loaded| loaded.registry == registry)?,
+                    index,
+                ))
+            }) {
+                Some((loaded, index)) => loaded.report(&mut report, index, message),
+                None => report.whole_registry(registry, &directory_of(registry), message),
             }
         });
+        for (registry, column) in synced {
+            values.columns.entry(registry.clone()).or_default().insert(
+                TypeId::of::<SyncedNbt>(),
+                Arc::new(Arc::<[SyncedNbt]>::from(column)),
+            );
+        }
         if !report.is_empty() {
             return Err(report);
         }
@@ -949,6 +1039,7 @@ mod tests {
     use crate::holder_set::HolderSet;
     use crate::id::Id;
     use crate::registry::Registry;
+    use crate::tags::TagTable;
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
     use mcrs_minecraft_core::tag_key::TagKey;
@@ -2055,5 +2146,216 @@ mod tests {
             "{text}"
         );
         assert!(text.contains("char"), "{text}");
+    }
+
+    const PACKS: [&str; 2] = ["vanilla", "extra"];
+
+    const ENTRIES: [(usize, &str, &str, &str); 7] = [
+        (
+            0,
+            "minecraft/test_variant/plain.json",
+            "minecraft:plain",
+            r#"{"asset_id":"plain","next":"b:alpha"}"#,
+        ),
+        (
+            1,
+            "b/test_variant/alpha.json",
+            "b:alpha",
+            r#"{"asset_id":"alpha","next":"minecraft:plain"}"#,
+        ),
+        (0, "minecraft/test_marker/one.json", "minecraft:one", ""),
+        (0, "minecraft/test_marker/two.json", "minecraft:two", ""),
+        (
+            0,
+            "minecraft/test_linked/near.json",
+            "minecraft:near",
+            r##"{"marker":"minecraft:two","tag":"#minecraft:second"}"##,
+        ),
+        (
+            1,
+            "b/test_linked/far.json",
+            "b:far",
+            r##"{"marker":"minecraft:one","tag":"#minecraft:first"}"##,
+        ),
+        (
+            0,
+            "minecraft/test_linked/list.json",
+            "minecraft:list",
+            r#"{"tag":["minecraft:one","minecraft:two"]}"#,
+        ),
+    ];
+
+    const MARKER_TAGS: [(&str, &str); 2] = [
+        (
+            "minecraft/tags/test_marker/first.json",
+            r#"{"values":["minecraft:two","minecraft:one"]}"#,
+        ),
+        (
+            "minecraft/tags/test_marker/second.json",
+            r#"{"values":["minecraft:one"]}"#,
+        ),
+    ];
+
+    fn split_synced_registries() -> WorldRegistries {
+        let mut registries = registries();
+        registries
+            .split::<Variant, (String, Id<Variant>)>(
+                Variant::KEY.location(),
+                |variant| (variant.asset_id.clone(), variant.next),
+                |(asset_id, next)| Variant {
+                    asset_id: asset_id.clone(),
+                    next: *next,
+                },
+            )
+            .sync_parts::<(String, Id<Variant>), _>(Variant::KEY.location(), |(asset_id, next)| {
+                (asset_id.clone(), *next)
+            })
+            .sync_value::<Linked, _>(Linked::KEY.location(), |linked| linked.marker);
+        registries
+    }
+
+    fn entry_packs() -> Vec<Pack> {
+        PACKS
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                let mut files: Vec<PackFile> = ENTRIES
+                    .iter()
+                    .filter(|entry| entry.0 == index)
+                    .map(|&(_, path, _, json)| match json {
+                        "" => names_only(path),
+                        json => data(path, json),
+                    })
+                    .collect();
+                if index == 0 {
+                    files.extend(MARKER_TAGS.iter().map(|&(path, json)| data(path, json)));
+                }
+                pack(name, files)
+            })
+            .collect()
+    }
+
+    fn decode<T: DeserializeOwned>(scope: &RegistrySet, table: &NameTable) -> Arc<[T]> {
+        scope.scope(|| {
+            table
+                .names()
+                .iter()
+                .map(|name| {
+                    let json = ENTRIES
+                        .iter()
+                        .find(|entry| entry.2 == name.as_str())
+                        .unwrap()
+                        .3;
+                    serde_json::from_str(json).unwrap()
+                })
+                .collect()
+        })
+    }
+
+    fn loaded_with_tables(
+        first: &str,
+        second: &str,
+    ) -> (WorldRegistries, RegistrySet, RegistrySet) {
+        let registries = split_synced_registries();
+        let loaded = registries.load(&typed(), &entry_packs()).unwrap();
+        let set = typed()
+            .with_tables(vec![
+                Arc::clone(loaded.table(first).unwrap()),
+                Arc::clone(loaded.table(second).unwrap()),
+            ])
+            .unwrap();
+        (registries, loaded, set)
+    }
+
+    #[test]
+    fn an_unsplit_column_shares_the_values_it_was_given() {
+        let (registries, loaded, set) = loaded_with_tables(LINKED, MARKER);
+        let table = Arc::clone(loaded.table(LINKED).unwrap());
+        let skeleton = set.with_tags(Arc::clone(loaded.tag_table(MARKER).unwrap()));
+        let values = decode::<Linked>(&skeleton, &table);
+
+        type Attach = fn(&WorldRegistries, RegistrySet, Arc<[Linked]>) -> RegistrySet;
+        let cases: [(&str, Attach); 2] = [
+            ("with_column", |_, set, values| {
+                set.with_column(LINKED, values).unwrap()
+            }),
+            ("attach", |registries, set, values| {
+                registries.attach(set, LINKED, values).unwrap()
+            }),
+        ];
+        for (label, attach) in cases {
+            let set = attach(&registries, skeleton.clone(), Arc::clone(&values));
+            let column = set.column::<Linked>(LINKED).unwrap();
+            assert!(std::ptr::eq(column, &*values), "{label}");
+            let entries = set.entries::<Linked, Linked>().unwrap();
+            assert!(std::ptr::eq(entries.as_slice(), &*values), "{label}");
+        }
+    }
+
+    #[test]
+    fn assembly_refuses_parts_that_disagree_with_the_tables() {
+        let (registries, loaded, set) = loaded_with_tables(MARKER, VARIANT);
+        let markers = Arc::clone(loaded.table(MARKER).unwrap());
+        let synced: Arc<[SyncedNbt]> = [0, 1].map(|_| SyncedNbt(NbtTag::Byte(0))).into();
+        let tag = |member: u16| (name("minecraft:t"), [member]);
+
+        let cases: [(&str, Result<(), AssemblyError>, &str); 8] = [
+            (
+                "a column of the wrong length",
+                set.clone().with_column(MARKER, Arc::from([1_u8])).map(drop),
+                "has 2 entries but 1 values",
+            ),
+            (
+                "a column of an absent registry",
+                set.clone().with_column(LINKED, Arc::from([1_u8])).map(drop),
+                "holds no registry minecraft:test_linked",
+            ),
+            (
+                "a tag member past the end",
+                TagTable::numbered(&markers, [tag(2)]).map(drop),
+                "holds the id 2",
+            ),
+            (
+                "a tag listed twice",
+                TagTable::numbered(&markers, [tag(0), tag(1)]).map(drop),
+                "lists the tag #minecraft:t twice",
+            ),
+            (
+                "an origin past the pack list",
+                set.clone()
+                    .with_origins(
+                        vec!["vanilla".to_owned()],
+                        vec![(MARKER.to_owned(), Box::from([0_u32, 1]))],
+                    )
+                    .map(drop),
+                "comes from pack 1",
+            ),
+            (
+                "values of another type",
+                registries
+                    .attach(set.clone(), VARIANT, Arc::from([1_u8]))
+                    .map(drop),
+                "was given values of u8",
+            ),
+            (
+                "values for a registry that declares no type",
+                registries
+                    .attach(set.clone(), MARKER, Arc::from([1_u8]))
+                    .map(drop),
+                "declares no value type",
+            ),
+            (
+                "a registry synced twice",
+                set.clone()
+                    .with_synced(MARKER, Arc::clone(&synced))
+                    .and_then(|set| set.with_synced(MARKER, synced))
+                    .map(drop),
+                "synced twice",
+            ),
+        ];
+        for (label, attempt, expected) in cases {
+            let message = attempt.expect_err(label).to_string();
+            assert!(message.contains(expected), "{label}: {message}");
+        }
     }
 }

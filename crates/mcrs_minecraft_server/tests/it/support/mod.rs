@@ -15,8 +15,9 @@ use mcrs_minecraft_registry::{HolderSet, Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::{
-    insert_registry_resources, share_registries, static_registries, test_registries,
+    insert_registry_resources, share_registries, static_registries,
 };
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 

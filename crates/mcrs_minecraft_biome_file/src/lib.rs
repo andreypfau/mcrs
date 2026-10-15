@@ -300,3 +300,5 @@ impl BiomeFile {
         }
     }
 }
+
+mcrs_minecraft_registries::read_with_serde!(crate::BiomeFile);

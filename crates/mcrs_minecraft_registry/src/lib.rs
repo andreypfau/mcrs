@@ -3,6 +3,7 @@
     expect(clippy::disallowed_types, reason = "test input is written as JSON")
 )]
 
+mod assembly;
 pub mod dispatch;
 pub mod entries;
 pub mod holder;
@@ -23,6 +24,7 @@ pub mod static_key;
 pub mod static_report;
 pub mod tags;
 
+pub use assembly::AssemblyError;
 pub use entries::Entries;
 pub use holder::*;
 pub use holder_list::HolderList;

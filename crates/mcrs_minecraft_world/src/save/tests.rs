@@ -8,7 +8,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::*;
 use crate::dimension::Dimensions;
-use crate::registries::test_registries;
+use crate::registry_load::test_registries;
 use crate::worldgen::world_preset::WorldPreset;
 
 const OBSERVED_UUID_INTS: [i32; 4] = [-1495452199, -11581732, -1243709312, 65080886];

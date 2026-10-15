@@ -1,12 +1,14 @@
 use crate::data_pack::{
     check_registry_assets_ready, request_data_pack_assets, start_loading_data_pack,
 };
+use crate::registry_load::{self, AssetReaderPacks, RegistryLoadError};
 use crate::{registries, resolvers};
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::packs::PACK_FILES;
 use mcrs_minecraft_block::keys::Block;
 
 #[derive(Resource, Default)]
@@ -59,37 +61,37 @@ impl Plugin for MinecraftWorldPlugin {
     }
 
     fn finish(&self, app: &mut App) {
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let pack_files = asset_server
+            .get_source(PACK_FILES)
+            .unwrap_or_else(|error| {
+                registries::refuse(&RegistryLoadError::Read(format!(
+                    "asset source {PACK_FILES}: {error}"
+                )))
+            })
+            .reader();
         {
-            let asset_server = app.world().resource::<AssetServer>().clone();
-            let source = asset_server
-                .get_source(bevy_asset::io::AssetSourceId::Default)
-                .expect("default AssetSource missing");
             let path = std::path::Path::new("minecraft/version.json");
-            let bytes = bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
-                source.reader(),
-                path,
-            ))
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let bytes =
+                bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(pack_files, path))
+                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             mcrs_minecraft_core::check_corpus_version(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
         let (block_registry, registries) = {
-            let asset_server = app.world().resource::<AssetServer>().clone();
-            let statics = registries::static_registries()
-                .unwrap_or_else(|report| registries::refuse(&report));
-            tracing::info!(
-                count = statics.tables().count(),
-                "built the static registries"
-            );
             let started = bevy_platform::time::Instant::now();
-            let registries = registries::load_registries(&asset_server, statics)
-                .unwrap_or_else(|report| registries::refuse(&report));
+            let loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
+                .unwrap_or_else(|error| registries::refuse(&error));
+            registry_load::log_diagnostics(&loaded.diagnostics);
+            let registries = loaded.set;
             tracing::info!(
+                statics = registries.statics().count(),
                 registries = registries.tables().count(),
                 entries = registries.tables().map(|table| table.len()).sum::<usize>(),
                 elapsed = ?started.elapsed(),
                 "loaded registries"
             );
+            app.insert_resource(loaded.known_packs);
             resolvers::run_resolvers(app.world_mut(), &registries)
                 .unwrap_or_else(|report| registries::refuse(&report));
             let block_registry = registries

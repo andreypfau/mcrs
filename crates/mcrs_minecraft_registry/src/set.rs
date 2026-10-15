@@ -1,3 +1,4 @@
+use crate::assembly::AssemblyError;
 use crate::entries::Entries;
 use crate::load::SyncedNbt;
 use crate::names::NameTable;
@@ -133,6 +134,108 @@ impl RegistrySet {
         bindings.into_iter().try_fold(self, |set, binding| {
             set.bind(binding.type_id, binding.type_name, binding.registry.into())
         })
+    }
+
+    #[doc(hidden)]
+    pub fn with_tables(self, tables: Vec<Arc<NameTable>>) -> Result<Self, RegistryError> {
+        let mut by_name = (*self.tables).clone();
+        for table in tables {
+            let registry = table.registry().clone();
+            if by_name.insert(registry.clone(), table).is_some() {
+                return Err(RegistryError::DuplicateRegistry { registry });
+            }
+        }
+        Ok(RegistrySet {
+            types: self.types,
+            ..Self::of(by_name, self.values)
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn with_column<T: Send + Sync + 'static>(
+        self,
+        registry: &str,
+        values: Arc<[T]>,
+    ) -> Result<Self, AssemblyError> {
+        let len = values.len();
+        self.with_columns(
+            registry,
+            len,
+            vec![(TypeId::of::<T>(), Arc::new(values) as Column)],
+        )
+    }
+
+    pub(crate) fn with_columns(
+        self,
+        registry: &str,
+        len: usize,
+        columns: Vec<(TypeId, Column)>,
+    ) -> Result<Self, AssemblyError> {
+        let table = self.sized_table(registry, len)?;
+        let name = table.registry().clone();
+        let mut values = (*self.values).clone();
+        values.columns.entry(name).or_default().extend(columns);
+        Ok(self.with_values(values))
+    }
+
+    #[doc(hidden)]
+    pub fn with_origins(
+        self,
+        packs: Vec<String>,
+        origins: Vec<(String, Box<[u32]>)>,
+    ) -> Result<Self, AssemblyError> {
+        let mut values = (*self.values).clone();
+        values.packs = packs.into_iter().map(String::into_boxed_str).collect();
+        values.origins.clear();
+        for (registry, entries) in origins {
+            let table = self.sized_table(&registry, entries.len())?;
+            if let Some((entry, &pack)) = entries.iter().enumerate().find(|&(_, &pack)| {
+                usize::try_from(pack).map_or(true, |pack| pack >= values.packs.len())
+            }) {
+                return Err(AssemblyError::PackOutOfRange {
+                    registry: table.registry().clone(),
+                    entry,
+                    pack,
+                });
+            }
+            values.origins.insert(table.registry().clone(), entries);
+        }
+        Ok(self.with_values(values))
+    }
+
+    #[doc(hidden)]
+    pub fn with_synced(self, registry: &str, nbt: Arc<[SyncedNbt]>) -> Result<Self, AssemblyError> {
+        let name = self.sized_table(registry, nbt.len())?.registry().clone();
+        if self.values.synced.contains(&name) {
+            return Err(AssemblyError::SyncedTwice { registry: name });
+        }
+        let len = nbt.len();
+        let set = self.with_columns(
+            registry,
+            len,
+            vec![(TypeId::of::<SyncedNbt>(), Arc::new(nbt) as Column)],
+        )?;
+        let mut values = (*set.values).clone();
+        values.synced.push(name);
+        Ok(set.with_values(values))
+    }
+
+    fn sized_table(&self, registry: &str, len: usize) -> Result<&Arc<NameTable>, AssemblyError> {
+        let table = self
+            .tables
+            .get(registry)
+            .ok_or_else(|| AssemblyError::UnknownRegistry {
+                registry: registry.to_owned(),
+            })?;
+        if table.len() != len {
+            return Err(RegistryError::LengthMismatch {
+                registry: table.registry().clone(),
+                expected: table.len(),
+                found: len,
+            }
+            .into());
+        }
+        Ok(table)
     }
 
     pub(crate) fn with_types_of(self, other: &RegistrySet) -> Self {

@@ -11,7 +11,7 @@ use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::fixture::FixtureState;
 

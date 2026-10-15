@@ -15,3 +15,8 @@ pub mod router;
 /// profile, which downstream parity tests hold to a measured budget instead of
 /// bit equality (`docs/worldgen.md` §15).
 pub const FAST_PROFILE: bool = cfg!(feature = "fast");
+
+mcrs_minecraft_registries::read_with_serde!(
+    crate::proto::DensityFunctionHolder,
+    crate::router::NoiseGeneratorSettings
+);

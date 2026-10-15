@@ -11,7 +11,7 @@ use mcrs_minecraft_server::world::loot::condition::check;
 use mcrs_minecraft_server::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_server::world::loot::entry::roll;
 use mcrs_minecraft_server::world::loot::{BlockLootTables, LootRegistries};
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 static LOOT: LazyLock<LootRegistries> =
     LazyLock::new(|| LootRegistries::from_set(test_registries()));

@@ -133,7 +133,7 @@ impl StackedPack {
         &self.features
     }
 
-    pub(crate) fn overlays(&self) -> &[String] {
+    pub fn overlays(&self) -> &[String] {
         &self.overlays
     }
 

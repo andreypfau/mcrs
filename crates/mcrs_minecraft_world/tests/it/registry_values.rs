@@ -6,7 +6,7 @@ use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",

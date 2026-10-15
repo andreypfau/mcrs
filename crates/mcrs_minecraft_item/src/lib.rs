@@ -75,3 +75,17 @@ mod bevy {
 
     crate::for_each_data_component!(impl_component);
 }
+
+mcrs_minecraft_registries::read_with_serde!(
+    crate::TrimPattern,
+    crate::TrimMaterial,
+    crate::PaintingVariantValue,
+    crate::damage_type::DamageType,
+    crate::BannerPattern,
+    crate::JukeboxSong,
+    crate::InstrumentValue,
+    crate::dialog::Dialog,
+    crate::decorated_pot_pattern::DecoratedPotPattern,
+    crate::block_transformer::BlockTransformer,
+    crate::recipe::Recipe
+);

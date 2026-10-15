@@ -43,7 +43,7 @@ fn read_census() -> Census {
 }
 
 fn loaded_names(registry: &str) -> Vec<String> {
-    crate::registries::test_registries()
+    crate::registry_load::test_registries()
         .table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
         .names()

@@ -8,7 +8,7 @@ use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{tag_members, workspace_root};
 

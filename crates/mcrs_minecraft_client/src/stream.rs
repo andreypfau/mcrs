@@ -1572,8 +1572,9 @@ mod tests {
     use mcrs_minecraft_network::client::SessionRegistryInputs;
     use mcrs_minecraft_registry::NetworkRegistry;
     use mcrs_minecraft_world::registries::{
-        registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent, test_registries,
+        registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent,
     };
+    use mcrs_minecraft_world::registry_load::test_registries;
 
     static INPUTS: std::sync::LazyLock<SessionRegistryInputs> = std::sync::LazyLock::new(|| {
         crate::registries::session_inputs(Some(&crate::asset_corpus()))

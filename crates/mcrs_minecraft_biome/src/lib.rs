@@ -51,3 +51,7 @@ pub struct BiomeEffects {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dry_foliage_color: Option<HexRgb>,
 }
+
+mcrs_minecraft_registries::read_with_serde!(
+    crate::parameter_list::MultiNoiseBiomeSourceParameterList
+);

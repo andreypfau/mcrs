@@ -84,7 +84,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 #[cfg(feature = "bevy")]
 use std::path::Path;
-use std::sync::LazyLock;
 
 macro_rules! world_registry_table {
     ($(
@@ -401,30 +400,6 @@ async fn read_pack(
     }
 }
 
-#[cfg(feature = "bevy")]
-pub fn load_registries(
-    asset_server: &AssetServer,
-    statics: RegistrySet,
-) -> Result<RegistrySet, LoadReport> {
-    let source = asset_server
-        .get_source(AssetSourceId::Default)
-        .expect("default AssetSource missing");
-    let path = Path::new(crate::packs::DATAPACK_REPORT);
-    let bytes = bevy_tasks::block_on(read_whole(source.reader(), path))
-        .map_err(|error| LoadReport::invalid(format_args!("{}: {error}", path.display())))?;
-    crate::packs::load_registry_set(statics, &bytes, |registries, statics| {
-        read_packs(asset_server, registries, statics)
-    })
-}
-
-pub fn test_registries() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-        crate::packs::load_from_directory(&assets).unwrap_or_else(|report| refuse(&report))
-    });
-    &SET
-}
-
 /// The registries a server holding `server` sends, in table order. A vanilla entry
 /// goes without data unless `sends_data` asks for it, as it does to a client that
 /// knows the vanilla pack.
@@ -575,7 +550,7 @@ pub fn static_registries() -> Result<RegistrySet, LoadReport> {
         .map_err(LoadReport::invalid)
 }
 
-pub fn refuse(report: &LoadReport) -> ! {
-    tracing::error!("the registries are unusable:\n{report}");
+pub fn refuse<E: std::fmt::Display>(error: &E) -> ! {
+    tracing::error!("the registries are unusable:\n{error}");
     std::process::exit(1)
 }

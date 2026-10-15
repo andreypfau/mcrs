@@ -14,7 +14,7 @@ use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{
     Id, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
 };
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 

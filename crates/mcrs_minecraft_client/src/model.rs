@@ -648,6 +648,7 @@ mod tests {
         let added = read(&[
             stone,
             "mcrs/datapacks/.DS_Store",
+            "mcrs/datapacks/beta/pack.mcmeta",
             "mcrs/datapacks/beta/minecraft/models/block/beta_stone.json",
         ])
         .unwrap();
@@ -661,6 +662,7 @@ mod tests {
 
         let error = read(&[
             stone,
+            "mcrs/datapacks/beta/pack.mcmeta",
             "mcrs/datapacks/beta/minecraft/models/block/stone.json",
         ])
         .unwrap_err();

@@ -9,7 +9,7 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{apply, items, place, remove, set_count, world};
 

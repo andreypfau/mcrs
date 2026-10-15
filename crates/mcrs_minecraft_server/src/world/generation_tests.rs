@@ -798,7 +798,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 #[test]
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_world::registries::test_registries;
+    use mcrs_minecraft_world::registry_load::test_registries;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
     let registry = test_registries()

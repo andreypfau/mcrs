@@ -42,14 +42,14 @@ pub fn built(pack: &str) -> Vec<Built> {
     match pack {
         VANILLA_PACK => vec![
             biome::built(),
-            built!(mcrs_minecraft_worldgen_noise::keys::NOISE, noises::noises),
+            built!(mcrs_minecraft_worldgen_noise::keys::NOISE, vanilla_noises),
             built!(
                 mcrs_minecraft_worldgen_density::keys::DENSITY_FUNCTION,
                 vanilla_density_functions
             ),
             built!(
                 mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS,
-                settings::noise_settings
+                vanilla_noise_settings
             ),
             template_pool::built(),
         ],
@@ -68,30 +68,42 @@ pub fn built(pack: &str) -> Vec<Built> {
     }
 }
 
-fn beta_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+pub fn vanilla_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+    noises::noises()
+}
+
+pub fn beta_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     beta::noises().collect()
 }
 
-fn vanilla_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+pub fn vanilla_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
     let mut functions = Functions::default();
     density::define(&mut functions);
     functions.0
 }
 
-fn beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+pub fn beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
     let mut functions = Functions::default();
     beta::define(&mut functions);
     functions.0
 }
 
-fn beta_noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+pub fn vanilla_noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+    settings::noise_settings()
+}
+
+pub fn beta_noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
     BTreeMap::from([beta::noise_settings()])
 }
 
 pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
-    let mut noises = noises::noises();
+    let mut noises = vanilla_noises();
     noises.extend(beta_noises());
     noises
+}
+
+pub fn biome_names() -> Vec<ResourceLocation> {
+    biome::names()
 }
 
 pub fn biomes(
@@ -107,7 +119,7 @@ pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> 
 }
 
 pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
-    let mut settings = settings::noise_settings();
+    let mut settings = vanilla_noise_settings();
     settings.extend(beta_noise_settings());
     settings
 }
