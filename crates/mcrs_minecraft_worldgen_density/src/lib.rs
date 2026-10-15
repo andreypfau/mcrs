@@ -20,3 +20,8 @@ mcrs_minecraft_registries::read_with_serde!(
     crate::proto::DensityFunctionHolder,
     crate::router::NoiseGeneratorSettings
 );
+
+mcrs_minecraft_registries::declare_registries!(
+    crate::proto::DensityFunctionHolder => crate::keys::DENSITY_FUNCTION, World;
+    crate::router::NoiseGeneratorSettings => crate::keys::NOISE_SETTINGS, World;
+);

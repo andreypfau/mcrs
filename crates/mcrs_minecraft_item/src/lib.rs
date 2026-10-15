@@ -89,3 +89,17 @@ mcrs_minecraft_registries::read_with_serde!(
     crate::block_transformer::BlockTransformer,
     crate::recipe::Recipe
 );
+
+mcrs_minecraft_registries::declare_registries!(
+    crate::TrimPattern => crate::keys::TRIM_PATTERN, World;
+    crate::TrimMaterial => crate::keys::TRIM_MATERIAL, World;
+    crate::PaintingVariantValue => crate::keys::PAINTING_VARIANT, World, non_empty;
+    crate::damage_type::DamageType => crate::keys::DAMAGE_TYPE, World;
+    crate::BannerPattern => crate::keys::BANNER_PATTERN, World;
+    crate::JukeboxSong => crate::keys::JUKEBOX_SONG, World;
+    crate::InstrumentValue => crate::keys::INSTRUMENT, World;
+    crate::dialog::Dialog => crate::keys::DIALOG, World;
+    crate::decorated_pot_pattern::DecoratedPotPattern => crate::keys::DECORATED_POT_PATTERN, World;
+    crate::block_transformer::BlockTransformer => crate::keys::BLOCK_TRANSFORMER, World;
+    crate::recipe::Recipe => crate::keys::RECIPE, Reloadable;
+);

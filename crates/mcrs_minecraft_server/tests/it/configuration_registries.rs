@@ -23,8 +23,8 @@ use mcrs_minecraft_server::configuration::{
     KnownPackOffer, known_pack_offer, offered_pack, on_known_packs_response, registry_data,
     start_configuration,
 };
-use mcrs_minecraft_world::packs::load_from_directory;
 use mcrs_minecraft_world::registry_load::{KnownPacks, test_known_packs, test_registries};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
@@ -138,38 +138,109 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
     );
 }
 
+pub(crate) struct ShippedPack {
+    pub(crate) id: String,
+    pub(crate) namespaces: Vec<PathBuf>,
+}
+
+pub(crate) fn shipped_packs() -> Vec<ShippedPack> {
+    let assets = Path::new(ASSETS);
+    let mut packs = vec![ShippedPack {
+        id: VANILLA_PACK.to_owned(),
+        namespaces: vec![assets.join("minecraft")],
+    }];
+    let mut local: Vec<_> = std::fs::read_dir(assets.join("mcrs/datapacks"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    local.sort();
+    for root in local {
+        let mut namespaces: Vec<_> = std::fs::read_dir(&root)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_dir())
+            .collect();
+        namespaces.sort();
+        packs.push(ShippedPack {
+            id: format!("file/{}", root.file_name().unwrap().to_str().unwrap()),
+            namespaces,
+        });
+    }
+    packs
+}
+
+pub(crate) fn json_files(directory: &Path) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut pending = vec![directory.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&next) else {
+            continue;
+        };
+        for entry in entries {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let relative = path.strip_prefix(directory).unwrap();
+                found.push(relative.to_str().unwrap().replace('\\', "/"));
+            }
+        }
+    }
+    found
+}
+
+fn shipped_entries(registry: &str) -> Vec<(String, String)> {
+    let directory = registry.strip_prefix("minecraft:").unwrap();
+    let mut entries = BTreeMap::new();
+    if registry == "minecraft:worldgen/biome" {
+        for name in mcrs_minecraft_worldgen_builtin::biome_names() {
+            let key = (format!("{}.json", name.path()), name.namespace().to_owned());
+            entries.insert(key, VANILLA_PACK.to_owned());
+        }
+    }
+    for pack in shipped_packs() {
+        for namespace in &pack.namespaces {
+            for file in json_files(&namespace.join(directory)) {
+                let namespace = namespace.file_name().unwrap().to_str().unwrap().to_owned();
+                entries.insert((file, namespace), pack.id.clone());
+            }
+        }
+    }
+    entries
+        .into_iter()
+        .map(|((file, namespace), pack)| {
+            let path = file.strip_suffix(".json").unwrap();
+            (format!("{namespace}:{path}"), pack)
+        })
+        .collect()
+}
+
 #[test]
-fn the_registry_packets_are_those_the_old_loader_sends() {
-    let old = load_from_directory(Path::new(ASSETS)).unwrap_or_else(|report| panic!("{report}"));
-    let new = test_registries();
+fn the_registry_packets_list_the_entries_the_packs_ship() {
+    let set = test_registries();
     let core = known_pack_offer(true, test_known_packs());
     for offered in [Vec::new(), core] {
         let accepted: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
-        let (from_old, from_new) = (
-            registry_data(&old, &offered, &accepted),
-            registry_data(new, &offered, &accepted),
-        );
-        let registries = |packets: &[ClientboundRegistryData]| {
-            packets
+        for packet in registry_data(set, &offered, &accepted) {
+            let registry = packet.registry.as_str();
+            let shipped = shipped_entries(registry);
+            let sent: Vec<&str> = packet
+                .entries
                 .iter()
-                .map(|packet| packet.registry.to_string())
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(registries(&from_old), registries(&from_new));
-        for (old, new) in from_old.iter().zip(&from_new) {
-            let entries = |packet: &ClientboundRegistryData| {
-                packet
-                    .entries
-                    .iter()
-                    .map(|entry| (entry.id.to_string(), entry.data.as_deref().cloned()))
-                    .collect::<Vec<_>>()
-            };
-            assert_eq!(
-                entries(old),
-                entries(new),
-                "{} differs with offer {offered:?}",
-                old.registry
-            );
+                .map(|entry| entry.id.as_str())
+                .collect();
+            let expected: Vec<&str> = shipped.iter().map(|(name, _)| name.as_str()).collect();
+            assert_eq!(sent, expected, "{registry} with offer {offered:?}");
+            for (entry, (name, pack)) in packet.entries.iter().zip(&shipped) {
+                assert_eq!(
+                    entry.data.is_none(),
+                    !accepted.is_empty() && pack == VANILLA_PACK,
+                    "{registry}/{name} from {pack} with offer {offered:?}"
+                );
+            }
         }
     }
 }

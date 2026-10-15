@@ -200,15 +200,48 @@ mod tests {
         );
     }
 
+    struct WithExtraPack {
+        base: crate::registry_load::DirectoryPacks,
+        files: Vec<(String, Vec<u8>)>,
+    }
+
+    impl crate::registry_load::PackSource for WithExtraPack {
+        fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+            match self.files.iter().find(|(file, _)| file == path) {
+                Some((_, bytes)) => Ok(bytes.clone()),
+                None => self.base.read(path),
+            }
+        }
+
+        fn list(&self, directory: &str) -> Result<Vec<crate::registry_load::PackEntry>, String> {
+            let mut listed = self.base.list(directory)?;
+            let prefix = format!("{directory}/");
+            for (path, _) in &self.files {
+                let Some(rest) = path.strip_prefix(&prefix) else {
+                    continue;
+                };
+                let (name, directory) = match rest.split_once('/') {
+                    Some((name, _)) => (name, true),
+                    None => (rest, false),
+                };
+                if !listed.iter().any(|entry| entry.name == name) {
+                    listed.push(crate::registry_load::PackEntry {
+                        name: name.to_owned(),
+                        directory,
+                    });
+                }
+            }
+            Ok(listed)
+        }
+    }
+
     #[test]
     fn a_template_named_only_by_an_extra_pack_pool_is_requested() {
-        use crate::packs::{DATAPACK_REPORT, read_packs_from_directory};
-        use crate::registries::{static_registries, world_registries};
+        use crate::registry_load::{DirectoryPacks, load_registries};
         use bevy_app::{App, TaskPoolPlugin};
         use bevy_asset::io::AssetSourceBuilder;
         use bevy_asset::io::memory::MemoryAssetReader;
         use bevy_asset::{AssetApp, AssetPlugin};
-        use mcrs_minecraft_registry::{Pack, PackFile};
         use mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin;
         use mcrs_minecraft_worldgen::tables::template_handle;
 
@@ -224,21 +257,20 @@ mod tests {
         );
 
         let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-        let report = std::fs::read(assets.join(DATAPACK_REPORT)).unwrap();
-        let statics = static_registries().unwrap();
-        let world = world_registries(&report).unwrap();
-        let mut packs = read_packs_from_directory(&assets, &world, &statics).unwrap();
-        packs.push(Pack {
-            name: "extra".to_owned(),
-            files: vec![PackFile {
-                path: "example/worldgen/template_pool/camp.json".to_owned(),
-                bytes: Some(pool.into_bytes()),
-            }],
-            built: Vec::new(),
-        });
-        let set = world
-            .load(&statics, &packs)
-            .unwrap_or_else(|report| panic!("{report}"));
+        let metadata = std::fs::read(assets.join("mcrs/datapacks/beta/pack.mcmeta")).unwrap();
+        let source = WithExtraPack {
+            base: DirectoryPacks::new(assets),
+            files: vec![
+                ("mcrs/datapacks/extra/pack.mcmeta".to_owned(), metadata),
+                (
+                    "mcrs/datapacks/extra/example/worldgen/template_pool/camp.json".to_owned(),
+                    pool.into_bytes(),
+                ),
+            ],
+        };
+        let set = load_registries(&source)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .set;
 
         let root = Dir::default();
         root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());

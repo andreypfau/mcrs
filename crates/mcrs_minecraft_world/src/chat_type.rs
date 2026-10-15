@@ -26,3 +26,9 @@ pub enum ChatParameter {
     Target,
     Content,
 }
+
+mcrs_minecraft_registries::read_with_serde!(ChatType);
+
+mcrs_minecraft_registries::declare_registries!(
+    ChatType => crate::keys::CHAT_TYPE, World;
+);

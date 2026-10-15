@@ -15,7 +15,7 @@ mod terrain;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
-use mcrs_minecraft_registry::{Built, RegistrySet, VANILLA_PACK};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -23,50 +23,6 @@ use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use std::collections::BTreeMap;
-
-const BETA_PACK: &str = "beta";
-
-macro_rules! built {
-    ($registry:expr, $entries:path) => {
-        Built::new(
-            $registry.location(),
-            $entries().into_keys().collect(),
-            |_| Ok($entries().into_values().collect()),
-        )
-    };
-}
-
-/// The entries each pack carries as code: the vanilla pack the game's, the
-/// beta pack its own.
-pub fn built(pack: &str) -> Vec<Built> {
-    match pack {
-        VANILLA_PACK => vec![
-            biome::built(),
-            built!(mcrs_minecraft_worldgen_noise::keys::NOISE, vanilla_noises),
-            built!(
-                mcrs_minecraft_worldgen_density::keys::DENSITY_FUNCTION,
-                vanilla_density_functions
-            ),
-            built!(
-                mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS,
-                vanilla_noise_settings
-            ),
-            template_pool::built(),
-        ],
-        BETA_PACK => vec![
-            built!(mcrs_minecraft_worldgen_noise::keys::NOISE, beta_noises),
-            built!(
-                mcrs_minecraft_worldgen_density::keys::DENSITY_FUNCTION,
-                beta_density_functions
-            ),
-            built!(
-                mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS,
-                beta_noise_settings
-            ),
-        ],
-        _ => Vec::new(),
-    }
-}
 
 pub fn vanilla_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     noises::noises()

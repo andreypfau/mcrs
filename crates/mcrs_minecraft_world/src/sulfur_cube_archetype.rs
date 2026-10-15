@@ -88,3 +88,9 @@ fn non_negative_float_provider<'de, D: Deserializer<'de>>(
     }
     Ok(provider)
 }
+
+mcrs_minecraft_registries::read_with_serde!(SulfurCubeArchetype);
+
+mcrs_minecraft_registries::declare_registries!(
+    SulfurCubeArchetype => crate::keys::SULFUR_CUBE_ARCHETYPE, World;
+);

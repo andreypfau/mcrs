@@ -18,10 +18,10 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ClientNetworkSystems, CurrentDimension, SessionRegistryInputs,
 };
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{KnownPackEntries, RegistrySet};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
-use mcrs_minecraft_world::packs::known_pack_entries;
 use mcrs_minecraft_world::registries::{refuse, static_registries, world_registries};
+use mcrs_minecraft_world::registry_load::{DirectoryPacks, load_vanilla_registries};
 
 use crate::blocks::BiomeTints;
 
@@ -34,9 +34,14 @@ pub fn session_inputs(local_corpus: Option<&Path>) -> SessionRegistryInputs {
     SessionRegistryInputs {
         declarations: world_registries(DATAPACK_REPORT).unwrap_or_else(|report| refuse(&report)),
         statics: static_registries().unwrap_or_else(|report| refuse(&report)),
-        known: local_corpus
-            .map(|root| known_pack_entries(root).unwrap_or_else(|report| refuse(&report))),
+        known: local_corpus.map(known_pack_entries),
     }
+}
+
+fn known_pack_entries(root: &Path) -> KnownPackEntries {
+    let vanilla = load_vanilla_registries(&DirectoryPacks::new(root.to_path_buf()))
+        .unwrap_or_else(|error| refuse(&error));
+    KnownPackEntries::from_set(&vanilla.set)
 }
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]

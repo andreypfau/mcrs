@@ -110,3 +110,9 @@ fn merge(
     baked.extend(merged);
     Some(baked)
 }
+
+mcrs_minecraft_registries::read_with_serde!(DimensionEntry);
+
+mcrs_minecraft_registries::declare_registries!(
+    DimensionEntry => mcrs_minecraft_dimension::keys::DIMENSION, Dimension;
+);

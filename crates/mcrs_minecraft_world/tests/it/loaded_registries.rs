@@ -24,10 +24,8 @@ use mcrs_minecraft_registries::{Diagnostic, Level};
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
-use mcrs_minecraft_world::packs::read_packs_from_directory;
 use mcrs_minecraft_world::registries::{
-    read_packs, reloadable_registries, static_registries as build_static_registries,
-    world_registries,
+    reloadable_registries, static_registries as build_static_registries, world_registries,
 };
 use mcrs_minecraft_world::registry_load::{
     KnownPacks, RegistryLoadError, test_known_packs, test_registries,
@@ -41,8 +39,7 @@ use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
 use crate::common::{
-    RemovedOnDrop, WithFiles, assets, datapack_report, declared_registries, loaded_names,
-    plugin_app,
+    WithFiles, assets, datapack_report, declared_registries, loaded_names, plugin_app,
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
@@ -54,8 +51,6 @@ use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
-
-static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
 
 #[test]
 fn the_generated_static_set_equals_the_report() {
@@ -318,8 +313,7 @@ fn the_fallback_serves_only_structure_templates() {
     );
 
     let mut json_paths = 0;
-    for built in mcrs_minecraft_worldgen_builtin::built(VANILLA_PACK) {
-        let registry = built.registry().as_static_str();
+    for registry in std::iter::once("minecraft:worldgen/biome").chain(BUILT_WORLDGEN) {
         let table = set.table(registry).expect(registry);
         for (id, name) in table.names().iter().enumerate() {
             if set.pack_of(registry, id) != Some(VANILLA_PACK) {
@@ -492,6 +486,46 @@ fn a_local_entry_comes_from_its_pack() {
 fn packs_follow_vanilla_in_name_order() {
     let pattern =
         |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
+    let loaded = WithFiles::over_assets()
+        .with("minecraft/banner_pattern/a.json", pattern("a"))
+        .pack("mcrs/datapacks/zz_second")
+        .with(
+            "mcrs/datapacks/zz_second/minecraft/banner_pattern/b.json",
+            pattern("b"),
+        )
+        .with(
+            "mcrs/datapacks/zz_second/minecraft/banner_pattern/c.json",
+            pattern("second"),
+        )
+        .pack("mcrs/datapacks/zz_first")
+        .with(
+            "mcrs/datapacks/zz_first/minecraft/banner_pattern/c.json",
+            pattern("first"),
+        )
+        .load()
+        .unwrap_or_else(|error| panic!("{error}"));
+    let set = &loaded.set;
+
+    let registry = "minecraft:banner_pattern";
+    let table = set.table(registry).unwrap();
+    let column = set.column::<BannerPattern>(registry).unwrap();
+    let entry = |name: &str| {
+        let id = usize::from(table.number(name).unwrap_or_else(|| panic!("no {name}")));
+        (set.pack_of(registry, id), column[id].asset_id.to_string())
+    };
+    assert_eq!(
+        entry("minecraft:a"),
+        (Some(VANILLA_PACK), "minecraft:a".to_owned())
+    );
+    assert_eq!(
+        entry("minecraft:b"),
+        (Some("file/zz_second"), "minecraft:b".to_owned())
+    );
+    assert_eq!(
+        entry("minecraft:c"),
+        (Some("file/zz_second"), "minecraft:second".to_owned())
+    );
+
     let root = Dir::default();
     root.insert_asset_text(Path::new("minecraft/banner_pattern/a.json"), &pattern("a"));
     root.insert_asset_text(Path::new("mcrs/datapacks/extra/pack.mcmeta"), "{}");
@@ -499,7 +533,6 @@ fn packs_follow_vanilla_in_name_order() {
         Path::new("mcrs/datapacks/extra/minecraft/banner_pattern/b.json"),
         &pattern("b"),
     );
-
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
@@ -511,42 +544,6 @@ fn packs_follow_vanilla_in_name_order() {
     );
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
-
-    let packs = read_packs(&asset_server, &WORLD, &RegistrySet::new()).expect("the packs read");
-
-    let listed: Vec<_> = packs
-        .iter()
-        .map(|pack| {
-            (
-                pack.name.as_str(),
-                pack.files
-                    .iter()
-                    .filter(|file| file.bytes.is_some())
-                    .map(|file| (file.path.as_str(), file.bytes.as_deref()))
-                    .collect(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        listed,
-        [
-            (
-                "vanilla",
-                vec![(
-                    "minecraft/banner_pattern/a.json",
-                    Some(pattern("a").as_bytes())
-                )]
-            ),
-            (
-                "extra",
-                vec![(
-                    "minecraft/banner_pattern/b.json",
-                    Some(pattern("b").as_bytes())
-                )]
-            ),
-        ]
-    );
-
     let source = asset_server.get_source(AssetSourceId::Default).unwrap();
     let bytes = bevy_tasks::block_on(read_whole(
         source.reader(),
@@ -628,29 +625,43 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
 
 #[test]
 fn a_pack_directory_without_a_namespace_has_no_files() {
-    let root = RemovedOnDrop::temp("mcrs_empty_pack");
-    std::fs::create_dir_all(root.0.join(PACKS_ROOT).join("empty")).unwrap();
+    let loaded = WithFiles::over_assets()
+        .pack("mcrs/datapacks/zz_empty")
+        .load()
+        .unwrap_or_else(|error| panic!("{error}"));
 
-    let packs = read_packs_from_directory(&root.0, &WORLD, &STATICS)
-        .unwrap_or_else(|report| panic!("{report}"));
-
-    let names: Vec<_> = packs.iter().map(|pack| pack.name.as_str()).collect();
-    assert_eq!(names, [VANILLA_PACK, "empty"]);
-    assert!(packs.iter().all(|pack| pack.files.is_empty()));
+    assert!(
+        loaded
+            .known_packs
+            .0
+            .iter()
+            .all(|known| known.pack != "file/zz_empty")
+    );
+    let set = &loaded.set;
+    for table in set.tables() {
+        let registry = table.registry().as_str();
+        assert!(
+            (0..table.len()).all(|id| set.pack_of(registry, id) != Some("file/zz_empty")),
+            "{registry} holds an entry of the empty pack"
+        );
+    }
+    assert!(
+        !loaded.diagnostics.iter().any(|diagnostic| matches!(
+            diagnostic,
+            Diagnostic::UnavailablePack { pack, .. } if pack == "file/zz_empty"
+        )),
+        "{:?}",
+        loaded.diagnostics
+    );
 }
 
-#[cfg(unix)]
 #[test]
 fn an_unreadable_registry_file_is_a_report_entry_naming_its_path() {
-    let root = RemovedOnDrop::temp("mcrs_unreadable_pack");
-    let biomes = root
-        .0
-        .join(PACKS_ROOT)
-        .join("broken/minecraft/worldgen/biome");
-    std::fs::create_dir_all(&biomes).unwrap();
-    std::os::unix::fs::symlink(root.0.join("absent.json"), biomes.join("ghost.json")).unwrap();
-
-    let refused = read_packs_from_directory(&root.0, &WORLD, &STATICS).err();
+    let refused = WithFiles::over_assets()
+        .pack("mcrs/datapacks/broken")
+        .unreadable("mcrs/datapacks/broken/minecraft/worldgen/biome/ghost.json")
+        .load()
+        .err();
 
     let message = refused
         .expect("a file that does not read is refused")

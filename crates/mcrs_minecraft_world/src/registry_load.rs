@@ -222,11 +222,11 @@ struct Available {
     unavailable: Vec<Diagnostic>,
 }
 
-fn available_packs(source: &dyn PackSource) -> Result<Available, RegistryLoadError> {
+fn vanilla_pack() -> Result<Available, RegistryLoadError> {
     let vanilla_feature = ResourceLocation::read(VANILLA_FEATURE)
         .map_err(|error| RegistryLoadError::Malformed(error.to_string()))?;
     let vanilla = AvailablePack::vanilla();
-    let mut available = Available {
+    Ok(Available {
         features: Features {
             known: vec![vanilla_feature.clone()],
             vanilla: vec![vanilla_feature],
@@ -235,8 +235,11 @@ fn available_packs(source: &dyn PackSource) -> Result<Available, RegistryLoadErr
         roots: BTreeMap::from([(vanilla.id().to_owned(), PackRoot::Vanilla)]),
         packs: vec![vanilla],
         unavailable: Vec::new(),
-    };
+    })
+}
 
+fn available_packs(source: &dyn PackSource) -> Result<Available, RegistryLoadError> {
+    let mut available = vanilla_pack()?;
     for entry in list(source, PACKS_ROOT)?
         .into_iter()
         .filter(|e| e.directory)
@@ -363,12 +366,24 @@ fn merged(mut first: Diagnostics, second: &Diagnostics) -> Diagnostics {
 }
 
 pub fn load_registries(source: &dyn PackSource) -> Result<LoadedRegistries, RegistryLoadError> {
+    load_stack(source, available_packs(source)?)
+}
+
+pub fn load_vanilla_registries(
+    source: &dyn PackSource,
+) -> Result<LoadedRegistries, RegistryLoadError> {
+    load_stack(source, vanilla_pack()?)
+}
+
+fn load_stack(
+    source: &dyn PackSource,
+    available: Available,
+) -> Result<LoadedRegistries, RegistryLoadError> {
     let report = read(source, DATAPACK_REPORT)?;
     let statics = static_registries().map_err(RegistryLoadError::Report)?;
     let world_tables = world_registries(&report).map_err(RegistryLoadError::Report)?;
     let reloadable_tables = reloadable_registries(&report).map_err(RegistryLoadError::Report)?;
 
-    let available = available_packs(source)?;
     let (stack, mut diagnostics) = pack_stack(
         &PackSelection::default(),
         &available.packs,

@@ -30,3 +30,9 @@ mcrs_minecraft_registry::dispatch! {
         Single => Single,
     }
 }
+
+mcrs_minecraft_registries::read_with_serde!(EnchantmentProvider);
+
+mcrs_minecraft_registries::declare_registries!(
+    EnchantmentProvider => crate::keys::ENCHANTMENT_PROVIDER, World;
+);

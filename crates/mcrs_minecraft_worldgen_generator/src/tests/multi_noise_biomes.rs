@@ -11,9 +11,7 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{
-    Id, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
-};
+use mcrs_minecraft_registry::{Id, LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -372,43 +370,31 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
         .map(|(_, biome)| *biome)
         .filter(|biome| *biome != missing)
         .collect();
-    let mut files: Vec<PackFile> = named
-        .into_iter()
-        .map(|biome| PackFile {
-            path: format!(
-                "minecraft/worldgen/biome/{}.json",
-                biome.strip_prefix("minecraft:").expect("a vanilla biome")
-            ),
-            bytes: None,
-        })
-        .collect();
-    files.push(PackFile {
-        path: "minecraft/worldgen/multi_noise_biome_source_parameter_list/overworld.json"
-            .to_owned(),
-        bytes: Some(br#"{"preset":"minecraft:overworld"}"#.to_vec()),
-    });
-    let packs = [Pack {
-        name: "vanilla".to_owned(),
-        files,
-        built: Vec::new(),
-    }];
-
-    let mut declared = WorldRegistries::new([
-        BIOME.location().into(),
-        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location().into(),
-    ]);
-    declared.parse::<MultiNoiseBiomeSourceParameterList>(
-        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
-    );
-    let statics = RegistrySet::new()
-        .with_types([
-            BIOME.binding(),
-            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.binding(),
-        ])
-        .expect("two distinct bindings");
-    let set = declared
-        .load(&statics, &packs)
-        .unwrap_or_else(|report| panic!("the small set loads: {report}"));
+    let biomes = Registry::<Biome>::new(
+        BIOME,
+        named
+            .into_iter()
+            .map(|biome| ResourceLocation::read(biome).expect("a vanilla biome")),
+    )
+    .expect("distinct biome names");
+    let lists = Registry::<MultiNoiseBiomeSourceParameterList>::new(
+        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+        [ResourceLocation::read("minecraft:overworld").expect("a vanilla name")],
+    )
+    .expect("one parameter list");
+    let set = RegistrySet::new()
+        .with(biomes)
+        .and_then(|set| set.with(lists))
+        .expect("two distinct registries")
+        .with_column(
+            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
+                .location()
+                .as_static_str(),
+            Arc::from([MultiNoiseBiomeSourceParameterList {
+                preset: Preset::Overworld,
+            }]),
+        )
+        .expect("one value per name");
 
     let mut app = App::new();
     app.add_plugins(GeneratorIdsPlugin);

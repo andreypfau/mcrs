@@ -3523,6 +3523,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_feature",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

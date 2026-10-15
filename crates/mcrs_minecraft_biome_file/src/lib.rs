@@ -5,10 +5,13 @@ use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
+use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf, Stage};
 use mcrs_minecraft_registry::{AlwaysList, HolderSet, Id, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use std::sync::Arc;
 
 mod validate;
 
@@ -302,3 +305,32 @@ impl BiomeFile {
 }
 
 mcrs_minecraft_registries::read_with_serde!(crate::BiomeFile);
+
+impl BiomeFile {
+    pub fn declaration<S>(scope: S) -> DataDeclaration<RegistryOf<Self>>
+    where
+        S: Fn() -> RegistrySet + Send + Sync + 'static,
+    {
+        let key = mcrs_minecraft_biome::keys::BIOME.location().into();
+        Declaration::data::<RegistryOf<Self>>(key, Stage::World).validate(move |registry, ctx| {
+            let placed = ctx
+                .registry::<RegistryOf<PlacedFeature>>()
+                .ok_or_else(|| "the placed features are not loaded".to_owned())?;
+            let set = scope()
+                .with_column(
+                    PLACED_FEATURE.location().as_static_str(),
+                    Arc::clone(placed.values()),
+                )
+                .map_err(|error| error.to_string())?;
+            let settings: Vec<BiomeGenerationSettings> = registry
+                .values()
+                .iter()
+                .map(|biome| BiomeGenerationSettings {
+                    carvers: biome.carvers.clone(),
+                    features: biome.features.clone(),
+                })
+                .collect();
+            registry.entry_failures(check_feature_domains(&settings, &set))
+        })
+    }
+}

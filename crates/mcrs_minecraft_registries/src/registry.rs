@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -11,6 +12,12 @@ use crate::pack::PackIndex;
 
 pub trait RegistryType: 'static {
     type Value: Send + Sync + 'static;
+}
+
+pub struct RegistryOf<V>(PhantomData<fn() -> V>);
+
+impl<V: Send + Sync + 'static> RegistryType for RegistryOf<V> {
+    type Value = V;
 }
 
 pub trait ReadValue: Sized {
@@ -116,6 +123,21 @@ impl<R: RegistryType> Registry<R> {
             .zip(self.values.iter())
             .zip(0..=u16::MAX)
             .map(|((name, value), number)| (Id::new(number), name, value))
+    }
+
+    pub fn entry_failures(&self, failures: Vec<(usize, String)>) -> Result<(), String> {
+        if failures.is_empty() {
+            return Ok(());
+        }
+        let names = self.names.all();
+        let lines: Vec<String> = failures
+            .into_iter()
+            .map(|(index, message)| match names.get(index) {
+                Some(name) => format!("{name}: {message}"),
+                None => message,
+            })
+            .collect();
+        Err(lines.join("; "))
     }
 }
 

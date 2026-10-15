@@ -55,3 +55,8 @@ pub struct BiomeEffects {
 mcrs_minecraft_registries::read_with_serde!(
     crate::parameter_list::MultiNoiseBiomeSourceParameterList
 );
+
+mcrs_minecraft_registries::declare_registries!(
+    crate::parameter_list::MultiNoiseBiomeSourceParameterList
+        => crate::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST, World;
+);

@@ -1,16 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::configuration::update_tags;
-use mcrs_minecraft_world::packs::load_from_directory;
 use mcrs_minecraft_world::registry_load::test_registries;
 
-use crate::configuration_registries::ASSETS;
+use crate::configuration_registries::{json_files, shipped_packs};
 
-type SentTags = Vec<(String, BTreeMap<String, BTreeSet<String>>)>;
+type SentTags = Vec<(String, BTreeMap<String, Vec<String>>)>;
 
 fn sent_tags(set: &RegistrySet, packet: &ClientboundUpdateTags) -> SentTags {
     packet
@@ -41,21 +39,77 @@ fn sent_tags(set: &RegistrySet, packet: &ClientboundUpdateTags) -> SentTags {
         .collect()
 }
 
-#[test]
-fn the_tags_packet_names_the_tags_and_members_the_old_loader_sends() {
-    let old = load_from_directory(Path::new(ASSETS)).unwrap_or_else(|report| panic!("{report}"));
-    let new = test_registries();
-    let (from_old, from_new) = (update_tags(&old), update_tags(new));
-    let (old_tags, new_tags) = (sent_tags(&old, &from_old), sent_tags(new, &from_new));
-    let registries = |tags: &SentTags| {
-        tags.iter()
-            .map(|(name, _)| name.clone())
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(registries(&old_tags), registries(&new_tags));
-    for ((registry, old), (_, new)) in old_tags.iter().zip(&new_tags) {
-        assert_eq!(old, new, "{registry}");
+struct ShippedTag {
+    files: usize,
+    direct: Option<Vec<String>>,
+}
+
+fn direct_members(file: &serde_json::Value) -> Option<Vec<String>> {
+    if file.get("replace").is_some() {
+        return None;
     }
+    file["values"]
+        .as_array()?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.starts_with('#'))
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
+fn shipped_tags(registry: &str) -> BTreeMap<String, ShippedTag> {
+    let directory = format!("tags/{}", registry.strip_prefix("minecraft:").unwrap());
+    let mut tags = BTreeMap::<String, ShippedTag>::new();
+    for pack in shipped_packs() {
+        for namespace in &pack.namespaces {
+            let root = namespace.join(&directory);
+            for file in json_files(&root) {
+                let text = std::fs::read_to_string(root.join(&file)).unwrap();
+                let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+                let name = format!(
+                    "{}:{}",
+                    namespace.file_name().unwrap().to_str().unwrap(),
+                    file.strip_suffix(".json").unwrap()
+                );
+                let tag = tags.entry(name).or_insert(ShippedTag {
+                    files: 0,
+                    direct: None,
+                });
+                tag.files += 1;
+                tag.direct = direct_members(&json);
+            }
+        }
+    }
+    tags
+}
+
+#[test]
+fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
+    let set = test_registries();
+    let packet = update_tags(set);
+    let mut checked = 0;
+    for (registry, sent) in sent_tags(set, &packet) {
+        let shipped = shipped_tags(&registry);
+        assert_eq!(
+            sent.keys().collect::<BTreeSet<_>>(),
+            shipped.keys().collect::<BTreeSet<_>>(),
+            "the tags of {registry}"
+        );
+        for (name, tag) in &shipped {
+            let Some(direct) = tag.direct.as_ref().filter(|_| tag.files == 1) else {
+                continue;
+            };
+            assert_eq!(&sent[name], direct, "the members of #{name} in {registry}");
+            checked += 1;
+        }
+    }
+    assert!(
+        checked > 100,
+        "only {checked} tags list their members directly, so the test checks little"
+    );
 }
 
 #[test]

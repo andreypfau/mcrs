@@ -7,11 +7,13 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{
     KnownPackEntries, NetworkRegistry, RegistrySet, VANILLA_PACK, WorldRegistries,
 };
-use mcrs_minecraft_world::packs::{DATAPACK_REPORT, known_pack_entries};
+use mcrs_minecraft_world::packs::DATAPACK_REPORT;
 use mcrs_minecraft_world::registries::{
     registries_as_sent, static_registries, tags_as_sent, world_registries,
 };
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{
+    DirectoryPacks, load_vanilla_registries, test_registries,
+};
 
 use crate::common::assets;
 
@@ -23,8 +25,11 @@ fn declarations() -> WorldRegistries {
     world_registries(&report).unwrap_or_else(|report| panic!("{report}"))
 }
 
-static KNOWN: LazyLock<KnownPackEntries> =
-    LazyLock::new(|| known_pack_entries(&assets()).unwrap_or_else(|report| panic!("{report}")));
+static KNOWN: LazyLock<KnownPackEntries> = LazyLock::new(|| {
+    let vanilla = load_vanilla_registries(&DirectoryPacks::new(assets()))
+        .unwrap_or_else(|error| panic!("{error}"));
+    KnownPackEntries::from_set(&vanilla.set)
+});
 
 fn build(
     registries: Vec<NetworkRegistry>,

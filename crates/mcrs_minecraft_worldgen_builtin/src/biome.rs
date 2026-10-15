@@ -14,7 +14,7 @@ use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
+use mcrs_minecraft_registry::{RegistrySet, StaticKey};
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_sound::keys::sound_event;
 use mcrs_minecraft_value_provider::IntProvider;
@@ -311,8 +311,4 @@ pub fn build(set: &RegistrySet) -> Result<Vec<BiomeFile>, Vec<(usize, String)>> 
     } else {
         Err(failures)
     }
-}
-
-pub fn built() -> Built {
-    Built::new(mcrs_minecraft_biome::keys::BIOME.location(), names(), build)
 }

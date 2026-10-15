@@ -116,3 +116,23 @@ pub fn spawn_selectors<R>(
         .zip(conditions.iter().cloned())
         .collect()
 }
+
+mcrs_minecraft_registries::read_with_serde!(
+    WolfVariantFile,
+    PigVariantFile,
+    FrogVariantFile,
+    CatVariantFile,
+    CowVariantFile,
+    ChickenVariantFile,
+    ZombieNautilusVariantFile
+);
+
+mcrs_minecraft_registries::declare_registries!(
+    WolfVariantFile => mcrs_minecraft_entity::keys::WOLF_VARIANT, World, non_empty;
+    PigVariantFile => mcrs_minecraft_entity::keys::PIG_VARIANT, World, non_empty;
+    FrogVariantFile => mcrs_minecraft_entity::keys::FROG_VARIANT, World, non_empty;
+    CatVariantFile => mcrs_minecraft_entity::keys::CAT_VARIANT, World, non_empty;
+    CowVariantFile => mcrs_minecraft_entity::keys::COW_VARIANT, World, non_empty;
+    ChickenVariantFile => mcrs_minecraft_entity::keys::CHICKEN_VARIANT, World, non_empty;
+    ZombieNautilusVariantFile => mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT, World, non_empty;
+);

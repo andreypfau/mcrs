@@ -221,3 +221,10 @@ mcrs_minecraft_registry::dispatch! {
         Function => Function,
     }
 }
+
+mcrs_minecraft_registries::read_with_serde!(TestEnvironment, TestInstance);
+
+mcrs_minecraft_registries::declare_registries!(
+    TestEnvironment => crate::keys::TEST_ENVIRONMENT, World;
+    TestInstance => crate::keys::TEST_INSTANCE, World;
+);

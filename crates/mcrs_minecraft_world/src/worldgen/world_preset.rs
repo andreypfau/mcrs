@@ -11,3 +11,9 @@ use mcrs_minecraft_dimension::Dimension;
 pub struct WorldPreset {
     pub dimensions: BTreeMap<ResourceKey<Dimension>, DimensionEntry>,
 }
+
+mcrs_minecraft_registries::read_with_serde!(WorldPreset);
+
+mcrs_minecraft_registries::declare_registries!(
+    WorldPreset => crate::keys::WORLD_PRESET, World;
+);

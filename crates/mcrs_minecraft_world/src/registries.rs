@@ -1,10 +1,10 @@
 use crate::chat_type::ChatType;
-#[cfg(feature = "bevy")]
-use crate::data_pack::walk_files;
+use crate::declarations::{
+    Planner, StageSet, built_biomes, built_density_functions, built_noise_settings, built_noises,
+    built_template_pools,
+};
 use crate::dimension::DimensionEntry;
 use crate::enchantment_provider::EnchantmentProvider;
-#[cfg(feature = "bevy")]
-use crate::packs::PackScan;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant::{
@@ -15,20 +15,10 @@ use crate::villager_trade::{TradeSet, VillagerTrade};
 use crate::worldgen::chunk_generator::ChunkGenerator;
 use crate::worldgen::world_preset::WorldPreset;
 #[cfg(feature = "bevy")]
-use bevy_asset::AssetServer;
-#[cfg(feature = "bevy")]
-use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
-#[cfg(feature = "bevy")]
 use bevy_ecs::world::World;
-#[cfg(feature = "bevy")]
-use bevy_tasks::futures_lite::StreamExt;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
-use mcrs_minecraft_biome_file::{
-    BiomeFile, BiomeGenerationSettings, NetworkBiome, check_feature_domains,
-};
+use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
@@ -46,7 +36,7 @@ use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
-use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
+use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
@@ -63,13 +53,12 @@ use mcrs_minecraft_loot::number::{FloatExpression, IntExpression};
 use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
+use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::shared::share;
 #[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::{Entries, Pack, PackFile, Registry};
-use mcrs_minecraft_registry::{LoadReport, Parts, RegistrySet, WorldRegistries};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK};
+use mcrs_minecraft_registry::{Entries, Registry};
+use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -81,24 +70,27 @@ use mcrs_minecraft_worldgen_surface::proto::{
     MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
 use serde::Serialize;
-use serde::de::DeserializeOwned;
-#[cfg(feature = "bevy")]
-use std::path::Path;
 
-macro_rules! world_registry_table {
-    ($(
-        $key:ty => $value:ty $([$non_empty:ident])?
-            $(as $parts:ty, $split:expr, $join:expr
-                $(, synced from parts as $part_project:expr, received as $part_net:ty => $part_receive:expr)?)?
-            $(, synced as $project:expr, received as $net:ty => $receive:expr)?;
-    )*) => {
-        fn declare_world_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
+macro_rules! registry_table {
+    (
+        fn $declare:ident, fn $declarations:ident, |$scope:ident, $stage:ident|
+        $(
+            $key:ty => $value:ty
+                $(as $parts:ty, $split:expr, $join:expr
+                    $(, synced from parts as $part_project:expr, received as $part_net:ty => $part_receive:expr)?)?
+                $(, synced as $project:expr, received as $net:ty => $receive:expr)?
+                , declared by $declaration:expr $(, built in $built_in:expr)?;
+        )*
+    ) => {
+        fn $declare<S>(world: &mut WorldRegistries, report: &mut LoadReport, $scope: S)
+        where
+            S: Fn() -> RegistrySet + Clone + Send + Sync + 'static,
+        {
             $(
-                parse::<$key, $value>(world, report);
+                declare::<$key, $value>(world, report, $declaration);
                 let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
                     $(world.split::<$value, $parts>(registry, $split, $join);)?
-                    $(world.$non_empty(registry);)?
                     $($(
                         world.sync_parts::<$parts, _>(registry, $part_project);
                         world.receive::<$part_net, _>(registry, $part_receive);
@@ -110,6 +102,18 @@ macro_rules! world_registry_table {
                 }
             )*
         }
+
+        pub(crate) fn $declarations(
+            planner: &mut Planner,
+            $stage: &StageSet,
+        ) -> Result<Vec<Declaration>, String> {
+            let $scope = $stage.scope();
+            Ok(vec![$({
+                let declaration = $declaration;
+                $(let declaration = $built_in(declaration, $stage);)?
+                planner.add(declaration)?
+            }),*])
+        }
     };
 }
 
@@ -117,125 +121,160 @@ fn bare<T>(value: T) -> (T,) {
     (value,)
 }
 
-world_registry_table! {
+registry_table! {
+    fn declare_world_registries, fn world_declarations, |scope, stage|
     Biome => BiomeFile
         as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join,
         synced from parts as |parts| NetworkBiome::from(parts),
-        received as NetworkBiome => NetworkBiome::into_parts;
-    Feature => Feature;
-    PlacedFeature => PlacedFeature;
-    StructureProcessorList => StructureProcessorList;
-    Structure => Structure;
-    StructureSet => StructureSet;
-    CarverConfig => CarverConfig;
-    TemplatePool => TemplatePool;
-    NoiseParam => NoiseParam;
-    DensityFunctionHolder => DensityFunctionHolder;
-    NoiseGeneratorSettings => NoiseGeneratorSettings;
-    MaterialRule => MaterialRuleHolder;
-    MaterialConditionHolder => MaterialConditionHolder;
-    crate::chat_type::ChatType => ChatType, synced as Clone::clone, received as ChatType => bare;
-    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone, received as TrimPattern => bare;
-    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare;
-    WolfVariant => WolfVariantFile [non_empty]
+        received as NetworkBiome => NetworkBiome::into_parts,
+        declared by BiomeFile::declaration(scope.clone()), built in built_biomes;
+    Feature => Feature, declared by Feature::declaration();
+    PlacedFeature => PlacedFeature, declared by PlacedFeature::declaration();
+    StructureProcessorList => StructureProcessorList, declared by StructureProcessorList::declaration();
+    Structure => Structure, declared by Structure::declaration();
+    StructureSet => StructureSet, declared by StructureSet::declaration();
+    CarverConfig => CarverConfig, declared by CarverConfig::declaration();
+    TemplatePool => TemplatePool, declared by TemplatePool::declaration(), built in built_template_pools;
+    NoiseParam => NoiseParam, declared by NoiseParam::declaration(), built in built_noises;
+    DensityFunctionHolder => DensityFunctionHolder,
+        declared by DensityFunctionHolder::declaration(), built in built_density_functions;
+    NoiseGeneratorSettings => NoiseGeneratorSettings,
+        declared by NoiseGeneratorSettings::declaration(), built in built_noise_settings;
+    MaterialRule => MaterialRuleHolder, declared by MaterialRuleHolder::declaration();
+    MaterialConditionHolder => MaterialConditionHolder, declared by MaterialConditionHolder::declaration();
+    crate::chat_type::ChatType => ChatType, synced as Clone::clone, received as ChatType => bare,
+        declared by ChatType::declaration();
+    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone, received as TrimPattern => bare,
+        declared by TrimPattern::declaration();
+    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare,
+        declared by TrimMaterial::declaration();
+    WolfVariant => WolfVariantFile
         as (WolfVariant, Vec<SpawnSelector>),
         WolfVariantFile::split, WolfVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as WolfVariant => bare;
-    WolfSoundVariant => WolfSoundVariant [non_empty], synced as Clone::clone, received as WolfSoundVariant => bare;
-    PigVariant => PigVariantFile [non_empty]
+        received as WolfVariant => bare,
+        declared by WolfVariantFile::declaration();
+    WolfSoundVariant => WolfSoundVariant, synced as Clone::clone, received as WolfSoundVariant => bare,
+        declared by WolfSoundVariant::declaration();
+    PigVariant => PigVariantFile
         as (PigVariant, Vec<SpawnSelector>),
         PigVariantFile::split, PigVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as PigVariant => bare;
-    PigSoundVariant => PigSoundVariant [non_empty], synced as Clone::clone, received as PigSoundVariant => bare;
-    FrogVariant => FrogVariantFile [non_empty]
+        received as PigVariant => bare,
+        declared by PigVariantFile::declaration();
+    PigSoundVariant => PigSoundVariant, synced as Clone::clone, received as PigSoundVariant => bare,
+        declared by PigSoundVariant::declaration();
+    FrogVariant => FrogVariantFile
         as (FrogVariant, Vec<SpawnSelector>),
         FrogVariantFile::split, FrogVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as FrogVariant => bare;
-    CatVariant => CatVariantFile [non_empty]
+        received as FrogVariant => bare,
+        declared by FrogVariantFile::declaration();
+    CatVariant => CatVariantFile
         as (CatVariant, Vec<SpawnSelector>),
         CatVariantFile::split, CatVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as CatVariant => bare;
-    CatSoundVariant => CatSoundVariant [non_empty], synced as Clone::clone, received as CatSoundVariant => bare;
-    CowSoundVariant => CowSoundVariant [non_empty], synced as Clone::clone, received as CowSoundVariant => bare;
-    CowVariant => CowVariantFile [non_empty]
+        received as CatVariant => bare,
+        declared by CatVariantFile::declaration();
+    CatSoundVariant => CatSoundVariant, synced as Clone::clone, received as CatSoundVariant => bare,
+        declared by CatSoundVariant::declaration();
+    CowSoundVariant => CowSoundVariant, synced as Clone::clone, received as CowSoundVariant => bare,
+        declared by CowSoundVariant::declaration();
+    CowVariant => CowVariantFile
         as (CowVariant, Vec<SpawnSelector>),
         CowVariantFile::split, CowVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as CowVariant => bare;
-    ChickenSoundVariant => ChickenSoundVariant [non_empty], synced as Clone::clone, received as ChickenSoundVariant => bare;
-    ChickenVariant => ChickenVariantFile [non_empty]
+        received as CowVariant => bare,
+        declared by CowVariantFile::declaration();
+    ChickenSoundVariant => ChickenSoundVariant, synced as Clone::clone, received as ChickenSoundVariant => bare,
+        declared by ChickenSoundVariant::declaration();
+    ChickenVariant => ChickenVariantFile
         as (ChickenVariant, Vec<SpawnSelector>),
         ChickenVariantFile::split, ChickenVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as ChickenVariant => bare;
-    ZombieNautilusVariant => ZombieNautilusVariantFile [non_empty]
+        received as ChickenVariant => bare,
+        declared by ChickenVariantFile::declaration();
+    ZombieNautilusVariant => ZombieNautilusVariantFile
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as ZombieNautilusVariant => bare;
-    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone, received as PaintingVariantValue => bare;
-    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone, received as SulfurCubeArchetype => bare;
+        received as ZombieNautilusVariant => bare,
+        declared by ZombieNautilusVariantFile::declaration();
+    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue, synced as Clone::clone,
+        received as PaintingVariantValue => bare,
+        declared by PaintingVariantValue::declaration();
+    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone,
+        received as SulfurCubeArchetype => bare,
+        declared by SulfurCubeArchetype::declaration();
     DimensionType => DimensionTypeFile
         as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
         synced from parts as |parts| DimensionTypeFile::join(parts).synced(),
-        received as DimensionTypeFile => |file| file.split();
-    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone, received as DamageType => bare;
-    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone, received as BannerPattern => bare;
+        received as DimensionTypeFile => |file| file.split(),
+        declared by DimensionTypeFile::declaration();
+    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone, received as DamageType => bare,
+        declared by DamageType::declaration();
+    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone, received as BannerPattern => bare,
+        declared by BannerPattern::declaration();
     mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile
         as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join,
         synced from parts as EnchantmentFile::join,
-        received as EnchantmentFile => |file| file.split();
-    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone, received as JukeboxSong => bare;
-    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone, received as InstrumentValue => bare;
-    crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone, received as TestEnvironment => bare;
-    crate::test_types::TestInstance => TestInstance, synced as Clone::clone, received as TestInstance => bare;
-    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone, received as Dialog => bare;
-    WorldClock => WorldClock, synced as Clone::clone, received as WorldClock => bare;
+        received as EnchantmentFile => |file| file.split(),
+        declared by EnchantmentFile::declaration();
+    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone, received as JukeboxSong => bare,
+        declared by JukeboxSong::declaration();
+    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone, received as InstrumentValue => bare,
+        declared by InstrumentValue::declaration();
+    crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone, received as TestEnvironment => bare,
+        declared by TestEnvironment::declaration();
+    crate::test_types::TestInstance => TestInstance, synced as Clone::clone, received as TestInstance => bare,
+        declared by TestInstance::declaration();
+    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone, received as Dialog => bare,
+        declared by Dialog::declaration();
+    WorldClock => WorldClock, synced as Clone::clone, received as WorldClock => bare,
+        declared by WorldClock::declaration();
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline),
-        received as NetworkTimeline => |timeline| bare(Timeline::from(timeline));
-    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone, received as DecoratedPotPattern => bare;
-    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone, received as BlockTransformer => bare;
-    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider, synced as Clone::clone, received as DirectBlockStateProvider => bare;
+        received as NetworkTimeline => |timeline| bare(Timeline::from(timeline)),
+        declared by Timeline::declaration(scope.clone());
+    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone,
+        received as DecoratedPotPattern => bare,
+        declared by DecoratedPotPattern::declaration();
+    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone,
+        received as BlockTransformer => bare,
+        declared by BlockTransformer::declaration();
+    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider,
+        synced as Clone::clone, received as DirectBlockStateProvider => bare,
+        declared by DirectBlockStateProvider::declaration();
     Dimension => DimensionEntry
         as (Dimension, ChunkGenerator),
-        DimensionEntry::split, DimensionEntry::join;
-    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
-    crate::worldgen::world_preset::WorldPreset => WorldPreset;
-    crate::enchantment_provider::EnchantmentProvider => EnchantmentProvider;
-    crate::villager_trade::VillagerTrade => VillagerTrade;
-    crate::villager_trade::TradeSet => TradeSet;
+        DimensionEntry::split, DimensionEntry::join,
+        declared by DimensionEntry::declaration();
+    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList,
+        declared by MultiNoiseBiomeSourceParameterList::declaration();
+    crate::worldgen::world_preset::WorldPreset => WorldPreset, declared by WorldPreset::declaration();
+    crate::enchantment_provider::EnchantmentProvider => EnchantmentProvider,
+        declared by EnchantmentProvider::declaration();
+    crate::villager_trade::VillagerTrade => VillagerTrade, declared by VillagerTrade::declaration();
+    crate::villager_trade::TradeSet => TradeSet, declared by TradeSet::declaration();
 }
 
-fn parse_reloadable_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
-    parse::<Recipe, Recipe>(reloadable, report);
-    parse::<LootCondition, LootCondition>(reloadable, report);
-    parse::<LootItemFunction, LootItemFunction>(reloadable, report);
-    parse::<SlotSource, SlotSource>(reloadable, report);
-    parse_split::<LootTable, LootTableFile, (LootTable, LootTableBody)>(
-        reloadable,
-        report,
-        LootTableFile::split,
-        LootTableFile::join,
-    );
-    parse_split::<ContextIntProvider, IntExpression, (ContextIntProvider, IntExpression)>(
-        reloadable,
-        report,
-        IntExpression::split,
-        IntExpression::join,
-    );
-    parse_split::<ContextFloatProvider, FloatExpression, (ContextFloatProvider, FloatExpression)>(
-        reloadable,
-        report,
-        FloatExpression::split,
-        FloatExpression::join,
-    );
+registry_table! {
+    fn declare_reloadable_registries, fn reloadable_declarations, |_scope, stage|
+    Recipe => Recipe, declared by Recipe::declaration();
+    LootCondition => LootCondition, declared by LootCondition::declaration();
+    LootItemFunction => LootItemFunction, declared by LootItemFunction::declaration();
+    SlotSource => SlotSource, declared by SlotSource::declaration();
+    LootTable => LootTableFile
+        as (LootTable, LootTableBody), LootTableFile::split, LootTableFile::join,
+        declared by LootTableFile::declaration();
+    ContextIntProvider => IntExpression
+        as (ContextIntProvider, IntExpression), IntExpression::split, IntExpression::join,
+        declared by IntExpression::declaration();
+    ContextFloatProvider => FloatExpression
+        as (ContextFloatProvider, FloatExpression), FloatExpression::split, FloatExpression::join,
+        declared by FloatExpression::declaration();
 }
 
 /// The registries a data pack reload reads, parsed over the world registries.
@@ -243,7 +282,7 @@ pub fn reloadable_registries(datapack_report: &[u8]) -> Result<WorldRegistries, 
     let mut reloadable = WorldRegistries::reloadable_from_datapack_report(datapack_report)
         .map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
-    parse_reloadable_registries(&mut reloadable, &mut undeclared);
+    declare_reloadable_registries(&mut reloadable, &mut undeclared, RegistrySet::new);
     if undeclared.is_empty() {
         Ok(reloadable)
     } else {
@@ -255,23 +294,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     let mut world =
         WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
-    declare_world_registries(&mut world, &mut undeclared);
-    if world.parses(
-        mcrs_minecraft_environment::keys::TIMELINE
-            .location()
-            .as_static_str(),
-    ) {
-        world.validate::<Timeline>(
-            mcrs_minecraft_environment::keys::TIMELINE.location(),
-            check_time_markers,
-        );
-    }
-    if world.parses(mcrs_minecraft_biome::keys::BIOME.location().as_static_str()) {
-        world.validate::<BiomeGenerationSettings>(
-            mcrs_minecraft_biome::keys::BIOME.location(),
-            check_feature_domains,
-        );
-    }
+    declare_world_registries(&mut world, &mut undeclared, RegistrySet::new);
     if undeclared.is_empty() {
         Ok(world)
     } else {
@@ -279,124 +302,33 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     }
 }
 
-fn parse<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
-where
+fn declare<K, V>(
+    world: &mut WorldRegistries,
+    report: &mut LoadReport,
+    declaration: DataDeclaration<RegistryOf<V>>,
+) where
     K: mcrs_minecraft_registry::Registered,
-    T: DeserializeOwned + Serialize + Send + Sync + 'static,
+    V: Serialize + Send + Sync + 'static,
 {
     let registry = K::REGISTRY.location();
-    if world
+    if declaration.key().as_str() != registry.as_str() {
+        report.invalid_report(format_args!(
+            "{registry} is declared under the key {}",
+            declaration.key()
+        ));
+    } else if world
         .declared()
         .any(|declared| declared.as_str() == registry.as_str())
     {
-        world.parse::<T>(registry);
+        world.parse::<V>(registry);
+        if declaration.is_non_empty() {
+            world.non_empty(registry);
+        }
     } else {
         report.invalid_report(format_args!(
-            "{registry} is not a world registry of the data pack report"
+            "{registry} is not a {:?} registry of the data pack report",
+            declaration.stage()
         ));
-    }
-}
-
-fn parse_split<K, T, P>(
-    world: &mut WorldRegistries,
-    report: &mut LoadReport,
-    split: fn(&T) -> P,
-    join: for<'a> fn(P::Refs<'a>) -> T,
-) where
-    K: mcrs_minecraft_registry::Registered,
-    T: DeserializeOwned + Serialize + Send + Sync + 'static,
-    P: Parts,
-{
-    parse::<K, T>(world, report);
-    let registry = K::REGISTRY.location();
-    if world.parses(registry.as_static_str()) {
-        world.split::<T, P>(registry, split, join);
-    }
-}
-
-#[cfg(feature = "bevy")]
-pub fn read_packs(
-    asset_server: &AssetServer,
-    registries: &WorldRegistries,
-    statics: &RegistrySet,
-) -> Result<Vec<Pack>, LoadReport> {
-    let source = asset_server
-        .get_source(AssetSourceId::Default)
-        .expect("default AssetSource missing");
-    let reader = source.reader();
-    bevy_tasks::block_on(async {
-        let mut report = LoadReport::new();
-        let mut packs = vec![
-            read_pack(
-                reader,
-                VANILLA_PACK,
-                Path::new(""),
-                registries,
-                statics,
-                &mut report,
-            )
-            .await,
-        ];
-        for name in mcrs_minecraft_assets::packs::pack_names(reader).await {
-            let root = Path::new(PACKS_ROOT).join(&name);
-            packs.push(read_pack(reader, &name, &root, registries, statics, &mut report).await);
-        }
-        if report.is_empty() {
-            Ok(packs)
-        } else {
-            Err(report)
-        }
-    })
-}
-
-#[cfg(feature = "bevy")]
-async fn read_pack(
-    reader: &dyn ErasedAssetReader,
-    name: &str,
-    root: &Path,
-    registries: &WorldRegistries,
-    statics: &RegistrySet,
-    report: &mut LoadReport,
-) -> Pack {
-    let mut scan = PackScan::new(name, registries, statics);
-    let mut namespaces = Vec::new();
-    if let Ok(mut listing) = reader.read_directory(root).await {
-        while let Some(entry) = listing.next().await {
-            if let Some(namespace) = entry.file_name().and_then(|name| name.to_str())
-                && scan.keeps_namespace(namespace)
-            {
-                namespaces.push(namespace.to_owned());
-            }
-        }
-    }
-    for namespace in &namespaces {
-        for directory in scan.directories(namespace) {
-            for file in walk_files(reader, root.join(&directory.path)).await {
-                scan.record(&directory, root, &file);
-            }
-        }
-    }
-
-    let (listing, built) = scan.finish();
-    let mut files = Vec::with_capacity(listing.len());
-    for (path, reads_bytes) in listing {
-        let bytes = if reads_bytes {
-            match read_whole(reader, &root.join(&path)).await {
-                Ok(bytes) => Some(bytes),
-                Err(error) => {
-                    report.invalid_report(format_args!("{}: {error}", root.join(&path).display()));
-                    None
-                }
-            }
-        } else {
-            None
-        };
-        files.push(PackFile { path, bytes });
-    }
-    Pack {
-        name: name.to_owned(),
-        files,
-        built,
     }
 }
 

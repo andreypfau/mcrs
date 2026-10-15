@@ -576,3 +576,8 @@ mod tests {
 }
 
 mcrs_minecraft_registries::read_with_serde!(crate::Structure, crate::StructureSet);
+
+mcrs_minecraft_registries::declare_registries!(
+    crate::Structure => crate::keys::STRUCTURE, World;
+    crate::StructureSet => crate::keys::STRUCTURE_SET, World;
+);

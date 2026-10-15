@@ -153,3 +153,10 @@ mcrs_minecraft_registries::read_with_serde!(
     crate::proto::StructureProcessorList,
     crate::pool::TemplatePool
 );
+
+mcrs_minecraft_registries::declare_registries!(
+    crate::proto::Feature => crate::keys::FEATURE, World;
+    crate::proto::PlacedFeature => crate::keys::PLACED_FEATURE, World;
+    crate::proto::StructureProcessorList => crate::keys::PROCESSOR_LIST, World;
+    crate::pool::TemplatePool => crate::keys::TEMPLATE_POOL, World;
+);

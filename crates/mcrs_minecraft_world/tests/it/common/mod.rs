@@ -140,20 +140,6 @@ pub fn plugin_app() -> App {
     app
 }
 
-pub struct RemovedOnDrop(pub PathBuf);
-
-impl RemovedOnDrop {
-    pub fn temp(name: &str) -> Self {
-        Self(std::env::temp_dir().join(format!("{name}_{}", std::process::id())))
-    }
-}
-
-impl Drop for RemovedOnDrop {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 pub const TEST_PACK: &str = "mcrs/datapacks/zz_test";
 
 pub struct WithFiles {

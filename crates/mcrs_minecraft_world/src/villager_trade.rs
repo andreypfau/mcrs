@@ -114,3 +114,10 @@ fn constant<const N: i32>() -> Holder<IntExpression> {
 fn is_constant<const N: i32>(value: &Holder<IntExpression>) -> bool {
     *value == constant::<N>()
 }
+
+mcrs_minecraft_registries::read_with_serde!(VillagerTrade, TradeSet);
+
+mcrs_minecraft_registries::declare_registries!(
+    VillagerTrade => crate::keys::VILLAGER_TRADE, World;
+    TradeSet => crate::keys::TRADE_SET, World;
+);

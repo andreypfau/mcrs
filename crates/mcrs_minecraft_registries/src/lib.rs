@@ -28,7 +28,7 @@ pub use pack::{
     AvailablePack, Features, KnownPack, PackFiles, PackIndex, PackSelection, PackStack,
     StackedPack, pack_stack,
 };
-pub use registry::{ReadValue, Registry, RegistryType};
+pub use registry::{ReadValue, Registry, RegistryOf, RegistryType};
 pub use tags::{IdSet, Ref, Tags};
 
 #[doc(hidden)]
@@ -47,6 +47,18 @@ macro_rules! read_with_serde {
                 deserializer: D,
             ) -> ::core::result::Result<Self, D::Error> {
                 <Self as $crate::__serde::Deserialize<'de>>::deserialize(deserializer)
+            }
+        }
+    )+};
+}
+
+#[macro_export]
+macro_rules! declare_registries {
+    ($($value:ty => $key:expr, $stage:ident $(, $non_empty:ident)?;)+) => {$(
+        impl $value {
+            pub fn declaration() -> $crate::DataDeclaration<$crate::RegistryOf<$value>> {
+                $crate::Declaration::data($key.location().into(), $crate::Stage::$stage)
+                    $(.$non_empty())?
             }
         }
     )+};

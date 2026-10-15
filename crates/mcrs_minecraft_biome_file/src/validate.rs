@@ -61,9 +61,11 @@ pub fn check_feature_domains(
 mod tests {
     use super::*;
     use crate::CarverSet;
+    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_registry::static_report::shipped_report;
-    use mcrs_minecraft_registry::{HolderSet, Pack, PackFile, WorldRegistries};
+    use mcrs_minecraft_registry::{HolderSet, NameTable, TagTable};
     use mcrs_minecraft_worldgen_feature::keys::FEATURE;
+    use std::sync::Arc;
 
     fn square_chain(squares: usize) -> String {
         let square = r#"{"type":"minecraft:in_square"}"#;
@@ -72,39 +74,34 @@ mod tests {
     }
 
     fn loaded() -> RegistrySet {
-        let statics = shipped_report()
+        let table = |key: &str, names: &[&str]| {
+            let names = names.iter().map(|name| name.parse().unwrap());
+            Arc::new(NameTable::new(key.parse().unwrap(), names).unwrap())
+        };
+        let placed = PLACED_FEATURE.location().as_static_str();
+        let placed_table = table(
+            placed,
+            &["minecraft:fine", "minecraft:wide", "minecraft:wider"],
+        );
+        let no_tags: [(ResourceLocation<Arc<str>>, [u16; 0]); 0] = [];
+        let set = shipped_report()
             .clone()
             .with_types(mcrs_minecraft_registry_catalog::bindings())
-            .unwrap();
-        let mut registries =
-            WorldRegistries::new([FEATURE.location(), PLACED_FEATURE.location()].map(Into::into));
-        registries.parse::<PlacedFeature>(PLACED_FEATURE.location());
-        let file = |path: &str, json: Option<String>| PackFile {
-            path: path.to_owned(),
-            bytes: json.map(String::into_bytes),
-        };
-        let pack = Pack {
-            name: "test".to_owned(),
-            files: vec![
-                file("minecraft/worldgen/feature/f.json", None),
-                file(
-                    "minecraft/worldgen/placed_feature/fine.json",
-                    Some(square_chain(1)),
-                ),
-                file(
-                    "minecraft/worldgen/placed_feature/wide.json",
-                    Some(square_chain(3)),
-                ),
-                file(
-                    "minecraft/worldgen/placed_feature/wider.json",
-                    Some(square_chain(4)),
-                ),
-            ],
-            built: Vec::new(),
-        };
-        registries
-            .load(&statics, &[pack])
-            .unwrap_or_else(|report| panic!("{report}"))
+            .unwrap()
+            .with_tables(vec![
+                table(FEATURE.location().as_static_str(), &["minecraft:f"]),
+                Arc::clone(&placed_table),
+            ])
+            .unwrap()
+            .with_tags(Arc::new(
+                TagTable::numbered(&placed_table, no_tags).unwrap(),
+            ));
+        let values: Arc<[PlacedFeature]> = set.scope(|| {
+            [1, 3, 4]
+                .map(|squares| serde_json::from_str(&square_chain(squares)).unwrap())
+                .into()
+        });
+        set.with_column(placed, values).unwrap()
     }
 
     #[test]

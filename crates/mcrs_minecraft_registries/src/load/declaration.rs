@@ -88,6 +88,20 @@ struct BuiltInSet<R: RegistryType> {
     value: BuiltIn<R>,
 }
 
+impl<R: RegistryType> DataDeclaration<R> {
+    pub fn key(&self) -> &ResourceLocation {
+        &self.key
+    }
+
+    pub fn stage(&self) -> Stage {
+        self.stage
+    }
+
+    pub fn is_non_empty(&self) -> bool {
+        self.non_empty
+    }
+}
+
 impl<R: RegistryType> DataDeclaration<R>
 where
     R::Value: ReadValue,
