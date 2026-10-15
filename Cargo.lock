@@ -3566,7 +3566,6 @@ name = "mcrs_minecraft_chunk"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "bevy_math",
  "mcrs_minecraft_core",
  "rustc-hash 2.1.1",
 ]
@@ -4280,6 +4279,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_volume"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "mcrs_minecraft_world"
 version = "0.5.8"
 dependencies = [
@@ -4439,6 +4447,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_value_provider",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_noise",
@@ -4468,6 +4477,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_value_provider",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
  "mcrs_minecraft_worldgen_noise",
@@ -4508,6 +4518,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_value_provider",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
  "mcrs_minecraft_worldgen_carver",
@@ -4581,6 +4592,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_value_provider",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
  "mcrs_minecraft_worldgen_structure",

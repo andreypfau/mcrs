@@ -14,7 +14,6 @@ workspace = true
 mcrs_minecraft_core.workspace = true
 rustc-hash.workspace = true
 bevy_ecs = { workspace = true, optional = true }
-bevy_math.workspace = true
 
 [features]
 default = []

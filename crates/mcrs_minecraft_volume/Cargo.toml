@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_volume"
+description = "One block access API over every store of world data: bounds, per-section access, section handles and cursors"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+thiserror.workspace = true

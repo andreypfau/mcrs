@@ -19,14 +19,15 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::provider::{
     BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
 };
-use mcrs_minecraft_chunk::Blocks as _;
+
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_volume::VoxelStore;
 use mcrs_minecraft_worldgen_feature::placer::{
-    BoxRegion, Predicate, StateMask, WorldStates, mask_of,
+    BoxRegion, Predicate, StateMask, WorldGenVolume, WorldStates, mask_of,
 };
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{
@@ -249,7 +250,7 @@ fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
         (MIN_Y..MIN_Y + DEPTH)
             .rev()
             .find(|&y| {
-                let state = volume.get(BlockPos::new(x, y, z));
+                let state = VoxelId(volume.voxel(BlockPos::new(x, y, z)).0);
                 state != air
                     && !(leaves.contains(&state)
                         && matches!(kind, HeightmapName::MotionBlockingNoLeaves))

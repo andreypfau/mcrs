@@ -2,13 +2,15 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_chunk::{BlocksMut, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_volume::BlockStateId;
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
+use mcrs_minecraft_volume::BlockVolumeMut;
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;
@@ -26,8 +28,19 @@ pub use states::{BlockLayout, PropertyLayout, WorldStates, with_digit};
 /// beyond the blocks themselves.
 ///
 /// World-absolute coordinates throughout.
-pub trait WorldGenVolume: BlocksMut {
+pub trait WorldGenVolume: BlockVolumeMut {
     fn world(&self) -> &WorldStates;
+
+    /// Generation reads a block it cannot reach as air.
+    fn get(&self, p: BlockPos) -> VoxelId {
+        self.block(p)
+            .map_or(VoxelId::default(), |state| VoxelId(state.0))
+    }
+
+    /// Generation drops a write it cannot make.
+    fn set(&mut self, p: BlockPos, state: VoxelId) {
+        let _ = self.set_block(p, BlockStateId(state.0));
+    }
 
     fn is_air(&self, p: BlockPos) -> bool {
         self.holds(&self.world().air_states, p)

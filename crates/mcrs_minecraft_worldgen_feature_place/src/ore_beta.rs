@@ -1,11 +1,12 @@
-use mcrs_minecraft_chunk::{BlocksMut, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_volume::BlockStateId;
+use mcrs_minecraft_volume::BlockVolumeMut;
 
 #[derive(Clone, Debug)]
 pub struct OreConfig {
-    pub target: VoxelId,
-    pub state: VoxelId,
+    pub target: BlockStateId,
+    pub state: BlockStateId,
     pub size: i32,
 }
 
@@ -20,10 +21,10 @@ pub struct OreConfig {
     clippy::excessive_nesting,
     reason = "follows back2beta's ore blob loops over x, y and z with the target test inline, so it reads against that source and keeps its order of draws"
 )]
-pub fn place_beta_ore<R: Random>(
+pub fn place_beta_ore<V: BlockVolumeMut, R: Random>(
     config: &OreConfig,
     origin: BlockPos,
-    volume: &mut impl BlocksMut,
+    volume: &mut V,
     rng: &mut R,
 ) {
     let (origin_x, origin_y, origin_z) = (origin.x, origin.y, origin.z);
@@ -75,8 +76,8 @@ pub fn place_beta_ore<R: Random>(
                     let d14 = (i3 as f64 + 0.5 - d8) / (d10 / 2.0);
                     if d12 * d12 + d13 * d13 + d14 * d14 < 1.0 {
                         let at = BlockPos::new(k2, l2, i3);
-                        if volume.get(at) == config.target {
-                            volume.set(at, config.state);
+                        if volume.block(at) == Ok(config.target) {
+                            let _ = volume.set_block(at, config.state);
                         }
                     }
                 }
@@ -88,12 +89,13 @@ pub fn place_beta_ore<R: Random>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
+    use mcrs_minecraft_core::BoundingBox;
     use mcrs_minecraft_random::legacy::LegacyRandom;
+    use mcrs_minecraft_volume::{BlockVolume, BoxVolume};
 
-    const STONE: VoxelId = VoxelId(1);
-    const COAL_ORE: VoxelId = VoxelId(16);
-    const NON_STONE: VoxelId = VoxelId(2);
+    const STONE: BlockStateId = BlockStateId(1);
+    const COAL_ORE: BlockStateId = BlockStateId(16);
+    const NON_STONE: BlockStateId = BlockStateId(2);
 
     fn beta_coal_config() -> OreConfig {
         OreConfig {
@@ -104,11 +106,11 @@ mod tests {
     }
 
     fn all_stone(width: i32, height: i32) -> BoxVolume {
-        BoxVolume::filled(
-            BlockPos::new(0, 0, 0),
-            BlockPos::new(width - 1, height - 1, width - 1),
-            STONE,
-        )
+        let bounds = BoundingBox {
+            min: BlockPos::new(0, 0, 0),
+            max: BlockPos::new(width - 1, height - 1, width - 1),
+        };
+        BoxVolume::filled(bounds, STONE).expect("a small box")
     }
 
     #[test]
@@ -119,7 +121,7 @@ mod tests {
 
         // Mark a non-stone cell inside the likely vein range
         let non = BlockPos::new(12, 50, 12);
-        world.set(non, NON_STONE);
+        world.set_block(non, NON_STONE).expect("inside the box");
 
         place_beta_ore(
             &config,
@@ -136,8 +138,8 @@ mod tests {
         );
         assert!(world.iter().any(|(_, state)| state == COAL_ORE));
         assert_eq!(
-            world.get(non),
-            NON_STONE,
+            world.block(non),
+            Ok(NON_STONE),
             "non-stone cell must not be replaced"
         );
     }

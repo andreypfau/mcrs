@@ -217,7 +217,6 @@ fn grow<W>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_registry::Id;
 

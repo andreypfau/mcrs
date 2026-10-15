@@ -11,6 +11,7 @@ crates=(
     mcrs_minecraft_entity
     mcrs_minecraft_item
     mcrs_minecraft_chunk
+    mcrs_minecraft_volume
     mcrs_minecraft_registry
     mcrs_minecraft_keys
     mcrs_minecraft_text

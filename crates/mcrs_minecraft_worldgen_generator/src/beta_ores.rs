@@ -3,10 +3,10 @@ use mcrs_minecraft_core::BlockPos;
 use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_chunk::BlocksMut;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
 
 pub struct BetaOreBlockIds {
@@ -46,19 +46,19 @@ impl BetaOreBlockIds {
 
 fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
     OreConfig {
-        target: stone.0.into(),
-        state: state.0.into(),
+        target: mcrs_minecraft_volume::BlockStateId(stone.0),
+        state: mcrs_minecraft_volume::BlockStateId(state.0),
         size,
     }
 }
 
-fn place_ore<R: Random>(
+fn place_ore<V: BlockVolumeMut, R: Random>(
     config: &OreConfig,
     count: i32,
     y_bound: i32,
     origin_x: i32,
     origin_z: i32,
-    volume: &mut impl BlocksMut,
+    volume: &mut V,
     rng: &mut R,
 ) {
     for _ in 0..count {
@@ -69,12 +69,12 @@ fn place_ore<R: Random>(
     }
 }
 
-fn place_clay<R: Random>(
+fn place_clay<V: BlockVolumeMut, R: Random>(
     count: i32,
     origin_x: i32,
     origin_z: i32,
     ids: &BetaOreBlockIds,
-    volume: &mut impl BlocksMut,
+    volume: &mut V,
     rng: &mut R,
 ) {
     for _ in 0..count {
@@ -87,13 +87,13 @@ fn place_clay<R: Random>(
 
 /// `WorldGenClay`: a vein of the ore shape that turns sand to clay, started
 /// only from a water block, and drawing nothing when it does not start.
-fn place_clay_vein<R: Random>(
+fn place_clay_vein<V: BlockVolumeMut, R: Random>(
     origin: BlockPos,
     ids: &BetaOreBlockIds,
-    volume: &mut impl BlocksMut,
+    volume: &mut V,
     rng: &mut R,
 ) {
-    if BlockStateId::from(volume.get(origin).0) != ids.water {
+    if volume.block(origin) != Ok(mcrs_minecraft_volume::BlockStateId(ids.water.0)) {
         return;
     }
     place_beta_ore(&ore_config(ids.sand, ids.clay, 32), origin, volume, rng);
@@ -105,8 +105,8 @@ fn place_clay_vein<R: Random>(
 /// Populate seed formula mirrors ChunkProviderGenerate.getChunkAt lines 317–320.
 /// The pre-ore lake and dungeon draws are skipped; vein positions diverge from the
 /// reference as a result, so distribution (count + Y-range) is the parity target here.
-pub fn apply_beta_ores_in(
-    volume: &mut impl BlocksMut,
+pub fn apply_beta_ores_in<V: BlockVolumeMut>(
+    volume: &mut V,
     chunk_x: i32,
     chunk_z: i32,
     world_seed: i64,
@@ -119,8 +119,8 @@ pub fn apply_beta_ores_in(
 /// Place all nine resource types in Beta order using an externally-supplied RNG
 /// (already seeded with the populate seed). Split from `apply_beta_ores_in` so the
 /// distribution test can drive it with an instrumented RNG to pin the draw count.
-pub fn place_all_ores<R: Random>(
-    volume: &mut impl BlocksMut,
+pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
+    volume: &mut V,
     chunk_x: i32,
     chunk_z: i32,
     rng: &mut R,
@@ -166,26 +166,28 @@ pub fn place_all_ores<R: Random>(
 mod tests {
     use super::*;
     use crate::tests::corpus;
-    use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
+    use mcrs_minecraft_core::BoundingBox;
     use mcrs_minecraft_random::legacy::LegacyRandom;
+    use mcrs_minecraft_volume::BoxVolume;
+
+    use mcrs_minecraft_volume::BlockStateId as State;
 
     fn filled(state: BlockStateId) -> BoxVolume {
-        BoxVolume::filled(
-            BlockPos::new(-8, 40, -8),
-            BlockPos::new(40, 100, 40),
-            state.0.into(),
-        )
+        let bounds = BoundingBox {
+            min: BlockPos::new(-8, 40, -8),
+            max: BlockPos::new(40, 100, 40),
+        };
+        BoxVolume::filled(bounds, State(state.0)).expect("a small box")
     }
 
     #[test]
     fn clay_starts_only_in_water_and_turns_only_sand() {
         let ids = BetaOreBlockIds::resolve(corpus());
         let origin = BlockPos::new(8, 64, 8);
-        let (sand, clay, water): (VoxelId, VoxelId, VoxelId) =
-            (ids.sand.0.into(), ids.clay.0.into(), ids.water.0.into());
+        let (sand, clay, water) = (State(ids.sand.0), State(ids.clay.0), State(ids.water.0));
 
         let mut shore = filled(ids.sand);
-        shore.set(origin, water);
+        shore.set_block(origin, water).expect("inside the box");
         place_clay_vein(origin, &ids, &mut shore, &mut LegacyRandom::new(7));
         assert!(
             shore.iter().any(|(_, state)| state == clay),
@@ -199,7 +201,7 @@ mod tests {
         );
 
         let mut rock = filled(ids.stone);
-        rock.set(origin, water);
+        rock.set_block(origin, water).expect("inside the box");
         place_clay_vein(origin, &ids, &mut rock, &mut LegacyRandom::new(7));
         assert!(
             rock.iter().all(|(_, state)| state != clay),

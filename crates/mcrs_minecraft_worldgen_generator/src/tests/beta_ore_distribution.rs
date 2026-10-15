@@ -1,10 +1,12 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_volume::BoxVolume;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::{BetaOreBlockIds, place_all_ores};
@@ -100,11 +102,11 @@ impl Random for CountingRng {
 /// Stone over the 3×3 of columns around chunk (0, 0), in world coordinates: the
 /// region a `Run` sees, so a vein that leaves its own column still lands.
 fn stone_volume(stone: VoxelId) -> BoxVolume {
-    BoxVolume::filled(
-        BlockPos::new(-16, 0, -16),
-        BlockPos::new(31, 127, 31),
-        stone,
-    )
+    let bounds = BoundingBox {
+        min: BlockPos::new(-16, 0, -16),
+        max: BlockPos::new(31, 127, 31),
+    };
+    BoxVolume::filled(bounds, mcrs_minecraft_volume::BlockStateId(stone.0)).expect("a small box")
 }
 
 /// Every placed block as (column offset from the centre, state), so a census
@@ -112,6 +114,7 @@ fn stone_volume(stone: VoxelId) -> BoxVolume {
 fn placed(volume: &BoxVolume, stone: VoxelId) -> Vec<((i32, i32), VoxelId)> {
     volume
         .iter()
+        .map(|(at, state)| (at, VoxelId(state.0)))
         .filter(|(_, state)| *state != stone)
         .map(|(at, state)| ((at.x.div_euclid(16), at.z.div_euclid(16)), state))
         .collect()
@@ -184,6 +187,44 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
             "no block of {state:?} was placed"
         );
     }
+}
+
+/// The region the generator runs the pass in takes the veins the stone box takes: the
+/// same cells on each side of the column border.
+#[test]
+fn the_region_takes_the_veins_the_box_takes() {
+    use mcrs_minecraft_protocol::ColumnPos;
+
+    use crate::ColumnBlocks;
+    use crate::beta_ores::apply_beta_ores_in;
+    use crate::stages::ColumnRegion;
+
+    let ctx = super::bare_fill_context(super::build_beta_router());
+    let ids = BetaOreBlockIds::resolve(super::corpus());
+    let stone = VoxelId(ids.stone.0);
+    let center = ColumnPos::new(0, 0);
+    let snapshots = super::region_of(center, |col| {
+        super::flat_snapshot(
+            col,
+            &ctx.y_sections,
+            |section_y| (0..8).contains(&section_y).then_some(stone),
+            None,
+        )
+    });
+    let column = ColumnBlocks::new(&ctx.y_sections);
+    column.unpack(&snapshots[4].sections);
+    let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
+    apply_beta_ores_in(&mut region, center.x, center.z, 12345, &ids);
+
+    let mut counts = (0, 0);
+    for (col, delta) in region.finish() {
+        if col == center {
+            counts.0 += delta.writes.len();
+        } else {
+            counts.1 += delta.writes.len();
+        }
+    }
+    assert_eq!(counts, ORE_BLOCKS_CHUNK_0_0_SEED_12345);
 }
 
 /// Beta's populate step reached as a feature writes what running it on the

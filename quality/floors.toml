@@ -136,6 +136,9 @@ floor = "unmeasured"
 [crate.mcrs_minecraft_world]
 floor = "unmeasured"
 
+[crate.mcrs_minecraft_volume]
+floor = "unmeasured"
+
 [crate.mcrs_minecraft_worldgen]
 floor = "unmeasured"
 

@@ -34,7 +34,6 @@ pub fn place_fill_layer<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates, mask_of};
 
     const AIR: VoxelId = VoxelId(0);

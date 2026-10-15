@@ -350,7 +350,6 @@ pub fn iron_bars_index(north: bool, south: bool, west: bool, east: bool) -> usiz
 mod tests {
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     const OBSIDIAN: VoxelId = VoxelId(1);

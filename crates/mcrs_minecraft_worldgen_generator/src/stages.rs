@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, LocalPos, SectionPos};
+use mcrs_minecraft_volume::BlockStateId;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -9,13 +10,14 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_value_provider::HeightContext;
+use mcrs_minecraft_volume::{Access, ColumnLayout, Volume, VoxelStore, VoxelStoreMut};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
@@ -444,6 +446,7 @@ fn pack(
 /// the 3×3 is a data error and is dropped.
 pub struct ColumnRegion<'a> {
     center: ColumnPos,
+    layout: ColumnLayout,
     snapshots: &'a RegionSnapshots,
     blocks: &'a ColumnBlocks,
     ctx: &'a FillContext,
@@ -465,8 +468,14 @@ impl<'a> ColumnRegion<'a> {
         blocks: &'a ColumnBlocks,
         ctx: &'a FillContext,
     ) -> Self {
+        let y_sections = &snapshots[4].y_sections;
+        let layout = ColumnLayout {
+            min_section_y: y_sections.first().copied().unwrap_or(0),
+            sections: y_sections.len() as u32,
+        };
         Self {
             center: snapshots[4].col,
+            layout,
             snapshots,
             blocks,
             ctx,
@@ -592,68 +601,97 @@ impl<'a> ColumnRegion<'a> {
 }
 
 impl Volume for ColumnRegion<'_> {
-    fn min(&self) -> BlockPos {
-        let first = self.snapshots[4].y_sections.first().copied().unwrap_or(0);
-        BlockPos::new(
-            (self.center.x - 1) * 16,
-            first * 16,
-            (self.center.z - 1) * 16,
-        )
+    fn bounds(&self) -> BoundingBox {
+        BoundingBox {
+            min: BlockPos::new(
+                (self.center.x - 1) * 16,
+                self.layout.min_y(),
+                (self.center.z - 1) * 16,
+            ),
+            max: BlockPos::new(
+                (self.center.x + 2) * 16 - 1,
+                self.layout.min_y() + self.layout.height() as i32 - 1,
+                (self.center.z + 2) * 16 - 1,
+            ),
+        }
     }
 
-    fn max(&self) -> BlockPos {
-        let last = self.snapshots[4].y_sections.last().copied().unwrap_or(-1);
-        BlockPos::new(
-            (self.center.x + 2) * 16 - 1,
-            (last + 1) * 16 - 1,
-            (self.center.z + 2) * 16 - 1,
-        )
+    fn access(&self, section: SectionPos) -> Access {
+        let column = ColumnPos::new(section.x, section.z);
+        let Some(slot) = region_slot(self.center, column) else {
+            return Access::Outside;
+        };
+        if !self.layout.contains_section_y(section.y) {
+            return Access::Outside;
+        }
+        match self.snapshots[slot].slot(section.y * 16) {
+            Some(_) => Access::Write,
+            None => Access::Unloaded,
+        }
+    }
+
+    fn column_layout(&self) -> Option<ColumnLayout> {
+        Some(self.layout)
     }
 }
 
-impl Blocks for ColumnRegion<'_> {
-    fn get(&self, p: BlockPos) -> VoxelId {
+/// What the snapshot held in a cell before this unit wrote it.
+fn filled_voxel(snapshot: &FilledSnapshot, section: usize, local: LocalPos) -> VoxelId {
+    snapshot.sections[section]
+        .as_ref()
+        .map_or(VoxelId::default(), |(blocks, _)| {
+            blocks
+                .0
+                .get(local.x() as usize, local.y() as usize, local.z() as usize)
+        })
+}
+
+impl VoxelStore for ColumnRegion<'_> {
+    fn voxel(&self, p: BlockPos) -> BlockStateId {
         let Some((slot, lx, lz)) = self.locate(p) else {
             debug_assert!(false, "a read at {p} left the region of {:?}", self.center);
-            return VoxelId::default();
+            return BlockStateId::default();
         };
         if slot == 4 {
-            return self
-                .blocks
-                .get(lx as i32, p.y, lz as i32)
-                .unwrap_or_default();
+            let state = self.blocks.get(lx as i32, p.y, lz as i32);
+            return BlockStateId(state.unwrap_or_default().0);
         }
         let snapshot = &self.snapshots[slot];
         let Some(section) = snapshot.slot(p.y) else {
-            return VoxelId::default();
+            return BlockStateId::default();
         };
         let local = LocalPos::from(p);
-        match self.ring[slot].get(&cell_index(section, local)) {
+        let state = match self.ring[slot].get(&cell_index(section, local)) {
             Some(written) => *written,
-            None => snapshot.sections[section]
-                .as_ref()
-                .map_or(VoxelId::default(), |(blocks, _)| {
-                    blocks.0.get(lx, local.y() as usize, lz)
-                }),
-        }
+            None => filled_voxel(snapshot, section, local),
+        };
+        BlockStateId(state.0)
     }
 }
 
-impl BlocksMut for ColumnRegion<'_> {
-    fn set(&mut self, p: BlockPos, state: VoxelId) {
+impl VoxelStoreMut for ColumnRegion<'_> {
+    fn set_voxel(&mut self, p: BlockPos, state: BlockStateId) -> BlockStateId {
+        let state = VoxelId(state.0);
         let Some((slot, lx, lz)) = self.locate(p) else {
             debug_assert!(false, "a write at {p} left the region of {:?}", self.center);
-            return;
+            return BlockStateId::default();
         };
         let snapshot = &self.snapshots[slot];
         let Some(section) = snapshot.slot(p.y) else {
-            return;
+            return BlockStateId::default();
         };
-        let cell = cell_index(section, LocalPos::from(p));
+        let local = LocalPos::from(p);
+        let cell = cell_index(section, local);
         if slot != 4 {
-            self.ring[slot].insert(cell, state);
-            return;
+            let old = self.ring[slot]
+                .insert(cell, state)
+                .unwrap_or_else(|| filled_voxel(snapshot, section, local));
+            return BlockStateId(old.0);
         }
+        let old = self
+            .blocks
+            .get(lx as i32, p.y, lz as i32)
+            .unwrap_or_default();
         self.blocks.set(lx as i32, p.y, lz as i32, state);
         self.own.push((cell, state));
         if let (Some(predicates), Some(maps)) = (&self.ctx.predicates, self.maps.as_mut()) {
@@ -665,6 +703,7 @@ impl BlocksMut for ColumnRegion<'_> {
             };
             maps.apply_write(lx, lz, p.y, kinds, predicates, &read);
         }
+        BlockStateId(old.0)
     }
 }
 
@@ -678,6 +717,14 @@ impl WorldGenVolume for ColumnRegion<'_> {
             .features()
             .expect("a region asked for the world states without a feature program")
             .world
+    }
+
+    fn get(&self, p: BlockPos) -> VoxelId {
+        VoxelId(self.voxel(p).0)
+    }
+
+    fn set(&mut self, p: BlockPos, state: VoxelId) {
+        self.set_voxel(p, BlockStateId(state.0));
     }
 
     fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
