@@ -1,5 +1,4 @@
 use crate::checks::Outcome;
-use crate::parity::Selection;
 use crate::scope::{self, Head};
 use crate::source::{self, Files, MANIFEST, PackageMap, Tree, Trees, verdict};
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
@@ -404,14 +403,11 @@ struct Target {
     harness: Option<bool>,
 }
 
-fn roles(tree: &Tree, files: &Files, scope: Option<&BTreeSet<String>>) -> Result<Roles, String> {
+fn roles(tree: &Tree, files: &Files) -> Result<Roles, String> {
     let mut harness_roots = Vec::new();
     let mut build_roots = Vec::new();
     let present = |candidates: Vec<String>| candidates.into_iter().find(|c| files.contains_key(c));
     for (path, text) in &tree.manifests {
-        if !tree.in_scope(path, scope) {
-            continue;
-        }
         let manifest: Targets =
             toml::from_str(text).map_err(|e| format!("{path} does not parse: {}", e.message()))?;
         let dir = source::parent(path);
@@ -513,9 +509,9 @@ fn declared_cfgs(tree: &Tree) -> Result<BTreeSet<String>, String> {
     })
 }
 
-fn scan_tree(tree: &Tree, scope: Option<&BTreeSet<String>>) -> Result<Scan, String> {
-    let files = tree.read_rust(|path| tree.in_scope(path, scope))?;
-    let roles = roles(tree, &files, scope)?;
+fn scan_tree(tree: &Tree) -> Result<Scan, String> {
+    let files = tree.read_rust(|_| true)?;
+    let roles = roles(tree, &files)?;
     Ok(scan_sources(
         &files,
         &tree.packages,
@@ -573,11 +569,9 @@ fn rises(now: &[UnsafeFn], before: &[UnsafeFn]) -> BTreeSet<String> {
     over
 }
 
-pub(crate) fn check(repo: &Path, base: &str, head: &Head, selection: Selection) -> Outcome {
-    let trees = Trees::read(repo, base, head, &selection, |lints| {
-        lints.bypasses.is_some()
-    })?;
-    let now = scan_tree(&trees.head, trees.scope.as_ref())?;
+pub(crate) fn check(repo: &Path, base: &str, head: &Head) -> Outcome {
+    let trees = Trees::read(repo, base, head, |lints| lints.bypasses.is_some())?;
+    let now = scan_tree(&trees.head)?;
     if !now.unparsed.is_empty() {
         return Err(now.unparsed.join("; "));
     }
@@ -1127,20 +1121,6 @@ mod tests {
                 vec![put(A_ROOT, TWO_UNSAFE)],
                 Pass(&["; 1 bypasses, 2 unsafe fn in 1 packages"]),
             ),
-            row(
-                "a package outside the changed paths may hold an ignore for the edit trigger",
-                vec![],
-                vec![put(A_ROOT, AN_IGNORE), put(B_ROOT, "fn b2() {}\n")],
-                Pass(&["no hidden test or always-false cfg"]),
-            )
-            .changed(&[B_ROOT]),
-            row(
-                "the changed package is judged for the edit trigger",
-                vec![],
-                vec![put(A_ROOT, AN_IGNORE), put(B_ROOT, "fn b2() {}\n")],
-                Fail(&["crates/a/src/lib.rs:1: ignored test"]),
-            )
-            .changed(&[A_ROOT]),
         ]
     }
 

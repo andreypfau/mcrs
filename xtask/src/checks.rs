@@ -146,8 +146,8 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
         Check::Size => size::check(&ctx.root, ctx.base()?, &ctx.head),
-        Check::Suppressions => scanner_check(ctx, suppressions::check),
-        Check::Bypasses => scanner_check(ctx, bypasses::check),
+        Check::Suppressions => suppressions::check(&ctx.root, ctx.base()?, &ctx.head),
+        Check::Bypasses => bypasses::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Parity => parity_check(ctx),
         Check::UnusedDeps => {
             unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
@@ -185,30 +185,13 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 fn parity_check(ctx: &Context) -> Outcome {
     let base = ctx.base()?;
     let changed = scope::changed_paths(&ctx.root, base, &ctx.head)?;
-    let selection = if matches!(ctx.trigger, Trigger::Edit | Trigger::Commit) {
+    let selection = if ctx.trigger == Trigger::Commit {
         parity::Selection::Changed(&changed)
     } else {
         parity::Selection::Every
     };
     let annotate = ctx.actions.then_some(changed.as_slice());
     parity::check(&ctx.root, base, &ctx.head, selection, annotate)
-}
-
-fn scanner_check(
-    ctx: &Context,
-    check: fn(&Path, &str, &Head, parity::Selection) -> Outcome,
-) -> Outcome {
-    let base = ctx.base()?;
-    if ctx.trigger != Trigger::Edit {
-        return check(&ctx.root, base, &ctx.head, parity::Selection::Every);
-    }
-    let changed = scope::changed_paths(&ctx.root, base, &ctx.head)?;
-    check(
-        &ctx.root,
-        base,
-        &ctx.head,
-        parity::Selection::Changed(&changed),
-    )
 }
 
 fn fmt(ctx: &Context) -> Outcome {
@@ -454,7 +437,6 @@ mod tests {
         let detail = |trigger| run(&context(&repo, trigger), Check::Parity);
         let one = Ok("1 files; 1 vanilla claims outside parity files".to_owned());
         let both = Ok("2 files; 2 vanilla claims outside parity files".to_owned());
-        assert_eq!(detail(Trigger::Edit), one);
         assert_eq!(detail(Trigger::Commit), one);
         assert_eq!(detail(Trigger::Ci), both);
     }

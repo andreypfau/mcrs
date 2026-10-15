@@ -72,9 +72,7 @@ impl Trigger {
 
     pub const fn description(self) -> &'static str {
         match self {
-            Trigger::Edit => {
-                "after a file is written: change size, lint suppressions, test bypasses, fixture parity, formatting"
-            }
+            Trigger::Edit => "after a file is written: formatting of the changed files",
             Trigger::Commit => {
                 "before a commit: change size, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
             }
@@ -107,7 +105,7 @@ impl Trigger {
 pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
-        Trigger::Edit => &[Size, Suppressions, Bypasses, Parity, Fmt],
+        Trigger::Edit => &[Fmt],
         Trigger::Commit | Trigger::Push => &[Size, Suppressions, Bypasses, Parity, UnusedDeps, Fmt],
         Trigger::Ci => &[
             Size,
@@ -277,7 +275,7 @@ mod tests {
 
     #[test]
     fn parity_is_the_last_git_only_check_of_every_trigger_that_runs_on_a_pull_request_or_locally() {
-        let carries_it = [Trigger::Edit, Trigger::Commit, Trigger::Push, Trigger::Ci];
+        let carries_it = [Trigger::Commit, Trigger::Push, Trigger::Ci];
         for trigger in Trigger::ALL {
             let listed = checks(trigger);
             let position = listed.iter().position(|&c| c == Check::Parity);
@@ -317,11 +315,6 @@ mod tests {
         descriptions.sort_unstable();
         descriptions.dedup();
         assert_eq!(descriptions.len(), Trigger::ALL.len());
-        for trigger in [Trigger::Edit, Trigger::Commit] {
-            assert!(
-                trigger.description().contains("fixture parity"),
-                "{trigger:?}"
-            );
-        }
+        assert!(Trigger::Commit.description().contains("fixture parity"));
     }
 }

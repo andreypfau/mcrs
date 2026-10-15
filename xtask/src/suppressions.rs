@@ -1,5 +1,4 @@
 use crate::checks::Outcome;
-use crate::parity::Selection;
 use crate::scope::{self, Head};
 use crate::source::{self, Files, Level, LintAttr, MANIFEST, PackageMap, Tree, Trees, verdict};
 use regex::Regex;
@@ -130,12 +129,12 @@ fn scan_sources(files: &Files, packages: &PackageMap) -> Scan {
 }
 
 impl Tree<'_> {
-    fn scan(&self, scope: Option<&BTreeSet<String>>) -> Result<Scan, String> {
-        let files = self.read_rust(|path| self.in_scope(path, scope))?;
+    fn scan(&self) -> Result<Scan, String> {
+        let files = self.read_rust(|_| true)?;
         Ok(scan_sources(&files, &self.packages))
     }
 
-    fn unopted(&self, scope: Option<&BTreeSet<String>>) -> Result<BTreeSet<String>, String> {
+    fn unopted(&self) -> Result<BTreeSet<String>, String> {
         let Some(root) = self.manifests.get(MANIFEST) else {
             return Ok(BTreeSet::new());
         };
@@ -150,7 +149,7 @@ impl Tree<'_> {
                         && !any_glob_matches(&workspace.exclude, dir)?
                 }
             };
-            if !member || !self.in_scope(path, scope) {
+            if !member {
                 continue;
             }
             let manifest =
@@ -162,13 +161,9 @@ impl Tree<'_> {
         Ok(found)
     }
 
-    fn configuration(&self, selection: &Selection) -> Result<BTreeSet<String>, String> {
-        let chosen = |path: &String| match selection {
-            Selection::Every => true,
-            Selection::Changed(changed) => changed.contains(path),
-        };
+    fn configuration(&self) -> Result<BTreeSet<String>, String> {
         let mut found = BTreeSet::new();
-        for path in self.paths.iter().filter(|path| chosen(path)) {
+        for path in &self.paths {
             let name = source::file_name(path);
             if matches!(name, "clippy.toml" | ".clippy.toml") && path != "clippy.toml" {
                 found.insert(format!(
@@ -179,7 +174,7 @@ impl Tree<'_> {
         let configs: Vec<String> = self
             .paths
             .iter()
-            .filter(|path| chosen(path) && is_cargo_config(path))
+            .filter(|path| is_cargo_config(path))
             .cloned()
             .collect();
         for (path, text) in source::read_files(self.repo, &self.head, &configs)? {
@@ -400,17 +395,15 @@ fn over_base(now: &Scan, before: &Scan, existed: &PackageMap) -> BTreeSet<String
     over
 }
 
-pub(crate) fn check(repo: &Path, base: &str, head: &Head, selection: Selection) -> Outcome {
-    let trees = Trees::read(repo, base, head, &selection, |lints| {
-        lints.suppressions.is_some()
-    })?;
-    let now = trees.head.scan(trees.scope.as_ref())?;
+pub(crate) fn check(repo: &Path, base: &str, head: &Head) -> Outcome {
+    let trees = Trees::read(repo, base, head, |lints| lints.suppressions.is_some())?;
+    let now = trees.head.scan()?;
     if !now.unparsed.is_empty() {
         return Err(now.unparsed.join("; "));
     }
-    let before = trees.base.scan(trees.scope.as_ref())?;
+    let before = trees.base.scan()?;
     let over = over_base(&now, &before, &trees.base.packages);
-    let manifests = trees.head.unopted(trees.scope.as_ref())?;
+    let manifests = trees.head.unopted()?;
     if !trees.in_force {
         return Ok(format!(
             "not in force yet at {}; {} allow sites, {} expect findings, {} manifests not opted in, {} packages over their base count",
@@ -425,7 +418,7 @@ pub(crate) fn check(repo: &Path, base: &str, head: &Head, selection: Selection) 
     findings.extend(now.allows.iter().cloned());
     findings.extend(now.expects.iter().cloned());
     findings.extend(manifests);
-    findings.extend(trees.head.configuration(&selection)?);
+    findings.extend(trees.head.configuration()?);
     findings.extend(over);
     verdict(&findings, FIX, || {
         let packages: BTreeSet<&str> = now.sites.iter().map(|site| site.package.as_str()).collect();
@@ -803,16 +796,6 @@ mod tests {
                 )],
                 Fail(&["Cargo.toml: [lints] must be exactly workspace = true"]),
             ),
-            row(
-                "a manifest outside the changed packages is left alone for the edit trigger",
-                vec![],
-                vec![
-                    put(B_MANIFEST, &manifest("b", "")),
-                    put(A_ROOT, "fn a2() {}\n"),
-                ],
-                Pass(&["no allow"]),
-            )
-            .changed(&[A_ROOT]),
         ]
     }
 
@@ -882,9 +865,9 @@ mod tests {
         ]
     }
 
-    fn base_and_edit_rows() -> Vec<Row> {
-        use Verdict::{Fail, Pass};
-        let mut rows = vec![
+    fn base_rows() -> Vec<Row> {
+        use Verdict::Pass;
+        vec![
             row(
                 "without a lints file the check is not in force and counts the allows",
                 vec![del(LINTS_FILE), put(A_ROOT, AN_ALLOW)],
@@ -911,32 +894,13 @@ mod tests {
                     "; 0 allow sites, 0 expect findings, 0 manifests not opted in, 1 packages over their base count",
                 ]),
             ),
-        ];
-        rows.push(
-            row(
-                "a package outside the changed paths may carry an allow for the edit trigger",
-                vec![],
-                vec![put(A_ROOT, AN_ALLOW), put(B_ROOT, "fn b2() {}\n")],
-                Pass(&["no allow; 0 expect lint paths in 0 packages"]),
-            )
-            .changed(&[B_ROOT]),
-        );
-        rows.push(
-            row(
-                "the changed package is judged for the edit trigger",
-                vec![],
-                vec![put(A_ROOT, AN_ALLOW), put(B_ROOT, "fn b2() {}\n")],
-                Fail(&["crates/a/src/lib.rs:1: allow dead_code"]),
-            )
-            .changed(&[A_ROOT]),
-        );
-        rows
+        ]
     }
 
     fn rows() -> Vec<Row> {
         let mut rows = count_rows();
         rows.extend(file_rows());
-        rows.extend(base_and_edit_rows());
+        rows.extend(base_rows());
         rows.extend(config_rows());
         rows
     }

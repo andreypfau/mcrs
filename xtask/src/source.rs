@@ -1,5 +1,4 @@
 use crate::git;
-use crate::parity::Selection;
 use crate::scope::{self, Found, Head};
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use serde::Deserialize;
@@ -527,10 +526,6 @@ impl<'a> Tree<'a> {
         })
     }
 
-    pub(crate) fn in_scope(&self, path: &str, scope: Option<&BTreeSet<String>>) -> bool {
-        scope.is_none_or(|owners| owners.contains(self.packages.owner(path)))
-    }
-
     pub(crate) fn read_rust(&self, keep: impl Fn(&str) -> bool) -> Result<Files, String> {
         let rust: Vec<String> = self
             .paths
@@ -546,7 +541,6 @@ pub(crate) struct Trees<'a> {
     pub(crate) in_force: bool,
     pub(crate) head: Tree<'a>,
     pub(crate) base: Tree<'a>,
-    pub(crate) scope: Option<BTreeSet<String>>,
 }
 
 impl<'a> Trees<'a> {
@@ -554,18 +548,15 @@ impl<'a> Trees<'a> {
         repo: &'a Path,
         base: &str,
         head: &Head,
-        selection: &Selection,
         in_force: impl Fn(&Lints) -> bool,
     ) -> Result<Trees<'a>, String> {
         let in_force = lints_at(repo, base, head)?.is_some_and(|lints| in_force(&lints));
         let head = Tree::read(repo, head.clone())?;
         let base = Tree::read(repo, Head::Commit(base.to_owned()))?;
-        let scope = scoped(selection, &head, &base);
         Ok(Trees {
             in_force,
             head,
             base,
-            scope,
         })
     }
 }
@@ -598,19 +589,6 @@ pub(crate) fn verdict(
     } else {
         Err(failure(findings, fix))
     }
-}
-
-pub(crate) fn scoped(selection: &Selection, head: &Tree, base: &Tree) -> Option<BTreeSet<String>> {
-    let Selection::Changed(paths) = selection else {
-        return None;
-    };
-    Some(
-        paths
-            .iter()
-            .flat_map(|path| [head.packages.owner(path), base.packages.owner(path)])
-            .map(str::to_owned)
-            .collect(),
-    )
 }
 
 #[cfg(test)]
@@ -651,7 +629,6 @@ pub(crate) mod fixture {
         base: Vec<Edit>,
         head: Vec<Edit>,
         at: At,
-        changed: Option<Vec<String>>,
         verdict: Verdict,
     }
 
@@ -661,7 +638,6 @@ pub(crate) mod fixture {
             base,
             head,
             at: At::Commit,
-            changed: None,
             verdict,
         }
     }
@@ -669,11 +645,6 @@ pub(crate) mod fixture {
     impl Row {
         pub(crate) fn at(mut self, at: At) -> Row {
             self.at = at;
-            self
-        }
-
-        pub(crate) fn changed(mut self, paths: &[&str]) -> Row {
-            self.changed = Some(paths.iter().map(|p| (*p).to_owned()).collect());
             self
         }
     }
@@ -687,7 +658,7 @@ pub(crate) mod fixture {
         }
     }
 
-    pub(crate) type Judge = fn(&Path, &str, &Head, Selection) -> Result<String, String>;
+    pub(crate) type Judge = fn(&Path, &str, &Head) -> Result<String, String>;
 
     pub(crate) fn judge(
         label: &str,
@@ -722,11 +693,7 @@ pub(crate) mod fixture {
             }
         };
         let status = repo.status();
-        let selection = match &row.changed {
-            Some(paths) => Selection::Changed(paths),
-            None => Selection::Every,
-        };
-        let found = check(&repo.0, &base_sha, &head, selection);
+        let found = check(&repo.0, &base_sha, &head);
         if repo.status() != status {
             return Some(format!("{}: the check changed the working tree", row.name));
         }
