@@ -1000,9 +1000,10 @@ mod tests {
     use fixedbitset::FixedBitSet;
 
     use super::*;
-    use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_core::rl;
     use mcrs_minecraft_registry::Id;
+    use mcrs_minecraft_volume::BlockStateId;
+    use mcrs_minecraft_volume::VoxelStoreMut;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 
@@ -1144,6 +1145,12 @@ mod tests {
             size: [3, 2, 3],
             palettes: vec![blocks.into_boxed_slice()],
         }
+    }
+
+    fn region_with_water_at(at: BlockPos) -> BoxRegion {
+        let mut region = new_region();
+        region.blocks.set_voxel(at, BlockStateId(WATER.0));
+        region
     }
 
     fn new_region() -> BoxRegion {
@@ -1448,8 +1455,7 @@ mod tests {
         let chain = vec![];
         let mut p = placement(&template, &chain, Rotation::None, None);
         p.waterlog = true;
-        let mut region = new_region();
-        region.blocks.set(BlockPos::new(4, 5, 4), WATER);
+        let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
         let mut rng = WorldgenRandom::new(1);
         let mut entities = Vec::new();
         place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
@@ -1471,8 +1477,7 @@ mod tests {
         );
 
         p.waterlog = false;
-        let mut region = new_region();
-        region.blocks.set(BlockPos::new(4, 5, 4), WATER);
+        let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
         place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), fence);
         assert_eq!(region.get(BlockPos::new(5, 5, 4)), fence);
@@ -1497,8 +1502,7 @@ mod tests {
         let chain = vec![];
         let mut p = placement(&template, &chain, Rotation::None, None);
         p.waterlog = true;
-        let mut region = new_region();
-        region.blocks.set(BlockPos::new(7, 5, 4), WATER);
+        let mut region = region_with_water_at(BlockPos::new(7, 5, 4));
         let mut rng = WorldgenRandom::new(1);
         let mut entities = Vec::new();
         place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
@@ -1524,8 +1528,7 @@ mod tests {
         let chain = vec![];
         let mut p = placement(&template, &chain, Rotation::None, None);
         p.waterlog = true;
-        let mut region = new_region();
-        region.blocks.set(BlockPos::new(4, 5, 4), WATER);
+        let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
         let mut rng = WorldgenRandom::new(1);
         place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), slab);
@@ -1613,7 +1616,9 @@ mod tests {
         let template = template();
         let chain = vec![CompiledProcessor::ProtectedBlocks(mask_of([STONE.0]))];
         let mut region = new_region();
-        region.blocks.set(BlockPos::new(4, 5, 4), STONE);
+        region
+            .blocks
+            .set_voxel(BlockPos::new(4, 5, 4), BlockStateId(STONE.0));
         let mut rng = WorldgenRandom::new(1);
         place_template(
             &placement(&template, &chain, Rotation::None, None),

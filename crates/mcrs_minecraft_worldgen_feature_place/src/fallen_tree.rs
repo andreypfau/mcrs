@@ -143,7 +143,6 @@ fn decorate<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use crate::tree::decorator::EntitiesOnly;
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 

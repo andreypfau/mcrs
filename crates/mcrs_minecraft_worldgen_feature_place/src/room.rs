@@ -248,7 +248,6 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_random::worldgen::WorldgenRandom;

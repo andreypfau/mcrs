@@ -6,9 +6,13 @@
 
 use std::sync::Arc;
 
-use mcrs_minecraft_chunk::{Blocks, BlocksMut, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_volume::BlockStateId;
+use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, Denied, Unavailable, Volume};
+use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
 use crate::ColumnBlocks;
 use crate::stages::ColumnRegion;
@@ -49,16 +53,91 @@ fn a_read_past_the_ring_is_a_debug_assertion() {
     let _ = region.get(BlockPos::new(0, 8, -17));
 }
 
-/// The far corner of the ring is inside the footprint, so the same assertion
-/// must not fire one block short of the edge.
+/// Every corner of the ring is inside the footprint, so neither the volume nor the
+/// assertion refuses it, and one block further out is refused.
 #[test]
-fn the_corners_of_the_ring_are_inside_the_footprint() {
+fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
     let snapshots = empty_region();
     let blocks = ColumnBlocks::new(&Y_SECTIONS);
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    for (x, z) in [(-16, -16), (31, 31), (-1, 31), (31, -1)] {
-        region.set(BlockPos::new(x, 8, z), VoxelId::default());
-        let _ = region.get(BlockPos::new(x, 8, z));
+    let state = BlockStateId(1);
+    let (bottom, top) = (0, 15);
+    let corners: [((i32, i32), &[(i32, i32)]); 4] = [
+        ((-16, -16), &[(-1, 0), (0, -1)]),
+        ((31, 31), &[(1, 0), (0, 1)]),
+        ((-1, 31), &[(0, 1)]),
+        ((31, -1), &[(1, 0)]),
+    ];
+    for ((x, z), outward) in corners {
+        for y in [bottom, top] {
+            let at = BlockPos::new(x, y, z);
+            assert_eq!(region.access(SectionPos::from(at)), Access::Write, "{at}");
+            assert_eq!(region.set_block(at, state), Ok(BlockStateId(0)), "{at}");
+            assert_eq!(region.block(at), Ok(state), "{at}");
+            region.set(at, VoxelId(state.0));
+            assert_eq!(region.get(at), VoxelId(state.0), "{at}");
+        }
+        for &(dx, dz) in outward {
+            let past = BlockPos::new(x + dx, bottom, z + dz);
+            assert_eq!(
+                region.access(SectionPos::from(past)),
+                Access::Outside,
+                "{past}"
+            );
+            assert_eq!(region.block(past), Err(Unavailable::Outside), "{past}");
+        }
+        for past in [
+            BlockPos::new(x, bottom - 1, z),
+            BlockPos::new(x, top + 1, z),
+        ] {
+            assert_eq!(
+                region.access(SectionPos::from(past)),
+                Access::Outside,
+                "{past}"
+            );
+            assert_eq!(region.block(past), Err(Unavailable::Outside), "{past}");
+            assert_eq!(
+                region.set_block(past, state),
+                Err(Denied::Outside),
+                "{past}"
+            );
+        }
+    }
+
+    let mut written: Vec<_> = region
+        .finish()
+        .iter()
+        .map(|(col, delta)| ((col.x, col.z), delta.writes.len()))
+        .collect();
+    written.sort();
+    assert_eq!(
+        written,
+        vec![((-1, -1), 2), ((-1, 1), 2), ((1, -1), 2), ((1, 1), 2)]
+    );
+}
+
+/// A write answers what it replaced: the filled block first, then the unit's own
+/// earlier write, in a ring column and in the centre alike.
+#[test]
+fn a_rewrite_answers_the_earlier_write() {
+    let stone = VoxelId(1);
+    let y_sections: Arc<[i32]> = Y_SECTIONS.as_slice().into();
+    let snapshots = region_of(CENTRE, |col| {
+        flat_snapshot(col, &y_sections, |_| Some(stone), None)
+    });
+    let blocks = ColumnBlocks::new(&Y_SECTIONS);
+    blocks.unpack(&snapshots[4].sections);
+    let ctx = bare_fill_context(build_beta_router());
+    let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
+    let (first, second) = (BlockStateId(2), BlockStateId(3));
+    for at in [BlockPos::new(20, 4, -3), BlockPos::new(5, 4, 9)] {
+        assert_eq!(
+            region.set_block(at, first),
+            Ok(BlockStateId(stone.0)),
+            "{at}"
+        );
+        assert_eq!(region.set_block(at, second), Ok(first), "{at}");
+        assert_eq!(region.block(at), Ok(second), "{at}");
     }
 }

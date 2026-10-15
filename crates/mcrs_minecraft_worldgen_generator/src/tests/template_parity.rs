@@ -7,7 +7,7 @@ use bytes::Buf;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, rl};
@@ -21,6 +21,7 @@ use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_volume::{BoxVolume, Volume, VoxelStore};
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
@@ -334,11 +335,11 @@ pub(super) fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
             kind,
             HeightmapName::OceanFloorWg | HeightmapName::OceanFloor
         );
-        let (min, max) = (blocks.min(), blocks.max());
+        let (min, max) = (blocks.bounds().min, blocks.bounds().max);
         (min.y..=max.y)
             .rev()
             .find(|&y| {
-                let state = blocks.get(BlockPos::new(x, y, z)).0 as usize;
+                let state = blocks.voxel(BlockPos::new(x, y, z)).0 as usize;
                 !air.contains(state) && !(sees_through_fluid && fluid.contains(state))
             })
             .map_or(min.y, |y| y + 1)

@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_chunk::{BoxVolume, Volume, VoxelId};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -12,6 +12,7 @@ use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::HeightContext;
+use mcrs_minecraft_volume::{BoxVolume, Volume};
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -322,7 +323,10 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     );
     for (layer, state) in layers.iter().enumerate() {
         if let Some(state) = state {
-            region.blocks.fill_layer(min_y + layer as i32, *state);
+            region.blocks.fill_layer(
+                min_y + layer as i32,
+                mcrs_minecraft_volume::BlockStateId(state.0),
+            );
         }
     }
     region.world = world;
@@ -333,7 +337,7 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
         .number();
     let predicates = predicates().clone();
     region.with_height(move |blocks: &BoxVolume, kind: HeightmapName, _, _| {
-        let max_y = blocks.max().y;
+        let max_y = blocks.bounds().max.y;
         let top = (layers.len() as i32 - 1).min(max_y - min_y);
         (0..=top)
             .rev()

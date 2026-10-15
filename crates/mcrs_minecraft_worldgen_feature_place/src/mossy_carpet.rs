@@ -206,7 +206,6 @@ pub fn place_mossy_carpet<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates, mask_of};
     use std::sync::Arc;
 

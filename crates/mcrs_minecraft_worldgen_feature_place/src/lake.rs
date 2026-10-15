@@ -177,7 +177,6 @@ fn carve_blobs(rng: &mut WorldgenRandom) -> Vec<bool> {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 

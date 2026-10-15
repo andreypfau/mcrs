@@ -1,5 +1,7 @@
-use mcrs_minecraft_chunk::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
-use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_volume::BlockStateId;
+use mcrs_minecraft_volume::{Access, BoxVolume, Volume, VoxelStore, VoxelStoreMut};
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -25,7 +27,8 @@ impl BoxRegion {
     /// and the height map answers one past its top.
     pub fn new(min: BlockPos, max: BlockPos, fill: VoxelId) -> Self {
         BoxRegion {
-            blocks: BoxVolume::filled(min, max, fill),
+            blocks: BoxVolume::filled(BoundingBox { min, max }, BlockStateId(fill.0))
+                .expect("a test box fits in memory"),
             world: WorldStates::default(),
             extent: HeightContext {
                 min_y: min.y,
@@ -49,8 +52,8 @@ impl BoxRegion {
 
     /// Every cell from the bottom of the box up to and including `top`.
     pub fn floor(mut self, top: i32, id: VoxelId) -> Self {
-        for y in self.blocks.min().y..=top {
-            self.blocks.fill_layer(y, id);
+        for y in self.blocks.bounds().min.y..=top {
+            self.blocks.fill_layer(y, BlockStateId(id.0));
         }
         self
     }
@@ -65,27 +68,27 @@ impl BoxRegion {
 }
 
 impl Volume for BoxRegion {
-    fn min(&self) -> BlockPos {
-        self.blocks.min()
+    fn bounds(&self) -> BoundingBox {
+        self.blocks.bounds()
     }
 
-    fn max(&self) -> BlockPos {
-        self.blocks.max()
-    }
-}
-
-impl Blocks for BoxRegion {
-    fn get(&self, p: BlockPos) -> VoxelId {
-        self.blocks.get(p)
+    fn access(&self, section: SectionPos) -> Access {
+        self.blocks.access(section)
     }
 }
 
-impl BlocksMut for BoxRegion {
-    fn set(&mut self, p: BlockPos, id: VoxelId) {
-        if self.blocks.contains(p) {
-            self.blocks.set(p, id);
-            self.writes.push((p, id));
+impl VoxelStore for BoxRegion {
+    fn voxel(&self, at: BlockPos) -> BlockStateId {
+        self.blocks.voxel(at)
+    }
+}
+
+impl VoxelStoreMut for BoxRegion {
+    fn set_voxel(&mut self, at: BlockPos, state: BlockStateId) -> BlockStateId {
+        if self.contains(at) {
+            self.writes.push((at, VoxelId(state.0)));
         }
+        self.blocks.set_voxel(at, state)
     }
 }
 

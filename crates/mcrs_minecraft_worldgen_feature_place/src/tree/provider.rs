@@ -369,8 +369,10 @@ pub(crate) mod fake {
     use rustc_hash::FxHashMap as HashMap;
 
     use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-    use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume};
+    use mcrs_minecraft_core::{BoundingBox, SectionPos};
     use mcrs_minecraft_value_provider::HeightContext;
+    use mcrs_minecraft_volume::BlockStateId;
+    use mcrs_minecraft_volume::{Access, Volume, VoxelStore, VoxelStoreMut};
     use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 
     use super::*;
@@ -414,25 +416,30 @@ pub(crate) mod fake {
     }
 
     impl Volume for FakeVolume {
-        fn min(&self) -> BlockPos {
-            IVec3::splat(i32::MIN / 2).into()
+        fn bounds(&self) -> BoundingBox {
+            BoundingBox {
+                min: IVec3::splat(i32::MIN / 2).into(),
+                max: IVec3::splat(i32::MAX / 2).into(),
+            }
         }
 
-        fn max(&self) -> BlockPos {
-            IVec3::splat(i32::MAX / 2).into()
-        }
-    }
-
-    impl Blocks for FakeVolume {
-        fn get(&self, p: BlockPos) -> VoxelId {
-            self.blocks.get(&(p.x, p.y, p.z)).copied().unwrap_or(AIR)
+        fn access(&self, _: SectionPos) -> Access {
+            Access::Write
         }
     }
 
-    impl BlocksMut for FakeVolume {
-        fn set(&mut self, p: BlockPos, state: VoxelId) {
-            self.blocks.insert((p.x, p.y, p.z), state);
+    impl VoxelStore for FakeVolume {
+        fn voxel(&self, p: BlockPos) -> BlockStateId {
+            BlockStateId(self.blocks.get(&(p.x, p.y, p.z)).copied().unwrap_or(AIR).0)
+        }
+    }
+
+    impl VoxelStoreMut for FakeVolume {
+        fn set_voxel(&mut self, p: BlockPos, state: BlockStateId) -> BlockStateId {
+            let state = VoxelId(state.0);
             self.writes.push(((p.x, p.y, p.z), state));
+            let old = self.blocks.insert((p.x, p.y, p.z), state);
+            BlockStateId(old.unwrap_or(AIR).0)
         }
     }
 
@@ -469,7 +476,6 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 
-    use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_value_provider::{DispatchedIntProvider, IntProvider};

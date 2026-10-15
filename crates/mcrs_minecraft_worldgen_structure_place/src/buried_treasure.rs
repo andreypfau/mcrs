@@ -96,9 +96,10 @@ pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_core::BoundingBox;
     use mcrs_minecraft_random::legacy::LegacyRandom;
+    use mcrs_minecraft_volume::BlockStateId;
+    use mcrs_minecraft_volume::VoxelStoreMut;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, mask_of};
 
     const AIR: VoxelId = VoxelId(0);
@@ -125,10 +126,10 @@ mod tests {
             .floor(4, STONE)
             .with_height(|_, _, _, _| 12);
         for y in 5..=7 {
-            region.blocks.fill_layer(y, GRAVEL);
+            region.blocks.fill_layer(y, BlockStateId(GRAVEL.0));
         }
         for y in 8..=11 {
-            region.blocks.fill_layer(y, WATER);
+            region.blocks.fill_layer(y, BlockStateId(WATER.0));
         }
         region.world.air_states = mask_of([AIR]);
         region.world.solid_render = mask_of([STONE, GRAVEL]);
@@ -138,9 +139,15 @@ mod tests {
     #[test]
     fn the_walk_rests_the_chest_on_the_first_stone_and_fills_the_open_neighbours() {
         let mut region = region();
-        region.blocks.set(BlockPos::new(9, 5, 9), WATER);
-        region.blocks.set(BlockPos::new(10, 5, 9), WATER);
-        region.blocks.set(BlockPos::new(10, 4, 9), AIR);
+        region
+            .blocks
+            .set_voxel(BlockPos::new(9, 5, 9), BlockStateId(WATER.0));
+        region
+            .blocks
+            .set_voxel(BlockPos::new(10, 5, 9), BlockStateId(WATER.0));
+        region
+            .blocks
+            .set_voxel(BlockPos::new(10, 4, 9), BlockStateId(AIR.0));
         let mut entities = Vec::new();
         let mut spawns = Vec::new();
         let mut canvas = PieceCanvas {
@@ -176,7 +183,7 @@ mod tests {
     fn a_column_with_no_resting_block_places_nothing_and_draws_nothing() {
         let mut region = region();
         for y in 0..=4 {
-            region.blocks.fill_layer(y, GRAVEL);
+            region.blocks.fill_layer(y, BlockStateId(GRAVEL.0));
         }
         let mut entities = Vec::new();
         let mut spawns = Vec::new();

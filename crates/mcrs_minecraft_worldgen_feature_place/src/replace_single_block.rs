@@ -36,7 +36,6 @@ pub fn place_replace_single_block<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates, mask_of};
 
