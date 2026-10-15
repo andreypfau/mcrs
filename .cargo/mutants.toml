@@ -1,6 +1,0 @@
-test_tool = "nextest"
-profile = "mutants"
-additional_cargo_test_args = ["--profile=mutants", "--no-tests=pass"]
-gitignore = true
-exclude_re = [
-]
