@@ -92,8 +92,8 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
             let Some(event) = self.pending.pop_front() else {
                 break;
             };
-            self.taken_this_drain = self.taken_this_drain.saturating_add(1);
             if eligible(event.section()) {
+                self.taken_this_drain = self.taken_this_drain.saturating_add(1);
                 self.undelivered.remove(&event.event);
                 return Drained::Event(event);
             }

@@ -116,18 +116,32 @@ fn a_bounded_drain_leaves_the_rest_in_order_behind_the_deferred() {
         shard.queue(P, a, 0);
     }
     let (out, end) = drain(&mut shard.queue, 3, not_in(Q));
-    assert_eq!(out, [(P, 1, 0), (P, 2, 0)]);
+    assert_eq!(out, [(P, 1, 0), (P, 2, 0), (P, 3, 0)]);
     assert_eq!(
         end,
         DrainEnd {
             deferred: 1,
-            left_by_bound: 3
+            left_by_bound: 2
         }
     );
     let (out, _) = drain(&mut shard.queue, 3, |_| true);
-    assert_eq!(out, [(Q, 0, 0), (P, 3, 0), (P, 4, 0)]);
-    let (out, _) = drain(&mut shard.queue, 3, |_| true);
-    assert_eq!(out, [(P, 5, 0)]);
+    assert_eq!(out, [(Q, 0, 0), (P, 4, 0), (P, 5, 0)]);
+    assert!(shard.queue.is_empty());
+}
+
+#[test]
+fn events_waiting_on_a_section_never_hold_back_the_deliverable_ones() {
+    let mut shard = Shard::new();
+    for a in 0..4 {
+        shard.queue(Q, a, 0);
+    }
+    shard.queue(P, 9, 0);
+    let (out, end) = drain(&mut shard.queue, 2, not_in(Q));
+    assert_eq!(out, [(P, 9, 0)]);
+    assert_eq!(end.deferred, 4);
+    let (out, _) = drain(&mut shard.queue, 2, not_in(Q));
+    assert!(out.is_empty());
+    assert_eq!(shard.queue.len(), 4);
 }
 
 fn event(pos: BlockPos, a: i32, sequence: SubTick) -> QueuedEvent<u16> {
@@ -262,16 +276,16 @@ fn a_queue_change_in_the_middle_of_a_drain_keeps_its_bound_and_deferrals() {
             Drained::Done(end) => break end,
         }
     };
-    assert_eq!(out, [(P, 1, 0), (P, 2, 0)]);
+    assert_eq!(out, [(P, 1, 0), (P, 2, 0), (P, 3, 0)]);
     assert_eq!(
         end,
         DrainEnd {
             deferred: 1,
-            left_by_bound: 2
+            left_by_bound: 1
         }
     );
     let (out, _) = drain(&mut queue, u32::MAX, |_| true);
-    assert_eq!(out, [(Q, 0, 0), (P, 3, 0), (P, 9, 0)]);
+    assert_eq!(out, [(Q, 0, 0), (P, 9, 0)]);
 }
 
 #[test]
