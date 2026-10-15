@@ -18,6 +18,7 @@ pub(crate) const LINTS_FILE: &str = "quality/lints.toml";
 pub(crate) struct NoKeys {}
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Lints {
     pub(crate) suppressions: Option<NoKeys>,
     pub(crate) bypasses: Option<NoKeys>,
