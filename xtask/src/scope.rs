@@ -266,12 +266,6 @@ pub fn version_bump(workspace: &Workspace, texts: &ManifestTexts) -> Option<Vers
     lock_matches.then_some(bump)
 }
 
-pub fn diff_names(repo: &Path, base: &str, head: &Head) -> Result<Vec<String>, String> {
-    let mut args = vec!["diff", "--name-only", "-z", "--no-renames"];
-    args.extend(diff_args(base, head));
-    paths_of(&git::run(repo, &args).map_err(|e| e.to_string())?)
-}
-
 pub(crate) fn paths_of(listing: &[u8]) -> Result<Vec<String>, String> {
     listing
         .split(|&byte| byte == 0)
@@ -387,10 +381,6 @@ pub fn attributes(
 
 pub fn is_set(value: &str) -> bool {
     value == "set"
-}
-
-pub fn is_generated_for_review(value: &str) -> bool {
-    !matches!(value, "unspecified" | "unset" | "false")
 }
 
 pub fn tracked(repo: &Path, head: &Head) -> Result<Vec<String>, String> {

@@ -297,7 +297,3 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
-
-[profile.mutants]
-inherits = "test"
-debug = "none"

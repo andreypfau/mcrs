@@ -1,8 +1,8 @@
 use crate::checks::Outcome;
-use crate::gate::{any_glob_matches, inherits_workspace, parse_manifest};
 use crate::parity::Selection;
 use crate::scope::{self, Head};
 use crate::source::{self, Files, Level, LintAttr, MANIFEST, PackageMap, Tree, Trees, verdict};
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -189,6 +189,63 @@ impl Tree<'_> {
         }
         Ok(found)
     }
+}
+
+#[derive(Deserialize)]
+struct Manifest {
+    lints: Option<toml::Table>,
+    workspace: Option<WorkspaceTable>,
+}
+
+#[derive(Deserialize, Default)]
+struct WorkspaceTable {
+    #[serde(default)]
+    members: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
+}
+
+fn parse_manifest(text: &str) -> Result<Manifest, String> {
+    toml::from_str(text).map_err(|e| e.message().to_owned())
+}
+
+fn inherits_workspace(lints: Option<&toml::Table>) -> bool {
+    lints.is_some_and(|table| {
+        table.len() == 1 && table.get("workspace") == Some(&toml::Value::Boolean(true))
+    })
+}
+
+fn segment_matches(pattern: &str, text: &str) -> bool {
+    let wildcard: Vec<String> = pattern.split('*').map(regex::escape).collect();
+    Regex::new(&format!("(?s)^{}$", wildcard.join(".*")))
+        .is_ok_and(|matcher| matcher.is_match(text))
+}
+
+fn glob_matches(pattern: &str, dir: &str) -> Result<bool, String> {
+    let patterns: Vec<&str> = pattern.trim_start_matches("./").split('/').collect();
+    if patterns
+        .iter()
+        .any(|segment| segment.contains("**") || segment.contains(['?', '[']))
+    {
+        return Err(format!(
+            "the workspace member pattern `{pattern}` uses glob syntax beyond `*`, which the suppressions check cannot match"
+        ));
+    }
+    let segments: Vec<&str> = dir.split('/').collect();
+    Ok(patterns.len() == segments.len()
+        && patterns
+            .iter()
+            .zip(&segments)
+            .all(|(pattern, segment)| segment_matches(pattern, segment)))
+}
+
+fn any_glob_matches(patterns: &[String], dir: &str) -> Result<bool, String> {
+    for pattern in patterns {
+        if glob_matches(pattern, dir)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn is_cargo_config(path: &str) -> bool {
@@ -839,7 +896,7 @@ mod tests {
             ),
             row(
                 "a lints file without the suppressions table is not in force",
-                vec![put(LINTS_FILE, "[clones]\nmin_tokens = 70\n")],
+                vec![put(LINTS_FILE, "[bypasses]\n")],
                 vec![put(A_ROOT, AN_ALLOW), put(B_MANIFEST, &manifest("b", ""))],
                 Pass(&[
                     "not in force yet at ",

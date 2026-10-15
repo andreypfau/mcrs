@@ -9,7 +9,6 @@ workspace = true
 
 [dependencies]
 proc-macro2 = { workspace = true, features = ["span-locations"] }
-quote.workspace = true
 regex = "1.12"
 serde.workspace = true
 serde_json.workspace = true

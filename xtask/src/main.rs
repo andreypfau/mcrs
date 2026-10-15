@@ -13,13 +13,8 @@
 
 mod bypasses;
 mod checks;
-mod clones;
-mod floors;
-mod gate;
 mod git;
-mod marker;
 mod metadata;
-mod mutation;
 mod parity;
 mod scope;
 mod size;
@@ -39,11 +34,8 @@ const DEFAULT_BASE_REF: &str = "origin/main";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("mutants") {
-        return mutation::cli(&args[1..]);
-    }
-    let invocation = match trigger::from_args(&args) {
-        Ok(invocation) => invocation,
+    let trigger = match trigger::from_args(&args) {
+        Ok(trigger) => trigger,
         Err(problem) => {
             eprintln!("{problem}\n\n{}", trigger::usage());
             return ExitCode::from(2);
@@ -56,17 +48,17 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    let head = match resolve_head(&root, invocation.trigger, invocation.head.as_deref()) {
+    let head = match resolve_head(&root, trigger) {
         Ok(head) => head,
         Err(problem) => {
             eprintln!("{problem}");
             return ExitCode::from(1);
         }
     };
-    let ctx = checks::Context::new(invocation.trigger, root, base_ref(), head);
+    let ctx = checks::Context::new(trigger, root, base_ref(), head);
 
     let (mut passed, mut failed) = (0, 0);
-    for &check in trigger::checks(invocation.trigger) {
+    for &check in trigger::checks(trigger) {
         let started = Instant::now();
         let outcome = checks::run(&ctx, check);
         let seconds = started.elapsed().as_secs_f32();
@@ -103,23 +95,19 @@ fn main() -> ExitCode {
     }
 }
 
-pub(crate) fn base_ref() -> String {
+fn base_ref() -> String {
     std::env::var("CHECKS_BASE_REF")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_BASE_REF.to_owned())
 }
 
-fn resolve_head(root: &Path, trigger: Trigger, requested: Option<&str>) -> Result<Head, String> {
-    let rev = match (trigger, requested) {
-        (Trigger::Edit | Trigger::Commit, _) => return Ok(Head::Worktree),
-        (Trigger::Policy, Some(rev)) => rev,
-        (Trigger::Policy, None) => return Err("policy needs the head commit".to_owned()),
-        _ => "HEAD",
-    };
-    let commit = format!("{rev}^{{commit}}");
-    let sha = git::text(root, &["rev-parse", "--verify", "--quiet", &commit])
-        .map_err(|_| format!("the head {rev} is not a commit here; fetch it first"))?;
+fn resolve_head(root: &Path, trigger: Trigger) -> Result<Head, String> {
+    if matches!(trigger, Trigger::Edit | Trigger::Commit) {
+        return Ok(Head::Worktree);
+    }
+    let sha = git::text(root, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])
+        .map_err(|_| "HEAD is not a commit".to_owned())?;
     Ok(Head::Commit(sha.trim().to_owned()))
 }
 

@@ -449,9 +449,7 @@ fn roles(tree: &Tree, files: &Files, scope: Option<&BTreeSet<String>>) -> Result
         (&build_roots, &mut roles.build),
     ] {
         for root in roots {
-            source::walk_modules(root, files, &mut |view| {
-                into.insert(view.file.to_owned());
-            })?;
+            into.extend(source::module_files(root, files)?);
         }
     }
     Ok(roles)

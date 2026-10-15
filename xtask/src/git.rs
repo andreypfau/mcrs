@@ -48,30 +48,6 @@ pub fn run(repo: &Path, args: &[&str]) -> Result<Vec<u8>, Failure> {
     })
 }
 
-pub struct Output {
-    pub status: Option<i32>,
-    pub stdout: Vec<u8>,
-    pub stderr: String,
-}
-
-pub fn output(repo: &Path, args: &[&str]) -> Result<Output, Failure> {
-    let command = format!("git {}", args.join(" "));
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .output()
-        .map_err(|e| Failure::Spawn {
-            command,
-            reason: e.to_string(),
-        })?;
-    Ok(Output {
-        status: output.status.code(),
-        stdout: output.stdout,
-        stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-    })
-}
-
 pub fn pipe(repo: &Path, args: &[&str], input: &[u8]) -> Result<Vec<u8>, Failure> {
     let command = format!("git {}", args.join(" "));
     let spawn_failure = |e: std::io::Error| Failure::Spawn {

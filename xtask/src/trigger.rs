@@ -1,82 +1,42 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Check {
     Size,
-    GateConfig,
     Suppressions,
     Bypasses,
-    MutationMarker,
-    Floors,
     Parity,
-    Clones,
     UnusedDeps,
-    MutationConfig,
     Fmt,
     Clippy,
     Test,
     NoBevy,
     Wasm32,
     ExportedBuild,
-    Mutation,
 }
 
 impl Check {
     pub const fn name(self) -> &'static str {
         match self {
             Check::Size => "size",
-            Check::GateConfig => "gate-config",
             Check::Suppressions => "suppressions",
             Check::Bypasses => "bypasses",
-            Check::MutationMarker => "mutation-marker",
-            Check::Floors => "floors",
             Check::Parity => "parity",
-            Check::Clones => "clones",
             Check::UnusedDeps => "unused-deps",
-            Check::MutationConfig => "mutation-config",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Wasm32 => "wasm32",
             Check::ExportedBuild => "exported-build",
-            Check::Mutation => "mutation",
-        }
-    }
-
-    #[cfg(test)]
-    pub const fn runs(self) -> Runs {
-        match self {
-            Check::Size
-            | Check::GateConfig
-            | Check::Suppressions
-            | Check::Bypasses
-            | Check::MutationMarker
-            | Check::Floors
-            | Check::Parity => Runs::GitData,
-            Check::Clones => Runs::PinnedToolOverExportedFiles,
-            Check::UnusedDeps
-            | Check::MutationConfig
-            | Check::Fmt
-            | Check::Clippy
-            | Check::Test
-            | Check::NoBevy
-            | Check::Wasm32
-            | Check::ExportedBuild
-            | Check::Mutation => Runs::Cargo,
         }
     }
 
     #[cfg(test)]
     pub const fn is_git_only(self) -> bool {
-        matches!(self.runs(), Runs::GitData)
+        matches!(
+            self,
+            Check::Size | Check::Suppressions | Check::Bypasses | Check::Parity
+        )
     }
-}
-
-#[cfg(test)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Runs {
-    GitData,
-    PinnedToolOverExportedFiles,
-    Cargo,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -87,22 +47,16 @@ pub enum Trigger {
     Ci,
     Full,
     Gpu,
-    Policy,
-    Mutation,
-    MutationLocal,
 }
 
 impl Trigger {
-    pub const ALL: [Trigger; 9] = [
+    pub const ALL: [Trigger; 6] = [
         Trigger::Edit,
         Trigger::Commit,
         Trigger::Push,
         Trigger::Ci,
         Trigger::Full,
         Trigger::Gpu,
-        Trigger::Policy,
-        Trigger::Mutation,
-        Trigger::MutationLocal,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -113,9 +67,6 @@ impl Trigger {
             Trigger::Ci => "ci",
             Trigger::Full => "full",
             Trigger::Gpu => "gpu",
-            Trigger::Policy => "policy",
-            Trigger::Mutation => "mutation",
-            Trigger::MutationLocal => "mutation-local",
         }
     }
 
@@ -125,38 +76,27 @@ impl Trigger {
                 "after a file is written: change size, lint suppressions, test bypasses, fixture parity, formatting"
             }
             Trigger::Commit => {
-                "before a commit: change size, gate configuration, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
+                "before a commit: change size, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
             }
             Trigger::Push => {
-                "before a push: the commit checks and the clone scan; ci runs clippy, the tests and the builds"
+                "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
             Trigger::Ci => "on every pull request and every push to main: all checks",
             Trigger::Full => "the whole test suite, exhaustive sweeps included",
             Trigger::Gpu => "the tests that need a Metal GPU",
-            Trigger::Policy => {
-                "in CI from the default branch: the git-only checks and the clone scan on a pull request head read as data"
-            }
-            Trigger::Mutation => {
-                "by hand only, never in a hook or in CI: mutation markers, floors and configuration, then the surviving mutants in changed code, from shards run beforehand"
-            }
-            Trigger::MutationLocal => {
-                "on demand on this machine: the surviving mutants in changed code"
-            }
         }
     }
 
     pub const fn is_local(self) -> bool {
         match self {
-            Trigger::Edit | Trigger::Commit | Trigger::Push | Trigger::MutationLocal => true,
-            Trigger::Ci | Trigger::Full | Trigger::Gpu | Trigger::Policy | Trigger::Mutation => {
-                false
-            }
+            Trigger::Edit | Trigger::Commit | Trigger::Push => true,
+            Trigger::Ci | Trigger::Full | Trigger::Gpu => false,
         }
     }
 
     #[cfg(test)]
     pub const fn runs_on_every_pull_request(self) -> bool {
-        matches!(self, Trigger::Ci | Trigger::Policy)
+        matches!(self, Trigger::Ci)
     }
 
     pub fn parse(name: &str) -> Option<Trigger> {
@@ -168,32 +108,12 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Size, Suppressions, Bypasses, Parity, Fmt],
-        Trigger::Commit => &[
-            Size,
-            GateConfig,
-            Suppressions,
-            Bypasses,
-            Parity,
-            UnusedDeps,
-            Fmt,
-        ],
-        Trigger::Push => &[
-            Size,
-            GateConfig,
-            Suppressions,
-            Bypasses,
-            Parity,
-            Clones,
-            UnusedDeps,
-            Fmt,
-        ],
+        Trigger::Commit | Trigger::Push => &[Size, Suppressions, Bypasses, Parity, UnusedDeps, Fmt],
         Trigger::Ci => &[
             Size,
-            GateConfig,
             Suppressions,
             Bypasses,
             Parity,
-            Clones,
             UnusedDeps,
             Fmt,
             Clippy,
@@ -203,41 +123,14 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
             ExportedBuild,
         ],
         Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Policy => &[Size, GateConfig, Suppressions, Bypasses, Parity, Clones],
-        Trigger::Mutation => &[MutationMarker, Floors, MutationConfig, Mutation],
-        Trigger::MutationLocal => &[Mutation],
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Invocation {
-    pub trigger: Trigger,
-    pub head: Option<String>,
-}
-
-pub fn from_args(args: &[String]) -> Result<Invocation, String> {
-    let plain = |trigger| Invocation {
-        trigger,
-        head: None,
-    };
+pub fn from_args(args: &[String]) -> Result<Trigger, String> {
     match args {
         [] => Err("missing trigger".to_owned()),
         [name] if name.is_empty() => Err("the trigger is empty".to_owned()),
-        [name] => match Trigger::parse(name) {
-            Some(Trigger::Policy) => Err("policy needs the head commit: policy <head>".to_owned()),
-            Some(trigger) => Ok(plain(trigger)),
-            None => Err(format!("unknown trigger {name:?}")),
-        },
-        [name, head] if name == Trigger::Policy.name() => match head.as_str() {
-            "" => Err("the head commit is empty".to_owned()),
-            option if option.starts_with('-') => {
-                Err(format!("the head must be a commit id, not {option:?}"))
-            }
-            _ => Ok(Invocation {
-                trigger: Trigger::Policy,
-                head: Some(head.clone()),
-            }),
-        },
+        [name] => Trigger::parse(name).ok_or_else(|| format!("unknown trigger {name:?}")),
         more => Err(format!(
             "expected exactly one trigger, got {}: {}",
             more.len(),
@@ -254,11 +147,11 @@ pub fn usage() -> String {
     ] {
         text.push_str(&format!("\n{heading}:\n"));
         for trigger in Trigger::ALL.into_iter().filter(|t| t.is_local() == local) {
-            let usage = match trigger {
-                Trigger::Policy => "policy <head>",
-                other => other.name(),
-            };
-            text.push_str(&format!("  {usage:<15}{}\n", trigger.description()));
+            text.push_str(&format!(
+                "  {:<15}{}\n",
+                trigger.name(),
+                trigger.description()
+            ));
         }
     }
     text
@@ -276,7 +169,7 @@ mod tests {
             .collect();
         Trigger::ALL
             .into_iter()
-            .filter(|&t| t.is_local() && t != Trigger::MutationLocal)
+            .filter(|t| t.is_local())
             .flat_map(|t| table(t).iter().map(move |&c| (t, c)))
             .filter(|(_, c)| !on_pull_requests.contains(c))
             .collect()
@@ -291,7 +184,7 @@ mod tests {
             .into_iter()
             .filter(|t| t.runs_on_every_pull_request())
             .collect();
-        assert_eq!(every, [Trigger::Ci, Trigger::Policy]);
+        assert_eq!(every, [Trigger::Ci]);
     }
 
     #[test]
@@ -299,7 +192,7 @@ mod tests {
         fn table(trigger: Trigger) -> &'static [Check] {
             match trigger {
                 Trigger::Ci => &[Check::Test, Check::Fmt],
-                Trigger::Push => &[Check::Mutation, Check::Fmt, Check::Test],
+                Trigger::Push => &[Check::Clippy, Check::Fmt, Check::Test],
                 Trigger::Commit => &[Check::Fmt, Check::Wasm32],
                 _ => &[Check::Fmt],
             }
@@ -308,35 +201,8 @@ mod tests {
             outside_pull_requests(table),
             [
                 (Trigger::Commit, Check::Wasm32),
-                (Trigger::Push, Check::Mutation)
+                (Trigger::Push, Check::Clippy)
             ]
-        );
-    }
-
-    #[test]
-    fn every_mutation_check_runs_only_from_the_manual_mutation_triggers_which_no_hook_and_no_pull_request_runs()
-     {
-        let mutation_checks = [
-            Check::MutationMarker,
-            Check::Floors,
-            Check::MutationConfig,
-            Check::Mutation,
-        ];
-        let manual = [Trigger::Mutation, Trigger::MutationLocal];
-        assert_eq!(checks(Trigger::Mutation), mutation_checks);
-        assert_eq!(checks(Trigger::MutationLocal), [Check::Mutation]);
-        assert!(!Trigger::Mutation.is_local());
-        for trigger in manual {
-            assert!(!trigger.runs_on_every_pull_request(), "{trigger:?}");
-        }
-        for trigger in Trigger::ALL.into_iter().filter(|t| !manual.contains(t)) {
-            for check in mutation_checks {
-                assert!(!checks(trigger).contains(&check), "{trigger:?} {check:?}");
-            }
-        }
-        assert_eq!(
-            Trigger::parse("mutation-local"),
-            Some(Trigger::MutationLocal)
         );
     }
 
@@ -351,11 +217,11 @@ mod tests {
                 .lines()
                 .any(|line| line.trim_start().split(' ').next() == Some(name))
         };
-        for name in ["edit", "commit", "push", "mutation-local"] {
+        for name in ["edit", "commit", "push"] {
             assert!(listed(here, name), "{name} is not listed for this machine");
             assert!(!listed(elsewhere, name), "{name} is listed apart");
         }
-        for name in ["ci", "full", "gpu", "policy", "mutation"] {
+        for name in ["ci", "full", "gpu"] {
             assert!(listed(elsewhere, name), "{name} is not listed apart");
             assert!(!listed(here, name), "{name} is listed for this machine");
         }
@@ -386,27 +252,8 @@ mod tests {
         ];
         for (args, expected) in cases {
             let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-            let found = from_args(&args).ok().map(|invocation| invocation.trigger);
+            let found = from_args(&args).ok();
             assert_eq!(found, expected, "{args:?}");
-        }
-    }
-
-    #[test]
-    fn only_policy_takes_a_head_and_it_must_be_a_commit_id() {
-        let cases: [(&[&str], Option<&str>); 8] = [
-            (&["policy", "abc123"], Some("abc123")),
-            (&["policy"], None),
-            (&["policy", ""], None),
-            (&["policy", "--output=x"], None),
-            (&["policy", "a", "b"], None),
-            (&["edit", "abc123"], None),
-            (&["ci", "abc123"], None),
-            (&["push", "abc123"], None),
-        ];
-        for (args, head) in cases {
-            let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-            let found = from_args(&args).ok().and_then(|invocation| invocation.head);
-            assert_eq!(found.as_deref(), head, "{args:?}");
         }
     }
 
@@ -430,13 +277,7 @@ mod tests {
 
     #[test]
     fn parity_is_the_last_git_only_check_of_every_trigger_that_runs_on_a_pull_request_or_locally() {
-        let carries_it = [
-            Trigger::Edit,
-            Trigger::Commit,
-            Trigger::Push,
-            Trigger::Ci,
-            Trigger::Policy,
-        ];
+        let carries_it = [Trigger::Edit, Trigger::Commit, Trigger::Push, Trigger::Ci];
         for trigger in Trigger::ALL {
             let listed = checks(trigger);
             let position = listed.iter().position(|&c| c == Check::Parity);
@@ -482,43 +323,5 @@ mod tests {
                 "{trigger:?}"
             );
         }
-    }
-
-    #[test]
-    fn the_base_run_trigger_builds_and_runs_nothing_from_the_head() {
-        let listed = checks(Trigger::Policy);
-        let cargo: Vec<_> = listed
-            .iter()
-            .filter(|check| check.runs() == Runs::Cargo)
-            .collect();
-        assert!(
-            cargo.is_empty(),
-            "the policy trigger runs {cargo:?}, which would run cargo on the head"
-        );
-        let tools: Vec<_> = listed
-            .iter()
-            .filter(|check| check.runs() == Runs::PinnedToolOverExportedFiles)
-            .collect();
-        assert_eq!(tools, [&Check::Clones]);
-        for check in [
-            Check::UnusedDeps,
-            Check::Fmt,
-            Check::Clippy,
-            Check::Test,
-            Check::NoBevy,
-            Check::Wasm32,
-            Check::ExportedBuild,
-        ] {
-            assert!(!listed.contains(&check), "policy lists {check:?}");
-        }
-    }
-
-    #[test]
-    fn policy_runs_a_subset_of_ci() {
-        let outside: Vec<_> = checks(Trigger::Policy)
-            .iter()
-            .filter(|check| !checks(Trigger::Ci).contains(check))
-            .collect();
-        assert!(outside.is_empty(), "{outside:?}");
     }
 }

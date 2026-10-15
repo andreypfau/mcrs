@@ -19,16 +19,11 @@ pub struct SizeLimits {
     pub max_files: u32,
 }
 
-pub struct Enforced {
-    pub limits: Limits,
-    pub reference: String,
-}
-
 pub fn parse_limits(text: &str) -> Result<Limits, String> {
     toml::from_str(text).map_err(|e| e.message().to_owned())
 }
 
-pub fn limits_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Enforced>, String> {
+pub fn limits_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Limits>, String> {
     let short = scope::short(base);
     let Some(found) = scope::configuration_at(repo, base, head, LIMITS_FILE)? else {
         return Ok(None);
@@ -40,15 +35,12 @@ pub fn limits_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Enforced
                     "{LIMITS_FILE} at the base {short} is malformed: {e}; fix it on the base branch"
                 )
             })?;
-            Ok(Some(Enforced { limits, reference }))
+            Ok(Some(limits))
         }
-        Found::Restored { restored, last } => {
+        Found::Restored { restored, .. } => {
             let limits = parse_limits(&restored)
                 .map_err(|e| format!("the restored {LIMITS_FILE} is malformed: {e}"))?;
-            Ok(Some(Enforced {
-                limits,
-                reference: last,
-            }))
+            Ok(Some(limits))
         }
     }
 }
@@ -142,8 +134,8 @@ pub fn check(repo: &Path, base: &str, head: &Head) -> Result<String, String> {
     generated_sources(repo, base, head)?;
     let counts = count(repo, base, head)?;
     let reach = match &enforced {
-        Some(enforced) => {
-            let limit = u64::from(enforced.limits.size.max_files);
+        Some(limits) => {
+            let limit = u64::from(limits.size.max_files);
             if counts.files > limit {
                 return Err(format!(
                     "{} files changed, more than the limit of {limit}; split the change into pull requests of at most {limit} files",

@@ -1,11 +1,9 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{
-    bypasses, clones, floors, gate, marker, mutation, parity, size, suppressions, unused_deps,
-};
+use crate::{bypasses, parity, size, suppressions, unused_deps};
 use std::cell::OnceCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -148,25 +146,11 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
         Check::Size => size::check(&ctx.root, ctx.base()?, &ctx.head),
-        Check::GateConfig => gate::check(&ctx.root, ctx.base()?, &ctx.head),
-        Check::MutationMarker => marker::check(&ctx.root, &ctx.head),
-        Check::Floors => floors::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Suppressions => scanner_check(ctx, suppressions::check),
         Check::Bypasses => scanner_check(ctx, bypasses::check),
         Check::Parity => parity_check(ctx),
-        Check::Clones => clones::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::UnusedDeps => {
             unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
-        }
-        Check::MutationConfig => {
-            let packages = mutation_packages(ctx)?;
-            mutation::config::check(
-                &ctx.root,
-                ctx.base()?,
-                &ctx.head,
-                ctx.workspace()?,
-                &packages,
-            )
         }
         Check::Fmt => fmt(ctx),
         Check::Clippy => clippy(ctx),
@@ -195,21 +179,6 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             "a tree exported from git does not build or its identity tests fail",
             "commit every file the build needs",
         ),
-        Check::Mutation => {
-            let Head::Commit(head) = &ctx.head else {
-                return Err("the mutation check reads a commit, not the working tree".to_owned());
-            };
-            match ctx.trigger {
-                Trigger::Mutation => mutation::verdict::check(&ctx.root, head),
-                Trigger::MutationLocal => {
-                    mutation::local(&ctx.root, ctx.workspace()?, ctx.base()?, head)
-                }
-                other => Err(format!(
-                    "the mutation check does not run under the {} trigger",
-                    other.name()
-                )),
-            }
-        }
     }
 }
 
@@ -240,22 +209,6 @@ fn scanner_check(
         &ctx.head,
         parity::Selection::Changed(&changed),
     )
-}
-
-fn mutation_packages(ctx: &Context) -> Result<Vec<String>, String> {
-    let workspace = ctx.workspace()?;
-    let owners: BTreeSet<String> = if ctx.trigger == Trigger::Ci {
-        workspace.packages.iter().map(|p| p.name.clone()).collect()
-    } else {
-        ctx.changes()?
-            .paths
-            .iter()
-            .filter(|path| path.ends_with(".rs"))
-            .filter_map(|path| workspace.owner(path))
-            .map(|package| package.name.clone())
-            .collect()
-    };
-    Ok(owners.into_iter().collect())
 }
 
 fn fmt(ctx: &Context) -> Outcome {
@@ -469,7 +422,6 @@ mod tests {
                 dir: "crates/x".to_owned(),
                 edition: "2024".to_owned(),
                 dependencies: Vec::new(),
-                targets: Vec::new(),
             }],
         };
         ctx.workspace.set(Ok(workspace)).unwrap();

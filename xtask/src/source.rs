@@ -1,7 +1,6 @@
-use crate::gate::{Lints, lints_at};
 use crate::git;
 use crate::parity::Selection;
-use crate::scope::{self, Head};
+use crate::scope::{self, Found, Head};
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,6 +11,42 @@ use syn::visit::{self, Visit};
 use syn::{AttrStyle, Attribute, Expr, ExprLit, Item, Lit, LitStr, Macro, Meta, Token};
 
 pub type Files = BTreeMap<String, String>;
+
+pub(crate) const LINTS_FILE: &str = "quality/lints.toml";
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NoKeys {}
+
+#[derive(Deserialize)]
+pub(crate) struct Lints {
+    pub(crate) suppressions: Option<NoKeys>,
+    pub(crate) bypasses: Option<NoKeys>,
+}
+
+fn parse_lints(text: &str) -> Result<Lints, String> {
+    toml::from_str(text).map_err(|e| e.message().to_owned())
+}
+
+fn lints_at(repo: &Path, base: &str, head: &Head) -> Result<Option<Lints>, String> {
+    let Some(found) = scope::configuration_at(repo, base, head, LINTS_FILE)? else {
+        return Ok(None);
+    };
+    let reference = match found {
+        Found::AtBase(text) => text,
+        Found::Restored { restored, last } => {
+            parse_lints(&restored)
+                .map_err(|e| format!("the restored {LINTS_FILE} is malformed: {e}"))?;
+            last
+        }
+    };
+    parse_lints(&reference).map(Some).map_err(|e| {
+        format!(
+            "{LINTS_FILE} at the base {} is malformed: {e}; fix it on the base branch",
+            scope::short(base)
+        )
+    })
+}
 
 pub fn rust_files(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
     let mut paths = match head {
@@ -159,28 +194,18 @@ pub fn doc_line(attr: &Attribute) -> Option<String> {
     }
 }
 
-pub struct ModuleView<'a> {
-    pub file: &'a str,
-    pub module: &'a [String],
-    pub attrs: &'a [Attribute],
-    pub items: &'a [Item],
-}
-
 struct Walk<'a> {
     files: &'a Files,
     seen: BTreeSet<String>,
 }
 
-pub fn walk_modules(
-    root: &str,
-    files: &Files,
-    visit: &mut dyn FnMut(&ModuleView),
-) -> Result<(), String> {
+pub fn module_files(root: &str, files: &Files) -> Result<BTreeSet<String>, String> {
     let mut walk = Walk {
         files,
         seen: BTreeSet::new(),
     };
-    walk.file(root, &[], true, visit)
+    walk.file(root, true)?;
+    Ok(walk.seen)
 }
 
 pub fn parent(path: &str) -> &str {
@@ -224,13 +249,7 @@ fn path_attribute(attrs: &[Attribute]) -> Option<String> {
 }
 
 impl Walk<'_> {
-    fn file(
-        &mut self,
-        path: &str,
-        module: &[String],
-        mod_rs: bool,
-        visit: &mut dyn FnMut(&ModuleView),
-    ) -> Result<(), String> {
+    fn file(&mut self, path: &str, mod_rs: bool) -> Result<(), String> {
         if !self.seen.insert(path.to_owned()) {
             return Ok(());
         }
@@ -245,49 +264,26 @@ impl Walk<'_> {
             let stem = file_name(path).trim_end_matches(".rs");
             join(parent(path), stem)
         };
-        self.items(
-            path,
-            module,
-            &parsed.attrs,
-            &parsed.items,
-            &owner,
-            &[],
-            visit,
-        )
+        self.items(path, &parsed.items, &owner, &[])
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the file, module path, attributes and items of one module plus the owner, the inline path and the visitor it reports to"
-    )]
     fn items(
         &mut self,
         path: &str,
-        module: &[String],
-        attrs: &[Attribute],
         items: &[Item],
         owner: &str,
         inline: &[String],
-        visit: &mut dyn FnMut(&ModuleView),
     ) -> Result<(), String> {
-        visit(&ModuleView {
-            file: path,
-            module,
-            attrs,
-            items,
-        });
         let children = join(owner, &inline.join("/"));
         for item in items {
             let Item::Mod(declared) = item else {
                 continue;
             };
             let name = declared.ident.to_string();
-            let mut below = module.to_vec();
-            below.push(name.clone());
             if let Some((_, content)) = &declared.content {
                 let mut nested = inline.to_vec();
                 nested.push(name);
-                self.items(path, &below, &[], content, owner, &nested, visit)?;
+                self.items(path, content, owner, &nested)?;
                 continue;
             }
             let (candidates, via_path) = match path_attribute(&declared.attrs) {
@@ -304,7 +300,7 @@ impl Walk<'_> {
             match candidates.iter().find(|c| self.files.contains_key(*c)) {
                 Some(found) => {
                     let mod_rs = via_path || file_name(found) == "mod.rs";
-                    self.file(found, &below, mod_rs, visit)?;
+                    self.file(found, mod_rs)?;
                 }
                 None if has_cfg(&declared.attrs) => {}
                 None => {
@@ -656,7 +652,6 @@ pub(crate) mod fixture {
         head: Vec<Edit>,
         at: At,
         changed: Option<Vec<String>>,
-        force: bool,
         verdict: Verdict,
     }
 
@@ -667,7 +662,6 @@ pub(crate) mod fixture {
             head,
             at: At::Commit,
             changed: None,
-            force: false,
             verdict,
         }
     }
@@ -675,11 +669,6 @@ pub(crate) mod fixture {
     impl Row {
         pub(crate) fn at(mut self, at: At) -> Row {
             self.at = at;
-            self
-        }
-
-        pub(crate) fn forced(mut self) -> Row {
-            self.force = true;
             self
         }
 
@@ -724,9 +713,6 @@ pub(crate) mod fixture {
         let head = match row.at {
             At::Worktree => Head::Worktree,
             At::Commit | At::DetachedAtBase => {
-                if row.force {
-                    repo.git(&["add", "--force", "--all"]);
-                }
                 repo.commit("head");
                 let head = Head::Commit(repo.sha());
                 if matches!(row.at, At::DetachedAtBase) {
@@ -796,25 +782,6 @@ mod tests {
         assert!(error.contains("crates/x/Cargo.toml"), "{error}");
     }
 
-    fn names_in_modules(root: &str, files: &Files) -> Vec<String> {
-        let mut found = Vec::new();
-        walk_modules(root, files, &mut |view| {
-            for item in view.items {
-                if let Item::Fn(f) = item {
-                    found.push(format!(
-                        "{}::{} @ {}",
-                        view.module.join("::"),
-                        f.sig.ident,
-                        view.file
-                    ));
-                }
-            }
-        })
-        .unwrap();
-        found.sort();
-        found
-    }
-
     #[test]
     fn modules_resolve_to_their_files() {
         let tree = files(&[
@@ -833,21 +800,22 @@ mod tests {
             ("p/src/e/mod.rs", "fn in_e() {}\nmod x;\n"),
             ("p/src/e/x.rs", "fn in_x() {}\n"),
         ]);
+        let found = module_files("p/src/lib.rs", &tree).unwrap();
         assert_eq!(
-            names_in_modules("p/src/lib.rs", &tree),
+            found.iter().map(String::as_str).collect::<Vec<_>>(),
             [
-                "::top @ p/src/lib.rs",
-                "a::in_a @ p/src/a.rs",
-                "a::inner::in_inner @ p/src/a/inner.rs",
-                "a::m::z::in_y @ p/src/a/m/y.rs",
-                "b::in_b @ p/src/elsewhere/b.rs",
-                "c::d::in_d @ p/src/c/d.rs",
-                "e::in_e @ p/src/e/mod.rs",
-                "e::x::in_x @ p/src/e/x.rs",
+                "p/src/a.rs",
+                "p/src/a/inner.rs",
+                "p/src/a/m/y.rs",
+                "p/src/c/d.rs",
+                "p/src/e/mod.rs",
+                "p/src/e/x.rs",
+                "p/src/elsewhere/b.rs",
+                "p/src/lib.rs",
             ]
         );
         let missing = files(&[("p/src/lib.rs", "mod nowhere;\n")]);
-        let error = walk_modules("p/src/lib.rs", &missing, &mut |_| {}).unwrap_err();
+        let error = module_files("p/src/lib.rs", &missing).unwrap_err();
         assert!(
             error.contains("p/src/lib.rs") && error.contains("p/src/nowhere.rs"),
             "{error}"
