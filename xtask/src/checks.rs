@@ -174,11 +174,6 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
                 "keep its dependencies free of native-only code",
             )
         }
-        Check::ExportedBuild => verdict(
-            ctx.exec("scripts/check-exported-build.sh", &[])?,
-            "a tree exported from git does not build or its identity tests fail",
-            "commit every file the build needs",
-        ),
     }
 }
 
@@ -438,7 +433,7 @@ mod tests {
         let one = Ok("1 files; 1 vanilla claims outside parity files".to_owned());
         let both = Ok("2 files; 2 vanilla claims outside parity files".to_owned());
         assert_eq!(detail(Trigger::Commit), one);
-        assert_eq!(detail(Trigger::Ci), both);
+        assert_eq!(detail(Trigger::Lint), both);
     }
 
     #[test]

@@ -64,6 +64,8 @@ jobs:
       - name: run the full test tier
         run: scripts/hooks/run-checks full
 
+      - name: build and test a tree exported from git
+        run: scripts/check-exported-build.sh
 
       - name: save the client jar
         if: github.ref == 'refs/heads/main' && steps.jar-cache.outputs.cache-hit != 'true'

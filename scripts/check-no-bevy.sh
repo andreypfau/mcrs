@@ -50,19 +50,17 @@ crates=(
     mcrs_minecraft_client_jar
 )
 
-status=0
-for crate in "${crates[@]}"; do
-    leaked=$(cargo tree --locked --manifest-path "$root/Cargo.toml" -p "$crate" --no-default-features \
-        -e normal --prefix none --format '{p}' |
-        awk '$1 ~ /^bevy_/ && $1 != "bevy_math" { print $1 }' | sort -u | tr '\n' ' ')
-    if [ -n "$leaked" ]; then
-        echo "$crate pulls in Bevy: $leaked" >&2
-        status=1
-    fi
-done
-
 packages=()
 for crate in "${crates[@]}"; do packages+=(-p "$crate"); done
-cargo check --locked --manifest-path "$root/Cargo.toml" --no-default-features "${packages[@]}"
 
-exit $status
+leaked=$(cargo tree --locked --manifest-path "$root/Cargo.toml" "${packages[@]}" --no-default-features \
+    -e normal --prefix none --format '{p}' |
+    awk '!NF { root = ""; next }
+        root == "" { root = $1; next }
+        $1 ~ /^bevy_/ && $1 != "bevy_math" { print root " pulls in " $1 }' | sort -u)
+if [ -n "$leaked" ]; then
+    echo "$leaked" >&2
+    exit 1
+fi
+
+cargo check --locked --manifest-path "$root/Cargo.toml" --no-default-features "${packages[@]}"

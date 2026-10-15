@@ -10,7 +10,6 @@ pub enum Check {
     Test,
     NoBevy,
     Wasm32,
-    ExportedBuild,
 }
 
 impl Check {
@@ -26,7 +25,6 @@ impl Check {
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Wasm32 => "wasm32",
-            Check::ExportedBuild => "exported-build",
         }
     }
 
@@ -44,17 +42,23 @@ pub enum Trigger {
     Edit,
     Commit,
     Push,
-    Ci,
+    Lint,
+    Clippy,
+    Test,
+    Portability,
     Full,
     Gpu,
 }
 
 impl Trigger {
-    pub const ALL: [Trigger; 6] = [
+    pub const ALL: [Trigger; 9] = [
         Trigger::Edit,
         Trigger::Commit,
         Trigger::Push,
-        Trigger::Ci,
+        Trigger::Lint,
+        Trigger::Clippy,
+        Trigger::Test,
+        Trigger::Portability,
         Trigger::Full,
         Trigger::Gpu,
     ];
@@ -64,7 +68,10 @@ impl Trigger {
             Trigger::Edit => "edit",
             Trigger::Commit => "commit",
             Trigger::Push => "push",
-            Trigger::Ci => "ci",
+            Trigger::Lint => "lint",
+            Trigger::Clippy => "clippy",
+            Trigger::Test => "test",
+            Trigger::Portability => "portability",
             Trigger::Full => "full",
             Trigger::Gpu => "gpu",
         }
@@ -79,7 +86,16 @@ impl Trigger {
             Trigger::Push => {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
-            Trigger::Ci => "on every pull request and every push to main: all checks",
+            Trigger::Lint => {
+                "in CI on every pull request and every push to main: the commit checks over the whole branch"
+            }
+            Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
+            Trigger::Test => {
+                "in CI on every pull request and every push to main: the tests of the changed crates and their dependents"
+            }
+            Trigger::Portability => {
+                "in CI on every pull request and every push to main: the builds without Bevy and for wasm32"
+            }
             Trigger::Full => "the whole test suite, exhaustive sweeps included",
             Trigger::Gpu => "the tests that need a Metal GPU",
         }
@@ -88,13 +104,21 @@ impl Trigger {
     pub const fn is_local(self) -> bool {
         match self {
             Trigger::Edit | Trigger::Commit | Trigger::Push => true,
-            Trigger::Ci | Trigger::Full | Trigger::Gpu => false,
+            Trigger::Lint
+            | Trigger::Clippy
+            | Trigger::Test
+            | Trigger::Portability
+            | Trigger::Full
+            | Trigger::Gpu => false,
         }
     }
 
     #[cfg(test)]
     pub const fn runs_on_every_pull_request(self) -> bool {
-        matches!(self, Trigger::Ci)
+        matches!(
+            self,
+            Trigger::Lint | Trigger::Clippy | Trigger::Test | Trigger::Portability
+        )
     }
 
     pub fn parse(name: &str) -> Option<Trigger> {
@@ -106,21 +130,12 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push => &[Size, Suppressions, Bypasses, Parity, UnusedDeps, Fmt],
-        Trigger::Ci => &[
-            Size,
-            Suppressions,
-            Bypasses,
-            Parity,
-            UnusedDeps,
-            Fmt,
-            Clippy,
-            Test,
-            NoBevy,
-            Wasm32,
-            ExportedBuild,
-        ],
-        Trigger::Full | Trigger::Gpu => &[Test],
+        Trigger::Commit | Trigger::Push | Trigger::Lint => {
+            &[Size, Suppressions, Bypasses, Parity, UnusedDeps, Fmt]
+        }
+        Trigger::Clippy => &[Clippy],
+        Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
+        Trigger::Portability => &[NoBevy, Wasm32],
     }
 }
 
@@ -182,14 +197,22 @@ mod tests {
             .into_iter()
             .filter(|t| t.runs_on_every_pull_request())
             .collect();
-        assert_eq!(every, [Trigger::Ci]);
+        assert_eq!(
+            every,
+            [
+                Trigger::Lint,
+                Trigger::Clippy,
+                Trigger::Test,
+                Trigger::Portability
+            ]
+        );
     }
 
     #[test]
     fn the_subset_test_fails_on_a_check_no_pull_request_trigger_lists_whatever_the_order() {
         fn table(trigger: Trigger) -> &'static [Check] {
             match trigger {
-                Trigger::Ci => &[Check::Test, Check::Fmt],
+                Trigger::Lint => &[Check::Test, Check::Fmt],
                 Trigger::Push => &[Check::Clippy, Check::Fmt, Check::Test],
                 Trigger::Commit => &[Check::Fmt, Check::Wasm32],
                 _ => &[Check::Fmt],
@@ -219,7 +242,7 @@ mod tests {
             assert!(listed(here, name), "{name} is not listed for this machine");
             assert!(!listed(elsewhere, name), "{name} is listed apart");
         }
-        for name in ["ci", "full", "gpu"] {
+        for name in ["lint", "clippy", "test", "portability", "full", "gpu"] {
             assert!(listed(elsewhere, name), "{name} is not listed apart");
             assert!(!listed(here, name), "{name} is listed for this machine");
         }
@@ -244,7 +267,7 @@ mod tests {
             (&[""], None),
             (&["bogus"], None),
             (&["Edit"], None),
-            (&["edit", "ci"], None),
+            (&["edit", "lint"], None),
             (&["edit"], Some(Trigger::Edit)),
             (&["gpu"], Some(Trigger::Gpu)),
         ];
@@ -275,7 +298,7 @@ mod tests {
 
     #[test]
     fn parity_is_the_last_git_only_check_of_every_trigger_that_runs_on_a_pull_request_or_locally() {
-        let carries_it = [Trigger::Commit, Trigger::Push, Trigger::Ci];
+        let carries_it = [Trigger::Commit, Trigger::Push, Trigger::Lint];
         for trigger in Trigger::ALL {
             let listed = checks(trigger);
             let position = listed.iter().position(|&c| c == Check::Parity);

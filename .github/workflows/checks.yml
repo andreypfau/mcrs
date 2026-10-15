@@ -13,14 +13,15 @@ concurrency:
   group: checks-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CHECKS_BASE_REF: origin/${{ github.base_ref || 'main' }}
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+
 jobs:
-  run:
+  lint:
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
     timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
-    env:
-      CHECKS_BASE_REF: origin/${{ github.base_ref || 'main' }}
-      CARGO_INCREMENTAL: 0
-      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - name: check out the commit under test with its history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,6 +30,60 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      - name: install the pinned toolchain
+        run: rustup toolchain install --profile minimal
+
+      - name: restore the build cache
+        if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-on-failure: true
+
+      - name: read the unused dependency checker version
+        id: cargo-shear-version
+        run: |
+          echo "version=$(sed -n 's/^pub(crate) const VERSION: &str = "\(.*\)";$/\1/p' xtask/src/unused_deps.rs)" >> "$GITHUB_OUTPUT"
+
+      - name: install the unused dependency checker
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: cargo-shear@${{ steps.cargo-shear-version.outputs.version }}
+
+      - name: run the checks
+        run: scripts/hooks/run-checks lint
+
+  clippy:
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
+    steps:
+      - name: check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          filter: blob:none
+
+      - name: install the pinned toolchain
+        run: rustup toolchain install --profile minimal
+
+      - name: restore the build cache
+        if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-on-failure: true
+
+      - name: run clippy
+        run: scripts/hooks/run-checks clippy
+
+  test:
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
+    steps:
+      - name: check out the commit under test with its history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
 
       - name: install the pinned toolchain
         run: rustup toolchain install --profile minimal
@@ -69,8 +124,8 @@ jobs:
           path: ${{ steps.jar.outputs.dir }}
           key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
 
-      - name: run the checks
-        run: scripts/hooks/run-checks ci
+      - name: run the tests
+        run: scripts/hooks/run-checks test
 
       - name: save the client jar
         if: github.ref == 'refs/heads/main' && steps.jar-cache.outputs.cache-hit != 'true'
@@ -79,13 +134,37 @@ jobs:
           path: ${{ steps.jar.outputs.dir }}
           key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
 
+  portability:
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
+    steps:
+      - name: check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          filter: blob:none
+
+      - name: install the pinned toolchain
+        run: rustup toolchain install --profile minimal
+
+      - name: restore the build cache
+        if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-on-failure: true
+
+      - name: build without Bevy and for wasm32
+        run: scripts/hooks/run-checks portability
+
   checks:
     name: checks
-    needs: run
+    needs: [lint, clippy, test, portability]
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: fail unless the checks passed
+      - name: fail unless every check job passed
         env:
-          RUN_RESULT: ${{ needs.run.result }}
-        run: test "$RUN_RESULT" = success
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "${RESULTS}"
+          for result in ${RESULTS}; do test "${result}" = success; done
