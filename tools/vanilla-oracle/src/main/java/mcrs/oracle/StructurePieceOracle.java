@@ -74,7 +74,7 @@ public final class StructurePieceOracle {
             StructureTemplateManager templates = new StructureTemplateManager(
                 resources, storage, DataFixers.getDataFixer(), BuiltInRegistries.BLOCK
             );
-            StructurePieceSerializationContext context = new StructurePieceSerializationContext(resources, access, templates);
+            StructurePieceSerializationContext context = new StructurePieceSerializationContext(access, templates);
             List<PlacementOracle.Dim> dims = PlacementOracle.dims(loaded);
 
             ByteArrayOutputStream body = new ByteArrayOutputStream();
@@ -133,14 +133,14 @@ public final class StructurePieceOracle {
             for (ChunkPos chunk : shared) {
                 StructureStart start = structure.generate(
                     holder, dim.level(), access, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
-                    templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+                    templates, seed.seed(), chunk, dim.heights(), structure.biomes()::contains
                 );
-                if (jigsaw && !start.isValid()) {
+                if (jigsaw && start == null) {
                     continue;
                 }
                 cases++;
                 present += writeCase(out, context, dim, seed, holder, chunk, start) ? 1 : 0;
-                pieces += start.isValid() ? start.getPieces().size() : 0;
+                pieces += start != null ? start.getPieces().size() : 0;
                 if (jigsaw) {
                     jigsawDone.add(PlacementOracle.id(holder));
                     break;
@@ -153,9 +153,9 @@ public final class StructurePieceOracle {
                 }
                 StructureStart start = structure.generate(
                     holder, dim.level(), access, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
-                    templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+                    templates, seed.seed(), chunk, dim.heights(), structure.biomes()::contains
                 );
-                if (!start.isValid()) {
+                if (start == null) {
                     continue;
                 }
                 more--;
@@ -188,8 +188,8 @@ public final class StructurePieceOracle {
         Bin.str(out, PlacementOracle.id(holder));
         Bin.i32(out, chunk.x());
         Bin.i32(out, chunk.z());
-        out.write(start.isValid() ? 1 : 0);
-        if (!start.isValid()) {
+        out.write(start != null ? 1 : 0);
+        if (start == null) {
             return false;
         }
         box(out, start.getBoundingBox());

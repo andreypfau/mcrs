@@ -482,9 +482,9 @@ public final class PlacementOracle {
         Structure structure = entry.structure().value();
         StructureStart start = structure.generate(
             entry.structure(), dim.level(), registries, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
-            templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+            templates, seed.seed(), chunk, dim.heights(), structure.biomes()::contains
         );
-        return start.isValid();
+        return start != null;
     }
 
     private static final Method FIND_GENERATION_POINT;

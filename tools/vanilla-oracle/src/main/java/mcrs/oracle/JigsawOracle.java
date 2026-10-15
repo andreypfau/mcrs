@@ -118,10 +118,10 @@ public final class JigsawOracle {
                 Bin.i32(out, chunk.z());
                 StructureStart start = structure.generate(
                     holder, dim.level(), registries, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
-                    templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+                    templates, seed.seed(), chunk, dim.heights(), structure.biomes()::contains
                 );
-                out.write(start.isValid() ? 1 : 0);
-                if (!start.isValid()) {
+                out.write(start != null ? 1 : 0);
+                if (start == null) {
                     continue;
                 }
                 present++;

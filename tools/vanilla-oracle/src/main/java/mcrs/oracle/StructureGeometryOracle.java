@@ -291,7 +291,7 @@ public final class StructureGeometryOracle {
         RandomState randomState = dim.seed().randomState();
         StructureStart start = structure.generate(
             c.structure(), levelKey(dim), this.access, generator, generator.getBiomeSource(),
-            PlacementOracle.climate(dim.seed()), randomState, this.templates, WORLD_SEED, c.chunk(), 0, dim.heights(),
+            PlacementOracle.climate(dim.seed()), randomState, this.templates, WORLD_SEED, c.chunk(), dim.heights(),
             structure.biomes()::contains
         );
 
@@ -302,8 +302,8 @@ public final class StructureGeometryOracle {
         Bin.i64(out, WORLD_SEED);
         Bin.i32(out, c.chunk().x());
         Bin.i32(out, c.chunk().z());
-        out.write(start.isValid() ? 1 : 0);
-        if (!start.isValid()) {
+        out.write(start != null ? 1 : 0);
+        if (start == null) {
             System.out.println("  " + PlacementOracle.id(c.structure()) + " at " + c.chunk() + ": no start");
             return false;
         }

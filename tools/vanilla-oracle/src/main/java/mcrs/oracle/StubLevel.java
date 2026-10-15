@@ -78,7 +78,7 @@ public final class StubLevel implements WorldGenLevel {
     private int nextEntityId;
     private final ServerLevel serverLevel;
     private final StructureManager structureManager;
-    private StructureStart placing = StructureStart.INVALID_START;
+    private StructureStart placing;
     private EnvironmentAttributeReader environmentAttributes;
     private final Map<BlockPos, BlockEntity> blockEntities = new java.util.LinkedHashMap<>();
     private final Map<net.minecraft.world.level.ChunkPos, ChunkAccess> chunks = new HashMap<>();
@@ -773,7 +773,7 @@ public final class StubLevel implements WorldGenLevel {
             final int sectionX, final int sectionZ, final Predicate<Structure> matcher
         ) {
             StructureStart start = this.owner.placing;
-            return start.isValid() && matcher.test(start.getStructure()) ? List.of(start) : List.of();
+            return start != null && matcher.test(start.getStructure()) ? List.of(start) : List.of();
         }
 
         @Override
