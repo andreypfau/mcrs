@@ -29,8 +29,19 @@ rustflags = ["-Zshare-generics=y", "-Zthreads=0", "-Zcache-proc-macros"]
 
 # Metadata is duplicated into every rlib otherwise, which this workspace pays
 # for across 650 dependencies.
+#
+# `fine-grain-locking` lets two builds of one checkout, say the editor's check
+# and a test run, proceed at once instead of queueing on one lock.
+#
+# `checksum-freshness` keeps a crate fresh when a checkout or rebase rewrites
+# its files without changing them. `mtime-on-use` touches every artifact a
+# build uses, which is what lets `scripts/prune-build-dir.sh` tell a live unit
+# from an abandoned one.
 [unstable]
 embed-metadata = false
+fine-grain-locking = true
+checksum-freshness = true
+mtime-on-use = true
 
 [alias]
 xtask = "run --quiet --locked -p xtask --target-dir target/xtask --"
