@@ -547,6 +547,27 @@ impl<'de, E: de::Error> Deserializer<'de> for BufferedDeserializer<E> {
     }
 }
 
+/// What reading the body of a dispatched value failed with. The body is read
+/// with this one error type whatever the format, so each type's derive is
+/// compiled once rather than once per format; `read` hands the message on as
+/// the format's own error.
+#[derive(Debug)]
+pub struct Error(String);
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl de::Error for Error {
+    fn custom<T: fmt::Display>(message: T) -> Self {
+        Error(message.to_string())
+    }
+}
+
 #[doc(hidden)]
 pub enum Pick {
     Variant(&'static str),
@@ -557,19 +578,18 @@ pub enum Pick {
 /// The data type's own derive, handed the body of one chosen variant as an
 /// externally tagged enum.
 #[doc(hidden)]
-pub struct Chosen<'de, E> {
+pub struct Chosen<'de> {
     variant: &'static str,
     body: Vec<(Buffered, Buffered)>,
     human_readable: bool,
     lifetime: PhantomData<&'de ()>,
-    error: PhantomData<fn() -> E>,
 }
 
-impl<'de, E: de::Error> Deserializer<'de> for Chosen<'de, E> {
-    type Error = E;
+impl<'de> Deserializer<'de> for Chosen<'de> {
+    type Error = Error;
 
-    fn deserialize_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, E> {
-        Err(E::custom("a dispatched value is read as an enum"))
+    fn deserialize_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Error> {
+        Err(Error::custom("a dispatched value is read as an enum"))
     }
 
     fn deserialize_enum<V: Visitor<'de>>(
@@ -577,7 +597,7 @@ impl<'de, E: de::Error> Deserializer<'de> for Chosen<'de, E> {
         _name: &'static str,
         _variants: &'static [&'static str],
         visitor: V,
-    ) -> Result<V::Value, E> {
+    ) -> Result<V::Value, Error> {
         visitor.visit_enum(self)
     }
 
@@ -592,49 +612,47 @@ impl<'de, E: de::Error> Deserializer<'de> for Chosen<'de, E> {
     }
 }
 
-impl<'de, E: de::Error> EnumAccess<'de> for Chosen<'de, E> {
-    type Error = E;
-    type Variant = Body<E>;
+impl<'de> EnumAccess<'de> for Chosen<'de> {
+    type Error = Error;
+    type Variant = Body;
 
-    fn variant_seed<V: DeserializeSeed<'de>>(self, seed: V) -> Result<(V::Value, Body<E>), E> {
-        let name = <&str as IntoDeserializer<'de, E>>::into_deserializer(self.variant);
+    fn variant_seed<V: DeserializeSeed<'de>>(self, seed: V) -> Result<(V::Value, Body), Error> {
+        let name = <&str as IntoDeserializer<'de, Error>>::into_deserializer(self.variant);
         let body = Body {
             entries: self.body,
             human_readable: self.human_readable,
-            error: PhantomData,
         };
         Ok((seed.deserialize(name)?, body))
     }
 }
 
 #[doc(hidden)]
-pub struct Body<E> {
+pub struct Body {
     entries: Vec<(Buffered, Buffered)>,
     human_readable: bool,
-    error: PhantomData<fn() -> E>,
 }
 
-impl<'de, E: de::Error> VariantAccess<'de> for Body<E> {
-    type Error = E;
+impl<'de> VariantAccess<'de> for Body {
+    type Error = Error;
 
     // The game's unit codecs read no fields and ignore the rest of the map.
-    fn unit_variant(self) -> Result<(), E> {
+    fn unit_variant(self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn newtype_variant_seed<T: DeserializeSeed<'de>>(self, seed: T) -> Result<T::Value, E> {
+    fn newtype_variant_seed<T: DeserializeSeed<'de>>(self, seed: T) -> Result<T::Value, Error> {
         seed.deserialize(Buffered::Map(self.entries).deserializer(self.human_readable))
     }
 
-    fn tuple_variant<V: Visitor<'de>>(self, _len: usize, _visitor: V) -> Result<V::Value, E> {
-        Err(E::invalid_type(Unexpected::TupleVariant, &"a map"))
+    fn tuple_variant<V: Visitor<'de>>(self, _len: usize, _visitor: V) -> Result<V::Value, Error> {
+        Err(Error::invalid_type(Unexpected::TupleVariant, &"a map"))
     }
 
     fn struct_variant<V: Visitor<'de>>(
         self,
         fields: &'static [&'static str],
         visitor: V,
-    ) -> Result<V::Value, E> {
+    ) -> Result<V::Value, Error> {
         Buffered::Map(self.entries)
             .deserializer(self.human_readable)
             .deserialize_struct("", fields, visitor)
@@ -671,7 +689,7 @@ pub fn read<'de, D, T, F>(
 ) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
-    F: FnOnce(Chosen<'de, D::Error>) -> Result<T, D::Error>,
+    F: FnOnce(Chosen<'de>) -> Result<T, Error>,
 {
     let human_readable = deserializer.is_human_readable();
     let mut entries = deserializer.deserialize_map(MapEntries)?;
@@ -692,8 +710,8 @@ where
             body: entries,
             human_readable,
             lifetime: PhantomData,
-            error: PhantomData,
-        }),
+        })
+        .map_err(D::Error::custom),
         Pick::Unsupported => Err(D::Error::custom(format_args!(
             "{location} is not supported by {registry}"
         ))),
@@ -1055,6 +1073,20 @@ macro_rules! dispatch {
         }
     };
     (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], [$($ext:literal)+]) => {};
+    // A type without generics reads its body in a function of its own, which
+    // is compiled once in the type's crate instead of in every crate that
+    // reads the type.
+    (@body [] $ty:ty) => {{
+        fn body(
+            chosen: $crate::dispatch::Chosen<'_>,
+        ) -> ::core::result::Result<$ty, $crate::dispatch::Error> {
+            <$ty>::deserialize(chosen)
+        }
+        body
+    }};
+    (@body [$($gp:ident),+] $ty:ty) => {
+        |chosen| <$ty>::deserialize(chosen)
+    };
     (@write true { $($item:item)* }) => { $($item)* };
     (@write false { $($item:item)* }) => {};
     (@build $flags:tt $gps:tt $sb:tt $db:tt $ty:ty,
@@ -1102,7 +1134,7 @@ macro_rules! dispatch {
                     $key,
                     <$gen as $crate::Registered>::REGISTRY.location().as_static_str(),
                     pick,
-                    |body| <$ty>::deserialize(body),
+                    $crate::dispatch!(@body [$($gp),*] $ty),
                 )?;
                 $crate::dispatch!(@check $validated value);
                 ::core::result::Result::Ok(value)
