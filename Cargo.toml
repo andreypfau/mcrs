@@ -272,9 +272,6 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_registry"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft_world"]
-opt-level = 3
-
 [profile.dev.package."mcrs_minecraft_chunk"]
 opt-level = 3
 
@@ -287,9 +284,8 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_dimension"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft_server"]
-opt-level = 2
-
+# The level field tests recompute the field from scratch after every change:
+# 0.6 seconds at opt-level 2, 4.7 at opt-level 0.
 [profile.dev.package."mcrs_minecraft_level"]
 opt-level = 2
 
