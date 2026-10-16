@@ -440,8 +440,9 @@ fn static_module(
 ) -> Result<String, String> {
     let mut out = format!("{HEADER}\nmcrs_minecraft_registry::static_keys! {{\n    {value};\n");
     let names = by_protocol_id(registry, report)?;
-    for (constant, name) in constants(registry, names.into_iter(), &["ENTRIES"])? {
-        out.push_str(&format!("    {constant} = \"{name}\",\n"));
+    let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
+    for (position, (constant, name)) in constants.into_iter().enumerate() {
+        out.push_str(&format!("    {position}: {constant} = \"{name}\",\n"));
     }
     out.push_str("}\n");
     Ok(out)

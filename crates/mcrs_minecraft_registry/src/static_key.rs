@@ -11,22 +11,22 @@ impl<R> StaticKey<R> {
     #[doc(hidden)]
     pub const fn at(
         entries: &[ResourceLocation<&'static str>],
+        position: u16,
         location: ResourceLocation<&'static str>,
     ) -> Self {
-        let wanted = location.as_static_str().as_bytes();
-        let mut remaining = entries;
-        let mut position: u16 = 0;
-        while let [entry, rest @ ..] = remaining {
-            if same_bytes(entry.as_static_str().as_bytes(), wanted) {
-                return StaticKey {
-                    id: Id::from_number(position),
-                    location,
-                };
-            }
-            remaining = rest;
-            position += 1;
+        let index = position as usize;
+        if index < entries.len()
+            && same_bytes(
+                entries[index].as_static_str().as_bytes(),
+                location.as_static_str().as_bytes(),
+            )
+        {
+            return StaticKey {
+                id: Id::from_number(position),
+                location,
+            };
         }
-        panic!("a static key's location is not among its entries")
+        panic!("a static key's location is not the entry at its position")
     }
 
     pub const fn id(self) -> Id<R> {
@@ -90,13 +90,18 @@ pub use serde as __serde;
 
 #[macro_export]
 macro_rules! static_keys {
-    ($registry:ty; $($name:ident = $location:literal,)*) => {
+    ($registry:ty; $($position:literal: $name:ident = $location:literal,)*) => {
         pub const ENTRIES: &[$crate::static_key::StaticLocation] =
             &[$($crate::static_key::__rl!($location)),*];
 
+        // The position is written out rather than searched for: a search per
+        // key in const eval is quadratic, a minute of compile time at 2000 keys.
         $(
-            pub const $name: $crate::StaticKey<$registry> =
-                $crate::StaticKey::at(ENTRIES, $crate::static_key::__rl!($location));
+            pub const $name: $crate::StaticKey<$registry> = $crate::StaticKey::at(
+                ENTRIES,
+                $position,
+                $crate::static_key::__rl!($location),
+            );
         )*
     };
 }
@@ -272,9 +277,9 @@ mod tests {
     mod fixed {
         crate::static_keys! {
             super::Fixed;
-            AIR = "minecraft:air",
-            STONE = "minecraft:stone",
-            STONE_SLAB = "minecraft:stone_slab",
+            0: AIR = "minecraft:air",
+            1: STONE = "minecraft:stone",
+            2: STONE_SLAB = "minecraft:stone_slab",
         }
     }
 
