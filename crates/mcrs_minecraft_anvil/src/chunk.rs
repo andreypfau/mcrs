@@ -14,6 +14,7 @@ use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
 use crate::retrogen::{RetroGen, Words};
+use crate::ticks::{ChunkDecodeReport, FluidTicks, SavedFluidTick};
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -43,6 +44,8 @@ pub struct Chunk {
     pub block_entities: Vec<NbtCompound>,
     pub retrogen: Option<RetroGen>,
     pub sections: Vec<Section>,
+    pub fluid_ticks: Vec<SavedFluidTick>,
+    pub decode_report: ChunkDecodeReport,
 }
 
 impl Chunk {
@@ -128,7 +131,7 @@ pub(crate) struct RawSection {
 }
 
 #[derive(Deserialize, Serialize)]
-pub(crate) struct RawChunk {
+pub(crate) struct RawChunk<'a> {
     #[serde(rename = "DataVersion")]
     pub(crate) data_version: i32,
     #[serde(rename = "xPos")]
@@ -162,6 +165,8 @@ pub(crate) struct RawChunk {
     pub(crate) last_update: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) retrogen: Option<RetroGen>,
+    #[serde(default)]
+    pub(crate) fluid_ticks: FluidTicks<'a>,
 }
 
 fn long_array_map<S: Serializer>(
@@ -206,7 +211,7 @@ pub fn parse(
     blocks: &impl PaletteLookup<VoxelId>,
     biomes: &impl PaletteLookup<u8>,
 ) -> Result<Chunk, ErrorKind> {
-    let raw: RawChunk = match mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)) {
+    let raw: RawChunk<'static> = match mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)) {
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
     };
@@ -217,8 +222,10 @@ pub fn parse(
         });
     }
     let keeps_noise_biomes = raw.status != ChunkStatus::Full;
+    let pos = ColumnPos::new(raw.x_pos, raw.z_pos);
+    let (fluid_ticks, dropped_fluid_ticks) = raw.fluid_ticks.within(pos);
     Ok(Chunk {
-        pos: ColumnPos::new(raw.x_pos, raw.z_pos),
+        pos,
         min_section_y: raw.y_pos,
         status: raw.status,
         is_light_on: raw.is_light_on,
@@ -227,6 +234,10 @@ pub fn parse(
         heightmaps: raw.heightmaps,
         block_entities: raw.block_entities,
         retrogen: raw.retrogen,
+        fluid_ticks,
+        decode_report: ChunkDecodeReport {
+            dropped_fluid_ticks,
+        },
         sections: raw
             .sections
             .into_iter()

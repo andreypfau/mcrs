@@ -131,6 +131,9 @@ impl SavedColumns {
                     return None;
                 }
             };
+        if !chunk.decode_report.is_clean() {
+            error!(?pos, dropped = ?chunk.decode_report.dropped_fluid_ticks, "dropping saved fluid ticks that do not load");
+        }
         (chunk.status == ChunkStatus::Full).then_some(chunk)
     }
 

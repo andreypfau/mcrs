@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -10,6 +11,7 @@ use mcrs_minecraft_core::VERSION;
 use crate::ErrorKind;
 use crate::chunk::{Chunk, PackedData, RawChunk, RawLight, RawPalettedContainer, RawSection};
 use crate::palette::{BlockStateList, PaletteLookup, Properties};
+use crate::ticks::FluidTicks;
 
 /// An id a [`PaletteNames`] can hand out; the width bounds how many distinct
 /// entries one table holds.
@@ -141,7 +143,7 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
 }
 
 /// The chunk as NBT, uncompressed, at the current `DataVersion`.
-// chisle: structures, block and fluid ticks, post-processing and blending data
+// chisle: structures, block ticks, post-processing and blending data
 // are not in `Chunk`, so a written chunk drops them and a vanilla server reads
 // their absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(
@@ -189,6 +191,10 @@ pub fn write_chunk(
         inhabited_time: chunk.inhabited_time,
         last_update: chunk.last_update,
         retrogen: chunk.retrogen.clone(),
+        fluid_ticks: FluidTicks {
+            ticks: Cow::Borrowed(&chunk.fluid_ticks),
+            dropped: Vec::new(),
+        },
     };
     let mut out = Vec::new();
     mcrs_minecraft_nbt::to_bytes(&raw, &mut out)?;

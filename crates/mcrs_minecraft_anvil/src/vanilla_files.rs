@@ -193,7 +193,7 @@ fn keys(compound: &NbtCompound) -> Vec<&str> {
     keys
 }
 
-const SAME_AS_THE_GAME: [&str; 9] = [
+const SAME_AS_THE_GAME: [&str; 10] = [
     "DataVersion",
     "InhabitedTime",
     "LastUpdate",
@@ -202,6 +202,7 @@ const SAME_AS_THE_GAME: [&str; 9] = [
     "status",
     "xPos",
     "yPos",
+    "fluid_ticks",
     "zPos",
 ];
 
@@ -232,7 +233,7 @@ fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
             );
         }
 
-        let mut expected = vec!["PostProcessing", "block_ticks", "fluid_ticks", "structures"];
+        let mut expected = vec!["PostProcessing", "block_ticks", "structures"];
         if original.chunk.status != ChunkStatus::Full {
             expected.push("entities");
         }

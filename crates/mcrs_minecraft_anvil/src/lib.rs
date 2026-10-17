@@ -4,6 +4,7 @@ pub mod fixture;
 mod palette;
 mod region;
 mod retrogen;
+mod ticks;
 #[rustfmt::skip]
 pub mod keys;
 mod write;
@@ -18,6 +19,7 @@ pub use keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
+pub use ticks::{ChunkDecodeReport, DroppedFluidTick, SavedFluidTick};
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;

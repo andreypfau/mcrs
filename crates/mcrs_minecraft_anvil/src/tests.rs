@@ -1120,6 +1120,85 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
     );
 }
 
+fn fluid_tick(id: &str, x: i32, z: NbtTag) -> NbtTag {
+    let mut tick = NbtCompound::new();
+    tick.put_string("i", id.to_string());
+    tick.put("x", NbtTag::Int(x));
+    tick.put("y", NbtTag::Int(2));
+    tick.put("z", z);
+    tick.put("t", NbtTag::Int(5));
+    tick.put("p", NbtTag::Int(-1));
+    NbtTag::Compound(tick)
+}
+
+#[test]
+fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
+    use crate::{DroppedFluidTick, SavedFluidTick};
+
+    let fixture = Fixture::new("fluid_ticks");
+    let mut root = chunk_nbt(0, 0, Vec::new());
+    root.put_list(
+        "fluid_ticks",
+        vec![
+            fluid_tick("minecraft:flowing_water", 1, NbtTag::Int(3)),
+            fluid_tick("minecraft:water", 1, NbtTag::String("4".into())),
+            fluid_tick("minecraft:lava", 17, NbtTag::Int(4)),
+            NbtTag::Int(7),
+            fluid_tick("minecraft:water", 1, NbtTag::Int(4)),
+        ],
+    );
+    let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
+    let path = fixture.region(0, 0, &single_slot(ZLIB, &root));
+    let chunk = RegionFile::open(&path)
+        .unwrap()
+        .read_chunk(ColumnPos::new(0, 0), &blocks, &biomes)
+        .unwrap()
+        .unwrap();
+    let kept = vec![SavedFluidTick {
+        fluid: mcrs_minecraft_block::keys::Fluid::Water,
+        pos: mcrs_minecraft_core::BlockPos::new(1, 2, 4),
+        delay: 5,
+        priority: -1,
+    }];
+    assert_eq!(chunk.fluid_ticks, kept);
+    let dropped = &chunk.decode_report.dropped_fluid_ticks;
+    assert_eq!(dropped.len(), 3, "{dropped:?}");
+    assert_eq!(
+        dropped[0],
+        DroppedFluidTick::UnknownFluid("minecraft:flowing_water".into())
+    );
+    assert!(
+        dropped[1..]
+            .iter()
+            .all(|reason| matches!(reason, DroppedFluidTick::Malformed(_))),
+        "{dropped:?}"
+    );
+
+    let written = crate::write_chunk(&chunk, &blocks, &biomes).unwrap();
+    let saved: NbtCompound =
+        mcrs_minecraft_nbt::from_bytes(std::io::Cursor::new(&written[..])).unwrap();
+    let Some(NbtTag::List(ticks)) = saved.get("fluid_ticks") else {
+        panic!("the written chunk carries a fluid tick list");
+    };
+    let [NbtTag::Compound(tick)] = ticks.as_slice() else {
+        panic!("one tick is written: {ticks:?}");
+    };
+    assert_eq!(tick.get_string("i"), Some("minecraft:water"));
+    for (key, value) in [("x", 1), ("y", 2), ("z", 4), ("t", 5), ("p", -1)] {
+        assert_eq!(tick.get(key), Some(&NbtTag::Int(value)), "{key}");
+    }
+    let read = crate::parse_chunk(&written, &blocks, &biomes).unwrap();
+    assert_eq!(read.fluid_ticks, kept);
+    assert!(read.decode_report.is_clean());
+
+    let mut root = chunk_nbt(0, 0, Vec::new());
+    root.put("fluid_ticks", NbtTag::Int(7));
+    let mut bytes = Vec::new();
+    mcrs_minecraft_nbt::to_bytes(&root, &mut bytes).unwrap();
+    let not_a_list = crate::parse_chunk(&bytes, &blocks, &biomes).unwrap();
+    assert!(not_a_list.fluid_ticks.is_empty());
+}
+
 fn retrogen_error(name: &str, record: NbtCompound) -> String {
     let fixture = Fixture::new(name);
     let err = read_one(
