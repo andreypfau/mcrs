@@ -14,7 +14,8 @@ use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
 use crate::retrogen::{RetroGen, Words};
-use crate::ticks::{ChunkDecodeReport, FluidTicks, SavedFluidTick};
+use crate::structures::{ChunkStructures, DroppedStructure, Structures};
+use crate::ticks::{DroppedFluidTick, FluidTicks, SavedFluidTick};
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -45,7 +46,20 @@ pub struct Chunk {
     pub retrogen: Option<RetroGen>,
     pub sections: Vec<Section>,
     pub fluid_ticks: Vec<SavedFluidTick>,
+    pub structures: ChunkStructures,
     pub decode_report: ChunkDecodeReport,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ChunkDecodeReport {
+    pub dropped_fluid_ticks: Vec<DroppedFluidTick>,
+    pub dropped_structures: Vec<DroppedStructure>,
+}
+
+impl ChunkDecodeReport {
+    pub fn is_clean(&self) -> bool {
+        self.dropped_fluid_ticks.is_empty() && self.dropped_structures.is_empty()
+    }
 }
 
 impl Chunk {
@@ -167,6 +181,8 @@ pub(crate) struct RawChunk<'a> {
     pub(crate) retrogen: Option<RetroGen>,
     #[serde(default)]
     pub(crate) fluid_ticks: FluidTicks<'a>,
+    #[serde(default)]
+    pub(crate) structures: Structures<'a>,
 }
 
 fn long_array_map<S: Serializer>(
@@ -224,6 +240,7 @@ pub fn parse(
     let keeps_noise_biomes = raw.status != ChunkStatus::Full;
     let pos = ColumnPos::new(raw.x_pos, raw.z_pos);
     let (fluid_ticks, dropped_fluid_ticks) = raw.fluid_ticks.within(pos);
+    let (structures, dropped_structures) = raw.structures.within(pos);
     Ok(Chunk {
         pos,
         min_section_y: raw.y_pos,
@@ -235,8 +252,10 @@ pub fn parse(
         block_entities: raw.block_entities,
         retrogen: raw.retrogen,
         fluid_ticks,
+        structures,
         decode_report: ChunkDecodeReport {
             dropped_fluid_ticks,
+            dropped_structures,
         },
         sections: raw
             .sections

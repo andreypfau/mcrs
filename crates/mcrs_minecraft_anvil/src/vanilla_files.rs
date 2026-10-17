@@ -206,9 +206,11 @@ const SAME_AS_THE_GAME: [&str; 10] = [
     "zPos",
 ];
 
-/// Containers list their palettes in a different order, and an empty heightmap
-/// compound is left out on write, so these are compared as values.
-const COMPARED_AS_VALUES: [&str; 3] = ["Heightmaps", "block_entities", "sections"];
+/// Containers list their palettes in a different order, an empty heightmap
+/// compound is left out on write, and the files hold an empty `structures`
+/// compound where a save writes empty `starts` and `References`, so these are
+/// compared as values.
+const COMPARED_AS_VALUES: [&str; 4] = ["Heightmaps", "block_entities", "sections", "structures"];
 
 #[test]
 fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
@@ -233,7 +235,7 @@ fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
             );
         }
 
-        let mut expected = vec!["PostProcessing", "block_ticks", "structures"];
+        let mut expected = vec!["PostProcessing", "block_ticks"];
         if original.chunk.status != ChunkStatus::Full {
             expected.push("entities");
         }

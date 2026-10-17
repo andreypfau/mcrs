@@ -1199,6 +1199,188 @@ fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
     assert!(not_a_list.fluid_ticks.is_empty());
 }
 
+fn structure_start(chunk: ColumnPos, children: Option<Vec<NbtTag>>) -> NbtTag {
+    let mut start = NbtCompound::new();
+    start.put_int("ChunkX", chunk.x);
+    start.put_int("ChunkZ", chunk.z);
+    start.put_int("references", 3);
+    if let Some(children) = children {
+        start.put_list("Children", children);
+    }
+    NbtTag::Compound(start)
+}
+
+fn structure_piece(id: &str) -> NbtTag {
+    let mut piece = NbtCompound::new();
+    piece.put_string("id", id.to_string());
+    piece.put_int("GD", 1);
+    NbtTag::Compound(piece)
+}
+
+fn packed_chunk(x: i32, z: i32) -> i64 {
+    (i64::from(x) & 0xFFFF_FFFF) | (i64::from(z) << 32)
+}
+
+struct StructureCase {
+    what: &'static str,
+    starts: Vec<(&'static str, NbtTag)>,
+    references: Vec<(&'static str, NbtTag)>,
+    kept_starts: &'static [&'static str],
+    kept_references: &'static [(&'static str, &'static [(i32, i32)])],
+    dropped: Vec<crate::DroppedStructure>,
+    written_as_read: bool,
+}
+
+const STRUCTURE_CHUNK: ColumnPos = ColumnPos::new(2, -3);
+
+fn structure_cases() -> [StructureCase; 4] {
+    use crate::DroppedStructure;
+    use StructureCase as Case;
+
+    let pos = STRUCTURE_CHUNK;
+    let rl = |id: &str| mcrs_minecraft_core::ResourceLocation::read(id).unwrap();
+    let piece = || Some(vec![structure_piece("minecraft:shipwreck")]);
+    [
+        Case {
+            what: "a start and a reference the game wrote",
+            starts: vec![("minecraft:shipwreck", structure_start(pos, piece()))],
+            references: vec![(
+                "minecraft:shipwreck",
+                NbtTag::LongArray(vec![packed_chunk(-6, 5), packed_chunk(2, -3)]),
+            )],
+            kept_starts: &["minecraft:shipwreck"],
+            kept_references: &[("minecraft:shipwreck", &[(-6, 5), (2, -3)])],
+            dropped: Vec::new(),
+            written_as_read: true,
+        },
+        Case {
+            what: "starts with no pieces",
+            starts: vec![
+                ("minecraft:igloo", structure_start(pos, Some(Vec::new()))),
+                ("minecraft:mineshaft", structure_start(pos, None)),
+                (
+                    "minecraft:stronghold",
+                    structure_start(pos, Some(vec![NbtTag::Int(1)])),
+                ),
+                ("minecraft:village_plains", NbtTag::Int(0)),
+            ],
+            references: Vec::new(),
+            kept_starts: &[],
+            kept_references: &[],
+            dropped: [
+                "minecraft:igloo",
+                "minecraft:mineshaft",
+                "minecraft:stronghold",
+                "minecraft:village_plains",
+            ]
+            .map(|id| DroppedStructure::StartWithoutPieces(rl(id)))
+            .into(),
+            written_as_read: false,
+        },
+        Case {
+            what: "odd keys",
+            starts: vec![
+                ("Not An Id", structure_start(pos, piece())),
+                ("mymod:tower", structure_start(pos, piece())),
+                ("desert_pyramid", structure_start(pos, piece())),
+            ],
+            references: vec![
+                ("Not An Id", NbtTag::LongArray(vec![packed_chunk(2, -3)])),
+                ("minecraft:igloo", NbtTag::IntArray(vec![2, -3])),
+                ("minecraft:jungle_pyramid", NbtTag::LongArray(Vec::new())),
+            ],
+            kept_starts: &["minecraft:desert_pyramid", "mymod:tower"],
+            kept_references: &[],
+            dropped: vec![
+                DroppedStructure::StartId("Not An Id".into()),
+                DroppedStructure::ReferenceId("Not An Id".into()),
+            ],
+            written_as_read: false,
+        },
+        Case {
+            what: "a reference from more than eight chunks away",
+            starts: Vec::new(),
+            references: vec![(
+                "minecraft:ocean_ruin_cold",
+                NbtTag::LongArray(vec![packed_chunk(11, -3), packed_chunk(10, 5)]),
+            )],
+            kept_starts: &[],
+            kept_references: &[("minecraft:ocean_ruin_cold", &[(10, 5)])],
+            dropped: vec![DroppedStructure::FarReference {
+                structure: rl("minecraft:ocean_ruin_cold"),
+                chunk: ColumnPos::new(11, -3),
+            }],
+            written_as_read: false,
+        },
+    ]
+}
+
+#[test]
+fn structure_starts_load_keyed_by_structure_and_write_back_unchanged() {
+    let pos = STRUCTURE_CHUNK;
+    for case in structure_cases() {
+        let what = case.what;
+        let mut structures = NbtCompound::new();
+        structures.put_component(
+            "starts",
+            case.starts
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        );
+        structures.put_component(
+            "References",
+            case.references
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        );
+        let mut root = chunk_nbt(pos.x, pos.z, Vec::new());
+        root.put_component("structures", structures.clone());
+        let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
+        let chunk = crate::parse_chunk(&nbt_bytes(&root), &blocks, &biomes).unwrap();
+
+        let starts: Vec<&str> = chunk
+            .structures
+            .starts
+            .keys()
+            .map(|id| id.as_str())
+            .collect();
+        assert_eq!(starts, case.kept_starts, "{what}");
+        for start in chunk.structures.starts.values() {
+            assert_eq!((start.references, start.pieces.len()), (3, 1), "{what}");
+        }
+        let references: Vec<(&str, Vec<(i32, i32)>)> = chunk
+            .structures
+            .references
+            .iter()
+            .map(|(id, chunks)| (id.as_str(), chunks.iter().map(|c| (c.x, c.z)).collect()))
+            .collect();
+        let expected: Vec<(&str, Vec<(i32, i32)>)> = case
+            .kept_references
+            .iter()
+            .map(|&(id, chunks)| (id, chunks.to_vec()))
+            .collect();
+        assert_eq!(references, expected, "{what}");
+        assert_eq!(
+            chunk.decode_report.dropped_structures, case.dropped,
+            "{what}"
+        );
+
+        let written = crate::write_chunk(&chunk, &blocks, &biomes).unwrap();
+        if case.written_as_read {
+            assert_eq!(
+                write::root(&written).get("structures"),
+                Some(&NbtTag::Compound(structures)),
+                "{what}"
+            );
+        }
+        let read = crate::parse_chunk(&written, &blocks, &biomes).unwrap();
+        assert_eq!(read.structures, chunk.structures, "{what}");
+        assert!(read.decode_report.is_clean(), "{what}");
+    }
+}
+
 fn retrogen_error(name: &str, record: NbtCompound) -> String {
     let fixture = Fixture::new(name);
     let err = read_one(
@@ -1519,14 +1701,16 @@ pub(crate) mod write {
                 a.last_update,
                 &a.heightmaps,
                 &a.block_entities,
-                &a.retrogen
+                &a.retrogen,
+                &a.structures
             ),
             (
                 b.inhabited_time,
                 b.last_update,
                 &b.heightmaps,
                 &b.block_entities,
-                &b.retrogen
+                &b.retrogen,
+                &b.structures
             ),
             "{what}"
         );

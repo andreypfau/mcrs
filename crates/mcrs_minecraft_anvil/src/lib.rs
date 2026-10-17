@@ -4,6 +4,7 @@ pub mod fixture;
 mod palette;
 mod region;
 mod retrogen;
+mod structures;
 mod ticks;
 #[rustfmt::skip]
 pub mod keys;
@@ -14,12 +15,13 @@ mod tests;
 #[cfg(test)]
 mod vanilla_files;
 
-pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
+pub use chunk::{Chunk, ChunkDecodeReport, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
-pub use ticks::{ChunkDecodeReport, DroppedFluidTick, SavedFluidTick};
+pub use structures::{ChunkStructures, DroppedStructure, StructureStart};
+pub use ticks::{DroppedFluidTick, SavedFluidTick};
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;

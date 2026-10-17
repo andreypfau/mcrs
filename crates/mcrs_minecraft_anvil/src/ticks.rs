@@ -25,17 +25,6 @@ pub enum DroppedFluidTick {
     Malformed(String),
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ChunkDecodeReport {
-    pub dropped_fluid_ticks: Vec<DroppedFluidTick>,
-}
-
-impl ChunkDecodeReport {
-    pub fn is_clean(&self) -> bool {
-        self.dropped_fluid_ticks.is_empty()
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 struct RawTick<I> {
     i: I,

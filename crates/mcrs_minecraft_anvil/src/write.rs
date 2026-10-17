@@ -11,6 +11,7 @@ use mcrs_minecraft_core::VERSION;
 use crate::ErrorKind;
 use crate::chunk::{Chunk, PackedData, RawChunk, RawLight, RawPalettedContainer, RawSection};
 use crate::palette::{BlockStateList, PaletteLookup, Properties};
+use crate::structures::Structures;
 use crate::ticks::FluidTicks;
 
 /// An id a [`PaletteNames`] can hand out; the width bounds how many distinct
@@ -143,9 +144,9 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
 }
 
 /// The chunk as NBT, uncompressed, at the current `DataVersion`.
-// chisle: structures, block ticks, post-processing and blending data
-// are not in `Chunk`, so a written chunk drops them and a vanilla server reads
-// their absence; carrying them in `Chunk` lifts this.
+// chisle: block ticks, post-processing and blending data are not in
+// `Chunk`, so a written chunk drops them and a vanilla server reads their
+// absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(
     chunk: &Chunk,
     blocks: &PaletteNames<VoxelId>,
@@ -193,6 +194,11 @@ pub fn write_chunk(
         retrogen: chunk.retrogen.clone(),
         fluid_ticks: FluidTicks {
             ticks: Cow::Borrowed(&chunk.fluid_ticks),
+            dropped: Vec::new(),
+        },
+        structures: Structures {
+            pos: chunk.pos,
+            kept: Cow::Borrowed(&chunk.structures),
             dropped: Vec::new(),
         },
     };
