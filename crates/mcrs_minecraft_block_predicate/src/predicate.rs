@@ -189,6 +189,26 @@ mod tests {
     }
 
     #[test]
+    fn a_matching_fluids_predicate_round_trips_with_and_without_state() {
+        let set = corpus_set();
+        for text in [
+            r#"{"type":"minecraft:matching_fluids","fluids":"minecraft:water"}"#,
+            r#"{"type":"minecraft:matching_fluids","offset":[0,1,0],"fluids":"minecraft:water","state":{"source":"true"}}"#,
+        ] {
+            set.scope(|| {
+                let predicate: BlockPredicate = serde_json::from_str(text).unwrap();
+                assert_eq!(serde_json::to_string(&predicate).unwrap(), text, "{text}");
+                let nbt = to_nbt_tag(&predicate).unwrap();
+                assert_eq!(
+                    from_tag::<BlockPredicate>(nbt).unwrap(),
+                    predicate,
+                    "{text}"
+                );
+            });
+        }
+    }
+
+    #[test]
     fn a_block_predicate_tag_resolves_in_the_loaded_scope() {
         let text =
             r##"{"type":"minecraft:matching_blocks","blocks":"#minecraft:base_stone_overworld"}"##;

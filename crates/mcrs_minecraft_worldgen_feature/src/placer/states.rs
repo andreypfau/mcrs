@@ -23,6 +23,9 @@ pub struct WorldStates {
     pub water_fluid: StateMask,
     /// Every state holding source water: `FluidState.isSource` over water.
     pub water_source: StateMask,
+    /// Source water held by the water block itself, never by a waterlogged
+    /// block: the only state `Biome.shouldFreeze` turns to ice.
+    pub freezable_water: StateMask,
     pub lava_fluid: StateMask,
     pub any_source_fluid: StateMask,
     pub any_fluid: StateMask,

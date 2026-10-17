@@ -2768,6 +2768,13 @@ impl<'a> Resolver<'a> {
             &StatePropertiesPredicate::ANY,
         ));
         let block = |block: Block| block_mask(self, &[block]).unwrap_or_default();
+        let water_source = self.state_mask(|state| {
+            state
+                .fluid
+                .is_some_and(|f| f.source && f.fluid == Fluid::Water.id())
+        });
+        let mut freezable_water = (*block(Block::Water)).clone();
+        freezable_water.intersect_with(&water_source);
         WorldStates {
             air: self.default_state_of(Block::Air.id()),
             cave_air: self.default_state_of(Block::CaveAir.id()),
@@ -2777,11 +2784,8 @@ impl<'a> Resolver<'a> {
             water_states: block(Block::Water),
             lava_states: block(Block::Lava),
             water_fluid: water.clone().unwrap_or_default(),
-            water_source: self.state_mask(|state| {
-                state
-                    .fluid
-                    .is_some_and(|f| f.source && f.fluid == Fluid::Water.id())
-            }),
+            water_source,
+            freezable_water: Arc::new(freezable_water),
             lava_fluid: lava.clone().unwrap_or_default(),
             any_source_fluid: self.state_mask(|state| state.fluid.is_some_and(|f| f.source)),
             any_fluid: union_masks(&[&water.unwrap_or_default(), &lava.unwrap_or_default()]),

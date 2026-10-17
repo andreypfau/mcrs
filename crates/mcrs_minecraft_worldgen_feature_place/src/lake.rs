@@ -137,7 +137,7 @@ pub fn place_lake<W: WorldGenVolume>(
                 let freezes = config
                     .freezing_biomes
                     .contains(usize::from(volume.biome(pos)))
-                    && volume.holds(&volume.world().water_states, pos);
+                    && volume.holds(&volume.world().freezable_water, pos);
                 if freezes && config.can_replace_with_air_or_fluid.test(volume, pos) {
                     volume.set(pos, config.ice);
                 }
@@ -191,6 +191,8 @@ mod tests {
     const WATER: VoxelId = VoxelId(3);
     const ICE: VoxelId = VoxelId(4);
     const CAVE_AIR: VoxelId = VoxelId(5);
+    const FLOWING_WATER: VoxelId = VoxelId(6);
+    const FALLING_WATER: VoxelId = VoxelId(7);
 
     fn config(fluid: VoxelId) -> CompiledLake {
         CompiledLake {
@@ -209,7 +211,8 @@ mod tests {
     fn solid_rock() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.cave_air = CAVE_AIR;
-        volume.world.water_states = mask_of([WATER]);
+        volume.world.water_states = mask_of([WATER, FLOWING_WATER, FALLING_WATER]);
+        volume.world.freezable_water = mask_of([WATER]);
         volume.world.lava_states = mask_of([LAVA]);
         volume.world.solid = mask_of([STONE]);
         for x in -16..=16 {
@@ -302,14 +305,21 @@ mod tests {
 
     /// The freeze pass runs over the layer one above the fluid, which the blob
     /// itself leaves as cave air. Only a cell the blob never reached — a corner
-    /// of the grid, outside even the shell — keeps its water and can freeze.
+    /// of the grid, outside even the shell — keeps its water, and only a
+    /// source there freezes.
     #[test]
-    fn only_water_the_blob_never_reached_freezes() {
-        let mut volume = solid_rock();
-        let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
-        volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
-        let mut rng = WorldgenRandom::new(0x1a4e);
-        assert!(place_lake(&config(WATER), &mut volume, &mut rng, ORIGIN));
-        assert_eq!(volume.get(corner), ICE);
+    fn only_source_water_the_blob_never_reached_freezes() {
+        for (water, frozen) in [
+            (WATER, ICE),
+            (FLOWING_WATER, FLOWING_WATER),
+            (FALLING_WATER, FALLING_WATER),
+        ] {
+            let mut volume = solid_rock();
+            let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
+            volume.blocks.insert((corner.x, corner.y, corner.z), water);
+            let mut rng = WorldgenRandom::new(0x1a4e);
+            assert!(place_lake(&config(WATER), &mut volume, &mut rng, ORIGIN));
+            assert_eq!(volume.get(corner), frozen, "{water:?}");
+        }
     }
 }

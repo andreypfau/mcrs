@@ -300,7 +300,7 @@ fn should_freeze<W: WorldGenVolume>(
     if warm_enough_to_rain(climate, pos, sea_level) || !volume.extent().contains(pos.y) {
         return false;
     }
-    volume.holds(&volume.world().water_states, pos)
+    volume.holds(&volume.world().freezable_water, pos)
 }
 
 fn should_snow<W: WorldGenVolume>(
@@ -401,6 +401,8 @@ mod tests {
     const SNOW: VoxelId = VoxelId(9);
     const GRASS: VoxelId = VoxelId(10);
     const SNOWY_GRASS: VoxelId = VoxelId(11);
+    const FLOWING_WATER: VoxelId = VoxelId(12);
+    const FALLING_WATER: VoxelId = VoxelId(13);
 
     fn seeded() -> WorldgenRandom {
         WorldgenRandom::new(0x5ca1e)
@@ -409,7 +411,8 @@ mod tests {
     /// Water is the one fluid; stone and dirt occlude; grass, stone and dirt
     /// hold snow up.
     fn shore(mut volume: FakeVolume) -> FakeVolume {
-        volume.world.water_states = mask_of([WATER]);
+        volume.world.water_states = mask_of([WATER, FLOWING_WATER, FALLING_WATER]);
+        volume.world.freezable_water = mask_of([WATER]);
         volume.world.solid_render = mask_of([STONE, DIRT]);
         volume.world.sturdy_up = mask_of([GRASS, STONE, DIRT]);
         volume
@@ -660,8 +663,9 @@ mod tests {
         has_precipitation: true,
     };
 
-    /// A surface of grass with one water hole: the hole freezes, the ground
-    /// takes a layer of snow, and the block under it is marked snowy.
+    /// A surface of grass with one source hole and two flowing ones: the
+    /// source freezes, the ground takes a layer of snow, and the block under
+    /// it is marked snowy.
     fn frozen_surface(climate: BiomeClimate) -> (CompiledFreezeTopLayer, FakeVolume) {
         let mut volume = shore(FakeVolume::default());
         for x in 0..16 {
@@ -671,6 +675,8 @@ mod tests {
             }
         }
         volume.blocks.insert((3, 62, 4), WATER);
+        volume.blocks.insert((5, 62, 4), FLOWING_WATER);
+        volume.blocks.insert((7, 62, 4), FALLING_WATER);
         (freeze_config(climate), volume)
     }
 
@@ -684,6 +690,13 @@ mod tests {
         ));
 
         assert_eq!(volume.blocks.get(&(3, 62, 4)), Some(&ICE));
+        for (x, flowing) in [(5, FLOWING_WATER), (7, FALLING_WATER)] {
+            assert_eq!(
+                volume.blocks.get(&(x, 62, 4)),
+                Some(&flowing),
+                "only a water source freezes"
+            );
+        }
         assert_eq!(
             volume.blocks.get(&(0, 63, 0)),
             Some(&SNOW),
