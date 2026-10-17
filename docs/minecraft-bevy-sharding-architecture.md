@@ -252,11 +252,11 @@ Its size should not necessarily be fixed.
 It may grow or split depending on:
 
 - entity density;
-- collision workload;
-- AI workload;
-- cross-boundary interactions;
-- CPU load;
-- worker availability.
+- colliding entity pairs;
+- entities with active AI;
+- cross-boundary interactions.
+
+All four are read from simulation state; CPU load and worker availability only decide how shards are grouped into tasks (sections 18, 21).
 
 A shard is not equivalent to a worker thread.
 
@@ -338,7 +338,7 @@ Important implementation consideration:
 - merging components is usually cheap;
 - detecting that a dynamic graph has become safely separable is more expensive.
 
-Therefore splitting can be deferred, amortized, or performed opportunistically.
+Therefore splitting can be deferred or amortized, on a budget counted in ticks or work items, never in wall-clock time.
 
 Do not require immediate perfect repartitioning after every block update.
 
@@ -738,8 +738,8 @@ Examples:
 
 - merge many cheap sections into one task;
 - isolate expensive redstone mechanisms;
-- split entity-heavy shards;
-- keep low-load neighboring shards on one worker.
+- run an entity-heavy shard as a task of its own;
+- batch low-load neighboring shards into one task.
 
 Shard count should not be optimized directly.
 
@@ -1175,7 +1175,7 @@ but simulation partitioning is based on:
 ```text
 causal independence
 domain-specific dependencies
-workload
+work held, counted from state
 locality
 ```
 
