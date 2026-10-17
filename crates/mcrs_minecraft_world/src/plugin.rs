@@ -116,6 +116,14 @@ impl Plugin for MinecraftWorldPlugin {
                 elapsed = ?report.elapsed,
                 "loaded block definitions"
             );
+            let sound_set_registry = registries
+                .registry::<mcrs_minecraft_sound::BlockSoundSet>()
+                .expect("the data pack registries hold minecraft:block_sound_set");
+            let sound_sets = mcrs_minecraft_block::definition::BlockSoundSets::resolve(
+                &definitions,
+                &sound_set_registry,
+            )
+            .unwrap_or_else(|error| registries::refuse(&error));
             let definitions = std::sync::Arc::new(definitions);
             let items = crate::item::definitions::load_item_definitions(
                 &asset_server,
@@ -126,6 +134,7 @@ impl Plugin for MinecraftWorldPlugin {
             tracing::info!(items = items.len(), "loaded item definitions");
             app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
+            app.insert_resource(sound_sets);
         }
     }
 }

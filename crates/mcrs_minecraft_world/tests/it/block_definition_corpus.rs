@@ -5,7 +5,8 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
 use mcrs_minecraft_block::definition::schema::{NoteBlockInstrument, PropertyValue};
 use mcrs_minecraft_block::definition::{
-    BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
+    BlockDefinitions, BlockSoundSets, BlockStateData, BlockStateFlags, LoadReport,
+    load_block_definitions,
 };
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::Fluid;
@@ -15,6 +16,8 @@ use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::section::block_direct_bits;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{BlockStateId, Registry};
+use mcrs_minecraft_sound::BlockSoundSet;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn report_blocks() -> Registry<Block> {
     let report = std::fs::read(concat!(
@@ -436,6 +439,26 @@ fn every_state_is_reachable_one_property_at_a_time() {
     }
 }
 
+fn every_sound_set_a_state_names_is_in_the_loaded_registry() {
+    let (definitions, _) = corpus();
+    let registry = test_registries()
+        .registry::<BlockSoundSet>()
+        .expect("the data pack registries hold minecraft:block_sound_set");
+    let resolved =
+        BlockSoundSets::resolve(definitions, &registry).unwrap_or_else(|e| panic!("{e}"));
+    let mut named = 0;
+    for state in 0..definitions.state_count() {
+        if let Some(set) = definitions.state(BlockStateId(state as u16)).sound_set {
+            assert!(resolved.get(set).is_some(), "state {state}");
+            named += 1;
+        }
+    }
+    assert!(
+        named > definitions.state_count() / 2,
+        "{named} states name a sound set"
+    );
+}
+
 #[test]
 fn the_block_corpus_loads_once_and_answers_per_state() {
     every_file_parses_and_the_states_tile_the_id_space();
@@ -450,6 +473,7 @@ fn the_block_corpus_loads_once_and_answers_per_state() {
     a_button_selection_box_varies_with_every_property();
     one_property_at_a_time_walks_the_same_states_as_naming_them_all();
     every_state_is_reachable_one_property_at_a_time();
+    every_sound_set_a_state_names_is_in_the_loaded_registry();
 }
 
 /// The read-ahead pipe under the asset reader has reported EOF with a whole

@@ -211,6 +211,8 @@ pub struct BlockDefinitions {
 }
 
 const _: () = assert!(size_of::<Id<Block>>() == 2);
+/// One per block state, so every byte here is multiplied by the whole corpus.
+const _: () = assert!(size_of::<BlockStateData>() <= 52);
 
 impl BlockDefinitions {
     #[inline]
@@ -348,6 +350,30 @@ impl RegistryLookup for BlockDefinitions {
                 .collect()
         };
         Some((entry.identifier.clone(), properties))
+    }
+}
+
+/// Each sound set the corpus names, by the id it interned, as an entry of the
+/// loaded `block_sound_set` registry.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
+pub struct BlockSoundSets(Box<[Id<BlockSoundSet>]>);
+
+impl BlockSoundSets {
+    pub fn resolve(
+        blocks: &BlockDefinitions,
+        registry: &Registry<BlockSoundSet>,
+    ) -> Result<Self, UnknownEntry> {
+        blocks
+            .sound_sets
+            .iter()
+            .map(|key| registry.require(key))
+            .collect::<Result<_, _>>()
+            .map(BlockSoundSets)
+    }
+
+    pub fn get(&self, id: SoundSetId) -> Option<Id<BlockSoundSet>> {
+        self.0.get(usize::from(id.0)).copied()
     }
 }
 
@@ -1209,6 +1235,38 @@ mod tests {
         assert_eq!(set_of(0), Some("minecraft:decorated_pot_cracked"));
         assert_eq!(set_of(1), Some("minecraft:decorated_pot"));
         assert_eq!(set_of(2), None);
+
+        let registry = |names: &[&str]| {
+            Registry::<BlockSoundSet>::new(
+                mcrs_minecraft_sound::keys::BLOCK_SOUND_SET,
+                names
+                    .iter()
+                    .map(|name| ResourceLocation::read(name).unwrap().to_arc()),
+            )
+            .unwrap()
+        };
+        let missing =
+            BlockSoundSets::resolve(&definitions, &registry(&["minecraft:decorated_pot"]))
+                .unwrap_err();
+        assert_eq!(missing.name, "minecraft:decorated_pot_cracked");
+
+        let loaded = registry(&[
+            "minecraft:stone",
+            "minecraft:decorated_pot",
+            "minecraft:decorated_pot_cracked",
+        ]);
+        let resolved = BlockSoundSets::resolve(&definitions, &loaded).unwrap();
+        let resolved_of = |state| {
+            definitions
+                .state(BlockStateId(state))
+                .sound_set
+                .and_then(|id| resolved.get(id))
+                .and_then(|id| loaded.name(id))
+                .map(ResourceLocation::as_str)
+        };
+        assert_eq!(resolved_of(0), Some("minecraft:decorated_pot_cracked"));
+        assert_eq!(resolved_of(1), Some("minecraft:decorated_pot"));
+        assert_eq!(resolved_of(2), None);
     }
 
     #[test]
