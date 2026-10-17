@@ -1,4 +1,5 @@
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::table::{
     Decoded, Table, configuration_serverbound, game_serverbound, login_serverbound,
 };
@@ -51,36 +52,99 @@ impl TableCounts {
         self.unknown
     }
 
-    /// Counts the frame when it fails to decode or names no row. A row without a
-    /// structure counts nothing. Answers the line to log when this is the first
-    /// increment of its counter, so a client cannot choose how often anything is logged.
-    pub fn record(&mut self, id: i32, body: &[u8]) -> Option<String> {
+    /// Counts the frame when it fails to decode or names no row, the frames the game's
+    /// decoder rejects. A row without a structure counts nothing.
+    pub fn record(&mut self, id: i32, body: &[u8]) -> Result<(), Malformed> {
         let mut r = body;
-        match (self.check)(id, &mut r) {
-            Ok(Decoded::Packet(())) if r.is_empty() => None,
+        let (row, cause, detail) = match (self.check)(id, &mut r) {
+            Ok(Decoded::Packet(())) if r.is_empty() => return Ok(()),
+            Ok(Decoded::NotImplemented(_)) => return Ok(()),
+            Ok(Decoded::Unknown(id)) => (
+                None,
+                format!("{DECODER_EXCEPTION}: Received unknown packet id {id}"),
+                format!("unknown id {id}"),
+            ),
             Ok(Decoded::Packet(())) => {
-                self.fail(id, anyhow::anyhow!("{} bytes left over", r.len()))
+                let packet = self.packet_type(id);
+                let protocol = protocol_id(self.table.state);
+                let extra = r.len();
+                (
+                    Some(id),
+                    // chisle: the game also names the packet's Java class in parentheses
+                    // after the type; no table here knows those names.
+                    format!(
+                        "{DECODER_EXCEPTION}: java.io.IOException: Packet {protocol}/{packet} was larger than I expected, found {extra} bytes extra whilst reading packet {packet}"
+                    ),
+                    format!("{}: {extra} bytes left over", self.name(id)),
+                )
             }
-            Ok(Decoded::NotImplemented(_)) => None,
-            Ok(Decoded::Unknown(id)) => {
-                self.unknown += 1;
-                (self.unknown == 1)
-                    .then(|| format!("inbound packet: {:?} unknown id {id}", self.table.state))
-            }
-            Err(error) => self.fail(id, error),
-        }
+            Err(error) => (
+                Some(id),
+                format!(
+                    "{DECODER_EXCEPTION}: Failed to decode packet '{}'",
+                    self.packet_type(id)
+                ),
+                format!("{}: {error:#}", self.name(id)),
+            ),
+        };
+        let count = match row {
+            None => Some(&mut self.unknown),
+            Some(id) => usize::try_from(id)
+                .ok()
+                .and_then(|row| self.failures.get_mut(row)),
+        };
+        let first = count.is_some_and(|count| {
+            *count += 1;
+            *count == 1
+        });
+        Err(Malformed {
+            cause,
+            log: first.then(|| format!("inbound packet: {:?} {detail}", self.table.state)),
+        })
     }
 
-    fn fail(&mut self, id: i32, error: anyhow::Error) -> Option<String> {
-        let row = usize::try_from(id).ok()?;
-        let count = self.failures.get_mut(row)?;
-        *count += 1;
-        (*count == 1).then(|| {
-            format!(
-                "inbound packet: {:?} {}: {error:#}",
-                self.table.state, self.table.names[row]
-            )
-        })
+    fn name(&self, id: i32) -> &'static str {
+        usize::try_from(id)
+            .ok()
+            .and_then(|row| self.table.names.get(row))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn packet_type(&self, id: i32) -> String {
+        format!("serverbound/minecraft:{}", self.name(id))
+    }
+}
+
+const DECODER_EXCEPTION: &str = "io.netty.handler.codec.DecoderException";
+
+fn protocol_id(state: mcrs_minecraft_protocol::ConnectionState) -> &'static str {
+    use mcrs_minecraft_protocol::ConnectionState;
+    match state {
+        ConnectionState::Handshaking => "handshake",
+        ConnectionState::Status => "status",
+        ConnectionState::Login => "login",
+        ConnectionState::Configuration => "configuration",
+        ConnectionState::Game => "play",
+    }
+}
+
+/// A frame the game's decoder rejects, which ends the connection that sent it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Malformed {
+    /// The exception the game's decoder throws for the frame, as its connection prints it.
+    pub cause: String,
+    /// Present on the first increment of the frame's counter, so a client cannot choose how
+    /// often anything is logged.
+    pub log: Option<String>,
+}
+
+impl Malformed {
+    pub fn reason(&self) -> Text {
+        Text::translate(
+            "disconnect.genericReason",
+            [Text::text(format!("Internal Exception: {}", self.cause))],
+        )
     }
 }
 
@@ -93,7 +157,7 @@ impl GameDecodeCounts {
         &self.0
     }
 
-    pub fn record(&mut self, id: i32, body: &[u8]) -> Option<String> {
+    pub fn record(&mut self, id: i32, body: &[u8]) -> Result<(), Malformed> {
         self.0.record(id, body)
     }
 }
@@ -122,11 +186,16 @@ impl PreGameDecodeCounts {
         }
     }
 
-    pub fn record(&mut self, state: ConnectionState, id: i32, body: &[u8]) -> Option<String> {
+    pub fn record(
+        &mut self,
+        state: ConnectionState,
+        id: i32,
+        body: &[u8],
+    ) -> Result<(), Malformed> {
         match state {
             ConnectionState::Login => self.login.record(id, body),
             ConnectionState::Configuration => self.configuration.record(id, body),
-            ConnectionState::Game => None,
+            ConnectionState::Game => Ok(()),
         }
     }
 }
@@ -149,26 +218,29 @@ mod tests {
     use super::*;
     use mcrs_minecraft_protocol::packets::table::row_of;
 
+    fn log(counts: &mut GameDecodeCounts, id: i32, body: &[u8]) -> Option<String> {
+        counts
+            .record(id, body)
+            .expect_err("the frame is rejected")
+            .log
+    }
+
     #[test]
-    fn only_the_first_increment_of_a_counter_is_logged() {
+    fn every_rejected_frame_fails_and_only_the_first_increment_of_a_counter_is_logged() {
         let mut counts = GameDecodeCounts::default();
         let keep_alive = row_of(game_serverbound::NAMES, "keep_alive");
 
-        let line = counts
-            .record(keep_alive, &[1, 2])
-            .expect("first failure is logged");
+        let line = log(&mut counts, keep_alive, &[1, 2]).expect("first failure is logged");
         assert!(line.starts_with("inbound packet: "), "{line}");
         assert!(line.contains("keep_alive"), "{line}");
-        assert_eq!(counts.record(keep_alive, &[1, 2]), None);
+        assert_eq!(log(&mut counts, keep_alive, &[1, 2]), None);
         assert_eq!(counts.counts().failures(keep_alive as usize), 2);
 
         let past = game_serverbound::NAMES.len() as i32;
-        let line = counts
-            .record(past, &[])
-            .expect("first unknown id is logged");
+        let line = log(&mut counts, past, &[]).expect("first unknown id is logged");
         assert!(line.starts_with("inbound packet: "), "{line}");
         assert!(line.contains(&past.to_string()), "{line}");
-        assert_eq!(counts.record(-1, &[]), None);
+        assert_eq!(log(&mut counts, -1, &[]), None);
         assert_eq!(counts.counts().unknown(), 2);
     }
 
@@ -176,8 +248,8 @@ mod tests {
     fn leftover_bytes_are_a_failure_of_the_row() {
         let mut counts = GameDecodeCounts::default();
         let keep_alive = row_of(game_serverbound::NAMES, "keep_alive");
-        assert_eq!(counts.record(keep_alive, &[0; 8]), None);
-        let line = counts.record(keep_alive, &[0; 9]).unwrap();
+        assert_eq!(counts.record(keep_alive, &[0; 8]), Ok(()));
+        let line = log(&mut counts, keep_alive, &[0; 9]).unwrap();
         assert!(line.contains("1 bytes left over"), "{line}");
     }
 }

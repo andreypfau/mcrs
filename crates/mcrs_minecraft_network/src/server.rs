@@ -1,4 +1,5 @@
 use crate::inbound_rate::InboundRateBucket;
+use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, intent, lan, webtransport};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
@@ -7,7 +8,9 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
-use mcrs_minecraft_protocol::{Encode, Packet, WritePacket};
+use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
+use mcrs_minecraft_protocol::packets::{configuration, game};
+use mcrs_minecraft_protocol::{Bounded, Encode, Packet, Text, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
@@ -183,6 +186,38 @@ pub struct ServerSideConnection {
 impl ServerSideConnection {
     pub fn remote_addr(&self) -> SocketAddr {
         self.raw.remote_addr
+    }
+
+    /// Sends the disconnect packet of the protocol the client decodes in `state`, behind
+    /// what is already written; the caller then removes the connection.
+    pub fn disconnect(&mut self, state: ConnectionState, reason: Text) -> anyhow::Result<()> {
+        match state {
+            ConnectionState::Login => {
+                let reason = serde_json::to_string(&reason)?;
+                self.raw.append(&ClientboundLoginDisconnect {
+                    reason: Bounded(&reason),
+                })?;
+            }
+            ConnectionState::Configuration => self
+                .raw
+                .append(&configuration::clientbound::ClientboundDisconnect { reason })?,
+            ConnectionState::Game => self
+                .raw
+                .append(&game::clientbound::ClientboundDisconnect { reason })?,
+        }
+        let blob = self.raw.take_encoded();
+        self.raw.try_send_blob(blob);
+        Ok(())
+    }
+
+    /// Logs a frame the game's decoder rejects and disconnects its client as the game does.
+    pub fn reject(&mut self, state: ConnectionState, malformed: &Malformed) {
+        if let Some(line) = &malformed.log {
+            warn!("{line}");
+        }
+        if let Err(error) = self.disconnect(state, malformed.reason()) {
+            warn!("a disconnect could not be encoded: {error:#}");
+        }
     }
 }
 

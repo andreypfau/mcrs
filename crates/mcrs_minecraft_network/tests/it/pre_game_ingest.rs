@@ -297,7 +297,7 @@ fn a_fault_behind_an_acknowledgement_nobody_accepts_is_counted_in_its_state() {
 }
 
 #[test]
-fn an_unknown_id_before_the_game_state_is_counted_and_nothing_is_despawned() {
+fn an_unknown_id_before_the_game_state_is_counted_and_ends_the_connection_without_despawning() {
     let mut world = server_world();
     let (login, login_tx) = spawn_connection(&mut world, ConnectionState::Login);
     let (configuration, configuration_tx) =
@@ -312,19 +312,12 @@ fn an_unknown_id_before_the_game_state_is_counted_and_nothing_is_despawned() {
 
     run(&mut world);
 
-    let counts = world.resource::<PreGameDecodeCounts>();
-    assert_eq!(counts.counts(ConnectionState::Login).unwrap().unknown(), 1);
     assert_eq!(
-        counts
-            .counts(ConnectionState::Configuration)
-            .unwrap()
-            .unknown(),
-        2
+        counted_faults(&world),
+        ["Login unknown id: 1", "Configuration unknown id: 1"],
+        "the frame behind the first fault is never read"
     );
-    assert!(world.entity(login).contains::<ServerSideConnection>());
-    assert!(
-        world
-            .entity(configuration)
-            .contains::<ServerSideConnection>()
-    );
+    for connection in [login, configuration] {
+        assert!(!world.entity(connection).contains::<ServerSideConnection>());
+    }
 }

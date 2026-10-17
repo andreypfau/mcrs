@@ -10,11 +10,7 @@ use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::packets::configuration;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
-use mcrs_minecraft_protocol::packets::login::clientbound::{
-    ClientboundLoginDisconnect, ClientboundLoginFinished,
-};
+use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
@@ -173,18 +169,8 @@ fn client_protocol(state: ConnectionState, login: Option<&LoginState>) -> Connec
 /// Writes the disconnect packet of the protocol the client decodes; the caller closes the
 /// connection.
 pub fn disconnect(con: &mut ServerSideConnection, state: ConnectionState, reason: Text) {
-    match state {
-        ConnectionState::Login => {
-            let reason =
-                serde_json::to_string(&reason).expect("a text component serializes to JSON");
-            con.write_packet(&ClientboundLoginDisconnect {
-                reason: Bounded(&reason),
-            });
-        }
-        ConnectionState::Configuration => {
-            con.write_packet(&configuration::ClientboundDisconnect { reason })
-        }
-        ConnectionState::Game => con.write_packet(&ClientboundDisconnect { reason }),
+    if let Err(error) = con.disconnect(state, reason) {
+        tracing::warn!("a disconnect could not be encoded: {error:#}");
     }
 }
 

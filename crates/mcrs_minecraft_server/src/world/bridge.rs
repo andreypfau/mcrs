@@ -425,7 +425,7 @@ pub fn bridge_inbound(
     mut telemetry: ResMut<BridgeTelemetry>,
     mut decode_counts: ResMut<GameDecodeCounts>,
 ) {
-    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
+    use mcrs_minecraft_protocol::Text;
 
     for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
         if *state != ConnectionState::Game {
@@ -436,15 +436,11 @@ pub fn bridge_inbound(
             match conn.raw.try_recv() {
                 Ok(Some(pkt)) => {
                     if !bucket.consume_or_flag(pkt.timestamp) {
-                        conn.raw
-                            .append(&ClientboundDisconnect {
-                                reason: mcrs_minecraft_protocol::Text::from(
-                                    "Connection flood detected",
-                                ),
-                            })
-                            .ok();
-                        let blob = conn.raw.take_encoded();
-                        conn.raw.try_send_blob(blob);
+                        conn.disconnect(
+                            ConnectionState::Game,
+                            Text::from("Connection flood detected"),
+                        )
+                        .ok();
                         commands.entity(entity).remove::<ServerSideConnection>();
                         telemetry.kick_flood_total += 1;
                         break;
@@ -452,8 +448,10 @@ pub fn bridge_inbound(
 
                     // chisle: every typed frame is decoded here and again by its handler;
                     // a single typed receive path decodes once and replaces this call.
-                    if let Some(line) = decode_counts.record(pkt.id, &pkt.payload) {
-                        warn!("{line}");
+                    if let Err(malformed) = decode_counts.record(pkt.id, &pkt.payload) {
+                        conn.reject(ConnectionState::Game, &malformed);
+                        commands.entity(entity).remove::<ServerSideConnection>();
+                        break;
                     }
 
                     commands.trigger(ReceivedPacketEvent {

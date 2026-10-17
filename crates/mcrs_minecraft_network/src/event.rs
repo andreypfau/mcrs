@@ -111,10 +111,15 @@ mod loop_plugin {
                             telemetry.kick_flood_total += 1;
                             break;
                         }
-                        if let Some(state) = state
-                            && let Some(line) = counts.record(*state, pkt.id, &pkt.payload)
+                        if let Some(&state) = state
+                            && let Err(malformed) = counts.record(state, pkt.id, &pkt.payload)
                         {
-                            warn!("{line}");
+                            // chisle: once the server accepts a login the game disconnects in
+                            // the configuration protocol, but this loop cannot see that the
+                            // login was accepted; handing it the client's protocol lifts it.
+                            conn.reject(state, &malformed);
+                            commands.entity(entity).remove::<ServerSideConnection>();
+                            break;
                         }
                         commands.trigger(ReceivedPacketEvent {
                             entity,

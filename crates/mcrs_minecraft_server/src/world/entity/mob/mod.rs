@@ -317,7 +317,7 @@ const CHICKEN_VARIANT: u8 = 18;
 const CHICKEN_SOUND_VARIANT: u8 = 19;
 const ZOMBIE_NAUTILUS_VARIANT: u8 = 21;
 const VILLAGER_DATA: u8 = 19;
-const ZOMBIE_VILLAGER_DATA: u8 = 20;
+const ZOMBIE_VILLAGER_DATA: u8 = 21;
 const HANGING_DIRECTION: u8 = 8;
 const FRAME_ITEM: u8 = 9;
 const DROPPED_ITEM_STACK: u8 = 8;
@@ -662,12 +662,15 @@ mod tests {
         );
     }
 
-    #[test]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the scenario spawns a witch, pairs it with the player, then removes its section, and the assertions between the steps need the one world"
-    )]
-    fn a_witch_is_paired_with_the_player_holding_its_column_and_removed_with_its_section() {
+    struct Tracked {
+        app: App,
+        section: Entity,
+        anchor: Entity,
+        player: Entity,
+        mob: Entity,
+    }
+
+    fn tracked(kind: GeneratedKind) -> Tracked {
         let mut app = App::new();
         app.add_schedule(Schedule::new(FixedPostUpdate));
         app.add_message::<OutboundPlayerPacket>();
@@ -706,11 +709,11 @@ mod tests {
                 },
             );
 
-        let witch = GeneratedEntity {
+        let generated = GeneratedEntity {
             pos: [8.5, 65.0, 8.5],
             rotation: [0.0, 0.0],
             uuid: [1, 2, 3, 4],
-            kind: GeneratedKind::Witch { left_handed: true },
+            kind,
             passengers: Vec::new(),
         };
         let mut commands = app.world_mut().commands();
@@ -719,7 +722,7 @@ mod tests {
             InDimension(dim),
             &[(section, SectionPos::new(0, 4, 0))],
             None,
-            vec![witch],
+            vec![generated],
         );
         app.world_mut().flush();
         let mob = app
@@ -727,6 +730,63 @@ mod tests {
             .query_filtered::<Entity, With<EntityKind>>()
             .single(app.world())
             .unwrap();
+        Tracked {
+            app,
+            section,
+            anchor,
+            player,
+            mob,
+        }
+    }
+
+    #[test]
+    fn a_villager_sends_its_data_on_the_index_its_class_chain_gives_it() {
+        use mcrs_minecraft_entity::keys::{VillagerProfession, VillagerType};
+
+        let farmer = VillagerData::new(VillagerType::Snow, VillagerProfession::Farmer, 2);
+        for (kind, index, data) in [
+            (GeneratedKind::Villager { data: farmer }, 19, farmer),
+            (
+                GeneratedKind::ZombieVillager {
+                    data: VillagerData::default(),
+                },
+                21,
+                VillagerData::default(),
+            ),
+        ] {
+            let mut tracked = tracked(kind);
+            tracked.app.world_mut().run_schedule(FixedPostUpdate);
+            let sent = drain(&mut tracked.app);
+            let Some(PacketPayload::SetEntityData(ClientboundSetEntityData { metadata, .. })) =
+                sent.get(1).map(|(_, payload)| payload)
+            else {
+                panic!("{sent:?}")
+            };
+            assert_eq!(
+                metadata.0,
+                vec![
+                    MetadataEntry {
+                        index: 9,
+                        value: MetaDataValue::Float(20.0)
+                    },
+                    MetadataEntry {
+                        index,
+                        value: MetaDataValue::VillagerData(data)
+                    },
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn a_witch_is_paired_with_the_player_holding_its_column_and_removed_with_its_section() {
+        let Tracked {
+            mut app,
+            section,
+            anchor,
+            player,
+            mob,
+        } = tracked(GeneratedKind::Witch { left_handed: true });
         assert_eq!(
             app.world().get::<EntityInSection>(mob).map(|link| link.0),
             Some(section)

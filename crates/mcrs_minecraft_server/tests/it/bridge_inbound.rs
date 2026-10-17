@@ -10,12 +10,20 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
+use bytes::BytesMut;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::event::run_event_loop;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, GameDecodeCounts, PreGameDecodeCounts};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
-use mcrs_minecraft_protocol::packets::table::{game_serverbound, row_of};
+use mcrs_minecraft_protocol::Decode;
+use mcrs_minecraft_protocol::Packet;
+use mcrs_minecraft_protocol::decode::PacketDecoder;
+use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
+use mcrs_minecraft_protocol::packets::table::{
+    configuration_serverbound, game_serverbound, login_serverbound, row_of,
+};
+use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
@@ -82,11 +90,7 @@ fn attach_anchor(world: &mut World, socket: Entity, player: Entity) {
 }
 
 fn make_received_packet(seq: u32) -> ReceivedPacket {
-    ReceivedPacket {
-        timestamp: Instant::now(),
-        id: seq as i32,
-        payload: bytes::Bytes::new(),
-    }
+    frame(keep_alive_row(), &i64::from(seq).to_be_bytes())
 }
 
 fn run_inbound(world: &mut World) {
@@ -342,26 +346,14 @@ fn game_counts(world: &World) -> &mcrs_minecraft_network::metrics::TableCounts {
 struct DeliveredIds(Vec<i32>);
 
 #[test]
-fn an_unknown_id_is_counted_and_the_connection_survives() {
-    let mut world = build_inbound_world();
-    let (socket, tx) = spawn_ingame_connection(&mut world);
-    let past_the_table = game_serverbound::NAMES.len() as i32;
-    tx.try_send(frame(past_the_table, &[1, 2, 3])).unwrap();
-    tx.try_send(frame(-1, &[])).unwrap();
-
-    run_inbound(&mut world);
-
-    assert_eq!(game_counts(&world).unknown(), 2);
-    assert_eq!(game_counts(&world).failures_total(), 0);
-    assert!(world.entity(socket).contains::<ServerSideConnection>());
-}
-
-#[test]
 fn a_failed_decode_is_counted_under_its_packet() {
     let mut world = build_inbound_world();
-    let (_socket, tx) = spawn_ingame_connection(&mut world);
-    tx.try_send(frame(keep_alive_row(), &[0, 0, 0])).unwrap();
-    tx.try_send(frame(keep_alive_row(), &[0; 9])).unwrap();
+    let (_short, short_tx) = spawn_ingame_connection(&mut world);
+    let (_long, long_tx) = spawn_ingame_connection(&mut world);
+    short_tx
+        .try_send(frame(keep_alive_row(), &[0, 0, 0]))
+        .unwrap();
+    long_tx.try_send(frame(keep_alive_row(), &[0; 9])).unwrap();
 
     run_inbound(&mut world);
 
@@ -374,7 +366,7 @@ fn a_failed_decode_is_counted_under_its_packet() {
 #[test]
 fn a_row_without_a_structure_counts_nothing() {
     let mut world = build_inbound_world();
-    let (_socket, tx) = spawn_ingame_connection(&mut world);
+    let (socket, tx) = spawn_ingame_connection(&mut world);
     tx.try_send(frame(row_without_structure(), &[5; 12]))
         .unwrap();
     tx.try_send(frame(keep_alive_row(), &7i64.to_be_bytes()))
@@ -384,6 +376,7 @@ fn a_row_without_a_structure_counts_nothing() {
 
     assert_eq!(game_counts(&world).failures_total(), 0);
     assert_eq!(game_counts(&world).unknown(), 0);
+    assert!(world.entity(socket).contains::<ServerSideConnection>());
 }
 
 #[test]
@@ -426,26 +419,104 @@ fn each_loop_counts_only_its_own_connections() {
 }
 
 #[test]
-fn a_valid_frame_after_an_unknown_id_is_still_delivered() {
-    let mut world = build_inbound_world();
-    world.init_resource::<DeliveredIds>();
-    world.add_observer(
-        |event: On<ReceivedPacketEvent>, mut delivered: bevy_ecs::system::ResMut<DeliveredIds>| {
-            delivered.0.push(event.id);
-        },
-    );
-    let (socket, tx) = spawn_ingame_connection(&mut world);
-    tx.try_send(frame(game_serverbound::NAMES.len() as i32, &[]))
-        .unwrap();
-    tx.try_send(frame(keep_alive_row(), &7i64.to_be_bytes()))
-        .unwrap();
+fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
+    let hello = row_of(login_serverbound::NAMES, "hello");
+    let unknown = configuration_serverbound::NAMES.len() as i32;
+    let decoder = "io.netty.handler.codec.DecoderException";
+    for (state, sent, disconnect, cause) in [
+        (
+            ConnectionState::Login,
+            frame(hello, &[]),
+            ClientboundLoginDisconnect::ID,
+            format!("{decoder}: Failed to decode packet 'serverbound/minecraft:hello'"),
+        ),
+        (
+            ConnectionState::Configuration,
+            frame(unknown, &[]),
+            configuration::clientbound::ClientboundDisconnect::ID,
+            format!("{decoder}: Received unknown packet id {unknown}"),
+        ),
+        (
+            ConnectionState::Game,
+            frame(-1, &[]),
+            game::clientbound::ClientboundDisconnect::ID,
+            format!("{decoder}: Received unknown packet id -1"),
+        ),
+        (
+            ConnectionState::Game,
+            frame(keep_alive_row(), &[0; 9]),
+            game::clientbound::ClientboundDisconnect::ID,
+            format!(
+                "{decoder}: java.io.IOException: Packet play/serverbound/minecraft:keep_alive was larger than I expected, found 1 bytes extra whilst reading packet serverbound/minecraft:keep_alive"
+            ),
+        ),
+    ] {
+        let mut world = build_inbound_world();
+        world.init_resource::<PreGameDecodeCounts>();
+        world.init_resource::<DeliveredIds>();
+        world.add_observer(
+            |event: On<ReceivedPacketEvent>,
+             mut delivered: bevy_ecs::system::ResMut<DeliveredIds>| {
+                delivered.0.push(event.id);
+            },
+        );
+        let (raw, mut outgoing, tx) = mock_connection::make_mock_raw_connection_full();
+        let socket = world
+            .spawn((
+                ServerSideConnection { raw: Box::new(raw) },
+                state,
+                InboundRateBucket::new(),
+                OutboundQueue::default(),
+            ))
+            .id();
+        tx.try_send(sent).unwrap();
 
-    run_inbound(&mut world);
+        run_inbound(&mut world);
+        let mut pre_game = IntoSystem::into_system(run_event_loop);
+        pre_game.initialize(&mut world);
+        let _ = pre_game.run((), &mut world);
+        pre_game.apply_deferred(&mut world);
 
-    assert_eq!(
-        world.resource::<DeliveredIds>().0.last(),
-        Some(&keep_alive_row())
-    );
-    assert!(world.entity(socket).contains::<ServerSideConnection>());
-    assert_eq!(game_counts(&world).unknown(), 1);
+        assert_eq!(world.resource::<DeliveredIds>().0, [0; 0], "{state:?}");
+        assert!(
+            !world.entity(socket).contains::<ServerSideConnection>(),
+            "{state:?} is still connected"
+        );
+        let mut frames = PacketDecoder::new();
+        while let Ok(blob) = outgoing.try_recv() {
+            frames.queue_bytes(BytesMut::from(&blob[..]));
+        }
+        let received: Vec<_> = std::iter::from_fn(|| frames.try_next_packet().unwrap()).collect();
+        let [received] = received.as_slice() else {
+            panic!("{state:?}: {received:?}");
+        };
+        assert_eq!(received.id, disconnect, "{state:?}");
+        let body = &mut &received.body[..];
+        let reason = match state {
+            ConnectionState::Login => {
+                serde_json::from_str(ClientboundLoginDisconnect::decode(body).unwrap().reason.0)
+                    .unwrap()
+            }
+            ConnectionState::Configuration => serde_json::to_value(
+                configuration::clientbound::ClientboundDisconnect::decode(body)
+                    .unwrap()
+                    .reason,
+            )
+            .unwrap(),
+            ConnectionState::Game => serde_json::to_value(
+                game::clientbound::ClientboundDisconnect::decode(body)
+                    .unwrap()
+                    .reason,
+            )
+            .unwrap(),
+        };
+        assert_eq!(
+            reason,
+            serde_json::json!({
+                "translate": "disconnect.genericReason",
+                "with": [format!("Internal Exception: {cause}")],
+            }),
+            "{state:?}"
+        );
+    }
 }
