@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1085,
-      "base_state_id": 27639,
-      "default_state_id": 27650
+      "protocol_id": 1087,
+      "base_state_id": 27657,
+      "default_state_id": 27668
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/tuff_brick_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:tuff_bricks"
     },
     "permutations": [
       {

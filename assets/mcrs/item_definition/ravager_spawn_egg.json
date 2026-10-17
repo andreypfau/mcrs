@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ravager_spawn_egg",
-      "protocol_id": 1351
+      "protocol_id": 1354
     },
     "components": {
       "minecraft:attack_animation": {},

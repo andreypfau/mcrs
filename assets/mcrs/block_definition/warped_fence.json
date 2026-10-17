@@ -25,9 +25,9 @@
           false
         ]
       },
-      "protocol_id": 980,
-      "base_state_id": 24439,
-      "default_state_id": 24470
+      "protocol_id": 981,
+      "base_state_id": 24445,
+      "default_state_id": 24476
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -50,7 +50,8 @@
       },
       "minecraft:loot": "minecraft:blocks/warped_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

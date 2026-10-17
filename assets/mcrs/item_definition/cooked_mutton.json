@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cooked_mutton",
-      "protocol_id": 1416
+      "protocol_id": 1419
     },
     "components": {
       "minecraft:attack_animation": {},

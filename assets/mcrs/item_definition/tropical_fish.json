@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tropical_fish",
-      "protocol_id": 1192
+      "protocol_id": 1194
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -63,6 +63,7 @@ pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
     Block::Bamboo.as_static_str(),
     Block::Scaffolding.as_static_str(),
     Block::PowderSnow.as_static_str(),
+    Block::Icicle.as_static_str(),
     Block::PointedDripstone.as_static_str(),
     Block::SulfurSpike.as_static_str(),
 ];

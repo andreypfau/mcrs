@@ -64,6 +64,7 @@ pub mod mob {
         ENDERMAN = mcrs_minecraft_entity::keys::EntityType::Enderman, Monster;
         FOX = mcrs_minecraft_entity::keys::EntityType::Fox, Creature;
         FROG = mcrs_minecraft_entity::keys::EntityType::Frog, Creature;
+        FROSTBITE = mcrs_minecraft_entity::keys::EntityType::Frostbite, Monster;
         GHAST = mcrs_minecraft_entity::keys::EntityType::Ghast, Monster;
         GLOW_SQUID = mcrs_minecraft_entity::keys::EntityType::GlowSquid, UndergroundWaterCreature;
         GOAT = mcrs_minecraft_entity::keys::EntityType::Goat, Creature;
@@ -255,8 +256,8 @@ const BIOMES: &[BiomeRow] = {
         (biome::CHERRY_GROVE, || o::meadow_or_cherry_grove(true)),
         (biome::GROVE, o::grove),
         (biome::SNOWY_SLOPES, o::snowy_slopes),
-        (biome::FROZEN_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_FROZEN_PEAKS)),
-        (biome::JAGGED_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_JAGGED_PEAKS)),
+        (biome::FROZEN_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_FROZEN_PEAKS, 25)),
+        (biome::JAGGED_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_JAGGED_PEAKS, 10)),
         (biome::STONY_PEAKS, o::stony_peaks),
         (biome::RIVER, || o::river(false)),
         (biome::FROZEN_RIVER, || o::river(true)),
@@ -277,6 +278,7 @@ const BIOMES: &[BiomeRow] = {
         (biome::LUSH_CAVES, o::lush_caves),
         (biome::DEEP_DARK, o::deep_dark),
         (biome::SULFUR_CAVES, o::sulfur_caves),
+        (biome::ICE_CAVES, o::ice_caves),
         (biome::NETHER_WASTES, n::nether_wastes),
         (biome::WARPED_FOREST, n::warped_forest),
         (biome::CRIMSON_FOREST, n::crimson_forest),

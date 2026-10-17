@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:raw_copper_block",
-      "protocol_id": 1264,
-      "base_state_id": 35428,
-      "default_state_id": 35428
+      "protocol_id": 1267,
+      "base_state_id": 35486,
+      "default_state_id": 35486
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -60,7 +60,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

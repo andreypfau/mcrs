@@ -21,8 +21,8 @@
         ]
       },
       "protocol_id": 500,
-      "base_state_id": 12538,
-      "default_state_id": 12547
+      "base_state_id": 12540,
+      "default_state_id": 12549
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "minecraft:loot": "minecraft:blocks/cherry_button",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cherry_wood"
     },
     "permutations": [
       {

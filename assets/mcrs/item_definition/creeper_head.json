@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:creeper_head",
-      "protocol_id": 1388
+      "protocol_id": 1391
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chainmail_chestplate",
-      "protocol_id": 1077
+      "protocol_id": 1078
     },
     "components": {
       "minecraft:attack_animation": {},

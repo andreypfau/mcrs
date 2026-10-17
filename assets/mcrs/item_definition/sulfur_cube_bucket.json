@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sulfur_cube_bucket",
-      "protocol_id": 1140
+      "protocol_id": 1142
     },
     "components": {
       "minecraft:attack_animation": {},

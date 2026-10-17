@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_pressure_plate",
-      "protocol_id": 883
+      "protocol_id": 884
     },
     "components": {
       "minecraft:attack_animation": {},

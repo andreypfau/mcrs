@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 693,
-      "base_state_id": 15683,
-      "default_state_id": 15714
+      "base_state_id": 15685,
+      "default_state_id": 15716
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/birch_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

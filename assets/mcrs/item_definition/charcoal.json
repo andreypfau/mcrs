@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:charcoal",
-      "protocol_id": 1011
+      "protocol_id": 1012
     },
     "components": {
       "minecraft:attack_animation": {},

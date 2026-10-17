@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_helmet",
-      "protocol_id": 1072
+      "protocol_id": 1073
     },
     "components": {
       "minecraft:attack_animation": {},

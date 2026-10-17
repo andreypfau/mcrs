@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sentry_armor_trim_smithing_template",
-      "protocol_id": 1580
+      "protocol_id": 1585
     },
     "components": {
       "minecraft:attack_animation": {},

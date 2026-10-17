@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:yellow_cushion",
-      "protocol_id": 1174
+      "protocol_id": 1176
     },
     "components": {
       "minecraft:attack_animation": {},

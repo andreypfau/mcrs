@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shield",
-      "protocol_id": 1446
+      "protocol_id": 1449
     },
     "components": {
       "minecraft:attack_animation": {},

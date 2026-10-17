@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_trapdoor",
-      "protocol_id": 919
+      "protocol_id": 920
     },
     "components": {
       "minecraft:attack_animation": {},

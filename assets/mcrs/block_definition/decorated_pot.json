@@ -19,9 +19,9 @@
           false
         ]
       },
-      "protocol_id": 1273,
-      "base_state_id": 35443,
-      "default_state_id": 35452
+      "protocol_id": 1276,
+      "base_state_id": 35501,
+      "default_state_id": 35510
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -72,6 +72,18 @@
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
         "components": {
           "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027cracked\u0027) \u003d\u003d true",
+        "components": {
+          "mcrs:block_sound_set": "minecraft:decorated_pot_cracked"
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027cracked\u0027) \u003d\u003d false",
+        "components": {
+          "mcrs:block_sound_set": "minecraft:decorated_pot"
         }
       }
     ]

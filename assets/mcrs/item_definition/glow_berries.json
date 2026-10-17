@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glow_berries",
-      "protocol_id": 1526
+      "protocol_id": 1529
     },
     "components": {
       "minecraft:attack_animation": {},

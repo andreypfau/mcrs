@@ -1273,7 +1273,7 @@
     {
       "kind": "rarity",
       "input": "\"legendary\"",
-      "error": "Unknown element name:legendary"
+      "error": "Unknown element name: legendary"
     },
     {
       "kind": "rarity",
@@ -1288,7 +1288,7 @@
     {
       "kind": "attack_animation",
       "input": "{\"type\":\"punch\"}",
-      "error": "Unknown element name:punch"
+      "error": "Unknown element name: punch"
     },
     {
       "kind": "attack_animation",
@@ -1323,7 +1323,7 @@
     {
       "kind": "interact_animation",
       "input": "{\"type\":\"punch\"}",
-      "error": "Unknown element name:punch"
+      "error": "Unknown element name: punch"
     },
     {
       "kind": "interact_animation",
@@ -1353,47 +1353,47 @@
     {
       "kind": "dye",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "base_color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "wolf/collar",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "tropical_fish/base_color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "tropical_fish/pattern_color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "cat/collar",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "sheep/color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "shulker/color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "cushion/color",
       "input": "\"pinkish\"",
-      "error": "Unknown element name:pinkish"
+      "error": "Unknown element name: pinkish"
     },
     {
       "kind": "enchantable",

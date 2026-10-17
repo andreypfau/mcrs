@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_axe",
-      "protocol_id": 1043
+      "protocol_id": 1044
     },
     "components": {
       "minecraft:attack_animation": {},

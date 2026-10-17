@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_door",
-      "protocol_id": 900
+      "protocol_id": 901
     },
     "components": {
       "minecraft:attack_animation": {},

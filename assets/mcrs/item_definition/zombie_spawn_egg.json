@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:zombie_spawn_egg",
-      "protocol_id": 1333
+      "protocol_id": 1336
     },
     "components": {
       "minecraft:attack_animation": {},

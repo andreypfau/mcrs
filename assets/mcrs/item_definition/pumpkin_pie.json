@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pumpkin_pie",
-      "protocol_id": 1392
+      "protocol_id": 1395
     },
     "components": {
       "minecraft:attack_animation": {},

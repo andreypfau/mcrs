@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mace",
-      "protocol_id": 1374
+      "protocol_id": 1377
     },
     "components": {
       "minecraft:attack_animation": {},

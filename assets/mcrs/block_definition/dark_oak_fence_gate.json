@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 687,
-      "base_state_id": 15491,
-      "default_state_id": 15498
+      "base_state_id": 15493,
+      "default_state_id": 15500
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       },
       "minecraft:loot": "minecraft:blocks/dark_oak_fence_gate",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

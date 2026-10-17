@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:skull_banner_pattern",
-      "protocol_id": 1496
+      "protocol_id": 1499
     },
     "components": {
       "minecraft:attack_animation": {},

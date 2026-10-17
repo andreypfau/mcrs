@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:purple_cushion",
-      "protocol_id": 1180
+      "protocol_id": 1182
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:leather_leggings",
-      "protocol_id": 1070
+      "protocol_id": 1071
     },
     "components": {
       "minecraft:attack_animation": {},

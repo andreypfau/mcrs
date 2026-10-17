@@ -16,8 +16,8 @@
         ]
       },
       "protocol_id": 447,
-      "base_state_id": 11227,
-      "default_state_id": 11227
+      "base_state_id": 11229,
+      "default_state_id": 11229
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -40,7 +40,8 @@
       "minecraft:loot": "minecraft:blocks/shelf_mushroom",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:shelf_mushroom"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:heartbreak_pottery_sherd",
-      "protocol_id": 1610
+      "protocol_id": 1615
     },
     "components": {
       "minecraft:attack_animation": {},

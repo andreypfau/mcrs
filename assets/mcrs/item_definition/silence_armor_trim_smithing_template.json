@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:silence_armor_trim_smithing_template",
-      "protocol_id": 1593
+      "protocol_id": 1598
     },
     "components": {
       "minecraft:attack_animation": {},

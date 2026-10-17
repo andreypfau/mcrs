@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_bounce",
-      "protocol_id": 1463
+      "protocol_id": 1466
     },
     "components": {
       "minecraft:attack_animation": {},

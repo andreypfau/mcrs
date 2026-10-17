@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1092,
-      "base_state_id": 28136,
-      "default_state_id": 28139
+      "protocol_id": 1094,
+      "base_state_id": 28154,
+      "default_state_id": 28157
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/sulfur_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sulfur"
     },
     "permutations": [
       {

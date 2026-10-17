@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:raw_iron",
-      "protocol_id": 1017
+      "protocol_id": 1018
     },
     "components": {
       "minecraft:attack_animation": {},

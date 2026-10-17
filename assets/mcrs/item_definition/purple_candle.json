@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:purple_candle",
-      "protocol_id": 1561
+      "protocol_id": 1564
     },
     "components": {
       "minecraft:attack_animation": {},

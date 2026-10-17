@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:flowering_azalea",
-      "protocol_id": 1229,
-      "base_state_id": 33662,
-      "default_state_id": 33662
+      "protocol_id": 1232,
+      "base_state_id": 33720,
+      "default_state_id": 33720
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:flowering_azalea"
     },
     "permutations": []
   }

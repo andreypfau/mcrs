@@ -11,7 +11,14 @@ use mcrs_minecraft_core::Direction;
 pub enum SurviveFamily {
     /// `MushroomBlock`: the light requirement is met wherever features run,
     /// because the light engine has not run yet and the raw brightness is 0.
+    /// The floor has to support the centre of its top face.
     Mushroom,
+    /// A snow layer: a full top face or a full stack of layers below, unless
+    /// the tags say otherwise.
+    SnowLayer,
+    /// Stands on the face its `facing` points away from, which has to be
+    /// sturdy.
+    OnFacingFace,
     /// `CarpetBlock`, and `MossyCarpetBlock` in its base form.
     OnAnythingBelow,
     /// `LeafLitterBlock`, and `FireBlock` reduced to its sturdy-floor arm.
@@ -51,6 +58,8 @@ pub fn family_of(block: &str) -> Option<SurviveFamily> {
         "seagrass" => Seagrass,
         "tall_seagrass" => TallSeagrass,
         "small_dripleaf" => SmallDripleaf,
+        "snow" => SnowLayer,
+        "ice_crystal" => OnFacingFace,
         _ => return None,
     })
 }
@@ -93,6 +102,15 @@ pub enum SurviveRule {
         wet_supports: FixedBitSet,
         water: FixedBitSet,
     },
+    OnFacingFace {
+        /// The first state id of the block.
+        base: u16,
+        /// Per state of the block, its `facing`.
+        facing: Vec<Direction>,
+        /// Per direction, by [`Direction::id`], the states whose face that
+        /// way is full.
+        sturdy: [FixedBitSet; 6],
+    },
 }
 
 fn any_horizontal(p: BlockPos, test: impl Fn(BlockPos) -> bool) -> bool {
@@ -100,8 +118,21 @@ fn any_horizontal(p: BlockPos, test: impl Fn(BlockPos) -> bool) -> bool {
 }
 
 impl SurviveRule {
-    pub fn test(&self, p: BlockPos, get: impl Fn(BlockPos) -> VoxelId) -> bool {
+    pub fn test(&self, state: VoxelId, p: BlockPos, get: impl Fn(BlockPos) -> VoxelId) -> bool {
         match self {
+            SurviveRule::OnFacingFace {
+                base,
+                facing,
+                sturdy,
+            } => state
+                .0
+                .checked_sub(*base)
+                .and_then(|index| facing.get(usize::from(index)))
+                .is_some_and(|facing| {
+                    sturdy
+                        .get(facing.id())
+                        .is_some_and(|mask| holds(mask, get(p - facing.normal())))
+                }),
             SurviveRule::SupportedBy { offset_y, supports } => {
                 holds(supports, get(p + IVec3::Y * *offset_y))
             }
@@ -307,7 +338,7 @@ mod tests {
         ];
         for (name, rule, world, survives) in cases {
             assert_eq!(
-                rule.test(BlockPos::new(0, 0, 0), world),
+                rule.test(AIR, BlockPos::new(0, 0, 0), world),
                 *survives,
                 "{name}"
             );

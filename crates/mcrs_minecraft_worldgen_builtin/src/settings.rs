@@ -57,8 +57,8 @@ fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
         debug_functions: vec![
             DebugFunction::new("Final density", &router.final_density),
             DebugFunction::new("Temperature", &router.temperature),
-            DebugFunction::new("Vegitation", &router.vegetation),
-            DebugFunction::new("Contintents", &router.continents),
+            DebugFunction::new("Vegetation", &router.vegetation),
+            DebugFunction::new("Continents", &router.continents),
             DebugFunction::new("Erosion", &router.erosion),
             DebugFunction::new("Depth", &router.depth),
             DebugFunction::new("Ridges", &router.ridges),

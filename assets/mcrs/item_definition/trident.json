@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:trident",
-      "protocol_id": 1483
+      "protocol_id": 1486
     },
     "components": {
       "minecraft:attack_animation": {},

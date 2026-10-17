@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_pressure_plate",
-      "protocol_id": 881
+      "protocol_id": 882
     },
     "components": {
       "minecraft:attack_animation": {},

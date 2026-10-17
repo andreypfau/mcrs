@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 911,
-      "base_state_id": 19833,
-      "default_state_id": 19836
+      "protocol_id": 912,
+      "base_state_id": 19839,
+      "default_state_id": 19842
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/red_nether_brick_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_bricks"
     },
     "permutations": [
       {

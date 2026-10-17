@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:donkey_spawn_egg",
-      "protocol_id": 1285
+      "protocol_id": 1287
     },
     "components": {
       "minecraft:attack_animation": {},

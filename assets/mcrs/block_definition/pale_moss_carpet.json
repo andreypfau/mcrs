@@ -29,9 +29,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1279,
-      "base_state_id": 35554,
-      "default_state_id": 35554
+      "protocol_id": 1282,
+      "base_state_id": 35612,
+      "default_state_id": 35612
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       "minecraft:loot": "minecraft:blocks/pale_moss_carpet",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:moss_carpet"
     },
     "permutations": [
       {

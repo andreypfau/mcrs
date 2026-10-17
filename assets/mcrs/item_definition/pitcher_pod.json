@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pitcher_pod",
-      "protocol_id": 1437
+      "protocol_id": 1440
     },
     "components": {
       "minecraft:attack_animation": {},

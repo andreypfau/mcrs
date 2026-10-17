@@ -13,9 +13,9 @@
           false
         ]
       },
-      "protocol_id": 939,
-      "base_state_id": 24194,
-      "default_state_id": 24197
+      "protocol_id": 940,
+      "base_state_id": 24200,
+      "default_state_id": 24203
     },
     "components": {
       "minecraft:light_emission": 15,
@@ -39,7 +39,8 @@
       "minecraft:loot": "minecraft:blocks/lantern",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:lantern"
     },
     "permutations": [
       {

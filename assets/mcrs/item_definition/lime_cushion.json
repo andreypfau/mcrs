@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_cushion",
-      "protocol_id": 1175
+      "protocol_id": 1177
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -69,7 +69,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 1",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 7,
             "source": false
           }
@@ -79,7 +79,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 2",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 6,
             "source": false
           }
@@ -89,7 +89,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 3",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 5,
             "source": false
           }
@@ -99,7 +99,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 4",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 4,
             "source": false
           }
@@ -109,7 +109,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 5",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 3,
             "source": false
           }
@@ -119,7 +119,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 6",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 2,
             "source": false
           }
@@ -129,7 +129,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 7",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 1,
             "source": false
           }
@@ -139,7 +139,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 8",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -149,7 +149,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 9",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -159,7 +159,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 10",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -169,7 +169,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 11",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -179,7 +179,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 12",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -189,7 +189,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 13",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -199,7 +199,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 14",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }
@@ -209,7 +209,7 @@
         "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 15",
         "components": {
           "mcrs:fluid_state": {
-            "fluid": "minecraft:flowing_water",
+            "fluid": "minecraft:water",
             "level": 8,
             "source": false
           }

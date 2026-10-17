@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:deepslate_copper_ore",
-      "protocol_id": 1133,
-      "base_state_id": 31148,
-      "default_state_id": 31148
+      "protocol_id": 1135,
+      "base_state_id": 31166,
+      "default_state_id": 31166
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -61,7 +61,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate"
     },
     "permutations": []
   }

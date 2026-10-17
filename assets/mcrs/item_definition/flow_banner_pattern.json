@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flow_banner_pattern",
-      "protocol_id": 1500
+      "protocol_id": 1503
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:turtle_scute",
-      "protocol_id": 1002
+      "protocol_id": 1003
     },
     "components": {
       "minecraft:attack_animation": {},

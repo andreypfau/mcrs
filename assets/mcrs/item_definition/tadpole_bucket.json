@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tadpole_bucket",
-      "protocol_id": 1141
+      "protocol_id": 1143
     },
     "components": {
       "minecraft:attack_animation": {},

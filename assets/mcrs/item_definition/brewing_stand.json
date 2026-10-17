@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brewing_stand",
-      "protocol_id": 1276
+      "protocol_id": 1278
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 672,
-      "base_state_id": 15291,
-      "default_state_id": 15294
+      "base_state_id": 15293,
+      "default_state_id": 15296
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/mud_brick_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:mud_bricks"
     },
     "permutations": [
       {

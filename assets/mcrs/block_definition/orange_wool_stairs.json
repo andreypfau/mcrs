@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/orange_wool_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wool"
     },
     "permutations": [
       {

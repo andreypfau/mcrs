@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fishing_rod",
-      "protocol_id": 1186
+      "protocol_id": 1188
     },
     "components": {
       "minecraft:attack_animation": {},

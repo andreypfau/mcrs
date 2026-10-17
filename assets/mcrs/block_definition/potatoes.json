@@ -16,8 +16,8 @@
         ]
       },
       "protocol_id": 494,
-      "base_state_id": 12410,
-      "default_state_id": 12410
+      "base_state_id": 12412,
+      "default_state_id": 12412
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "minecraft:loot": "minecraft:blocks/potatoes",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:crop"
     },
     "permutations": [
       {

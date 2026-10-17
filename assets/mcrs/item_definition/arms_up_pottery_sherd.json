@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:arms_up_pottery_sherd",
-      "protocol_id": 1600
+      "protocol_id": 1605
     },
     "components": {
       "minecraft:attack_animation": {},

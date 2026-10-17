@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 372,
-      "base_state_id": 9232,
-      "default_state_id": 9247
+      "base_state_id": 9234,
+      "default_state_id": 9249
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -56,7 +56,8 @@
       "minecraft:loot": "minecraft:blocks/pale_oak_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

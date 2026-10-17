@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 433,
-      "base_state_id": 11101,
-      "default_state_id": 11112
+      "base_state_id": 11103,
+      "default_state_id": 11114
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/nether_brick_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_bricks"
     },
     "permutations": [
       {

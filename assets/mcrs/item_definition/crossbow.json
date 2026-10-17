@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crossbow",
-      "protocol_id": 1491
+      "protocol_id": 1494
     },
     "components": {
       "minecraft:attack_animation": {},

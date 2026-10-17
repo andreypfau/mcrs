@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 982,
-      "base_state_id": 24535,
-      "default_state_id": 24550
+      "protocol_id": 983,
+      "base_state_id": 24541,
+      "default_state_id": 24556
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       "minecraft:loot": "minecraft:blocks/warped_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

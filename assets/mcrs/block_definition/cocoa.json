@@ -13,8 +13,8 @@
         ]
       },
       "protocol_id": 446,
-      "base_state_id": 11215,
-      "default_state_id": 11215
+      "base_state_id": 11217,
+      "default_state_id": 11217
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -39,7 +39,8 @@
       "minecraft:loot": "minecraft:blocks/cocoa",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

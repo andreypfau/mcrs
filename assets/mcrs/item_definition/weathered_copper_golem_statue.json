@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:weathered_copper_golem_statue",
-      "protocol_id": 1647
+      "protocol_id": 1652
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:trial_spawner",
-      "protocol_id": 1653
+      "protocol_id": 1658
     },
     "components": {
       "minecraft:attack_animation": {},

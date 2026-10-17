@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:leather_chestplate",
-      "protocol_id": 1069
+      "protocol_id": 1070
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_oxidized_lightning_rod",
-      "protocol_id": 847
+      "protocol_id": 848
     },
     "components": {
       "minecraft:attack_animation": {},

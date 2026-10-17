@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:trader_llama_spawn_egg",
-      "protocol_id": 1320
+      "protocol_id": 1322
     },
     "components": {
       "minecraft:attack_animation": {},

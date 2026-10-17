@@ -12,9 +12,9 @@
         ],
         "hatch": [0, 1, 2]
       },
-      "protocol_id": 835,
-      "base_state_id": 18447,
-      "default_state_id": 18447
+      "protocol_id": 836,
+      "base_state_id": 18453,
+      "default_state_id": 18453
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -39,7 +39,8 @@
       "minecraft:loot": "minecraft:blocks/turtle_egg",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:metal"
     },
     "permutations": [
       {

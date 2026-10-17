@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:beef",
-      "protocol_id": 1260
+      "protocol_id": 1262
     },
     "components": {
       "minecraft:attack_animation": {},

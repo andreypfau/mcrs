@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:experience_bottle",
-      "protocol_id": 1368
+      "protocol_id": 1371
     },
     "components": {
       "minecraft:attack_animation": {},

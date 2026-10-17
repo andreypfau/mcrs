@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_hanging_sign",
-      "protocol_id": 1119
+      "protocol_id": 1120
     },
     "components": {
       "minecraft:attack_animation": {},

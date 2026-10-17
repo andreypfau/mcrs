@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:white_bed",
-      "protocol_id": 1219
+      "protocol_id": 1221
     },
     "components": {
       "minecraft:attack_animation": {},

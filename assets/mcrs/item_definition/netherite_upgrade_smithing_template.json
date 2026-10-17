@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_upgrade_smithing_template",
-      "protocol_id": 1579
+      "protocol_id": 1584
     },
     "components": {
       "minecraft:attack_animation": {},

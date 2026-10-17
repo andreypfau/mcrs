@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:zombie_head",
-      "protocol_id": 1387
+      "protocol_id": 1390
     },
     "components": {
       "minecraft:attack_animation": {},

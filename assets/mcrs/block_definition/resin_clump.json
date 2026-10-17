@@ -34,8 +34,8 @@
         ]
       },
       "protocol_id": 418,
-      "base_state_id": 10252,
-      "default_state_id": 10379
+      "base_state_id": 10254,
+      "default_state_id": 10381
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -62,7 +62,8 @@
       "minecraft:loot": "minecraft:blocks/resin_clump",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:resin"
     },
     "permutations": [
       {

@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 422,
-      "base_state_id": 10572,
-      "default_state_id": 10583
+      "base_state_id": 10574,
+      "default_state_id": 10585
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/mud_brick_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:mud_bricks"
     },
     "permutations": [
       {

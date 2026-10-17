@@ -257,15 +257,18 @@ fn a_filter_hides_matching_files_of_lower_packs_only() {
 
 #[test]
 fn an_applicable_overlay_overrides_the_base_tree_of_its_pack() {
-    let meta = r#"{"pack":{"description":"x","min_format":122,"max_format":122},
-        "overlays":{"entries":[
-            {"directory":"o","min_format":122,"max_format":122},
-            {"directory":"old","min_format":100,"max_format":110},
-            {"directory":"later","min_format":122,"max_format":122}]}}"#;
+    let current = mcrs_minecraft_core::VERSION.pack_version.data_major;
+    let meta = format!(
+        r#"{{"pack":{{"description":"x","min_format":{current},"max_format":{current}}},
+        "overlays":{{"entries":[
+            {{"directory":"o","min_format":{current},"max_format":{current}}},
+            {{"directory":"old","min_format":100,"max_format":110}},
+            {{"directory":"later","min_format":{current},"max_format":{current}}}]}}}}"#
+    );
     let (registries, _) = Packs::new()
         .world_with_meta(
             "a",
-            meta,
+            &meta,
             &[
                 ("data/t/damage_type/x.json", &damage("base")),
                 ("data/t/damage_type/y.json", &damage("base")),

@@ -10,8 +10,8 @@
         ]
       },
       "protocol_id": 720,
-      "base_state_id": 16778,
-      "default_state_id": 16778
+      "base_state_id": 16780,
+      "default_state_id": 16780
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -35,7 +35,8 @@
       "minecraft:loot": "minecraft:blocks/torchflower_crop",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:crop"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dragon_breath",
-      "protocol_id": 1441
+      "protocol_id": 1444
     },
     "components": {
       "minecraft:attack_animation": {},

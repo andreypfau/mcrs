@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 990,
-      "base_state_id": 24935,
-      "default_state_id": 24946
+      "protocol_id": 991,
+      "base_state_id": 24941,
+      "default_state_id": 24952
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/warped_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

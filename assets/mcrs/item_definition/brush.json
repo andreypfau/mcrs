@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brush",
-      "protocol_id": 1578
+      "protocol_id": 1583
     },
     "components": {
       "minecraft:attack_animation": {},

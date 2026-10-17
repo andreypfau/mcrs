@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_shovel",
-      "protocol_id": 1051
+      "protocol_id": 1052
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -53,6 +53,10 @@ pub fn place_spring<W: WorldGenVolume>(
     {
         return false;
     }
+    // chisle: the delay-0 fluid tick of the placed fluid's type is not
+    // scheduled, because generation keeps no pending tick list and nothing ticks
+    // one; a column-held generation tick list, saved as `fluid_ticks` with
+    // `t: 0`, lifts this.
     volume.set(at, config.state);
     true
 }

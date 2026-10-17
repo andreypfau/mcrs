@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ghast_spawn_egg",
-      "protocol_id": 1355
+      "protocol_id": 1358
     },
     "components": {
       "minecraft:attack_animation": {},

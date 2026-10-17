@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_trapdoor",
-      "protocol_id": 913
+      "protocol_id": 914
     },
     "components": {
       "minecraft:attack_animation": {},

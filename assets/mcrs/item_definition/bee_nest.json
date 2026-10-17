@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bee_nest",
-      "protocol_id": 1531
+      "protocol_id": 1534
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -16,8 +16,8 @@
         ]
       },
       "protocol_id": 442,
-      "base_state_id": 11203,
-      "default_state_id": 11207
+      "base_state_id": 11205,
+      "default_state_id": 11209
     },
     "components": {
       "minecraft:light_emission": 1,
@@ -38,7 +38,8 @@
       },
       "minecraft:destructible_by_mining": false,
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": [
       {

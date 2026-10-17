@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_boat",
-      "protocol_id": 975
+      "protocol_id": 976
     },
     "components": {
       "minecraft:attack_animation": {},

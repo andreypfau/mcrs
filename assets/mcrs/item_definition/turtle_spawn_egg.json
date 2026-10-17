@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:turtle_spawn_egg",
-      "protocol_id": 1312
+      "protocol_id": 1314
     },
     "components": {
       "minecraft:attack_animation": {},

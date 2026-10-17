@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 391,
-      "base_state_id": 9692,
-      "default_state_id": 9723
+      "base_state_id": 9694,
+      "default_state_id": 9725
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       "minecraft:loot": "minecraft:blocks/iron_bars",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:iron"
     },
     "permutations": [
       {

@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 975,
-      "base_state_id": 24391,
-      "default_state_id": 24394
+      "protocol_id": 976,
+      "base_state_id": 24397,
+      "default_state_id": 24400
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -35,7 +35,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/crimson_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

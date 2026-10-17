@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:vault",
-      "protocol_id": 1656
+      "protocol_id": 1661
     },
     "components": {
       "minecraft:attack_animation": {},

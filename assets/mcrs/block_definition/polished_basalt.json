@@ -11,8 +11,8 @@
         ]
       },
       "protocol_id": 338,
-      "base_state_id": 8673,
-      "default_state_id": 8674
+      "base_state_id": 8675,
+      "default_state_id": 8676
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:basalt"
     },
     "permutations": []
   }

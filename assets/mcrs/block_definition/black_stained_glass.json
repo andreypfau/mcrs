@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:black_stained_glass",
       "protocol_id": 364,
-      "base_state_id": 8783,
-      "default_state_id": 8783
+      "base_state_id": 8785,
+      "default_state_id": 8785
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/black_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

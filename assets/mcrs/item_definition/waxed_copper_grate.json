@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_copper_grate",
-      "protocol_id": 1625
+      "protocol_id": 1630
     },
     "components": {
       "minecraft:attack_animation": {},

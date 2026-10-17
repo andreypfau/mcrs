@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rabbit_spawn_egg",
-      "protocol_id": 1300
+      "protocol_id": 1302
     },
     "components": {
       "minecraft:attack_animation": {},

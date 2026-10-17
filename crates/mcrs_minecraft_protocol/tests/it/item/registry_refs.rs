@@ -428,7 +428,7 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
     in_samples(|| {
         let (lookup, _) = parse_fixture();
-        let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
+        let wire = [0x02, 0x9c, 0x01, 0x80, 0x00, 0x00, 0x00];
         let value =
             decode_component_value(DataComponentType::MobVisibility, &lookup, &mut &wire[..])
                 .unwrap();

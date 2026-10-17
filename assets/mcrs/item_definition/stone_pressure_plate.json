@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_pressure_plate",
-      "protocol_id": 871
+      "protocol_id": 872
     },
     "components": {
       "minecraft:attack_animation": {},

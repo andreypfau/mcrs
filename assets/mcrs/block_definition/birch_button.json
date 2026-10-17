@@ -21,8 +21,8 @@
         ]
       },
       "protocol_id": 497,
-      "base_state_id": 12466,
-      "default_state_id": 12475
+      "base_state_id": 12468,
+      "default_state_id": 12477
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "minecraft:loot": "minecraft:blocks/birch_button",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

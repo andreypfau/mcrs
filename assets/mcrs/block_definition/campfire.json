@@ -23,9 +23,9 @@
           false
         ]
       },
-      "protocol_id": 949,
-      "base_state_id": 24234,
-      "default_state_id": 24237
+      "protocol_id": 950,
+      "base_state_id": 24240,
+      "default_state_id": 24243
     },
     "components": {
       "minecraft:friction": 0.6,
@@ -58,7 +58,8 @@
       "minecraft:loot": "minecraft:blocks/campfire",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

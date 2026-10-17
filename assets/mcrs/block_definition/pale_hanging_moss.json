@@ -9,9 +9,9 @@
           false
         ]
       },
-      "protocol_id": 1280,
-      "base_state_id": 35716,
-      "default_state_id": 35716
+      "protocol_id": 1283,
+      "base_state_id": 35774,
+      "default_state_id": 35774
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "minecraft:loot": "minecraft:blocks/pale_hanging_moss",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:moss_carpet"
     },
     "permutations": [
       {

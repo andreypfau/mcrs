@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:firework_rocket",
-      "protocol_id": 1393
+      "protocol_id": 1396
     },
     "components": {
       "minecraft:attack_animation": {},

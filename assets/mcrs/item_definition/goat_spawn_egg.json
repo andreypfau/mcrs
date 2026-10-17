@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:goat_spawn_egg",
-      "protocol_id": 1295
+      "protocol_id": 1297
     },
     "components": {
       "minecraft:attack_animation": {},

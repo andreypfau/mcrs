@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lead",
-      "protocol_id": 1412
+      "protocol_id": 1415
     },
     "components": {
       "minecraft:attack_animation": {},

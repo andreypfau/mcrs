@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_cushion",
-      "protocol_id": 1171
+      "protocol_id": 1173
     },
     "components": {
       "minecraft:attack_animation": {},

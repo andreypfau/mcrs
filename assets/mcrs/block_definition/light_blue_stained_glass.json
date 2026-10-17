@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:light_blue_stained_glass",
       "protocol_id": 352,
-      "base_state_id": 8771,
-      "default_state_id": 8771
+      "base_state_id": 8773,
+      "default_state_id": 8773
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/light_blue_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

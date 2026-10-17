@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 708,
-      "base_state_id": 16355,
-      "default_state_id": 16366
+      "base_state_id": 16357,
+      "default_state_id": 16368
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "minecraft:loot": "minecraft:blocks/pale_oak_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

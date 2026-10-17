@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_stairs",
-      "protocol_id": 794
+      "protocol_id": 795
     },
     "components": {
       "minecraft:attack_animation": {},

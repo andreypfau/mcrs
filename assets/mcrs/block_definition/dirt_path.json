@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:dirt_path",
       "protocol_id": 724,
-      "base_state_id": 16796,
-      "default_state_id": 16796
+      "base_state_id": 16798,
+      "default_state_id": 16798
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 15, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:grass"
     },
     "permutations": []
   }

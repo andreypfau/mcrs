@@ -22,7 +22,7 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
 
     let nested = members(app, "minecraft:has_structure/stronghold");
     assert_eq!(nested, members(app, "minecraft:is_overworld"));
-    assert_eq!(nested.len(), 56);
+    assert_eq!(nested.len(), 57);
 }
 
 pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {

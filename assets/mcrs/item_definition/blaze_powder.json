@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blaze_powder",
-      "protocol_id": 1274
+      "protocol_id": 1276
     },
     "components": {
       "minecraft:attack_animation": {},

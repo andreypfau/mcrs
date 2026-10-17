@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pointed_dripstone",
-      "protocol_id": 1571
+      "protocol_id": 1576
     },
     "components": {
       "minecraft:attack_animation": {},

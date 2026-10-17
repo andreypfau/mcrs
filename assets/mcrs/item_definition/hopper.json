@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:hopper",
-      "protocol_id": 834
+      "protocol_id": 835
     },
     "components": {
       "minecraft:attack_animation": {},

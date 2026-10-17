@@ -59,6 +59,7 @@ use mcrs_minecraft_registry::shared::share;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
+use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -179,22 +180,22 @@ registry_table! {
         declared by CatVariantFile::declaration();
     CatSoundVariant => CatSoundVariant, synced as Clone::clone, received as CatSoundVariant => bare,
         declared by CatSoundVariant::declaration();
-    CowSoundVariant => CowSoundVariant, synced as Clone::clone, received as CowSoundVariant => bare,
-        declared by CowSoundVariant::declaration();
     CowVariant => CowVariantFile
         as (CowVariant, Vec<SpawnSelector>),
         CowVariantFile::split, CowVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
         received as CowVariant => bare,
         declared by CowVariantFile::declaration();
-    ChickenSoundVariant => ChickenSoundVariant, synced as Clone::clone, received as ChickenSoundVariant => bare,
-        declared by ChickenSoundVariant::declaration();
+    CowSoundVariant => CowSoundVariant, synced as Clone::clone, received as CowSoundVariant => bare,
+        declared by CowSoundVariant::declaration();
     ChickenVariant => ChickenVariantFile
         as (ChickenVariant, Vec<SpawnSelector>),
         ChickenVariantFile::split, ChickenVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
         received as ChickenVariant => bare,
         declared by ChickenVariantFile::declaration();
+    ChickenSoundVariant => ChickenSoundVariant, synced as Clone::clone, received as ChickenSoundVariant => bare,
+        declared by ChickenSoundVariant::declaration();
     ZombieNautilusVariant => ZombieNautilusVariantFile
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
@@ -247,6 +248,8 @@ registry_table! {
     mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider,
         synced as Clone::clone, received as DirectBlockStateProvider => bare,
         declared by DirectBlockStateProvider::declaration();
+    BlockSoundSet => BlockSoundSet, synced as Clone::clone, received as BlockSoundSet => bare,
+        declared by BlockSoundSet::declaration();
     Dimension => DimensionEntry
         as (Dimension, ChunkGenerator),
         DimensionEntry::split, DimensionEntry::join,

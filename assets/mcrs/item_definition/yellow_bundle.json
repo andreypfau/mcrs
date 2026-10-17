@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:yellow_bundle",
-      "protocol_id": 1158
+      "protocol_id": 1160
     },
     "components": {
       "minecraft:attack_animation": {},

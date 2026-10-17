@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:amethyst_block",
-      "protocol_id": 1068,
-      "base_state_id": 26759,
-      "default_state_id": 26759
+      "protocol_id": 1069,
+      "base_state_id": 26765,
+      "default_state_id": 26765
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:amethyst_block"
     },
     "permutations": []
   }

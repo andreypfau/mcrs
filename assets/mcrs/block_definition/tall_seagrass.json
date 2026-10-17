@@ -44,7 +44,8 @@
         "fluid": "minecraft:water",
         "level": 8,
         "source": true
-      }
+      },
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": []
   }

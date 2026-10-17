@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_boots",
-      "protocol_id": 1083
+      "protocol_id": 1084
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 696,
-      "base_state_id": 15779,
-      "default_state_id": 15810
+      "base_state_id": 15781,
+      "default_state_id": 15812
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/cherry_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cherry_wood"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wayfinder_armor_trim_smithing_template",
-      "protocol_id": 1591
+      "protocol_id": 1596
     },
     "components": {
       "minecraft:attack_animation": {},

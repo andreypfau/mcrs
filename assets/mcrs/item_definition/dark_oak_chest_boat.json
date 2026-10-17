@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_chest_boat",
-      "protocol_id": 988
+      "protocol_id": 989
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_sword",
-      "protocol_id": 1035
+      "protocol_id": 1036
     },
     "components": {
       "minecraft:attack_animation": {},

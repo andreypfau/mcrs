@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:coast_armor_trim_smithing_template",
-      "protocol_id": 1582
+      "protocol_id": 1587
     },
     "components": {
       "minecraft:attack_animation": {},

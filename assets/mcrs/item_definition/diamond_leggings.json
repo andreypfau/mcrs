@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_leggings",
-      "protocol_id": 1086
+      "protocol_id": 1087
     },
     "components": {
       "minecraft:attack_animation": {},

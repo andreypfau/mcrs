@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:powder_snow_bucket",
-      "protocol_id": 1131
+      "protocol_id": 1132
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -180,6 +180,7 @@ What is left is Java data no Bedrock component can carry. Each row states why.
 | `mcrs:emissive_rendering` | `BlockState.emissiveRendering` | The nearest Bedrock field, `material_instances.face_dimming`, turns off directional shading rather than lighting, and lives in a component that must accompany `minecraft:geometry` |
 | `mcrs:fluid_state` | `BlockState.getFluidState` | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
 | `mcrs:experience_drop` | `xpRange` of `DropExperienceBlock` or of `DropExperienceEntityBlock`, encoded by `IntProviders.CODEC` | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is Java's `IntProvider`, so a constant is a bare integer and anything else is the dispatched object. Absent for a block that is neither: `SpawnerBlock` and `CreakingHeartBlock` compute their amount in code rather than holding a range |
+| `mcrs:block_sound_set` | The key of the state's entry in the `minecraft:block_sound_set` registry | `minecraft:sound` names a Bedrock sound group, and Java's sound set names are not Bedrock's. Absent for a block with no sound set: water, lava and bubble column |
 
 ## Java block properties this corpus does not write
 
@@ -187,7 +188,6 @@ Expressible in Bedrock, not yet dumped:
 
 | Java | Bedrock component | Why it is not here yet |
 | --- | --- | --- |
-| `Properties.soundType` | `minecraft:sound` | Java's `SoundType` is an object of five sound events with volume and pitch, and has no name to give the component's one string. Naming the constants takes reflection over `SoundType`'s fields, and the Bedrock sound group names are not Java's |
 | `Properties.offsetFunction` | `minecraft:random_offset` | Java's offset is continuous and derived from the position hash. Bedrock states `steps` and a range, which has no Java counterpart, and the max offsets are only recoverable by sampling `getOffset` |
 | `Properties.spawnTerrainParticles` | `minecraft:destruction_particles` | A boolean against a particle count; the mapping is `false` to `particle_count: 0` and nothing else, and no reader wants it yet |
 | `Properties.descriptionId` | `minecraft:display_name` | It is `block.<namespace>.<path>` by convention for every vanilla block, so the identifier already states it |

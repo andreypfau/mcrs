@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:granite_slab",
-      "protocol_id": 814
+      "protocol_id": 815
     },
     "components": {
       "minecraft:attack_animation": {},

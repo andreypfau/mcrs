@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_nautilus_armor",
-      "protocol_id": 1485
+      "protocol_id": 1488
     },
     "components": {
       "minecraft:attack_animation": {},

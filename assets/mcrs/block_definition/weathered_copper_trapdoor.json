@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 1176,
-      "base_state_id": 32493,
-      "default_state_id": 32508
+      "protocol_id": 1178,
+      "base_state_id": 32511,
+      "default_state_id": 32526
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -75,7 +75,8 @@
       "minecraft:loot": "minecraft:blocks/weathered_copper_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

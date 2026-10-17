@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_helmet",
-      "protocol_id": 1080
+      "protocol_id": 1081
     },
     "components": {
       "minecraft:attack_animation": {},

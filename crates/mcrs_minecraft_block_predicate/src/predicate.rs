@@ -2,6 +2,7 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::block_state::BlockState;
+use crate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_core::ResourceLocation;
@@ -41,7 +42,7 @@ impl<'de> Deserialize<'de> for Offset {
 use mcrs_minecraft_core::Direction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub enum BlockPredicate {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -57,6 +58,8 @@ pub enum BlockPredicate {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         fluids: HolderSet<Fluid>,
+        #[serde(default, skip_serializing_if = "StatePropertiesPredicate::is_any")]
+        state: StatePropertiesPredicate,
     },
     MatchingBiomes {
         biomes: HolderSet<Biome>,
@@ -132,7 +135,7 @@ mcrs_minecraft_registry::dispatch! {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, remote = "Self")]
+#[serde(remote = "Self")]
 pub struct VolumeMatch {
     pub min: Offset,
     pub max: Offset,

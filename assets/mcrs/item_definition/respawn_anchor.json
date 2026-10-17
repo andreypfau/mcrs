@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:respawn_anchor",
-      "protocol_id": 1549
+      "protocol_id": 1552
     },
     "components": {
       "minecraft:attack_animation": {},

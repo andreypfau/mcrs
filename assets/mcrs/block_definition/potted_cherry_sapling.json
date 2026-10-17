@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:potted_cherry_sapling",
       "protocol_id": 469,
-      "base_state_id": 12378,
-      "default_state_id": 12378
+      "base_state_id": 12380,
+      "default_state_id": 12380
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -34,7 +34,8 @@
       "minecraft:loot": "minecraft:blocks/potted_cherry_sapling",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

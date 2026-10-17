@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:turtle_helmet",
-      "protocol_id": 1001
+      "protocol_id": 1002
     },
     "components": {
       "minecraft:attack_animation": {},

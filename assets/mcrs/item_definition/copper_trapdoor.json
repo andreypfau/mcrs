@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_trapdoor",
-      "protocol_id": 924
+      "protocol_id": 925
     },
     "components": {
       "minecraft:attack_animation": {},

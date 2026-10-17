@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:test_instance_block",
-      "protocol_id": 1000
+      "protocol_id": 1001
     },
     "components": {
       "minecraft:attack_animation": {},

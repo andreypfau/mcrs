@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_weathered_copper_chest",
-      "protocol_id": 1643
+      "protocol_id": 1648
     },
     "components": {
       "minecraft:attack_animation": {},

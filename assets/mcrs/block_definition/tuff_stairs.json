@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1076,
-      "base_state_id": 26816,
-      "default_state_id": 26827
+      "protocol_id": 1078,
+      "base_state_id": 26834,
+      "default_state_id": 26845
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/tuff_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:tuff"
     },
     "permutations": [
       {

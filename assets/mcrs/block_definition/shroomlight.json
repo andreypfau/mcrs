@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:shroomlight",
-      "protocol_id": 967,
-      "base_state_id": 24333,
-      "default_state_id": 24333
+      "protocol_id": 968,
+      "base_state_id": 24339,
+      "default_state_id": 24339
     },
     "components": {
       "minecraft:light_emission": 15,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:shroomlight"
     },
     "permutations": []
   }

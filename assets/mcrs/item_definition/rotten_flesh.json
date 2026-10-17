@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rotten_flesh",
-      "protocol_id": 1264
+      "protocol_id": 1266
     },
     "components": {
       "minecraft:attack_animation": {},

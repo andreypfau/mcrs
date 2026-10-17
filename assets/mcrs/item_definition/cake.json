@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cake",
-      "protocol_id": 1218
+      "protocol_id": 1220
     },
     "components": {
       "minecraft:attack_animation": {},

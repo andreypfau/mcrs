@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond",
-      "protocol_id": 1012
+      "protocol_id": 1013
     },
     "components": {
       "minecraft:attack_animation": {},

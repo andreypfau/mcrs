@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ender_pearl",
-      "protocol_id": 1265
+      "protocol_id": 1267
     },
     "components": {
       "minecraft:attack_animation": {},

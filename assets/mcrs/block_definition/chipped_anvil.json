@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 521,
-      "base_state_id": 12966,
-      "default_state_id": 12966
+      "base_state_id": 12968,
+      "default_state_id": 12968
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       },
       "minecraft:loot": "minecraft:blocks/chipped_anvil",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:anvil"
     },
     "permutations": [
       {

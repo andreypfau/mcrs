@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 699,
-      "base_state_id": 15875,
-      "default_state_id": 15906
+      "base_state_id": 15877,
+      "default_state_id": 15908
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/mangrove_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

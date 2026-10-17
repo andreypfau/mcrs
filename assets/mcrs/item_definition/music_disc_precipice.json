@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_precipice",
-      "protocol_id": 1480
+      "protocol_id": 1483
     },
     "components": {
       "minecraft:attack_animation": {},

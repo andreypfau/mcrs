@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ocelot_spawn_egg",
-      "protocol_id": 1297
+      "protocol_id": 1299
     },
     "components": {
       "minecraft:attack_animation": {},

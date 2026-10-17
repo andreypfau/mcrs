@@ -144,6 +144,6 @@ mod exhaustive {
             }
             compared += 1;
         }
-        assert_eq!((compared, pieces), (592, 40849));
+        assert_eq!((compared, pieces), (591, 40785));
     }
 }

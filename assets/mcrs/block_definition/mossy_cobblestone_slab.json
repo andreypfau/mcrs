@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 905,
-      "base_state_id": 19797,
-      "default_state_id": 19800
+      "protocol_id": 906,
+      "base_state_id": 19803,
+      "default_state_id": 19806
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/mossy_cobblestone_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

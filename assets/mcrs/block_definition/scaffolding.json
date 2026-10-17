@@ -23,9 +23,9 @@
           false
         ]
       },
-      "protocol_id": 927,
-      "base_state_id": 24063,
-      "default_state_id": 24094
+      "protocol_id": 928,
+      "base_state_id": 24069,
+      "default_state_id": 24100
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -56,7 +56,8 @@
       "minecraft:loot": "minecraft:blocks/scaffolding",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:scaffolding"
     },
     "permutations": [
       {

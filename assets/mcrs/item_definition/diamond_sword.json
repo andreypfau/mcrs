@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_sword",
-      "protocol_id": 1050
+      "protocol_id": 1051
     },
     "components": {
       "minecraft:attack_animation": {},

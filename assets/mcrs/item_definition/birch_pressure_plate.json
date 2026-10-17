@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_pressure_plate",
-      "protocol_id": 877
+      "protocol_id": 878
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -128,7 +128,7 @@ pub fn place_multiface_growth<W: WorldGenVolume>(
 
 fn is_air_or_water<W: WorldGenVolume>(volume: &W, state: VoxelId) -> bool {
     let world = volume.world();
-    holds(&world.air_states, state) || holds(&world.water_fluid, state)
+    holds(&world.air_states, state) || holds(&world.water_states, state)
 }
 
 fn place_growth_if_possible<W: WorldGenVolume>(
@@ -211,7 +211,7 @@ fn spread_toward<W: WorldGenVolume>(
         let existing = volume.get(target);
         let replaceable = holds(&volume.world().air_states, existing)
             || cfg.states.faces_of(existing).is_some()
-            || holds(&volume.world().water_source, existing);
+            || existing == volume.world().water;
         if !replaceable {
             continue;
         }
@@ -238,6 +238,7 @@ mod tests {
 
     const STONE: VoxelId = VoxelId(1);
     const WATER: VoxelId = VoxelId(2);
+    const FLOWING: VoxelId = VoxelId(3);
     /// The growth's states start here: `[waterlogged][faces]`, so a state id is
     /// `GROWTH + 64 * waterlogged + faces`.
     const GROWTH: u16 = 100;
@@ -262,11 +263,14 @@ mod tests {
 
     /// Glow lichen: the ceiling and the walls, never the floor, and half the
     /// placements spread on.
-    /// Stone holds a growth up; water is the one fluid, source everywhere.
+    /// Stone holds a growth up; `WATER` is the water block's source and
+    /// `FLOWING` a flowing water block.
     fn cave(volume: FakeVolume) -> FakeVolume {
         let mut volume = volume;
         volume.world.sturdy_up = mask_of([STONE]);
-        volume.world.water_fluid = mask_of([WATER]);
+        volume.world.water = WATER;
+        volume.world.water_states = mask_of([WATER, FLOWING]);
+        volume.world.water_fluid = mask_of([WATER, FLOWING]);
         volume.world.water_source = mask_of([WATER]);
         volume
     }
@@ -354,22 +358,28 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// A growth that displaces a water source waterlogs itself.
+    /// Any water block lets the growth in; only a source waterlogs it.
     #[test]
-    fn a_growth_in_water_takes_the_waterlogged_state() {
-        let mut cfg = config();
-        cfg.chance_of_spreading = 0.0;
-        let mut volume = cave(FakeVolume::with([
-            ((AT.x, AT.y, AT.z), WATER),
-            ((AT.x, AT.y + 1, AT.z), STONE),
-        ]));
-        let mut rng = WorldgenRandom::new(31);
+    fn a_growth_in_water_is_waterlogged_only_by_a_source() {
+        for (water, waterlogged) in [(WATER, true), (FLOWING, false)] {
+            let mut cfg = config();
+            cfg.chance_of_spreading = 0.0;
+            let mut volume = cave(FakeVolume::with([
+                ((AT.x, AT.y, AT.z), water),
+                ((AT.x, AT.y + 1, AT.z), STONE),
+            ]));
+            let mut rng = WorldgenRandom::new(31);
 
-        assert!(place_multiface_growth(&cfg, &mut volume, &mut rng, AT));
-        assert_eq!(
-            volume.writes[0],
-            ((AT.x, AT.y, AT.z), growth(1 << Direction::Up as u8, true))
-        );
+            assert!(place_multiface_growth(&cfg, &mut volume, &mut rng, AT));
+            assert_eq!(
+                volume.writes[0],
+                (
+                    (AT.x, AT.y, AT.z),
+                    growth(1 << Direction::Up as u8, waterlogged)
+                ),
+                "{water:?}"
+            );
+        }
     }
 
     /// The spreader never grows along the axis of the face it came from, and it

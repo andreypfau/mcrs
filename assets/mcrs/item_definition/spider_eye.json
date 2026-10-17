@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spider_eye",
-      "protocol_id": 1272
+      "protocol_id": 1274
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gilded_blackstone",
-      "protocol_id": 1540
+      "protocol_id": 1543
     },
     "components": {
       "minecraft:attack_animation": {},

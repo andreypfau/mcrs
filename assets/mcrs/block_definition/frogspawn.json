@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:frogspawn",
-      "protocol_id": 1271,
-      "base_state_id": 35441,
-      "default_state_id": 35441
+      "protocol_id": 1274,
+      "base_state_id": 35499,
+      "default_state_id": 35499
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/frogspawn",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:frogspawn"
     },
     "permutations": []
   }

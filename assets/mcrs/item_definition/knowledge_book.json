@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:knowledge_book",
-      "protocol_id": 1458
+      "protocol_id": 1461
     },
     "components": {
       "minecraft:attack_animation": {},

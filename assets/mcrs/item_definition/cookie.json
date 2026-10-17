@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cookie",
-      "protocol_id": 1236
+      "protocol_id": 1238
     },
     "components": {
       "minecraft:attack_animation": {},

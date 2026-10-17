@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_bundle",
-      "protocol_id": 1168
+      "protocol_id": 1170
     },
     "components": {
       "minecraft:attack_animation": {},

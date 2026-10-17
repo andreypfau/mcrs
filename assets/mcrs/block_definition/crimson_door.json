@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 989,
-      "base_state_id": 24871,
-      "default_state_id": 24882
+      "protocol_id": 990,
+      "base_state_id": 24877,
+      "default_state_id": 24888
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/crimson_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

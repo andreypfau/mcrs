@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 986,
-      "base_state_id": 24743,
-      "default_state_id": 24754
+      "protocol_id": 987,
+      "base_state_id": 24749,
+      "default_state_id": 24760
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -51,7 +51,8 @@
       },
       "minecraft:loot": "minecraft:blocks/warped_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

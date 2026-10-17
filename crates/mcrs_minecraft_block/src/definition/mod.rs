@@ -28,6 +28,7 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
+use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
@@ -61,11 +62,29 @@ pub struct LootId(pub u16);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ExperienceId(pub u16);
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SoundSetId(pub u16);
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FluidState {
     pub fluid: Id<Fluid>,
     pub level: u8,
     pub source: bool,
+}
+
+impl FluidState {
+    pub const LEVEL: &'static str = "level";
+    pub const SOURCE: &'static str = "source";
+    pub const LEVELS: std::ops::RangeInclusive<u8> = 1..=8;
+    pub const FULL: u8 = 8;
+
+    pub fn source_of(fluid: Id<Fluid>) -> Self {
+        FluidState {
+            fluid,
+            level: Self::FULL,
+            source: true,
+        }
+    }
 }
 
 /// Everything the corpus states about one block state, resolved. Shapes are
@@ -88,6 +107,7 @@ pub struct BlockStateData {
     pub loot: Option<LootId>,
     pub experience: Option<ExperienceId>,
     pub fluid: Option<FluidState>,
+    pub sound_set: Option<SoundSetId>,
     pub flags: BlockStateFlags,
 }
 
@@ -184,6 +204,7 @@ pub struct BlockDefinitions {
     shapes: Vec<Box<[Aabb]>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
+    sound_sets: Vec<ResourceKey<BlockSoundSet>>,
     blocks: Vec<BlockEntry>,
     owners: Vec<Id<Block>>,
     registry: Registry<Block>,
@@ -214,6 +235,10 @@ impl BlockDefinitions {
     #[inline]
     pub fn experience_drop(&self, id: ExperienceId) -> &IntProvider {
         &self.experience[id.0 as usize]
+    }
+
+    pub fn sound_set(&self, id: SoundSetId) -> Option<&ResourceKey<BlockSoundSet>> {
+        self.sound_sets.get(usize::from(id.0))
     }
 
     pub fn state_count(&self) -> usize {
@@ -476,6 +501,7 @@ const UNCLAIMED: BlockStateData = BlockStateData {
     loot: None,
     experience: None,
     fluid: None,
+    sound_set: None,
     flags: BlockStateFlags::empty(),
 };
 
@@ -486,6 +512,7 @@ struct Builder {
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
+    sound_sets: Vec<ResourceKey<BlockSoundSet>>,
     registry: Registry<Block>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
@@ -500,6 +527,7 @@ impl Builder {
             shape_ids: FxHashMap::with_hasher(FxBuildHasher),
             loot: Vec::new(),
             experience: Vec::new(),
+            sound_sets: Vec::new(),
             blocks: std::iter::repeat_with(|| None)
                 .take(registry.len())
                 .collect(),
@@ -755,6 +783,10 @@ impl Builder {
             .experience_drop
             .clone()
             .map(|drop| self.intern_experience(drop));
+        let sound_set = components
+            .block_sound_set
+            .as_ref()
+            .map(|set| SoundSetId(intern(&mut self.sound_sets, set)));
         let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
             fluid: fluid.fluid.id(),
             level: fluid.level,
@@ -780,6 +812,7 @@ impl Builder {
             loot,
             experience,
             fluid,
+            sound_set,
             flags,
         }
     }
@@ -808,6 +841,7 @@ impl Builder {
             shapes: std::mem::take(&mut self.shapes),
             loot: std::mem::take(&mut self.loot),
             experience: std::mem::take(&mut self.experience),
+            sound_sets: std::mem::take(&mut self.sound_sets),
             blocks,
             owners,
             registry: self.registry.clone(),
@@ -815,8 +849,8 @@ impl Builder {
     }
 }
 
-fn intern(table: &mut Vec<ResourceLocation<Arc<str>>>, value: &ResourceLocation<Arc<str>>) -> u16 {
-    match table.iter().position(|v| v.as_str() == value.as_str()) {
+fn intern<T: Clone + PartialEq>(table: &mut Vec<T>, value: &T) -> u16 {
+    match table.iter().position(|v| v == value) {
         Some(index) => index as u16,
         None => {
             table.push(value.clone());
@@ -1149,6 +1183,32 @@ mod tests {
         let definitions = build(&[source]).unwrap();
         assert_eq!(definitions.state(BlockStateId(0)).light_emission, 15);
         assert_eq!(definitions.state(BlockStateId(1)).light_emission, 0);
+    }
+
+    #[test]
+    fn a_state_names_the_sound_set_its_components_state_or_none() {
+        let pot = file(
+            "minecraft:decorated_pot",
+            0,
+            r#", "properties": { "cracked": [true, false] }"#,
+            r#", "permutations": [
+                { "condition": "q.block_state('cracked') == true",
+                  "components": { "mcrs:block_sound_set": "minecraft:decorated_pot_cracked" } },
+                { "condition": "q.block_state('cracked') == false",
+                  "components": { "mcrs:block_sound_set": "minecraft:decorated_pot" } }
+            ]"#,
+        );
+        let definitions = build(&[pot, file("minecraft:water", 2, "", "")]).unwrap();
+        let set_of = |state| {
+            definitions
+                .state(BlockStateId(state))
+                .sound_set
+                .and_then(|id| definitions.sound_set(id))
+                .map(ResourceKey::as_str)
+        };
+        assert_eq!(set_of(0), Some("minecraft:decorated_pot_cracked"));
+        assert_eq!(set_of(1), Some("minecraft:decorated_pot"));
+        assert_eq!(set_of(2), None);
     }
 
     #[test]

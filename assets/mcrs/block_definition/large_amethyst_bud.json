@@ -17,9 +17,9 @@
           false
         ]
       },
-      "protocol_id": 1071,
-      "base_state_id": 26773,
-      "default_state_id": 26782
+      "protocol_id": 1073,
+      "base_state_id": 26791,
+      "default_state_id": 26800
     },
     "components": {
       "minecraft:light_emission": 4,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/large_amethyst_bud",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:large_amethyst_bud"
     },
     "permutations": [
       {

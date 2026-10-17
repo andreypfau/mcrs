@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:smithing_table",
-      "protocol_id": 936,
-      "base_state_id": 24157,
-      "default_state_id": 24157
+      "protocol_id": 937,
+      "base_state_id": 24163,
+      "default_state_id": 24163
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

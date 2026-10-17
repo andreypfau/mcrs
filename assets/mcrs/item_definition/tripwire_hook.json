@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tripwire_hook",
-      "protocol_id": 851
+      "protocol_id": 852
     },
     "components": {
       "minecraft:attack_animation": {},

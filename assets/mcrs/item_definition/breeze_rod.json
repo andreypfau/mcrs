@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:breeze_rod",
-      "protocol_id": 1373
+      "protocol_id": 1376
     },
     "components": {
       "minecraft:attack_animation": {},

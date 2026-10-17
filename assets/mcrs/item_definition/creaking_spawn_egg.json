@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:creaking_spawn_egg",
-      "protocol_id": 1340
+      "protocol_id": 1343
     },
     "components": {
       "minecraft:attack_animation": {},

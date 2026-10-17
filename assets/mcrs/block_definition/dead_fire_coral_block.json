@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dead_fire_coral_block",
-      "protocol_id": 841,
-      "base_state_id": 18497,
-      "default_state_id": 18497
+      "protocol_id": 842,
+      "base_state_id": 18503,
+      "default_state_id": 18503
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

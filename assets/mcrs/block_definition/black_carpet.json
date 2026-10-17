@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:black_carpet",
       "protocol_id": 607,
-      "base_state_id": 14758,
-      "default_state_id": 14758
+      "base_state_id": 14760,
+      "default_state_id": 14760
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 1, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wool"
     },
     "permutations": []
   }

@@ -21,9 +21,9 @@
           "ejecting"
         ]
       },
-      "protocol_id": 1276,
-      "base_state_id": 35519,
-      "default_state_id": 35523
+      "protocol_id": 1279,
+      "base_state_id": 35577,
+      "default_state_id": 35581
     },
     "components": {
       "minecraft:light_dampening": 1,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/vault",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:vault"
     },
     "permutations": [
       {

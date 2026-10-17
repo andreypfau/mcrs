@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 553,
-      "base_state_id": 13227,
-      "default_state_id": 13258
+      "base_state_id": 13229,
+      "default_state_id": 13260
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -51,7 +51,8 @@
       "minecraft:loot": "minecraft:blocks/white_stained_glass_pane",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": [
       {

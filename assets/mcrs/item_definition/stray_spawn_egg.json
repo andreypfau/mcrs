@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stray_spawn_egg",
-      "protocol_id": 1330
+      "protocol_id": 1333
     },
     "components": {
       "minecraft:attack_animation": {},

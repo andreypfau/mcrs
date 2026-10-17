@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 658,
-      "base_state_id": 15207,
-      "default_state_id": 15210
+      "base_state_id": 15209,
+      "default_state_id": 15212
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/cherry_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cherry_wood"
     },
     "permutations": [
       {

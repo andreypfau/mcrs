@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:weathered_chiseled_copper",
-      "protocol_id": 1144,
-      "base_state_id": 31159,
-      "default_state_id": 31159
+      "protocol_id": 1146,
+      "base_state_id": 31177,
+      "default_state_id": 31177
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -60,7 +60,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": []
   }

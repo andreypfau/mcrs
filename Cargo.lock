@@ -3540,6 +3540,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_registry",
+ "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
  "rustc-hash 2.1.1",
  "serde",
@@ -4243,6 +4244,7 @@ name = "mcrs_minecraft_sound"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_core",
+ "mcrs_minecraft_registries",
  "mcrs_minecraft_registry",
  "serde",
 ]

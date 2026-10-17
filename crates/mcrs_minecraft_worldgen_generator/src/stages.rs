@@ -745,7 +745,7 @@ impl WorldGenVolume for ColumnRegion<'_> {
             .ctx
             .features()
             .expect("a region tested survival without a feature program");
-        program.would_survive(program.world.block_of(state), p, |q| self.get(q))
+        program.would_survive(state, p, |q| self.get(q))
     }
 }
 

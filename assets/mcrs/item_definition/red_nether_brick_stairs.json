@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_nether_brick_stairs",
-      "protocol_id": 799
+      "protocol_id": 800
     },
     "components": {
       "minecraft:attack_animation": {},

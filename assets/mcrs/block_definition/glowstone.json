@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:glowstone",
       "protocol_id": 343,
-      "base_state_id": 8686,
-      "default_state_id": 8686
+      "base_state_id": 8688,
+      "default_state_id": 8688
     },
     "components": {
       "minecraft:light_emission": 15,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

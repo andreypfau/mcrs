@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_spear",
-      "protocol_id": 1449
+      "protocol_id": 1452
     },
     "components": {
       "minecraft:attack_animation": {

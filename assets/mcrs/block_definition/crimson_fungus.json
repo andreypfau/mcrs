@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crimson_fungus",
-      "protocol_id": 966,
-      "base_state_id": 24332,
-      "default_state_id": 24332
+      "protocol_id": 967,
+      "base_state_id": 24338,
+      "default_state_id": 24338
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -44,7 +44,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:fungus"
     },
     "permutations": []
   }

@@ -53,6 +53,9 @@ pub struct WorldStates {
     pub block_of_state: Arc<[Id<Block>]>,
     /// Per block index, its properties as the digits of its state ids.
     pub layouts: Arc<[BlockLayout]>,
+    /// Per state id, a number two states share exactly when their fluid
+    /// states are equal; 0 is the empty fluid, and so is a state past the table.
+    pub fluid_states: Arc<[u16]>,
 }
 
 /// One property of a block as a digit of its state ids: the values in declared
@@ -133,6 +136,13 @@ impl BlockLayout {
 }
 
 impl WorldStates {
+    pub fn fluid_state_of(&self, state: VoxelId) -> u16 {
+        self.fluid_states
+            .get(usize::from(state.0))
+            .copied()
+            .unwrap_or(0)
+    }
+
     pub fn layout_of(&self, state: VoxelId) -> Option<&BlockLayout> {
         self.layouts.get(self.block_of(state).index())
     }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:hopper_minecart",
-      "protocol_id": 970
+      "protocol_id": 971
     },
     "components": {
       "minecraft:attack_animation": {},

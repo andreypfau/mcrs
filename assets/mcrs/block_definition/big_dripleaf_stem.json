@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 1236,
-      "base_state_id": 33745,
-      "default_state_id": 33746
+      "protocol_id": 1239,
+      "base_state_id": 33803,
+      "default_state_id": 33804
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -42,7 +42,8 @@
       "minecraft:loot": "minecraft:blocks/big_dripleaf_stem",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:big_dripleaf"
     },
     "permutations": [
       {

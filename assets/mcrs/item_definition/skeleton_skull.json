@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:skeleton_skull",
-      "protocol_id": 1384
+      "protocol_id": 1387
     },
     "components": {
       "minecraft:attack_animation": {},

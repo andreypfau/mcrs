@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_trapdoor",
-      "protocol_id": 914
+      "protocol_id": 915
     },
     "components": {
       "minecraft:attack_animation": {},

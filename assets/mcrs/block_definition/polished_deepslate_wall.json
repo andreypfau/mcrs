@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1249,
-      "base_state_id": 34274,
-      "default_state_id": 34277
+      "protocol_id": 1252,
+      "base_state_id": 34332,
+      "default_state_id": 34335
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/polished_deepslate_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:polished_deepslate"
     },
     "permutations": [
       {

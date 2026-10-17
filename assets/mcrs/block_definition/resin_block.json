@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:resin_block",
       "protocol_id": 425,
-      "base_state_id": 10655,
-      "default_state_id": 10655
+      "base_state_id": 10657,
+      "default_state_id": 10657
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:resin"
     },
     "permutations": []
   }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_weathered_copper_lantern",
-      "protocol_id": 1523
+      "protocol_id": 1526
     },
     "components": {
       "minecraft:attack_animation": {},

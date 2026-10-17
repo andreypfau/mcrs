@@ -9,9 +9,9 @@
           false
         ]
       },
-      "protocol_id": 1185,
-      "base_state_id": 32883,
-      "default_state_id": 32884
+      "protocol_id": 1187,
+      "base_state_id": 32901,
+      "default_state_id": 32902
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -64,7 +64,8 @@
       "minecraft:loot": "minecraft:blocks/oxidized_copper_grate",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper_grate"
     },
     "permutations": [
       {

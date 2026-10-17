@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_pressure_plate",
-      "protocol_id": 885
+      "protocol_id": 886
     },
     "components": {
       "minecraft:attack_animation": {},

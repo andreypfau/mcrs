@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bolt_armor_trim_smithing_template",
-      "protocol_id": 1597
+      "protocol_id": 1602
     },
     "components": {
       "minecraft:attack_animation": {},

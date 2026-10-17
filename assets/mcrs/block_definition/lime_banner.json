@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 622,
-      "base_state_id": 14854,
-      "default_state_id": 14862
+      "base_state_id": 14856,
+      "default_state_id": 14864
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -58,7 +58,8 @@
       "minecraft:loot": "minecraft:blocks/lime_banner",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

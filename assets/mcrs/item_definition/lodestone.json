@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lodestone",
-      "protocol_id": 1535
+      "protocol_id": 1538
     },
     "components": {
       "minecraft:attack_animation": {},

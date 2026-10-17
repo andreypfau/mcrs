@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fermented_spider_eye",
-      "protocol_id": 1273
+      "protocol_id": 1275
     },
     "components": {
       "minecraft:attack_animation": {},

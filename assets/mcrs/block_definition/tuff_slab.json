@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1075,
-      "base_state_id": 26810,
-      "default_state_id": 26813
+      "protocol_id": 1077,
+      "base_state_id": 26828,
+      "default_state_id": 26831
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/tuff_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:tuff"
     },
     "permutations": [
       {

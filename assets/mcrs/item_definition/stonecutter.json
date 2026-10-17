@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stonecutter",
-      "protocol_id": 1513
+      "protocol_id": 1516
     },
     "components": {
       "minecraft:attack_animation": {},

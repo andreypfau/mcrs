@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_pressure_plate",
-      "protocol_id": 876
+      "protocol_id": 877
     },
     "components": {
       "minecraft:attack_animation": {},

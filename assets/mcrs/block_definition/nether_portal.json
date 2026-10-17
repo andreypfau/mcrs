@@ -10,8 +10,8 @@
         ]
       },
       "protocol_id": 344,
-      "base_state_id": 8687,
-      "default_state_id": 8687
+      "base_state_id": 8689,
+      "default_state_id": 8689
     },
     "components": {
       "minecraft:light_emission": 11,
@@ -35,7 +35,8 @@
       "minecraft:loot": "minecraft:blocks/nether_portal",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": [
       {

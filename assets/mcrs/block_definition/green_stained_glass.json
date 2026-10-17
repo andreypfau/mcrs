@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:green_stained_glass",
       "protocol_id": 362,
-      "base_state_id": 8781,
-      "default_state_id": 8781
+      "base_state_id": 8783,
+      "default_state_id": 8783
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/green_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

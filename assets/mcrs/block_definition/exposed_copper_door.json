@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 1167,
-      "base_state_id": 31917,
-      "default_state_id": 31928
+      "protocol_id": 1169,
+      "base_state_id": 31935,
+      "default_state_id": 31946
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/exposed_copper_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

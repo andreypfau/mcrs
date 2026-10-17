@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:emerald_block",
       "protocol_id": 454,
-      "base_state_id": 11469,
-      "default_state_id": 11469
+      "base_state_id": 11471,
+      "default_state_id": 11471
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:metal"
     },
     "permutations": []
   }

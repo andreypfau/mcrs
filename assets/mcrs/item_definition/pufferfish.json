@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pufferfish",
-      "protocol_id": 1193
+      "protocol_id": 1195
     },
     "components": {
       "minecraft:attack_animation": {},

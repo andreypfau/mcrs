@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:tuff_bricks",
-      "protocol_id": 1083,
-      "base_state_id": 27632,
-      "default_state_id": 27632
+      "protocol_id": 1085,
+      "base_state_id": 27650,
+      "default_state_id": 27650
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:tuff_bricks"
     },
     "permutations": []
   }

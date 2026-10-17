@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:splash_potion",
-      "protocol_id": 1442
+      "protocol_id": 1445
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:buried_treasure_map",
-      "protocol_id": 1249
+      "protocol_id": 1251
     },
     "components": {
       "minecraft:attack_animation": {},

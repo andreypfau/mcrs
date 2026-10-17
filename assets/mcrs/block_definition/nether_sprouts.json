@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:nether_sprouts",
-      "protocol_id": 960,
-      "base_state_id": 24318,
-      "default_state_id": 24318
+      "protocol_id": 961,
+      "base_state_id": 24324,
+      "default_state_id": 24324
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_sprouts"
     },
     "permutations": []
   }

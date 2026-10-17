@@ -66,10 +66,10 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
         size_of::<BlockStateData>(),
         report.elapsed
     );
-    assert_eq!(report.files, 1286);
-    assert_eq!(report.states, 35723);
-    assert_eq!(definitions.state_count(), 35723);
-    assert_eq!(definitions.blocks().len(), 1286);
+    assert_eq!(report.files, 1289);
+    assert_eq!(report.states, 35781);
+    assert_eq!(definitions.state_count(), 35781);
+    assert_eq!(definitions.blocks().len(), 1289);
 
     let mut claimed = vec![false; report.states];
     for block in definitions.blocks() {
@@ -198,16 +198,16 @@ fn water_carries_its_fluid_state_per_level() {
     assert_eq!(source.level, 8);
     assert!(source.source);
 
-    let falling = definitions
+    let flowing = definitions
         .state(water.state_id(&[("level", PropertyValue::Int(1))]).unwrap())
         .fluid
         .unwrap();
     assert_eq!(
-        Fluid::from_id(falling.fluid).unwrap().as_static_str(),
-        "minecraft:flowing_water"
+        Fluid::from_id(flowing.fluid).unwrap().as_static_str(),
+        "minecraft:water"
     );
-    assert_eq!(falling.level, 7);
-    assert!(!falling.source);
+    assert_eq!(flowing.level, 7);
+    assert!(!flowing.source);
 
     assert!(
         definitions

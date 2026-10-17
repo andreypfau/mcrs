@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_nautilus_armor",
-      "protocol_id": 1486
+      "protocol_id": 1489
     },
     "components": {
       "minecraft:attack_animation": {},

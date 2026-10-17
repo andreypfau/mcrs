@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:salmon",
-      "protocol_id": 1191
+      "protocol_id": 1193
     },
     "components": {
       "minecraft:attack_animation": {},

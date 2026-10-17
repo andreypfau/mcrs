@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dune_armor_trim_smithing_template",
-      "protocol_id": 1581
+      "protocol_id": 1586
     },
     "components": {
       "minecraft:attack_animation": {},

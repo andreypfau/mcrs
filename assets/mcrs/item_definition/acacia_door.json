@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_door",
-      "protocol_id": 893
+      "protocol_id": 894
     },
     "components": {
       "minecraft:attack_animation": {},

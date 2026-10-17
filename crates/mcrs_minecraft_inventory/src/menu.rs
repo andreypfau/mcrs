@@ -128,6 +128,7 @@ pub fn menu_slots(menu: Id<MenuType>) -> Option<MenuSlots> {
             trailing_result: false,
         },
         Loom | Smithing => own(4),
+        Jukebox => return None,
     })
 }
 

@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 653,
-      "base_state_id": 15177,
-      "default_state_id": 15180
+      "base_state_id": 15179,
+      "default_state_id": 15182
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/oak_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

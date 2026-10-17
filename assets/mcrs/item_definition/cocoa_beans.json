@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cocoa_beans",
-      "protocol_id": 1198
+      "protocol_id": 1200
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 874,
-      "base_state_id": 18592,
-      "default_state_id": 18592
+      "protocol_id": 875,
+      "base_state_id": 18598,
+      "default_state_id": 18598
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -40,7 +40,8 @@
       "minecraft:loot": "minecraft:blocks/brain_coral_fan",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": [
       {

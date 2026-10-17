@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 569,
-      "base_state_id": 13739,
-      "default_state_id": 13750
+      "base_state_id": 13741,
+      "default_state_id": 13752
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/acacia_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

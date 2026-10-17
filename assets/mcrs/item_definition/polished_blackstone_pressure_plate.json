@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_blackstone_pressure_plate",
-      "protocol_id": 872
+      "protocol_id": 873
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:green_bundle",
-      "protocol_id": 1167
+      "protocol_id": 1169
     },
     "components": {
       "minecraft:attack_animation": {},

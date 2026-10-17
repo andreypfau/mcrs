@@ -88,7 +88,7 @@ fn the_overworld_parameter_list_builds_the_overworld_table() {
             }
         }
     }
-    assert_eq!(digest, 5_811_771_714_322_547_878);
+    assert_eq!(digest, 15_074_558_872_385_058_528);
 }
 
 fn a_column_carries_its_cave_biome_under_its_surface_biome(

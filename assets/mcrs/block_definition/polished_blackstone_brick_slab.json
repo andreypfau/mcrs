@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1022,
-      "base_state_id": 25603,
-      "default_state_id": 25606
+      "protocol_id": 1023,
+      "base_state_id": 25609,
+      "default_state_id": 25612
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/polished_blackstone_brick_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

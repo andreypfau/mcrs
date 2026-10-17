@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:suspicious_stew",
-      "protocol_id": 1492
+      "protocol_id": 1495
     },
     "components": {
       "minecraft:attack_animation": {},

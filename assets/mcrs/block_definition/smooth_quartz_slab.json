@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 908,
-      "base_state_id": 19815,
-      "default_state_id": 19818
+      "protocol_id": 909,
+      "base_state_id": 19821,
+      "default_state_id": 19824
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/smooth_quartz_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

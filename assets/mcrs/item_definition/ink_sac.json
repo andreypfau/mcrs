@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ink_sac",
-      "protocol_id": 1196
+      "protocol_id": 1198
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:twisting_vines_plant",
-      "protocol_id": 971,
-      "base_state_id": 24387,
-      "default_state_id": 24387
+      "protocol_id": 972,
+      "base_state_id": 24393,
+      "default_state_id": 24393
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/twisting_vines_plant",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:weeping_vines"
     },
     "permutations": []
   }

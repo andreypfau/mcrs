@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:kelp_plant",
-      "protocol_id": 833,
-      "base_state_id": 18445,
-      "default_state_id": 18445
+      "protocol_id": 834,
+      "base_state_id": 18451,
+      "default_state_id": 18451
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -37,7 +37,8 @@
         "fluid": "minecraft:water",
         "level": 8,
         "source": true
-      }
+      },
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": []
   }

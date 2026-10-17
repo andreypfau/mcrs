@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:breeze_spawn_egg",
-      "protocol_id": 1339
+      "protocol_id": 1342
     },
     "components": {
       "minecraft:attack_animation": {},

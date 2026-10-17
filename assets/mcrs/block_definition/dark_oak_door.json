@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 707,
-      "base_state_id": 16291,
-      "default_state_id": 16302
+      "base_state_id": 16293,
+      "default_state_id": 16304
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "minecraft:loot": "minecraft:blocks/dark_oak_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

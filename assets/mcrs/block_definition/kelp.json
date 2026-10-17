@@ -33,9 +33,9 @@
           25
         ]
       },
-      "protocol_id": 832,
-      "base_state_id": 18419,
-      "default_state_id": 18419
+      "protocol_id": 833,
+      "base_state_id": 18425,
+      "default_state_id": 18425
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -67,7 +67,8 @@
         "fluid": "minecraft:water",
         "level": 8,
         "source": true
-      }
+      },
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": []
   }

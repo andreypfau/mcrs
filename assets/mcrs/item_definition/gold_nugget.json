@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gold_nugget",
-      "protocol_id": 1268
+      "protocol_id": 1270
     },
     "components": {
       "minecraft:attack_animation": {},

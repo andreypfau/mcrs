@@ -13,9 +13,9 @@
           false
         ]
       },
-      "protocol_id": 943,
-      "base_state_id": 24210,
-      "default_state_id": 24213
+      "protocol_id": 944,
+      "base_state_id": 24216,
+      "default_state_id": 24219
     },
     "components": {
       "minecraft:light_emission": 15,
@@ -39,7 +39,8 @@
       "minecraft:loot": "minecraft:blocks/weathered_copper_lantern",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:lantern"
     },
     "permutations": [
       {

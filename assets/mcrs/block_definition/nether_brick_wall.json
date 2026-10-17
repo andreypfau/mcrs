@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 921,
-      "base_state_id": 22119,
-      "default_state_id": 22122
+      "protocol_id": 922,
+      "base_state_id": 22125,
+      "default_state_id": 22128
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/nether_brick_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_bricks"
     },
     "permutations": [
       {

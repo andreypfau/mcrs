@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sweet_berries",
-      "protocol_id": 1525
+      "protocol_id": 1528
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:yellow_stained_glass",
       "protocol_id": 353,
-      "base_state_id": 8772,
-      "default_state_id": 8772
+      "base_state_id": 8774,
+      "default_state_id": 8774
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/yellow_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

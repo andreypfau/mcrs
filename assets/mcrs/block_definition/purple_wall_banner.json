@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 643,
-      "base_state_id": 15070,
-      "default_state_id": 15070
+      "base_state_id": 15072,
+      "default_state_id": 15072
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/purple_banner",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:andesite_slab",
-      "protocol_id": 815
+      "protocol_id": 816
     },
     "components": {
       "minecraft:attack_animation": {},

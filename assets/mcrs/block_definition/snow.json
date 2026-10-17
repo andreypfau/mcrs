@@ -49,7 +49,8 @@
       },
       "minecraft:loot": "minecraft:blocks/snow",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:snow"
     },
     "permutations": [
       {

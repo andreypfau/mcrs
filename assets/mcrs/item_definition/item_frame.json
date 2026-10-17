@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:item_frame",
-      "protocol_id": 1375
+      "protocol_id": 1378
     },
     "components": {
       "minecraft:attack_animation": {},

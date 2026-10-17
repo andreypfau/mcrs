@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mojang_banner_pattern",
-      "protocol_id": 1497
+      "protocol_id": 1500
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:paper",
-      "protocol_id": 1145
+      "protocol_id": 1147
     },
     "components": {
       "minecraft:attack_animation": {},

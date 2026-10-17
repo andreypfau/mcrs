@@ -16,8 +16,8 @@
         ]
       },
       "protocol_id": 519,
-      "base_state_id": 12954,
-      "default_state_id": 12955
+      "base_state_id": 12956,
+      "default_state_id": 12957
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -42,7 +42,8 @@
       },
       "minecraft:loot": "minecraft:blocks/piglin_head",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

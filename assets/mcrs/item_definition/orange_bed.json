@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_bed",
-      "protocol_id": 1220
+      "protocol_id": 1222
     },
     "components": {
       "minecraft:attack_animation": {},

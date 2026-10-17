@@ -10,6 +10,7 @@ mcrs_minecraft_registry::static_registry! {
     Generic9x6 = "minecraft:generic_9x6",
     Generic3x3 = "minecraft:generic_3x3",
     Crafter3x3 = "minecraft:crafter_3x3",
+    Jukebox = "minecraft:jukebox",
     Anvil = "minecraft:anvil",
     Beacon = "minecraft:beacon",
     BlastFurnace = "minecraft:blast_furnace",

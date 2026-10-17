@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 985,
-      "base_state_id": 24663,
-      "default_state_id": 24674
+      "protocol_id": 986,
+      "base_state_id": 24669,
+      "default_state_id": 24680
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -51,7 +51,8 @@
       },
       "minecraft:loot": "minecraft:blocks/crimson_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

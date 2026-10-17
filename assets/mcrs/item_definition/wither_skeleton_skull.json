@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wither_skeleton_skull",
-      "protocol_id": 1385
+      "protocol_id": 1388
     },
     "components": {
       "minecraft:attack_animation": {},

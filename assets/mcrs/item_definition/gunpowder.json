@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gunpowder",
-      "protocol_id": 1064
+      "protocol_id": 1065
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:magenta_carpet",
       "protocol_id": 594,
-      "base_state_id": 14745,
-      "default_state_id": 14745
+      "base_state_id": 14747,
+      "default_state_id": 14747
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 1, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wool"
     },
     "permutations": []
   }

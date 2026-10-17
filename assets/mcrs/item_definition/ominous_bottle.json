@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ominous_bottle",
-      "protocol_id": 1657
+      "protocol_id": 1662
     },
     "components": {
       "minecraft:attack_animation": {},

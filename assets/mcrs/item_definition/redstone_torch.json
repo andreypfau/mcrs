@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:redstone_torch",
-      "protocol_id": 825
+      "protocol_id": 826
     },
     "components": {
       "minecraft:attack_animation": {},

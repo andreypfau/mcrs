@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:swamp_hut_map",
-      "protocol_id": 1243
+      "protocol_id": 1245
     },
     "components": {
       "minecraft:attack_animation": {},

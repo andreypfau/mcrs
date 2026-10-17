@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_helmet",
-      "protocol_id": 1092
+      "protocol_id": 1093
     },
     "components": {
       "minecraft:attack_animation": {},

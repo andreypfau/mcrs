@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:mud",
-      "protocol_id": 1240,
-      "base_state_id": 33772,
-      "default_state_id": 33772
+      "protocol_id": 1243,
+      "base_state_id": 33830,
+      "default_state_id": 33830
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:mud"
     },
     "permutations": []
   }

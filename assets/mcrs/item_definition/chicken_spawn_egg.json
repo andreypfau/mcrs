@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chicken_spawn_egg",
-      "protocol_id": 1280
+      "protocol_id": 1282
     },
     "components": {
       "minecraft:attack_animation": {},

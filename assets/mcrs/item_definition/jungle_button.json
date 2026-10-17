@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_button",
-      "protocol_id": 861
+      "protocol_id": 862
     },
     "components": {
       "minecraft:attack_animation": {},

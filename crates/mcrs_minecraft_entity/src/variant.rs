@@ -103,82 +103,102 @@ pub enum ZombieNautilusModel {
 type Sound = Holder<SoundEvent>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct WolfSounds {
-    pub ambient_sound: Sound,
-    pub death_sound: Sound,
-    pub growl_sound: Sound,
-    pub hurt_sound: Sound,
-    pub pant_sound: Sound,
-    pub whine_sound: Sound,
-    pub step_sound: Sound,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub growl_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hurt_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pant_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub whine_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_sound: Option<Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct WolfSoundVariant {
     pub adult_sounds: WolfSounds,
     pub baby_sounds: WolfSounds,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PigSounds {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
-    pub eat_sound: Sound,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hurt_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eat_sound: Option<Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PigSoundVariant {
     pub adult_sounds: PigSounds,
     pub baby_sounds: PigSounds,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CatSounds {
-    pub ambient_sound: Sound,
-    pub stray_ambient_sound: Sound,
-    pub hiss_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub eat_sound: Sound,
-    pub beg_for_food_sound: Sound,
-    pub purr_sound: Sound,
-    pub purreow_sound: Sound,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stray_ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hiss_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hurt_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eat_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beg_for_food_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purr_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purreow_sound: Option<Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CatSoundVariant {
     pub adult_sounds: CatSounds,
     pub baby_sounds: CatSounds,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CowSoundVariant {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hurt_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_sound: Option<Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ChickenSounds {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hurt_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_sound: Option<Sound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_sound: Option<Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ChickenSoundVariant {
     pub adult_sounds: ChickenSounds,
     pub baby_sounds: ChickenSounds,

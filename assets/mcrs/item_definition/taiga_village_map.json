@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:taiga_village_map",
-      "protocol_id": 1248
+      "protocol_id": 1250
     },
     "components": {
       "minecraft:attack_animation": {},

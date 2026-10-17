@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cooked_beef",
-      "protocol_id": 1261
+      "protocol_id": 1263
     },
     "components": {
       "minecraft:attack_animation": {},

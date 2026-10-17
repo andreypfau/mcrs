@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 700,
-      "base_state_id": 15907,
-      "default_state_id": 15938
+      "base_state_id": 15909,
+      "default_state_id": 15940
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/poplar_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:firefly_bush",
-      "protocol_id": 1285,
-      "base_state_id": 35722,
-      "default_state_id": 35722
+      "protocol_id": 1288,
+      "base_state_id": 35780,
+      "default_state_id": 35780
     },
     "components": {
       "minecraft:light_emission": 2,
@@ -47,7 +47,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sweet_berry_bush"
     },
     "permutations": []
   }

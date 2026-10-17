@@ -20,9 +20,9 @@
           false
         ]
       },
-      "protocol_id": 1224,
-      "base_state_id": 33586,
-      "default_state_id": 33591
+      "protocol_id": 1227,
+      "base_state_id": 33644,
+      "default_state_id": 33649
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "minecraft:loot": "minecraft:blocks/sulfur_spike",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sulfur_spike"
     },
     "permutations": [
       {

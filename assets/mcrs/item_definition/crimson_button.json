@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_button",
-      "protocol_id": 869
+      "protocol_id": 870
     },
     "components": {
       "minecraft:attack_animation": {},

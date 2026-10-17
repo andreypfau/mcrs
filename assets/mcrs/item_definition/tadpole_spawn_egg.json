@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tadpole_spawn_egg",
-      "protocol_id": 1310
+      "protocol_id": 1312
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1034,10 +1034,10 @@ mod tests {
                         }
                     }
                 }
-                assert_eq!(files, 1658);
+                assert_eq!(files, 1663);
                 assert_eq!(swap_scales, 7);
                 let expected_kinds: BTreeMap<String, usize> = [
-                    ("minecraft:model", 2253),
+                    ("minecraft:model", 2258),
                     ("minecraft:special", 91),
                     ("minecraft:select", 71),
                     ("minecraft:composite", 34),

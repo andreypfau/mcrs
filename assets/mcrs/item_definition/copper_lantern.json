@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_lantern",
-      "protocol_id": 1517
+      "protocol_id": 1520
     },
     "components": {
       "minecraft:attack_animation": {},

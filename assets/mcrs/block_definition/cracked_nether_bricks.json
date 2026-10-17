@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_nether_bricks",
-      "protocol_id": 1032,
-      "base_state_id": 26451,
-      "default_state_id": 26451
+      "protocol_id": 1033,
+      "base_state_id": 26457,
+      "default_state_id": 26457
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_bricks"
     },
     "permutations": []
   }

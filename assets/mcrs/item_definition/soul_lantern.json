@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:soul_lantern",
-      "protocol_id": 1516
+      "protocol_id": 1519
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_bed",
-      "protocol_id": 1225
+      "protocol_id": 1227
     },
     "components": {
       "minecraft:attack_animation": {},

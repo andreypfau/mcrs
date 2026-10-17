@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_dye",
-      "protocol_id": 1201
+      "protocol_id": 1203
     },
     "components": {
       "minecraft:attack_animation": {},

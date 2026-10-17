@@ -22,7 +22,7 @@ pub enum CorpusReadError {
 /// Every `.json` file directly under `directory`, in path order, read whole.
 ///
 /// One block_on for the whole corpus: entering the executor per file cost
-/// far more than reading or parsing the 1286 block files put together.
+/// far more than reading or parsing the 1289 block files put together.
 pub fn read_json_corpus(
     reader: &dyn ErasedAssetReader,
     directory: &str,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dragon_head",
-      "protocol_id": 1389
+      "protocol_id": 1392
     },
     "components": {
       "minecraft:attack_animation": {},

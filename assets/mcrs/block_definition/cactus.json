@@ -58,7 +58,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-7, 0, -7], "size": [14, 16, 14] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wool"
     },
     "permutations": []
   }

@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 574,
-      "base_state_id": 14139,
-      "default_state_id": 14150
+      "base_state_id": 14141,
+      "default_state_id": 14152
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/poplar_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

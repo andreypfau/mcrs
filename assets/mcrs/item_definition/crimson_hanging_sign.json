@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_hanging_sign",
-      "protocol_id": 1126
+      "protocol_id": 1127
     },
     "components": {
       "minecraft:attack_animation": {},

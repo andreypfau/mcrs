@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cauldron",
-      "protocol_id": 1277
+      "protocol_id": 1279
     },
     "components": {
       "minecraft:attack_animation": {},

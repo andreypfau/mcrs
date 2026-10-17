@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:nether_wart_block",
-      "protocol_id": 730,
-      "base_state_id": 16827,
-      "default_state_id": 16827
+      "protocol_id": 731,
+      "base_state_id": 16833,
+      "default_state_id": 16833
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wart_block"
     },
     "permutations": []
   }

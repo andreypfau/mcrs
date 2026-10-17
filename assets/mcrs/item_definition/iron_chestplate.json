@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_chestplate",
-      "protocol_id": 1081
+      "protocol_id": 1082
     },
     "components": {
       "minecraft:attack_animation": {},

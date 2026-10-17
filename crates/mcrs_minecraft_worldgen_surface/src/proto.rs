@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn every_shipped_material_rule_and_condition_round_trips() {
-        assert_eq!(round_trips::<MaterialRuleHolder>("material_rule"), 42);
+        assert_eq!(round_trips::<MaterialRuleHolder>("material_rule"), 44);
         assert_eq!(
             round_trips::<MaterialConditionHolder>("material_condition"),
             8

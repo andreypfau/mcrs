@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:granite_stairs",
-      "protocol_id": 797
+      "protocol_id": 798
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 684,
-      "base_state_id": 15395,
-      "default_state_id": 15402
+      "base_state_id": 15397,
+      "default_state_id": 15404
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       },
       "minecraft:loot": "minecraft:blocks/jungle_fence_gate",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

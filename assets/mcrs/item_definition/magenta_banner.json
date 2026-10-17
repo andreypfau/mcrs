@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_banner",
-      "protocol_id": 1419
+      "protocol_id": 1422
     },
     "components": {
       "minecraft:attack_animation": {},

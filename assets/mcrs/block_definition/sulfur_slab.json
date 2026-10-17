@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1090,
-      "base_state_id": 28050,
-      "default_state_id": 28053
+      "protocol_id": 1092,
+      "base_state_id": 28068,
+      "default_state_id": 28071
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/sulfur_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sulfur"
     },
     "permutations": [
       {

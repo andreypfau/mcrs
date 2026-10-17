@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snow_golem_spawn_egg",
-      "protocol_id": 1319
+      "protocol_id": 1321
     },
     "components": {
       "minecraft:attack_animation": {},

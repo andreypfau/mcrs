@@ -19,9 +19,9 @@
           false
         ]
       },
-      "protocol_id": 1045,
-      "base_state_id": 26629,
-      "default_state_id": 26632
+      "protocol_id": 1046,
+      "base_state_id": 26635,
+      "default_state_id": 26638
     },
     "components": {
       "minecraft:friction": 0.6,
@@ -44,7 +44,8 @@
       "minecraft:loot": "minecraft:blocks/purple_candle",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:candle"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:redstone_lamp",
-      "protocol_id": 854
+      "protocol_id": 855
     },
     "components": {
       "minecraft:attack_animation": {},

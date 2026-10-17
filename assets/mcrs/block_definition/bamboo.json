@@ -18,9 +18,9 @@
           1
         ]
       },
-      "protocol_id": 882,
-      "base_state_id": 18636,
-      "default_state_id": 18636
+      "protocol_id": 883,
+      "base_state_id": 18642,
+      "default_state_id": 18642
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -63,7 +63,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:bamboo"
     },
     "permutations": [
       {

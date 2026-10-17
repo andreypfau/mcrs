@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 522,
-      "base_state_id": 12970,
-      "default_state_id": 12970
+      "base_state_id": 12972,
+      "default_state_id": 12972
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       },
       "minecraft:loot": "minecraft:blocks/damaged_anvil",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:anvil"
     },
     "permutations": [
       {

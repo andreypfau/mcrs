@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:clock",
-      "protocol_id": 1187
+      "protocol_id": 1189
     },
     "components": {
       "minecraft:attack_animation": {},

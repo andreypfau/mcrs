@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 657,
-      "base_state_id": 15201,
-      "default_state_id": 15204
+      "base_state_id": 15203,
+      "default_state_id": 15206
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/acacia_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

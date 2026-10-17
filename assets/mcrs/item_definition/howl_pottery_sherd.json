@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:howl_pottery_sherd",
-      "protocol_id": 1611
+      "protocol_id": 1616
     },
     "components": {
       "minecraft:attack_animation": {},

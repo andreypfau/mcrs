@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tipped_arrow",
-      "protocol_id": 1444
+      "protocol_id": 1447
     },
     "components": {
       "minecraft:attack_animation": {},

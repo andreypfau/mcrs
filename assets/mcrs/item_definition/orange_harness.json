@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_harness",
-      "protocol_id": 951
+      "protocol_id": 952
     },
     "components": {
       "minecraft:attack_animation": {},

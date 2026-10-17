@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_spear",
-      "protocol_id": 1453
+      "protocol_id": 1456
     },
     "components": {
       "minecraft:attack_animation": {

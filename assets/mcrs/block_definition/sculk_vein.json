@@ -33,9 +33,9 @@
           false
         ]
       },
-      "protocol_id": 1121,
-      "base_state_id": 31001,
-      "default_state_id": 31128
+      "protocol_id": 1123,
+      "base_state_id": 31019,
+      "default_state_id": 31146
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -60,7 +60,8 @@
       "minecraft:loot": "minecraft:blocks/sculk_vein",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sculk_vein"
     },
     "permutations": [
       {

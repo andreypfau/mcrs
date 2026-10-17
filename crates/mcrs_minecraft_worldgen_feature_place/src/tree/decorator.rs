@@ -135,7 +135,7 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
     }
 
     fn is_water_or_water_nearby(&self, pos: BlockPos) -> bool {
-        let water = &self.volume.world().water_fluid;
+        let water = &self.volume.world().water_states;
         self.holds(water, pos)
             || Direction::HORIZONTAL
                 .iter()
@@ -744,7 +744,7 @@ mod tests {
             air_states: mask_of([AIR]),
             replaceable: mask_of([AIR]),
             solid_render: mask_of([DIRT, LOG]),
-            water_fluid: mask_of([WATER]),
+            water_states: mask_of([WATER]),
             ..WorldStates::default()
         };
         let mut sink = EntitiesOnly::default();

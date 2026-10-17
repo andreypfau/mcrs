@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:black_dye",
-      "protocol_id": 1214
+      "protocol_id": 1216
     },
     "components": {
       "minecraft:attack_animation": {},

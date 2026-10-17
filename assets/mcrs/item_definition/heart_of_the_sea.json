@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:heart_of_the_sea",
-      "protocol_id": 1490
+      "protocol_id": 1493
     },
     "components": {
       "minecraft:attack_animation": {},

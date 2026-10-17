@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_trapdoor",
-      "protocol_id": 921
+      "protocol_id": 922
     },
     "components": {
       "minecraft:attack_animation": {},

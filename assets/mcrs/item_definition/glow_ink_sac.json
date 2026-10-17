@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glow_ink_sac",
-      "protocol_id": 1197
+      "protocol_id": 1199
     },
     "components": {
       "minecraft:attack_animation": {},

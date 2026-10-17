@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_boat",
-      "protocol_id": 985
+      "protocol_id": 986
     },
     "components": {
       "minecraft:attack_animation": {},

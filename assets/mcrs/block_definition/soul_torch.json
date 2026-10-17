@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:soul_torch",
       "protocol_id": 339,
-      "base_state_id": 8676,
-      "default_state_id": 8676
+      "base_state_id": 8678,
+      "default_state_id": 8678
     },
     "components": {
       "minecraft:light_emission": 10,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/soul_torch",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

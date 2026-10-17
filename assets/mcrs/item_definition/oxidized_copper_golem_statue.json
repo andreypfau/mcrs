@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxidized_copper_golem_statue",
-      "protocol_id": 1648
+      "protocol_id": 1653
     },
     "components": {
       "minecraft:attack_animation": {},

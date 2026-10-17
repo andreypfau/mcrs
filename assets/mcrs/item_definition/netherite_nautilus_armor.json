@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_nautilus_armor",
-      "protocol_id": 1488
+      "protocol_id": 1491
     },
     "components": {
       "minecraft:attack_animation": {},

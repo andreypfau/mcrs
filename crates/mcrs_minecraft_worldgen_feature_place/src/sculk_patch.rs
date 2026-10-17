@@ -251,7 +251,7 @@ fn attempt_spread_vein<W: WorldGenVolume>(
             Some(0) => spread_all(config, volume, state, pos, DEFAULT_SPREAD_ORDER),
             Some(faces) => {
                 (holds(&volume.world().air_states, state)
-                    || holds(&volume.world().water_fluid, state))
+                    || holds(&volume.world().water_source, state))
                     && regrow(config, volume, pos, state, faces)
             }
         },
@@ -369,7 +369,8 @@ fn can_spread_into<W: WorldGenVolume>(
         return false;
     }
     let existing = volume.get(target);
-    if holds(&volume.world().any_fluid, existing) && !holds(&volume.world().water_fluid, existing) {
+    if holds(&volume.world().any_fluid, existing) && !holds(&volume.world().water_source, existing)
+    {
         return false;
     }
     if holds(&config.fire, existing) {
@@ -522,7 +523,7 @@ fn can_place_growth<W: WorldGenVolume>(
     pos: BlockPos,
 ) -> bool {
     let above = volume.get(pos + IVec3::Y);
-    if !holds(&volume.world().air_states, above) && !holds(&volume.world().water_states, above) {
+    if !holds(&volume.world().air_states, above) && above != volume.world().water {
         return false;
     }
     let mut found = 0;

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_sword",
-      "protocol_id": 1025
+      "protocol_id": 1026
     },
     "components": {
       "minecraft:attack_animation": {},

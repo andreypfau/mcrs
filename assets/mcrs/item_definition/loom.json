@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:loom",
-      "protocol_id": 1493
+      "protocol_id": 1496
     },
     "components": {
       "minecraft:attack_animation": {},

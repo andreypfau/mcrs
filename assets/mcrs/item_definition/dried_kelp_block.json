@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dried_kelp_block",
-      "protocol_id": 1144
+      "protocol_id": 1146
     },
     "components": {
       "minecraft:attack_animation": {},

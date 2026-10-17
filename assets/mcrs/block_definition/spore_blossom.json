@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:spore_blossom",
-      "protocol_id": 1227,
-      "base_state_id": 33660,
-      "default_state_id": 33660
+      "protocol_id": 1230,
+      "base_state_id": 33718,
+      "default_state_id": 33718
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/spore_blossom",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:spore_blossom"
     },
     "permutations": []
   }

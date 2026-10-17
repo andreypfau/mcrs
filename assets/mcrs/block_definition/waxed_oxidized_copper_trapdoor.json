@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 1181,
-      "base_state_id": 32813,
-      "default_state_id": 32828
+      "protocol_id": 1183,
+      "base_state_id": 32831,
+      "default_state_id": 32846
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -75,7 +75,8 @@
       "minecraft:loot": "minecraft:blocks/waxed_oxidized_copper_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

@@ -21,8 +21,8 @@
         ]
       },
       "protocol_id": 501,
-      "base_state_id": 12562,
-      "default_state_id": 12571
+      "base_state_id": 12564,
+      "default_state_id": 12573
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "minecraft:loot": "minecraft:blocks/dark_oak_button",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

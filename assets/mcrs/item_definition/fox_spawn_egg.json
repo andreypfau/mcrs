@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fox_spawn_egg",
-      "protocol_id": 1294
+      "protocol_id": 1296
     },
     "components": {
       "minecraft:attack_animation": {},

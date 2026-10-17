@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_cushion",
-      "protocol_id": 1179
+      "protocol_id": 1181
     },
     "components": {
       "minecraft:attack_animation": {},

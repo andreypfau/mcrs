@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:savanna_village_map",
-      "protocol_id": 1246
+      "protocol_id": 1248
     },
     "components": {
       "minecraft:attack_animation": {},

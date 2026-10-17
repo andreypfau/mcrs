@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 405,
-      "base_state_id": 10010,
-      "default_state_id": 10013
+      "base_state_id": 10012,
+      "default_state_id": 10015
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "minecraft:loot": "minecraft:blocks/waxed_copper_chain",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:chain"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:axolotl_spawn_egg",
-      "protocol_id": 1301
+      "protocol_id": 1303
     },
     "components": {
       "minecraft:attack_animation": {},

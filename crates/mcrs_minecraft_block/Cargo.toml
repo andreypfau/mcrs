@@ -20,6 +20,7 @@ bevy_platform = { workspace = true, optional = true }
 bitflags = "2"
 mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_sound.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true

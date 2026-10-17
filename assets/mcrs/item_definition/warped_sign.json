@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_sign",
-      "protocol_id": 1114
+      "protocol_id": 1115
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -17,9 +17,9 @@
           4
         ]
       },
-      "protocol_id": 1232,
-      "base_state_id": 33680,
-      "default_state_id": 33680
+      "protocol_id": 1235,
+      "base_state_id": 33738,
+      "default_state_id": 33738
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -55,7 +55,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:pink_petals"
     },
     "permutations": [
       {

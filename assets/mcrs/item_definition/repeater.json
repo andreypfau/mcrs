@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:repeater",
-      "protocol_id": 827
+      "protocol_id": 828
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:baked_potato",
-      "protocol_id": 1380
+      "protocol_id": 1383
     },
     "components": {
       "minecraft:attack_animation": {},

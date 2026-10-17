@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warden_spawn_egg",
-      "protocol_id": 1347
+      "protocol_id": 1350
     },
     "components": {
       "minecraft:attack_animation": {},

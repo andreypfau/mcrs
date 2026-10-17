@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1107,
-      "base_state_id": 29695,
-      "default_state_id": 29698
+      "protocol_id": 1109,
+      "base_state_id": 29713,
+      "default_state_id": 29716
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/polished_cinnabar_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cinnabar"
     },
     "permutations": [
       {

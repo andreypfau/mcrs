@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_door",
-      "protocol_id": 888
+      "protocol_id": 889
     },
     "components": {
       "minecraft:attack_animation": {},

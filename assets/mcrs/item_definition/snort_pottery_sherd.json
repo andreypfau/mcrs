@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snort_pottery_sherd",
-      "protocol_id": 1620
+      "protocol_id": 1625
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:moss_block",
-      "protocol_id": 1234,
-      "base_state_id": 33712,
-      "default_state_id": 33712
+      "protocol_id": 1237,
+      "base_state_id": 33770,
+      "default_state_id": 33770
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:moss"
     },
     "permutations": []
   }

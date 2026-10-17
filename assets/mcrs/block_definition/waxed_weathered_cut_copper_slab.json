@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1164,
-      "base_state_id": 31841,
-      "default_state_id": 31844
+      "protocol_id": 1166,
+      "base_state_id": 31859,
+      "default_state_id": 31862
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
         "seconds_to_destroy": 3
       },
       "minecraft:loot": "minecraft:blocks/waxed_weathered_cut_copper_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

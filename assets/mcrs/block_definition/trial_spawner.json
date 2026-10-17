@@ -17,9 +17,9 @@
           "cooldown"
         ]
       },
-      "protocol_id": 1275,
-      "base_state_id": 35507,
-      "default_state_id": 35513
+      "protocol_id": 1278,
+      "base_state_id": 35565,
+      "default_state_id": 35571
     },
     "components": {
       "minecraft:light_dampening": 1,
@@ -50,7 +50,8 @@
       "minecraft:loot": "minecraft:blocks/trial_spawner",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:trial_spawner"
     },
     "permutations": [
       {

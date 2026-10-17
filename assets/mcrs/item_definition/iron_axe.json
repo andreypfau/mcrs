@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_axe",
-      "protocol_id": 1048
+      "protocol_id": 1049
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crimson_planks",
-      "protocol_id": 973,
-      "base_state_id": 24389,
-      "default_state_id": 24389
+      "protocol_id": 974,
+      "base_state_id": 24395,
+      "default_state_id": 24395
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": []
   }

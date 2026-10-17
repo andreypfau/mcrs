@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_bed",
-      "protocol_id": 1228
+      "protocol_id": 1230
     },
     "components": {
       "minecraft:attack_animation": {},

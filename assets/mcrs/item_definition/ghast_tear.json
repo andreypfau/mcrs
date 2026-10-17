@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ghast_tear",
-      "protocol_id": 1267
+      "protocol_id": 1269
     },
     "components": {
       "minecraft:attack_animation": {},

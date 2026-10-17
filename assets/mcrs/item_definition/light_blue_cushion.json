@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_cushion",
-      "protocol_id": 1173
+      "protocol_id": 1175
     },
     "components": {
       "minecraft:attack_animation": {},

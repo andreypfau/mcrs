@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wheat",
-      "protocol_id": 1066
+      "protocol_id": 1067
     },
     "components": {
       "minecraft:attack_animation": {},

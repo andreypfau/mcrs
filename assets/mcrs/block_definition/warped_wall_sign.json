@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 994,
-      "base_state_id": 25071,
-      "default_state_id": 25072
+      "protocol_id": 995,
+      "base_state_id": 25077,
+      "default_state_id": 25078
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/warped_sign",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

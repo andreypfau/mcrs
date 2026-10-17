@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:brown_stained_glass",
       "protocol_id": 361,
-      "base_state_id": 8780,
-      "default_state_id": 8780
+      "base_state_id": 8782,
+      "default_state_id": 8782
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/brown_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

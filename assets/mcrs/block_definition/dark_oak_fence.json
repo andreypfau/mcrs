@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 697,
-      "base_state_id": 15811,
-      "default_state_id": 15842
+      "base_state_id": 15813,
+      "default_state_id": 15844
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/dark_oak_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

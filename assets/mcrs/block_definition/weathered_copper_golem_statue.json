@@ -21,9 +21,9 @@
           false
         ]
       },
-      "protocol_id": 1208,
-      "base_state_id": 33181,
-      "default_state_id": 33182
+      "protocol_id": 1210,
+      "base_state_id": 33199,
+      "default_state_id": 33200
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/weathered_copper_golem_statue",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper_golem_statue"
     },
     "permutations": [
       {

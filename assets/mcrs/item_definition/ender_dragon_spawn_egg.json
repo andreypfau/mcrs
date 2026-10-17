@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ender_dragon_spawn_egg",
-      "protocol_id": 1364
+      "protocol_id": 1367
     },
     "components": {
       "minecraft:attack_animation": {},

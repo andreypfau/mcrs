@@ -9,9 +9,9 @@
           false
         ]
       },
-      "protocol_id": 861,
-      "base_state_id": 18530,
-      "default_state_id": 18530
+      "protocol_id": 862,
+      "base_state_id": 18536,
+      "default_state_id": 18536
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -47,7 +47,8 @@
       "minecraft:loot": "minecraft:blocks/dead_fire_coral_fan",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

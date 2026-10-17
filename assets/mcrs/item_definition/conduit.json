@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:conduit",
-      "protocol_id": 787
+      "protocol_id": 788
     },
     "components": {
       "minecraft:attack_animation": {},

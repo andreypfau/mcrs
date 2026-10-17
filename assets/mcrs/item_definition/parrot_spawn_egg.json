@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:parrot_spawn_egg",
-      "protocol_id": 1289
+      "protocol_id": 1291
     },
     "components": {
       "minecraft:attack_animation": {},

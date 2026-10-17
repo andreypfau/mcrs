@@ -9,6 +9,8 @@ use crate::keys::Item;
 use crate::keys::MobEffect;
 use crate::keys::Potion;
 use mcrs_minecraft_block::keys::Block;
+pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
+use mcrs_minecraft_core::codec::unique_entries;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_entity::keys::VillagerType;
@@ -164,57 +166,6 @@ impl<'de> Deserialize<'de> for ItemPredicate {
             },
         })
     }
-}
-
-/// Property name to matcher, in the order read.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct StatePropertiesPredicate(pub Vec<(String, ValueMatcher)>);
-
-impl Serialize for StatePropertiesPredicate {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        serialize_entries(&self.0, s)
-    }
-}
-
-impl<'de> Deserialize<'de> for StatePropertiesPredicate {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        deserialize_entries(d).map(StatePropertiesPredicate)
-    }
-}
-
-/// A map kept in the order read, refusing a repeated key.
-fn deserialize_entries<'de, D, K, V>(d: D) -> Result<Vec<(K, V)>, D::Error>
-where
-    D: Deserializer<'de>,
-    K: Deserialize<'de> + PartialEq + fmt::Display,
-    V: Deserialize<'de>,
-{
-    struct EntriesVisitor<K, V>(std::marker::PhantomData<(K, V)>);
-
-    impl<'de, K, V> Visitor<'de> for EntriesVisitor<K, V>
-    where
-        K: Deserialize<'de> + PartialEq + fmt::Display,
-        V: Deserialize<'de>,
-    {
-        type Value = Vec<(K, V)>;
-
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.write_str("a map")
-        }
-
-        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-            let mut entries: Vec<(K, V)> = Vec::new();
-            while let Some(key) = map.next_key::<K>()? {
-                if entries.iter().any(|(seen, _)| *seen == key) {
-                    return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
-                }
-                entries.push((key, map.next_value()?));
-            }
-            Ok(entries)
-        }
-    }
-
-    d.deserialize_map(EntriesVisitor(std::marker::PhantomData))
 }
 
 /// Exact values a component must equal and partial predicates it must
@@ -463,7 +414,7 @@ impl Serialize for MobEffectsPredicate {
 
 impl<'de> Deserialize<'de> for MobEffectsPredicate {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        deserialize_entries(d).map(MobEffectsPredicate)
+        unique_entries(d).map(MobEffectsPredicate)
     }
 }
 

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_hanging_sign",
-      "protocol_id": 1124
+      "protocol_id": 1125
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spectral_arrow",
-      "protocol_id": 1443
+      "protocol_id": 1446
     },
     "components": {
       "minecraft:attack_animation": {},

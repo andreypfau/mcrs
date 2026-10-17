@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_spear",
-      "protocol_id": 1448
+      "protocol_id": 1451
     },
     "components": {
       "minecraft:attack_animation": {

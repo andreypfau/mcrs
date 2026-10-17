@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:potato",
-      "protocol_id": 1379
+      "protocol_id": 1382
     },
     "components": {
       "minecraft:attack_animation": {},

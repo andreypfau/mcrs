@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tropical_fish_spawn_egg",
-      "protocol_id": 1311
+      "protocol_id": 1313
     },
     "components": {
       "minecraft:attack_animation": {},

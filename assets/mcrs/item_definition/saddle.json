@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:saddle",
-      "protocol_id": 949
+      "protocol_id": 950
     },
     "components": {
       "minecraft:attack_animation": {},

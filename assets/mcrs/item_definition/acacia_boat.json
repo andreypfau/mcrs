@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_boat",
-      "protocol_id": 983
+      "protocol_id": 984
     },
     "components": {
       "minecraft:attack_animation": {},

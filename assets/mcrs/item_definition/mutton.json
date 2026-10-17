@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mutton",
-      "protocol_id": 1415
+      "protocol_id": 1418
     },
     "components": {
       "minecraft:attack_animation": {},

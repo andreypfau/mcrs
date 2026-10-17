@@ -9,9 +9,9 @@
           false
         ]
       },
-      "protocol_id": 855,
-      "base_state_id": 18518,
-      "default_state_id": 18518
+      "protocol_id": 856,
+      "base_state_id": 18524,
+      "default_state_id": 18524
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -37,7 +37,8 @@
       "minecraft:loot": "minecraft:blocks/bubble_coral",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": [
       {

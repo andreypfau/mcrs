@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:compass",
-      "protocol_id": 1151
+      "protocol_id": 1153
     },
     "components": {
       "minecraft:attack_animation": {},

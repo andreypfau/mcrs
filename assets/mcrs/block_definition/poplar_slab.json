@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 662,
-      "base_state_id": 15231,
-      "default_state_id": 15234
+      "base_state_id": 15233,
+      "default_state_id": 15236
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/poplar_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

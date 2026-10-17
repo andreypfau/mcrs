@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 902,
-      "base_state_id": 19779,
-      "default_state_id": 19782
+      "protocol_id": 903,
+      "base_state_id": 19785,
+      "default_state_id": 19788
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/smooth_red_sandstone_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

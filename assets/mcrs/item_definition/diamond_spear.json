@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_spear",
-      "protocol_id": 1452
+      "protocol_id": 1455
     },
     "components": {
       "minecraft:attack_animation": {

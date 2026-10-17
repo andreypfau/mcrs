@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:daylight_detector",
-      "protocol_id": 848
+      "protocol_id": 849
     },
     "components": {
       "minecraft:attack_animation": {},

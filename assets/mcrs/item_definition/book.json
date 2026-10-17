@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:book",
-      "protocol_id": 1146
+      "protocol_id": 1148
     },
     "components": {
       "minecraft:attack_animation": {},

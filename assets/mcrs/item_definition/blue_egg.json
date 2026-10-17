@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blue_egg",
-      "protocol_id": 1149
+      "protocol_id": 1151
     },
     "components": {
       "minecraft:attack_animation": {},

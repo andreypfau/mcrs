@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:waxed_oxidized_copper",
-      "protocol_id": 1131,
-      "base_state_id": 31146,
-      "default_state_id": 31146
+      "protocol_id": 1133,
+      "base_state_id": 31164,
+      "default_state_id": 31164
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -60,7 +60,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": []
   }

@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 655,
-      "base_state_id": 15189,
-      "default_state_id": 15192
+      "base_state_id": 15191,
+      "default_state_id": 15194
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/birch_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

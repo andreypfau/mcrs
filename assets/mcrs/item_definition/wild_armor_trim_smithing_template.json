@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wild_armor_trim_smithing_template",
-      "protocol_id": 1583
+      "protocol_id": 1588
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:beetroot_seeds",
-      "protocol_id": 1439
+      "protocol_id": 1442
     },
     "components": {
       "minecraft:attack_animation": {},

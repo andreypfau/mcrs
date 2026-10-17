@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bordure_indented_banner_pattern",
-      "protocol_id": 1503
+      "protocol_id": 1506
     },
     "components": {
       "minecraft:attack_animation": {},

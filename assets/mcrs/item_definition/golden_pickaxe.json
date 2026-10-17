@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_pickaxe",
-      "protocol_id": 1042
+      "protocol_id": 1043
     },
     "components": {
       "minecraft:attack_animation": {},

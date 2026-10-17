@@ -10,6 +10,7 @@ use super::placement::{PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
 use super::tree::TreeConfig;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::fluid_state::FluidState;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
@@ -184,6 +185,7 @@ impl Feature {
             | Self::BlueIce { .. }
             | Self::BonusChest { .. }
             | Self::ChorusPlant { .. }
+            | Self::Crevasse { .. }
             | Self::Delta { .. }
             | Self::Disk { .. }
             | Self::EndGateway { .. }
@@ -201,7 +203,7 @@ impl Feature {
             | Self::HugeRedMushroom { .. }
             | Self::Iceberg { .. }
             | Self::Lake { .. }
-            | Self::LargeDripstone { .. }
+            | Self::LargeSpeleothem { .. }
             | Self::MonsterRoom { .. }
             | Self::MultifaceGrowth { .. }
             | Self::NetherrackReplaceBlobs { .. }
@@ -278,6 +280,22 @@ pub enum Feature {
     ChorusPlant,
     CoralClaw {
         feature: Holder<PlacedFeature>,
+    },
+    Crevasse {
+        max_width: Bounded<2, 8>,
+        max_length: Bounded<4, 16>,
+        min_footprint: Bounded<1, 32>,
+        cursor_surface_search_range: Bounded<1, { i32::MAX }>,
+        column_surface_search_range: Bounded<1, { i32::MAX }>,
+        twistiness: Twistiness,
+        tapering: UnitFloat,
+        turn_factor: UnitFloat,
+        carve_depth: BoundedIntProvider<1, { i32::MAX }>,
+        fill_depth: BoundedIntProvider<1, { i32::MAX }>,
+        surface_block: BlockStateProvider,
+        fill_block: BlockStateProvider,
+        carvable_blocks: BlockPredicate,
+        acceptable_barrier: BlockPredicate,
     },
     CoralTree {
         feature: Holder<PlacedFeature>,
@@ -389,7 +407,8 @@ pub enum Feature {
         can_replace_with_air_or_fluid: BlockPredicate,
         can_replace_with_barrier: BlockPredicate,
     },
-    LargeDripstone {
+    LargeSpeleothem {
+        base_block: BlockState,
         replaceable_blocks: BlockSet,
         #[serde(default, skip_serializing_if = "is_default")]
         floor_to_ceiling_search_range: Bounded<1, 512, 30>,
@@ -537,6 +556,8 @@ pub enum Feature {
         chance_of_speleothem_at_max_distance_from_center: UnitFloat,
         max_distance_from_edge_affecting_chance_of_speleothem: Bounded<1, 64>,
         max_distance_from_center_affecting_height_bias: Bounded<1, 64>,
+        #[serde(default, skip_serializing_if = "is_default")]
+        placement_options: SpeleothemPlacementOptions,
     },
     Spike {
         state: BlockState,
@@ -544,7 +565,7 @@ pub enum Feature {
         can_replace: BlockPredicate,
     },
     Spring {
-        state: BlockState,
+        state: FluidState,
         #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         requires_block_below: bool,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -595,6 +616,7 @@ mcrs_minecraft_registry::dispatch! {
         ChorusPlant => ChorusPlant,
         CoralClaw => CoralClaw,
         CoralTree => CoralTree,
+        Crevasse => Crevasse,
         DeltaFeature => Delta,
         Disk => Disk,
         EndGateway => EndGateway,
@@ -612,7 +634,7 @@ mcrs_minecraft_registry::dispatch! {
         HugeRedMushroom => HugeRedMushroom,
         Iceberg => Iceberg,
         Lake => Lake,
-        LargeDripstone => LargeDripstone,
+        LargeSpeleothem => LargeSpeleothem,
         MonsterRoom => MonsterRoom,
         MultifaceGrowth => MultifaceGrowth,
         NetherrackReplaceBlobs => NetherrackReplaceBlobs,
@@ -650,6 +672,38 @@ mcrs_minecraft_registry::dispatch! {
 
 impl RegistryValue for Feature {
     type Registry = Self;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpeleothemPlacementOptions {
+    pub placement_mode: SpeleothemPlacementMode,
+    pub base_block_transformer: SpeleothemBaseTransformer,
+    pub allow_water_placement: bool,
+}
+
+impl Default for SpeleothemPlacementOptions {
+    fn default() -> Self {
+        SpeleothemPlacementOptions {
+            placement_mode: SpeleothemPlacementMode::FloorAndCeiling,
+            base_block_transformer: SpeleothemBaseTransformer::None,
+            allow_water_placement: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeleothemPlacementMode {
+    FloorAndCeiling,
+    FloorOnly,
+    CeilingOnly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeleothemBaseTransformer {
+    None,
+    SetAttached,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -906,6 +960,7 @@ mcrs_minecraft_worldgen_noise::bounded_float! {
     LayerThickness as f64 in [0.01, 50.0];
     CaveHeightRatio as f64 in [0.1, 1.0];
     BluntnessForWind as f64 in [0.0, 5.0];
+    Twistiness as f32 in [0.0, 16.0];
 }
 
 macro_rules! defaults {
@@ -951,8 +1006,8 @@ mod tests {
 
     #[test]
     fn every_shipped_feature_and_placed_feature_round_trips() {
-        assert_eq!(round_trips::<Feature>("feature"), 241);
-        assert_eq!(round_trips::<PlacedFeature>("placed_feature"), 274);
+        assert_eq!(round_trips::<Feature>("feature"), 262);
+        assert_eq!(round_trips::<PlacedFeature>("placed_feature"), 300);
         assert_eq!(round_trips::<StructureProcessorList>("processor_list"), 40);
     }
 }

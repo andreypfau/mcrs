@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_dye",
-      "protocol_id": 1205
+      "protocol_id": 1207
     },
     "components": {
       "minecraft:attack_animation": {},

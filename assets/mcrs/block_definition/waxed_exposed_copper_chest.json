@@ -20,9 +20,9 @@
           false
         ]
       },
-      "protocol_id": 1203,
-      "base_state_id": 33045,
-      "default_state_id": 33046
+      "protocol_id": 1205,
+      "base_state_id": 33063,
+      "default_state_id": 33064
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -72,7 +72,8 @@
       },
       "minecraft:loot": "minecraft:blocks/waxed_exposed_copper_chest",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

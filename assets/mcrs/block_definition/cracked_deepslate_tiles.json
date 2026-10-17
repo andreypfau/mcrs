@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_deepslate_tiles",
-      "protocol_id": 1260,
-      "base_state_id": 35422,
-      "default_state_id": 35422
+      "protocol_id": 1263,
+      "base_state_id": 35480,
+      "default_state_id": 35480
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate_tiles"
     },
     "permutations": []
   }

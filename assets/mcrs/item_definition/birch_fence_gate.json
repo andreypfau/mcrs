@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_fence_gate",
-      "protocol_id": 934
+      "protocol_id": 935
     },
     "components": {
       "minecraft:attack_animation": {},

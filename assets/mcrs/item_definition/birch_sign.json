@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_sign",
-      "protocol_id": 1104
+      "protocol_id": 1105
     },
     "components": {
       "minecraft:attack_animation": {},

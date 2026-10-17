@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:globe_banner_pattern",
-      "protocol_id": 1498
+      "protocol_id": 1501
     },
     "components": {
       "minecraft:attack_animation": {},

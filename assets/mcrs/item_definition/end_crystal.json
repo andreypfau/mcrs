@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:end_crystal",
-      "protocol_id": 1433
+      "protocol_id": 1436
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_helmet",
-      "protocol_id": 1084
+      "protocol_id": 1085
     },
     "components": {
       "minecraft:attack_animation": {},

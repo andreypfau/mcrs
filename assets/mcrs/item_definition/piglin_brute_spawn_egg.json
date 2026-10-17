@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:piglin_brute_spawn_egg",
-      "protocol_id": 1360
+      "protocol_id": 1363
     },
     "components": {
       "minecraft:attack_animation": {},

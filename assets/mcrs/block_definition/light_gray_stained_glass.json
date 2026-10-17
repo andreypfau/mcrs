@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:light_gray_stained_glass",
       "protocol_id": 357,
-      "base_state_id": 8776,
-      "default_state_id": 8776
+      "base_state_id": 8778,
+      "default_state_id": 8778
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/light_gray_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

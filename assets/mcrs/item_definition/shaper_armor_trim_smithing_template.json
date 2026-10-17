@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shaper_armor_trim_smithing_template",
-      "protocol_id": 1592
+      "protocol_id": 1597
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fire_charge",
-      "protocol_id": 1369
+      "protocol_id": 1372
     },
     "components": {
       "minecraft:attack_animation": {},

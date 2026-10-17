@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_sign",
-      "protocol_id": 1103
+      "protocol_id": 1104
     },
     "components": {
       "minecraft:attack_animation": {},

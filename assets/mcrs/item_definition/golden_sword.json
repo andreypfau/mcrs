@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_sword",
-      "protocol_id": 1040
+      "protocol_id": 1041
     },
     "components": {
       "minecraft:attack_animation": {},

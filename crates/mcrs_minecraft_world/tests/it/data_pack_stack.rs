@@ -1,4 +1,5 @@
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_registries::{Diagnostic, Level};
 use mcrs_minecraft_registry::RegistrySet;
 
@@ -111,8 +112,11 @@ fn an_active_overlay_of_a_local_pack_is_read_under_its_own_root() {
     let loaded = WithFiles::over_assets()
         .with(
             format!("{TEST_PACK}/pack.mcmeta"),
-            r#"{"pack":{"description":"","min_format":122,"max_format":122},
-                "overlays":{"entries":[{"directory":"later","min_format":122,"max_format":122}]}}"#,
+            format!(
+                r#"{{"pack":{{"description":"","min_format":{format},"max_format":{format}}},
+                "overlays":{{"entries":[{{"directory":"later","min_format":{format},"max_format":{format}}}]}}}}"#,
+                format = VERSION.pack_version.data_major,
+            ),
         )
         .with(
             format!("{TEST_PACK}/later/minecraft/banner_pattern/overlaid.json"),

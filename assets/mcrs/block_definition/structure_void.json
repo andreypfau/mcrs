@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:structure_void",
-      "protocol_id": 733,
-      "base_state_id": 16832,
-      "default_state_id": 16832
+      "protocol_id": 734,
+      "base_state_id": 16838,
+      "default_state_id": 16838
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -32,7 +32,8 @@
       "minecraft:destructible_by_mining": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

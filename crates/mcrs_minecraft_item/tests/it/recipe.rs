@@ -39,7 +39,7 @@ fn every_shipped_recipe_round_trips() {
             );
         }
     });
-    assert_eq!(files.len(), 2042);
+    assert_eq!(files.len(), 2055);
 }
 
 #[test]

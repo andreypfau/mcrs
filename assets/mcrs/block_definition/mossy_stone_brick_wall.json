@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 917,
-      "base_state_id": 20823,
-      "default_state_id": 20826
+      "protocol_id": 918,
+      "base_state_id": 20829,
+      "default_state_id": 20832
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/mossy_stone_brick_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dispenser",
-      "protocol_id": 835
+      "protocol_id": 836
     },
     "components": {
       "minecraft:attack_animation": {},

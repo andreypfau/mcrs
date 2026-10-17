@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_helmet",
-      "protocol_id": 1088
+      "protocol_id": 1089
     },
     "components": {
       "minecraft:attack_animation": {},

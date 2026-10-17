@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dripstone_block",
-      "protocol_id": 1222,
-      "base_state_id": 33565,
-      "default_state_id": 33565
+      "protocol_id": 1224,
+      "base_state_id": 33583,
+      "default_state_id": 33583
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:dripstone_block"
     },
     "permutations": []
   }

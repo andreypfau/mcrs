@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_pickaxe",
-      "protocol_id": 1032
+      "protocol_id": 1033
     },
     "components": {
       "minecraft:attack_animation": {},

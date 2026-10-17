@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_door",
-      "protocol_id": 898
+      "protocol_id": 899
     },
     "components": {
       "minecraft:attack_animation": {},

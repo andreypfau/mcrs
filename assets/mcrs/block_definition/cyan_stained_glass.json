@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:cyan_stained_glass",
       "protocol_id": 358,
-      "base_state_id": 8777,
-      "default_state_id": 8777
+      "base_state_id": 8779,
+      "default_state_id": 8779
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -36,7 +36,8 @@
       "minecraft:loot": "minecraft:blocks/cyan_stained_glass",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

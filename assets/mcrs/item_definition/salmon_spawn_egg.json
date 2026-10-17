@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:salmon_spawn_egg",
-      "protocol_id": 1308
+      "protocol_id": 1310
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:slime_spawn_egg",
-      "protocol_id": 1346
+      "protocol_id": 1349
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_sign",
-      "protocol_id": 1107
+      "protocol_id": 1108
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_button",
-      "protocol_id": 870
+      "protocol_id": 871
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -20,9 +20,9 @@
           false
         ]
       },
-      "protocol_id": 1200,
-      "base_state_id": 32973,
-      "default_state_id": 32974
+      "protocol_id": 1202,
+      "base_state_id": 32991,
+      "default_state_id": 32992
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -72,7 +72,8 @@
       },
       "minecraft:loot": "minecraft:blocks/weathered_copper_chest",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

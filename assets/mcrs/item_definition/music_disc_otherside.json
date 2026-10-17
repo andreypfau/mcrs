@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_otherside",
-      "protocol_id": 1476
+      "protocol_id": 1479
     },
     "components": {
       "minecraft:attack_animation": {},

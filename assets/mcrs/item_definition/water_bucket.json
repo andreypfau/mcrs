@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:water_bucket",
-      "protocol_id": 1129
+      "protocol_id": 1130
     },
     "components": {
       "minecraft:attack_animation": {},

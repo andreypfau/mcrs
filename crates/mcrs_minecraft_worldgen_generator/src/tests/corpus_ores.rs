@@ -225,14 +225,16 @@ const UNITS: [ColumnPos; 9] = [
 /// region here used to be built without the program, so `isAir` answered from
 /// an empty mask and `discard_chance_on_air_exposure` never discarded anything.
 /// Both bands were re-recorded when the placement stream became the
-/// reference's `WorldgenRandom` rather than a native Xoroshiro source.
+/// reference's `WorldgenRandom` rather than a native Xoroshiro source, and
+/// again when the corpus gained the ice-cave ores, which sort first in the
+/// step and so move every other ore's decoration seed.
 #[test]
 fn the_corpus_ore_counts_stay_in_the_band_the_first_run_set() {
     let (tables, named) = ore_tables();
     let program = Arc::new(ore_program(&tables));
     assert_eq!(
         tables.features.steps[0].len(),
-        38,
+        43,
         "the corpus's placed ore features"
     );
 

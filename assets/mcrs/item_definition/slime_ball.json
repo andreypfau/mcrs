@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:slime_ball",
-      "protocol_id": 1147
+      "protocol_id": 1149
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:reinforced_deepslate",
-      "protocol_id": 1272,
-      "base_state_id": 35442,
-      "default_state_id": 35442
+      "protocol_id": 1275,
+      "base_state_id": 35500,
+      "default_state_id": 35500
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate"
     },
     "permutations": []
   }

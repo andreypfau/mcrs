@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_fence_gate",
-      "protocol_id": 941
+      "protocol_id": 942
     },
     "components": {
       "minecraft:attack_animation": {},

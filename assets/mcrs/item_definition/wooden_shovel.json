@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_shovel",
-      "protocol_id": 1026
+      "protocol_id": 1027
     },
     "components": {
       "minecraft:attack_animation": {},

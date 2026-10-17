@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 701,
-      "base_state_id": 15939,
-      "default_state_id": 15970
+      "base_state_id": 15941,
+      "default_state_id": 15972
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/bamboo_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:bamboo_wood"
     },
     "permutations": [
       {

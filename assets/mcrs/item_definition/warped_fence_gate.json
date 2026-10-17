@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_fence_gate",
-      "protocol_id": 944
+      "protocol_id": 945
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_door",
-      "protocol_id": 894
+      "protocol_id": 895
     },
     "components": {
       "minecraft:attack_animation": {},

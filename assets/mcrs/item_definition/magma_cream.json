@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magma_cream",
-      "protocol_id": 1275
+      "protocol_id": 1277
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_chest_boat",
-      "protocol_id": 978
+      "protocol_id": 979
     },
     "components": {
       "minecraft:attack_animation": {},

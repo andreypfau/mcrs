@@ -16,8 +16,8 @@
         ]
       },
       "protocol_id": 493,
-      "base_state_id": 12402,
-      "default_state_id": 12402
+      "base_state_id": 12404,
+      "default_state_id": 12404
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "minecraft:loot": "minecraft:blocks/carrots",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:crop"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sniffer_spawn_egg",
-      "protocol_id": 1315
+      "protocol_id": 1317
     },
     "components": {
       "minecraft:attack_animation": {},

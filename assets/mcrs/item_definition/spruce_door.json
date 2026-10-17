@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_door",
-      "protocol_id": 890
+      "protocol_id": 891
     },
     "components": {
       "minecraft:attack_animation": {},

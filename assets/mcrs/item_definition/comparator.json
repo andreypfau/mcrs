@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:comparator",
-      "protocol_id": 828
+      "protocol_id": 829
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_golem_spawn_egg",
-      "protocol_id": 1318
+      "protocol_id": 1320
     },
     "components": {
       "minecraft:attack_animation": {},

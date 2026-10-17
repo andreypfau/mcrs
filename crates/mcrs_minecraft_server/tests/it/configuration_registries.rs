@@ -260,7 +260,7 @@ fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
         .synced()
         .map(|(table, _)| table.registry().as_str())
         .collect();
-    assert_eq!(sent.len(), 32);
+    assert_eq!(sent.len(), 33);
     assert_eq!(sent, synced);
     assert!(!sent.contains(&"minecraft:environment_attribute"));
 

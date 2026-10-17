@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:field_masoned_banner_pattern",
-      "protocol_id": 1502
+      "protocol_id": 1505
     },
     "components": {
       "minecraft:attack_animation": {},

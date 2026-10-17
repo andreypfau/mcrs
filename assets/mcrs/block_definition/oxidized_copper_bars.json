@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 395,
-      "base_state_id": 9820,
-      "default_state_id": 9851
+      "base_state_id": 9822,
+      "default_state_id": 9853
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       "minecraft:loot": "minecraft:blocks/oxidized_copper_bars",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

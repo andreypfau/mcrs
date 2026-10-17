@@ -33,9 +33,9 @@
           25
         ]
       },
-      "protocol_id": 970,
-      "base_state_id": 24361,
-      "default_state_id": 24361
+      "protocol_id": 971,
+      "base_state_id": 24367,
+      "default_state_id": 24367
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -62,7 +62,8 @@
       "minecraft:loot": "minecraft:blocks/twisting_vines",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:weeping_vines"
     },
     "permutations": []
   }

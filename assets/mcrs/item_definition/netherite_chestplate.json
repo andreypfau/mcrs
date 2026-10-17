@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_chestplate",
-      "protocol_id": 1093
+      "protocol_id": 1094
     },
     "components": {
       "minecraft:attack_animation": {},

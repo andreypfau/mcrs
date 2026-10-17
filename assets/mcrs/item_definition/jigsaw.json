@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jigsaw",
-      "protocol_id": 998
+      "protocol_id": 999
     },
     "components": {
       "minecraft:attack_animation": {},

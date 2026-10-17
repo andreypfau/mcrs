@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dropper",
-      "protocol_id": 836
+      "protocol_id": 837
     },
     "components": {
       "minecraft:attack_animation": {},

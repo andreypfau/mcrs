@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crimson_roots",
-      "protocol_id": 972,
-      "base_state_id": 24388,
-      "default_state_id": 24388
+      "protocol_id": 973,
+      "base_state_id": 24394,
+      "default_state_id": 24394
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:roots"
     },
     "permutations": []
   }

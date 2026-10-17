@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:explorer_pottery_sherd",
-      "protocol_id": 1605
+      "protocol_id": 1610
     },
     "components": {
       "minecraft:attack_animation": {},

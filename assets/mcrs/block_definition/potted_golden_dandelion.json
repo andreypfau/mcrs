@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:potted_golden_dandelion",
       "protocol_id": 476,
-      "base_state_id": 12385,
-      "default_state_id": 12385
+      "base_state_id": 12387,
+      "default_state_id": 12387
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -34,7 +34,8 @@
       "minecraft:loot": "minecraft:blocks/potted_golden_dandelion",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

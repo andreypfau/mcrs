@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:creeper_banner_pattern",
-      "protocol_id": 1495
+      "protocol_id": 1498
     },
     "components": {
       "minecraft:attack_animation": {},

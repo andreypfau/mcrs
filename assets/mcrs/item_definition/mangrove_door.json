@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_door",
-      "protocol_id": 897
+      "protocol_id": 898
     },
     "components": {
       "minecraft:attack_animation": {},

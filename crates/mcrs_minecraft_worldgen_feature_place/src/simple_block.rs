@@ -76,18 +76,16 @@ pub fn place_simple_block<W: WorldGenVolume>(
     let above_state = volume.get(above);
     let world = volume.world();
     if !holds(&world.air_states, above_state)
-        && (holds(&world.water_fluid, state) != holds(&world.water_fluid, above_state)
+        && (world.fluid_state_of(state) != world.fluid_state_of(above_state)
             || !holds(&world.replaceable, above_state))
     {
         return false;
     }
 
     let lower_wet = holds(&world.water_fluid, volume.get(at));
+    let upper_wet = holds(&world.water_fluid, above_state);
     volume.set(at, halves.half(false, lower_wet));
-    volume.set(
-        above,
-        halves.half(true, holds(&volume.world().water_fluid, above_state)),
-    );
+    volume.set(above, halves.half(true, upper_wet));
     true
 }
 
@@ -108,14 +106,22 @@ mod tests {
     const TALL_WET_UPPER: VoxelId = VoxelId(9);
     const WATER: VoxelId = VoxelId(10);
     const STONE: VoxelId = VoxelId(11);
+    const FLOWING: VoxelId = VoxelId(12);
     const TALL: VoxelId = TALL_LOWER;
 
     const AT: BlockPos = BlockPos::new(3, 70, -4);
 
-    /// Air and water give way; water and the wet halves hold water.
+    /// Air and water give way; water and the wet halves hold a water source,
+    /// `FLOWING` holds flowing water.
     fn pond(mut volume: FakeVolume) -> FakeVolume {
-        volume.world.replaceable = mask_of([AIR, WATER]);
-        volume.world.water_fluid = mask_of([WATER, TALL_WET_LOWER, TALL_WET_UPPER]);
+        volume.world.replaceable = mask_of([AIR, WATER, FLOWING]);
+        volume.world.water_fluid = mask_of([WATER, TALL_WET_LOWER, TALL_WET_UPPER, FLOWING]);
+        let mut fluid_states = vec![0; 13];
+        for source in [WATER, TALL_WET_LOWER, TALL_WET_UPPER] {
+            fluid_states[usize::from(source.0)] = 1;
+        }
+        fluid_states[usize::from(FLOWING.0)] = 2;
+        volume.world.fluid_states = fluid_states.into();
         volume
     }
 
@@ -198,13 +204,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_dry_double_plant_in_flowing_water_waterlogs_only_the_half_in_water() {
+        let cfg = config(StateProvider::Simple(TALL));
+        let mut volume = pond(FakeVolume::with([((AT.x, AT.y, AT.z), FLOWING)]));
+        let mut rng = WorldgenRandom::new(1);
+
+        assert!(place_simple_block(&cfg, &mut volume, &mut rng, AT));
+        assert_eq!(
+            volume.writes,
+            vec![
+                ((AT.x, AT.y, AT.z), TALL_WET_LOWER),
+                ((AT.x, AT.y + 1, AT.z), TALL_UPPER),
+            ]
+        );
+    }
+
     /// The block above must be air, or share the plant's fluid and be
     /// replaceable: stone above refuses the whole placement, and so does water
-    /// above a dry plant even though water is replaceable.
+    /// above a dry plant, or flowing water above a plant holding a source, even
+    /// though water is replaceable.
     #[test]
     fn a_double_plant_is_refused_under_a_solid_block_or_a_foreign_fluid() {
-        for above in [STONE, WATER] {
-            let cfg = config(StateProvider::Simple(TALL));
+        for (placed, above) in [(TALL, STONE), (TALL, WATER), (TALL_WET_LOWER, FLOWING)] {
+            let cfg = config(StateProvider::Simple(placed));
             let mut volume = pond(FakeVolume::with([((AT.x, AT.y + 1, AT.z), above)]));
             let mut rng = WorldgenRandom::new(1);
 

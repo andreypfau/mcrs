@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_horse_armor",
-      "protocol_id": 1410
+      "protocol_id": 1413
     },
     "components": {
       "minecraft:attack_animation": {},

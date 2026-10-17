@@ -16,9 +16,9 @@
           8
         ]
       },
-      "protocol_id": 999,
-      "base_state_id": 25100,
-      "default_state_id": 25100
+      "protocol_id": 1000,
+      "base_state_id": 25106,
+      "default_state_id": 25106
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       },
       "minecraft:loot": "minecraft:blocks/composter",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

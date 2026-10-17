@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lever",
-      "protocol_id": 839
+      "protocol_id": 840
     },
     "components": {
       "minecraft:attack_animation": {},

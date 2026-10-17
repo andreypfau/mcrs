@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:armadillo_spawn_egg",
-      "protocol_id": 1291
+      "protocol_id": 1293
     },
     "components": {
       "minecraft:attack_animation": {},

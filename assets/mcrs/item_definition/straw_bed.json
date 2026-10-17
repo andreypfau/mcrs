@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:straw_bed",
-      "protocol_id": 1235
+      "protocol_id": 1237
     },
     "components": {
       "minecraft:attack_animation": {},

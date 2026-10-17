@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_horse_armor",
-      "protocol_id": 1409
+      "protocol_id": 1412
     },
     "components": {
       "minecraft:attack_animation": {},

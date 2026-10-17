@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1113,
-      "base_state_id": 30192,
-      "default_state_id": 30195
+      "protocol_id": 1115,
+      "base_state_id": 30210,
+      "default_state_id": 30213
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/cinnabar_brick_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cinnabar"
     },
     "permutations": [
       {

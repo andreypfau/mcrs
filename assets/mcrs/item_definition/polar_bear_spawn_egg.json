@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polar_bear_spawn_egg",
-      "protocol_id": 1299
+      "protocol_id": 1301
     },
     "components": {
       "minecraft:attack_animation": {},

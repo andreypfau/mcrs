@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:filled_map",
-      "protocol_id": 1238
+      "protocol_id": 1240
     },
     "components": {
       "minecraft:attack_animation": {},

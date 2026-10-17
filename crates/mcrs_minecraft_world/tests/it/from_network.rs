@@ -77,7 +77,7 @@ fn the_network_column_rebuilds_every_synced_registry() {
             assert_eq!(again, network.0, "{registry}/{name}");
         }
     }
-    assert_eq!(synced, 32);
+    assert_eq!(synced, 33);
 
     for name in ["minecraft:overworld", "minecraft:the_nether"] {
         assert_eq!(

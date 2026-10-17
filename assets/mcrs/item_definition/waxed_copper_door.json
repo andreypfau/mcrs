@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_copper_door",
-      "protocol_id": 906
+      "protocol_id": 907
     },
     "components": {
       "minecraft:attack_animation": {},

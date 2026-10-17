@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:ancient_debris",
-      "protocol_id": 1006,
-      "base_state_id": 25176,
-      "default_state_id": 25176
+      "protocol_id": 1007,
+      "base_state_id": 25182,
+      "default_state_id": 25182
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:ancient_debris"
     },
     "permutations": []
   }

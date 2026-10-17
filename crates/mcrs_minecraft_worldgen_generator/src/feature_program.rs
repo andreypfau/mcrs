@@ -14,9 +14,11 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::fluid_state::FluidState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
@@ -40,8 +42,8 @@ use mcrs_minecraft_worldgen_feature::placer::{
 };
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature::proto::{
-    BlockReplacement, Feature, PlacedFeature, StructureProcessor, StructureProcessorList,
-    WeightedPlacedFeature, processor_list,
+    BlockReplacement, Feature, PlacedFeature, SpeleothemBaseTransformer, StructureProcessor,
+    StructureProcessorList, WeightedPlacedFeature, processor_list,
 };
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, TemplateManifest, bounding_box, zero_position_with_transform,
@@ -60,6 +62,7 @@ use mcrs_minecraft_worldgen_feature_place::chorus_plant::{
     CompiledChorusPlant, place_chorus_plant,
 };
 use mcrs_minecraft_worldgen_feature_place::coral::{place_coral_claw, place_coral_tree};
+use mcrs_minecraft_worldgen_feature_place::crevasse::{CompiledCrevasse, place_crevasse};
 use mcrs_minecraft_worldgen_feature_place::end::{
     CompiledEndGateway, CompiledEndIsland, CompiledEndPlatform, CompiledEndPodium,
     CompiledEndSpikes, CompiledVoidStartPlatform, place_end_gateway, place_end_island,
@@ -109,7 +112,7 @@ use mcrs_minecraft_worldgen_feature_place::single_block_pillar::{
     CompiledSingleBlockPillar, place_single_block_pillar,
 };
 use mcrs_minecraft_worldgen_feature_place::speleothem::{
-    CompiledLargeDripstone, CompiledSpeleothemCluster, PointedStates, place_large_dripstone,
+    CompiledLargeSpeleothem, CompiledSpeleothemCluster, PointedStates, place_large_speleothem,
     place_speleothem_cluster,
 };
 use mcrs_minecraft_worldgen_feature_place::speleothem_single::{
@@ -216,7 +219,8 @@ pub enum Generator {
     Lake(Box<CompiledLake>),
     Geode(Box<CompiledGeode>),
     SpeleothemCluster(Box<CompiledSpeleothemCluster>),
-    LargeDripstone(Box<CompiledLargeDripstone>),
+    LargeSpeleothem(Box<CompiledLargeSpeleothem>),
+    Crevasse(Box<CompiledCrevasse>),
     Bamboo(CompiledBamboo),
     ChorusPlant(Box<CompiledChorusPlant>),
     HugeFungus(Box<CompiledHugeFungus>),
@@ -615,14 +619,14 @@ impl FeatureProgram {
     /// families overrides nothing, and `BlockBehaviour.canSurvive` is true.
     pub fn would_survive(
         &self,
-        block: Id<Block>,
+        state: VoxelId,
         p: BlockPos,
         get: impl Fn(BlockPos) -> VoxelId,
     ) -> bool {
         self.trees
             .survive
-            .get(&block)
-            .is_none_or(|rule| rule.test(p, get))
+            .get(&self.world.block_of(state))
+            .is_none_or(|rule| rule.test(state, p, get))
     }
 }
 
@@ -837,7 +841,8 @@ impl Generator {
             Generator::SpeleothemCluster(config) => {
                 place_speleothem_cluster(config, region, rng, at)
             }
-            Generator::LargeDripstone(config) => place_large_dripstone(config, region, rng, at),
+            Generator::LargeSpeleothem(config) => place_large_speleothem(config, region, rng, at),
+            Generator::Crevasse(config) => place_crevasse(config, region, rng, at),
             Generator::Bamboo(config) => place_bamboo(config, region, rng, at),
             Generator::ChorusPlant(config) => place_chorus_plant(config, region, rng, at),
             Generator::HugeFungus(config) => place_huge_fungus(config, region, rng, at),
@@ -1538,7 +1543,7 @@ fn compile_generator(
             hole_count,
             valid_blocks,
         } => Generator::Spring(CompiledSpring {
-            state: missing(spring_state(state, resolver), state_named(state))?,
+            state: missing(spring_state(state, resolver), state)?,
             requires_block_below: *requires_block_below,
             rock_count: rock_count.0,
             hole_count: hole_count.0,
@@ -1663,11 +1668,12 @@ fn compile_generator(
             chance_of_speleothem_at_max_distance_from_center,
             max_distance_from_edge_affecting_chance_of_speleothem,
             max_distance_from_center_affecting_height_bias,
+            placement_options,
         } => {
             let base_block_states = resolver.block_mask(&base_block.name)?;
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
             Generator::SpeleothemCluster(Box::new(CompiledSpeleothemCluster {
-                base_block: resolver.resolve(base_block)?,
+                base_block: default_state_named(resolver, base_block)?,
                 base_or_replaceable: union_masks(&[&base_block_states, &replaceable]),
                 base_block_states,
                 pointed: missing(
@@ -1692,9 +1698,14 @@ fn compile_generator(
                     max_distance_from_center_affecting_height_bias.0,
                 base_stone_overworld: resolver
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::BASE_STONE_OVERWORLD)?,
+                placement_mode: placement_options.placement_mode,
+                set_attached: placement_options.base_block_transformer
+                    == SpeleothemBaseTransformer::SetAttached,
+                allow_water_placement: placement_options.allow_water_placement,
             }))
         }
-        Feature::LargeDripstone {
+        Feature::LargeSpeleothem {
+            base_block,
             replaceable_blocks,
             floor_to_ceiling_search_range,
             column_radius,
@@ -1707,11 +1718,11 @@ fn compile_generator(
             min_bluntness_for_wind,
         } => {
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
-            let dripstone = block_mask(resolver, &[Block::DripstoneBlock])?;
+            let base = resolver.block_mask(&base_block.name)?;
             let (column_radius_min, column_radius_max) = column_radius.bounds();
-            Generator::LargeDripstone(Box::new(CompiledLargeDripstone {
-                dripstone: resolver.default_state_of(Block::DripstoneBlock.id()),
-                column_edge: union_masks(&[&dripstone, &replaceable, &resolver.world.lava_states]),
+            Generator::LargeSpeleothem(Box::new(CompiledLargeSpeleothem {
+                base: default_state_named(resolver, base_block)?,
+                column_edge: union_masks(&[&base, &replaceable, &resolver.world.lava_states]),
                 floor_to_ceiling_search_range: floor_to_ceiling_search_range.0,
                 column_radius_min,
                 column_radius_max,
@@ -1727,6 +1738,37 @@ fn compile_generator(
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::BASE_STONE_OVERWORLD)?,
             }))
         }
+        Feature::Crevasse {
+            max_width,
+            max_length,
+            min_footprint,
+            cursor_surface_search_range,
+            column_surface_search_range,
+            twistiness,
+            tapering,
+            turn_factor,
+            carve_depth,
+            fill_depth,
+            surface_block,
+            fill_block,
+            carvable_blocks,
+            acceptable_barrier,
+        } => Generator::Crevasse(Box::new(CompiledCrevasse {
+            max_width: max_width.0,
+            max_length: max_length.0,
+            min_footprint: usize::try_from(min_footprint.0).unwrap_or_default(),
+            cursor_surface_search_range: cursor_surface_search_range.0,
+            column_surface_search_range: column_surface_search_range.0,
+            twistiness: twistiness.0 as f32,
+            tapering: tapering.0 as f32,
+            turn_factor: turn_factor.0 as f32,
+            carve_depth: carve_depth.0.clone(),
+            fill_depth: fill_depth.0.clone(),
+            surface_block: compile_provider(surface_block, resolver)?,
+            fill_block: compile_provider(fill_block, resolver)?,
+            carvable_blocks: compile_predicate(carvable_blocks, resolver)?,
+            acceptable_barrier: compile_predicate(acceptable_barrier, resolver)?,
+        })),
         Feature::Bamboo { probability } => {
             let bamboo = resolver.block_of(Block::Bamboo.id());
             let stalk = |leaves: &str, stage: &str| -> Compiled<VoxelId> {
@@ -1899,7 +1941,7 @@ fn compile_generator(
             let base_block_states = resolver.block_mask(&base_block.name)?;
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
             Generator::Speleothem(Box::new(CompiledSpeleothem {
-                base_block: resolver.resolve(base_block)?,
+                base_block: default_state_named(resolver, base_block)?,
                 pointed: missing(
                     PointedStates::resolve(pointed_block, resolver),
                     state_named(pointed_block),
@@ -2117,23 +2159,31 @@ fn feature_processors<'a>(
     })
 }
 
-/// `FluidState.createLegacyBlock` over the shapes a spring's `state` takes.
-///
-/// The field is a fluid state, not a block state: `falling` is a property of
-/// the fluid and never reaches the block, and a source fluid's legacy block is
-/// the fluid block's own default. A flowing fluid would need a `level` the
-/// block registry cannot be asked for through this shape, so it is a load
-/// error rather than a silently wrong state.
-fn spring_state(state: &BlockState, blocks: &dyn BlockResolver) -> Option<VoxelId> {
-    if state
-        .properties
-        .iter()
-        .flatten()
-        .any(|(property, _)| property == "level")
-    {
-        return None;
+fn fluid_state_number(fluid: Option<mcrs_minecraft_block::definition::FluidState>) -> u16 {
+    fluid.map_or(0, |fluid| {
+        let level = usize::from(fluid.level.saturating_sub(1));
+        let index = 1 + fluid.fluid.index() * 16 + level * 2 + usize::from(!fluid.source);
+        u16::try_from(index).unwrap_or(u16::MAX)
+    })
+}
+
+/// The block a fluid state is written as: the first state of the block named
+/// like the fluid that holds it, a source of any level counting as full.
+pub(crate) fn spring_state(state: &FluidState, resolver: &Resolver<'_>) -> Option<VoxelId> {
+    let Some(mut fluid) = state.0 else {
+        return Some(resolver.default_state_of(Block::Air.id()));
+    };
+    if fluid.source {
+        fluid.level = mcrs_minecraft_block::definition::FluidState::FULL;
     }
-    blocks.state(&BlockState::bare(state.name.clone()))
+    let name = Fluid::from_id(fluid.fluid)?.location().to_arc();
+    let default = crate::block_state::try_resolve_state(resolver.blocks, &BlockState::bare(name))?;
+    let entry = resolver.block_of(resolver.blocks.block_index(default));
+    (entry.base_state_id.0..)
+        .take(entry.state_count.into())
+        .map(BlockStateId)
+        .find(|&id| resolver.blocks.state(id).fluid == Some(fluid))
+        .map(|id| VoxelId::from(id.0))
 }
 
 fn unsupported(what: &str) -> FeatureCompileError {
@@ -2141,6 +2191,14 @@ fn unsupported(what: &str) -> FeatureCompileError {
 }
 
 /// `None` names a block or state the corpus does not hold.
+fn default_state_named(resolver: &Resolver<'_>, state: &BlockState) -> Compiled<VoxelId> {
+    let block = missing(
+        resolver.blocks.id_of(state.name.as_str()),
+        state_named(state),
+    )?;
+    Ok(resolver.default_state_of(block))
+}
+
 pub(super) fn missing<T>(value: Option<T>, what: impl std::fmt::Display) -> Compiled<T> {
     value.ok_or_else(|| FeatureCompileError::UnknownBlockState(what.to_string()))
 }
@@ -2165,7 +2223,7 @@ fn waterlogged_pair(
 }
 
 /// `BlockState.setValue` at freeze, naming the state it could not reach.
-fn set(
+pub(super) fn set(
     entry: &BlockEntry,
     id: BlockStateId,
     property: &str,
@@ -2701,8 +2759,14 @@ impl<'a> Resolver<'a> {
 
     /// The world-wide state sets, resolved once for every feature to share.
     fn world_states(&self) -> WorldStates {
-        let water = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Water.id())));
-        let lava = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Lava.id())));
+        let water = self.states(StateQuery::Fluids(
+            &HolderSet::One(Fluid::Water.id()),
+            &StatePropertiesPredicate::ANY,
+        ));
+        let lava = self.states(StateQuery::Fluids(
+            &HolderSet::One(Fluid::Lava.id()),
+            &StatePropertiesPredicate::ANY,
+        ));
         let block = |block: Block| block_mask(self, &[block]).unwrap_or_default();
         WorldStates {
             air: self.default_state_of(Block::Air.id()),
@@ -2743,6 +2807,10 @@ impl<'a> Resolver<'a> {
                 .map(|id| self.blocks.block_index(BlockStateId(id)))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
+            fluid_states: (0..=u16::MAX)
+                .take(self.blocks.state_count())
+                .map(|id| fluid_state_number(self.blocks.state(BlockStateId(id)).fluid))
+                .collect(),
         }
     }
 
@@ -2762,13 +2830,17 @@ impl<'a> Resolver<'a> {
         self.mask(StateQuery::Blocks(&self.block_tag(tag)?))
     }
 
-    pub fn fluid_tag_mask(&self, tag: TagKey<Fluid, &'static str>) -> Compiled<StateMask> {
+    pub fn fluid_tag_mask(
+        &self,
+        tag: TagKey<Fluid, &'static str>,
+        state: &StatePropertiesPredicate,
+    ) -> Compiled<StateMask> {
         let set = self
             .fluid_tags
             .get(&tag)
             .map(HolderSet::Named)
             .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))?;
-        self.mask(StateQuery::Fluids(&set))
+        self.mask(StateQuery::Fluids(&set, state))
     }
 
     pub fn block_tag(&self, tag: TagKey<Block, &'static str>) -> Compiled<HolderSet<Block>> {
@@ -2866,14 +2938,18 @@ impl BlockResolver for Resolver<'_> {
                 .try_for_each(|name| self.add_block(&mut mask, name))?,
             StateQuery::Block(id) => self.add_block(&mut mask, id)?,
             StateQuery::BlockTag(tag) => self.add_tag(&mut mask, tag)?,
-            StateQuery::Fluids(set) => {
+            StateQuery::Fluids(set, properties) => {
                 // No block definition interns `minecraft:empty`, but the
                 // reference's fluid-less states all carry it, so it matches
                 // everything that holds no fluid rather than nothing at all.
-                let empty = set.contains(Fluid::Empty.id(), &self.fluid_tags);
-                return Some(self.state_mask(|state| match state.fluid {
+                let empty = set.contains(Fluid::Empty.id(), &self.fluid_tags)
+                    && properties.matches_fluid(None);
+                return Some(self.state_mask(|state| match &state.fluid {
                     None => empty,
-                    Some(fluid) => set.contains(fluid.fluid, &self.fluid_tags),
+                    Some(fluid) => {
+                        set.contains(fluid.fluid, &self.fluid_tags)
+                            && properties.matches_fluid(Some(fluid))
+                    }
                 }));
             }
             StateQuery::Solid => return Some(self.world.solid.clone()),

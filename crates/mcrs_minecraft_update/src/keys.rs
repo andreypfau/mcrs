@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Write;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use mcrs_minecraft_core::ResourceLocation;
 
@@ -244,7 +246,45 @@ pub fn generate(
         format!("crates/{CATALOG_CRATE}/Cargo.toml"),
         catalog_manifest(&owning),
     );
+    for (path, text) in &mut files {
+        if path.ends_with(".rs") {
+            *text = rustfmt(path, text)?;
+        }
+    }
     Ok(files)
+}
+
+/// rustfmt checks a file given by path without its parent module, so a
+/// `#[rustfmt::skip]` there cannot shield a generated source: it is written
+/// formatted.
+fn rustfmt(path: &str, text: &str) -> Result<String, String> {
+    let mut child = Command::new("rustfmt")
+        .args(["--edition", "2024", "--emit", "stdout"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("{path}: rustfmt: {error}"))?;
+    let written = child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("{path}: rustfmt has no stdin"))
+        .and_then(|mut stdin| {
+            stdin
+                .write_all(text.as_bytes())
+                .map_err(|error| format!("{path}: rustfmt: {error}"))
+        });
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("{path}: rustfmt: {error}"))?;
+    written?;
+    if !output.status.success() {
+        return Err(format!(
+            "{path}: rustfmt failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    String::from_utf8(output.stdout).map_err(|error| format!("{path}: rustfmt: {error}"))
 }
 
 /// The owners whose manifest names the catalog: the catalog cannot depend on
@@ -267,7 +307,9 @@ pub fn above_catalog(root: &Path, owners: &[Owner]) -> Result<BTreeSet<String>, 
 pub fn write(root: &Path, files: &Files) -> Result<(), String> {
     let mut written = 0;
     for (path, text) in files {
-        written += usize::from(corpus::write_if_changed(root, path, text.as_bytes())?);
+        if !holds(root, path, text) {
+            written += usize::from(corpus::write_if_changed(root, path, text.as_bytes())?);
+        }
     }
 
     let stale = stale(root, files)?;
@@ -278,6 +320,27 @@ pub fn write(root: &Path, files: &Files) -> Result<(), String> {
     }
     println!("keys: {written} written, {} deleted", stale.len());
     Ok(())
+}
+
+/// A source written before the generator formatted its output is kept while
+/// only its layout differs, so a regeneration touches only changed content.
+fn holds(root: &Path, path: &str, text: &str) -> bool {
+    let Ok(held) = fs::read_to_string(root.join(path)) else {
+        return false;
+    };
+    if held == text {
+        return true;
+    }
+    if !path.ends_with(".rs") {
+        return false;
+    }
+    rustfmt(path, &unskipped(&held)).is_ok_and(|formatted| formatted == unskipped(text))
+}
+
+fn unskipped(text: &str) -> String {
+    text.split_inclusive('\n')
+        .filter(|line| line.trim_end() != "#[rustfmt::skip]")
+        .collect()
 }
 
 fn stale(root: &Path, files: &Files) -> Result<Vec<String>, String> {
@@ -593,7 +656,6 @@ fn catalog_file(statics: &[String], owning: &[&str]) -> String {
         "{HEADER}\n\
          use mcrs_minecraft_core::{{StaticResourceLocation, TypeBinding}};\n\
          \n\
-         #[rustfmt::skip]\n\
          pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n"
     );
     for line in statics {
@@ -602,7 +664,6 @@ fn catalog_file(statics: &[String], owning: &[&str]) -> String {
     out.push_str(
         "];\n\
          \n\
-         #[rustfmt::skip]\n\
          pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n    \
              std::iter::empty()\n",
     );
@@ -768,12 +829,11 @@ mod tests {
              \n\
              use mcrs_minecraft_core::{StaticResourceLocation, TypeBinding};\n\
              \n\
-             #[rustfmt::skip]\n\
-             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n\
-             \x20   (mcrs_minecraft_keys::BLOCK, mcrs_minecraft_keys::block::ENTRIES),\n\
-             ];\n\
+             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[(\n\
+             \x20   mcrs_minecraft_keys::BLOCK,\n\
+             \x20   mcrs_minecraft_keys::block::ENTRIES,\n\
+             )];\n\
              \n\
-             #[rustfmt::skip]\n\
              pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n\
              \x20   std::iter::empty()\n\
              }\n"
@@ -809,10 +869,7 @@ mod tests {
              pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");\n\
              pub const STONE: StaticResourceLocation = rl!(\"minecraft:stone\");\n\
              \n\
-             pub const ENTRIES: &[StaticResourceLocation] = &[\n\
-             \x20   AIR,\n\
-             \x20   STONE,\n\
-             ];\n"
+             pub const ENTRIES: &[StaticResourceLocation] = &[AIR, STONE];\n"
         );
         assert_eq!(
             files["src/biome.rs"],
@@ -939,11 +996,9 @@ mod tests {
         let files = generated(&[("minecraft:none", &[]), ("minecraft:block", BLOCK)], &[]).unwrap();
 
         assert!(files[CATALOG_LIB].contains("    (mcrs_minecraft_keys::NONE, &[]),\n"));
-        assert!(
-            files[CATALOG_LIB].contains(
-                "    (mcrs_minecraft_keys::BLOCK, mcrs_minecraft_keys::block::ENTRIES),\n"
-            )
-        );
+        assert!(files[CATALOG_LIB].contains(
+            "    (\n        mcrs_minecraft_keys::BLOCK,\n        mcrs_minecraft_keys::block::ENTRIES,\n    ),\n"
+        ));
         assert!(!files.contains_key("src/none.rs"));
     }
 
@@ -1294,13 +1349,10 @@ mod tests {
         let root = crate::workspace_root();
         let files = crate::keys_files(&root, None).unwrap();
         for (path, text) in &files {
-            match fs::read_to_string(root.join(path)) {
-                Ok(held) => assert!(
-                    held == *text,
-                    "{path} differs from what the generator writes; run `{COMMAND}`"
-                ),
-                Err(error) => panic!("{path} cannot be read ({error}); run `{COMMAND}`"),
-            }
+            assert!(
+                holds(&root, path, text),
+                "{path} is missing or differs from what the generator writes; run `{COMMAND}`"
+            );
         }
         let stale = stale(&root, &files).unwrap();
         assert!(
@@ -1339,19 +1391,15 @@ mod tests {
              }\n\
              \n\
              pub fn bindings() -> [TypeBinding; 1] {\n\
-             \x20   [\n\
-             \x20       BIOME.binding(),\n\
-             \x20   ]\n\
+             \x20   [BIOME.binding()]\n\
              }\n"
         );
         assert!(
             files["crates/mcrs_minecraft_biome/src/keys/biome.rs"].contains(
-                "pub const PLAINS: ResourceKey<crate::Biome, &'static str> = ResourceKey::new(rl!(\"minecraft:plains\"));"
+                "pub const PLAINS: ResourceKey<crate::Biome, &'static str> =\n    ResourceKey::new(rl!(\"minecraft:plains\"));"
             )
         );
-        assert!(
-            files[CATALOG_LIB].contains("        .chain(mcrs_minecraft_biome::keys::bindings())\n")
-        );
+        assert!(files[CATALOG_LIB].contains(".chain(mcrs_minecraft_biome::keys::bindings())"));
         assert!(files[CATALOG_MANIFEST].contains("\nmcrs_minecraft_biome.workspace = true\n"));
     }
 
@@ -1390,7 +1438,7 @@ mod tests {
         assert!(module.contains("pub mod fruit;\n\npub use fruit::Fruit;\n"));
         assert!(module.contains("impl Registered for crate::keys::Fruit {"));
         assert!(files[CATALOG_LIB].contains(
-            "    (mcrs_minecraft_food::keys::FRUIT.location(), mcrs_minecraft_food::keys::Fruit::ENTRIES),\n"
+            "&[(\n    mcrs_minecraft_food::keys::FRUIT.location(),\n    mcrs_minecraft_food::keys::Fruit::ENTRIES,\n)];\n"
         ));
     }
 
@@ -1506,18 +1554,23 @@ mod tests {
         fs::write(keys.join("src/lib.rs"), "old").unwrap();
         fs::write(owner.join("mod.rs"), HEADER).unwrap();
         fs::write(owner.join("gone.rs"), HEADER).unwrap();
-
         let (registries, datapack, names) = reports(&[("minecraft:block", BLOCK)], &[]);
         let files = generate(&registries, &datapack, &names, &[], &BTreeSet::new()).unwrap();
+        let block = "crates/mcrs_minecraft_keys/src/block.rs";
+        let unformatted = files[block].replace("&[AIR, STONE]", "&[\n    AIR,\n    STONE,\n]");
+        let unformatted = format!("#[rustfmt::skip]\n{unformatted}");
+        fs::write(root.join(block), &unformatted).unwrap();
+
         write(&root, &files).unwrap();
 
-        for (path, text) in &files {
+        for (path, text) in files.iter().filter(|(path, _)| *path != block) {
             assert_eq!(
                 &fs::read_to_string(root.join(path)).unwrap(),
                 text,
                 "{path}"
             );
         }
+        assert_eq!(fs::read_to_string(root.join(block)).unwrap(), unformatted);
         assert!(!keys.join("src/stale.rs").exists());
         assert!(!owner.join("mod.rs").exists());
         assert!(!owner.join("gone.rs").exists());

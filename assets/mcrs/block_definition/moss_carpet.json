@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:moss_carpet",
-      "protocol_id": 1230,
-      "base_state_id": 33663,
-      "default_state_id": 33663
+      "protocol_id": 1233,
+      "base_state_id": 33721,
+      "default_state_id": 33721
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 1, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:moss_carpet"
     },
     "permutations": []
   }

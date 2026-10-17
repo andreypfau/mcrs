@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_banner",
-      "protocol_id": 1422
+      "protocol_id": 1425
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:beehive",
-      "protocol_id": 1532
+      "protocol_id": 1535
     },
     "components": {
       "minecraft:attack_animation": {},

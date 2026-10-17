@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 456,
-      "base_state_id": 11550,
-      "default_state_id": 11561
+      "base_state_id": 11552,
+      "default_state_id": 11563
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/birch_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

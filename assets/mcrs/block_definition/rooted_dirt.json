@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:rooted_dirt",
-      "protocol_id": 1239,
-      "base_state_id": 33771,
-      "default_state_id": 33771
+      "protocol_id": 1242,
+      "base_state_id": 33829,
+      "default_state_id": 33829
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:rooted_dirt"
     },
     "permutations": []
   }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_door",
-      "protocol_id": 896
+      "protocol_id": 897
     },
     "components": {
       "minecraft:attack_animation": {},

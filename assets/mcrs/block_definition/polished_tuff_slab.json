@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1079,
-      "base_state_id": 27221,
-      "default_state_id": 27224
+      "protocol_id": 1081,
+      "base_state_id": 27239,
+      "default_state_id": 27242
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/polished_tuff_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:polished_tuff"
     },
     "permutations": [
       {

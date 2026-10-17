@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:copper_torch",
       "protocol_id": 341,
-      "base_state_id": 8681,
-      "default_state_id": 8681
+      "base_state_id": 8683,
+      "default_state_id": 8683
     },
     "components": {
       "minecraft:light_emission": 14,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/copper_torch",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

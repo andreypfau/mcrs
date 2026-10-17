@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_horse_armor",
-      "protocol_id": 1406
+      "protocol_id": 1409
     },
     "components": {
       "minecraft:attack_animation": {},

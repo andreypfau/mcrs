@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_sign",
-      "protocol_id": 1102
+      "protocol_id": 1103
     },
     "components": {
       "minecraft:attack_animation": {},

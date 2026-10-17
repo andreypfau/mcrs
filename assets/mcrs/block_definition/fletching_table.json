@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:fletching_table",
-      "protocol_id": 933,
-      "base_state_id": 24128,
-      "default_state_id": 24128
+      "protocol_id": 934,
+      "base_state_id": 24134,
+      "default_state_id": 24134
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

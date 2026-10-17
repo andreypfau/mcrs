@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:sculk",
-      "protocol_id": 1120,
-      "base_state_id": 31000,
-      "default_state_id": 31000
+      "protocol_id": 1122,
+      "base_state_id": 31018,
+      "default_state_id": 31018
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -39,7 +39,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sculk"
     },
     "permutations": []
   }

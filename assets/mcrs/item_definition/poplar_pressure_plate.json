@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_pressure_plate",
-      "protocol_id": 884
+      "protocol_id": 885
     },
     "components": {
       "minecraft:attack_animation": {},

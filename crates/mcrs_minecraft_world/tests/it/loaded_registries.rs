@@ -249,7 +249,7 @@ fn vanilla_biomes_are_built_entries_not_files() {
     let vanilla = (0..table.len())
         .filter(|&id| set.pack_of("minecraft:worldgen/biome", id) == Some(VANILLA_PACK))
         .count();
-    assert_eq!(vanilla, 67);
+    assert_eq!(vanilla, 68);
     assert!(
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/biome/plains.json").is_none(),
         "a built biome is served as a file"
@@ -260,7 +260,7 @@ fn vanilla_biomes_are_built_entries_not_files() {
 fn vanilla_noise_settings_are_built_entries_not_files() {
     let set = test_registries();
     for (registry, vanilla, beta) in [
-        ("minecraft:worldgen/noise", 64, 5),
+        ("minecraft:worldgen/noise", 65, 5),
         ("minecraft:worldgen/density_function", 55, 10),
         ("minecraft:worldgen/noise_settings", 7, 1),
     ] {
@@ -341,7 +341,7 @@ fn the_fallback_serves_only_structure_templates() {
             json_paths += 1;
         }
     }
-    assert_eq!(json_paths, 67 + 64 + 55 + 7 + 245);
+    assert_eq!(json_paths, 68 + 65 + 55 + 7 + 245);
 
     let template = mcrs_minecraft_worldgen_builtin::template_paths("minecraft/structure")
         .into_iter()
@@ -2372,12 +2372,12 @@ pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app:
         (
             "minecraft:worldgen/feature",
             parsed::<Feature>(set, "minecraft:worldgen/feature"),
-            241,
+            262,
         ),
         (
             "minecraft:worldgen/placed_feature",
             parsed::<PlacedFeature>(set, "minecraft:worldgen/placed_feature"),
-            274,
+            300,
         ),
         (
             "minecraft:worldgen/processor_list",

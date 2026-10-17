@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ochre_froglight",
-      "protocol_id": 1573
+      "protocol_id": 1578
     },
     "components": {
       "minecraft:attack_animation": {},

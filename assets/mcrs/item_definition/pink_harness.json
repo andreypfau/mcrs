@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_harness",
-      "protocol_id": 956
+      "protocol_id": 957
     },
     "components": {
       "minecraft:attack_animation": {},

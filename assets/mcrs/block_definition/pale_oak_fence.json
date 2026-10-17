@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 698,
-      "base_state_id": 15843,
-      "default_state_id": 15874
+      "base_state_id": 15845,
+      "default_state_id": 15876
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       },
       "minecraft:loot": "minecraft:blocks/pale_oak_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

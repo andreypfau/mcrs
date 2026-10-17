@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_pickaxe",
-      "protocol_id": 1037
+      "protocol_id": 1038
     },
     "components": {
       "minecraft:attack_animation": {},

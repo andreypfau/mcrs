@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cartography_table",
-      "protocol_id": 1509
+      "protocol_id": 1512
     },
     "components": {
       "minecraft:attack_animation": {},

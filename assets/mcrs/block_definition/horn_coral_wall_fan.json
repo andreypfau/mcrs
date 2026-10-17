@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 877,
-      "base_state_id": 18616,
-      "default_state_id": 18616
+      "protocol_id": 878,
+      "base_state_id": 18622,
+      "default_state_id": 18622
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -40,7 +40,8 @@
       "minecraft:loot": "minecraft:blocks/horn_coral_fan",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wet_grass"
     },
     "permutations": [
       {

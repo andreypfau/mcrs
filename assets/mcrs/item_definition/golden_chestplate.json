@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_chestplate",
-      "protocol_id": 1089
+      "protocol_id": 1090
     },
     "components": {
       "minecraft:attack_animation": {},

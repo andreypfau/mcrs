@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_button",
-      "protocol_id": 858
+      "protocol_id": 859
     },
     "components": {
       "minecraft:attack_animation": {},

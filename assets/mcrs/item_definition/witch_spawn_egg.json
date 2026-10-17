@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:witch_spawn_egg",
-      "protocol_id": 1348
+      "protocol_id": 1351
     },
     "components": {
       "minecraft:attack_animation": {},

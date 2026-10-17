@@ -1,0 +1,135 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:ice_crystal",
+      "properties": {
+        "facing": [
+          "north",
+          "east",
+          "south",
+          "west",
+          "up",
+          "down"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "protocol_id": 1070,
+      "base_state_id": 26766,
+      "default_state_id": 26775
+    },
+    "components": {
+      "minecraft:light_emission": 4,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#a0a0ff",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 1.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "chime"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 1.5
+      },
+      "minecraft:loot": "minecraft:blocks/ice_crystal",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:ice_crystal"
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 3, 1], "size": [10, 10, 7] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 3, 1], "size": [10, 10, 7] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 3, -5], "size": [7, 10, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 3, -5], "size": [7, 10, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 3, -8], "size": [10, 10, 7] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 3, -8], "size": [10, 10, 7] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [1, 3, -5], "size": [7, 10, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [1, 3, -5], "size": [7, 10, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 0, -5], "size": [10, 7, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 7, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 9, -5], "size": [10, 7, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 9, -5], "size": [10, 7, 10] }
+          ]
+        }
+      }
+    ]
+  }
+}

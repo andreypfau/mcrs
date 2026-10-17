@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:sulfur",
-      "protocol_id": 1088,
-      "base_state_id": 28044,
-      "default_state_id": 28044
+      "protocol_id": 1090,
+      "base_state_id": 28062,
+      "default_state_id": 28062
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sulfur"
     },
     "permutations": []
   }

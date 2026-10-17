@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 432,
-      "base_state_id": 11069,
-      "default_state_id": 11100
+      "base_state_id": 11071,
+      "default_state_id": 11102
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -58,7 +58,8 @@
       },
       "minecraft:loot": "minecraft:blocks/nether_brick_fence",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_bricks"
     },
     "permutations": [
       {

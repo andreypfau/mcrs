@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn every_noise_round_trips() {
-        assert_eq!(round_trips::<NoiseParam>("noise"), 69);
+        assert_eq!(round_trips::<NoiseParam>("noise"), 70);
     }
 
     #[test]

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:zombie_villager_spawn_egg",
-      "protocol_id": 1336
+      "protocol_id": 1339
     },
     "components": {
       "minecraft:attack_animation": {},

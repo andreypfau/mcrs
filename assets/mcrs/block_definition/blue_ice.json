@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:blue_ice",
-      "protocol_id": 879,
-      "base_state_id": 18632,
-      "default_state_id": 18632
+      "protocol_id": 880,
+      "base_state_id": 18638,
+      "default_state_id": 18638
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:blue_ice"
     },
     "permutations": []
   }

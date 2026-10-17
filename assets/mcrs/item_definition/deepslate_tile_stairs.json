@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_tile_stairs",
-      "protocol_id": 805
+      "protocol_id": 806
     },
     "components": {
       "minecraft:attack_animation": {},

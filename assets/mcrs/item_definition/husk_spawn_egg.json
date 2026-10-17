@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:husk_spawn_egg",
-      "protocol_id": 1326
+      "protocol_id": 1329
     },
     "components": {
       "minecraft:attack_animation": {},

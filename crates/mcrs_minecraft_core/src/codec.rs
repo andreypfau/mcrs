@@ -230,6 +230,41 @@ impl TryFrom<f32> for PositiveFloat {
     }
 }
 
+/// A map kept in the order read, refusing a repeated key.
+pub fn unique_entries<'de, D, K, V>(d: D) -> Result<Vec<(K, V)>, D::Error>
+where
+    D: Deserializer<'de>,
+    K: Deserialize<'de> + PartialEq + fmt::Display,
+    V: Deserialize<'de>,
+{
+    struct EntriesVisitor<K, V>(std::marker::PhantomData<(K, V)>);
+
+    impl<'de, K, V> Visitor<'de> for EntriesVisitor<K, V>
+    where
+        K: Deserialize<'de> + PartialEq + fmt::Display,
+        V: Deserialize<'de>,
+    {
+        type Value = Vec<(K, V)>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            let mut entries: Vec<(K, V)> = Vec::new();
+            while let Some(key) = map.next_key::<K>()? {
+                if entries.iter().any(|(seen, _)| *seen == key) {
+                    return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
+                }
+                entries.push((key, map.next_value()?));
+            }
+            Ok(entries)
+        }
+    }
+
+    d.deserialize_map(EntriesVisitor(std::marker::PhantomData))
+}
+
 pub fn non_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,

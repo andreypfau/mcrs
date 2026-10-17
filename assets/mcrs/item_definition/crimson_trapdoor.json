@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_trapdoor",
-      "protocol_id": 922
+      "protocol_id": 923
     },
     "components": {
       "minecraft:attack_animation": {},

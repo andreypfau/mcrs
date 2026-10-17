@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_fence_gate",
-      "protocol_id": 940
+      "protocol_id": 941
     },
     "components": {
       "minecraft:attack_animation": {},

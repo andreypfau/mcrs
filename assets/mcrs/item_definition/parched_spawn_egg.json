@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:parched_spawn_egg",
-      "protocol_id": 1327
+      "protocol_id": 1330
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -48,4 +48,6 @@ mcrs_minecraft_registry::static_registry! {
     Weaving = "minecraft:weaving",
     Oozing = "minecraft:oozing",
     Infested = "minecraft:infested",
+    Freezing = "minecraft:freezing",
+    LongFreezing = "minecraft:long_freezing",
 }

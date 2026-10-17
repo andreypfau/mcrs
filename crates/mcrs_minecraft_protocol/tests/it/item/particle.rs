@@ -43,8 +43,8 @@ pub(crate) fn lookup() -> TestLookup {
         &[
             ("air", 0),
             ("stone", 1),
-            ("apple", 1007),
-            ("diamond_sword", 1050),
+            ("apple", 1008),
+            ("diamond_sword", 1051),
         ],
     );
     lookup.block_state(1, "stone", &[], true);

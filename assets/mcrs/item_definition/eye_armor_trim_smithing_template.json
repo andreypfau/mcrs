@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:eye_armor_trim_smithing_template",
-      "protocol_id": 1585
+      "protocol_id": 1590
     },
     "components": {
       "minecraft:attack_animation": {},

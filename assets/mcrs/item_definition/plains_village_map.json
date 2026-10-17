@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:plains_village_map",
-      "protocol_id": 1245
+      "protocol_id": 1247
     },
     "components": {
       "minecraft:attack_animation": {},

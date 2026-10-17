@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxidized_copper_bulb",
-      "protocol_id": 1632
+      "protocol_id": 1637
     },
     "components": {
       "minecraft:attack_animation": {},

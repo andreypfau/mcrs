@@ -21,8 +21,8 @@ pub const BEEHIVE: StaticResourceLocation = rl!("minecraft:beehive");
 pub const BEE_NEST: StaticResourceLocation = rl!("minecraft:bee_nest");
 pub const NETHER_PORTAL: StaticResourceLocation = rl!("minecraft:nether_portal");
 pub const LODESTONE: StaticResourceLocation = rl!("minecraft:lodestone");
-pub const TEST_INSTANCE: StaticResourceLocation = rl!("minecraft:test_instance");
 pub const LIGHTNING_ROD: StaticResourceLocation = rl!("minecraft:lightning_rod");
+pub const TEST_INSTANCE: StaticResourceLocation = rl!("minecraft:test_instance");
 
 pub const ENTRIES: &[StaticResourceLocation] = &[
     ARMORER,
@@ -44,6 +44,6 @@ pub const ENTRIES: &[StaticResourceLocation] = &[
     BEE_NEST,
     NETHER_PORTAL,
     LODESTONE,
-    TEST_INSTANCE,
     LIGHTNING_ROD,
+    TEST_INSTANCE,
 ];

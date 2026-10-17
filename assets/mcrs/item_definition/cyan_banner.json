@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_banner",
-      "protocol_id": 1426
+      "protocol_id": 1429
     },
     "components": {
       "minecraft:attack_animation": {},

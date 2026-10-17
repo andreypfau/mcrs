@@ -8,9 +8,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::direction::Direction;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::tags::TagEntry;
+use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
 #[derive(Debug, Deserialize)]
@@ -607,6 +608,7 @@ components! {
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
     "mcrs:occlusion_shape" => occlusion_shape: BoxList,
     "mcrs:emissive_rendering" => emissive_rendering: bool,
+    "mcrs:block_sound_set" => block_sound_set: ResourceKey<BlockSoundSet>,
 }
 
 /// The components a state may leave unstated. Each is a component whose
@@ -621,6 +623,7 @@ pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "minecraft:flammable",
     "minecraft:block_entity",
     "minecraft:redstone_producer",
+    "mcrs:block_sound_set",
 ];
 
 #[cfg(test)]

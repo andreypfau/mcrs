@@ -169,7 +169,7 @@ fn place_hanging_roots<W: WorldGenVolume>(
         let survives = config
             .hanging_survive
             .as_ref()
-            .is_none_or(|rule| rule.test(at, |q| volume.get(q)));
+            .is_none_or(|rule| rule.test(state, at, |q| volume.get(q)));
         if survives && volume.holds(&volume.world().solid, at + IVec3::Y) {
             volume.set(at, state);
         }

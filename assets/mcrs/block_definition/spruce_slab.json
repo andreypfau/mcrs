@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 654,
-      "base_state_id": 15183,
-      "default_state_id": 15186
+      "base_state_id": 15185,
+      "default_state_id": 15188
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/spruce_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

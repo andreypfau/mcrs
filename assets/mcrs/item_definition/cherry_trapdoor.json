@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_trapdoor",
-      "protocol_id": 916
+      "protocol_id": 917
     },
     "components": {
       "minecraft:attack_animation": {},

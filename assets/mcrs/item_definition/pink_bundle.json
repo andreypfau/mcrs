@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_bundle",
-      "protocol_id": 1160
+      "protocol_id": 1162
     },
     "components": {
       "minecraft:attack_animation": {},

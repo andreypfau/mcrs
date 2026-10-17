@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:grindstone",
-      "protocol_id": 1511
+      "protocol_id": 1514
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 525,
-      "base_state_id": 13014,
-      "default_state_id": 13014
+      "base_state_id": 13016,
+      "default_state_id": 13016
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -51,7 +51,8 @@
       "minecraft:loot": "minecraft:blocks/heavy_weighted_pressure_plate",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:iron"
     },
     "permutations": [
       {

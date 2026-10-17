@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chicken",
-      "protocol_id": 1262
+      "protocol_id": 1264
     },
     "components": {
       "minecraft:attack_animation": {},

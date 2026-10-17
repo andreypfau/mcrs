@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:recovery_compass",
-      "protocol_id": 1152
+      "protocol_id": 1154
     },
     "components": {
       "minecraft:attack_animation": {},

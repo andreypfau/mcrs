@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_gray_harness",
-      "protocol_id": 958
+      "protocol_id": 959
     },
     "components": {
       "minecraft:attack_animation": {},

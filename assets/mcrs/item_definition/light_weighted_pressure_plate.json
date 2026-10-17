@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_weighted_pressure_plate",
-      "protocol_id": 873
+      "protocol_id": 874
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 706,
-      "base_state_id": 16227,
-      "default_state_id": 16238
+      "base_state_id": 16229,
+      "default_state_id": 16240
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "minecraft:loot": "minecraft:blocks/cherry_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cherry_wood"
     },
     "permutations": [
       {

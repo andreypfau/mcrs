@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_chest_boat",
-      "protocol_id": 976
+      "protocol_id": 977
     },
     "components": {
       "minecraft:attack_animation": {},

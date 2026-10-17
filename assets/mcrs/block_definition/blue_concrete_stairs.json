@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 795,
-      "base_state_id": 17907,
-      "default_state_id": 17918
+      "protocol_id": 796,
+      "base_state_id": 17913,
+      "default_state_id": 17924
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/blue_concrete_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

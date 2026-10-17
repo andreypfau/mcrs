@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rabbit",
-      "protocol_id": 1400
+      "protocol_id": 1403
     },
     "components": {
       "minecraft:attack_animation": {},

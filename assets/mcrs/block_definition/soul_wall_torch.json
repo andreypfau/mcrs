@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 340,
-      "base_state_id": 8677,
-      "default_state_id": 8677
+      "base_state_id": 8679,
+      "default_state_id": 8679
     },
     "components": {
       "minecraft:light_emission": 10,
@@ -37,7 +37,8 @@
       "minecraft:loot": "minecraft:blocks/soul_torch",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

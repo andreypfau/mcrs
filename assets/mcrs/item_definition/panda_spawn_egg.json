@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:panda_spawn_egg",
-      "protocol_id": 1298
+      "protocol_id": 1300
     },
     "components": {
       "minecraft:attack_animation": {},

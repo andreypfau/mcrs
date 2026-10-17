@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 457,
-      "base_state_id": 11630,
-      "default_state_id": 11641
+      "base_state_id": 11632,
+      "default_state_id": 11643
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/jungle_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

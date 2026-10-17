@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_polished_blackstone",
-      "protocol_id": 1544
+      "protocol_id": 1547
     },
     "components": {
       "minecraft:attack_animation": {},

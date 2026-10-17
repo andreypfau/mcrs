@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 993,
-      "base_state_id": 25063,
-      "default_state_id": 25064
+      "protocol_id": 994,
+      "base_state_id": 25069,
+      "default_state_id": 25070
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/crimson_sign",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:elytra",
-      "protocol_id": 974
+      "protocol_id": 975
     },
     "components": {
       "minecraft:attack_animation": {},

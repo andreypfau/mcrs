@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_horse_armor",
-      "protocol_id": 1407
+      "protocol_id": 1410
     },
     "components": {
       "minecraft:attack_animation": {},

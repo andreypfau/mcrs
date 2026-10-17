@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snowy_village_map",
-      "protocol_id": 1247
+      "protocol_id": 1249
     },
     "components": {
       "minecraft:attack_animation": {},

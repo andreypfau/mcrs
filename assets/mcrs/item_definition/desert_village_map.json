@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:desert_village_map",
-      "protocol_id": 1244
+      "protocol_id": 1246
     },
     "components": {
       "minecraft:attack_animation": {},

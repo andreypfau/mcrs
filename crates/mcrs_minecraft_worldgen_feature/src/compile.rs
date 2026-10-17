@@ -19,6 +19,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Offset};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_registry::HolderSet;
 
@@ -226,7 +227,7 @@ pub enum StateQuery<'a> {
     Names(&'a [ResourceLocation]),
     Block(&'a ResourceLocation),
     BlockTag(&'a ResourceLocation),
-    Fluids(&'a HolderSet<Fluid>),
+    Fluids(&'a HolderSet<Fluid>, &'a StatePropertiesPredicate),
     SturdyFace(Direction),
     /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
     FullCollisionFace(Direction),
@@ -268,7 +269,8 @@ impl std::fmt::Display for StateQuery<'_> {
                 let names: Vec<_> = names.iter().map(ResourceLocation::as_str).collect();
                 f.write_str(&names.join(", "))
             }
-            StateQuery::Fluids(set) => write!(f, "{set:?}"),
+            StateQuery::Fluids(set, state) if state.is_any() => write!(f, "{set:?}"),
+            StateQuery::Fluids(set, state) => write!(f, "{set:?}{state:?}"),
             StateQuery::Block(id) => write!(f, "{id}"),
             StateQuery::BlockTag(tag) => write!(f, "#{tag}"),
             StateQuery::SturdyFace(direction) => write!(f, "sturdy face {direction:?}"),
@@ -320,9 +322,11 @@ pub fn compile_predicate(
         BlockPredicate::MatchingBlockTag { offset, tag } => {
             matching(offset, StateQuery::BlockTag(tag))?
         }
-        BlockPredicate::MatchingFluids { offset, fluids } => {
-            matching(offset, StateQuery::Fluids(fluids))?
-        }
+        BlockPredicate::MatchingFluids {
+            offset,
+            fluids,
+            state,
+        } => matching(offset, StateQuery::Fluids(fluids, state))?,
         BlockPredicate::HasSturdyFace { offset, direction } => {
             matching(offset, StateQuery::SturdyFace(*direction))?
         }
@@ -579,7 +583,7 @@ mod tests {
     fn every_shipped_placed_feature_compiles() {
         let placed: BTreeMap<ResourceLocation, PlacedFeature> =
             mcrs_minecraft_worldgen_testing::registry("placed_feature");
-        assert_eq!(placed.len(), 274);
+        assert_eq!(placed.len(), 300);
         for (id, feature) in &placed {
             compile_placement(&feature.placement, &Everything)
                 .unwrap_or_else(|error| panic!("{id}: {error}"));

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spider_spawn_egg",
-      "protocol_id": 1338
+      "protocol_id": 1341
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_sign",
-      "protocol_id": 1105
+      "protocol_id": 1106
     },
     "components": {
       "minecraft:attack_animation": {},

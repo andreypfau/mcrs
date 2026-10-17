@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mossy_stone_brick_slab",
-      "protocol_id": 808
+      "protocol_id": 809
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:armadillo_scute",
-      "protocol_id": 1003
+      "protocol_id": 1004
     },
     "components": {
       "minecraft:attack_animation": {},

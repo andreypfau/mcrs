@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:squid_spawn_egg",
-      "protocol_id": 1309
+      "protocol_id": 1311
     },
     "components": {
       "minecraft:attack_animation": {},

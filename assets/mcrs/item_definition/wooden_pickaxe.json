@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_pickaxe",
-      "protocol_id": 1027
+      "protocol_id": 1028
     },
     "components": {
       "minecraft:attack_animation": {},

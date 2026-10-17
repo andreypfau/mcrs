@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_deepslate_stairs",
-      "protocol_id": 803
+      "protocol_id": 804
     },
     "components": {
       "minecraft:attack_animation": {},

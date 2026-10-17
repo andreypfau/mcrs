@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1015,
-      "base_state_id": 25189,
-      "default_state_id": 25200
+      "protocol_id": 1016,
+      "base_state_id": 25195,
+      "default_state_id": 25206
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/blackstone_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

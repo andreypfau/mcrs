@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:purple_terracotta",
       "protocol_id": 547,
-      "base_state_id": 13221,
-      "default_state_id": 13221
+      "base_state_id": 13223,
+      "default_state_id": 13223
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": []
   }

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:calcite",
-      "protocol_id": 1115,
-      "base_state_id": 30517,
-      "default_state_id": 30517
+      "protocol_id": 1117,
+      "base_state_id": 30535,
+      "default_state_id": 30535
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:calcite"
     },
     "permutations": []
   }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chainmail_helmet",
-      "protocol_id": 1076
+      "protocol_id": 1077
     },
     "components": {
       "minecraft:attack_animation": {},

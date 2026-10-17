@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1030,
-      "base_state_id": 26126,
-      "default_state_id": 26129
+      "protocol_id": 1031,
+      "base_state_id": 26132,
+      "default_state_id": 26135
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/polished_blackstone_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [
       {

@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 404,
-      "base_state_id": 10004,
-      "default_state_id": 10007
+      "base_state_id": 10006,
+      "default_state_id": 10009
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -48,7 +48,8 @@
       "minecraft:loot": "minecraft:blocks/oxidized_copper_chain",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:chain"
     },
     "permutations": [
       {

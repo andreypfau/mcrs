@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sugar",
-      "protocol_id": 1217
+      "protocol_id": 1219
     },
     "components": {
       "minecraft:attack_animation": {},

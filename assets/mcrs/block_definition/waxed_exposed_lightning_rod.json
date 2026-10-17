@@ -21,9 +21,9 @@
           false
         ]
       },
-      "protocol_id": 1219,
-      "base_state_id": 33493,
-      "default_state_id": 33512
+      "protocol_id": 1221,
+      "base_state_id": 33511,
+      "default_state_id": 33530
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -69,7 +69,8 @@
       "minecraft:loot": "minecraft:blocks/waxed_exposed_lightning_rod",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_cushion",
-      "protocol_id": 1172
+      "protocol_id": 1174
     },
     "components": {
       "minecraft:attack_animation": {},

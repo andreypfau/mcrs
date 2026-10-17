@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1248,
-      "base_state_id": 34268,
-      "default_state_id": 34271
+      "protocol_id": 1251,
+      "base_state_id": 34326,
+      "default_state_id": 34329
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 3.5
       },
       "minecraft:loot": "minecraft:blocks/polished_deepslate_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:polished_deepslate"
     },
     "permutations": [
       {

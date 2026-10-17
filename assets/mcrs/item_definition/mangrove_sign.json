@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_sign",
-      "protocol_id": 1110
+      "protocol_id": 1111
     },
     "components": {
       "minecraft:attack_animation": {},

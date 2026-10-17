@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_exposed_copper_trapdoor",
-      "protocol_id": 929
+      "protocol_id": 930
     },
     "components": {
       "minecraft:attack_animation": {},

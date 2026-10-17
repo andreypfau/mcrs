@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 663,
-      "base_state_id": 15237,
-      "default_state_id": 15240
+      "base_state_id": 15239,
+      "default_state_id": 15242
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
         "seconds_to_destroy": 2
       },
       "minecraft:loot": "minecraft:blocks/bamboo_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:bamboo_wood"
     },
     "permutations": [
       {

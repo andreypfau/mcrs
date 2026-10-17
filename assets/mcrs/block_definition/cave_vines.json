@@ -37,9 +37,9 @@
           false
         ]
       },
-      "protocol_id": 1225,
-      "base_state_id": 33606,
-      "default_state_id": 33607
+      "protocol_id": 1228,
+      "base_state_id": 33664,
+      "default_state_id": 33665
     },
     "components": {
       "minecraft:light_dampening": 0,
@@ -65,7 +65,8 @@
       "minecraft:loot": "minecraft:blocks/cave_vines",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cave_vines"
     },
     "permutations": [
       {

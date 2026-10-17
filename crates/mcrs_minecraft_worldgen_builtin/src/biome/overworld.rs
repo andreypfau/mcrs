@@ -150,7 +150,8 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Draft {
     let mut m = Mobs::default();
     let mut g = overworld_generation();
     let biome = if snowy {
-        m.snowy_spawns(!spikes);
+        m.snowy_spawns(!spikes)
+            .spawn(FROSTBITE, if spikes { 25 } else { 10 }, 4, 4);
         if spikes {
             g.features(
                 SurfaceStructures,
@@ -330,7 +331,8 @@ pub fn frozen_ocean(deep: bool) -> Draft {
         .spawn(POLAR_BEAR, 1, 1, 2)
         .spawn(NAUTILUS, 2, 1, 1)
         .common_spawns()
-        .spawn(DROWNED, 5, 1, 1);
+        .spawn(DROWNED, 5, 1, 1)
+        .spawn(FROSTBITE, 25, 4, 4);
     let mut g = Generation::default();
     icebergs(&mut g);
     overworld_features(&mut g);
@@ -488,7 +490,7 @@ pub fn river(frozen: bool) -> Draft {
     bushes(&mut g);
     default_vegetation(&mut g);
     let (temperature, water) = if frozen {
-        m.spawn(DROWNED, 1, 1, 1);
+        m.spawn(DROWNED, 1, 1, 1).spawn(FROSTBITE, 25, 4, 4);
         (0.0, FROZEN_WATER_COLOR)
     } else {
         m.spawn(DROWNED, 100, 1, 1);
@@ -571,9 +573,11 @@ pub fn dappled_forest() -> Draft {
         .dry_foliage(9189892)
 }
 
-pub fn peaks(sound: StaticKey<SoundEvent>) -> Draft {
+pub fn peaks(sound: StaticKey<SoundEvent>, frostbite_weight: i32) -> Draft {
     let mut m = Mobs::default();
-    m.spawn(GOAT, 5, 1, 3).common_spawns();
+    m.spawn(GOAT, 5, 1, 3)
+        .spawn(FROSTBITE, frostbite_weight, 4, 4)
+        .common_spawns();
     let mut g = overworld_generation();
     frozen_springs(&mut g);
     mountain_ores(&mut g);
@@ -594,6 +598,7 @@ pub fn snowy_slopes() -> Draft {
     let mut m = Mobs::default();
     m.spawn(RABBIT, 4, 2, 3)
         .spawn(GOAT, 5, 1, 3)
+        .spawn(FROSTBITE, 10, 4, 4)
         .common_spawns();
     let mut g = overworld_generation();
     frozen_springs(&mut g);
@@ -639,6 +644,38 @@ pub fn sulfur_caves() -> Draft {
         .with(WATER_FOG_COLOR, HexRgb::of(-15248324))
         .water(-13320311)
         .grass(11249231)
+}
+
+pub fn ice_caves() -> Draft {
+    const ICE_CAVES_COLOR: i32 = 0x14559b;
+    let mut m = Mobs::default();
+    m.spawn(BAT, 10, 8, 8)
+        .spawn(CREEPER, 100, 4, 4)
+        .spawn(SKELETON, 90, 4, 4)
+        .spawn(STRAY, 10, 4, 4)
+        .spawn(FROSTBITE, 50, 4, 4)
+        .spawn(SLIME, 100, 4, 4)
+        .spawn(SPIDER, 100, 4, 4)
+        .spawn(ZOMBIE, 50, 4, 4)
+        .spawn(ENDERMAN, 10, 1, 4)
+        .spawn(WITCH, 5, 1, 1)
+        .spawn(ZOMBIE_VILLAGER, 5, 1, 1)
+        .spawn(GLOW_SQUID, 10, 2, 4);
+    let mut g = Generation::default();
+    default_carvers_and_lakes(&mut g);
+    default_crystal_formations(&mut g);
+    default_monster_room(&mut g);
+    underground_variety(&mut g, false, false);
+    ice_caves_ores(&mut g);
+    default_soft_disks(&mut g);
+    ice_caves_features(&mut g);
+    default_springs(&mut g);
+    surface_freezing(&mut g);
+    base_biome(0.0, 0.0, m, g)
+        .music(sound_event::MUSIC_OVERWORLD_SULFUR_CAVES)
+        .with(FOG_COLOR, HexRgb::of(ICE_CAVES_COLOR))
+        .with(WATER_FOG_COLOR, HexRgb::of(ICE_CAVES_COLOR))
+        .water(ICE_CAVES_COLOR)
 }
 
 pub fn lush_caves() -> Draft {

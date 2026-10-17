@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_hanging_sign",
-      "protocol_id": 1122
+      "protocol_id": 1123
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_boots",
-      "protocol_id": 1091
+      "protocol_id": 1092
     },
     "components": {
       "minecraft:attack_animation": {},

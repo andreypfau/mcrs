@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crying_obsidian",
-      "protocol_id": 1536
+      "protocol_id": 1539
     },
     "components": {
       "minecraft:attack_animation": {},

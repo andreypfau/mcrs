@@ -14,8 +14,8 @@
         ]
       },
       "protocol_id": 712,
-      "base_state_id": 16611,
-      "default_state_id": 16615
+      "base_state_id": 16613,
+      "default_state_id": 16617
     },
     "components": {
       "minecraft:light_emission": 14,
@@ -38,7 +38,8 @@
       "minecraft:loot": "minecraft:blocks/end_rod",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

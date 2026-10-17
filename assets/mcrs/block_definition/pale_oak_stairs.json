@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 572,
-      "base_state_id": 13979,
-      "default_state_id": 13990
+      "base_state_id": 13981,
+      "default_state_id": 13992
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       },
       "minecraft:loot": "minecraft:blocks/pale_oak_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

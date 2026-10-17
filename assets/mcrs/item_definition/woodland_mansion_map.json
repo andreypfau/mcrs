@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:woodland_mansion_map",
-      "protocol_id": 1240
+      "protocol_id": 1242
     },
     "components": {
       "minecraft:attack_animation": {},

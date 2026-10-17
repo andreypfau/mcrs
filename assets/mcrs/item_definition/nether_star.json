@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_star",
-      "protocol_id": 1391
+      "protocol_id": 1394
     },
     "components": {
       "minecraft:attack_animation": {},

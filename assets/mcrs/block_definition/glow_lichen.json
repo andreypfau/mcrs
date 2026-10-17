@@ -34,8 +34,8 @@
         ]
       },
       "protocol_id": 417,
-      "base_state_id": 10124,
-      "default_state_id": 10251
+      "base_state_id": 10126,
+      "default_state_id": 10253
     },
     "components": {
       "minecraft:friction": 0.6,
@@ -63,7 +63,8 @@
       "minecraft:loot": "minecraft:blocks/glow_lichen",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glow_lichen"
     },
     "permutations": [
       {

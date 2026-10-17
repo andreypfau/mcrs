@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:green_bed",
-      "protocol_id": 1232
+      "protocol_id": 1234
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_scrap",
-      "protocol_id": 1024
+      "protocol_id": 1025
     },
     "components": {
       "minecraft:attack_animation": {},

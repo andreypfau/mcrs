@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 434,
-      "base_state_id": 11181,
-      "default_state_id": 11181
+      "base_state_id": 11183,
+      "default_state_id": 11183
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -49,7 +49,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wart"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:melon_slice",
-      "protocol_id": 1256
+      "protocol_id": 1258
     },
     "components": {
       "minecraft:attack_animation": {},

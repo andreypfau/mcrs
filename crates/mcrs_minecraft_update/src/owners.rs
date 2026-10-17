@@ -47,6 +47,11 @@ pub const OWNERS: &[Owner] = &[
         value: ValueType::Defined("crate::SoundEvent"),
     },
     Owner {
+        registry: "minecraft:block_sound_set",
+        krate: "mcrs_minecraft_sound",
+        value: ValueType::Defined("crate::BlockSoundSet"),
+    },
+    Owner {
         registry: "minecraft:damage_type",
         krate: "mcrs_minecraft_item",
         value: ValueType::Defined("crate::damage_type::DamageType"),

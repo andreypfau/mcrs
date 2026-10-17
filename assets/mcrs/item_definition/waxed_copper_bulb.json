@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_copper_bulb",
-      "protocol_id": 1633
+      "protocol_id": 1638
     },
     "components": {
       "minecraft:attack_animation": {},

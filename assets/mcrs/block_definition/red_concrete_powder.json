@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:red_concrete_powder",
-      "protocol_id": 830,
-      "base_state_id": 18417,
-      "default_state_id": 18417
+      "protocol_id": 831,
+      "base_state_id": 18423,
+      "default_state_id": 18423
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:sand"
     },
     "permutations": []
   }

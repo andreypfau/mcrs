@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_chest_boat",
-      "protocol_id": 992
+      "protocol_id": 993
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mossy_stone_brick_stairs",
-      "protocol_id": 790
+      "protocol_id": 791
     },
     "components": {
       "minecraft:attack_animation": {},

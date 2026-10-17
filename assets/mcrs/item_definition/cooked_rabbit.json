@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cooked_rabbit",
-      "protocol_id": 1401
+      "protocol_id": 1404
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1,0 +1,52 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:brittle_ice",
+      "properties": {
+        "age": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "protocol_id": 729,
+      "base_state_id": 16828,
+      "default_state_id": 16828
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 1,
+      "minecraft:friction": 0.98,
+      "minecraft:map_color": "#a0a0ff",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "chime"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/brittle_ice",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:brittle_ice"
+    },
+    "permutations": []
+  }
+}

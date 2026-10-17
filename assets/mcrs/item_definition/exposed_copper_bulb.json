@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_copper_bulb",
-      "protocol_id": 1630
+      "protocol_id": 1635
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lectern",
-      "protocol_id": 837
+      "protocol_id": 838
     },
     "components": {
       "minecraft:attack_animation": {},

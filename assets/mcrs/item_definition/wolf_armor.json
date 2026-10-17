@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wolf_armor",
-      "protocol_id": 1004
+      "protocol_id": 1005
     },
     "components": {
       "minecraft:attack_animation": {},

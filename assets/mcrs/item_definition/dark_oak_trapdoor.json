@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_trapdoor",
-      "protocol_id": 917
+      "protocol_id": 918
     },
     "components": {
       "minecraft:attack_animation": {},

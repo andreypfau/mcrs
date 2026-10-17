@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:buried_ancient_city_map",
-      "protocol_id": 1250
+      "protocol_id": 1252
     },
     "components": {
       "minecraft:attack_animation": {},

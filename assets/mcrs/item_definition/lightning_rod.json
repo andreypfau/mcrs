@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lightning_rod",
-      "protocol_id": 840
+      "protocol_id": 841
     },
     "components": {
       "minecraft:attack_animation": {},

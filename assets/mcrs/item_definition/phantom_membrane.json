@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:phantom_membrane",
-      "protocol_id": 973
+      "protocol_id": 974
     },
     "components": {
       "minecraft:attack_animation": {},

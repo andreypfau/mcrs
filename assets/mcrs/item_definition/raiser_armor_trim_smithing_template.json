@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:raiser_armor_trim_smithing_template",
-      "protocol_id": 1594
+      "protocol_id": 1599
     },
     "components": {
       "minecraft:attack_animation": {},

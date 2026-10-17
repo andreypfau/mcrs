@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:feather",
-      "protocol_id": 1063
+      "protocol_id": 1064
     },
     "components": {
       "minecraft:attack_animation": {},

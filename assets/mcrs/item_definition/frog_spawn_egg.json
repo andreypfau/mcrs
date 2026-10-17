@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:frog_spawn_egg",
-      "protocol_id": 1304
+      "protocol_id": 1306
     },
     "components": {
       "minecraft:attack_animation": {},

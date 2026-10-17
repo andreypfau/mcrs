@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wither_spawn_egg",
-      "protocol_id": 1331
+      "protocol_id": 1334
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:goat_horn",
-      "protocol_id": 1504
+      "protocol_id": 1507
     },
     "components": {
       "minecraft:attack_animation": {},

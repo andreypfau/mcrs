@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_leggings",
-      "protocol_id": 1094
+      "protocol_id": 1095
     },
     "components": {
       "minecraft:attack_animation": {},

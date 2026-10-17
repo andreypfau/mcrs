@@ -27,8 +27,8 @@
         ]
       },
       "protocol_id": 427,
-      "base_state_id": 10657,
-      "default_state_id": 10668
+      "base_state_id": 10659,
+      "default_state_id": 10670
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/resin_brick_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:resin_bricks"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_bed",
-      "protocol_id": 1222
+      "protocol_id": 1224
     },
     "components": {
       "minecraft:attack_animation": {},

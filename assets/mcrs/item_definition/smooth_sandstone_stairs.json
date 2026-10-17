@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smooth_sandstone_stairs",
-      "protocol_id": 795
+      "protocol_id": 796
     },
     "components": {
       "minecraft:attack_animation": {},

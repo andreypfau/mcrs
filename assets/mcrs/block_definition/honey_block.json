@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:honey_block",
-      "protocol_id": 1003,
-      "base_state_id": 25173,
-      "default_state_id": 25173
+      "protocol_id": 1004,
+      "base_state_id": 25179,
+      "default_state_id": 25179
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -35,7 +35,8 @@
       "minecraft:loot": "minecraft:blocks/honey_block",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:honey_block"
     },
     "permutations": []
   }

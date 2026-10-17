@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:horse_spawn_egg",
-      "protocol_id": 1286
+      "protocol_id": 1288
     },
     "components": {
       "minecraft:attack_animation": {},

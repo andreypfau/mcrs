@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_bundle",
-      "protocol_id": 1156
+      "protocol_id": 1158
     },
     "components": {
       "minecraft:attack_animation": {},

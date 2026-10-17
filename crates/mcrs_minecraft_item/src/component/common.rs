@@ -23,6 +23,7 @@ pub use mcrs_minecraft_core::codec::{
     unsigned_byte,
 };
 
+pub use mcrs_minecraft_block_predicate::state_properties::ValueMatcher;
 pub use mcrs_minecraft_registry::holder::*;
 
 /// `{raw, filtered?}`, read leniently from a bare value.
@@ -343,18 +344,6 @@ ordinal_enum! {
 
 ordinal_enum! {
     ItemUseAnimation { None, Eat, Drink, Block, Bow, Trident, Crossbow, Spyglass, TootHorn, Brush, Bundle, Spear }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ValueMatcher {
-    Exact(String),
-    Ranged {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        min: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        max: Option<String>,
-    },
 }
 
 /// A bare number when both bounds agree, else `{min, max}`.

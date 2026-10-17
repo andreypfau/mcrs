@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sticky_piston",
-      "protocol_id": 830
+      "protocol_id": 831
     },
     "components": {
       "minecraft:attack_animation": {},

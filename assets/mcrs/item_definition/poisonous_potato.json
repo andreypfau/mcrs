@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poisonous_potato",
-      "protocol_id": 1381
+      "protocol_id": 1384
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snowball",
-      "protocol_id": 1132
+      "protocol_id": 1133
     },
     "components": {
       "minecraft:attack_animation": {},

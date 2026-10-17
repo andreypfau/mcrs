@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_door",
-      "protocol_id": 891
+      "protocol_id": 892
     },
     "components": {
       "minecraft:attack_animation": {},

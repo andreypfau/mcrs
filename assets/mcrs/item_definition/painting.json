@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:painting",
-      "protocol_id": 1099
+      "protocol_id": 1100
     },
     "components": {
       "minecraft:attack_animation": {},

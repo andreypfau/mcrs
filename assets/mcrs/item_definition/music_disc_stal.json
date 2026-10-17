@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_stal",
-      "protocol_id": 1471
+      "protocol_id": 1474
     },
     "components": {
       "minecraft:attack_animation": {},

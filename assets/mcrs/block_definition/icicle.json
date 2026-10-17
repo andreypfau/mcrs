@@ -1,0 +1,186 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:icicle",
+      "properties": {
+        "attached": [
+          true,
+          false
+        ],
+        "thickness": [
+          "tip_merge",
+          "tip",
+          "frustum",
+          "middle",
+          "base"
+        ],
+        "vertical_direction": [
+          "up",
+          "down"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "protocol_id": 1225,
+      "base_state_id": 33584,
+      "default_state_id": 33609
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#6699d8",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "chime"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/icicle",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:icicle"
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027tip_merge\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -3], "size": [6, 16, 6] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -3], "size": [6, 16, 6] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027tip_merge\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -3], "size": [6, 16, 6] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -3], "size": [6, 16, 6] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027tip\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -3], "size": [6, 11, 6] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -3], "size": [6, 11, 6] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027tip\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 5, -3], "size": [6, 11, 6] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 5, -3], "size": [6, 11, 6] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027frustum\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-4, 0, -4], "size": [8, 16, 8] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-4, 0, -4], "size": [8, 16, 8] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027frustum\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-4, 0, -4], "size": [8, 16, 8] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-4, 0, -4], "size": [8, 16, 8] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027middle\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027middle\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027base\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027up\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-6, 0, -6], "size": [12, 16, 12] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-6, 0, -6], "size": [12, 16, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027base\u0027 \u0026\u0026 q.block_state(\u0027vertical_direction\u0027) \u003d\u003d \u0027down\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-6, 0, -6], "size": [12, 16, 12] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-6, 0, -6], "size": [12, 16, 12] }
+          ]
+        }
+      }
+    ]
+  }
+}

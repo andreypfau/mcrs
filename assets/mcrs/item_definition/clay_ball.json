@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:clay_ball",
-      "protocol_id": 1143
+      "protocol_id": 1145
     },
     "components": {
       "minecraft:attack_animation": {},

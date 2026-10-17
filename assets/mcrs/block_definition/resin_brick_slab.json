@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 428,
-      "base_state_id": 10737,
-      "default_state_id": 10740
+      "base_state_id": 10739,
+      "default_state_id": 10742
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/resin_brick_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:resin_bricks"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_pigstep",
-      "protocol_id": 1479
+      "protocol_id": 1482
     },
     "components": {
       "minecraft:attack_animation": {},

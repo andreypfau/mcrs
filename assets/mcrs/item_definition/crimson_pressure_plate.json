@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_pressure_plate",
-      "protocol_id": 886
+      "protocol_id": 887
     },
     "components": {
       "minecraft:attack_animation": {},

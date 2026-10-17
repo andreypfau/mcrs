@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_ingot",
-      "protocol_id": 1023
+      "protocol_id": 1024
     },
     "components": {
       "minecraft:attack_animation": {},

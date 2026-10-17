@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1151,
-      "base_state_id": 31245,
-      "default_state_id": 31256
+      "protocol_id": 1153,
+      "base_state_id": 31263,
+      "default_state_id": 31274
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -73,7 +73,8 @@
       },
       "minecraft:loot": "minecraft:blocks/exposed_cut_copper_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

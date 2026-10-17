@@ -14,8 +14,8 @@
         ]
       },
       "protocol_id": 714,
-      "base_state_id": 16681,
-      "default_state_id": 16681
+      "base_state_id": 16683,
+      "default_state_id": 16683
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "minecraft:loot": "minecraft:blocks/chorus_flower",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": []
   }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ocean_monument_map",
-      "protocol_id": 1239
+      "protocol_id": 1241
     },
     "components": {
       "minecraft:attack_animation": {},

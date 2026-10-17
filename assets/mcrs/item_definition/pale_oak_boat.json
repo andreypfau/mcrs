@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_boat",
-      "protocol_id": 989
+      "protocol_id": 990
     },
     "components": {
       "minecraft:attack_animation": {},

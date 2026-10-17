@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:angler_pottery_sherd",
-      "protocol_id": 1598
+      "protocol_id": 1603
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_deepslate",
-      "protocol_id": 1258,
-      "base_state_id": 35420,
-      "default_state_id": 35420
+      "protocol_id": 1261,
+      "base_state_id": 35478,
+      "default_state_id": 35478
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate_bricks"
     },
     "permutations": []
   }

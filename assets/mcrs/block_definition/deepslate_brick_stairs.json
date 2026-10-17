@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1255,
-      "base_state_id": 35010,
-      "default_state_id": 35021
+      "protocol_id": 1258,
+      "base_state_id": 35068,
+      "default_state_id": 35079
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/deepslate_brick_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate_bricks"
     },
     "permutations": [
       {

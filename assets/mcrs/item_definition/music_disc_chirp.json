@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_chirp",
-      "protocol_id": 1464
+      "protocol_id": 1467
     },
     "components": {
       "minecraft:attack_animation": {},

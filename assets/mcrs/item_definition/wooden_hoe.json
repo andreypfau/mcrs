@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_hoe",
-      "protocol_id": 1029
+      "protocol_id": 1030
     },
     "components": {
       "minecraft:attack_animation": {},

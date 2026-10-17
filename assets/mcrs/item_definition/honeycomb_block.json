@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:honeycomb_block",
-      "protocol_id": 1534
+      "protocol_id": 1537
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:warped_roots",
-      "protocol_id": 959,
-      "base_state_id": 24317,
-      "default_state_id": 24317
+      "protocol_id": 960,
+      "base_state_id": 24323,
+      "default_state_id": 24323
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:roots"
     },
     "permutations": []
   }

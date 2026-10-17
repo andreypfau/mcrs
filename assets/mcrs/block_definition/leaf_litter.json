@@ -17,9 +17,9 @@
           4
         ]
       },
-      "protocol_id": 1233,
-      "base_state_id": 33696,
-      "default_state_id": 33696
+      "protocol_id": 1236,
+      "base_state_id": 33754,
+      "default_state_id": 33754
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -44,7 +44,8 @@
       "minecraft:loot": "minecraft:blocks/leaf_litter",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:leaf_litter"
     },
     "permutations": [
       {

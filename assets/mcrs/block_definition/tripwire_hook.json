@@ -20,8 +20,8 @@
         ]
       },
       "protocol_id": 452,
-      "base_state_id": 11325,
-      "default_state_id": 11334
+      "base_state_id": 11327,
+      "default_state_id": 11336
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -45,7 +45,8 @@
       "minecraft:loot": "minecraft:blocks/tripwire_hook",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

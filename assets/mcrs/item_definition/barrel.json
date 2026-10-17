@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:barrel",
-      "protocol_id": 1506
+      "protocol_id": 1509
     },
     "components": {
       "minecraft:attack_animation": {},

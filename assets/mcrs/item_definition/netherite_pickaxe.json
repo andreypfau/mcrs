@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_pickaxe",
-      "protocol_id": 1057
+      "protocol_id": 1058
     },
     "components": {
       "minecraft:attack_animation": {},

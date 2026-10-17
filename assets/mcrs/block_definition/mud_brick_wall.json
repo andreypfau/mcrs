@@ -33,9 +33,9 @@
           "tall"
         ]
       },
-      "protocol_id": 920,
-      "base_state_id": 21795,
-      "default_state_id": 21798
+      "protocol_id": 921,
+      "base_state_id": 21801,
+      "default_state_id": 21804
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -66,7 +66,8 @@
       },
       "minecraft:loot": "minecraft:blocks/mud_brick_wall",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:mud_bricks"
     },
     "permutations": [
       {

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:axolotl_bucket",
-      "protocol_id": 1139
+      "protocol_id": 1141
     },
     "components": {
       "minecraft:attack_animation": {},

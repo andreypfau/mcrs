@@ -14,9 +14,9 @@
           false
         ]
       },
-      "protocol_id": 1158,
-      "base_state_id": 31805,
-      "default_state_id": 31808
+      "protocol_id": 1160,
+      "base_state_id": 31823,
+      "default_state_id": 31826
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
         "seconds_to_destroy": 3
       },
       "minecraft:loot": "minecraft:blocks/cut_copper_slab",
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

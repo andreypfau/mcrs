@@ -21,9 +21,9 @@
           false
         ]
       },
-      "protocol_id": 837,
-      "base_state_id": 18462,
-      "default_state_id": 18463
+      "protocol_id": 838,
+      "base_state_id": 18468,
+      "default_state_id": 18469
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -51,7 +51,8 @@
       "minecraft:loot": "minecraft:blocks/dried_ghast",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:dried_ghast"
     },
     "permutations": [
       {

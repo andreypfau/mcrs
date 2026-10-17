@@ -7,7 +7,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
-use crate::speleothem::{PointedStates, grow_speleothem};
+use crate::speleothem::{Growth, PointedStates};
 
 /// One `speleothem` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
@@ -47,15 +47,12 @@ pub fn place_speleothem<W: WorldGenVolume>(
         let above = origin + tip;
         volume.world().is_empty_or_water(volume.get(above))
     };
-    grow_speleothem(
-        &config.pointed,
-        &config.base_or_replaceable,
-        volume,
-        origin,
-        tip_up,
-        if taller { 2 } else { 1 },
-        false,
-    );
+    Growth {
+        pointed: &config.pointed,
+        root: &config.base_or_replaceable,
+        set_attached: false,
+    }
+    .grow(volume, origin, tip_up, if taller { 2 } else { 1 }, false);
     true
 }
 

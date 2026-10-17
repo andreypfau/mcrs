@@ -55,6 +55,7 @@ const NOISES: &[(&str, i32, &[f64])] = &[
     ("iceberg_pillar_roof", -3, &[1.0]),
     ("iceberg_surface", -6, &[1.0, 1.0, 1.0]),
     ("sulfur_cave_gradient", -5, &[1.0, 0.0, 1.0]),
+    ("ice_cave_gradient", -4, &[1.0, 0.0, 1.0]),
     ("surface_swamp", -2, &[1.0]),
     ("calcite", -9, &[1.0, 1.0, 1.0, 1.0]),
     ("gravel", -8, &[1.0, 1.0, 1.0, 1.0]),

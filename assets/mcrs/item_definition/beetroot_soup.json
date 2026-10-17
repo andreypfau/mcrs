@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:beetroot_soup",
-      "protocol_id": 1440
+      "protocol_id": 1443
     },
     "components": {
       "minecraft:attack_animation": {},

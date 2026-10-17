@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:totem_of_undying",
-      "protocol_id": 1454
+      "protocol_id": 1457
     },
     "components": {
       "minecraft:attack_animation": {},

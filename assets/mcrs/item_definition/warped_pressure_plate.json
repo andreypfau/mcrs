@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_pressure_plate",
-      "protocol_id": 887
+      "protocol_id": 888
     },
     "components": {
       "minecraft:attack_animation": {},

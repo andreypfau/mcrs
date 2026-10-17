@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 1172,
-      "base_state_id": 32237,
-      "default_state_id": 32248
+      "protocol_id": 1174,
+      "base_state_id": 32255,
+      "default_state_id": 32266
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -54,7 +54,8 @@
       "minecraft:loot": "minecraft:blocks/waxed_weathered_copper_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

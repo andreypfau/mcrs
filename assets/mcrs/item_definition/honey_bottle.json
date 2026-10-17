@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:honey_bottle",
-      "protocol_id": 1533
+      "protocol_id": 1536
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -301,7 +301,10 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     .expect("the corpus resolves");
     let set = HolderSet::One(Fluid::Empty.id());
     let mask = resolver
-        .states(StateQuery::Fluids(&set))
+        .states(StateQuery::Fluids(
+            &set,
+            &mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate::ANY,
+        ))
         .expect("the empty fluid resolves");
 
     for name in ["minecraft:air", "minecraft:stone", "minecraft:short_grass"] {
@@ -316,4 +319,133 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         !mask.contains(water.0 as usize),
         "water is not the empty fluid"
     );
+}
+
+#[test]
+fn a_spring_places_its_fluid_state_as_the_fluid_blocks_level() {
+    use mcrs_minecraft_block_predicate::fluid_state::FluidState;
+
+    fluid_resolver_test(|resolver| {
+        for (json, block, level) in [
+            (
+                r#"{"id":"minecraft:water","properties":{"level":"8","source":"true"}}"#,
+                "water",
+                "0",
+            ),
+            (
+                r#"{"id":"minecraft:water","properties":{"level":"3","source":"true"}}"#,
+                "water",
+                "0",
+            ),
+            (
+                r#"{"id":"minecraft:lava","properties":{"level":"3","source":"false"}}"#,
+                "lava",
+                "5",
+            ),
+            (
+                r#"{"id":"minecraft:water","properties":{"level":"8","source":"false"}}"#,
+                "water",
+                "8",
+            ),
+        ] {
+            let state: FluidState = serde_json::from_str(json).expect("a fluid state");
+            assert_eq!(
+                crate::feature_program::spring_state(&state, resolver),
+                Some(corpus_state(resolver, block, &[("level", level)])),
+                "{json}"
+            );
+        }
+    });
+}
+
+fn fluid_resolver_test<F: FnOnce(&crate::feature_program::Resolver<'_>)>(test: F) {
+    let registries = registries_over(&biome_registry(&[BIOME]));
+    let providers = std::collections::BTreeMap::new();
+    let resolver =
+        crate::feature_program::Resolver::new(&blocks().0, &registries, 0, &[], &providers)
+            .expect("the corpus resolves");
+    test(&resolver);
+}
+
+fn corpus_state(
+    resolver: &crate::feature_program::Resolver<'_>,
+    name: &str,
+    properties: &[(&str, &str)],
+) -> VoxelId {
+    let state = properties.iter().fold(
+        mcrs_minecraft_block_predicate::block_state::BlockState::minecraft(name).unwrap(),
+        |state, (property, value)| state.with(property, value),
+    );
+    resolver.resolve(&state).expect("a corpus block state")
+}
+
+#[test]
+fn a_source_only_fluid_query_holds_sources_and_waterlogged_blocks() {
+    use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
+    use mcrs_minecraft_registry::HolderSet;
+    use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
+
+    fluid_resolver_test(|resolver| {
+        let sources: StatePropertiesPredicate =
+            serde_json::from_str(r#"{"source": "true"}"#).unwrap();
+        let mask = resolver
+            .states(StateQuery::Fluids(
+                &HolderSet::One(Fluid::Water.id()),
+                &sources,
+            ))
+            .expect("water resolves");
+        for (name, properties, held) in [
+            ("water", &[("level", "0")][..], true),
+            ("oak_stairs", &[("waterlogged", "true")][..], true),
+            ("water", &[("level", "1")][..], false),
+            ("water", &[("level", "8")][..], false),
+        ] {
+            let state = corpus_state(resolver, name, properties);
+            assert_eq!(
+                mask.contains(usize::from(state.0)),
+                held,
+                "{name} {properties:?}"
+            );
+        }
+    });
+}
+
+#[test]
+fn a_survival_rule_reads_the_water_condition_its_block_names() {
+    use mcrs_minecraft_block::keys::Block;
+    use mcrs_minecraft_core::BlockPos;
+
+    fluid_resolver_test(|resolver| {
+        let rules = crate::trees::survive_rules(resolver).expect("the survival rules compile");
+        let water = |level: &str| corpus_state(resolver, "water", &[("level", level)]);
+        let air = corpus_state(resolver, "air", &[]);
+        let stone = corpus_state(resolver, "stone", &[]);
+        let dirt = corpus_state(resolver, "dirt", &[]);
+        let sand = corpus_state(resolver, "sand", &[]);
+        for (block, below, at, above, survives) in [
+            (Block::LilyPad, water("0"), air, air, true),
+            (Block::LilyPad, water("1"), air, air, false),
+            (Block::SporeBlossom, air, air, stone, true),
+            (Block::SporeBlossom, air, water("1"), stone, false),
+            (Block::SmallDripleaf, dirt, water("0"), air, true),
+            (Block::SmallDripleaf, dirt, water("1"), air, false),
+            (Block::TallSeagrass, sand, water("8"), water("0"), true),
+            (Block::TallSeagrass, sand, water("5"), water("0"), false),
+        ] {
+            let rule = rules
+                .get(&block.id())
+                .expect("the block has a survival rule");
+            let origin = BlockPos::new(0, 64, 0);
+            let survived = rule.test(air, origin, |pos| match pos.y - origin.y {
+                -1 if pos.x == 0 && pos.z == 0 => below,
+                0 if pos.x == 0 && pos.z == 0 => at,
+                1 if pos.x == 0 && pos.z == 0 => above,
+                _ => air,
+            });
+            assert_eq!(
+                survived, survives,
+                "{block:?} over {below:?} in {at:?} under {above:?}"
+            );
+        }
+    });
 }

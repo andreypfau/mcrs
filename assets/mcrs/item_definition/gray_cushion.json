@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gray_cushion",
-      "protocol_id": 1177
+      "protocol_id": 1179
     },
     "components": {
       "minecraft:attack_animation": {},

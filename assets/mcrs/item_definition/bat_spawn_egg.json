@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bat_spawn_egg",
-      "protocol_id": 1292
+      "protocol_id": 1294
     },
     "components": {
       "minecraft:attack_animation": {},

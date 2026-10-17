@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:apple",
-      "protocol_id": 1007
+      "protocol_id": 1008
     },
     "components": {
       "minecraft:attack_animation": {},

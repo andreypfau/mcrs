@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:deepslate_emerald_ore",
       "protocol_id": 450,
-      "base_state_id": 11316,
-      "default_state_id": 11316
+      "base_state_id": 11318,
+      "default_state_id": 11318
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:deepslate"
     },
     "permutations": []
   }

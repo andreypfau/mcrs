@@ -17,8 +17,8 @@
         ]
       },
       "protocol_id": 721,
-      "base_state_id": 16780,
-      "default_state_id": 16781
+      "base_state_id": 16782,
+      "default_state_id": 16783
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -41,7 +41,8 @@
       "minecraft:loot": "minecraft:blocks/pitcher_crop",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:crop"
     },
     "permutations": [
       {

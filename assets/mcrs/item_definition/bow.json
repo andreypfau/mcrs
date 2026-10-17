@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bow",
-      "protocol_id": 1008
+      "protocol_id": 1009
     },
     "components": {
       "minecraft:attack_animation": {},

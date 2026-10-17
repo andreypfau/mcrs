@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 981,
-      "base_state_id": 24471,
-      "default_state_id": 24486
+      "protocol_id": 982,
+      "base_state_id": 24477,
+      "default_state_id": 24492
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -53,7 +53,8 @@
       "minecraft:loot": "minecraft:blocks/crimson_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:nether_wood"
     },
     "permutations": [
       {

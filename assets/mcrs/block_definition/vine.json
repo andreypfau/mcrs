@@ -26,8 +26,8 @@
         ]
       },
       "protocol_id": 416,
-      "base_state_id": 10092,
-      "default_state_id": 10123
+      "base_state_id": 10094,
+      "default_state_id": 10125
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "minecraft:loot": "minecraft:blocks/vine",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:vine"
     },
     "permutations": [
       {

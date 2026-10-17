@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_spear",
-      "protocol_id": 1447
+      "protocol_id": 1450
     },
     "components": {
       "minecraft:attack_animation": {

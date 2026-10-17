@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crafter",
-      "protocol_id": 1237
+      "protocol_id": 1239
     },
     "components": {
       "minecraft:attack_animation": {},

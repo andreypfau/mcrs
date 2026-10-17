@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nautilus_shell",
-      "protocol_id": 1484
+      "protocol_id": 1487
     },
     "components": {
       "minecraft:attack_animation": {},

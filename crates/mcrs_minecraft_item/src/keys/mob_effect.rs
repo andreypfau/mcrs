@@ -42,4 +42,5 @@ mcrs_minecraft_registry::static_registry! {
     Oozing = "minecraft:oozing",
     Infested = "minecraft:infested",
     BreathOfTheNautilus = "minecraft:breath_of_the_nautilus",
+    Freezing = "minecraft:freezing",
 }

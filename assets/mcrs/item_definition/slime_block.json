@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:slime_block",
-      "protocol_id": 831
+      "protocol_id": 832
     },
     "components": {
       "minecraft:attack_animation": {},

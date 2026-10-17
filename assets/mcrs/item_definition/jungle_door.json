@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_door",
-      "protocol_id": 892
+      "protocol_id": 893
     },
     "components": {
       "minecraft:attack_animation": {},

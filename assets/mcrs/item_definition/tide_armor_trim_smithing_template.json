@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tide_armor_trim_smithing_template",
-      "protocol_id": 1587
+      "protocol_id": 1592
     },
     "components": {
       "minecraft:attack_animation": {},

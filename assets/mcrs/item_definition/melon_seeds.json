@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:melon_seeds",
-      "protocol_id": 1259
+      "protocol_id": 1261
     },
     "components": {
       "minecraft:attack_animation": {},

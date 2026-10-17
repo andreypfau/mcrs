@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rail",
-      "protocol_id": 947
+      "protocol_id": 948
     },
     "components": {
       "minecraft:attack_animation": {},

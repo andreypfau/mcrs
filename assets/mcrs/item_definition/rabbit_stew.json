@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rabbit_stew",
-      "protocol_id": 1402
+      "protocol_id": 1405
     },
     "components": {
       "minecraft:attack_animation": {},

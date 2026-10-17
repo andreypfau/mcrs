@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:open_eyeblossom",
-      "protocol_id": 1281,
-      "base_state_id": 35718,
-      "default_state_id": 35718
+      "protocol_id": 1284,
+      "base_state_id": 35776,
+      "default_state_id": 35776
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -44,7 +44,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:grass"
     },
     "permutations": []
   }

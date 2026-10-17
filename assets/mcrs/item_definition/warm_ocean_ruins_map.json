@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warm_ocean_ruins_map",
-      "protocol_id": 1254
+      "protocol_id": 1256
     },
     "components": {
       "minecraft:attack_animation": {},

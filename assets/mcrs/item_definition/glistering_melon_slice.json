@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glistering_melon_slice",
-      "protocol_id": 1279
+      "protocol_id": 1281
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_sword",
-      "protocol_id": 1030
+      "protocol_id": 1031
     },
     "components": {
       "minecraft:attack_animation": {},

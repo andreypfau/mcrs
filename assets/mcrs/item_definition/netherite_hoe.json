@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_hoe",
-      "protocol_id": 1059
+      "protocol_id": 1060
     },
     "components": {
       "minecraft:attack_animation": {},

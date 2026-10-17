@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cinnabar_bricks",
-      "protocol_id": 1110,
-      "base_state_id": 30105,
-      "default_state_id": 30105
+      "protocol_id": 1112,
+      "base_state_id": 30123,
+      "default_state_id": 30123
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cinnabar"
     },
     "permutations": []
   }

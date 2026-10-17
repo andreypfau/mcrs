@@ -84,9 +84,10 @@ feature_sets! {
     ancient_debris => UndergroundDecoration [ORE_ANCIENT_DEBRIS_LARGE, ORE_DEBRIS_SMALL];
     default_crystal_formations => LocalModifications [AMETHYST_GEODE];
     pumpkin_patches => VegetalDecoration [PATCH_PUMPKIN];
-    default_underground_variety => UndergroundOres [ORE_DIRT, ORE_GRAVEL, ORE_GRANITE_UPPER, ORE_GRANITE_LOWER, ORE_DIORITE_UPPER, ORE_DIORITE_LOWER, ORE_ANDESITE_UPPER, ORE_ANDESITE_LOWER, ORE_TUFF] VegetalDecoration [GLOW_LICHEN];
     dripstone => LocalModifications [LARGE_DRIPSTONE] UndergroundDecoration [DRIPSTONE_CLUSTER, POINTED_DRIPSTONE];
     sulfur_caves_features => Lakes [ROOTED_SULFUR_SPRING, SULFUR_POOL] UndergroundDecoration [SULFUR_SPIKE_CLUSTER, SULFUR_SPIKE];
+    ice_caves_ores => UndergroundOres [ICE_CAVE_ORE_COAL_UPPER, ICE_CAVE_ORE_COAL_LOWER, ICE_CAVE_ORE_IRON_UPPER, ICE_CAVE_ORE_IRON_MIDDLE, ICE_CAVE_ORE_IRON_SMALL, ICE_CAVE_ORE_GOLD, ICE_CAVE_ORE_GOLD_LOWER, ICE_CAVE_ORE_REDSTONE, ICE_CAVE_ORE_REDSTONE_LOWER, ICE_CAVE_ORE_DIAMOND, ICE_CAVE_ORE_DIAMOND_MEDIUM, ICE_CAVE_ORE_DIAMOND_LARGE, ICE_CAVE_ORE_DIAMOND_BURIED, ICE_CAVE_ORE_LAPIS, ICE_CAVE_ORE_LAPIS_BURIED, ICE_CAVE_ORE_COPPER, ICE_CAVE_ORE_GRAVEL, ICE_CAVE_ORE_DIORITE_UPPER, ICE_CAVE_ORE_DIORITE_LOWER, ICE_CAVE_ORE_ANDESITE_UPPER, ICE_CAVE_ORE_ANDESITE_LOWER];
+    ice_caves_features => LocalModifications [LARGE_ICICLE] UndergroundDecoration [SNOW_LAYERS, ICE_CRYSTALS, ICICLE_CLUSTER, ICE_CREVASSE];
 }
 
 macro_rules! set_groups {
@@ -112,6 +113,37 @@ pub fn default_carvers_and_lakes(g: &mut Generation) {
             placed_feature::LAKE_LAVA_SURFACE,
         ],
     );
+}
+
+pub fn default_underground_variety(g: &mut Generation) {
+    underground_variety(g, true, true);
+}
+
+pub fn underground_variety(g: &mut Generation, dirt_and_granite: bool, glow_lichen: bool) {
+    if dirt_and_granite {
+        g.features(
+            UndergroundOres,
+            &[
+                placed_feature::ORE_DIRT,
+                placed_feature::ORE_GRANITE_UPPER,
+                placed_feature::ORE_GRANITE_LOWER,
+            ],
+        );
+    }
+    g.features(
+        UndergroundOres,
+        &[
+            placed_feature::ORE_GRAVEL,
+            placed_feature::ORE_DIORITE_UPPER,
+            placed_feature::ORE_DIORITE_LOWER,
+            placed_feature::ORE_ANDESITE_UPPER,
+            placed_feature::ORE_ANDESITE_LOWER,
+            placed_feature::ORE_TUFF,
+        ],
+    );
+    if glow_lichen {
+        g.feature(VegetalDecoration, placed_feature::GLOW_LICHEN);
+    }
 }
 
 pub fn default_ores(g: &mut Generation) {

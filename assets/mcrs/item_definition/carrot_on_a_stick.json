@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:carrot_on_a_stick",
-      "protocol_id": 971
+      "protocol_id": 972
     },
     "components": {
       "minecraft:attack_animation": {},

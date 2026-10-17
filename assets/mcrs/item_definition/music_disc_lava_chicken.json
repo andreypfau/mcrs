@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_lava_chicken",
-      "protocol_id": 1468
+      "protocol_id": 1471
     },
     "components": {
       "minecraft:attack_animation": {},

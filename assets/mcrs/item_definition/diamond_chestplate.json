@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_chestplate",
-      "protocol_id": 1085
+      "protocol_id": 1086
     },
     "components": {
       "minecraft:attack_animation": {},

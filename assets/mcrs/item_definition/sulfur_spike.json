@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sulfur_spike",
-      "protocol_id": 1572
+      "protocol_id": 1577
     },
     "components": {
       "minecraft:attack_animation": {},

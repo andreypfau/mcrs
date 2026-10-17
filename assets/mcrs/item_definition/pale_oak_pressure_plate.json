@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_pressure_plate",
-      "protocol_id": 882
+      "protocol_id": 883
     },
     "components": {
       "minecraft:attack_animation": {},

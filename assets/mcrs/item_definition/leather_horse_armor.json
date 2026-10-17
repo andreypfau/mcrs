@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:leather_horse_armor",
-      "protocol_id": 1411
+      "protocol_id": 1414
     },
     "components": {
       "minecraft:attack_animation": {},

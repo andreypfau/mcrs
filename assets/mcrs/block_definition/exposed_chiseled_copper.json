@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:exposed_chiseled_copper",
-      "protocol_id": 1143,
-      "base_state_id": 31158,
-      "default_state_id": 31158
+      "protocol_id": 1145,
+      "base_state_id": 31176,
+      "default_state_id": 31176
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -60,7 +60,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": []
   }

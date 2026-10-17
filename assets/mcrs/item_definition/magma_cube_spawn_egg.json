@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magma_cube_spawn_egg",
-      "protocol_id": 1358
+      "protocol_id": 1361
     },
     "components": {
       "minecraft:attack_animation": {},

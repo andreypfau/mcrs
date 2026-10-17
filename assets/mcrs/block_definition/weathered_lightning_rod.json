@@ -21,9 +21,9 @@
           false
         ]
       },
-      "protocol_id": 1216,
-      "base_state_id": 33421,
-      "default_state_id": 33440
+      "protocol_id": 1218,
+      "base_state_id": 33439,
+      "default_state_id": 33458
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -69,7 +69,8 @@
       "minecraft:loot": "minecraft:blocks/weathered_lightning_rod",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:copper"
     },
     "permutations": [
       {

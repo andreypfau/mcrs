@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shulker_spawn_egg",
-      "protocol_id": 1367
+      "protocol_id": 1370
     },
     "components": {
       "minecraft:attack_animation": {},

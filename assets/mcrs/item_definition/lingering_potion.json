@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lingering_potion",
-      "protocol_id": 1445
+      "protocol_id": 1448
     },
     "components": {
       "minecraft:attack_animation": {},

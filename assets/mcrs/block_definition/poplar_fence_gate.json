@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 690,
-      "base_state_id": 15587,
-      "default_state_id": 15594
+      "base_state_id": 15589,
+      "default_state_id": 15596
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       },
       "minecraft:loot": "minecraft:blocks/poplar_fence_gate",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

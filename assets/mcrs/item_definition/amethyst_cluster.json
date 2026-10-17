@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:amethyst_cluster",
-      "protocol_id": 1570
+      "protocol_id": 1573
     },
     "components": {
       "minecraft:attack_animation": {},

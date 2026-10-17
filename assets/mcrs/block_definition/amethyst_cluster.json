@@ -17,9 +17,9 @@
           false
         ]
       },
-      "protocol_id": 1070,
-      "base_state_id": 26761,
-      "default_state_id": 26770
+      "protocol_id": 1072,
+      "base_state_id": 26779,
+      "default_state_id": 26788
     },
     "components": {
       "minecraft:light_emission": 5,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/amethyst_cluster",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:amethyst_cluster"
     },
     "permutations": [
       {

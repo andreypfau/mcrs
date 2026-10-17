@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_raft",
-      "protocol_id": 995
+      "protocol_id": 996
     },
     "components": {
       "minecraft:attack_animation": {},

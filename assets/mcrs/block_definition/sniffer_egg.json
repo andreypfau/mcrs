@@ -6,9 +6,9 @@
       "properties": {
         "hatch": [0, 1, 2]
       },
-      "protocol_id": 836,
-      "base_state_id": 18459,
-      "default_state_id": 18459
+      "protocol_id": 837,
+      "base_state_id": 18465,
+      "default_state_id": 18465
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -39,7 +39,8 @@
       "minecraft:loot": "minecraft:blocks/sniffer_egg",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:metal"
     },
     "permutations": []
   }

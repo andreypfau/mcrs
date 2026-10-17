@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 703,
-      "base_state_id": 16035,
-      "default_state_id": 16046
+      "base_state_id": 16037,
+      "default_state_id": 16048
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -57,7 +57,8 @@
       "minecraft:loot": "minecraft:blocks/birch_door",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

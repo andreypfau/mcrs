@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:skeleton_spawn_egg",
-      "protocol_id": 1328
+      "protocol_id": 1331
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -58,7 +58,8 @@
       },
       "minecraft:loot": "minecraft:blocks/dark_oak_shelf",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:shelf"
     },
     "permutations": [
       {

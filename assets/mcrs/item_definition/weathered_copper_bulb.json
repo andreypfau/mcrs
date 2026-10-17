@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:weathered_copper_bulb",
-      "protocol_id": 1631
+      "protocol_id": 1636
     },
     "components": {
       "minecraft:attack_animation": {},

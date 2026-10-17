@@ -20,9 +20,9 @@
           false
         ]
       },
-      "protocol_id": 1223,
-      "base_state_id": 33566,
-      "default_state_id": 33571
+      "protocol_id": 1226,
+      "base_state_id": 33624,
+      "default_state_id": 33629
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -46,7 +46,8 @@
       "minecraft:loot": "minecraft:blocks/pointed_dripstone",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:pointed_dripstone"
     },
     "permutations": [
       {

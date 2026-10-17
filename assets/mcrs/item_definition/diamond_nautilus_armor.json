@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_nautilus_armor",
-      "protocol_id": 1487
+      "protocol_id": 1490
     },
     "components": {
       "minecraft:attack_animation": {},

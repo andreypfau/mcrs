@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_banner",
-      "protocol_id": 1418
+      "protocol_id": 1421
     },
     "components": {
       "minecraft:attack_animation": {},

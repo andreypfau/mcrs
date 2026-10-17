@@ -24,8 +24,8 @@
         ]
       },
       "protocol_id": 685,
-      "base_state_id": 15427,
-      "default_state_id": 15434
+      "base_state_id": 15429,
+      "default_state_id": 15436
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -52,7 +52,8 @@
       },
       "minecraft:loot": "minecraft:blocks/acacia_fence_gate",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

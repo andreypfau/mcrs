@@ -4,8 +4,8 @@
     "description": {
       "identifier": "minecraft:sea_lantern",
       "protocol_id": 590,
-      "base_state_id": 14739,
-      "default_state_id": 14739
+      "base_state_id": 14741,
+      "default_state_id": 14741
     },
     "components": {
       "minecraft:light_emission": 15,
@@ -38,7 +38,8 @@
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:glass"
     },
     "permutations": []
   }

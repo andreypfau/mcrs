@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:phantom_spawn_egg",
-      "protocol_id": 1344
+      "protocol_id": 1347
     },
     "components": {
       "minecraft:attack_animation": {},

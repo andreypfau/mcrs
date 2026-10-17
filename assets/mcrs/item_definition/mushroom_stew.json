@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mushroom_stew",
-      "protocol_id": 1061
+      "protocol_id": 1062
     },
     "components": {
       "minecraft:attack_animation": {},

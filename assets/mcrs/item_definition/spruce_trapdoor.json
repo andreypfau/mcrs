@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_trapdoor",
-      "protocol_id": 912
+      "protocol_id": 913
     },
     "components": {
       "minecraft:attack_animation": {},

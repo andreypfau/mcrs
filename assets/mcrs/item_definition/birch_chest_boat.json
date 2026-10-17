@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_chest_boat",
-      "protocol_id": 980
+      "protocol_id": 981
     },
     "components": {
       "minecraft:attack_animation": {},

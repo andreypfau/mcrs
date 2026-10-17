@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_apple",
-      "protocol_id": 1100
+      "protocol_id": 1101
     },
     "components": {
       "minecraft:attack_animation": {},

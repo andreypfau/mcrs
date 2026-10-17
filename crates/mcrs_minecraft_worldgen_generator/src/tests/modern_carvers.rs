@@ -206,7 +206,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     let overworld_climate = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes)
         .expect("every overworld preset biome is in the corpus");
     let overworld = of_climate(&overworld_climate);
-    assert_eq!(overworld.entry_count(), 7594);
+    assert_eq!(overworld.entry_count(), 7595);
 
     let nether_climate = MultiNoiseBiomeTable::of_preset(Preset::Nether, biomes)
         .expect("every nether preset biome is in the corpus");

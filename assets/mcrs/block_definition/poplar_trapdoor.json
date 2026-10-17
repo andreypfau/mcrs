@@ -28,8 +28,8 @@
         ]
       },
       "protocol_id": 374,
-      "base_state_id": 9360,
-      "default_state_id": 9375
+      "base_state_id": 9362,
+      "default_state_id": 9377
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -56,7 +56,8 @@
       "minecraft:loot": "minecraft:blocks/poplar_trapdoor",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

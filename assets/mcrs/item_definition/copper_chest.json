@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_chest",
-      "protocol_id": 1637
+      "protocol_id": 1642
     },
     "components": {
       "minecraft:attack_animation": {},

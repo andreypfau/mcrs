@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:writable_book",
-      "protocol_id": 1371
+      "protocol_id": 1374
     },
     "components": {
       "minecraft:attack_animation": {},

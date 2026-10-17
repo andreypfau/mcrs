@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:amethyst_shard",
-      "protocol_id": 1016
+      "protocol_id": 1017
     },
     "components": {
       "minecraft:attack_animation": {},

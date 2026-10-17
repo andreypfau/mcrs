@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_chest_boat",
-      "protocol_id": 984
+      "protocol_id": 985
     },
     "components": {
       "minecraft:attack_animation": {},

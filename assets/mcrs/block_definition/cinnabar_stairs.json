@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1104,
-      "base_state_id": 29290,
-      "default_state_id": 29301
+      "protocol_id": 1106,
+      "base_state_id": 29308,
+      "default_state_id": 29319
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -59,7 +59,8 @@
       },
       "minecraft:loot": "minecraft:blocks/cinnabar_stairs",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:cinnabar"
     },
     "permutations": [
       {

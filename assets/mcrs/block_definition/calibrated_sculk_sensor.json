@@ -38,9 +38,9 @@
           false
         ]
       },
-      "protocol_id": 1119,
-      "base_state_id": 30616,
-      "default_state_id": 30617
+      "protocol_id": 1121,
+      "base_state_id": 30634,
+      "default_state_id": 30635
     },
     "components": {
       "minecraft:light_emission": 1,
@@ -73,7 +73,8 @@
       "mcrs:use_shape_for_light_occlusion": true,
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 8, 16] }
-      ]
+      ],
+      "mcrs:block_sound_set": "minecraft:sculk_sensor"
     },
     "permutations": [
       {

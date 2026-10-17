@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shroomlight",
-      "protocol_id": 1529
+      "protocol_id": 1532
     },
     "components": {
       "minecraft:attack_animation": {},

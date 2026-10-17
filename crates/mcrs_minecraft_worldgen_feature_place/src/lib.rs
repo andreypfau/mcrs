@@ -5,6 +5,7 @@ pub mod block_entity;
 pub mod block_pile;
 pub mod chorus_plant;
 pub mod coral;
+pub mod crevasse;
 pub mod end;
 pub mod entity;
 pub mod fallen_tree;

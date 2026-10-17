@@ -21,4 +21,5 @@ pub const TEST_FUNCTION: StaticResourceLocation = rl!("minecraft:test_function")
 pub const TICKET_TYPE: StaticResourceLocation = rl!("minecraft:ticket_type");
 pub const TRIAL_SPAWNER: StaticResourceLocation = rl!("minecraft:trial_spawner");
 pub const TRIGGER_TYPE: StaticResourceLocation = rl!("minecraft:trigger_type");
-pub const FLAT_LEVEL_GENERATOR_PRESET: StaticResourceLocation = rl!("minecraft:worldgen/flat_level_generator_preset");
+pub const FLAT_LEVEL_GENERATOR_PRESET: StaticResourceLocation =
+    rl!("minecraft:worldgen/flat_level_generator_preset");

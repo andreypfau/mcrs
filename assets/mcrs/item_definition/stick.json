@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stick",
-      "protocol_id": 1060
+      "protocol_id": 1061
     },
     "components": {
       "minecraft:attack_animation": {},

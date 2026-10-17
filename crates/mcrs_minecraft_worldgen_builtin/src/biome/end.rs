@@ -5,6 +5,8 @@ pub fn end_base(generation: Generation) -> Draft {
     let mut m = Mobs::default();
     m.end_spawns();
     Draft::new(false, 0.5, 0.5)
+        .with(FOG_COLOR, HexRgb::of(0x181318))
+        .with(SKY_COLOR, HexRgb::of(0))
         .spawns(m.0)
         .generation(generation)
 }

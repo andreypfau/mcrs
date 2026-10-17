@@ -1160,6 +1160,15 @@ impl Builder {
             SULFUR_CAVES,
         );
         self.bottom(full, full, full, e0.union(e1), full, 0.0, DEEP_DARK);
+        self.underground(
+            Parameter::span(-1.0, -0.8),
+            Parameter::span(-1.0, 0.7),
+            self.deep_ocean.union(self.ocean),
+            full,
+            Parameter::span(0.5, 1.1),
+            0.0,
+            ICE_CAVES,
+        );
     }
 
     fn erosion_septet(
@@ -1267,14 +1276,14 @@ mod tests {
         let table = overworld_parameter_list();
         // Every climate cell of every slice, twice for the depth ends: 22
         // off-coast, 1100 peak, 2600 high, 1432 + 1332 mid, 1032 low, 72
-        // valley and the 4 underground entries.
-        assert_eq!(table.len(), 7594);
+        // valley and the 5 underground entries.
+        assert_eq!(table.len(), 7595);
         let named: BTreeSet<String> = table
             .values()
             .iter()
             .map(|(_, biome)| (*biome).to_owned())
             .collect();
-        assert_eq!(named.len(), 56);
+        assert_eq!(named.len(), 57);
         assert_eq!(named, with_overworld_carvers);
     }
 
@@ -1322,6 +1331,10 @@ mod tests {
         assert_eq!(
             at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
             crate::keys::biome::DESERT.as_static_str()
+        );
+        assert_eq!(
+            at(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
+            crate::keys::biome::ICE_CAVES.as_static_str()
         );
     }
 

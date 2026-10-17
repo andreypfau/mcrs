@@ -15,8 +15,8 @@
         ]
       },
       "protocol_id": 347,
-      "base_state_id": 8697,
-      "default_state_id": 8697
+      "base_state_id": 8699,
+      "default_state_id": 8699
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -40,7 +40,8 @@
       },
       "minecraft:loot": "minecraft:blocks/cake",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wool"
     },
     "permutations": [
       {

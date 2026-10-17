@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:camel_spawn_egg",
-      "protocol_id": 1284
+      "protocol_id": 1286
     },
     "components": {
       "minecraft:attack_animation": {},

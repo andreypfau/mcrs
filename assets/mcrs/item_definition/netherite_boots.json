@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_boots",
-      "protocol_id": 1095
+      "protocol_id": 1096
     },
     "components": {
       "minecraft:attack_animation": {},

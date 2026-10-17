@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ominous_trial_key",
-      "protocol_id": 1655
+      "protocol_id": 1660
     },
     "components": {
       "minecraft:attack_animation": {},

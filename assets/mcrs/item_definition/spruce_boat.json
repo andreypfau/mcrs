@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_boat",
-      "protocol_id": 977
+      "protocol_id": 978
     },
     "components": {
       "minecraft:attack_animation": {},

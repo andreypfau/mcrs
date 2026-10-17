@@ -70,7 +70,7 @@ fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> Str
 fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() {
     assert_eq!(
         digest(mcrs_minecraft_worldgen_testing::built_biomes()),
-        "268bd82d55f28aaa4fcf5d85f0042d9e0ec173b88edb553619a6b248f5742051"
+        "85e0db5b7c7e070e8e918d7dfabc5aa18bf0fd2698e8006e725a8faab759fc36"
     );
     assert_eq!(
         digest(mcrs_minecraft_worldgen_testing::built_template_pools()),
@@ -83,6 +83,6 @@ fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() 
     });
     assert_eq!(
         digest(templates),
-        "69ff9a400f5a9bea339f86ab4806dfc147a6c0228cca6546eb85d3e83f7ba6ed"
+        "612b07ea531cb7e7be2dc3f88cd79822508e4136edf387a4ec01cc8608323ea4"
     );
 }

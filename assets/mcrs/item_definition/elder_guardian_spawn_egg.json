@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:elder_guardian_spawn_egg",
-      "protocol_id": 1342
+      "protocol_id": 1345
     },
     "components": {
       "minecraft:attack_animation": {},

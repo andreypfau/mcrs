@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wooden_axe",
-      "protocol_id": 1028
+      "protocol_id": 1029
     },
     "components": {
       "minecraft:attack_animation": {},

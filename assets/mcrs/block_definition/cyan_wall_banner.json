@@ -12,8 +12,8 @@
         ]
       },
       "protocol_id": 642,
-      "base_state_id": 15066,
-      "default_state_id": 15066
+      "base_state_id": 15068,
+      "default_state_id": 15068
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -43,7 +43,8 @@
       "minecraft:loot": "minecraft:blocks/cyan_banner",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:wood"
     },
     "permutations": [
       {

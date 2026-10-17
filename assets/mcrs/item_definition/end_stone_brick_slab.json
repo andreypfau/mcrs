@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:end_stone_brick_slab",
-      "protocol_id": 811
+      "protocol_id": 812
     },
     "components": {
       "minecraft:attack_animation": {},

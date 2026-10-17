@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:enchanted_book",
-      "protocol_id": 1395
+      "protocol_id": 1398
     },
     "components": {
       "minecraft:attack_animation": {},

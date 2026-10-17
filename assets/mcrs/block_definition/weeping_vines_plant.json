@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:weeping_vines_plant",
-      "protocol_id": 969,
-      "base_state_id": 24360,
-      "default_state_id": 24360
+      "protocol_id": 970,
+      "base_state_id": 24366,
+      "default_state_id": 24366
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -32,7 +32,8 @@
       "minecraft:loot": "minecraft:blocks/weeping_vines_plant",
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:weeping_vines"
     },
     "permutations": []
   }

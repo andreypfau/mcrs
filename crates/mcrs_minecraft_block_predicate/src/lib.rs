@@ -1,8 +1,10 @@
 pub mod block_state;
+pub mod fluid_state;
 #[rustfmt::skip]
 pub mod keys;
 pub mod predicate;
 pub mod provider;
+pub mod state_properties;
 
 mcrs_minecraft_registries::read_with_serde!(crate::provider::DirectBlockStateProvider);
 

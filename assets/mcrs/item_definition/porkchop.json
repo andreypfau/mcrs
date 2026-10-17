@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:porkchop",
-      "protocol_id": 1097
+      "protocol_id": 1098
     },
     "components": {
       "minecraft:attack_animation": {},

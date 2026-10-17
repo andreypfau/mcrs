@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pufferfish_spawn_egg",
-      "protocol_id": 1307
+      "protocol_id": 1309
     },
     "components": {
       "minecraft:attack_animation": {},

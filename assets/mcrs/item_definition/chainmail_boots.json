@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chainmail_boots",
-      "protocol_id": 1079
+      "protocol_id": 1080
     },
     "components": {
       "minecraft:attack_animation": {},

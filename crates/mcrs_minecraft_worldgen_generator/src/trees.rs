@@ -1,10 +1,12 @@
+use mcrs_minecraft_block::definition::FluidState;
+use mcrs_minecraft_block_predicate::state_properties::{StatePropertiesPredicate, ValueMatcher};
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_block::keys::fluid_tags;
@@ -39,7 +41,7 @@ use mcrs_minecraft_worldgen_feature_place::tree::trunk::{TreeStates, Trunk};
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, LeafDistances, TreeTables};
 use mcrs_minecraft_worldgen_noise::normal as normal_noise;
 
-use super::feature_program::{Resolver, missing, union_masks};
+use super::feature_program::{Resolver, missing, set, union_masks};
 
 type Compiled<T> = Result<T, FeatureCompileError>;
 
@@ -208,6 +210,8 @@ pub(crate) struct FaceSupport {
     any_up: FixedBitSet,
     /// `SupportType.CENTER` downwards, which is what hangs a spore blossom.
     pub(crate) center_down: FixedBitSet,
+    /// `SupportType.CENTER` upwards, which is what a mushroom stands on.
+    center_up: FixedBitSet,
 }
 
 /// `SupportType.CENTER`: the middle 2/16 of the face has to be covered.
@@ -223,15 +227,16 @@ fn covers_center(mask: &FaceMask) -> bool {
 }
 
 pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
-    let mut answers: HashMap<u32, [bool; 3]> = HashMap::default();
+    let mut answers: HashMap<u32, [bool; 4]> = HashMap::default();
     let mut out = FaceSupport {
         sturdy_up: empty_mask(blocks),
         any_up: empty_mask(blocks),
         center_down: empty_mask(blocks),
+        center_up: empty_mask(blocks),
     };
-    for id in 0..blocks.state_count() {
+    for id in (0..=u16::MAX).take(blocks.state_count()) {
         let shape = blocks
-            .state(mcrs_minecraft_registry::BlockStateId(id as u16))
+            .state(mcrs_minecraft_registry::BlockStateId(id))
             .collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));
@@ -240,26 +245,27 @@ pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
                 *up == FACE_MASK_FULL,
                 *up != FACE_MASK_EMPTY,
                 covers_center(voxels.face_mask(mcrs_minecraft_core::Direction::Down)),
+                covers_center(up),
             ]
         });
-        for (holds, mask) in
-            answer
-                .iter()
-                .zip([&mut out.sturdy_up, &mut out.any_up, &mut out.center_down])
-        {
+        for (holds, mask) in answer.iter().zip([
+            &mut out.sturdy_up,
+            &mut out.any_up,
+            &mut out.center_down,
+            &mut out.center_up,
+        ]) {
             if *holds {
-                mask.insert(id);
+                mask.insert(usize::from(id));
             }
         }
     }
     out
 }
 
-fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Block>, SurviveRule>> {
+pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Block>, SurviveRule>> {
     let blocks = resolver.blocks;
     let mut rules = HashMap::default();
     let faces = face_support(blocks);
-    let water = resolver.world.water_fluid.as_ref().clone();
     let not_air = {
         let mut mask = empty_mask(blocks);
         mask.insert_range(..blocks.state_count());
@@ -276,7 +282,7 @@ fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Block>, Survive
         let Some(family) = family_of(entry.identifier.as_str()) else {
             continue;
         };
-        let rule = match rule_of(resolver, family, &faces, &water, &not_air) {
+        let rule = match rule_of(resolver, entry, family, &faces, &not_air) {
             Ok(rule) => rule,
             // A shape this build cannot answer — a fluid tag, say — leaves the
             // block with no rule, so a placement testing it fails the compile
@@ -320,9 +326,9 @@ fn placement_rule(resolver: &Resolver<'_>, filter: &PlacementFilter) -> Compiled
 
 fn rule_of(
     resolver: &Resolver<'_>,
+    entry: &BlockEntry,
     family: SurviveFamily,
     faces: &FaceSupport,
-    water: &FixedBitSet,
     not_air: &FixedBitSet,
 ) -> Compiled<SurviveRule> {
     let tag = |key| resolver.tag_mask(key).map(|mask| mask.as_ref().clone());
@@ -333,9 +339,20 @@ fn rule_of(
     Ok(match family {
         SurviveFamily::Mushroom => {
             let mut supports = tag(block_tags::OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT)?;
-            supports.union_with(&resolver.world.solid_render);
+            supports.union_with(&faces.center_up);
             below(supports)
         }
+        SurviveFamily::SnowLayer => {
+            let snow = resolver.block_of(Block::Snow.id());
+            let mut supports = faces.sturdy_up.clone();
+            supports.union_with(&tag(block_tags::SUPPORT_OVERRIDE_SNOW_LAYER)?);
+            supports.insert(usize::from(
+                set(snow, snow.default_state_id, "layers", "8")?.0,
+            ));
+            supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SNOW_LAYER)?);
+            below(supports)
+        }
+        SurviveFamily::OnFacingFace => on_facing_face(resolver.blocks, entry)?,
         SurviveFamily::OnAnythingBelow => below(not_air.clone()),
         SurviveFamily::OnSturdyFaceBelow => below(faces.sturdy_up.clone()),
         SurviveFamily::SeaPickle => below(faces.any_up.clone()),
@@ -344,23 +361,24 @@ fn rule_of(
             supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SEAGRASS)?);
             below(supports)
         }
-        // chisle: `isFull` is not checked; worldgen water is source water.
         SurviveFamily::TallSeagrass => {
             let mut supports = faces.sturdy_up.clone();
             supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SEAGRASS)?);
-            let mut not_water = not_air.clone();
-            not_water.union_with(&resolver.world.air_states);
-            not_water.difference_with(water);
+            let full = fluid_state_is(FluidState::LEVEL, &FluidState::FULL.to_string());
+            let mut not_full_water = not_air.clone();
+            not_full_water.union_with(&resolver.world.air_states);
+            let full_water = resolver.fluid_tag_mask(fluid_tags::WATER, &full)?;
+            not_full_water.difference_with(&full_water);
             SurviveRule::SupportedByUnless {
                 offset_y: -1,
                 supports,
-                blocked: not_water,
+                blocked: not_full_water,
             }
         }
         SurviveFamily::SmallDripleaf => SurviveRule::SmallDripleaf {
             supports: tag(block_tags::SUPPORTS_SMALL_DRIPLEAF)?,
             wet_supports: tag(block_tags::SUPPORTS_VEGETATION)?,
-            water: water.clone(),
+            water: resolver.world.water_source.as_ref().clone(),
         },
         SurviveFamily::SporeBlossom => {
             let mut supports = faces.center_down.clone();
@@ -368,12 +386,13 @@ fn rule_of(
             SurviveRule::SupportedByUnless {
                 offset_y: 1,
                 supports,
-                blocked: water.clone(),
+                blocked: resolver.world.water_fluid.as_ref().clone(),
             }
         }
         SurviveFamily::LilyPad => {
             let mut supports = tag(block_tags::SUPPORTS_LILY_PAD)?;
-            let fluids = resolver.fluid_tag_mask(fluid_tags::SUPPORTS_LILY_PAD)?;
+            let sources = fluid_state_is(FluidState::SOURCE, "true");
+            let fluids = resolver.fluid_tag_mask(fluid_tags::SUPPORTS_LILY_PAD, &sources)?;
             supports.union_with(&fluids);
             SurviveRule::SupportedByUnless {
                 offset_y: -1,
@@ -386,7 +405,11 @@ fn rule_of(
             supports: tag(block_tags::SUPPORTS_SUGAR_CANE)?,
             adjacent: {
                 let mut adjacent = tag(block_tags::SUPPORTS_SUGAR_CANE_ADJACENTLY)?;
-                adjacent.union_with(&resolver.world.water_fluid);
+                let fluids = resolver.fluid_tag_mask(
+                    fluid_tags::SUPPORTS_SUGAR_CANE_ADJACENTLY,
+                    &StatePropertiesPredicate::ANY,
+                )?;
+                adjacent.union_with(&fluids);
                 adjacent
             },
         },
@@ -406,6 +429,49 @@ fn rule_of(
                 },
             }
         }
+    })
+}
+
+fn on_facing_face(blocks: &BlockDefinitions, entry: &BlockEntry) -> Compiled<SurviveRule> {
+    let facing = (0..entry.state_count)
+        .map(|offset| {
+            let state = mcrs_minecraft_registry::BlockStateId(entry.base_state_id.0 + offset);
+            match entry.value_of(state, "facing") {
+                Some(PropertyValue::Str(name)) => Direction::all()
+                    .into_iter()
+                    .find(|direction| direction.name() == name.as_ref()),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                FeatureCompileError::Unsupported(format!(
+                    "{}: a state without a facing",
+                    entry.identifier
+                ))
+            })
+        })
+        .collect::<Compiled<Vec<_>>>()?;
+    let mut sturdy: [FixedBitSet; 6] = std::array::from_fn(|_| empty_mask(blocks));
+    let mut answers: HashMap<u32, [bool; 6]> = HashMap::default();
+    for id in (0..=u16::MAX).take(blocks.state_count()) {
+        let shape = blocks
+            .state(mcrs_minecraft_registry::BlockStateId(id))
+            .collision_shape;
+        let answer = *answers.entry(shape.0).or_insert_with(|| {
+            let voxels = VoxelShape::from_boxes(blocks.shape(shape));
+            Direction::all().map(|direction| *voxels.face_mask(direction) == FACE_MASK_FULL)
+        });
+        for direction in Direction::all() {
+            if answer.get(direction.id()).copied().unwrap_or(false)
+                && let Some(mask) = sturdy.get_mut(direction.id())
+            {
+                mask.insert(usize::from(id));
+            }
+        }
+    }
+    Ok(SurviveRule::OnFacingFace {
+        base: entry.base_state_id.0,
+        facing,
+        sturdy,
     })
 }
 
@@ -613,4 +679,11 @@ pub(super) fn compile_decorator(
     Ok(CompiledTreeDecorator(
         decorator.map_provider(|provider| compile_provider(provider, r))?,
     ))
+}
+
+fn fluid_state_is(property: &str, value: &str) -> StatePropertiesPredicate {
+    StatePropertiesPredicate(vec![(
+        property.to_owned(),
+        ValueMatcher::Exact(value.to_owned()),
+    )])
 }

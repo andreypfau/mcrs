@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:guster_banner_pattern",
-      "protocol_id": 1501
+      "protocol_id": 1504
     },
     "components": {
       "minecraft:attack_animation": {},

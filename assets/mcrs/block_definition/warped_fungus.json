@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:warped_fungus",
-      "protocol_id": 957,
-      "base_state_id": 24315,
-      "default_state_id": 24315
+      "protocol_id": 958,
+      "base_state_id": 24321,
+      "default_state_id": 24321
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -44,7 +44,8 @@
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:fungus"
     },
     "permutations": []
   }

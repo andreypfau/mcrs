@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_horse_armor",
-      "protocol_id": 1408
+      "protocol_id": 1411
     },
     "components": {
       "minecraft:attack_animation": {},

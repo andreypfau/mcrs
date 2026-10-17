@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cooked_cod",
-      "protocol_id": 1194
+      "protocol_id": 1196
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:raw_copper",
-      "protocol_id": 1019
+      "protocol_id": 1020
     },
     "components": {
       "minecraft:attack_animation": {},

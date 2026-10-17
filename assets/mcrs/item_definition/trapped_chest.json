@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:trapped_chest",
-      "protocol_id": 852
+      "protocol_id": 853
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wolf_spawn_egg",
-      "protocol_id": 1290
+      "protocol_id": 1292
     },
     "components": {
       "minecraft:attack_animation": {},

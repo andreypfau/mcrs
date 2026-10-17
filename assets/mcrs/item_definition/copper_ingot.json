@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_ingot",
-      "protocol_id": 1020
+      "protocol_id": 1021
     },
     "components": {
       "minecraft:attack_animation": {},

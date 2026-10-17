@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:endermite_spawn_egg",
-      "protocol_id": 1366
+      "protocol_id": 1369
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_boots",
-      "protocol_id": 1075
+      "protocol_id": 1076
     },
     "components": {
       "minecraft:attack_animation": {},

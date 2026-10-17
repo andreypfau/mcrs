@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diorite_slab",
-      "protocol_id": 818
+      "protocol_id": 819
     },
     "components": {
       "minecraft:attack_animation": {},
