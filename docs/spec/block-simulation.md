@@ -7,9 +7,7 @@
 | World version (`DataVersion`) | `5124` |
 | Data pack format | `124.0` |
 
-Source of these values: the `version.json` of the 26.4-snapshot-4 game jar, which
-`assets/minecraft/version.json` mirrors once the corpus is updated to this snapshot
-(until then the repository file still reads 26.4-snapshot-2).
+Source of these values: `assets/minecraft/version.json`.
 
 Changes from 26.4-snapshot-2: the machinery this document specifies (server and
 level tick, tick-rate gate, scheduled-tick queues, neighbour and shape updates,
@@ -61,7 +59,7 @@ from sections (section 0.2).
 - **Position**: an integer block position `(x, y, z)`.
 - **Block state**: one state of one block. Two states are *the same* when they are the identical state, not merely equal property values of different blocks.
 - **Block type**: the block a state belongs to, for example `minecraft:repeater`.
-- **Fluid type**: one entry of the `minecraft:fluid` registry: `minecraft:empty`, `minecraft:water`, `minecraft:lava`. Whether a fluid is a source or flowing, and its amount, are properties of the fluid *state* (`source`, a boolean; `level`, 1 to 8), not of the type: a water source and flowing water are both of type `minecraft:water`. A flowing state with `level` 8 is *falling*. Changed in 26.4-snapshot-4: the types `minecraft:flowing_water` and `minecraft:flowing_lava` no longer exist (the repository's `assets/mcrs/reports/registries.json` still lists them until it is regenerated).
+- **Fluid type**: one entry of the `minecraft:fluid` registry: `minecraft:empty`, `minecraft:water`, `minecraft:lava`. Whether a fluid is a source or flowing, and its amount, are properties of the fluid *state* (`source`, a boolean; `level`, 1 to 8), not of the type: a water source and flowing water are both of type `minecraft:water`. A flowing state with `level` 8 is *falling*. Changed in 26.4-snapshot-4: the types `minecraft:flowing_water` and `minecraft:flowing_lava` no longer exist.
 - **Section**, **section position**, **column**: see 0.2.
 - **Game time**: the dimension's monotonically increasing tick counter (a 64-bit integer), stored in the level data. All dimensions of one server read the same game time (SIM-TICK-003).
 - **Level tick**: one execution of the per-dimension tick (SIM-TICK-002).
@@ -138,8 +136,8 @@ experiments in this document has been run.
 ### 0.5 Artefacts cited
 
 - `assets/minecraft/version.json`: the version identity above.
-- `assets/mcrs/reports/registries.json`: block and fluid registry entries and ids; the `minecraft:game_rule` registry. Generated at 26.4-snapshot-2; its `minecraft:fluid` entries are superseded by 0.1, and block ids shift with the blocks added in 26.4-snapshot-3 and -4. The game rules cited here are unchanged.
-- `assets/mcrs/reports/packets.json`: packet ids (`minecraft:block_event` = 7, `minecraft:block_update` = 8, `minecraft:level_chunk_with_light` = 46, `minecraft:section_blocks_update` = 86 in the play clientbound table). Generated at 26.4-snapshot-2; the play packet tables did not change up to 26.4-snapshot-4, so these ids still hold (`source_suggested` until the report is regenerated).
+- `assets/mcrs/reports/registries.json`: block and fluid registry entries and ids; the `minecraft:game_rule` registry. Generated at 26.4-snapshot-4.
+- `assets/mcrs/reports/packets.json`: packet ids (`minecraft:block_event` = 7, `minecraft:block_update` = 8, `minecraft:level_chunk_with_light` = 46, `minecraft:section_blocks_update` = 86 in the play clientbound table). Generated at 26.4-snapshot-4.
 - `data/minecraft/datapacks/redstone_experiments/pack.mcmeta` of the client jar: the feature pack that enables `minecraft:redstone_experiments`.
 
 ### 0.6 Rule groups
@@ -1659,7 +1657,7 @@ Provenance: `source_suggested`. Confidence: high.
 | Initial sub-tick counter | 0, per dimension, not saved | SIM-SCH-003 | `source_suggested` |
 | Restored sub-tick orders | −m … −1 per column save record and per kind | SIM-SCH-013 | `source_suggested` |
 | Block event broadcast range | 64.0 blocks, squared distance < 4096 | SIM-BEV-004 | `source_suggested` |
-| `block_event` / `block_update` / `level_chunk_with_light` / `section_blocks_update` packet ids | 7 / 8 / 46 / 86 | SIM-BEV-004, SIM-SET-005, 0.2 | `black_box_confirmed` at 26.4-snapshot-2 (`assets/mcrs/reports/packets.json`); unchanged up to 26.4-snapshot-4 (`source_suggested`) |
+| `block_event` / `block_update` / `level_chunk_with_light` / `section_blocks_update` packet ids | 7 / 8 / 46 / 86 | SIM-BEV-004, SIM-SET-005, 0.2 | `black_box_confirmed` at 26.4-snapshot-4 (`assets/mcrs/reports/packets.json`) |
 | Load levels: full, block-ticking, entity-ticking | 33, 32, 31 | SIM-TICK-005 | `source_suggested` |
 | Default simulation distance | 10 | SIM-TICK-005 | `source_suggested` |
 | Temporary ticket for synchronous loads | `minecraft:unknown`, level 33, loading only, timeout 1 (removed by the second purge after the last access), per column | SIM-SET-003 | `source_suggested` |
@@ -1676,7 +1674,7 @@ Provenance: `source_suggested`. Confidence: high.
 | Empty-dimension threshold for entity and block entity ticking | counter < 300 (they stop on the 299th level tick after the last keep-active ticket) | SIM-TICK-002 | `source_suggested` |
 | Pause when empty | `pause-when-empty-seconds` × 20, default 60 s; dedicated server only (the base and integrated servers use 0) | SIM-TICK-001 | `source_suggested` |
 | Time sync interval | 20 server ticks | SIM-TICK-001 | `source_suggested` |
-| Fluid types | `empty`, `water`, `lava`; source or flowing is the fluid state's `source` property, the amount its `level` (1 to 8) | 0.1, SIM-SCH-001 | `source_suggested`; changed in 26.4-snapshot-4 (was five types with separate flowing ones, `black_box_confirmed` at 26.4-snapshot-2 by `registries.json`) |
+| Fluid types | `empty`, `water`, `lava`; source or flowing is the fluid state's `source` property, the amount its `level` (1 to 8) | 0.1, SIM-SCH-001 | `black_box_confirmed` at 26.4-snapshot-4 by `registries.json`; changed in 26.4-snapshot-4 (was five types with separate flowing ones) |
 
 ---
 

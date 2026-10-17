@@ -3,7 +3,7 @@
 **Minecraft Java Edition in Rust: a set of crates, a server and a client, built on [Bevy](https://bevyengine.org) ECS.**
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![Minecraft 26.4-snapshot-2](https://img.shields.io/badge/minecraft-26.4--snapshot--2-62b47a.svg)](assets/minecraft/version.json)
+[![Minecraft 26.4-snapshot-4](https://img.shields.io/badge/minecraft-26.4--snapshot--4-62b47a.svg)](assets/minecraft/version.json)
 [![Bevy 0.19](https://img.shields.io/badge/bevy-0.19-232326.svg)](https://bevyengine.org)
 [![Discord](https://img.shields.io/badge/discord-join-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/ged3nMRzwG)
 
@@ -19,7 +19,7 @@ only the layers it needs and pay for nothing above them.
 ## Why mcrs
 
 - **Tracks the newest snapshot.** One version at a time, currently
-  `26.4-snapshot-2`. Data and reports are regenerated from the game jar by a
+  `26.4-snapshot-4`. Data and reports are regenerated from the game jar by a
   single command, so moving to the next snapshot is mostly data, not code.
 - **Data-driven.** Registries, biomes, dimensions, world generation and
   environment attributes are read from the vanilla data pack. A data pack that

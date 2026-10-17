@@ -239,7 +239,7 @@ coordinates would define *a* world; this one keeps §13's vocabulary and makes
 the in-place executor of §6.4 comparable. Changing it is a different world
 (§15). No configuration hash exists in the workspace yet; St3 owes one, and
 its inputs are fixed here so the first version is complete: the world version
-(5120), the data set's content hash, the precision profile, the unit size (one
+(5124), the data set's content hash, the precision profile, the unit size (one
 column), the rank function (Q3), and the read rule (Wn2). A mismatch on any of
 them means an untouched unit may not be regenerated from the seed.
 
@@ -711,7 +711,7 @@ says what is kept of it.
 
 Bit for bit against the reference, where the reference computes without a
 world — each fixture is a dump from `tools/vanilla-oracle` and carries
-`WORLD_VERSION` 5120:
+`WORLD_VERSION` 5124:
 
 - the sort, per shipped biome source
   (`crates/mcrs_minecraft_worldgen_feature/tests/it/feature_sort.rs`);

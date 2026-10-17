@@ -106,7 +106,7 @@ pub fn menu_slots(menu: Id<MenuType>) -> Option<MenuSlots> {
     Some(match MenuType::from_id(menu)? {
         Generic9x1 | Generic3x3 => own(9),
         Generic9x2 => own(18),
-        Generic9x3 | ShulkerBox => own(27),
+        Generic9x3 | ShulkerBox | Jukebox => own(27),
         Generic9x4 => own(36),
         Generic9x5 => own(45),
         Generic9x6 => own(54),
@@ -128,7 +128,6 @@ pub fn menu_slots(menu: Id<MenuType>) -> Option<MenuSlots> {
             trailing_result: false,
         },
         Loom | Smithing => own(4),
-        Jukebox => return None,
     })
 }
 

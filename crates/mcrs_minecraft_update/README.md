@@ -6,9 +6,6 @@ definitions from the game itself, and it regenerates the fixtures that were
 captured from the game. It ports no code: what the new version changes in the
 Rust crates is found by the tests it breaks and by the diffs it prints.
 
-The target at the time of writing is `26.4-snapshot-2` (protocol version
-1073742164, world version 5120).
-
 ## Where the version lives
 
 `assets/minecraft/version.json` is the only statement of the version. It is the
@@ -56,7 +53,7 @@ after an update, port the difference into the code.
 cargo run -p mcrs_minecraft_update -- <version id> [--allow-dirty] [--diff-out <directory>]
 ```
 
-The version id is the only argument, for example `26.4-snapshot-2`. The
+The version id is the only argument, for example `26.4-snapshot-4`. The
 options are:
 
 - `--allow-dirty` lets the update run when the version file, the reports, the

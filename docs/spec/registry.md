@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-2` (Minecraft Java Edition, 26.4 Snapshot 2) |
-| Protocol version | `1073742164` |
-| World version (`DataVersion`) | `5120` |
-| Data pack format | `122.1` |
+| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
+| Protocol version | `1073742166` |
+| World version (`DataVersion`) | `5124` |
+| Data pack format | `124.0` |
 
 Source of these values: `assets/minecraft/version.json`.
 
@@ -313,7 +313,7 @@ once zipped. Expected: `Bad.json` is skipped with a log line naming `t` and the 
   - There are no other kinds. The game's dedicated server has exactly these three pack sources; only world packs lack a known-pack identity (REG-NET-002). No pack is required or pinned to a position, so nothing reorders the stack after it is built.
 - **Behavior:**
   - The pack stack is the `Enabled` list in its stored order, after removing ids that are not available. Each removal is logged as a missing data pack.
-  - A pack's format range (REG-PACK-005) plays no part in building the stack on a dedicated server. A pack whose range excludes `122.1` is selected and loaded like any other.
+  - A pack's format range (REG-PACK-005) plays no part in building the stack on a dedicated server. A pack whose range excludes `124.0` is selected and loaded like any other.
   - Index 0 has the lowest priority.
   - An available pack is appended to the end of the stack, and the server logs that it was found, when all of these hold:
     - its id is in neither `Enabled` nor `Disabled`;
@@ -394,7 +394,7 @@ case; see OQ-07).
 ### REG-PACK-005: `pack.mcmeta`
 
 - **Inputs:** the `pack.mcmeta` file at the root of a pack, parsed as strict JSON (REG-ENTRY-002). Its root must be an object.
-- **Relevant state:** the current data pack format, `122.1` (`data_major`, `data_minor` of `assets/minecraft/version.json`).
+- **Relevant state:** the current data pack format, `124.0` (`data_major`, `data_minor` of `assets/minecraft/version.json`).
 - **Preconditions:** the pack was found as a directory holding `pack.mcmeta` or as a `.zip` file (REG-PACK-002).
 - **Behavior:**
   - **`pack` section** (required):
@@ -419,23 +419,23 @@ case; see OQ-07).
 | `pack` present but its format fields break the rules above | pack available, with only its `description` read and its compatibility unknown; a warning is logged |
 | `description` itself invalid | pack not available; warning naming the pack |
 
-  - **Compatibility:** formats compare by major, then minor. A pack whose `max_format` is below `122.1` is too old; one whose `min_format` is above it is too new; otherwise it is compatible. A dedicated server does not act on this: an incompatible pack is listed, appended and loaded like a compatible one (REG-PACK-002).
+  - **Compatibility:** formats compare by major, then minor. A pack whose `max_format` is below `124.0` is too old; one whose `min_format` is above it is too new; otherwise it is compatible. A dedicated server does not act on this: an incompatible pack is listed, appended and loaded like a compatible one (REG-PACK-002).
   - **`features` section** (optional): `{"enabled": [<feature id>...]}`, the features the pack requests (REG-PACK-002). A feature id the game does not know makes the pack unavailable, with a warning naming the pack. A malformed section has the same outcome.
   - **`filter` section** (optional): REG-PACK-004.
-  - **`overlays` section** (optional): `{"entries": [{"directory": <name>, "min_format": …, "max_format": …}, ...]}`, where `<name>` is over `[-_a-zA-Z0-9.]` and the format fields follow the `pack` rules (with `formats` in place of `supported_formats`, and no `pack_format`). Every entry whose range contains `122.1` is applied: its directory, at the pack root, is read as an additional root of the same pack, so its content files are under `<name>/data/`. Within the pack, the last applicable entry in the list has the highest priority, then the earlier applicable entries in reverse list order, then the base `data/` tree. An entry with no usable format information is skipped with a warning. A malformed section makes the pack unavailable. Metadata, including `filter`, is read only from the pack's own `pack.mcmeta`, never from an overlay.
+  - **`overlays` section** (optional): `{"entries": [{"directory": <name>, "min_format": …, "max_format": …}, ...]}`, where `<name>` is over `[-_a-zA-Z0-9.]` and the format fields follow the `pack` rules (with `formats` in place of `supported_formats`, and no `pack_format`). Every entry whose range contains `124.0` is applied: its directory, at the pack root, is read as an additional root of the same pack, so its content files are under `<name>/data/`. Within the pack, the last applicable entry in the list has the highest priority, then the earlier applicable entries in reverse list order, then the base `data/` tree. An entry with no usable format information is skipped with a warning. A malformed section makes the pack unavailable. Metadata, including `filter`, is read only from the pack's own `pack.mcmeta`, never from an overlay.
   - Fields that the game does not name are ignored, in every section (REG-ENTRY-003).
 - **Ordering constraints:** `pack.mcmeta` is read when packs are discovered, before the stack is built; the `filter` section is read later, when the stack's files are assembled (REG-PACK-004).
 - **Numeric semantics:** a format is a pair (major, minor) of non-negative integers; a bare integer `M` is `(M, 0)` as a minimum and `(M, every minor)` as a maximum.
 - **Postconditions:** a pack that is not available cannot be in the stack. If `level.dat` lists it in `Enabled`, it is dropped as a missing pack (REG-PACK-002).
 - **Edge cases:**
-  - The built-in `vanilla` pack has no `pack.mcmeta` of its own; it behaves as one that declares format `122.1` to `122.*`, the default features, and no filter or overlays.
-  - The shipped feature packs declare `"min_format": [122, 1]`, `"max_format": 122` and one feature each (`assets/minecraft/datapacks/*/pack.mcmeta`).
+  - The built-in `vanilla` pack has no `pack.mcmeta` of its own; it behaves as one that declares format `124.0` to `124.*`, the default features, and no filter or overlays.
+  - The shipped feature packs declare `"min_format": 124`, `"max_format": 124` and one feature each (`assets/minecraft/datapacks/*/pack.mcmeta`).
 - **Invariants:** whether a pack is available depends only on its own `pack.mcmeta`, never on other packs or on the world.
 - **Conformance tests:**
   - A world pack with `{"pack":{"description":"x","min_format":[100],"max_format":[110]}}` is available and loads, although it is too old.
-  - A world pack with `{"pack":{"description":"x","min_format":[122,1]}}` (no `max_format`) is available, and a warning is logged.
-  - A world pack with `{"pack":{"description":"x","min_format":122,"max_format":122},"features":{"enabled":["t:none"]}}` is not available.
-  - A world pack whose `overlays` lists `{"directory":"o","min_format":122,"max_format":122}` and that ships `o/data/t/damage_type/x.json` and `data/t/damage_type/x.json`: the entry `t:x` is decoded from the overlay's file.
+  - A world pack with `{"pack":{"description":"x","min_format":[124,0]}}` (no `max_format`) is available, and a warning is logged.
+  - A world pack with `{"pack":{"description":"x","min_format":124,"max_format":124},"features":{"enabled":["t:none"]}}` is not available.
+  - A world pack whose `overlays` lists `{"directory":"o","min_format":124,"max_format":124}` and that ships `o/data/t/damage_type/x.json` and `data/t/damage_type/x.json`: the entry `t:x` is decoded from the overlay's file.
 
 Provenance: `source_suggested`, except the shipped feature pack fields
 (`black_box_confirmed`, `assets/minecraft/datapacks/*/pack.mcmeta`). Confidence:
@@ -582,17 +582,17 @@ Provenance: `source_suggested`. Confidence: medium. The experiment is under REG-
 
 | Registry | Entries |
 |----------|---------|
-| `minecraft:worldgen/biome` | 67 |
-| `minecraft:worldgen/noise` | 64 |
+| `minecraft:worldgen/biome` | 68 |
+| `minecraft:worldgen/noise` | 65 |
 | `minecraft:worldgen/density_function` | 55 |
 | `minecraft:worldgen/noise_settings` | 7 |
 | `minecraft:worldgen/template_pool` | 245 |
 
-  and every one of them is attributed to `(minecraft, core, 26.4-snapshot-2)`.
+  and every one of them is attributed to `(minecraft, core, 26.4-snapshot-4)`.
 
 Provenance: `black_box_confirmed` for the files and counts (the client jar,
 `data/minecraft/worldgen/{biome,noise,density_function,noise_settings,template_pool}/`,
-67, 64, 55, 7 and 245 `.json` files; the same counts are in
+68, 65, 55, 7 and 245 `.json` files; the same counts are in
 `assets/mcrs/reports/names.json`). `source_suggested` for "not created from code at
 run time". Confidence: high for the files, medium for the rest. Experiment: start a
 vanilla server with a world pack that holds `data/minecraft/worldgen/biome/plains.json`
@@ -1019,13 +1019,13 @@ vanilla client joining a vanilla server, and check the order.
 | built-in feature pack `<id>` | (`minecraft`, `<id>`, `<version id>`) |
 | any `file/…` or other pack | none (not offered) |
 
-  - `<version id>` is the `id` of `assets/minecraft/version.json`, which is `26.4-snapshot-2`.
+  - `<version id>` is the `id` of `assets/minecraft/version.json`, which is `26.4-snapshot-4`.
   - A pack with no `data/` directory is offered like any other pack with an identity (REG-PACK-001).
 - **Postconditions:** the offered list, and the attribution of every entry it covers (REG-ENTRY-006), come from the pack stack that the stage 1 and stage 2 registries were loaded with at server start. That stack stays fixed for the session: a `/datapack enable` or `disable`, or a `/reload` that finds a new pack, does not change the offer made to clients that join afterwards.
 - **Edge cases:**
   - This postcondition is a deliberate rule of this specification and differs from the game. The game computes the offer from the pack stack of the latest successful reload, while the synced entries and their attribution stay those of the start. With the packs shipped at this version the difference shows only in the `select_known_packs` packet: `trade_rebalance` overrides no entry of a synced registry, so no entry data differs. A pack with an identity that did override a synced entry would make a vanilla client fill that entry from a stack the server did not load it with; the rule above prevents that.
 - **Conformance tests:**
-  - A vanilla-only server offers `[(minecraft, core, 26.4-snapshot-2)]`.
+  - A vanilla-only server offers `[(minecraft, core, 26.4-snapshot-4)]`.
   - With the stack `[vanilla, file/x, trade_rebalance]`, the server offers `[core, trade_rebalance]`, both with namespace `minecraft` and the version id.
   - Start with `[vanilla]`, run `/datapack enable "trade_rebalance"`, then join. Expected: the offer is `[core]`.
 
@@ -1069,10 +1069,10 @@ every entry must then carry data.
     9. `minecraft:frog_variant`
     10. `minecraft:cat_variant`
     11. `minecraft:cat_sound_variant`
-    12. `minecraft:cow_sound_variant`
-    13. `minecraft:cow_variant`
-    14. `minecraft:chicken_sound_variant`
-    15. `minecraft:chicken_variant`
+    12. `minecraft:cow_variant`
+    13. `minecraft:cow_sound_variant`
+    14. `minecraft:chicken_variant`
+    15. `minecraft:chicken_sound_variant`
     16. `minecraft:zombie_nautilus_variant`
     17. `minecraft:painting_variant`
     18. `minecraft:sulfur_cube_archetype`
@@ -1090,6 +1090,7 @@ every entry must then carry data.
     30. `minecraft:decorated_pot_pattern`
     31. `minecraft:block_transformer`
     32. `minecraft:worldgen/block_state_provider`
+    33. `minecraft:block_sound_set`
 
   - A packet is sent for each of these registries even when it has zero entries.
   - Static registries are never sent as entries, because both sides already know them (REG-SET-001).

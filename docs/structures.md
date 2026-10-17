@@ -476,10 +476,10 @@ for bit given the same seed and registries, and §13 tests it so.
 (172 files), `DataVersion` (`StructureTemplate.save`, `StructureTemplate.load`).
 The type derives `Deserialize`/`Serialize` through `mcrs_minecraft_nbt`; the palette
 entries resolve to `VoxelId` at freeze. Every shipped template carries
-`DataVersion` 5011 against a world version of 5120. The reference runs the
+`DataVersion` 5011 against a world version of 5124. The reference runs the
 structure datafixer over that gap (`TemplateSource.readStructure`);
-the fixers registered between 5011 and 5120 rename explorer-map items and
-strip one data component (`DataFixers.addFixers`), and a scan
+the fixers registered between 5011 and 5124 that reach a template rename
+explorer-map items and strip one data component (`DataFixers.addFixers`), and a scan
 of all 1511 files finds neither. So the template version is pinned at 5011 as
 a named constant and checked at load; a file at any other version is a loud
 error, as the project rule demands, and the pin moves when the corpus does.
@@ -1244,7 +1244,7 @@ Counts, to be replaced by `PERF.md` numbers.
 
 Bit for bit against the reference, where the reference computes without a
 world — each fixture a dump from `tools/vanilla-oracle` carrying
-`WORLD_VERSION` 5120, and a template-version pin of 5011 that fails on
+`WORLD_VERSION` 5124, and a template-version pin of 5011 that fails on
 mismatch (R5 of `worldgen.md`):
 
 - the cell function and the three gates, per shipped set, over a grid of
