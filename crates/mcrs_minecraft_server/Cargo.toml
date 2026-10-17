@@ -30,6 +30,7 @@ mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_client_jar = { workspace = true, optional = true }
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
@@ -61,6 +62,8 @@ serde = { version = "1.0.228", features = ["derive"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
@@ -71,6 +74,8 @@ mcrs_minecraft_anvil.workspace = true
 tokio.workspace = true
 
 [features]
+default = ["client-jar"]
+client-jar = ["dep:mcrs_minecraft_client_jar"]
 telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
 
 [[bench]]

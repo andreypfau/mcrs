@@ -78,9 +78,16 @@ fn spawn(
     std::thread::Builder::new()
         .name("client jar".to_owned())
         .spawn(move || {
-            let (files, rest) = client_jar::resolve(&progress, is_resource, |files| {
+            let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             });
+            let (files, rest) = match resolved {
+                Ok(resolved) => resolved,
+                Err(error) => {
+                    *progress.status.lock().unwrap() = error.to_string();
+                    return;
+                }
+            };
             fill(&root, files);
             unpacked.store(true, Ordering::Release);
             if let Some(rest) = rest {
@@ -124,8 +131,11 @@ pub fn fill(root: &Dir, files: Files) {
 
 #[cfg(test)]
 pub fn resource_files() -> &'static Files {
-    static FILES: std::sync::LazyLock<Files> =
-        std::sync::LazyLock::new(|| client_jar::resolve(&Progress::default(), is_resource, drop).0);
+    static FILES: std::sync::LazyLock<Files> = std::sync::LazyLock::new(|| {
+        client_jar::resolve(&Progress::default(), is_resource, drop)
+            .unwrap()
+            .0
+    });
     &FILES
 }
 
@@ -405,7 +415,8 @@ mod tests {
                 &Progress::default(),
                 |_| false,
                 |files| delivered = Some(files),
-            );
+            )
+            .unwrap();
 
             let (font, page) = font_page(delivered.expect("fonts are delivered")).unwrap();
 

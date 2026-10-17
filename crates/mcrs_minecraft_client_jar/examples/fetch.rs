@@ -1,8 +1,15 @@
-use mcrs_minecraft_client_jar::{Progress, resolve};
+use mcrs_minecraft_client_jar::{ClientJar, Progress, vanilla_data};
 
 fn main() {
-    let (_, remainder) = resolve(&Progress::default(), |_| false, drop);
-    if let Some(remainder) = remainder {
-        remainder.finish();
+    match vanilla_data(
+        &ClientJar::InstalledOrDownloaded,
+        None,
+        &Progress::default(),
+    ) {
+        Ok(dir) => println!("{}", dir.display()),
+        Err(error) => {
+            eprintln!("error: {error}");
+            std::process::exit(1);
+        }
     }
 }

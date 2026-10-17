@@ -6,8 +6,10 @@ use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registry::{Registered, RegistrySet};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
@@ -30,6 +32,17 @@ pub fn workspace_root() -> PathBuf {
 
 pub fn assets() -> PathBuf {
     workspace_root().join("assets")
+}
+
+pub fn pack_roots() -> PackRoots {
+    PackRoots {
+        assets: assets().to_string_lossy().into_owned(),
+        vanilla: vanilla_dir().to_owned(),
+    }
+}
+
+pub fn directory_packs() -> DirectoryPacks {
+    DirectoryPacks::new(assets(), vanilla_dir().to_owned())
 }
 
 #[derive(Deserialize)]
@@ -95,7 +108,7 @@ pub fn run_to_playing() -> App {
     app.add_plugins(StatesPlugin);
     mcrs_minecraft_assets::packs::register_pack_sources(
         &mut app,
-        "assets",
+        &pack_roots(),
         mcrs_minecraft_worldgen_builtin::asset,
     );
     app.add_plugins(AssetPlugin {
@@ -126,7 +139,7 @@ pub fn plugin_app() -> App {
     app.add_plugins(StatesPlugin);
     mcrs_minecraft_assets::packs::register_pack_sources(
         &mut app,
-        assets().to_str().unwrap(),
+        &pack_roots(),
         mcrs_minecraft_worldgen_builtin::asset,
     );
     app.add_plugins(AssetPlugin {
@@ -151,7 +164,7 @@ pub struct WithFiles {
 impl WithFiles {
     pub fn over_assets() -> Self {
         Self {
-            base: DirectoryPacks::new(assets()),
+            base: directory_packs(),
             files: BTreeMap::new(),
             hidden: Vec::new(),
         }

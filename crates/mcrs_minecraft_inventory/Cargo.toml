@@ -26,4 +26,5 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true

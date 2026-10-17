@@ -7,7 +7,7 @@ use super::*;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
-use mcrs_minecraft_worldgen_testing::assets_dir;
+use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::Dimension;
@@ -20,7 +20,7 @@ const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
 
 fn dimension_type(name: &str) -> (DimensionType, DimensionTypeEnvironment) {
-    let bytes = std::fs::read(assets_dir().join("minecraft/dimension_type").join(name)).unwrap();
+    let bytes = std::fs::read(vanilla_dir().join("dimension_type").join(name)).unwrap();
     mcrs_minecraft_worldgen_testing::dimension_type_set()
         .scope(|| serde_json::from_slice::<DimensionTypeFile>(&bytes))
         .unwrap()
@@ -36,7 +36,7 @@ fn clock_registry() -> Registry<WorldClock> {
 }
 
 fn timeline(name: &str) -> Timeline {
-    let bytes = std::fs::read(assets_dir().join("minecraft/timeline").join(name)).unwrap();
+    let bytes = std::fs::read(vanilla_dir().join("timeline").join(name)).unwrap();
     CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
 }
 
@@ -44,8 +44,8 @@ fn timeline(name: &str) -> Timeline {
 /// through `#` references, in the order the tag file lists them.
 fn tagged_timelines(tag: &str) -> Vec<Timeline> {
     fn collect(tag: &str, out: &mut Vec<String>) {
-        let path = assets_dir()
-            .join("minecraft/tags/timeline")
+        let path = vanilla_dir()
+            .join("tags/timeline")
             .join(format!("{}.json", tag.trim_start_matches("minecraft:")));
         let file: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -539,7 +539,7 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
 #[test]
 fn a_dimension_type_outside_the_games_bounds_fails() {
     let overworld: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(assets_dir().join("minecraft/dimension_type/overworld.json")).unwrap(),
+        &std::fs::read(vanilla_dir().join("dimension_type/overworld.json")).unwrap(),
     )
     .unwrap();
     let with = |changes: serde_json::Value| {

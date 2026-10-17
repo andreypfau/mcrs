@@ -860,7 +860,8 @@ mod tests {
     fn corpus() -> Vec<(String, Vec<u8>)> {
         let progress = mcrs_minecraft_client_jar::Progress::default();
         let (files, _) =
-            mcrs_minecraft_client_jar::resolve(&progress, |name| item_stem(name).is_some(), drop);
+            mcrs_minecraft_client_jar::resolve(&progress, |name| item_stem(name).is_some(), drop)
+                .unwrap();
         let mut files: Vec<(String, Vec<u8>)> = files
             .into_iter()
             .map(|(name, bytes)| (format!("minecraft:{}", item_stem(&name).unwrap()), bytes))

@@ -1,9 +1,9 @@
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
-use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files, reencode};
+use mcrs_minecraft_worldgen_testing::{corpus_set, json_files, reencode, vanilla_dir};
 
 #[test]
 fn corpus_round_trips() {
-    let files = json_files(&assets_dir().join("minecraft/block_transformer"));
+    let files = json_files(&vanilla_dir().join("block_transformer"));
     corpus_set().scope(|| {
         for path in &files {
             let bytes = std::fs::read(path).unwrap();

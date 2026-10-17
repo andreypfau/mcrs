@@ -260,7 +260,7 @@ fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
 }
 
 /// The features the dump is compared for; the rest of the dump is skipped. A
-/// feature this test runs is read straight from `assets/minecraft/worldgen/feature`.
+/// feature this test runs is read straight from the game's `worldgen/feature` files.
 const COVERED: [&str; 20] = [
     "minecraft:oak",
     "minecraft:oak_bees_002",

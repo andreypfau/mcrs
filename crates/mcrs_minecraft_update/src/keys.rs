@@ -641,7 +641,6 @@ fn catalog_manifest(owning: &[&str]) -> String {
 mod tests {
     use std::collections::BTreeSet;
     use std::fs;
-    use std::path::Path;
 
     use serde_json::{Map, Value, json};
 
@@ -1259,7 +1258,7 @@ mod tests {
         use mcrs_minecraft_block::keys::{BLOCK, block_tags};
         use mcrs_minecraft_item::keys::{ITEM, item_tags};
 
-        let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let vanilla = mcrs_minecraft_fixtures::vanilla_dir();
         let rows = [
             (
                 tag_file(BLOCK, block_tags::MINEABLE_PICKAXE),
@@ -1280,7 +1279,7 @@ mod tests {
         ];
         for (asset_path, expected) in rows {
             assert_eq!(asset_path, expected);
-            let file = corpus.join("minecraft").join(
+            let file = vanilla.join(
                 asset_path
                     .strip_prefix("minecraft/")
                     .expect("a tag of the minecraft namespace"),

@@ -4,7 +4,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::VANILLA_PACK;
+use mcrs_minecraft_assets::packs::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -63,7 +63,6 @@ fn assets_with_pack(pack: &str, files: &[(&str, &str)]) -> RemovedOnDrop {
     let _ = std::fs::remove_dir_all(&root.0);
     let packs = root.0.join("mcrs/datapacks");
     std::fs::create_dir_all(&packs).unwrap();
-    std::os::unix::fs::symlink(assets.join("minecraft"), root.0.join("minecraft")).unwrap();
     for entry in std::fs::read_dir(assets.join("mcrs")).unwrap() {
         let entry = entry.unwrap();
         if entry.file_name() != "datapacks" {
@@ -140,14 +139,17 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
 
 pub(crate) struct ShippedPack {
     pub(crate) id: String,
-    pub(crate) namespaces: Vec<PathBuf>,
+    pub(crate) namespaces: Vec<(String, PathBuf)>,
 }
 
 pub(crate) fn shipped_packs() -> Vec<ShippedPack> {
     let assets = Path::new(ASSETS);
     let mut packs = vec![ShippedPack {
         id: VANILLA_PACK.to_owned(),
-        namespaces: vec![assets.join("minecraft")],
+        namespaces: vec![(
+            VANILLA_ROOT.to_owned(),
+            mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+        )],
     }];
     let mut local: Vec<_> = std::fs::read_dir(assets.join("mcrs/datapacks"))
         .unwrap()
@@ -159,6 +161,7 @@ pub(crate) fn shipped_packs() -> Vec<ShippedPack> {
             .unwrap()
             .map(|entry| entry.unwrap().path())
             .filter(|path| path.is_dir())
+            .map(|path| (path.file_name().unwrap().to_str().unwrap().to_owned(), path))
             .collect();
         namespaces.sort();
         packs.push(ShippedPack {
@@ -202,10 +205,9 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
         }
     }
     for pack in shipped_packs() {
-        for namespace in &pack.namespaces {
-            for file in json_files(&namespace.join(directory)) {
-                let namespace = namespace.file_name().unwrap().to_str().unwrap().to_owned();
-                entries.insert((file, namespace), pack.id.clone());
+        for (namespace, root) in &pack.namespaces {
+            for file in json_files(&root.join(directory)) {
+                entries.insert((file, namespace.clone()), pack.id.clone());
             }
         }
     }

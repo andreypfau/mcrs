@@ -10,7 +10,7 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registry_load::test_registries;
 
-use crate::common::{tag_members, workspace_root};
+use crate::common::tag_members;
 
 pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     let tags = app
@@ -56,7 +56,7 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
 
     let resolved = tags.table().len();
     println!("block tags resolved: {resolved}");
-    let shipped = count_json(&workspace_root().join("assets/minecraft/tags/block"));
+    let shipped = count_json(&mcrs_minecraft_fixtures::vanilla_dir().join("tags/block"));
     assert!(
         resolved >= shipped,
         "the loader must pick up every shipped block tag: {resolved} < {shipped}"

@@ -1,5 +1,6 @@
 use crate::support;
 
+use mcrs_minecraft_assets::packs::VANILLA_ROOT;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 
 fn corpus() -> &'static BlockDefinitions {
@@ -55,20 +56,15 @@ mod exhaustive {
     #[test]
     fn every_interned_table_names_an_asset_that_exists() {
         let blocks = corpus();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets");
+        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
         let mut missing = Vec::new();
         for index in 0..blocks.loot_table_count() {
             let table = blocks.loot_table(mcrs_minecraft_block::definition::LootId(index as u16));
-            let path = root.join(format!(
-                "{}/loot_table/{}.json",
-                table.namespace(),
-                table.path()
-            ));
+            let root = match table.namespace() {
+                VANILLA_ROOT => mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+                namespace => assets.join(namespace),
+            };
+            let path = root.join(format!("loot_table/{}.json", table.path()));
             if !path.exists() {
                 missing.push(table.as_str().to_owned());
             }

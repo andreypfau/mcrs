@@ -11,11 +11,9 @@ use mcrs_minecraft_world::packs::DATAPACK_REPORT;
 use mcrs_minecraft_world::registries::{
     registries_as_sent, static_registries, tags_as_sent, world_registries,
 };
-use mcrs_minecraft_world::registry_load::{
-    DirectoryPacks, load_vanilla_registries, test_registries,
-};
+use mcrs_minecraft_world::registry_load::{load_vanilla_registries, test_registries};
 
-use crate::common::assets;
+use crate::common::{assets, directory_packs};
 
 const BIOME: &str = "minecraft:worldgen/biome";
 const DIMENSION_TYPE: &str = "minecraft:dimension_type";
@@ -26,8 +24,8 @@ fn declarations() -> WorldRegistries {
 }
 
 static KNOWN: LazyLock<KnownPackEntries> = LazyLock::new(|| {
-    let vanilla = load_vanilla_registries(&DirectoryPacks::new(assets()))
-        .unwrap_or_else(|error| panic!("{error}"));
+    let vanilla =
+        load_vanilla_registries(&directory_packs()).unwrap_or_else(|error| panic!("{error}"));
     KnownPackEntries::from_set(&vanilla.set)
 });
 

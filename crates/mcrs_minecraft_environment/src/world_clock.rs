@@ -515,8 +515,8 @@ mod tests {
     const DAY_TIMELINE: &str = "day.json";
 
     fn shipped_timeline(name: &str) -> Timeline {
-        let bytes = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../assets/minecraft/timeline")
+        let bytes = mcrs_minecraft_worldgen_testing::vanilla_dir()
+            .join("timeline")
             .join(name);
         TEST_CLOCKS.scope(|| serde_json::from_slice(&std::fs::read(bytes).unwrap()).unwrap())
     }

@@ -140,7 +140,7 @@ experiments in this document has been run.
 - `assets/minecraft/version.json`: the version identity above.
 - `assets/mcrs/reports/registries.json`: block and fluid registry entries and ids; the `minecraft:game_rule` registry. Generated at 26.4-snapshot-2; its `minecraft:fluid` entries are superseded by 0.1, and block ids shift with the blocks added in 26.4-snapshot-3 and -4. The game rules cited here are unchanged.
 - `assets/mcrs/reports/packets.json`: packet ids (`minecraft:block_event` = 7, `minecraft:block_update` = 8, `minecraft:level_chunk_with_light` = 46, `minecraft:section_blocks_update` = 86 in the play clientbound table). Generated at 26.4-snapshot-2; the play packet tables did not change up to 26.4-snapshot-4, so these ids still hold (`source_suggested` until the report is regenerated).
-- `assets/minecraft/datapacks/redstone_experiments/pack.mcmeta`: the feature pack that enables `minecraft:redstone_experiments`.
+- `data/minecraft/datapacks/redstone_experiments/pack.mcmeta` of the client jar: the feature pack that enables `minecraft:redstone_experiments`.
 
 ### 0.6 Rule groups
 
@@ -1006,7 +1006,7 @@ Provenance: `source_suggested`. Confidence: high.
 
 - **Inputs:** neighbour updates in a dimension whose enabled features include `minecraft:redstone_experiments`.
 - **Relevant state:** the level random (SIM-RNG-001).
-- **Preconditions:** the feature is enabled (`assets/minecraft/datapacks/redstone_experiments/pack.mcmeta`).
+- **Preconditions:** the feature is enabled (`data/minecraft/datapacks/redstone_experiments/pack.mcmeta` of the client jar).
 - **Behavior:** without the feature, every neighbour update carries no orientation. With it:
   - An orientation is a triple (up, front, side bias ∈ {left, right}) with up and front on different axes: 6 × 4 × 2 = 48 orientations, indexed `((up_ordinal << 2) + front_key) << 1 | side_bias_ordinal`, where direction ordinals are `D=0, U=1, N=2, S=3, W=4, E=5`, `front_key = (front_axis_key << 1) | front_axis_direction` (axis direction positive = 0, negative = 1), and `front_axis_key` is 1 when (up is vertical and front is on X) or (up is horizontal and front is vertical), else 0.
   - A *fresh orientation* is one of the 48 drawn uniformly from the level random, with its side bias then forced to left.

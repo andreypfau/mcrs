@@ -5,11 +5,11 @@ use mcrs_minecraft_item::TrimPattern;
 use mcrs_minecraft_item::keys::TRIM_PATTERN;
 use mcrs_minecraft_item::recipe::Recipe;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
-use mcrs_minecraft_worldgen_testing::{assets_dir, json_files, reencode, tagged_report};
+use mcrs_minecraft_worldgen_testing::{json_files, reencode, tagged_report, vanilla_dir};
 
 fn recipe_set() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let base = assets_dir().join("minecraft/trim_pattern");
+        let base = vanilla_dir().join("trim_pattern");
         let names = json_files(&base).into_iter().map(|path| {
             let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap();
             ResourceLocation::minecraft(name).unwrap()
@@ -24,7 +24,7 @@ fn recipe_set() -> &'static RegistrySet {
 
 #[test]
 fn every_shipped_recipe_round_trips() {
-    let files = json_files(&assets_dir().join("minecraft/recipe"));
+    let files = json_files(&vanilla_dir().join("recipe"));
     recipe_set().scope(|| {
         for path in &files {
             let bytes = std::fs::read(path).unwrap();

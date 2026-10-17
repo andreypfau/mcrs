@@ -16,29 +16,15 @@ pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
 }
 
-// File listings baked from `assets/` at build time. Used as the fallback
-// manifest when the active `AssetSource` cannot enumerate directories
-// (HTTP/WASM, embedded packs without an index, etc.).
-pub(crate) mod registry_files {
-    include!(concat!(env!("OUT_DIR"), "/registry_files.rs"));
-}
+const TEMPLATE_FOLDER: &str = "minecraft/structure";
 
-/// Resolve the set of `<folder>/<file>.<extension>` paths that should be loaded
-/// for a registry folder.
-///
-/// First tries `AssetReader::read_directory` on the default `AssetSource` —
-/// this picks up files that the active source can enumerate, including
-/// future resource packs mounted as file-system folders or ZIPs.
-/// Falls back to the build-time manifest baked from the vanilla `assets/`
-/// tree for sources that cannot list directories (HTTP/WASM). Either listing
-/// names files only, so the templates the code builds are added to it.
-fn list_registry_files(
-    asset_server: &AssetServer,
-    folder: &str,
-    extension: &str,
-    fallback: &'static [&'static str],
-) -> Vec<String> {
-    let dynamic: Vec<String> = match asset_server.get_source(AssetSourceId::Default) {
+/// The `<folder>/<file>.<extension>` paths the default `AssetSource` lists for a folder, with the
+/// templates the code builds added, since a listing names files only.
+// chisle: a source that cannot list directories yields only the built-in templates here, so
+// a template neither built nor named by a loaded value is not requested; listing the files
+// through the pack stack the registry loader read lifts this.
+fn list_registry_files(asset_server: &AssetServer, folder: &str, extension: &str) -> Vec<String> {
+    let mut files: BTreeSet<String> = match asset_server.get_source(AssetSourceId::Default) {
         Ok(source) => {
             let reader = source.reader();
             bevy_tasks::block_on(walk_files(reader, std::path::PathBuf::from(folder)))
@@ -49,14 +35,8 @@ fn list_registry_files(
         }
         Err(err) => {
             tracing::warn!(folder, %err, "default AssetSource missing");
-            Vec::new()
+            BTreeSet::new()
         }
-    };
-
-    let mut files: std::collections::BTreeSet<String> = if dynamic.is_empty() {
-        fallback.iter().map(|s| (*s).to_owned()).collect()
-    } else {
-        dynamic.into_iter().collect()
     };
     files.extend(mcrs_minecraft_worldgen_builtin::template_paths(folder));
     files.into_iter().collect()
@@ -67,8 +47,7 @@ fn request_templates(
     set: &RegistrySet,
     loaded: &mut LoadedRegistryAssets,
 ) {
-    use registry_files::{FILES_TEMPLATE, FOLDER_TEMPLATE};
-    let listed = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
+    let listed = list_registry_files(asset_server, TEMPLATE_FOLDER, "nbt");
     let named = named_templates(set).unwrap_or_else(|error| {
         panic!("the loaded registries cannot list their templates: {error}")
     });
@@ -85,7 +64,7 @@ fn request_templates(
         );
     }
     tracing::info!(
-        folder = FOLDER_TEMPLATE,
+        folder = TEMPLATE_FOLDER,
         count,
         "requested structure templates"
     );
@@ -259,7 +238,7 @@ mod tests {
         let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
         let metadata = std::fs::read(assets.join("mcrs/datapacks/beta/pack.mcmeta")).unwrap();
         let source = WithExtraPack {
-            base: DirectoryPacks::new(assets),
+            base: DirectoryPacks::new(assets, mcrs_minecraft_fixtures::vanilla_dir().to_owned()),
             files: vec![
                 ("mcrs/datapacks/extra/pack.mcmeta".to_owned(), metadata),
                 (

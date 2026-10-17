@@ -6,7 +6,9 @@ use mcrs_minecraft_registries::{
     AvailablePack, Diagnostic, Features, KnownPack, Level, PackSelection, pack_stack,
 };
 
-use crate::support::{META, assets, rl};
+use mcrs_minecraft_fixtures::vanilla_dir;
+
+use crate::support::{META, rl};
 
 fn features(world: Option<&[&str]>) -> Features {
     Features {
@@ -187,7 +189,7 @@ fn world_features_gate_which_packs_join_the_stack() {
 
 #[test]
 fn feature_packs_join_only_for_a_world_feature_no_pack_provides() {
-    let trade = fs::read(assets().join("minecraft/datapacks/trade_rebalance/pack.mcmeta")).unwrap();
+    let trade = fs::read(vanilla_dir().join("datapacks/trade_rebalance/pack.mcmeta")).unwrap();
     assert_stacks(vec![
         Case {
             name: "a world feature no selected pack provides appends its feature pack",
@@ -452,7 +454,7 @@ fn pack_format_range_decides_compatibility_warning() {
 
 #[test]
 fn known_packs_are_offered_in_stack_order_for_built_in_packs_only() {
-    let trade = fs::read(assets().join("minecraft/datapacks/trade_rebalance/pack.mcmeta")).unwrap();
+    let trade = fs::read(vanilla_dir().join("datapacks/trade_rebalance/pack.mcmeta")).unwrap();
     let (stack, _) = pack_stack(
         &selection(&["vanilla", "file/x", "trade_rebalance"], &[]),
         &[

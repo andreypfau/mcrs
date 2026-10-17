@@ -3,7 +3,6 @@
 //! querying ServerSideConnection.
 
 use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
@@ -34,10 +33,7 @@ fn build_host_app() -> App {
     app.add_plugins(TaskPoolPlugin {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
+    crate::host_app::add_assets(&mut app);
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);

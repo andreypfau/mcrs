@@ -6,8 +6,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/minecraft");
-
 #[derive(Default)]
 struct Family {
     files: usize,
@@ -18,7 +16,10 @@ struct Family {
 impl Family {
     fn check<T: Serialize + DeserializeOwned>(&mut self, file: &Path, at: &str, source: &Value) {
         self.values += 1;
-        let file = file.strip_prefix(ASSETS).unwrap_or(file).display();
+        let file = file
+            .strip_prefix(mcrs_minecraft_fixtures::vanilla_dir())
+            .unwrap_or(file)
+            .display();
         let value = match serde_json::from_str::<T>(&source.to_string()) {
             Ok(value) => value,
             Err(error) => return self.failures.push(format!("{file} {at}: {error}")),
@@ -72,7 +73,7 @@ fn json_files(dir: &Path) -> Vec<PathBuf> {
 fn run(name: &str, visit: impl Fn(&mut Family, &Path, &Value)) {
     let mut family = Family::default();
     in_data_pack(|| {
-        for file in json_files(&Path::new(ASSETS).join(name)) {
+        for file in json_files(&mcrs_minecraft_fixtures::vanilla_dir().join(name)) {
             let text = std::fs::read_to_string(&file).unwrap();
             let root: Value =
                 serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()));

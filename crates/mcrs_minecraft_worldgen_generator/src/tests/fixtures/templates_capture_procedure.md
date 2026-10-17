@@ -17,7 +17,7 @@ Output is deterministic: re-running produces a byte-identical file (4 619 646
 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/template_manifest.rs`,
-which freezes the shipped `assets/minecraft/structure` tree — the jar's own
+which freezes the client jar's `data/minecraft/structure` tree — the jar's own
 templates, every file at the `DataVersion` of the corpus version file — and
 asserts, for every one of the 1511 templates, the size, the palette count,
 the three section lengths of the block ordering, that every file palette entry

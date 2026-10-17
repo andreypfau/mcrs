@@ -36,7 +36,7 @@ pub fn insert_block_catalog(client: &mut App) {
 /// pack's entries included, as the client's registry plugin holds them.
 pub fn insert_session_inputs(client: &mut App) {
     client.insert_resource(mcrs_minecraft_client::registries::session_inputs(Some(
-        &mcrs_minecraft_client::asset_corpus(),
+        &mcrs_minecraft_world::registry_load::test_packs(),
     )));
 }
 

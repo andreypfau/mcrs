@@ -32,7 +32,7 @@ usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory
        mcrs_minecraft_update names
        mcrs_minecraft_update keys
 
-Replaces assets/minecraft from the client jar of the version, writes the client jar
+Writes assets/minecraft/version.json from the client jar of the version, writes the client jar
 descriptor, runs the data generator and dumps the block, item and game rule definitions, stops
 if the block definitions disagree with the blocks report of the generator, then replaces the
 reports in assets/mcrs/reports and assets/mcrs/block_definition, assets/mcrs/item_definition
@@ -46,7 +46,7 @@ is computed before the files it describes are replaced. Two runs against one wor
 the same time are not supported.
 
 recapture runs the oracle task of one fixture into a temporary directory, copies the files
-it wrote to their fixture directories and records the version id of assets/minecraft in
+it wrote to their fixture directories and records the version id of assets/minecraft/version.json in
 tools/captures.json. With --all it recaptures every fixture one after another, goes on after
 a failure and exits non-zero if any fixture failed. It never updates the corpus.
 
@@ -60,7 +60,7 @@ every crate that owns a registry type, crates/mcrs_minecraft_keys for the regist
 owns, and crates/mcrs_minecraft_registry_catalog. A source file there the generator no longer
 produces is deleted.";
 
-const CORPUS: &str = "assets/minecraft";
+const VERSION_FILE: &str = "assets/minecraft/version.json";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
@@ -157,7 +157,7 @@ fn names_report() -> Result<(), String> {
         sha1: descriptor.jar.sha1.to_owned(),
         size: descriptor.jar.size,
     };
-    let jar = release::jar(&official_dir(), descriptor.id, &download, get)?;
+    let jar = release::jar(&launcher_dir()?, descriptor.id, &download, get)?;
     write_names(&root, &jar, None)
 }
 
@@ -216,32 +216,18 @@ fn run(options: &Options) -> Result<(), String> {
     let package = get(&listing.url)?;
     release::check(&listing.url, &listing.sha1, None, &package)?;
     let download = release::client(&package)?;
-    let jar = release::jar(&official_dir(), &listing.id, &download, get)?;
+    let jar = release::jar(&launcher_dir()?, &listing.id, &download, get)?;
 
-    let (files, version) = corpus::from_jar(&jar)?;
-    let stored = root.join(REPORTS);
-    let names = corpus::stored_names(&stored.join("registries.json"), &stored.join(NAMES_FILE))?;
-    let (files, built_in, diverged) = corpus::without_built_in(files, &names)?;
+    let version = corpus::version_from_jar(&jar)?;
     release::check_version(&version, &listing.id)?;
     let descriptor = release::descriptor(&download, &jar, &listing, &package)?;
     let font_hint = release::font_hint(&jar)?;
 
-    let report = corpus::replace(&root.join(CORPUS), &files, &version)?;
+    if corpus::write_if_changed(&root, VERSION_FILE, &version)? {
+        println!("wrote {VERSION_FILE}");
+    }
     write(&root.join(DESCRIPTOR), &descriptor)?;
     write(&root.join(FONT_HINT), &font_hint)?;
-
-    for path in &report.deleted {
-        println!("deleted {path}");
-    }
-    for path in &diverged {
-        println!("differs from the built-in, kept as a file: {path}");
-    }
-    println!("{CORPUS}: {built_in} entries are built by code and ship no file");
-    println!(
-        "{CORPUS}: {} written, {} deleted",
-        report.written.len(),
-        report.deleted.len()
-    );
 
     let diff_out = options.diff_out.as_deref();
     with_gradle_output(&root, "dumpReports", "reportsOut", |generated| {
@@ -270,6 +256,10 @@ fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), S
     write(&stored.join(NAMES_FILE), &release::pretty(&new)?)?;
 
     write_keys(root, Some(&new))
+}
+
+fn launcher_dir() -> Result<PathBuf, String> {
+    official_dir().ok_or_else(|| "the system names no home for the launcher directory".to_owned())
 }
 
 fn workspace_root() -> PathBuf {
@@ -370,17 +360,13 @@ fn replace_definitions(root: &Path, dumped: &Path, diff_out: Option<&Path>) -> R
 }
 
 fn status(root: &Path) -> Result<String, String> {
+    let definitions = DEFINITIONS.map(|name| format!("{DEFINITIONS_ROOT}/{name}"));
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args([
-            "status",
-            "--porcelain",
-            "--",
-            "assets",
-            DESCRIPTOR,
-            FONT_HINT,
-        ])
+        .args(["status", "--porcelain", "--", VERSION_FILE, REPORTS])
+        .args(definitions)
+        .args([DESCRIPTOR, FONT_HINT])
         .output()
         .map_err(|error| format!("git: {error}"))?;
     if !output.status.success() {

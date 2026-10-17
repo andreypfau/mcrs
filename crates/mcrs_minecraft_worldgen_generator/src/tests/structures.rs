@@ -29,7 +29,7 @@ use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_structure::{MineshaftType, OceanTemperature};
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
-use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files};
+use mcrs_minecraft_worldgen_testing::{corpus_set, json_files, vanilla_dir};
 
 use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
 #[cfg(test)]
@@ -71,7 +71,7 @@ fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSele
         #[serde(default)]
         spawn_conditions: Vec<SpawnSelector>,
     }
-    let base = assets_dir().join("minecraft").join(registry);
+    let base = vanilla_dir().join(registry);
     json_files(&base)
         .into_iter()
         .map(|path| {

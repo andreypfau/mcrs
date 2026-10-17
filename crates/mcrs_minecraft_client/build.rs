@@ -6,6 +6,15 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+const WEB_ASSETS: [&str; 6] = [
+    "minecraft/version.json",
+    "mcrs/block_definition",
+    "mcrs/item_definition",
+    "mcrs/light_color",
+    "mcrs/item_light",
+    "mcrs/datapacks",
+];
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("web_assets.bin");
@@ -15,20 +24,21 @@ fn main() {
         return;
     }
 
-    // The browser has no asset folder, so the whole corpus travels inside the
-    // binary. Nothing is filtered: a registry added to `mcrs_minecraft_world`
-    // or a folder walked by `Pack::load` would otherwise be missing only in
-    // the browser, and the corpus deflates to a couple of megabytes.
+    // The browser has no asset folder, so what the client reads from one travels inside the
+    // binary. The game's data pack is not among it: a server sends the registries.
     let assets = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .ancestors()
         .nth(2)
         .expect("the crate sits two levels below the workspace root")
         .join("assets");
-    println!("cargo:rerun-if-changed={}", assets.display());
 
     let mut blob = Vec::new();
     let mut files = 0usize;
-    pack(&assets, &assets, &mut blob, &mut files);
+    for read in WEB_ASSETS {
+        let path = assets.join(read);
+        println!("cargo:rerun-if-changed={}", path.display());
+        pack(&assets, &path, &mut blob, &mut files);
+    }
 
     let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
     encoder.write_all(&blob).unwrap();

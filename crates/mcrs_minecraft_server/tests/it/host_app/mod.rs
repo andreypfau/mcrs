@@ -33,6 +33,25 @@ use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 /// read — without them the first `app.update()` after a spawn drain panics.
 /// The message set is the union required across the sub-app tests, so callers
 /// that need only a subset still get a valid host app.
+/// The asset plugin over the repository's assets and the game's data pack, with the pack
+/// sources a dimension's sub-app reads.
+pub fn add_assets(app: &mut App) {
+    let roots = mcrs_minecraft_assets::packs::PackRoots {
+        assets: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),
+        vanilla: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+    };
+    mcrs_minecraft_assets::packs::register_pack_sources(
+        app,
+        &roots,
+        mcrs_minecraft_worldgen_builtin::asset,
+    );
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        file_path: roots.assets,
+        ..Default::default()
+    });
+}
+
 pub fn make_host_app() -> App {
     let mut app = App::new();
     // ChunkPlugin's worldgen startup uses AssetServer::load, which spawns
@@ -40,10 +59,7 @@ pub fn make_host_app() -> App {
     app.add_plugins(TaskPoolPlugin {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
+    add_assets(&mut app);
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);

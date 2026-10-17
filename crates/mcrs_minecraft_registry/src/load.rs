@@ -23,6 +23,14 @@ pub struct SyncedNbt(pub NbtTag);
 
 pub const PACKS_ROOT: &str = "mcrs/datapacks";
 pub const VANILLA_PACK: &str = "vanilla";
+/// The vanilla pack's directory below a pack root. The game jar's `data/minecraft` tree fills
+/// it, never the assets root.
+pub const VANILLA_ROOT: &str = "minecraft";
+
+/// `path`, relative to a pack root, below the [`VANILLA_ROOT`] directory, if it lies there.
+pub fn below_vanilla_root(path: &std::path::Path) -> Option<&std::path::Path> {
+    path.strip_prefix(VANILLA_ROOT).ok()
+}
 
 struct Codec {
     value_type: TypeId,

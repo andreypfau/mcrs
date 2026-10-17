@@ -30,7 +30,9 @@ pub use holder::*;
 pub use holder_list::HolderList;
 pub use holder_set::{AlwaysList, HolderSet, skip_sets, skipping_sets};
 pub use id::{BlockStateId, Id, NarrowError};
-pub use load::{PACKS_ROOT, Parts, SyncedNbt, VANILLA_PACK, WorldRegistries};
+pub use load::{
+    PACKS_ROOT, Parts, SyncedNbt, VANILLA_PACK, VANILLA_ROOT, WorldRegistries, below_vanilla_root,
+};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;
 pub use network::{KnownPackEntries, NetworkEntry, NetworkRegistry, NetworkTags};

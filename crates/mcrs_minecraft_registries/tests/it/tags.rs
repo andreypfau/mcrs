@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
+use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Stage};
 use serde::Deserialize;
 
@@ -423,7 +424,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
 
     let mut packs = Packs::new();
     files_under(
-        &assets().join("minecraft/tags/block"),
+        &vanilla_dir().join("tags/block"),
         "data/minecraft/tags/block/",
         "vanilla",
         &mut packs,
@@ -456,19 +457,19 @@ fn shipped_block_tags_load_as_the_reported_set() {
 fn a_replacing_feature_pack_tag_holds_only_its_own_members() {
     let declarations: Vec<Declaration> =
         vec![Declaration::data::<VillagerTrade>(rl("villager_trade"), Stage::World).into()];
-    let trade = assets().join("minecraft/datapacks/trade_rebalance");
+    let trade = vanilla_dir().join("datapacks/trade_rebalance");
     let mut packs = Packs::new().feature(
         "trade_rebalance",
         fs::read(trade.join("pack.mcmeta")).unwrap(),
     );
     files_under(
-        &assets().join("minecraft/villager_trade"),
+        &vanilla_dir().join("villager_trade"),
         "data/minecraft/villager_trade/",
         "vanilla",
         &mut packs,
     );
     files_under(
-        &assets().join("minecraft/tags/villager_trade"),
+        &vanilla_dir().join("tags/villager_trade"),
         "data/minecraft/tags/villager_trade/",
         "vanilla",
         &mut packs,

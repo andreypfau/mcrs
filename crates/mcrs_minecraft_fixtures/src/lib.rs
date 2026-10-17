@@ -15,6 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use mcrs_minecraft_client_jar::{ClientJar, Progress, vanilla_data};
 use mcrs_minecraft_core::VERSION;
 use serde::Deserialize;
 
@@ -29,6 +30,20 @@ const HEADER_LEN: usize = 16;
 const DUMP_FORMAT: u32 = 1;
 
 type Manifest = BTreeMap<String, String>;
+
+/// The pinned client jar's `data/minecraft` tree and `version.json`, laid out as the
+/// `minecraft` directory of a data pack root. The jar must be installed; nothing is downloaded.
+pub fn vanilla_dir() -> &'static Path {
+    static DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+        vanilla_data(&ClientJar::Installed, None, &Progress::default()).unwrap_or_else(|error| {
+            panic!(
+                "the vanilla data pack is unavailable: {error}; \
+                 `cargo run -p mcrs_minecraft_client_jar --example fetch` installs it"
+            )
+        })
+    });
+    &DIR
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Files {

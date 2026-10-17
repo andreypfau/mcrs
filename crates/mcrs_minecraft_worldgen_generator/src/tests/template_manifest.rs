@@ -240,12 +240,7 @@ fn check_manifest(dump: &DumpManifest) {
 const CAT_BLACK: &str = "minecraft:village/common/animals/cat_black";
 
 fn is_built(id: &str) -> bool {
-    let id = ResourceLocation::read(id).unwrap();
-    !mcrs_minecraft_worldgen_testing::assets_dir()
-        .join(id.namespace())
-        .join("structure")
-        .join(format!("{}.nbt", id.path()))
-        .exists()
+    mcrs_minecraft_worldgen_testing::is_built_template(&ResourceLocation::read(id).unwrap())
 }
 
 #[test]

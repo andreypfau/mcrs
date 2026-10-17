@@ -10,8 +10,6 @@
     )
 )]
 
-use std::path::{Path, PathBuf};
-
 use bevy::app::PluginGroupBuilder;
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::prelude::*;
@@ -49,23 +47,17 @@ pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
 
-pub fn asset_corpus() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("the crate sits two levels below the workspace root")
-        .join("assets")
-}
-
-/// The default asset source over `root`: the packs under it layered over its files, with no
-/// built-in answer for a path none of them holds.
+/// The default asset source over `roots`: the packs under the assets root layered over its
+/// files and the game's data pack, with no built-in answer for a path none of them holds.
 #[cfg(not(target_family = "wasm"))]
-pub fn asset_source(root: &str) -> bevy::asset::io::AssetSourceBuilder {
-    use bevy::asset::io::{AssetSource, AssetSourceBuilder};
-    use mcrs_minecraft_assets::packs::PackLayers;
+pub fn asset_source(
+    roots: &mcrs_minecraft_assets::packs::PackRoots,
+) -> bevy::asset::io::AssetSourceBuilder {
+    use bevy::asset::io::AssetSourceBuilder;
+    use mcrs_minecraft_assets::packs::{PackLayers, pack_files_reader};
 
-    let mut files = AssetSource::get_default_reader(root.to_owned());
-    AssetSourceBuilder::platform_default(root, None)
+    let mut files = pack_files_reader(roots);
+    AssetSourceBuilder::platform_default(&roots.assets, None)
         .with_reader(move || Box::new(PackLayers::new(files())))
 }
 

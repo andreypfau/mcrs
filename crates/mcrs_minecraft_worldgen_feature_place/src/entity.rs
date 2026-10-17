@@ -647,7 +647,7 @@ mod tests {
     }
 
     fn tables() -> VariantTables {
-        let dir = mcrs_minecraft_worldgen_testing::assets_dir().join("minecraft/cat_variant");
+        let dir = mcrs_minecraft_worldgen_testing::vanilla_dir().join("cat_variant");
         let cats: Vec<(ResourceLocation, Vec<SpawnSelector>)> =
             mcrs_minecraft_worldgen_testing::json_files(&dir)
                 .into_iter()

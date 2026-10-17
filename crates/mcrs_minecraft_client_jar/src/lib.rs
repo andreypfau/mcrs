@@ -15,6 +15,8 @@ use std::sync::{LazyLock, Mutex};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 
+#[cfg(not(target_family = "wasm"))]
+mod data;
 mod fonts;
 #[cfg(not(target_family = "wasm"))]
 mod native;
@@ -22,6 +24,8 @@ mod schedule;
 #[cfg(target_family = "wasm")]
 mod web;
 
+#[cfg(not(target_family = "wasm"))]
+pub use data::{ClientJar, VanillaDataError, vanilla_data};
 pub use fonts::{FontHint, font_files};
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
@@ -208,19 +212,28 @@ impl Directory {
 
     /// The picked entries of `zip`, keyed by their full entry name and checked against their
     /// CRC-32. Folder entries are never returned.
-    pub fn read(&self, zip: &[u8], mut pick: impl FnMut(&str) -> bool) -> Result<Files, String> {
-        let mut files = Vec::new();
-        for entry in &self.entries {
-            if entry.name.ends_with('/') || !pick(&entry.name) {
-                continue;
-            }
-            let local = usize::try_from(entry.offset)
-                .ok()
-                .and_then(|offset| zip.get(offset..))
-                .ok_or_else(|| format!("{} lies past the end", entry.name))?;
-            files.push((entry.name.clone(), inflate(entry, local)?));
-        }
-        Ok(files)
+    pub fn read(&self, zip: &[u8], pick: impl FnMut(&str) -> bool) -> Result<Files, String> {
+        self.inflated(zip, pick)
+            .map(|file| file.map(|(name, bytes)| (name.to_owned(), bytes)))
+            .collect()
+    }
+
+    /// [`Directory::read`] one entry at a time, so a caller holds one inflated file at once.
+    pub fn inflated<'a>(
+        &'a self,
+        zip: &'a [u8],
+        mut pick: impl FnMut(&str) -> bool + 'a,
+    ) -> impl Iterator<Item = Result<(&'a str, Vec<u8>), String>> + 'a {
+        self.entries
+            .iter()
+            .filter(move |entry| !entry.name.ends_with('/') && pick(&entry.name))
+            .map(move |entry| {
+                let local = usize::try_from(entry.offset)
+                    .ok()
+                    .and_then(|offset| zip.get(offset..))
+                    .ok_or_else(|| format!("{} lies past the end", entry.name))?;
+                Ok((entry.name.as_str(), inflate(entry, local)?))
+            })
     }
 
     /// The picked `assets/` files, keyed by their path below `assets/` and checked against

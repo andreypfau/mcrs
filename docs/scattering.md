@@ -19,7 +19,7 @@ One correction to the brief this document was written against: the version named
 `configured_feature` registry. A `Feature` carries its own configuration
 (`Feature`), a `PlacedFeature` refers to
 it directly (`PlacedFeature.DIRECT_CODEC`), and the corpus folder is
-`assets/minecraft/worldgen/feature/` (235 files) beside
+`data/minecraft/worldgen/feature/` of the client jar (235 files) beside
 `worldgen/placed_feature/` (273 files). This document uses the names of that version.
 
 ---
@@ -155,7 +155,7 @@ carving**, and one that names a final map reads it **after carving and after
 the column's own earlier objects**. `heightmap.md`'s appendix calls the pairs a
 split by lifetime with identical predicates; the predicates are identical, the
 contents are not, and 27 shipped placements read the pre-carve pair
-(`grep -l _WG assets/minecraft/worldgen/placed_feature/*.json`: the grass
+(`grep -l _WG worldgen/placed_feature/*.json` in the unpacked data pack: the grass
 patches, the disks, both lava lakes, glow lichen, bamboo). `heightmap.md` §4
 now states the two generations; Wn3 below carries the maps.
 
@@ -680,7 +680,7 @@ its own bounding box during the leaf-distance pass
 
 **`would_survive` is four rules over tags.** The corpus tests thirteen states
 through it; at the targeted version each one's `canSurvive` is a tag test plus a shape, and the
-tags are in the corpus (`assets/minecraft/tags/block/supports_*.json`):
+tags are in the data pack (`data/minecraft/tags/block/supports_*.json`):
 
 | States | Rule | Reference |
 | --- | --- | --- |

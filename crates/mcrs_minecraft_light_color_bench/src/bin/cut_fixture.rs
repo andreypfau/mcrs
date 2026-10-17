@@ -9,7 +9,7 @@ use mcrs_minecraft_light_color_bench::corpus::Corpus;
 use mcrs_minecraft_light_color_bench::fixture::{
     Fixture, FixtureSection, SECTIONS, SIDE, relaxed_block_light,
 };
-use mcrs_minecraft_worldgen_testing::assets_dir;
+use mcrs_minecraft_worldgen_testing::corpus_path;
 use serde::Deserialize;
 
 const USAGE: &str = "\
@@ -248,10 +248,7 @@ struct Extent {
 impl Extent {
     fn of(dimension: &str) -> Extent {
         let (namespace, path) = dimension.split_once(':').unwrap_or_else(|| usage());
-        let file = assets_dir()
-            .join(namespace)
-            .join("dimension_type")
-            .join(format!("{path}.json"));
+        let file = corpus_path(&format!("{namespace}/dimension_type/{path}.json"));
         let text =
             std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
         serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()))

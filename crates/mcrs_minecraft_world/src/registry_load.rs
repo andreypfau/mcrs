@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::PathBuf;
-use std::sync::{Arc, LazyLock};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{
@@ -9,7 +9,8 @@ use mcrs_minecraft_registries::{
     PackStack, Registries, StackedPack, Stage, load_with, pack_stack,
 };
 use mcrs_minecraft_registry::{
-    AssemblyError, LoadReport, PACKS_ROOT, RegistrySet, WorldRegistries,
+    AssemblyError, LoadReport, PACKS_ROOT, RegistrySet, VANILLA_ROOT, WorldRegistries,
+    below_vanilla_root,
 };
 
 use crate::declarations::{self, Plan, StageSet};
@@ -17,7 +18,6 @@ use crate::packs::DATAPACK_REPORT;
 use crate::registries::{reloadable_registries, static_registries, world_registries};
 
 const FEATURE_PACKS: &str = "minecraft/datapacks";
-const VANILLA_NAMESPACE: &str = "minecraft";
 const METADATA: &str = "pack.mcmeta";
 const VANILLA_FEATURE: &str = "minecraft:vanilla";
 const STANDARD_DATA: &str = "data";
@@ -33,23 +33,33 @@ pub trait PackSource {
     fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String>;
 }
 
+/// The packs under `assets`, with the vanilla pack's directory read from `vanilla`, which holds
+/// the game jar's `data/minecraft` tree.
 pub struct DirectoryPacks {
-    root: PathBuf,
+    assets: PathBuf,
+    vanilla: PathBuf,
 }
 
 impl DirectoryPacks {
-    pub fn new(root: PathBuf) -> Self {
-        Self { root }
+    pub fn new(assets: PathBuf, vanilla: PathBuf) -> Self {
+        Self { assets, vanilla }
+    }
+
+    fn path(&self, path: &str) -> PathBuf {
+        match below_vanilla_root(Path::new(path)) {
+            Some(below) => self.vanilla.join(below),
+            None => self.assets.join(path),
+        }
     }
 }
 
 impl PackSource for DirectoryPacks {
     fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        std::fs::read(self.root.join(path)).map_err(|error| format!("{path}: {error}"))
+        std::fs::read(self.path(path)).map_err(|error| format!("{path}: {error}"))
     }
 
     fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String> {
-        let entries = match std::fs::read_dir(self.root.join(directory)) {
+        let entries = match std::fs::read_dir(self.path(directory)) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) => return Err(format!("{directory}: {error}")),
@@ -340,7 +350,7 @@ fn pack_files(
                     &mut files,
                     pack.id(),
                     ("", STANDARD_DATA),
-                    VANILLA_NAMESPACE,
+                    VANILLA_ROOT,
                 )?;
             }
             Some(PackRoot::Local(root)) => local_into(source, &mut files, pack, root)?,
@@ -466,18 +476,25 @@ fn assemble(
     world_tables.sync(set).map_err(RegistryLoadError::Report)
 }
 
-static TEST_REGISTRIES: LazyLock<LoadedRegistries> = LazyLock::new(|| {
+/// The repository's assets over the pinned client jar's data pack, which must be installed.
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn test_packs() -> DirectoryPacks {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    load_registries(&DirectoryPacks::new(assets)).unwrap_or_else(|error| {
-        eprintln!("the registries are unusable:\n{error}");
-        std::process::exit(1)
-    })
+    DirectoryPacks::new(assets, mcrs_minecraft_fixtures::vanilla_dir().to_owned())
+}
+
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+static TEST_REGISTRIES: std::sync::LazyLock<LoadedRegistries> = std::sync::LazyLock::new(|| {
+    load_registries(&test_packs())
+        .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });
 
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_registries() -> &'static RegistrySet {
     &TEST_REGISTRIES.set
 }
 
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_known_packs() -> &'static KnownPacks {
     &TEST_REGISTRIES.known_packs
 }

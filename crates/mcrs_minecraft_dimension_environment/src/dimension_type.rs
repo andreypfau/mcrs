@@ -176,14 +176,17 @@ impl DimensionTypeFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, dimension_type_set, packs};
+    use mcrs_minecraft_worldgen_testing::{dimension_type_set, packs, vanilla_dir};
     use serde_json::Value;
     use std::path::PathBuf;
 
     fn dimension_type_dirs() -> Vec<PathBuf> {
-        std::iter::once(assets_dir())
-            .chain(packs())
-            .map(|root| root.join("minecraft/dimension_type"))
+        std::iter::once(vanilla_dir().join("dimension_type"))
+            .chain(
+                packs()
+                    .into_iter()
+                    .map(|root| root.join("minecraft/dimension_type")),
+            )
             .filter(|dir| dir.is_dir())
             .collect()
     }

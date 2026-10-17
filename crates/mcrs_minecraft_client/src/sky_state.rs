@@ -307,8 +307,7 @@ mod tests {
 
     fn dimension_type(name: &str) -> Dimension {
         let bytes = std::fs::read(
-            crate::asset_corpus()
-                .join("minecraft")
+            mcrs_minecraft_fixtures::vanilla_dir()
                 .join("dimension_type")
                 .join(name),
         )
@@ -323,8 +322,7 @@ mod tests {
 
     fn timeline(name: &str) -> Timeline {
         let bytes = std::fs::read(
-            crate::asset_corpus()
-                .join("minecraft")
+            mcrs_minecraft_fixtures::vanilla_dir()
                 .join("timeline")
                 .join(name),
         )
@@ -336,8 +334,7 @@ mod tests {
     /// through `#` references, in the order the tag file lists them.
     fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         fn collect(tag: &str, out: &mut Vec<String>) {
-            let path = crate::asset_corpus()
-                .join("minecraft")
+            let path = mcrs_minecraft_fixtures::vanilla_dir()
                 .join("tags/timeline")
                 .join(format!("{}.json", tag.trim_start_matches("minecraft:")));
             let file: serde_json::Value =

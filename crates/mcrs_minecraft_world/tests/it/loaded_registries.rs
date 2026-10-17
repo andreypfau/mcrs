@@ -35,7 +35,7 @@ use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::villager_trade::VillagerTrade;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
-use mcrs_minecraft_worldgen_testing::packs;
+use mcrs_minecraft_worldgen_testing::{corpus_path, packs, vanilla_dir};
 use std::sync::LazyLock;
 
 use crate::common::{
@@ -148,13 +148,11 @@ fn the_declared_registries_are_the_reports_world_registries() {
                 "{registry} is stable"
             );
         }
-        let directory = assets()
-            .join("minecraft")
-            .join(registry.trim_start_matches("minecraft:"));
+        let directory = vanilla_dir().join(registry.trim_start_matches("minecraft:"));
         if directory.is_dir() {
             assert!(
                 world.contains(registry) || flags.stable,
-                "{registry} has files under assets/minecraft and is neither declared nor stable"
+                "{registry} has files in the vanilla data pack and is neither declared nor stable"
             );
         }
     }
@@ -222,9 +220,13 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     let names: BTreeSet<String> = biomes.names().iter().map(|name| name.to_string()).collect();
     let built = mcrs_minecraft_worldgen_builtin::biomes(set).expect("the built biomes resolve");
     assert!(!built.is_empty());
-    let files: Vec<String> = std::iter::once(assets())
-        .chain(packs())
-        .filter_map(|root| std::fs::read_dir(root.join("minecraft/worldgen/biome")).ok())
+    let files: Vec<String> = std::iter::once(vanilla_dir().join("worldgen/biome"))
+        .chain(
+            packs()
+                .into_iter()
+                .map(|root| root.join("minecraft/worldgen/biome")),
+        )
+        .filter_map(|directory| std::fs::read_dir(directory).ok())
         .flatten()
         .filter_map(|entry| {
             let name = entry.unwrap().file_name().into_string().unwrap();
@@ -679,15 +681,14 @@ fn shipped_file(
     path: &str,
 ) -> std::path::PathBuf {
     let root = if pack == VANILLA_PACK {
-        assets()
+        corpus_path(namespace)
     } else {
         assets()
             .join(PACKS_ROOT)
             .join(pack.trim_start_matches("file/"))
+            .join(namespace)
     };
-    root.join(namespace)
-        .join(registry_path)
-        .join(format!("{path}.json"))
+    root.join(registry_path).join(format!("{path}.json"))
 }
 
 fn read_back<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> serde_json::Value {
@@ -716,14 +717,11 @@ fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(Strin
                 .encode(set, registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
                 .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
-            let Ok(text) = shipped else {
-                let built_typed = BUILT_WORLDGEN.contains(&registry.as_str());
-                assert!(
-                    (pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome")
-                        || (built_typed && (pack == VANILLA_PACK || pack == "file/beta")),
-                    "{registry}/{name}: {} is not a file and the entry is not a built one",
-                    file.display()
-                );
+            let built_typed = BUILT_WORLDGEN.contains(&registry.as_str())
+                && (pack == VANILLA_PACK || pack == "file/beta");
+            let built_biome =
+                pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome";
+            if built_typed || built_biome {
                 if built_typed {
                     let read = set.scope(|| match registry.as_str() {
                         "minecraft:worldgen/noise" => read_back::<NoiseParam>(&encoded),
@@ -750,7 +748,13 @@ fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(Strin
                 ));
                 assert!(read == stored, "{registry}/{name} reads back changed");
                 continue;
-            };
+            }
+            let text = shipped.unwrap_or_else(|_| {
+                panic!(
+                    "{registry}/{name}: {} is not a file and the entry is not a built one",
+                    file.display()
+                )
+            });
             let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
             let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
             assert_eq!(
@@ -824,8 +828,8 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
     let mut checked = 0;
     for (name, archetype) in names.names().iter().zip(archetypes) {
         let file = json_at(
-            &assets()
-                .join("minecraft/sulfur_cube_archetype")
+            &vanilla_dir()
+                .join("sulfur_cube_archetype")
                 .join(format!("{}.json", name.path())),
         );
         let Some(tag) = file["items"]
@@ -835,12 +839,11 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
             continue;
         };
         let tag = ResourceLocation::read(tag).unwrap();
-        let listed = json_at(
-            &assets()
-                .join(tag.namespace())
-                .join("tags/item")
-                .join(format!("{}.json", tag.path())),
-        );
+        let listed = json_at(&corpus_path(&format!(
+            "{}/tags/item/{}.json",
+            tag.namespace(),
+            tag.path()
+        )));
         let listed: Vec<&str> = listed["values"]
             .as_array()
             .unwrap()
@@ -2184,7 +2187,7 @@ fn layered_asset_app() -> App {
     app.register_asset_source(
         AssetSourceId::Default,
         layered_file_source(
-            &AssetPlugin::default().file_path,
+            &crate::common::pack_roots(),
             mcrs_minecraft_worldgen_builtin::asset,
         ),
     );
@@ -2341,7 +2344,7 @@ fn trial_spawners_have_names_and_no_values() {
     }
 
     let mut shipped = BTreeSet::new();
-    json_names(&assets().join("minecraft/trial_spawner"), "", &mut shipped);
+    json_names(&vanilla_dir().join("trial_spawner"), "", &mut shipped);
     let table = test_registries()
         .table("minecraft:trial_spawner")
         .expect("trial spawner table");
@@ -2418,7 +2421,7 @@ fn overworld_dimension_type_with(
     changes: &[(&str, Option<&str>)],
 ) -> Result<DimensionTypeFile, String> {
     let mut file: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(assets().join("minecraft/dimension_type/overworld.json")).unwrap(),
+        &std::fs::read(vanilla_dir().join("dimension_type/overworld.json")).unwrap(),
     )
     .unwrap();
     for (field, value) in changes {
@@ -2646,7 +2649,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
     );
 
     let shipped: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(assets().join("minecraft/worldgen/world_preset/normal.json")).unwrap(),
+        &std::fs::read(vanilla_dir().join("worldgen/world_preset/normal.json")).unwrap(),
     )
     .unwrap();
     let listing = |order: [&str; 3]| {
@@ -2677,7 +2680,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
 #[test]
 fn an_inline_dimension_type_is_refused() {
     let inline: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(assets().join("minecraft/dimension_type/overworld.json")).unwrap(),
+        &std::fs::read(vanilla_dir().join("dimension_type/overworld.json")).unwrap(),
     )
     .unwrap();
     let text = format!(

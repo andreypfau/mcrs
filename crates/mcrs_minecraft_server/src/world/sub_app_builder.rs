@@ -166,7 +166,7 @@ pub fn spawn_dim_subapp(
     app: &mut App,
     request: &DimSpawnRequest,
     registries: &DimRegistryBundle,
-) -> Result<Entity, UnknownDimensionType> {
+) -> Result<Entity, DimSpawnError> {
     let unknown = || UnknownDimensionType {
         dimension: request.dimension.as_str().to_owned(),
         dimension_type: request.dimension_type.number(),
@@ -192,6 +192,12 @@ pub fn spawn_dim_subapp(
         )
     };
 
+    let roots = app
+        .world()
+        .get_resource::<mcrs_minecraft_assets::packs::PackRoots>()
+        .cloned()
+        .ok_or(DimSpawnError::NoPackRoots)?;
+
     let label_entity = app
         .world_mut()
         .spawn((DimSubAppHandle, request.dimension.clone()))
@@ -204,13 +210,6 @@ pub fn spawn_dim_subapp(
     app.world_mut()
         .resource_mut::<DimChannels<ToDim, FromDim>>()
         .insert(label_entity, to_dim_srv_tx, to_dim_ctl_tx, from_dim_rx);
-
-    let asset_root = app
-        .world()
-        .get_resource::<mcrs_minecraft_level::server_loop::AssetRoot>()
-        .cloned()
-        .unwrap_or_default()
-        .0;
 
     let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
     let trace_dimension = request.dimension.as_str().to_owned();
@@ -416,13 +415,13 @@ pub fn spawn_dim_subapp(
         .insert(
             bevy_asset::io::AssetSourceId::Default,
             mcrs_minecraft_assets::packs::layered_file_source(
-                &asset_root,
+                &roots,
                 mcrs_minecraft_worldgen_builtin::asset,
             ),
         );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
-        file_path: asset_root,
+        file_path: roots.assets,
         ..AssetPlugin::default()
     });
     // The worldgen `ChunkPlugin` (ColumnScheduler, the CHUNK_TASK_POOL, and the
@@ -734,6 +733,15 @@ pub struct DimSubAppHandle;
 pub struct UnknownDimensionType {
     pub dimension: String,
     pub dimension_type: u16,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DimSpawnError {
+    #[error(transparent)]
+    UnknownDimensionType(#[from] UnknownDimensionType),
+    #[error("the host registered no pack roots for a dimension's assets to read")]
+    NoPackRoots,
 }
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a

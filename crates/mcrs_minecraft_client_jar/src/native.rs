@@ -11,24 +11,19 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
-use crate::{Artifact, Directory, Files, Progress, RELEASE, Release, font_files, verify};
+use crate::{
+    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, verify,
+};
 
 const CHUNK: u64 = 1 << 20;
 const READ: usize = 64 << 10;
 // chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
 pub const WORKERS: usize = 4;
-const FIRST_BACKOFF: Duration = Duration::from_secs(1);
+pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
-#[cfg(not(windows))]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "the launcher directory is an operating-system location, not configuration"
-)]
-fn home() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("HOME is set")
+pub(crate) fn home() -> Option<PathBuf> {
+    std::env::home_dir()
 }
 
 #[cfg_attr(
@@ -38,30 +33,40 @@ fn home() -> PathBuf {
         reason = "the launcher directory is an operating-system location, not configuration"
     )
 )]
-pub fn official_dir() -> PathBuf {
+pub fn official_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
-    return home().join("Library/Application Support/minecraft");
+    return home().map(|home| home.join("Library/Application Support/minecraft"));
     #[cfg(windows)]
-    return std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .expect("APPDATA is set")
-        .join(".minecraft");
+    return std::env::var_os("APPDATA").map(|data| PathBuf::from(data).join(".minecraft"));
     #[cfg(not(any(target_os = "macos", windows)))]
-    return home().join(".minecraft");
+    return home().map(|home| home.join(".minecraft"));
+}
+
+/// Where the official launcher keeps the pinned release, which a download fills.
+pub(crate) fn download_dir() -> Result<PathBuf, VanillaDataError> {
+    official_dir()
+        .map(|dir| dir.join("versions").join(RELEASE.id))
+        .ok_or(VanillaDataError::NoLauncherDir)
 }
 
 /// Where launchers keep an installed client jar of the pinned release, most likely first.
 pub fn candidates() -> Vec<PathBuf> {
     let id = RELEASE.id;
     let installed = format!("versions/{id}/{id}.jar");
-    let mut paths = vec![official_dir().join(&installed)];
+    let mut paths: Vec<PathBuf> = official_dir()
+        .map(|dir| dir.join(&installed))
+        .into_iter()
+        .collect();
     paths.extend(third_party_launcher_jars(id, &installed));
     paths
 }
 
 #[cfg(target_os = "macos")]
 fn third_party_launcher_jars(id: &str, installed: &str) -> Vec<PathBuf> {
-    let support = home().join("Library/Application Support");
+    let Some(home) = home() else {
+        return Vec::new();
+    };
+    let support = home.join("Library/Application Support");
     let mut paths = vec![support.join(format!(
         "PrismLauncher/libraries/com/mojang/minecraft/{id}/minecraft-{id}-client.jar"
     ))];
@@ -102,7 +107,7 @@ pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Op
     })
 }
 
-fn read_counting(path: &Path, progress: &Progress) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_counting(path: &Path, progress: &Progress) -> std::io::Result<Vec<u8>> {
     let mut file = File::open(path)?;
     let mut bytes = Vec::new();
     progress.done.store(0, Ordering::Relaxed);
@@ -119,19 +124,19 @@ pub fn resolve(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
     fonts: impl FnMut(Files),
-) -> (Files, Option<Remainder>) {
-    match locate(&candidates(), &RELEASE.jar, progress) {
+) -> Result<(Files, Option<Remainder>), VanillaDataError> {
+    Ok(match locate(&candidates(), &RELEASE.jar, progress) {
         Some(jar) => (local(&jar, pick, fonts), None),
         None => download(
             &RELEASE,
-            &official_dir().join("versions").join(RELEASE.id),
+            &download_dir()?,
             WORKERS,
             FIRST_BACKOFF,
             progress,
             pick,
             fonts,
         ),
-    }
+    })
 }
 
 fn local(jar: &[u8], pick: impl FnMut(&str) -> bool, mut fonts: impl FnMut(Files)) -> Files {

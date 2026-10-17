@@ -42,6 +42,7 @@ corpus = [
     "dep:mcrs_minecraft_dimension",
     "dep:mcrs_minecraft_registry",
     "dep:mcrs_minecraft_world",
+    "mcrs_minecraft_world/test-support",
     "dep:mcrs_minecraft_anvil",
     "dep:mcrs_minecraft_worldgen_testing",
     "dep:bevy_app",

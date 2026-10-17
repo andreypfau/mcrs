@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetPlugin;
 use bevy::asset::io::AssetSourceId;
+#[cfg(not(target_family = "wasm"))]
+use bevy::asset::io::file::FileAssetReader;
 use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -22,17 +24,22 @@ use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::RegistrySet;
 #[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_world::registry_load::DirectoryPacks;
+#[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::columns::SECTION_SIZE;
 use mcrs_minecraft_client::config::TerrainLimits;
-use mcrs_minecraft_client::registries::SessionSet;
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_client::screenshot;
+use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
+use mcrs_minecraft_client::registries::SessionSet;
 use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, asset_corpus, asset_source, config, gui, local_player,
-    player, sky, vanilla,
+    ClientPlugins, ClientTerrainPlugin, config, gui, local_player, player, sky, vanilla,
 };
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_client::{asset_source, screenshot};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -43,7 +50,7 @@ use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
+use mcrs_minecraft_server::{BoundAddress, DataPack, MinecraftServerPlugin};
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -87,7 +94,20 @@ fn main() -> AppExit {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
-    let assets = asset_corpus().to_string_lossy().into_owned();
+    let assets = AssetPlugin::default().file_path;
+    // The client cannot run without the jar, so the first start fetches it before the window
+    // opens and the resource thread then finds it installed.
+    let data_pack = match mcrs_minecraft_client_jar::vanilla_data(
+        &mcrs_minecraft_client_jar::ClientJar::InstalledOrDownloaded,
+        None,
+        &mcrs_minecraft_client_jar::Progress::default(),
+    ) {
+        Ok(dir) => dir,
+        Err(error) => {
+            eprintln!("error: the vanilla data pack: {error}");
+            return AppExit::error();
+        }
+    };
 
     let wgpu = WgpuSettings {
         features: WgpuFeatures::TIMESTAMP_QUERY,
@@ -112,7 +132,13 @@ fn main() -> AppExit {
     task_pool_options.async_compute.percent = 1.0;
     task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
-    app.register_asset_source(AssetSourceId::Default, asset_source(&assets));
+    app.register_asset_source(
+        AssetSourceId::Default,
+        asset_source(&PackRoots {
+            assets: assets.clone(),
+            vanilla: data_pack.clone(),
+        }),
+    );
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
@@ -176,6 +202,12 @@ fn main() -> AppExit {
     .add_plugins(
         ClientPlugins
             .build()
+            .set(ClientRegistriesPlugin {
+                local_corpus: Some(DirectoryPacks::new(
+                    FileAssetReader::get_base_path().join(&assets),
+                    data_pack.clone(),
+                )),
+            })
             .add_before::<sky::SkyPlugin>(
                 mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin,
             )
@@ -216,7 +248,7 @@ fn main() -> AppExit {
                 .player_uuid
                 .unwrap_or_else(|| offline_player_uuid(&username)),
         };
-        host_integrated_server(world.as_deref(), &assets, traces, host)
+        host_integrated_server(world.as_deref(), &assets, &data_pack, traces, host)
     });
     #[cfg(not(feature = "singleplayer"))]
     let server = server_address()
@@ -314,6 +346,7 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
 fn host_integrated_server(
     world: Option<&Path>,
     assets: &str,
+    data_pack: &Path,
     traces: Option<ColumnTraceSink>,
     host: SingleplayerProfile,
 ) -> SocketAddr {
@@ -322,6 +355,7 @@ fn host_integrated_server(
     server.add_plugins(MinecraftServerPlugin {
         bind_address: config::integrated_bind_address(open_to_lan),
         asset_path: Some(assets.to_owned()),
+        data_pack: DataPack::Directory(data_pack.to_owned()),
         world: world.map(Path::to_path_buf),
         column_traces: traces,
         singleplayer_profile: Some(host),

@@ -11,7 +11,7 @@ use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, Tags};
-use mcrs_minecraft_worldgen_testing::{assets_dir, json_files, shipped_tags};
+use mcrs_minecraft_worldgen_testing::{json_files, shipped_tags, vanilla_dir};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -85,7 +85,7 @@ struct DimensionProbe {
 }
 
 fn corpus(dir: &str) -> PathBuf {
-    assets_dir().join("minecraft").join(dir)
+    vanilla_dir().join(dir)
 }
 
 fn files(dir: &str) -> Vec<PathBuf> {

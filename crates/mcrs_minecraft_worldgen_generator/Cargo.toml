@@ -53,6 +53,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 base64.workspace = true
 bytes.workspace = true

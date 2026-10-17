@@ -64,16 +64,12 @@ fn shipped_tags(registry: &str) -> BTreeMap<String, ShippedTag> {
     let directory = format!("tags/{}", registry.strip_prefix("minecraft:").unwrap());
     let mut tags = BTreeMap::<String, ShippedTag>::new();
     for pack in shipped_packs() {
-        for namespace in &pack.namespaces {
-            let root = namespace.join(&directory);
+        for (namespace, root) in &pack.namespaces {
+            let root = root.join(&directory);
             for file in json_files(&root) {
                 let text = std::fs::read_to_string(root.join(&file)).unwrap();
                 let json: serde_json::Value = serde_json::from_str(&text).unwrap();
-                let name = format!(
-                    "{}:{}",
-                    namespace.file_name().unwrap().to_str().unwrap(),
-                    file.strip_suffix(".json").unwrap()
-                );
+                let name = format!("{namespace}:{}", file.strip_suffix(".json").unwrap());
                 let tag = tags.entry(name).or_insert(ShippedTag {
                     files: 0,
                     direct: None,

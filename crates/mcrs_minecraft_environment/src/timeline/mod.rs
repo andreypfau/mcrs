@@ -157,7 +157,7 @@ mod tests {
     use crate::attribute::{AttributeValue, MoonPhase, Operation};
     use crate::world_clock::TEST_CLOCKS;
     use mcrs_minecraft_nbt::tag::NbtTag;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, reencode};
+    use mcrs_minecraft_worldgen_testing::{reencode, vanilla_dir};
     use serde_json::{Value, json};
 
     const SHIPPED: [&str; 4] = [
@@ -168,7 +168,7 @@ mod tests {
     ];
 
     fn raw(name: &str) -> Value {
-        let bytes = std::fs::read(assets_dir().join("minecraft/timeline").join(name)).unwrap();
+        let bytes = std::fs::read(vanilla_dir().join("timeline").join(name)).unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 

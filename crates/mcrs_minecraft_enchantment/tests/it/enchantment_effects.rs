@@ -16,17 +16,8 @@ fn scope() -> &'static RegistrySet {
     &SET
 }
 
-fn assets() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("assets")
-}
-
 fn enchantment_dir() -> PathBuf {
-    assets().join("minecraft/enchantment")
+    mcrs_minecraft_worldgen_testing::vanilla_dir().join("enchantment")
 }
 
 fn effects_of(file: &str) -> EnchantmentEffects {

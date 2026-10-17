@@ -685,7 +685,7 @@ mod sky_regression {
     }
 
     fn read_unscoped<T: serde::de::DeserializeOwned>(relative: &str) -> T {
-        let path = crate::asset_corpus().join("minecraft").join(relative);
+        let path = mcrs_minecraft_fixtures::vanilla_dir().join(relative);
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
     }

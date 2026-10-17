@@ -534,8 +534,7 @@ mod tests {
 
     fn data_probes() -> Vec<String> {
         let mut probes = vec![
-            format!("{}/version.json", crate::CORPUS),
-            format!("{}/probe.json", crate::CORPUS),
+            crate::VERSION_FILE.to_owned(),
             crate::DESCRIPTOR.to_owned(),
             crate::FONT_HINT.to_owned(),
             MANIFEST.to_owned(),

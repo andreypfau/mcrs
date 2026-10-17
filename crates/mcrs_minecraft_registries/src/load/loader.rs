@@ -11,7 +11,7 @@ use super::view::StageView;
 use super::{Registries, Stage, Table, Tables, TagTables, tag_build};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing};
 use crate::order::{entry_file_order, identifier_order};
-use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack};
+use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack, VANILLA};
 use crate::registry::Names;
 
 fn fail(mut diagnostics: Diagnostics, errors: Vec<Diagnostic>) -> Diagnostics {
@@ -70,6 +70,7 @@ fn too_many(registry: &ResourceLocation, count: usize) -> Diagnostic {
 
 struct BuiltInPath<'d> {
     pack: PackIndex,
+    replaces_own_file: bool,
     set: usize,
     name: &'d ResourceLocation,
     relative: String,
@@ -85,10 +86,11 @@ fn entry_sources<'f>(
         if visibility.hidden(path.pack, path.name.namespace(), &path.relative) {
             continue;
         }
-        if entries
-            .get(path.name)
-            .is_none_or(|winner| winner.pack < path.pack)
-        {
+        // A vanilla built-in replaces the game's file of the same name, which the jar still
+        // ships; the built-in of any other pack yields to that pack's own file.
+        if entries.get(path.name).is_none_or(|winner| {
+            winner.pack < path.pack || (path.replaces_own_file && winner.pack == path.pack)
+        }) {
             entries.insert(
                 path.name.clone(),
                 EntrySource {
@@ -142,16 +144,19 @@ fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> BuiltInPaths<'d>
             };
             let directory = declaration.key().path();
             let sets = data.built_ins().into_iter().enumerate();
-            sets.filter_map(|(set, (pack, names))| Some((set, stack.position(pack)?, names)))
-                .flat_map(|(set, pack, names)| {
-                    names.iter().map(move |name| BuiltInPath {
-                        pack,
-                        set,
-                        name,
-                        relative: format!("{directory}/{}.json", name.path()),
-                    })
+            sets.filter_map(|(set, (pack, names))| {
+                Some((set, stack.position(pack)?, pack == VANILLA, names))
+            })
+            .flat_map(|(set, pack, replaces_own_file, names)| {
+                names.iter().map(move |name| BuiltInPath {
+                    pack,
+                    replaces_own_file,
+                    set,
+                    name,
+                    relative: format!("{directory}/{}.json", name.path()),
                 })
-                .collect()
+            })
+            .collect()
         })
         .collect()
 }

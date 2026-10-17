@@ -3,8 +3,8 @@ use bevy::asset::io::AssetSourceId;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_client::asset_source;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_client::{asset_corpus, asset_source};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
@@ -14,21 +14,30 @@ use mcrs_minecraft_registry::{NetworkRegistry, RegistrySet};
 use mcrs_minecraft_world::registries::{
     registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent,
 };
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{test_packs, test_registries};
 
 pub fn boot(extra: impl FnOnce(&mut App)) -> App {
-    let assets = asset_corpus().to_string_lossy().into_owned();
+    let assets = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned();
+
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin {
         task_pool_options: TaskPoolOptions::with_num_threads(2),
     })
-    .register_asset_source(AssetSourceId::Default, asset_source(&assets));
+    .register_asset_source(
+        AssetSourceId::Default,
+        asset_source(&mcrs_minecraft_assets::packs::PackRoots {
+            assets: assets.clone(),
+            vanilla: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+        }),
+    );
     app.add_plugins(AssetPlugin {
         file_path: assets,
         watch_for_changes_override: Some(false),
         ..default()
     })
-    .add_plugins(ClientRegistriesPlugin::default());
+    .add_plugins(ClientRegistriesPlugin {
+        local_corpus: Some(test_packs()),
+    });
     extra(&mut app);
     app.finish();
     app.cleanup();

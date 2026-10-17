@@ -613,7 +613,7 @@ mod tests {
         vanilla::register_source(&mut app, root);
         app.add_plugins(bevy::MinimalPlugins)
             .add_plugins(bevy::asset::AssetPlugin {
-                file_path: crate::asset_corpus().to_string_lossy().into_owned(),
+                file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),
                 ..Default::default()
             });
         let pack = bevy::tasks::block_on(Pack::load(app.world().resource::<AssetServer>()))

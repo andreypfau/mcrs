@@ -31,9 +31,64 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::time::Duration;
 
+#[cfg(feature = "client-jar")]
+pub use mcrs_minecraft_client_jar::ClientJar;
 pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
 pub use mcrs_minecraft_protocol::GameMode;
+
+/// Where the server reads the game's data pack.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DataPack {
+    /// A directory laid out as the client jar's `data/minecraft` tree with its `version.json`.
+    /// A relative path is resolved as the asset root is.
+    Directory(PathBuf),
+    /// The pinned release's client jar, unpacked once below `cache`, or the user's cache
+    /// directory when it is `None`.
+    #[cfg(feature = "client-jar")]
+    ClientJar {
+        jar: ClientJar,
+        cache: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DataPackError {
+    #[cfg(feature = "client-jar")]
+    #[error("the vanilla data pack: {0}")]
+    ClientJar(#[from] mcrs_minecraft_client_jar::VanillaDataError),
+}
+
+impl DataPack {
+    /// The directory, unpacking the client jar first when that is the source.
+    pub fn resolve(&self) -> Result<PathBuf, DataPackError> {
+        match self {
+            DataPack::Directory(dir) => Ok(dir.clone()),
+            #[cfg(feature = "client-jar")]
+            DataPack::ClientJar { jar, cache } => Ok(mcrs_minecraft_client_jar::vanilla_data(
+                jar,
+                cache.as_deref(),
+                &mcrs_minecraft_client_jar::Progress::default(),
+            )?),
+        }
+    }
+}
+
+impl Default for DataPack {
+    #[cfg(feature = "client-jar")]
+    fn default() -> Self {
+        DataPack::ClientJar {
+            jar: ClientJar::InstalledOrDownloaded,
+            cache: None,
+        }
+    }
+
+    #[cfg(not(feature = "client-jar"))]
+    fn default() -> Self {
+        DataPack::Directory(PathBuf::from("assets/minecraft"))
+    }
+}
 
 pub struct MinecraftServerPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
@@ -45,6 +100,8 @@ pub struct MinecraftServerPlugin {
     /// Absolute path to the asset corpus, for a server that cannot resolve
     /// `assets` from its own working directory or executable location.
     pub asset_path: Option<String>,
+    /// Where the game's data pack is read from.
+    pub data_pack: DataPack,
     /// World folder to read saved chunks from. Without one, and for any column
     /// the folder has never saved, the dimension generates its terrain.
     pub world: Option<PathBuf>,
@@ -94,6 +151,7 @@ impl Default for MinecraftServerPlugin {
             bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
             owns_task_pools: true,
             asset_path: None,
+            data_pack: DataPack::default(),
             world: None,
             column_traces: None,
             lighting: Lighting::default(),
@@ -124,11 +182,20 @@ impl MinecraftServerPlugin {
 
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
+        let vanilla = self
+            .data_pack
+            .resolve()
+            .unwrap_or_else(|error| mcrs_minecraft_world::registries::refuse(&error));
+        let roots = mcrs_minecraft_assets::packs::PackRoots {
+            assets: self
+                .asset_path
+                .clone()
+                .unwrap_or_else(|| bevy_asset::AssetPlugin::default().file_path),
+            vanilla,
+        };
         mcrs_minecraft_assets::packs::register_pack_sources(
             app,
-            self.asset_path
-                .as_deref()
-                .unwrap_or(&bevy_asset::AssetPlugin::default().file_path),
+            &roots,
             mcrs_minecraft_worldgen_builtin::asset,
         );
         app.add_plugins(VoxelServerPlugin {

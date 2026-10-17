@@ -1,5 +1,6 @@
-//! Reading the shipped asset corpus off disk, for the tests that check the
-//! engine against every file the game ships rather than against a fixture.
+//! Reading the game's data pack and the repository's assets off disk, for the
+//! tests that check the engine against every file the game ships rather than
+//! against a fixture.
 #![expect(
     clippy::disallowed_types,
     reason = "test support re-encodes a value into JSON for comparison"
@@ -12,7 +13,7 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::tags::TagSource;
 use mcrs_minecraft_registry::{
-    HolderSet, NameTable, Registry, RegistrySet, TagRules, TagTable, build_tags,
+    HolderSet, NameTable, Registry, RegistrySet, TagRules, TagTable, below_vanilla_root, build_tags,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -23,12 +24,24 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
+pub use mcrs_minecraft_fixtures::vanilla_dir;
+
+/// The repository's assets: the reports, the definitions and the local packs.
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
 }
 
+/// `relative` below a pack root, with the vanilla pack's `minecraft` directory read from the
+/// game's data pack and everything else from [`assets_dir`].
+pub fn corpus_path(relative: &str) -> PathBuf {
+    match below_vanilla_root(Path::new(relative)) {
+        Some(below) => vanilla_dir().join(below),
+        None => assets_dir().join(relative),
+    }
+}
+
 pub fn worldgen_dir() -> PathBuf {
-    assets_dir().join("minecraft/worldgen")
+    vanilla_dir().join("worldgen")
 }
 
 /// Every data pack layered over the vanilla tree, in name order.
@@ -74,21 +87,12 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Every structure template as the gzip NBT it ships as, keyed by its path
-/// under `minecraft/structure`: the files the corpus ships, and the built-in
-/// ones it ships no file for.
+/// Every structure template as the gzip NBT the loader reads, keyed by its path
+/// under `minecraft/structure`: the built-in ones, and the game's files the code
+/// builds none for.
 pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
-    let base = assets_dir().join("minecraft/structure");
-    let mut templates: BTreeMap<PathBuf, Vec<u8>> = builtin::template_paths("minecraft/structure")
-        .into_iter()
-        .map(|path| {
-            let bytes = builtin::asset(&path).expect("a listed built-in template builds");
-            let relative = Path::new(&path)
-                .strip_prefix("minecraft/structure")
-                .expect("a template path is under the structure directory");
-            (relative.to_owned(), bytes)
-        })
-        .collect();
+    let base = vanilla_dir().join("structure");
+    let mut templates = BTreeMap::new();
     for path in nbt_files(&base) {
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         let relative = path
@@ -96,19 +100,26 @@ pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
             .expect("the file is under the base");
         templates.insert(relative.to_owned(), bytes);
     }
+    for path in builtin::template_paths("minecraft/structure") {
+        let bytes = builtin::asset(&path).expect("a listed built-in template builds");
+        let relative = Path::new(&path)
+            .strip_prefix("minecraft/structure")
+            .expect("a template path is under the structure directory");
+        templates.insert(relative.to_owned(), bytes);
+    }
     templates
 }
 
-/// One structure template as the gzip NBT it ships as: the corpus file, or the
-/// built-in when the corpus ships none.
+/// One structure template as the gzip NBT the loader reads: the built-in, or the
+/// game's file when the code builds none.
 pub fn template(id: &ResourceLocation) -> Option<Vec<u8>> {
-    let shipped = assets_dir()
-        .join(id.namespace())
-        .join("structure")
-        .join(format!("{}.nbt", id.path()));
-    std::fs::read(shipped)
-        .ok()
-        .or_else(|| builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())))
+    let path = format!("{}/structure/{}.nbt", id.namespace(), id.path());
+    builtin::asset(&path).or_else(|| std::fs::read(corpus_path(&path)).ok())
+}
+
+/// Whether the code builds the structure template `id` in place of the game's file.
+pub fn is_built_template(id: &ResourceLocation) -> bool {
+    builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())).is_some()
 }
 
 /// The id a corpus file carries: its path under `base`, without the extension.
@@ -221,6 +232,7 @@ fn numbered<R: mcrs_minecraft_registry::Registered>(
     mut names: Vec<ResourceLocation<Arc<str>>>,
 ) -> Registry<R> {
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    names.dedup();
     Registry::new(R::REGISTRY, names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
@@ -343,13 +355,14 @@ fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     }
 }
 
-/// One `minecraft/worldgen` registry as the JSON each entry ships as: the
-/// built-in entries, overridden by the files of the vanilla tree and of every
-/// pack. An id two files ship is refused.
+/// One `minecraft/worldgen` registry as the JSON the loader reads for each
+/// entry: the game's files, replaced by the built-in entries, replaced by the
+/// files of every pack. An id two packs ship, or a pack and the game, is refused.
 fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let mut entries = built_json(folder);
+    let mut entries = BTreeMap::new();
     let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
-    for root in worldgen_roots() {
+    let mut from_packs = Vec::new();
+    for (at, root) in worldgen_roots().enumerate() {
         let base = root.join(folder);
         if !base.is_dir() {
             continue;
@@ -364,23 +377,29 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
                 );
             }
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            entries.insert(id, bytes);
+            if at == 0 {
+                entries.insert(id, bytes);
+            } else {
+                from_packs.push((id, bytes));
+            }
         }
     }
+    entries.extend(built_json(folder));
+    entries.extend(from_packs);
     entries
 }
 
-/// A registry set holding the one registry `R`, numbered by the files the
-/// corpus ships under `assets/minecraft/<folder>`, for reading a value that
-/// names an entry of it inside `RegistrySet::scope`.
+/// A registry set holding the one registry `R`, numbered by the files the game
+/// ships under `<folder>`, for reading a value that names an entry of it inside
+/// `RegistrySet::scope`.
 pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str) -> RegistrySet {
     RegistrySet::new()
         .with(shipped_registry::<R>(folder))
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
 }
 
-/// `set` with the registry `R` numbered by the files the corpus ships under
-/// `assets/minecraft/<folder>`, and the tags it ships for it.
+/// `set` with the registry `R` numbered by the files the game ships under
+/// `<folder>`, and the tags it ships for it.
 pub fn with_shipped<R: mcrs_minecraft_registry::Registered>(
     set: RegistrySet,
     folder: &str,
@@ -423,7 +442,7 @@ pub fn dimension_type_set() -> &'static RegistrySet {
 }
 
 fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
-    let base = assets_dir().join("minecraft").join(folder);
+    let base = vanilla_dir().join(folder);
     json_files(&base)
         .iter()
         .map(|path| id_of(&base, path))
@@ -432,7 +451,7 @@ fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
 
 pub fn tagged_report() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let root = assets_dir().join("minecraft/tags");
+        let root = vanilla_dir().join("tags");
         let mut set = typed(shipped_report().clone());
         let mut folders: Vec<_> = std::fs::read_dir(&root)
             .unwrap_or_else(|e| panic!("{}: {e}", root.display()))
@@ -456,7 +475,7 @@ pub fn tagged_report() -> &'static RegistrySet {
 }
 
 pub fn shipped_tags(names: &NameTable, folder: &str) -> Arc<TagTable> {
-    let base = assets_dir().join("minecraft/tags").join(folder);
+    let base = vanilla_dir().join("tags").join(folder);
     let files: Vec<_> = json_files(&base)
         .into_iter()
         .map(|path| {
@@ -510,12 +529,12 @@ pub fn registry_in<T: DeserializeOwned>(
     })
 }
 
-/// Every `.json` under `assets/<dir>`, parsed. Panics naming every file that
-/// did not parse, or if the folder holds none.
+/// Every `.json` under the [`corpus_path`] of `dir`, parsed. Panics naming every
+/// file that did not parse, or if the folder holds none.
 pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
     let mut parsed = Vec::new();
     let mut failures = Vec::new();
-    for path in json_files(&assets_dir().join(dir)) {
+    for path in json_files(&corpus_path(dir)) {
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         match serde_json::from_slice::<T>(&bytes) {
             Ok(value) => parsed.push((path, value)),
@@ -533,15 +552,16 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
     parsed
 }
 
-/// One named `minecraft/worldgen` asset, which must parse: the file the vanilla
-/// tree or a pack ships, or the built-in entry where none ships it.
+/// One named `minecraft/worldgen` asset, which must parse: the file a pack
+/// ships, else the built-in entry, else the game's file.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
     let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
-    let bytes = std::iter::once(assets_dir())
-        .chain(packs())
+    let bytes = packs()
+        .into_iter()
         .find_map(|root| std::fs::read(root.join(&path)).ok())
         .or_else(|| builtin::asset(&path))
         .or_else(|| built_json(folder).remove(id))
+        .or_else(|| std::fs::read(corpus_path(&path)).ok())
         .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
     corpus_set().scope(|| serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}")))
 }
@@ -551,6 +571,12 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
 /// reads back as the same `f32`, which is what the pack shipped.
 pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
     serde_json::from_str(&serde_json::to_string(value).unwrap()).unwrap()
+}
+
+/// Whether two JSON texts hold the same value, whatever their layout.
+pub fn same_json(a: &[u8], b: &[u8]) -> bool {
+    let parse = |bytes| serde_json::from_slice::<serde_json::Value>(bytes).ok();
+    parse(a).is_some_and(|a| Some(a) == parse(b))
 }
 
 /// Every entry of one `minecraft/worldgen` registry, shipped or built in,

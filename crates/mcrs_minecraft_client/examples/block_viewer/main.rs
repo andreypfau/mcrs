@@ -13,7 +13,7 @@
 //! floor of neighbours — ambient occlusion is invisible on a block floating in open air, because
 //! every neighbour sample is then unoccluded.
 
-use bevy::asset::{AssetPlugin, RenderAssetUsages};
+use bevy::asset::RenderAssetUsages;
 use bevy::color::LinearRgba;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::image::ImageSampler;
@@ -23,7 +23,6 @@ use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::block_on;
 
-use mcrs_minecraft_client::asset_corpus;
 use mcrs_minecraft_client::atlas;
 use mcrs_minecraft_client::bake;
 use mcrs_minecraft_client::model::{self, Pack};
@@ -38,10 +37,6 @@ fn main() {
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
-            .set(AssetPlugin {
-                file_path: asset_corpus().to_string_lossy().into_owned(),
-                ..default()
-            })
             .set(ImagePlugin::default_nearest())
             .set(WindowPlugin {
                 primary_window: Some(Window {

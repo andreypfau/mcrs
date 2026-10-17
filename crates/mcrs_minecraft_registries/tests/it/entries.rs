@@ -466,6 +466,44 @@ fn built_in_entries_behave_as_files_of_their_pack() {
     assert_eq!(value("ocean"), ("top file".into(), "file/d".into()));
 }
 
+#[test]
+fn a_vanilla_built_in_replaces_the_games_file_and_yields_to_a_pack() {
+    let declaration = || -> Vec<Declaration> {
+        vec![
+            Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
+                .built_in("vanilla", vec![rl("forest"), rl("plains")], built("built"))
+                .into(),
+        ]
+    };
+    let packs = Packs::new()
+        .vanilla(&[
+            (
+                "data/minecraft/damage_type/forest.json",
+                &damage("game file"),
+            ),
+            (
+                "data/minecraft/damage_type/plains.json",
+                &damage("game file"),
+            ),
+        ])
+        .world(
+            "a",
+            &[(
+                "data/minecraft/damage_type/plains.json",
+                &damage("pack file"),
+            )],
+        );
+    let (registries, _) = packs.load(&declaration()).unwrap();
+    let registry = registries.registry::<DamageType>().unwrap();
+    let value = |name: &str| {
+        let id = get::<DamageType>(&registries, name);
+        let origin = registries.origin(id).unwrap().id().to_owned();
+        (registry.get(id).unwrap().message_id.clone(), origin)
+    };
+    assert_eq!(value("forest"), ("built forest".into(), "vanilla".into()));
+    assert_eq!(value("plains"), ("pack file".into(), "file/a".into()));
+}
+
 fn built(
     prefix: &'static str,
 ) -> impl Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<Damage, String> + Send + Sync + 'static {

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use bevy::app::{App, Plugin, Update};
@@ -21,7 +21,7 @@ use mcrs_minecraft_network::client::{
 use mcrs_minecraft_registry::{KnownPackEntries, RegistrySet};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registries::{refuse, static_registries, world_registries};
-use mcrs_minecraft_world::registry_load::{DirectoryPacks, load_vanilla_registries};
+use mcrs_minecraft_world::registry_load::{DirectoryPacks, PackSource, load_vanilla_registries};
 
 use crate::blocks::BiomeTints;
 
@@ -30,7 +30,7 @@ const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/reports/datapack.json"
 ));
 
-pub fn session_inputs(local_corpus: Option<&Path>) -> SessionRegistryInputs {
+pub fn session_inputs(local_corpus: Option<&dyn PackSource>) -> SessionRegistryInputs {
     SessionRegistryInputs {
         declarations: world_registries(DATAPACK_REPORT).unwrap_or_else(|report| refuse(&report)),
         statics: static_registries().unwrap_or_else(|report| refuse(&report)),
@@ -38,9 +38,8 @@ pub fn session_inputs(local_corpus: Option<&Path>) -> SessionRegistryInputs {
     }
 }
 
-fn known_pack_entries(root: &Path) -> KnownPackEntries {
-    let vanilla = load_vanilla_registries(&DirectoryPacks::new(root.to_path_buf()))
-        .unwrap_or_else(|error| refuse(&error));
+fn known_pack_entries(source: &dyn PackSource) -> KnownPackEntries {
+    let vanilla = load_vanilla_registries(source).unwrap_or_else(|error| refuse(&error));
     KnownPackEntries::from_set(&vanilla.set)
 }
 
@@ -50,21 +49,11 @@ pub enum SessionSet {
     Derive,
 }
 
+#[derive(Default)]
 pub struct ClientRegistriesPlugin {
-    /// The folder the vanilla pack's entries are read from, to fill what a server leaves out.
-    /// A client without one answers the server's pack offer with none.
-    pub local_corpus: Option<PathBuf>,
-}
-
-impl Default for ClientRegistriesPlugin {
-    fn default() -> Self {
-        Self {
-            #[cfg(not(target_family = "wasm"))]
-            local_corpus: Some(crate::asset_corpus()),
-            #[cfg(target_family = "wasm")]
-            local_corpus: None,
-        }
-    }
+    /// The packs the vanilla pack's entries are read from, to fill what a server leaves out.
+    /// A client without them answers the server's pack offer with none.
+    pub local_corpus: Option<DirectoryPacks>,
 }
 
 impl Plugin for ClientRegistriesPlugin {
@@ -93,7 +82,11 @@ impl Plugin for ClientRegistriesPlugin {
     fn finish(&self, app: &mut App) {
         let assets = app.world().resource::<AssetServer>().clone();
         check_corpus_version(&assets);
-        let inputs = session_inputs(self.local_corpus.as_deref());
+        let inputs = session_inputs(
+            self.local_corpus
+                .as_ref()
+                .map(|packs| packs as &dyn PackSource),
+        );
         let blocks = inputs
             .statics
             .registry::<Block>()

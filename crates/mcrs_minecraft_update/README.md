@@ -1,7 +1,7 @@
 # mcrs_minecraft_update
 
-Moves the repository to another Minecraft version. It replaces the data pack
-corpus, the client jar descriptor, the generated reports and the block and item
+Moves the repository to another Minecraft version. It replaces the version
+file, the client jar descriptor, the generated reports and the block and item
 definitions from the game itself, and it regenerates the fixtures that were
 captured from the game. It ports no code: what the new version changes in the
 Rust crates is found by the tests it breaks and by the diffs it prints.
@@ -20,32 +20,35 @@ one of the values in it:
   contains one of its values.
 - `tools/vanilla-oracle` and `tools/inventory-uat` read the game version from
   the file when Gradle configures them.
-- The world plugin refuses to start on a corpus whose `version.json` differs
-  from the one the binary embeds.
+- The world plugin refuses to start on a data pack whose `version.json`
+  differs from the one the binary embeds.
 - Chunks, save files and templates written at another `DataVersion` fail to
   load. There is no datafixer. Worlds written between an update and the ports
   that follow it are not worth keeping.
 
-## What the corpus is
+## Where the data pack lives
 
-`assets/minecraft` is the data pack only: the `data/minecraft` tree of the
-client jar, plus `version.json`. The resource pack is not in the repository;
-the client reads it from the jar that
-`crates/mcrs_minecraft_client_jar/src/release.json` describes.
+The game's data pack is not in the repository. Every consumer reads the
+`data/minecraft` tree and `version.json` of the client jar that
+`crates/mcrs_minecraft_client_jar/src/release.json` describes, unpacked once
+into the user's cache directory (`mcrs_minecraft_client_jar::vanilla_data`) and
+served as the `minecraft` directory of the pack root. The server takes it
+from `MinecraftServerPlugin::data_pack`: a directory, or by default the client
+jar of a launcher's installation or else a download. The tests read the same
+directory: the nextest setup script installs the jar before any test runs. The
+resource pack is read from the same jar.
 
-The corpus is the game's data pack exactly: an update writes every jar entry
-and deletes every file the jar lacks, whatever its name. Local data lives in
-packs under `assets/mcrs/datapacks/`, layered over the game's data pack, and
-the update never touches them.
+`assets/minecraft` holds only `version.json`. Local data lives in packs under
+`assets/mcrs/datapacks/`, layered over the game's data pack, and the update
+never touches them.
 
-Three folders ship no files: `worldgen/density_function`, `worldgen/noise_settings`
-and `worldgen/noise`. Their entries are built by
-`mcrs_minecraft_worldgen_builtin` and served to the loaders when no file
-exists, so a file at the same path overrides the built-in. An update compares
-every jar entry of these folders with what the code builds. An identical entry
-is dropped. A different one is written as a file, which keeps the game correct,
-and is printed as `differs from the built-in`: port the difference into the
-code, run the update again, and the file goes away.
+`mcrs_minecraft_worldgen_builtin` builds the entries of
+`worldgen/density_function`, `worldgen/noise_settings`, `worldgen/noise`,
+`worldgen/template_pool`, `worldgen/biome` and the village templates of
+`structure`. A built entry replaces the game's file of the same name, and a file
+of a local pack replaces the built entry. A test of that crate compares every
+built entry with the game's file and fails, naming each one, when they differ:
+after an update, port the difference into the code.
 
 ## Updating
 
@@ -56,8 +59,8 @@ cargo run -p mcrs_minecraft_update -- <version id> [--allow-dirty] [--diff-out <
 The version id is the only argument, for example `26.4-snapshot-2`. The
 options are:
 
-- `--allow-dirty` lets the update run when `assets`, the descriptor or the font
-  hint have uncommitted changes. Without it the tool prints those changes and
+- `--allow-dirty` lets the update run when the version file, the reports, the
+  definitions, the descriptor or the font hint have uncommitted changes. Without it the tool prints those changes and
   stops before it writes anything, so that the diffs below can be read from git.
 - `--diff-out <directory>` also writes the three diffs to `protocol_id.txt`,
   `definitions.txt` and `names.txt` in that directory.
@@ -70,8 +73,7 @@ The steps, in order:
    launcher directory (`versions/<id>/<id>.jar`) and downloaded only when no
    verified copy is there.
 2. Read `version.json` from the jar and stop if its id is not the requested one.
-3. Replace `assets/minecraft` with `data/minecraft` of the jar, delete what the
-   jar no longer has and write `version.json`.
+3. Write `version.json` of the jar to `assets/minecraft/version.json`.
 4. Write `crates/mcrs_minecraft_client_jar/src/release.json`, the descriptor of
    the jar, its central directory and the package descriptor, and
    `crates/mcrs_minecraft_client_jar/src/font_hint.json`.
@@ -112,10 +114,8 @@ cargo run -p mcrs_minecraft_update -- names
 ```
 
 `assets/mcrs/reports/names.json` lists, per registry, the names of its entries
-and the names of its tags, in sorted order. The corpus does not hold every entry
-of a registry (the entries the code builds ship no file), so the vanilla names
-come from the client jar that `release.json` names, never from the corpus or the
-built-in crate. The entries are those of every registry that `datapack.json`
+and the names of its tags, in sorted order. The vanilla names come from the
+client jar that `release.json` names, never from the built-in crate. The entries are those of every registry that `datapack.json`
 marks as having elements; a registry with elements and no file in the jar is
 listed empty. The tags are those of every registry with a tag file below
 `data/minecraft/tags/`. `minecraft:dimension` has no files of its own: its
@@ -124,7 +124,7 @@ under `data/minecraft/datapacks/` contribute nothing.
 
 The `names` command reads the stored `datapack.json`, verifies the jar against
 the descriptor, prints the names diff and writes the report. It touches neither
-`assets/minecraft`, the descriptor nor another report, and it runs no Gradle
+`assets/minecraft/version.json`, the descriptor nor another report, and it runs no Gradle
 task. A second run over the same jar prints `names diff: 0 rows` and leaves the
 file unchanged.
 

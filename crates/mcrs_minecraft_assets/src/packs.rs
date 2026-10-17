@@ -5,11 +5,12 @@ use bevy_asset::io::{
     AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, AssetSourceId,
     ErasedAssetReader, PathStream, Reader, VecReader,
 };
+use bevy_ecs::resource::Resource;
 use bevy_tasks::futures_lite::StreamExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-pub use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK};
+pub use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK, VANILLA_ROOT, below_vanilla_root};
 
 pub async fn pack_names(reader: &dyn ErasedAssetReader) -> Vec<String> {
     let Ok(mut listing) = reader.read_directory(Path::new(PACKS_ROOT)).await else {
@@ -39,6 +40,89 @@ async fn is_local_pack(reader: &dyn ErasedAssetReader, pack: &Path) -> bool {
             .unwrap_or(false)
 }
 
+/// The directories a data pack root spans: `assets` holds the reports, the definitions and the
+/// local packs, and `vanilla` the game jar's `data/minecraft` tree, served as the
+/// [`VANILLA_ROOT`] directory of `assets`. Both resolve as the asset root does.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct PackRoots {
+    pub assets: String,
+    pub vanilla: PathBuf,
+}
+
+/// `assets` with its [`VANILLA_ROOT`] directory answered by `vanilla`.
+pub struct VanillaRoot {
+    assets: Box<dyn ErasedAssetReader>,
+    vanilla: Box<dyn ErasedAssetReader>,
+}
+
+impl VanillaRoot {
+    pub fn new(assets: Box<dyn ErasedAssetReader>, vanilla: Box<dyn ErasedAssetReader>) -> Self {
+        Self { assets, vanilla }
+    }
+
+    fn route<'a>(&'a self, path: &'a Path) -> (&'a dyn ErasedAssetReader, &'a Path) {
+        match below_vanilla_root(path) {
+            Some(below) => (&*self.vanilla, below),
+            None => (&*self.assets, path),
+        }
+    }
+}
+
+impl AssetReader for VanillaRoot {
+    async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        let (reader, path) = self.route(path);
+        reader.read(path).await
+    }
+
+    async fn read_meta<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        let (reader, path) = self.route(path);
+        reader.read_meta(path).await
+    }
+
+    async fn read_directory<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<PathStream>, AssetReaderError> {
+        match below_vanilla_root(path) {
+            Some(below) => {
+                let listing = self.vanilla.read_directory(below).await?;
+                Ok(Box::new(
+                    listing.map(|path| Path::new(VANILLA_ROOT).join(path)),
+                ))
+            }
+            None => self.assets.read_directory(path).await,
+        }
+    }
+
+    async fn is_directory<'a>(&'a self, path: &'a Path) -> Result<bool, AssetReaderError> {
+        let (reader, path) = self.route(path);
+        reader.is_directory(path).await
+    }
+}
+
+/// Every pack's own files under `roots`, unlayered.
+pub fn pack_files_reader(
+    roots: &PackRoots,
+) -> impl FnMut() -> Box<dyn ErasedAssetReader> + Send + Sync + use<> {
+    let mut assets = AssetSource::get_default_reader(roots.assets.clone());
+    let vanilla = roots.vanilla.clone();
+    move || Box::new(VanillaRoot::new(assets(), directory_reader(&vanilla)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn directory_reader(path: &Path) -> Box<dyn ErasedAssetReader> {
+    Box::new(bevy_asset::io::file::FileAssetReader::new(path))
+}
+
+// The browser reads over HTTP, whose paths are text.
+#[cfg(target_arch = "wasm32")]
+fn directory_reader(path: &Path) -> Box<dyn ErasedAssetReader> {
+    AssetSource::get_default_reader(path.to_string_lossy().into_owned())()
+}
+
 pub struct PackLayers {
     inner: Box<dyn ErasedAssetReader>,
     packs: OnceLock<Vec<String>>,
@@ -61,27 +145,39 @@ impl PackLayers {
             }
         }
     }
+
+    async fn read_from_packs(&self, path: &Path) -> Result<Option<Vec<u8>>, AssetReaderError> {
+        for pack in self.packs().await.iter().rev() {
+            let at = Path::new(PACKS_ROOT).join(pack).join(path);
+            match read_whole(&*self.inner, &at).await {
+                Ok(bytes) => return Ok(Some(bytes)),
+                Err(AssetReaderError::NotFound(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(None)
+    }
 }
 
 pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
 
-/// The packs layered over `inner`, answering from `builtin` for a path no layer
-/// holds. A file always wins, so a datapack overrides a built-in by shipping
-/// the same path. Only structure templates are answered this way; registry
-/// entries are built by the registry loader and never reach this reader.
+/// The packs layered over `builtin`, layered over `inner`'s own files: a pack overrides a
+/// built-in by shipping the same path, and a built-in replaces the file of the vanilla tree.
+/// Only structure templates are answered this way; registry entries are built by the registry
+/// loader and never reach this reader.
 pub fn layered_reader(
     inner: Box<dyn ErasedAssetReader>,
     builtin: BuiltinAsset,
 ) -> Box<dyn ErasedAssetReader> {
-    Box::new(BuiltinFallback {
+    Box::new(BuiltinLayer {
         layers: PackLayers::new(inner),
         builtin,
     })
 }
 
-pub fn layered_file_source(root: &str, builtin: BuiltinAsset) -> AssetSourceBuilder {
-    let mut files = AssetSource::get_default_reader(root.to_owned());
-    AssetSourceBuilder::platform_default(root, None)
+pub fn layered_file_source(roots: &PackRoots, builtin: BuiltinAsset) -> AssetSourceBuilder {
+    let mut files = pack_files_reader(roots);
+    AssetSourceBuilder::platform_default(&roots.assets, None)
         .with_reader(move || layered_reader(files(), builtin))
 }
 
@@ -89,25 +185,31 @@ pub fn layered_file_source(root: &str, builtin: BuiltinAsset) -> AssetSourceBuil
 // this one instead.
 pub const PACK_FILES: &str = "pack_files";
 
-pub fn register_pack_sources(app: &mut App, root: &str, builtin: BuiltinAsset) {
-    app.register_asset_source(AssetSourceId::Default, layered_file_source(root, builtin));
-    app.register_asset_source(PACK_FILES, AssetSourceBuilder::platform_default(root, None));
+/// Registers the sources over `roots` and keeps `roots` as a resource, so an app built beside
+/// this one reads the same trees.
+pub fn register_pack_sources(app: &mut App, roots: &PackRoots, builtin: BuiltinAsset) {
+    app.register_asset_source(AssetSourceId::Default, layered_file_source(roots, builtin));
+    app.register_asset_source(
+        PACK_FILES,
+        AssetSourceBuilder::platform_default(&roots.assets, None)
+            .with_reader(pack_files_reader(roots)),
+    );
+    app.insert_resource(roots.clone());
 }
 
-struct BuiltinFallback {
+struct BuiltinLayer {
     layers: PackLayers,
     builtin: BuiltinAsset,
 }
 
-impl AssetReader for BuiltinFallback {
+impl AssetReader for BuiltinLayer {
     async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
-        match AssetReader::read(&self.layers, path).await {
-            Err(AssetReaderError::NotFound(missing)) => path
-                .to_str()
-                .and_then(self.builtin)
-                .map(|bytes| Box::new(VecReader::new(bytes)) as Box<dyn Reader>)
-                .ok_or(AssetReaderError::NotFound(missing)),
-            read => read,
+        if let Some(bytes) = self.layers.read_from_packs(path).await? {
+            return Ok(Box::new(VecReader::new(bytes)));
+        }
+        match path.to_str().and_then(self.builtin) {
+            Some(bytes) => Ok(Box::new(VecReader::new(bytes))),
+            None => self.layers.inner.read(path).await,
         }
     }
 
@@ -134,15 +236,10 @@ impl AssetReader for BuiltinFallback {
 
 impl AssetReader for PackLayers {
     async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
-        for pack in self.packs().await.iter().rev() {
-            let at = Path::new(PACKS_ROOT).join(pack).join(path);
-            match read_whole(&*self.inner, &at).await {
-                Ok(bytes) => return Ok(Box::new(VecReader::new(bytes))),
-                Err(AssetReaderError::NotFound(_)) => {}
-                Err(error) => return Err(error),
-            }
+        match self.read_from_packs(path).await? {
+            Some(bytes) => Ok(Box::new(VecReader::new(bytes))),
+            None => self.inner.read(path).await,
         }
-        self.inner.read(path).await
     }
 
     async fn read_meta<'a>(
@@ -183,20 +280,52 @@ mod tests {
     }
 
     #[test]
-    fn a_built_in_answers_only_for_a_path_no_layer_holds() {
+    fn a_built_in_replaces_a_vanilla_file_and_yields_to_a_pack() {
         let root = Dir::default();
         root.insert_asset_text(Path::new("minecraft/in_root.json"), "root");
+        root.insert_asset_text(Path::new("minecraft/root_only.json"), "root");
         root.insert_asset_text(Path::new("mcrs/datapacks/a/pack.mcmeta"), "{}");
         root.insert_asset_text(Path::new("mcrs/datapacks/a/minecraft/in_pack.json"), "pack");
         let reader = layered_reader(Box::new(MemoryAssetReader { root }), |path| {
-            Some(format!("built-in {path}").into_bytes())
+            (path != "minecraft/root_only.json").then(|| format!("built-in {path}").into_bytes())
         });
 
-        assert_eq!(read(&*reader, "minecraft/in_root.json").unwrap(), "root");
+        assert_eq!(
+            read(&*reader, "minecraft/in_root.json").unwrap(),
+            "built-in minecraft/in_root.json"
+        );
         assert_eq!(read(&*reader, "minecraft/in_pack.json").unwrap(), "pack");
+        assert_eq!(read(&*reader, "minecraft/root_only.json").unwrap(), "root");
         assert_eq!(
             read(&*reader, "minecraft/absent.json").unwrap(),
             "built-in minecraft/absent.json"
+        );
+    }
+
+    #[test]
+    fn the_vanilla_root_answers_for_its_directory_and_lists_under_it() {
+        let (assets, vanilla) = (Dir::default(), Dir::default());
+        assets.insert_asset_text(Path::new("mcrs/reports/a.json"), "assets");
+        assets.insert_asset_text(Path::new("minecraft/shadowed.json"), "assets");
+        vanilla.insert_asset_text(Path::new("shadowed.json"), "vanilla");
+        vanilla.insert_asset_text(Path::new("structure/house.nbt"), "vanilla");
+        let reader = VanillaRoot::new(
+            Box::new(MemoryAssetReader { root: assets }),
+            Box::new(MemoryAssetReader { root: vanilla }),
+        );
+
+        assert_eq!(read(&reader, "mcrs/reports/a.json").unwrap(), "assets");
+        assert_eq!(read(&reader, "minecraft/shadowed.json").unwrap(), "vanilla");
+        let listed: Vec<_> = bevy_tasks::block_on(async {
+            let listing = AssetReader::read_directory(&reader, Path::new("minecraft/structure"))
+                .await
+                .unwrap();
+            listing.collect().await
+        });
+        assert_eq!(listed, [Path::new("minecraft/structure/house.nbt")]);
+        assert!(
+            bevy_tasks::block_on(AssetReader::is_directory(&reader, Path::new("minecraft")))
+                .unwrap()
         );
     }
 

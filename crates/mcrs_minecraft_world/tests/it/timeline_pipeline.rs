@@ -192,14 +192,14 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
             .pack_of("minecraft:dimension_type", index)
             .unwrap_or_else(|| panic!("{rl} has no pack"));
         let root = match pack {
-            "vanilla" => "assets/minecraft".to_owned(),
-            pack => format!(
+            "vanilla" => mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+            pack => std::path::PathBuf::from(format!(
                 "assets/{PACKS_ROOT}/{}/minecraft",
                 pack.trim_start_matches("file/")
-            ),
+            )),
         };
         let raw: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(format!("{root}/dimension_type/{}.json", rl.path())).unwrap(),
+            &std::fs::read(root.join(format!("dimension_type/{}.json", rl.path()))).unwrap(),
         )
         .unwrap();
 

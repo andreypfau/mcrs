@@ -17,6 +17,7 @@ required-features = ["bevy"]
 
 [features]
 default = ["bevy"]
+test-support = ["dep:mcrs_minecraft_fixtures"]
 bevy = [
     "dep:bevy_app",
     "dep:bevy_asset",
@@ -79,7 +80,11 @@ mcrs_minecraft_worldgen_structure.workspace = true
 bevy_math.workspace = true
 uuid.workspace = true
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+mcrs_minecraft_fixtures = { workspace = true, optional = true }
+
 [dev-dependencies]
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 tracing-subscriber = "0.3"
