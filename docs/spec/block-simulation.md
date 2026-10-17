@@ -230,8 +230,9 @@ The six section properties of SIM-TICK-005 (*loaded*, *accepts ticks*, *runs
 scheduled ticks*, *delivers block events*, *random-ticked*, *broadcasts changes*)
 are inputs the host derives from its loading machinery. The model requires only:
 
-- *runs scheduled ticks* implies *accepts ticks* implies *loaded*;
+- *runs scheduled ticks* implies *accepts ticks* and *loaded*;
 - *random-ticked* implies *loaded*;
+- *accepts ticks* need not imply *loaded*, nor the reverse (SIM-TICK-005);
 - every section a partition steps over is owned by it.
 
 How properties are derived (tickets, distances, column grouping) is an instance
@@ -420,7 +421,8 @@ Each contract lists (a) invariants, (b) freedoms, (c) parameters (A.5).
 #### SIM-MODEL-103: Limits
 
 - (a) **Update limit**: a shape cascade has at most `L` generations after the
-  original write, `L` = 512 by default, counted per cascade, across sections and
+  original write (`L` + 1 below a block that emits shape updates directly with limit `L`,
+  SIM-SHP-001), `L` = 512 by default, counted per cascade, across sections and
   across partitions (a message carries the remaining limit) (SIM-SHP-002).
 - (a) **Chain limit**: a chain accepts at most `M` requests (SIM-NBR-004); the
   server never fails on a long chain.
@@ -469,8 +471,9 @@ Each contract lists (a) invariants, (b) freedoms, (c) parameters (A.5).
   uniform picks per step over the section's 4096 positions, with replacement;
   precipitation at `k` picks per column surface per step, each with probability
   1/48.
-- (b) The section visiting order, the random streams and the pick algorithm, as
-  long as the per-block rate and independence hold.
+- (b) The section visiting order, the random streams and the pick algorithm, as long as each pick is uniform over the section's positions and the per-block
+  rate holds. Independence of the picks is not required: vanilla's are correlated
+  (SIM-RND-002).
 - (c) P-RNG, P-RANDOM.
 
 #### SIM-MODEL-107: Client sync
@@ -483,7 +486,7 @@ Each contract lists (a) invariants, (b) freedoms, (c) parameters (A.5).
 #### SIM-MODEL-108: Persistence
 
 - (a) The save layout of SIM-SCH-012 (it is the save format, which is exact): one record per vanilla column, delays relative to the
-  owner's clock, restored sequences `k − m` per record (SIM-SCH-013).
+  owner's clock, restored sequences `k − m` per record and per kind (SIM-SCH-013).
 - (b) None in the format; when a column record is written is free.
 
 #### SIM-MODEL-109: Time gates
@@ -626,20 +629,21 @@ column of B.1. The behaviour that matters for the model:
 - **Relevant state:** the online player count; the server property `pause-when-empty-seconds` (default 60); the tick-rate state (SIM-TICK-004).
 - **Preconditions:** none.
 - **Behavior:**
-  1. If `pause-when-empty-seconds` × 20 is greater than 0, the server counts consecutive server ticks with zero players while not sprinting. Once that count reaches the threshold, the server tick does nothing except network handling: no level ticks run and game time does not advance. The first paused tick saves the world.
+  1. If `pause-when-empty-seconds` × 20 is greater than 0, the server counts consecutive server ticks with zero players while not sprinting (the counter is incremented, then compared). From the tick on which the count reaches the threshold, the server tick only handles connections (on a dedicated server this includes queued console commands, whose block changes run with their full chains): no level ticks run, and the tick-rate state, the time-sync counter and game time do not advance. The first paused tick saves the world.
   2. Otherwise the tick-rate state advances (SIM-TICK-004), then:
-     1. command functions tick;
-     2. if runs normally: world clocks advance;
-     3. every 20 server ticks: time synchronisation is sent;
-     4. each dimension runs one level tick (SIM-TICK-002), one dimension after another, in dimension creation order: the overworld first, then the other dimensions in the order they were created at startup;
-     5. connections, the player list and the rest of the server tick.
-- **Ordering constraints:** observable result and vanilla order coincide: dimensions tick sequentially, never interleaved, in the order above.
-- **Numeric semantics:** threshold = `pause-when-empty-seconds × 20` server ticks.
+     1. if runs normally: the `#minecraft:tick` function tag runs, preceded on the first such tick after a reload by `#minecraft:load`;
+     2. if runs normally: world clocks advance (each clock only while the game rule `advance_time` allows it);
+     3. every 20 server ticks: time synchronisation is sent, carrying the game time from before this tick's advance;
+     4. each dimension runs one level tick (SIM-TICK-002), one dimension after another: the overworld first, then the other dimensions in an order vanilla leaves unspecified (iteration of a hash map over identity-hashed keys, not registration or name order, and not guaranteed stable across runs);
+     5. connections (which includes the base tick of each player and queued console commands), the player list, and, if runs normally, game tests.
+  Packets received from players are handled at the start of every loop iteration, paused or not, before step 2, so a player's block action runs at the game time of the previous tick.
+- **Ordering constraints:** level ticks run sequentially, in the order above. Any fixed order of the dimensions after the overworld conforms; an exact-parity mode fixes one.
+- **Numeric semantics:** threshold = `pause-when-empty-seconds × 20` server ticks. The base server returns 0, so only a dedicated server pauses (default 60 s); the threshold counts server ticks whatever the tick rate.
 - **Postconditions:** after a server tick that runs normally, game time is one greater (SIM-TICK-003).
 - **Edge cases:** a paused server does not count game time, so pending scheduled ticks stay due at the same game time (SIM-SCH-003).
-- **Invariants:** block work of two dimensions never interleaves within one server tick.
+- **Invariants:** level ticks of two dimensions never overlap. A phase of one dimension can still set blocks in another, synchronously: exit-portal and End-platform creation when an entity changes dimension, and commands run in another dimension. Such a set and its whole neighbour and shape chain run inside the writer's phase, on the target dimension's chain; the ticks it schedules and the block events it queues join the target dimension's queues.
 - **Conformance tests:**
-  - With no player online and `pause-when-empty-seconds=1`, after 20 server ticks game time stops advancing and a repeater tick scheduled for game time `G+4` does not run while paused. Failing twin: with one player online, it runs at `G+4`.
+  - With no player online, `pause-when-empty-seconds=1` and the repeater's column force-loaded: game time advances on the first 19 consecutive empty server ticks and stops from the 20th, and a repeater tick scheduled for a game time past the pause does not run while paused. Failing twin: with one player online, it runs on time. (Without the forced column, no column runs scheduled ticks with no player online, and the test would pass without the pause.)
 
 Provenance: `source_suggested`. Confidence: high.
 
@@ -660,15 +664,15 @@ Provenance: `source_suggested`. Confidence: high.
 | 6 | scheduled block ticks (SIM-SCH-006) | yes, and skipped in a debug world | block ticks |
 | 7 | scheduled fluid ticks (SIM-SCH-006) | yes, and skipped in a debug world | fluid ticks |
 | 8 | raids | yes | none |
-| 9 | loading and per-area work: ticket purge and load-level updates; then, if runs normally and not a debug world, spawning work (thunder, natural spawning) over the spawning area, followed by random ticks and precipitation picks (SIM-RND-001), then the special spawners; then, if not a debug world, the broadcast of changed blocks to clients (SIM-SET-005), whether or not the tick runs normally; then unloading and saving | partly | random ticks; precipitation; client sync of block changes; saving of pending ticks (SIM-SCH-012) |
+| 9 | loading and per-area work: the ticket purge (timed tickets count down and expire) only if runs normally; load-level updates always; then, if runs normally and not a debug world, spawning work (the shuffle of the spawning area, thunder, natural spawning) over the spawning area, followed by random ticks and precipitation picks (SIM-RND-001), then, if the game rule `spawn_mobs` is true, the special spawners; then, if not a debug world, the broadcast of changed blocks to clients (SIM-SET-005), whether or not the tick runs normally; then unloading (only while saving is on) and saving | partly | random ticks; precipitation; client sync of block changes; saving of pending ticks (SIM-SCH-012) |
 | 10 | block events (SIM-BEV-002) | yes | block events |
-| 11 | entities (only while the dimension has had active tickets within the last 300 level ticks) | per entity | none here |
-| 12 | block entities (same 300-tick condition; each ticker runs only if runs normally and its position delivers block events, SIM-TICK-005) | yes | none here |
+| 11 | entities (only while the empty-dimension counter is below 300, see Numeric semantics) | per entity | none here |
+| 12 | block entities (same counter condition; each ticker runs only if runs normally, its position *delivers block events*, its column is at block-ticking status with its entities loaded, it lies inside the world border, and its type is valid for the current block state) | yes | none here |
 | 13 | entity management, debug | no | none |
 
   Neighbour and shape updates are not a phase. They run synchronously inside whatever phase causes a block change (SIM-NBR-003).
 - **Ordering constraints:** observable result and vanilla order coincide for the phase order. In particular: all scheduled block ticks of a level tick run before all its scheduled fluid ticks; both run before random ticks; random ticks run before block events; block events run before entities and block entities.
-- **Numeric semantics:** the empty-dimension threshold is 300 level ticks without an active ticket (counted only on ticks that run normally).
+- **Numeric semantics:** the empty-dimension counter is per dimension, starts at 0 and is not saved. After step 10 it is reset to 0 if the dimension holds a ticket of a type that keeps it active (vanilla: `player_simulation`, `forced`, `portal`, `ender_pearl`; not `player_loading`, `player_spawn`, `spawn_search`, `dragon` or `unknown`), then incremented if the tick runs normally; steps 11 and 12 run iff it is below 300. It is also reset when an entity arrives from another dimension or an ender pearl registers its ticket. With every tick running normally, entities and block entities run for 298 level ticks after the last one with such a ticket and stop on the 299th.
 - **Postconditions:** none beyond the phases.
 - **Edge cases:**
   - The client broadcast of block changes (step 9) runs after scheduled ticks and random ticks of this tick but before block events, entities and block entities. Block changes made in steps 10–12 reach clients in step 9 of the next level tick.
@@ -700,11 +704,11 @@ Provenance: `source_suggested`. Confidence: high.
 - **Inputs:** `/tick freeze`, `/tick unfreeze`, `/tick step N`.
 - **Relevant state:** `frozen` (boolean), `steps_left` (integer ≥ 0).
 - **Preconditions:** none.
-- **Behavior:** at the start of each server tick, *runs normally* := `!frozen || steps_left > 0`; then, if `steps_left > 0`, it decreases by one. When not running normally, these do not run: world border, weather, game time, world clocks, scheduled block and fluid ticks, raids, random ticks and spawning, block events, block entity ticks, non-player entities (players and entities carrying a player passenger still tick). These still run: loading and unloading, the client broadcast of block changes, and every neighbour and shape update caused by something that still runs (for example a player placing a block).
+- **Behavior:** at the start of each server tick, *runs normally* := `!frozen || steps_left > 0`; then, if `steps_left > 0`, it decreases by one. When not running normally, these do not run: world border, weather, game time and the scheduled function queue, world clocks, `#minecraft:tick` functions, scheduled block and fluid ticks, raids, ticket expiry, random ticks and spawning, block events, the empty-dimension counter, the dragon fight, game tests, block entity ticks, and non-player entities (players, entities with a player passenger at any depth, and everything riding such an entity still tick). These still run: load-level updates, loading and unloading (but columns held only by timed tickets stay loaded, because those tickets do not count down), the sleep check, the client broadcast of block changes, and every neighbour and shape update caused by something that still runs (for example a player placing a block).
 - **Ordering constraints:** none beyond SIM-TICK-002.
 - **Numeric semantics:** `/tick step N` lets exactly N server ticks run normally.
 - **Postconditions:** block events queued while frozen stay queued; scheduled ticks stay queued and become due by game time only.
-- **Edge cases:** a block placed while frozen still performs its whole neighbour/shape chain immediately, and any tick it schedules is due relative to the frozen game time.
+- **Edge cases:** a block placed while frozen still performs its whole neighbour/shape chain immediately, and any tick it schedules is due relative to the frozen game time. `/tick step N` replaces the remaining steps rather than adding to them, and fails unless frozen; `/tick freeze` cancels stepping and sprinting.
 - **Invariants:** game time advances exactly on the ticks that run normally.
 - **Conformance tests:**
   - Frozen; a player powers a repeater with delay 1. No change after 10 server ticks; after `/tick step 2` the repeater output turns on (repeater delay 1 is 2 game ticks). Failing twin: turns on while frozen.
@@ -720,23 +724,24 @@ Provenance: `source_suggested`. Confidence: high.
 
 | Property | Gates | Vanilla derivation (column-grouped) |
 |----------|-------|-------------------------------------|
-| *loaded* | reads and sets without a synchronous load (SIM-SET-003) | the column is loaded at full status (load level ≤ 33) |
-| *accepts ticks* | scheduled ticks are stored rather than dropped (SIM-SCH-005) | the column is loaded at full status; equal to *loaded* |
+| *loaded* | the "is loaded" test (SIM-NBR-006); a read or set at a position whose section is not *loaded* loads it synchronously (SIM-SET-003) | load level ≤ 33; vanilla checks nothing else, so a column still loading counts as loaded, and a read there waits for the load to finish |
+| *accepts ticks* | scheduled ticks are stored rather than dropped (SIM-SCH-005) | the column's full chunk is in memory: from the moment it finishes loading to full status until it is unloaded (load level above 44, processed in step 9 of SIM-TICK-002). Not equal to *loaded*: a column at load level ≤ 33 that is still loading does not accept ticks; a column demoted to 34–44 does |
 | *runs scheduled ticks* | stored ticks may be collected (SIM-SCH-006) | simulation level ≤ 32, and the column has reached block-ticking status (load level ≤ 32, which requires the eight neighbouring columns to be full), and the column's entities are loaded |
-| *delivers block events* | block events are delivered, not deferred (SIM-BEV-003); block entities tick | simulation level ≤ 32; nothing else is checked |
+| *delivers block events* | block events are delivered, not deferred (SIM-BEV-003); a precondition of block entity ticking (SIM-TICK-002 step 12) | simulation level ≤ 32; nothing else is checked |
 | *random-ticked* | random ticks (SIM-RND-001) | simulation level ≤ 31 and the column has reached block-ticking status |
 | *broadcasts changes* | sets are marked for client sync (SIM-SET-005) | the column has reached block-ticking status |
 
-  Two transitions also matter: saved ticks activate (SIM-SCH-013) and post-processing runs (SIM-SCH-017) when the section starts to *broadcast changes* (vanilla: when its column reaches block-ticking status).
+  Two transitions also matter: post-processing runs (SIM-SCH-017) and saved ticks activate (SIM-SCH-013) when the column completes its transition to block-ticking. When that happens is stated in SIM-SCH-013 step 3; *broadcasts changes* itself turns on earlier, with the load level.
 - **Ordering constraints:** none.
-- **Numeric semantics:** full = 33, block-ticking = 32, entity-ticking = 31. In vanilla the simulation level comes from the simulation distance (server property `simulation-distance`, default 10) and the load level from the view distance and other tickets.
+- **Numeric semantics:** full = 33, block-ticking = 32, entity-ticking = 31. In vanilla, for a column at Chebyshev distance d (in columns) from a player's column: simulation level = max(0, 31 − S) + d, with S the simulation distance (server property `simulation-distance`, default 10); load level from player tickets = 31 + max(0, d − V), with V the view distance clamped to 2–32; other tickets add their own levels (a radius ticket of radius r sits at 33 − r). A column stays in memory while its load level is ≤ 44 (33 plus the 11-column radius of full-status generation dependencies at this version).
 - **Postconditions:** none.
 - **Edge cases:**
   - *random-ticked* requires the entity-ticking threshold although *runs scheduled ticks* requires only block-ticking. A section at simulation level 32 runs its scheduled ticks but receives no random ticks.
   - *delivers block events* does not require the section to be loaded.
+  - A column demoted to load level 34–44 keeps its queues in memory, accepts ticks and runs none; its ticks keep their absolute due ticks, whereas a save and reload re-keys them (SIM-SCH-013).
 - **Invariants:** *runs scheduled ticks* implies *accepts ticks*.
 - **Vanilla grouping:** load and simulation levels are computed per column by the ticket system, with no vertical component: a section's properties depend only on `(sx, sz)`. A host may compute properties per section by any rule; an exact-parity mode assigns every section of a column the properties vanilla gives the column.
-- **Conformance tests:** with simulation distance 3, a section at simulation level 32 (one ring outside the entity-ticking area) runs a pending repeater tick but a sapling there never grows by random ticks. Failing twin: the sapling grows.
+- **Conformance tests:** with simulation distance 3 and view distance at least 3 (default 10), a section at simulation level 32 (one ring outside the entity-ticking area, d = 4) runs a pending repeater tick but a sapling there never grows by random ticks. Failing twin: the sapling grows.
 
 Provenance: `source_suggested`. Confidence: high.
 
@@ -757,21 +762,23 @@ Provenance: `source_suggested`. Confidence: high.
 | 1 | 2 | *sync-clients* | the change is marked for client sync (SIM-SET-005) |
 | 2 | 4 | *no-rerender* | client-side only: on a client level, suppresses the re-render. No effect on the server |
 | 3 | 8 | *rerender-now* | client-side only: re-render synchronously. No effect on the server |
-| 4 | 16 | *keep-shape* | the set emits no shape updates, direct or indirect (SIM-SHP-001) |
-| 5 | 32 | *no-drops* | read only when a shape update turns a block into air: the block is removed without drops (SIM-SHP-002) |
+| 4 | 16 | *keep-shape* | the set emits no shape updates, direct or indirect (SIM-SHP-001); during generation, a set **without** it marks a position for post-processing (SIM-NBR-005) |
+| 5 | 32 | *no-drops* | read only when a shape update turns a block into air: the block is removed without drops (SIM-SHP-001). No shape update carries it at this version (SIM-SHP-001), so a set with 35 behaves exactly like 3 |
 | 6 | 64 | *piston-move* | the old block's removal side effect and the new block's placement side effect are told "moved by piston"; the removal side effect runs even without *notify-neighbours* |
-| 7 | 128 | *wire-skips-shape* | a shape update carrying this bit is skipped when the block receiving it is `minecraft:redstone_wire` |
+| 7 | 128 | *wire-skips-shape* | a shape update carrying this bit is skipped when the block receiving it is `minecraft:redstone_wire`; at this version only the experimental wire evaluator sets it, as 2 \| 128 |
 | 8 | 256 | *skip-block-entity-effects* | when the old block entity is removed, its pre-removal side effects (for example dropping a container's contents) are skipped |
 | 9 | 512 | *skip-placement* | the new state's placement side effect does not run |
 
-  Combinations used below:
+  Combinations named in this document:
 
-| Value | Bits |
-|-------|------|
-| 3 | *notify-neighbours*, *sync-clients* (the ordinary set) |
-| 11 | *notify-neighbours*, *sync-clients*, *rerender-now* |
-| 260 | *no-rerender*, *skip-block-entity-effects* |
-| 816 | *keep-shape*, *no-drops*, *skip-block-entity-effects*, *skip-placement* |
+| Value | Bits | Used by |
+|-------|------|---------|
+| 3 | *notify-neighbours*, *sync-clients* | the ordinary set; destroy (SIM-SET-004); remove, as 3 \| 64 |
+| 11 | *notify-neighbours*, *sync-clients*, *rerender-now* | player placement and item use; on the server identical to 3 |
+| 258 | *sync-clients*, *skip-block-entity-effects* | non-strict `/setblock` and `/fill` (SIM-SET-002, edge cases) |
+| 260 | *no-rerender*, *skip-block-entity-effects* | state changes clients are not sent, such as growth ages |
+| 276 | *no-rerender*, *keep-shape*, *skip-block-entity-effects* | post-processing (SIM-SCH-017) |
+| 818 | *sync-clients*, *keep-shape*, *no-drops*, *skip-block-entity-effects*, *skip-placement* | strict commands; vanilla never uses 816 without *sync-clients* |
 
 - **Ordering constraints:** none.
 - **Numeric semantics:** the flag word is a 32-bit integer.
@@ -806,14 +813,14 @@ Provenance: `source_suggested`. Confidence: high.
      5. If (the block type changed, or S is any rail) and (*notify-neighbours* or *piston-move*): O's removal side effect runs with "moved by piston" = *piston-move*.
      6. If the state now at P is no longer of S's block type (step 5 replaced it): result *false*, nothing else happens.
      7. Unless *skip-placement*: S's placement side effect runs with the old state O and "moved by piston".
-     8. If S has a block entity, it is created or updated.
+     8. If S has a block entity and the state at P is still of S's block type after 2.7: an existing block entity that is not valid for S is removed (with a warning); then a block entity is created if none is present, otherwise its state is set to S.
   3. If the state at P is now exactly S (steps 2.5 and 2.7 may have changed it):
      1. If *sync-clients* and P's section *broadcasts changes* (SIM-TICK-005): P is marked for client sync (SIM-SET-005), and mob paths crossing a changed collision shape are recomputed.
      2. If *notify-neighbours*: neighbour updates around P with source block = **O's** block type (SIM-NBR-001); then, if S has an analog output signal, comparator output updates with source = S's block type (SIM-NBR-006).
      3. If not *keep-shape* and L > 0, with flags F' = F without *notify-neighbours* and without *no-drops*, and limit L − 1: O's indirect shape updates (SIM-SHP-003), then S's direct shape updates (SIM-SHP-001), then S's indirect shape updates.
      4. Points of interest are updated.
   4. The result is *true* whenever step 2 got past 2.6, including when step 3 was skipped.
-- **Ordering constraints:** observable result and vanilla order coincide within one set: removal side effect, then placement side effect, then client marking, then neighbour updates, then comparator updates, then old-indirect, direct and new-indirect shape updates. When no chain is running these run to completion inside the set; inside a chain they are queued in this order (SIM-NBR-003).
+- **Ordering constraints:** observable result and vanilla order coincide within one set: removal side effect, then placement side effect, then client marking, then neighbour updates, then comparator updates, then old-indirect, direct and new-indirect shape updates. The removal side effect, the placement side effect and the client marking always run synchronously inside the set (steps 2.6 and 3 depend on it). When no chain is running, the neighbour, comparator and shape updates also run to completion inside the set, each emission completing before the next is computed (SIM-NBR-003). Inside a chain they, and any requests the side effects make, are queued in emission order.
 - **Numeric semantics:** L is decremented once per generation of shape updates (SIM-SHP-002).
 - **Postconditions:** if the result is true, P held S at least momentarily.
 - **Edge cases:**
@@ -822,7 +829,8 @@ Provenance: `source_suggested`. Confidence: high.
   - A placement side effect that sets P again makes step 3 compare against the newer state; if it differs from S, step 3 is skipped entirely but the result is still true.
   - A rail replaced by a rail of another shape (same block type) still runs the removal side effect.
   - A set whose updates cross into other sections behaves exactly as within one section; no step of this rule depends on section or column boundaries.
-- **Invariants:** no update of any kind is emitted by a set whose result is false.
+  - Commands do not follow this sequence. Non-strict `/setblock` and `/fill` set with 258 (no neighbour updates; shape updates run), and only then, through a separate call, run the removal side effect if the block type changed (no rail case) and send neighbour updates around P with the **new** block type as source, followed by comparator updates. Strict mode sets with 818 and sends nothing else. A black-box experiment that places blocks by command must account for this.
+- **Invariants:** a set refused at step 1, 2.1 or 2.2 emits nothing. A set that fails at step 2.6 has already written S, updated heightmaps and light, and run the old block entity's pre-removal side effects and O's removal side effect, together with any requests that side effect made.
 - **Conformance tests:**
   - Probe block A at P replaced by probe block B with flags 3: log order is A.removed, B.placed, then six neighbour updates whose source is A, then six shape updates. Failing twin: neighbour updates with source B.
   - Same state set twice with flags 3: the second logs nothing and returns false.
@@ -836,25 +844,25 @@ Provenance: `source_suggested`. Confidence: high.
 - **Relevant state:** whether P's section is *loaded*.
 - **Preconditions:** none.
 - **Behavior:**
-  - **Valid bounds.** P is valid iff its y lies inside the dimension's vertical extent (dimension type `min_y` ≤ y < `min_y + height`, vanilla data) and `max(|sx|, |sz|)` ≤ the valid horizontal bound (section coordinates; block coordinate limit 33 554 431 → 2 097 151, minus a generation safety margin; see section 9). A read at an invalid position returns `minecraft:void_air` (fluid: empty) and loads nothing; a set there is refused.
-  - **Synchronous load.** On the server main thread, a set or a read at a valid position whose section is not *loaded* **loads (or generates) it synchronously** before continuing. The section is then *loaded* and *accepts ticks* for at least the rest of the level tick, but does not *run scheduled ticks* unless something else makes it, so ticks scheduled into it wait (SIM-SCH-015).
+  - **Valid bounds.** P is valid iff its y lies inside the dimension's vertical extent (dimension type `min_y` ≤ y < `min_y + height`, vanilla data) and `max(|sx|, |sz|)` ≤ 2 097 061 = (33 554 431 >> 4) − 90, where the margin 90 = (32 + 12 + 1) × 2 and 12 is the number of dependency rings of full-status generation at this version; in blocks, −33 552 976 ≤ x, z ≤ 33 552 991. The ±30 000 000 world limit of commands and spawning is a separate, smaller bound. A read at an invalid position returns `minecraft:void_air` (fluid: empty) and loads nothing; a set there is refused.
+  - **Synchronous load.** On the server main thread, a set or a read at a valid position whose section is not *loaded*, or whose column has not finished loading, **loads (or generates) it synchronously** before continuing. While it waits, the server runs other queued chunk work: load-level updates and queued main-thread tasks, including other columns' completion of block-ticking status, so their post-processing and saved-tick activation (SIM-SCH-017, SIM-SCH-013) can happen in the middle of a chain. The section is then *loaded* and *accepts ticks* for at least the rest of the level tick, but does not *run scheduled ticks* unless something else makes it, so ticks scheduled into it wait (SIM-SCH-015). It *delivers block events* only if it was already within simulation range; it is not *random-ticked*, does not *broadcast changes*, and its block entities do not tick.
 - **Ordering constraints:** the load completes before the set or read continues.
 - **Numeric semantics:** see Vanilla grouping.
 - **Postconditions:** P's section is *loaded* for at least the rest of the tick.
-- **Edge cases:** many vanilla blocks guard their own reads with an "is loaded" check; comparator output updates (SIM-NBR-006) skip some unloaded neighbours. The neighbour updater itself does not check.
+- **Edge cases:** only lava's fire spread, block-pattern matching and comparator output updates (SIM-NBR-006) test loading; every other read loads. The neighbour updater itself does not check. Commands refuse targets that are not loaded, so a command cannot make its target column load.
 - **Invariants:** a set never silently writes into an unloaded section; it loads it first.
-- **Vanilla grouping:** the unit vanilla loads is P's whole column, generated to full status, and it holds it there with a temporary ticket on the column: level 33, lifetime 1 level tick. An exact-parity mode loads every section of that column inside the dimension's vertical extent and gives them all the same properties.
-- **Conformance tests:** see OQ-03.
+- **Vanilla grouping:** the unit vanilla loads is P's whole column, generated to full status, and it holds it there with a temporary ticket on the column (`minecraft:unknown`, level 33, loading only: the simulation level is unchanged, timeout 1). Every main-thread access to a full chunk that misses a four-entry cache adds that ticket or resets it. The purge at the start of step 9 of SIM-TICK-002, on ticks that run normally only, counts it down, and the second purge after the access removes it: added in steps 1–8 of tick N it holds until step 9 of tick N + 1; added later in N or between ticks, until step 9 of N + 2; while frozen it never expires; a column touched every tick stays held. When it expires, the column takes the load level other tickets give it (SIM-SCH-015). An exact-parity mode loads every section of that column inside the dimension's vertical extent and gives them all the same properties.
+- **Conformance tests:** an immediate chain (redstone dust, not scheduled observers) running out of the loaded area loads each column it reaches; after the chain, those columns return to the levels other tickets give them, and only those beyond Chebyshev distance V + 13 from every player are unloaded, with saving on (OQ-03, answered).
 
-Provenance: `source_suggested`. Confidence: medium (OQ-03).
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SET-004: Destroying a block
 
 - **Inputs:** destroy at P, drop flag, update limit L (default 512).
 - **Relevant state:** state O at P; its fluid.
 - **Preconditions:** none.
-- **Behavior:** if O is air, nothing happens (result false). Otherwise destroy particles are emitted, drops are spawned if the drop flag is set, then P is set to the block form of the fluid at P (air, or the fluid's source/flowing block) with flags 3 and limit L (SIM-SET-002). If that set succeeds a `block_destroy` game event is emitted. "Remove block" (without drops) sets the fluid's block form with flags 3, plus *piston-move* when requested.
-- **Ordering constraints:** drops before the set; the set's chain before the game event.
+- **Behavior:** if O is air, nothing happens (result false). Otherwise destroy particles are emitted, drops are spawned if the drop flag is set, then P is set to the block form of the fluid at P (air, or the fluid's source/flowing block) with flags 3 and limit L (SIM-SET-002). If that set succeeds a `block_destroy` game event is emitted. "Remove block" (without drops) sets the fluid's block form with flags 3, plus *piston-move* when requested; it has no air check, no particles and no game event, and uses limit 512.
+- **Ordering constraints:** drops before the set. When no chain is running, the set's updates complete before the game event. Inside a chain, which includes every destroy made by a shape update, the game event is emitted after the set's side effects and client marking but before its queued neighbour, comparator and shape updates run.
 - **Numeric semantics:** none.
 - **Postconditions:** a waterlogged block destroyed leaves water.
 - **Edge cases:** a destroy always emits neighbour updates (flags 3), even when it was caused by a shape update whose flags had no *notify-neighbours*.
@@ -865,15 +873,15 @@ Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SET-005: Client sync of block changes
 
-- **Inputs:** sets with *sync-clients*.
+- **Inputs:** sets with *sync-clients*, and positions marked directly without a set (a block entity whose data changed asks for its position to be resent; only the eligibility below applies, whatever flags it passes).
 - **Relevant state:** per section, the set of marked positions.
-- **Preconditions:** P's section *broadcasts changes* when the set happens.
-- **Behavior:** marking records only the position, in its section. In step 9 of each level tick (SIM-TICK-002), every section with marks that still *broadcasts changes* sends to the players that see it: one `block_update` packet with the state **current at broadcast time** if exactly one position is marked, or one `section_blocks_update` packet with the current states of all marked positions otherwise; block entity data follows where needed. Marks are then cleared.
+- **Preconditions:** P's section *broadcasts changes* when the set happens. Vanilla tests this twice: the set tests the column's full status (block-ticking or more), and the marking itself needs the column's ticking chunk to be ready.
+- **Behavior:** marking records only the position, in its section. In step 9 of each level tick (SIM-TICK-002), every section with marks whose column still *broadcasts changes* sends to the players that see it (those whose tracking view contains the column and for whom the column is not still waiting to be sent): one `block_update` packet with the state **current at broadcast time** if exactly one position is marked, or one `section_blocks_update` packet with the current states of all marked positions otherwise; block entity data follows where needed. Marks are then cleared. A column that does not broadcast changes at broadcast time keeps its marks but leaves the broadcast queue; it is queued again only when it becomes ready to send again.
 - **Ordering constraints:** observable result: one packet per marked section per broadcast, carrying current states. Vanilla order: see Vanilla grouping.
 - **Numeric semantics:** packet ids as in 0.5.
-- **Postconditions:** a client never sees an intermediate state of a position that changed twice between broadcasts.
+- **Postconditions:** through the broadcast, a client never sees an intermediate state of a position that changed twice between broadcasts. Some paths send a `block_update` at once with the then-current state, outside the broadcast: a falling block that lands, and the server's answers to a player's digging and use actions.
 - **Edge cases:**
-  - A set with *sync-clients* in a section that is *loaded* but does not *broadcast changes* is not marked at all; a client learns the state only when the section is (re)sent (OQ-06).
+  - A set with *sync-clients* in a section that is *loaded* but does not *broadcast changes* is not marked at all. A player that is not a spectator is only sent block-ticking columns (every column it tracks holds a ticket at the entity-ticking level), so this arises only for a column demoted while tracked, for example a column another player loaded and a spectator who does not generate chunks watches. When the column becomes block-ticking again it is resent whole to every player tracking it; that resend is how the client learns the change (OQ-06, answered).
   - A position set and then set back to its original state before the broadcast still produces a packet carrying the original state.
   - With no player seeing the section, its marks are cleared and nothing is sent.
 - **Invariants:** at most one packet per section per broadcast.
@@ -913,7 +921,7 @@ Provenance: `source_suggested`. Confidence: high.
 | Kind | Captured at request | Read at run | Steps |
 |------|---------------------|-------------|-------|
 | neighbours-around (SIM-NBR-001) | P, B, skipped direction, orientation | each neighbour's state, per step | up to 6 |
-| single, by position | target Q, B, orientation | Q's state | 1 |
+| single, by position | target Q, B, orientation (moved-by-piston is always false) | Q's state | 1 |
 | single, with state | target Q, **Q's state**, B, orientation, moved-by-piston | nothing; the captured state is used | 1 |
 | shape update (SIM-SHP-001) | target Q, direction, **the changed neighbour's state**, its position, flags, limit | Q's state | 1 |
 
@@ -934,21 +942,21 @@ Provenance: `source_suggested`. Confidence: high.
 - **Behavior:**
   - **No chain running.** The request starts a chain and the whole chain runs to completion before the request call returns. A set made outside any chain therefore returns only after every update it caused, transitively, has run.
   - **Chain running.** The request is appended to the *added-this-step* list and the call returns immediately. The requesting handler finishes before any of its requests run.
-  - **Traversal.** The chain keeps a stack. Repeat until the stack and the added-this-step list are empty: push the added-this-step list onto the stack in reverse, so its first element is on top; clear the list; take the top request and run its steps one at a time; stop running it as soon as a step added requests (they are pushed next round), or when it has no step left, in which case it is popped (a request whose last step added requests is popped once it is next found with no step left).
-  - When the chain ends, its count resets to 0.
+  - **Traversal.** The chain keeps a stack. Repeat until the stack and the added-this-step list are empty: push the added-this-step list onto the stack in reverse, so its first element is on top; clear the list; take the top request and run its steps one at a time. After its last step it is popped at once, even if that step added requests. Otherwise it stops running as soon as a step added accepted requests, and stays on the stack under them.
+  - When the chain ends, its count resets to 0, whether it ended normally or by an exception in a handler.
 - **Ordering constraints:**
-  - Observable result: every accepted request runs exactly once, each step at most once; the handler that made a request always completes first.
+  - Observable result: every accepted request runs exactly once, each step at most once. A handler running inside a chain completes before any request it made runs; a request made with no chain running completes, with its whole chain, before the call returns.
   - Vanilla order: depth first. After each single step, every request that step added runs, in the order added, each completely and depth first, before the next step of the same request. Requests made during one step keep their emission order.
 - **Numeric semantics:** none here; the limit is SIM-NBR-004.
 - **Postconditions:** when a chain ends, the stack and list are empty.
 - **Edge cases:**
   - Within SIM-SET-002 step 3, the requests are emitted in this order and therefore run in this order: neighbours-around P, comparator updates, old-indirect shapes, the six direct shape updates in shape order, new-indirect shapes. Requests emitted by the removal and placement side effects (steps 2.5 and 2.7) come before all of them.
-  - Outside a chain, each of those emissions starts and completes its own chain in turn, so the effective order is the same but each emission has its own count.
+  - Outside a chain, each emission starts and completes its own chain before the next emission is computed. The comparator scan (SIM-NBR-006) and the indirect-shape scans (SIM-SHP-003), and the states they capture, therefore see the effects of the earlier chains; inside a chain all emissions are computed during the set. The request order is the same either way; the content may differ, and each emission has its own count.
   - A handler that reads the world after making a request inside a chain does not see that request's effects.
   - A chain is per dimension and spans any number of sections; its order and its count ignore section and column boundaries.
-- **Invariants:** the traversal is iterative; the depth of handler nesting does not grow with the chain length. Every live dimension, server and client, delivers neighbour and shape updates through this traversal.
+- **Invariants:** the traversal is iterative; the depth of handler nesting does not grow with the chain length. Every server dimension delivers neighbour and shape updates through this traversal. A client dimension has its own chain, with a fixed limit of 1 000 000, that carries only shape updates: neighbours-around, single and comparator requests do nothing on a client, and block changes received from the server are applied with *keep-shape*.
 - **Conformance tests:**
-  - Probe A at P; probes at all six neighbours. P+W's handler, when updated, sets P+W+W (probe Z with probe neighbours) with flags 1. A set at P with flags 1 logs: P+W, then Z's six neighbours in neighbour order, then P+E, P+D, P+U, P+N, P+S. Failing twin: P+E before Z's neighbours (breadth first).
+  - Probe A at P; probes at all six neighbours. P+W's handler, when updated, sets P+W+W (probe Z with probe neighbours) with flags 17. A set at P with flags 17 logs: P+W, then Z's six neighbours in neighbour order, then P+E, P+D, P+U, P+N, P+S. Failing twin: P+E before Z's neighbours (breadth first). (Flags 17 are *notify-neighbours* and *keep-shape*, so no shape update enters the log; with flags 1, Z's six shape updates would run between Z's neighbours and P+E.)
   - The same, with P+W's handler logging "after-set" after its set call: "after-set" is logged before Z's neighbours. Failing twin: after them (recursive execution).
   - A set at P made from a scheduled tick (no chain running) and followed by a log line "returned": "returned" is logged after every neighbour update of the chain.
 
@@ -959,7 +967,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Inputs:** requests within one chain.
 - **Relevant state:** the chain's request count `c` (requests offered so far in this chain, accepted or not); the limit `M`.
 - **Preconditions:** none.
-- **Behavior:** when a request is offered with `M ≥ 0` and `c ≥ M`, it is dropped; otherwise it is accepted. Either way `c` increases by one. When the first request is dropped (`c` was exactly `M`), one error is logged naming its position: "Too many chained neighbor updates. Skipping the rest. First skipped position: x, y, z". The chain continues with the requests already accepted; every later request of the same chain is dropped, because `c` only grows. `M < 0` means unlimited.
+- **Behavior:** when a request is offered with `M ≥ 0` and `c ≥ M`, it is dropped; otherwise it is accepted. Either way `c` increases by one. When the first request is dropped (`c` was exactly `M`), one error is logged naming its position (for a neighbours-around request the source P, for a single or shape request its target): "Too many chained neighbor updates. Skipping the rest. First skipped position: x, y, z". The chain continues with the requests already accepted; every later request of the same chain is dropped, because `c` only grows. `M < 0` means unlimited.
 - **Ordering constraints:** the requests dropped are exactly the ones offered after the first `M`, in offering order.
 - **Numeric semantics:** `M` = server property `max-chained-neighbor-updates`, default 1 000 000; the integrated (single-player) server uses 1 000 000. The first request of the chain counts.
 - **Postconditions:** at most `M` requests run per chain.
@@ -971,16 +979,16 @@ Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-NBR-005: World generation path
 
-- **Inputs:** shape updates made while placing features during world generation.
+- **Inputs:** block sets made while a column is generated (features, carvers, structure pieces), through the generation region.
 - **Relevant state:** none.
 - **Preconditions:** the change is made through the generation path, outside the server tick.
-- **Behavior:** during world generation, shape updates run immediately and recursively, each hop decrementing the update limit by one, with no chain and no chain count. No live dimension uses this path.
+- **Behavior:** a set through the generation region writes the block (and its block entity and point of interest) and makes **no neighbour updates and no shape updates**: there is no chain, no count and no limit. Unless the set has *keep-shape*, it marks for post-processing the position the new block names (brown and red mushrooms name themselves; soul sand and magma blocks name the block above; every other block names none) (SIM-SCH-017). Neighbour-update requests made on the generation region do nothing. Shapes become consistent in two other ways: post-processing when the column starts to broadcast changes (SIM-SCH-017), and template placement, which, unless the template's shapes are known, runs the shape function on both sides of each outer face of the placed volume and then recomputes each placed block from its six neighbours, writing through the region, which propagates nothing.
 - **Ordering constraints:** none.
 - **Numeric semantics:** none.
 - **Postconditions:** none.
-- **Edge cases:** it matters only for feature placement.
-- **Invariants:** none.
-- **Conformance tests:** none beyond SIM-NBR-003.
+- **Edge cases:** placing a feature into a live dimension (for example by command) goes through the dimension itself, not the generation region, and is an ordinary set (SIM-SET-002).
+- **Invariants:** generation makes no update requests.
+- **Conformance tests:** a generated column whose features place blocks next to each other carries, before it reaches block-ticking status, no state change that a shape update would have made, except where template placement or a post-processing mark applies.
 
 Provenance: `source_suggested`. Confidence: high.
 
@@ -989,7 +997,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Inputs:** position P, source block type B (the new block of SIM-SET-002 step 3.2, or a block calling it directly).
 - **Relevant state:** the four horizontal neighbours of P and the blocks one further.
 - **Preconditions:** none.
-- **Behavior:** for d in horizontal order `N, E, S, W`: let Q = P + d. If Q's section is not *loaded*, skip d. If Q holds a comparator, request "single, with state" for Q with source B. Otherwise, if Q is a redstone conductor and Q + d holds a comparator, request "single, with state" for Q + d with source B.
+- **Behavior:** for d in horizontal order `N, E, S, W`: let Q = P + d. If Q's section is not *loaded*, skip d. If Q holds a comparator, request "single, with state" for Q with source B. Otherwise, if Q is a redstone conductor and Q + d holds a comparator, request "single, with state" for Q + d with source B. Every request carries no orientation (also under SIM-NBR-007) and moved-by-piston = false.
 - **Ordering constraints:** vanilla order `N, E, S, W`; observable result: each such comparator receives exactly one update.
 - **Numeric semantics:** none.
 - **Postconditions:** none.
@@ -1006,13 +1014,15 @@ Provenance: `source_suggested`. Confidence: high.
 
 - **Inputs:** neighbour updates in a dimension whose enabled features include `minecraft:redstone_experiments`.
 - **Relevant state:** the level random (SIM-RNG-001).
-- **Preconditions:** the feature is enabled (`data/minecraft/datapacks/redstone_experiments/pack.mcmeta` of the client jar).
+- **Preconditions:** the feature is enabled (`data/minecraft/datapacks/redstone_experiments/pack.mcmeta` of the client jar). Enabled features are per world, so every dimension agrees.
 - **Behavior:** without the feature, every neighbour update carries no orientation. With it:
-  - An orientation is a triple (up, front, side bias ∈ {left, right}) with up and front on different axes: 6 × 4 × 2 = 48 orientations, indexed `((up_ordinal << 2) + front_key) << 1 | side_bias_ordinal`, where direction ordinals are `D=0, U=1, N=2, S=3, W=4, E=5`, `front_key = (front_axis_key << 1) | front_axis_direction` (axis direction positive = 0, negative = 1), and `front_axis_key` is 1 when (up is vertical and front is on X) or (up is horizontal and front is vertical), else 0.
-  - A *fresh orientation* is one of the 48 drawn uniformly from the level random, with its side bias then forced to left.
-  - A set with *notify-neighbours* (SIM-SET-002 step 3.2) draws a fresh orientation when it makes its neighbours-around request.
-  - A neighbours-around request made by a block with no orientation draws a fresh one when its first step runs; if the request skips a direction X, that orientation's front is set to the opposite of X.
-  - Each step towards direction d carries the request's orientation with its front set to d.
+  - An orientation is a triple (up, front, side bias ∈ {left, right}) with up and front on different axes: 6 × 4 × 2 = 48 orientations, indexed `((up_ordinal << 2) + front_key) << 1 | side_bias_ordinal`, where direction ordinals are `D=0, U=1, N=2, S=3, W=4, E=5`, side bias ordinals are left = 0, right = 1, `front_key = (front_axis_key << 1) | front_axis_direction` (axis direction positive = 0, negative = 1), and `front_axis_key` is 1 when (up is vertical and front is on X) or (up is horizontal and front is vertical), else 0.
+  - A *fresh orientation* is the orientation with index `nextInt(48)` drawn from the level random, then with its side bias set to left (its index's low bit cleared); a caller may then set its up and then its front.
+  - *Setting the front* to f keeps up and side bias, except: if f is the old up, up becomes the opposite of the old front; if f is the opposite of the old up, up becomes the old front.
+  - A neighbours-around request made without an orientation argument (a set's step 3.2, and every vanilla block that requests that way) draws a fresh orientation when the request is made, before the chain limit is checked, so even a dropped request draws.
+  - A request made with an orientation argument that is absent draws a fresh one when its first step runs; if it skips a direction X, that orientation's front is set to the opposite of X. No vanilla caller makes such a request.
+  - Each step towards direction d carries the request's stored orientation with its front set to d (derived from the stored orientation, not from the previous step's).
+  - Blocks that build orientations themselves (buttons, levers, redstone torches, observers, diodes, pistons, lightning rods, lecterns, trapped chests, tripwire hooks, the experimental wire) draw them from the same random.
 - **Ordering constraints:** each draw consumes one value of the level random at the moment stated above.
 - **Numeric semantics:** uniform integer in [0, 48).
 - **Postconditions:** none.
@@ -1028,9 +1038,9 @@ Provenance: `source_suggested`. Confidence: medium.
 
 ### SIM-SHP-001: Direct shape updates
 
-- **Inputs:** a changed position P, its new state S, flags F', limit L' (from SIM-SET-002 step 3.3).
+- **Inputs:** a changed position P, its new state S, flags F', limit L': from SIM-SET-002 step 3.3, or emitted directly by a block handler (see Edge cases).
 - **Relevant state:** the six neighbours of P.
-- **Preconditions:** the emitting set had no *keep-shape* and its limit L > 0 (so L' = L − 1 ≥ 0).
+- **Preconditions:** for an update emitted by a set (SIM-SET-002 step 3.3), the set had no *keep-shape* and its limit L > 0, so L' = L − 1 ≥ 0. An update emitted directly by a block carries the flags and the limit the block passes (Edge cases).
 - **Behavior:** for d in shape order `W, E, N, S, D, U`, one shape-update request (SIM-NBR-002) targets Q = P + d with direction = opposite of d (the direction from Q towards P), neighbour position P, neighbour state S, flags F', limit L'. When it runs:
   1. Q's current state C is read.
   2. If F' has *wire-skips-shape* and C is redstone wire, nothing happens.
@@ -1042,10 +1052,13 @@ Provenance: `source_suggested`. Confidence: medium.
 - **Numeric semantics:** F' = F with bits 1 and 32 cleared (F & −34). L' = L − 1.
 - **Postconditions:** none.
 - **Edge cases:**
-  - The shape function may schedule ticks (for example a falling block schedules its fall); scheduling is immediate (SIM-SCH-003), not queued.
-  - Because F' has no *notify-neighbours*, a shape-driven change emits no neighbour updates, unless it is a destruction (SIM-SET-004 always uses flags 3).
-  - *piston-move*, *wire-skips-shape*, *skip-block-entity-effects*, *skip-placement* and *sync-clients* propagate down the shape cascade.
-  - A set reached through the shape cascade drops *no-drops* before it emits its own shape updates, so in a cascade started by an ordinary set no destruction suppresses drops.
+  - The shape function receives the level as a reader and as a tick scheduler: it may read any position and schedule ticks (for example a falling block schedules its fall); scheduling is immediate (SIM-SCH-003), not queued. It is not a pure function of (C, direction, P, S).
+  - Because F' has no *notify-neighbours*, a set made by a shape update emits no neighbour or comparator output updates of its own (SIM-SET-002 step 3.2), and its removal side effect runs only if F' has *piston-move*. Its placement side effect still runs unless *skip-placement*, and may make requests: a repeater whose `locked` property changes by a shape update updates the block in front of it.
+  - Along set hops F' is invariant ((F' & −33) & −34 = F'), so every bit of the original F except *notify-neighbours* and *no-drops* reaches every generation, including the client-only bits 4 and 8. A destruction hop sets with flags 3, so the shape updates below it carry only *sync-clients*.
+  - No shape update emitted by a set carries *no-drops*: SIM-SET-002 step 3.3 clears it even when the set had it, so every shape-driven destruction drops. The *no-drops* branch of step 4 is reached only by a shape update emitted directly with bit 32, which no vanilla block does at this version.
+  - Blocks also emit shape updates directly, outside any set, with limit 512 rather than L − 1: a piston emits them with flags 2 around the moving block it places and around each position it vacates; a shulker box emits them with flags 3 when it opens or closes. A cascade started this way can change 513 generations, and with flags 3 its sets emit neighbour updates.
+  - O and S are captured when step 3.3 emits. Outside a chain, the neighbour updates of step 3.2 have already run to completion and may have changed P, and every direct shape update still carries S (SIM-SHP-004).
+  - On a client level, a shape result of air is ignored (no destroy); other results are set.
 - **Invariants:** a shape update never runs for a set with *keep-shape*.
 - **Conformance tests:**
   - Probes on all six sides; a set at P with flags 2: six shape updates logged at P+W, P+E, P+N, P+S, P+D, P+U with directions E, W, S, N, U, D. Failing twin: neighbour order.
@@ -1062,7 +1075,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Ordering constraints:** none.
 - **Numeric semantics:** default L = 512. The limit counts shape generations only; neighbour updates do not consume it, and a set made by a neighbour or tick handler starts again from its own default (normally 512).
 - **Postconditions:** a shape cascade has at most 512 generations after the original set.
-- **Edge cases:** the chain limit (SIM-NBR-004) applies to the same requests independently. The limit travels with the cascade across section boundaries; it is not reset or counted per section.
+- **Edge cases:** the chain limit (SIM-NBR-004) applies to the same requests independently. The limit travels with the cascade across section boundaries; it is not reset or counted per section. A cascade started by a block's direct emission is longer by one (SIM-SHP-001).
 - **Invariants:** none.
 - **Conformance tests:** a vertical stack of 600 probe blocks (spanning at least 38 sections), each turning into probe-changed when its below neighbour's shape changes, triggered by a set at the bottom: exactly 512 blocks above the bottom change. Failing twin: 513, the whole stack, or a stop at a section boundary.
 
@@ -1073,13 +1086,13 @@ Provenance: `source_suggested`. Confidence: high.
 - **Inputs:** a set at P (SIM-SET-002 step 3.3).
 - **Relevant state:** the old and new states at P.
 - **Preconditions:** as SIM-SHP-001.
-- **Behavior:** before the direct shape updates the **old** state's indirect shape updates run, and after them the **new** state's. Only `minecraft:redstone_wire` has any at this version; every other block has none. For a wire at P, for d in horizontal order `N, E, S, W` where the wire connects towards d (side not `none`) and P + d is not wire: if P + d + D is wire, a shape update targets it with direction opposite of d, neighbour position P + d + D + opposite(d) and that position's current state; then the same for P + d + U. Flags and limit as in SIM-SHP-001.
+- **Behavior:** before the direct shape updates the **old** state's indirect shape updates run, and after them the **new** state's. Only `minecraft:redstone_wire` has any at this version; every other block has none. For a wire at P, for d in horizontal order `N, E, S, W` where the wire connects towards d (side not `none`) and P + d is not wire: if P + d + D is wire, a shape update targets it with direction opposite of d, neighbour position P + D (the block under the wire) and that position's current state; then, if P + d + U is wire, the same with neighbour position P + U. Flags and limit as in SIM-SHP-001.
 - **Ordering constraints:** old-indirect, then direct, then new-indirect.
 - **Numeric semantics:** as SIM-SHP-001.
 - **Postconditions:** none.
 - **Edge cases:** the neighbour state passed is read when the request is made, not the wire's own state.
 - **Invariants:** none.
-- **Conformance tests:** placing a wire on a block next to a lower wire diagonally updates the lower wire's connection in the same chain.
+- **Conformance tests:** placing a wire on a block next to a lower wire diagonally updates the lower wire's connection before the placing set returns. Failing twin: the lower wire keeps its old connection.
 
 Provenance: `source_suggested`. Confidence: medium.
 
@@ -1092,7 +1105,7 @@ Provenance: `source_suggested`. Confidence: medium.
 - **Ordering constraints:** none.
 - **Numeric semantics:** none.
 - **Postconditions:** none.
-- **Edge cases:** if the neighbour has changed again, the target's computation uses a stale neighbour state; vanilla does not correct it.
+- **Edge cases:** if the neighbour has changed again, the target's computation uses a stale neighbour state; vanilla does not correct it. Only shape functions that use the passed state see the stale value: the wire's downward case uses it, while the wire's horizontal case and a torch read the world instead.
 - **Invariants:** none.
 - **Conformance tests:** inside a chain, set P to probe B (emitting shape updates carrying B), then before they run set P to probe C with *keep-shape*: the shape update at P+W is logged with neighbour state B.
 
@@ -1111,13 +1124,13 @@ Provenance: `source_suggested`. Confidence: high.
 
 | Field | Type | Meaning |
 |-------|------|---------|
-| type | block type (block ticks) or fluid type (fluid ticks: `minecraft:water` or `minecraft:lava`, the same for a source and a flowing state, 0.1) | what must be at the position when it runs |
+| type | block type (block ticks) or fluid type (fluid ticks: `minecraft:water` or `minecraft:lava`, the same for a source and a flowing state, 0.1; vanilla schedules no other, but a saved `minecraft:empty` element decodes and its tick does nothing) | what must be at the position when it runs |
 | position | block position | where it runs; fixes its section |
 | due tick | signed 64-bit game time | the game time at or after which it may run |
 | priority | one of seven values (SIM-SCH-002) | order among ticks due together |
 | sub-tick order | signed 64-bit | insertion sequence |
 
-  The full key is (due tick, priority, sub-tick order). Block ticks and fluid ticks are two separate kinds with identical rules.
+  The full key is (due tick, priority, sub-tick order). Block ticks and fluid ticks are two separate kinds with identical rules, except the handler check (SIM-SCH-007) and area clear and copy (SIM-SCH-016, block ticks only).
 - **Ordering constraints:** none.
 - **Numeric semantics:** see SIM-SCH-003.
 - **Postconditions:** none.
@@ -1185,7 +1198,7 @@ Provenance: `source_suggested`. Confidence: high.
   - Ticks restored from a save count as pending for de-duplication even before they are activated (SIM-SCH-013).
 - **Invariants:** the pending pair set equals the set of pairs in the queue (plus not-yet-activated saved ticks).
 - **Vanilla grouping:** vanilla de-duplicates per column. Because the position is part of the identity and fixes the section, de-duplicating per section is the same rule.
-- **Conformance tests:** schedule (P, A, delay 10, normal) then (P, A, delay 2, extremely high): one tick, due at G + 10. Failing twin: it runs at G + 2. Schedule (P, A, 5) and (P, B, 5): both run. With flowing water at P, schedule a `minecraft:water` fluid tick with delay 5; set P to a water source; schedule a `minecraft:water` fluid tick with delay 1: one tick, due at G + 5. Failing twin: two ticks (source and flowing treated as two types, as before 26.4-snapshot-4).
+- **Conformance tests:** schedule (P, A, delay 10, normal) then (P, A, delay 2, extremely high): one tick, due at G + 10. Failing twin: it runs at G + 2. With A at P, schedule (P, A, 5) and (P, B, 5), where A's handler sets P to B: at G + 5 A's handler, then B's, are logged. Failing twin: only A's (B dropped as a duplicate). With flowing water at P, schedule a `minecraft:water` fluid tick with delay 5; set P to a water source; schedule a `minecraft:water` fluid tick with delay 1: one tick, due at G + 5. Failing twin: two ticks (source and flowing treated as two types, as before 26.4-snapshot-4).
 
 Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: a source and a flowing state of one fluid share one type, so their fluid ticks at one position de-duplicate against each other; before, water and flowing water were separate types and both could be pending.
 
@@ -1194,11 +1207,11 @@ Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: a 
 - **Inputs:** a tick offered at position P.
 - **Relevant state:** P's section properties (SIM-TICK-005).
 - **Preconditions:** none.
-- **Behavior:** each section that *accepts ticks* owns one block-tick queue and one fluid-tick queue, ordered by full key. A tick offered for a position whose section does not *accept ticks* (not loaded, or still generating) is dropped with an error log "Trying to schedule tick in not loaded position". A queue's ticks may be collected only while its section *runs scheduled ticks*; while it does not, they stay and become overdue.
+- **Behavior:** each section that *accepts ticks* owns one block-tick queue and one fluid-tick queue, ordered by full key. A tick offered for a position whose section does not *accept ticks* (its column has not finished loading to full status, or has been unloaded) is dropped with an error log "Trying to schedule tick in not loaded position" followed by the position. A queue's ticks may be collected only while its section *runs scheduled ticks*; while it does not, they stay and become overdue.
 - **Ordering constraints:** see SIM-SCH-006.
 - **Numeric semantics:** none.
 - **Postconditions:** none.
-- **Edge cases:** a section loaded by a set at an unloaded position (SIM-SET-003) accepts ticks but does not run them.
+- **Edge cases:** a section loaded by a set at an unloaded position (SIM-SET-003) accepts ticks but does not run them. A tick is accepted at any y of a column that accepts ticks, even outside the dimension's vertical extent; it is saved like any other and, when it runs, reads `minecraft:void_air` and is consumed with no effect. A section-native store must still accept and save such ticks.
 - **Invariants:** a tick belongs to the section containing its position.
 - **Vanilla grouping:** vanilla keeps one queue per kind per column, ordered by full key. SIM-SCH-006 states how the column queue is recovered from section queues.
 - **Conformance tests:** a tick scheduled into a section that accepts but does not run ticks at G with delay 1, where the section starts running ticks at G + 50: it runs in the scheduled phase of G + 50 (overdue), not at G + 51.
@@ -1223,9 +1236,9 @@ Provenance: `source_suggested`. Confidence: high.
 - **Numeric semantics:** `B = 65536` per kind per dimension per level tick.
 - **Postconditions:** collected ticks are no longer pending (SIM-SCH-004).
 - **Edge cases:**
-  - Two ticks with equal (priority, sub-tick order) are possible only for ticks restored from saves (SIM-SCH-013) and for copies (SIM-SCH-016). Between candidate columns, vanilla's choice is unspecified (OQ-01). Inside one column, restored ticks cannot tie with each other or with runtime ticks; a copy can tie with a later runtime tick, and vanilla's order between them is then unspecified.
+  - Two ticks with equal (priority, sub-tick order) are possible only for ticks restored from saves (SIM-SCH-013) and for copies (SIM-SCH-016). Between candidate columns, vanilla's choice is unspecified (OQ-01). Inside one column, restored ticks cannot tie with each other or with runtime ticks; a copy can tie with any tick of the destination, pending or scheduled later, and vanilla's order between them is then unspecified.
   - Ticks scheduled while the collected ticks run are not collected in this phase (SIM-SCH-009).
-  - Grouping sections into a candidate per section instead of per column is not vanilla: it lets a later section's head overtake an earlier overdue head of the same column (see the second table).
+  - Grouping sections into a candidate per section instead of per column is not vanilla: it lets a later section's head overtake an earlier overdue head of the same column (the second failing twin of the conformance table).
 - **Invariants:**
   - A tick is collected at most once.
   - (`derived`) If every collected tick has due = `t`, the vanilla order is the global ascending (priority, sub-tick order) order of those ticks across all sections, because each column queue is then sorted by (priority, sub-tick order) and step 3 is an exact k-way merge on that key.
@@ -1263,7 +1276,7 @@ Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: th
 - **Inputs:** more than `B` due ticks of one kind.
 - **Relevant state:** as SIM-SCH-006.
 - **Preconditions:** none.
-- **Behavior:** the excess remains pending and is due; it is considered first in the next phase by the same rule. Block and fluid budgets are independent. The budget is per dimension, not per section.
+- **Behavior:** the excess remains pending and due, and is collected by SIM-SCH-006 in a later phase with no carry-over priority: in its own section (in vanilla, its own column) it precedes ticks due later, but across columns it competes by (priority, sub-tick order) only, so a later-due head of another column with a smaller key runs first. Block and fluid budgets are independent. The budget is per dimension, not per section.
 - **Ordering constraints:** as SIM-SCH-006.
 - **Numeric semantics:** `B = 65536`.
 - **Postconditions:** none.
@@ -1301,7 +1314,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Ordering constraints:** none.
 - **Numeric semantics:** none.
 - **Postconditions:** queries have no side effects.
-- **Edge cases:** during the fluid phase, "will tick this tick" for a block tick is false. Repeaters and comparators use "will tick this tick" so as not to schedule a second tick for themselves while one is already about to run.
+- **Edge cases:** during the fluid phase, "will tick this tick" for a block tick is false. Repeaters, comparators, redstone torches and the test block use "will tick this tick" so as not to schedule a second tick for themselves while one is already about to run. Vanilla builds the set behind "will tick this tick" lazily on the phase's first query and an area clear (SIM-SCH-016) does not update it, so after a clear during the phase a cleared pair still answers true if any query preceded the clear.
 - **Invariants:** for one (P, T) at any instant, "has scheduled tick" and "will tick this tick" can both be true only if the pair was scheduled again after collection.
 - **Conformance tests:** two probe ticks at P and Q due at `t`, with P's sub-tick order smaller. During P's handler: "will tick this tick (Q)" is true and "has scheduled tick (Q)" is false; during Q's handler, "will tick this tick (P)" is false.
 
@@ -1342,12 +1355,12 @@ Provenance: `source_suggested`. Confidence: high.
 - **Ordering constraints:** the list order encodes the relative insertion order (SIM-SCH-013).
 - **Numeric semantics:** `t` = due − `G`, truncated to 32 bits. It is negative for an overdue tick.
 - **Postconditions:** loading the column and activating it at game time `G'` restores due ticks `G' + t`.
-- **Edge cases:** a column saved while its sections did not run ticks carries their overdue ticks with negative `t`. Both lists are written even when empty (OQ-07).
+- **Edge cases:** a column saved while its sections did not run ticks carries their overdue ticks with negative `t`. Both lists are written even when empty (OQ-07, answered).
 - **Invariants:** every element's position lies in the column.
 - **Vanilla grouping:** the save record is per column; that is the layout of the save format, not of the simulation. A section-native store produces it by concatenating the column's unactivated saved list with the merge, by sub-tick order, of the active ticks of the column's sections. Where two ticks of the column share a sub-tick order (copies, SIM-SCH-016), vanilla's relative order is unspecified.
-- **Conformance tests:** with ticks frozen at game time G, a player places a redstone block next to an unpowered repeater (delay setting 1, plain line): after `/save-all flush`, the column's `block_ticks` contains `{i: "minecraft:repeater", x, y, z, t: 2, p: -1}`. Failing twins: `t: G+2` (absolute), or `p: 0`.
+- **Conformance tests:** with ticks frozen at game time G, a player places a redstone block directly behind an unpowered repeater (on its input side; delay setting 1, plain line), in the repeater's column: after `/save-all flush`, the column's `block_ticks` contains `{i: "minecraft:repeater", x, y, z, t: 2, p: -1}`. Failing twins: `t: G+2` (absolute), or `p: 0`. A redstone block on a lateral side schedules nothing (a repeater reads its input from behind, and only diodes lock it from the side). The placement in the same column matters: `/save-all flush` writes only columns marked unsaved, and scheduling a tick does not mark one (SIM-SCH-015).
 
-Provenance: `source_suggested`. Confidence: high for layout; medium for the repeater example (OQ-07). Changed in 26.4-snapshot-4: `fluid_ticks` ids are only `minecraft:water` and `minecraft:lava`; a flowing fluid's tick is written under its fluid's id. The layout is otherwise unchanged.
+Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: `fluid_ticks` ids are only `minecraft:water` and `minecraft:lava`; a flowing fluid's tick is written under its fluid's id. The layout is otherwise unchanged.
 
 ### SIM-SCH-013: Load and activation
 
@@ -1355,26 +1368,26 @@ Provenance: `source_suggested`. Confidence: high for layout; medium for the repe
 - **Relevant state:** game time when the column's sections start to *broadcast changes* (vanilla: the column reaches block-ticking status).
 - **Preconditions:** none.
 - **Behavior:**
-  1. *Decode.* Each element is decoded independently. An element with an unknown id, a missing field or a wrongly typed field is dropped with an error log; the others are kept. An element whose position is outside this column is dropped silently. A missing list is an empty list.
-  2. *Pending.* When the column's sections become *loaded*, the decoded list becomes their pending saved ticks, each in the section holding its position. They count for de-duplication (SIM-SCH-004) and for "has scheduled tick", but do not run.
-  3. *Activation.* When the sections start to *broadcast changes*, at game time `G'`, after post-processing (SIM-SCH-017), the k-th of the `m` saved ticks of the column's list (k = 0..m−1, list order) becomes a tick with due `G' + t`, its priority, and sub-tick order `k − m` (so −m … −1). They are added without de-duplication. The saved list is then discarded.
+  1. *Decode.* Each element is decoded independently. An element is dropped if it is not a compound, lacks `i`, `x`, `y`, `z`, `t` or `p`, has an `i` that is not a string or names no registered entry, or has a non-numeric `x`, `y`, `z`, `t` or `p`; the others are kept. A numeric field of another NBT numeric type is narrowed to int, before any clamping (`p: 4294967295L` narrows to −1 and reads as high); `p` below −3 reads as −3 and above 3 as 3; an `i` without a namespace means `minecraft:`. A list with any dropped element logs one error, `Failed to read field (block_ticks=…): …`, joining the element messages. An element whose position is outside this column is dropped silently. A missing list, or a tag that is not a list (logged), is an empty list.
+  2. *Pending.* When the column reaches full status, the decoded list becomes its pending saved ticks, each in the section holding its position. They count for de-duplication (SIM-SCH-004) and for "has scheduled tick", but do not run.
+  3. *Activation.* When the column completes its transition to block-ticking, at game time `G'`, after post-processing (SIM-SCH-017), the k-th of the `m` saved ticks of the column's list of one kind (k = 0..m−1, list order) becomes a tick with due `G' + t`, its priority, and sub-tick order `k − m` (so −m … −1). `block_ticks` and `fluid_ticks` are numbered separately, each with its own m. They are added without de-duplication. The saved list is then discarded. Vanilla runs this step in the task that completes the column's block-ticking status: it waits until the column and its eight neighbours are full and runs on the main thread between level ticks (or inside a synchronous load), so it can come later than the start of *broadcasts changes*, which vanilla takes from the load level alone.
 - **Ordering constraints:** restored ticks precede every runtime tick with the same due tick and priority in the same column, and keep their saved relative order.
-- **Numeric semantics:** sub-tick orders −m … −1, numbered over one column's list, not per section.
-- **Postconditions:** time spent unloaded does not count towards a tick's delay; time spent loaded but not running ticks does (SIM-SCH-005).
+- **Numeric semantics:** sub-tick orders −m … −1, numbered over one column's list of one kind, not per section.
+- **Postconditions:** time spent unloaded does not count towards a tick's delay; time spent loaded but not running ticks does (SIM-SCH-005); nor does the time between the column's last save and its removal from memory, if it was not written at removal (SIM-SCH-015).
 - **Edge cases:**
-  - Two identical (position, type) elements in one list both activate and both run (OQ-08).
+  - Two identical (position, type) elements in the list of a full column both activate and both run; after the first runs, the pair no longer counts as scheduled although the second copy is still queued. In the list of a column still generating, the later duplicate was dropped at load (OQ-08, answered).
   - A tick scheduled at runtime between steps 2 and 3 for a pair not in the saved list is accepted and kept with its runtime sub-tick order.
   - Restored ticks of two different columns can have equal sub-tick orders (OQ-01).
   - A column saved while still generating carries `t = 0`; its ticks are due at the first scheduled phase after activation.
   - In a record of the current world version, a `fluid_ticks` element naming `minecraft:flowing_water` or `minecraft:flowing_lava` is an unknown id and is dropped with an error log by step 1. Vanilla never sees one there: it rewrites those names to `minecraft:water` and `minecraft:lava` while upgrading a record written before world version 5123 (including the `UpgradeData` neighbour tick lists). This project upgrades nothing; a record of another world version is rejected before decoding.
 - **Invariants:** the activated ticks are exactly the decoded, in-column elements.
-- **Vanilla grouping:** load and activation happen per column, and the restored sub-tick numbering runs over the column's whole list. A section-native store keeps, for each saved tick, its index in the column list (or keeps the list whole until activation) and assigns `k − m` from it, then places each tick in its section's queue. Numbering per section instead would change the order of restored ticks across sections of one column and is not vanilla.
+- **Vanilla grouping:** load and activation happen per column, and the restored sub-tick numbering runs over the column's whole list of each kind. A section-native store keeps, for each saved tick, its index in the column list (or keeps the list whole until activation) and assigns `k − m` from it, then places each tick in its section's queue. Numbering per section instead would change the order of restored ticks across sections of one column and is not vanilla.
 - **Conformance tests:**
   - A column saved with `t: 3` for a repeater, loaded later and activated at `G'`: the repeater ticks in the level tick of `G' + 3`. Failing twin: immediately, or at the stored absolute time.
-  - `block_ticks: [{i: "minecraft:no_such_block", …}, {i: "minecraft:repeater", …, t: 1, p: 0}]`: the repeater tick runs; one error is logged. Failing twin: both dropped (OQ-02).
-  - A column list `[u (section sy=4, t: 0), v (section sy=0, t: 0)]`, both priority normal, activated at `G'`: in the phase of `G'`, u runs before v (u gets −2, v −1). Failing twin: v first (numbering per section, or by height).
+  - `block_ticks: [{i: "minecraft:no_such_block", …}, {i: "minecraft:repeater", …, t: 1, p: 0}]`: the repeater tick runs; one error line is logged for the list. Failing twin: both dropped (OQ-02, answered).
+  - A column list `[u (section sy=4, t: 0), v (section sy=0, t: 0)]`, both priority normal, activated at `G'`: in the first scheduled phase after activation (vanilla: normally the level tick of `G' + 1`, both then overdue), u runs before v (u gets −2, v −1). Failing twin: v first (numbering per section, or by height).
 
-Provenance: `source_suggested`. Confidence: medium (OQ-02). Changed in 26.4-snapshot-4: the flowing fluid ids are gone, so they decode as unknown ids; vanilla renames them when upgrading saves from before world version 5123. Decoding and activation are otherwise unchanged.
+Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: the flowing fluid ids are gone, so they decode as unknown ids; vanilla renames them when upgrading saves from before world version 5123. Decoding and activation are otherwise unchanged.
 
 ### SIM-SCH-014: Ticks during generation
 
@@ -1395,9 +1408,9 @@ Provenance: `source_suggested`. Confidence: high.
 ### SIM-SCH-015: Unload and sections that do not run ticks
 
 - **Inputs:** a section stopping being *loaded*, or staying *loaded* without *running scheduled ticks*.
-- **Relevant state:** its queues.
+- **Relevant state:** its queues; whether its column is marked unsaved.
 - **Preconditions:** none.
-- **Behavior:** on unload, the section's queues stop being consulted and are saved (SIM-SCH-012), relative to game time at save. A section that is *loaded* but does not run ticks keeps its queues in place; game time keeps advancing, so their ticks become overdue and run, up to the budget, at the first phase in which the section runs ticks again.
+- **Behavior:** a column's queues exist from its first full status until it is removed from memory (vanilla: load level above the loaded maximum, `33 + the full-status dependency radius`, when its unload task runs in step 9 of SIM-TICK-002). While it is loaded but does not run ticks, and also after it stops being *loaded* but before it is removed, its queues stay in place, accept ticks and count for de-duplication; game time keeps advancing, so their ticks become overdue and run, up to the budget, at the first phase in which the section runs ticks again. At removal the column is written (SIM-SCH-012, relative to game time at that save) only if it is marked unsaved: a block state, a block entity, structure data or its light flag changed since its last save. Scheduling, running or removing ticks does not mark it. Otherwise the last save's record stands: its `t` is relative to that save's game time, ticks scheduled since are lost, and ticks that ran since without changing a block run again after the next load.
 - **Ordering constraints:** unloading happens in step 9 of SIM-TICK-002, after this tick's scheduled ticks.
 - **Numeric semantics:** none.
 - **Postconditions:** none.
@@ -1410,31 +1423,41 @@ Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-016: Area clear and copy (short form)
 
-Structure placement by structure blocks and the test framework can clear all ticks
-whose position lies in a box (from the queues of the sections the box touches and
-from the current phase's collected and already-run lists) and copy them with an
-offset. A copied tick keeps due tick and priority; its sub-tick order becomes
-`s − min + max + 1`, where `min` and `max` are the smallest and largest sub-tick
-orders among the copied ticks, so copies sort after the originals. Copies go
-through de-duplication (SIM-SCH-004). The copied sub-tick orders do not advance
-the dimension's counter, so a later runtime tick can receive the same sub-tick
-order as a copy. Not used by the ordinary tick.
+Two operations exist, on block ticks only; fluid ticks are never cleared or copied.
+Neither is part of the ordinary tick, but a command block can run them inside the
+block-tick phase.
 
-Provenance: `source_suggested`. Confidence: medium.
+- *Clear* (the test framework: a test instance block placing its structure, the test
+  runner, `/test`) removes every block tick in a box from the active queues of the
+  sections the box touches and from the current phase's collected and already-run
+  lists, and removes the box's pending block events. Saved ticks not yet activated stay
+  pending.
+- *Copy* (`/clone`, possibly from another dimension) gathers every block tick in the
+  source box, whatever the clone's mask, filter or mode (a move leaves the source ticks
+  in place): first from the source's already-run list, then its collected list, then
+  its active queues (not saved ticks not yet activated). It offers each, in that order,
+  at position + offset to the destination (SIM-SCH-005; SIM-SCH-004, the first offered
+  wins). A copy keeps its due tick and priority; its sub-tick order becomes
+  `s − min + max + 1`, where `min` and `max` are the smallest and largest sub-tick
+  orders among the gathered ticks, numbered in the source dimension. The destination's
+  counter does not advance, so a copy can share its sub-tick order with any destination
+  tick in `max + 1 … 2·max − min + 1`, pending or scheduled later.
+
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-017: Post-processing at the start of broadcasting
 
-- **Inputs:** a section that starts to *broadcast changes* (vanilla: its column reaches block-ticking status) and carries post-processing marks left by generation.
-- **Relevant state:** the section's post-processing marks: a list of positions inside the section.
+- **Inputs:** a section whose column completes its transition to block-ticking (as SIM-SCH-013 step 3) and that carries post-processing marks left by generation.
+- **Relevant state:** the section's post-processing marks: a list of positions inside the section. Marks are saved with the column (`PostProcessing`: one list per section, from the lowest section up, of shorts `x | y << 4 | z << 8`) and restored on load; they are not de-duplicated. A mark need not be a position that was set: a set through the generation region marks the position the new block names (SIM-NBR-005), and generation steps mark positions directly.
 - **Preconditions:** none.
 - **Behavior:** for each marked position, in list order: if its block state has a non-empty fluid, the fluid's tick handler runs at once (not scheduled); then, if the block is a fluid block, the block's scheduled-tick handler runs at once with the level random; otherwise the state is recomputed from its six neighbours' shapes and, if it changed, set with flags 276 (*no-rerender*, *keep-shape*, *skip-block-entity-effects*: no neighbour updates, no shape updates, no client sync). The marks are then cleared. Ticks scheduled here take the runtime path (SIM-SCH-003) and are de-duplicated against the pending saved ticks.
-- **Ordering constraints:** post-processing completes before saved ticks activate (SIM-SCH-013 step 3).
+- **Ordering constraints:** post-processing completes before saved ticks activate (SIM-SCH-013 step 3). Between the two, still before activation, vanilla promotes the column's pending block entities and applies its upgrade data, which schedules the record's `neighbor_block_ticks` and `neighbor_fluid_ticks` through the runtime path.
 - **Numeric semantics:** flags 276.
 - **Postconditions:** the section has no post-processing marks.
 - **Edge cases:** a runtime tick created here has a non-negative sub-tick order, so it runs after any restored tick with the same due tick and priority in its column.
 - **Invariants:** none.
 - **Vanilla grouping:** vanilla stores the marks per section within the column and processes the column's sections from the bottom up when the column reaches block-ticking status.
-- **Conformance tests:** none yet; see OQ-09.
+- **Conformance tests:** a generated column with a marked water position next to a cave opening: in the task that activates the column, the water has already flowed one step before any saved tick activates (the fluid is ticked at once, not scheduled). Failing twin: it flows one delay later (OQ-09, answered).
 
 Provenance: `source_suggested`. Confidence: medium.
 
@@ -1489,7 +1512,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Vanilla grouping:** vanilla tests the simulation level of P's column; all sections of a column agree.
 - **Conformance tests:** queue an event in a section outside simulation distance; it is not delivered; bring a player close: delivered in the first drain after the section reaches simulation level ≤ 32.
 
-Provenance: `source_suggested`. Confidence: high for eligibility; medium for "not saved" (no save path for block events was found).
+Provenance: `source_suggested`. Confidence: high (a block event is a plain record with no codec, held only in the dimension's queue, so it cannot be saved).
 
 ### SIM-BEV-004: Delivery and the packet
 
@@ -1532,7 +1555,7 @@ Provenance: `source_suggested`; the game rule's existence is `black_box_confirme
 - **Relevant state:** the level random; the position generator (SIM-RND-003); the section's counts of randomly ticking block and fluid states.
 - **Preconditions:** SIM-RND-001.
 - **Behavior:** if k > 0 and the section contains at least one randomly ticking block state or randomly ticking fluid state (checked once, before its picks), k times: draw a position from the generator with base `(16·sx, 16·sy, 16·sz)` and y mask 15; read the block state there from the section; if that block state is randomly ticking, run its random tick handler with the level random; then, if the fluid state **of the block state read before the handler ran** is randomly ticking, run the fluid's random tick handler with the level random.
-- **Ordering constraints:** vanilla: picks in generator order. Observable: k independent uniform picks per eligible section per tick; distributions only.
+- **Ordering constraints:** vanilla: picks in generator order. Observable: k picks per eligible section per tick, each uniform over the section's 4096 positions; distributions only. Vanilla's picks are not independent: they are consecutive outputs of the multiplier-3 generator (SIM-RND-003), so only about 61.5 of the 4096 offsets can follow a given one, and two picks an even number of draws apart never coincide. Drawing the picks independently differs from vanilla in their joint distribution only, which the contract does not constrain (SIM-MODEL-106).
 - **Numeric semantics:** each pick is uniform over the 4096 positions of the section (SIM-RND-003). The same position may be picked twice in one tick.
 - **Postconditions:** none.
 - **Edge cases:**
@@ -1546,7 +1569,7 @@ Provenance: `source_suggested`. Confidence: high.
 ### SIM-RND-003: The position generator
 
 - **Inputs:** base (x0, y0, z0), y mask m.
-- **Relevant state:** a per-dimension signed 32-bit integer `r`, initialised from an unseeded random at dimension creation.
+- **Relevant state:** a per-dimension signed 32-bit integer `r`, initialised at dimension creation from a thread-local random that is neither saved nor derived from the world seed.
 - **Preconditions:** none.
 - **Behavior:** `r := r × 3 + 1013904223` (32-bit wrapping); `v := r >> 2` (arithmetic shift); result `(x0 + (v & 15), y0 + ((v >> 16) & m), z0 + ((v >> 8) & 15))`.
 - **Ordering constraints:** one advance per draw, shared by precipitation picks, random-tick picks and thunder target picks of the dimension.
@@ -1561,7 +1584,7 @@ Provenance: `source_suggested`. Confidence: high.
 | 1 | 1013904223 | 253476055 | (7, 11, 12) |
 | 2 | −239350404 | −59837601 | (15, 14, 3) |
 
-  Failing twin: a logical (unsigned) shift on draw 2 gives a different `v` and different offsets.
+  Failing twin: swapping the y and z fields gives (7, 12, 11) on draw 1. The kind of shift is not observable at mask 15: a logical shift changes only bits 30–31 of `v`, so on draw 2 it gives `v` = 1013904223 and the same offsets (15, 14, 3).
 
 Provenance: `source_suggested`; table recomputed from the formula. Confidence: high.
 
@@ -1570,7 +1593,7 @@ Provenance: `source_suggested`; table recomputed from the formula. Confidence: h
 - **Inputs:** a column `(sx, sz)` processed by SIM-RND-001, `k = random_tick_speed`.
 - **Relevant state:** the level random; the position generator; the column's motion-blocking heightmap; weather; the biome at the surface.
 - **Preconditions:** the column is *random-ticked*.
-- **Behavior:** k times: draw a uniform integer in [0, 48) from the level random; if it is 0, draw a position from the generator with base `(16·sx, 0, 16·sz)` and y mask 15, and run precipitation at its (x, z): the y is discarded and replaced by the column's motion-blocking surface. Precipitation may turn water below the surface to ice, and while raining may add snow (bounded by the game rule `max_snow_accumulation_height`) and let the block below the surface react to rain or snow. What precipitation does to individual blocks is out of scope.
+- **Behavior:** k times: draw a uniform integer in [0, 48) from the level random; if it is 0, draw a position from the generator with base `(16·sx, 0, 16·sz)` and y mask 15, and run precipitation at its (x, z): the y is discarded and replaced by the column's motion-blocking surface. Precipitation may turn water below the surface to ice whether or not it rains; while it rains it may add snow (up to `min(max_snow_accumulation_height, 8)` layers; the game rule defaults to 1, range 0–8, and 0 disables snow) and let the block below the surface react to rain or snow. *Raining* means the dimension can have weather (it has skylight, no ceiling, and is not the End) and its rain level exceeds 0.2; the rain level ramps by 0.01 per tick, so snow starts about 21 ticks after rain begins. A dimension without weather still makes the gate draws and still freezes water. What precipitation does to individual blocks is out of scope.
 - **Ordering constraints:** vanilla: a column's precipitation picks run before its sections' random-tick picks.
 - **Numeric semantics:** gate 1 in 48 per pick; k gates per column per level tick.
 - **Postconditions:** none.
@@ -1602,14 +1625,17 @@ Provenance: `source_suggested`. Confidence: high.
 | random tick and precipitation positions | position generator |
 | orientation draws under redstone experiments (SIM-NBR-007) | level random |
 | neighbour-changed and block event handlers | whatever the handler draws from: the level random |
-| shuffle of the spawning area (before random ticks) | level random |
+| shuffle of the spawning area (before random ticks; n − 1 draws, made even when mob spawning is off) | level random |
+| thunder gate, one draw in [0, 100 000) per spawning column in entity-ticking range, only while raining and thundering; then one position draw | level random, then the position generator |
+| loot rolls for the drops of a block destroyed by any handler | the loot table's random sequence: one per table, server-wide, saved with the world and seeded from the world seed and the sequence id (every vanilla block loot table names one); only the drop's spawn offset uses the level random |
+| seed of a sound a handler plays through the level | a second per-dimension random (thread-safe 48-bit LCG, unique unsaved seed); the note block passes its own seed, drawn from the level random |
 
-  Neither source is derived from the world seed or saved, so vanilla's random sequence is not reproducible; parity is required only for distributions.
-- **Ordering constraints:** every consumer of one dimension shares one level random, so its sequence depends on the exact order of all draws in the dimension.
+  The level random is a 48-bit linear congruential generator (multiplier 25214903917, increment 11) seeded at dimension creation from a process-wide seed uniquifier mixed with the clock; nothing reseeds it. Neither it nor the position generator is derived from the world seed or saved, so vanilla's random sequence is not reproducible; parity is required only for distributions.
+- **Ordering constraints:** every consumer that draws from the level random of one dimension shares it, so its sequence depends on the exact order of all such draws in the dimension.
 - **Numeric semantics:** none beyond the generators.
 - **Postconditions:** none.
 - **Edge cases:** none.
-- **Invariants:** no block-simulation consumer uses a per-position or per-section random at this version.
+- **Invariants:** no consumer of the machinery in this document uses a per-position or per-section random at this version. Block behaviour may: the potent sulfur geyser's block entity draws from a positional random derived from the world seed before it sets blocks.
 - **Conformance tests:** none against vanilla (not reproducible). A kernel that carries its own random state must give the same result from the same state and inputs.
 
 Provenance: `source_suggested`. Confidence: high.
@@ -1631,19 +1657,24 @@ Provenance: `source_suggested`. Confidence: high.
 | Post-processing set flags | 276 | SIM-SCH-017 | `source_suggested` |
 | Priority values | −3 … 3 | SIM-SCH-002 | `source_suggested` |
 | Initial sub-tick counter | 0, per dimension, not saved | SIM-SCH-003 | `source_suggested` |
-| Restored sub-tick orders | −m … −1 per column save record | SIM-SCH-013 | `source_suggested` |
+| Restored sub-tick orders | −m … −1 per column save record and per kind | SIM-SCH-013 | `source_suggested` |
 | Block event broadcast range | 64.0 blocks, squared distance < 4096 | SIM-BEV-004 | `source_suggested` |
 | `block_event` / `block_update` / `level_chunk_with_light` / `section_blocks_update` packet ids | 7 / 8 / 46 / 86 | SIM-BEV-004, SIM-SET-005, 0.2 | `black_box_confirmed` at 26.4-snapshot-2 (`assets/mcrs/reports/packets.json`); unchanged up to 26.4-snapshot-4 (`source_suggested`) |
 | Load levels: full, block-ticking, entity-ticking | 33, 32, 31 | SIM-TICK-005 | `source_suggested` |
 | Default simulation distance | 10 | SIM-TICK-005 | `source_suggested` |
-| Temporary ticket for synchronous loads | level 33, 1 level tick, per column | SIM-SET-003 | `source_suggested` |
+| Temporary ticket for synchronous loads | `minecraft:unknown`, level 33, loading only, timeout 1 (removed by the second purge after the last access), per column | SIM-SET-003 | `source_suggested` |
+| Valid horizontal bound | `max(|sx|, |sz|)` ≤ 2 097 061 (2 097 151 − 90) | SIM-SET-003 | `source_suggested` |
+| Largest load level kept in memory | 44 (33 + 11) | SIM-TICK-005, SIM-SCH-015 | `source_suggested` |
 | Block coordinate packing limit | 33 554 431 (2²⁵ − 1); section/column coordinate 2 097 151 before the generation safety margin | SIM-SET-003 | `source_suggested` |
 | `random_tick_speed` default / minimum | 3 / 0 | SIM-RND-001 | `source_suggested`; rule id `black_box_confirmed` (`registries.json`) |
 | Precipitation gate | 1 in 48 per pick | SIM-RND-004 | `source_suggested` |
+| Thunder gate | 1 in 100 000 per spawning column in entity-ticking range per level tick, while raining and thundering | SIM-RNG-001 | `source_suggested` |
+| `max_snow_accumulation_height` default / range | 1 / 0–8 (layers capped at 8; 0 disables snow) | SIM-RND-004 | `source_suggested` |
+| Client chain limit | 1 000 000, fixed | SIM-NBR-003 | `source_suggested` |
 | Position generator | `r = 3r + 1013904223`, `v = r >> 2`, x = `v & 15`, z = `(v >> 8) & 15`, y = `(v >> 16) & 15` | SIM-RND-003 | `source_suggested` |
 | Orientations | 48 | SIM-NBR-007 | `source_suggested` |
-| Empty-dimension threshold for entity and block entity ticking | 300 level ticks | SIM-TICK-002 | `source_suggested` |
-| Pause when empty | `pause-when-empty-seconds` × 20, default 60 s | SIM-TICK-001 | `source_suggested` |
+| Empty-dimension threshold for entity and block entity ticking | counter < 300 (they stop on the 299th level tick after the last keep-active ticket) | SIM-TICK-002 | `source_suggested` |
+| Pause when empty | `pause-when-empty-seconds` × 20, default 60 s; dedicated server only (the base and integrated servers use 0) | SIM-TICK-001 | `source_suggested` |
 | Time sync interval | 20 server ticks | SIM-TICK-001 | `source_suggested` |
 | Fluid types | `empty`, `water`, `lava`; source or flowing is the fluid state's `source` property, the amount its `level` (1 to 8) | 0.1, SIM-SCH-001 | `source_suggested`; changed in 26.4-snapshot-4 (was five types with separate flowing ones, `black_box_confirmed` at 26.4-snapshot-2 by `registries.json`) |
 
@@ -1654,32 +1685,39 @@ Provenance: `source_suggested`. Confidence: high.
 Each question lists the rules it affects and an experiment that decides it.
 
 - **OQ-01: Ties between restored ticks of different columns** (SIM-SCH-006, SIM-SCH-013).
-  - **Question:** two columns activated together each restore a tick with the same priority and the same sub-tick order (for example both the last of their list, −1). Vanilla picks between them by the internal layout of a priority heap filled in hash-table order, so the choice is deterministic only given the table's history. Which one runs first?
+  - **Question:** two columns activated together each restore a tick with the same priority and the same sub-tick order (for example both the last of their list, −1). Vanilla picks between them by the internal layout of a priority heap filled in hash-table order, so the choice is deterministic only given the table's history. Which one runs first? (Not decided by the code: the heap's layout, not the columns' positions, settles a tie; on a tie the column being drained keeps going.)
   - **Experiment:** two columns, each with one saved `minecraft:observer` tick `t: 0`, wired so that whichever pulses first locks the other (a repeater lock). Load both in one tick across 20 restarts with different load orders. If the winner varies, the vanilla policy may break the tie by any stable key; propose ascending `(sx, sz)` of the column.
 - **OQ-02: One bad element in a tick list** (SIM-SCH-013).
   - **Question:** does the game drop only the bad element, as reading the reference suggests, or the whole list?
   - **Experiment:** edit a region file so `block_ticks` holds an unknown block id followed by a valid repeater tick with `t: 1`. Load the column and observe the repeater toggle; read the log for "Failed to read field".
+  - **Answered:** only the bad element is dropped (SIM-SCH-013 step 1).
 - **OQ-03: Updates reaching unloaded sections** (SIM-SET-003).
   - **Question:** a neighbour update whose target is in a section that is not loaded loads it (in vanilla, its whole column) synchronously. Confirm, and confirm the column unloads after the 1-tick ticket expires with any ticks scheduled into it saved.
   - **Experiment:** on a server with view distance 2 and one player, an observer chain running across the edge of the loaded area; watch load events (debug screen loaded count, or region file timestamps) and the observer's pending tick in the saved column record.
+  - **Answered:** yes; what happens after the ticket expires, and an experiment that can show it, are in SIM-SET-003.
 - **OQ-04: Random tick visiting order** (SIM-RND-001).
   - **Question:** vanilla's column order is a hash-table iteration order. Is any tick-for-tick parity wanted here, given that the position generator and the level random are unseeded anyway?
-  - **Proposal:** no; the vanilla policy fixes a stable order (ascending section position) and declares this an intentional deviation. No experiment can reproduce vanilla's order without its RNG state.
+  - **Proposal:** no; the vanilla policy fixes a stable order (ascending section position) and declares this an intentional deviation. Vanilla's column order is the iteration order of a hash map of simulation levels: not shuffled and not random, but fixed only by the map's capacity and insertion history. What no experiment can reproduce is vanilla's picks, because both random sources are seeded from the clock or a thread-local random.
 - **OQ-05: Unbounded block event drain** (SIM-BEV-002).
   - **Question:** the drain has no bound; a handler that queues a new distinct event each time never terminates the tick. Is a bound an intentional deviation?
   - **Experiment:** none in vanilla (no vanilla block queues an event from its own event unconditionally). Decide by policy; if a bound is added, it must be larger than any vanilla piston contraption needs, measured by counting events per drain in a large flying-machine test world.
+  - **Premise confirmed (source):** the drain has no counter; only the dedicated server's watchdog (`max-tick-time`, default 60 000 ms) stops a drain that never ends, by halting the process. At this version only pistons, note blocks, potent sulfur and some block entities (chest, ender chest, shulker box, bell, decorated pot, spawner, end gateway) queue events. The policy question stays open.
 - **OQ-06: Client sync in sections that are loaded but do not broadcast** (SIM-SET-005).
   - **Question:** a set with *sync-clients* in a section that is *loaded* but does not *broadcast changes* is not marked. Does a client that already has that section ever see the change before it is resent?
   - **Experiment:** with view distance larger than simulation distance + 2, `/setblock` in a column at load level 33 that the client already displays; observe whether the client shows the new block without relogging.
+  - **Answered:** no; see SIM-SET-005.
 - **OQ-07: Empty tick lists and the repeater save example** (SIM-SCH-012).
   - **Question:** are `block_ticks` and `fluid_ticks` written as empty lists when there are no ticks, and is the repeater example's `p: -1` what the game writes?
   - **Experiment:** save a column with no pending ticks and read it with an NBT viewer; then run the SIM-SCH-012 conformance test.
+  - **Answered:** both lists are always written, and the corrected example holds (SIM-SCH-012).
 - **OQ-08: Duplicate elements in a saved list** (SIM-SCH-013).
   - **Question:** activation adds saved ticks without de-duplication. Do two identical elements both run?
   - **Experiment:** edit a column record so `block_ticks` lists the same `minecraft:observer` position twice with `t: 0`. An observer ticked twice in one phase powers and unpowers in the same tick; a redstone lamp behind it, observed through a comparator-based pulse detector, distinguishes one tick from two.
+  - **Answered:** see SIM-SCH-013, edge cases.
 - **OQ-09: Post-processing order and its ticks** (SIM-SCH-017).
   - **Question:** confirm that post-processing of a freshly generated column runs before its saved ticks activate, and that fluids it touches are ticked at once rather than scheduled.
   - **Experiment:** generate new terrain next to an ocean with a player flying in; on the first tick the new column becomes block-ticking, record whether water at a generated cave opening has already flowed one step (ticked at once) or flows one delay later (scheduled).
+  - **Answered:** see SIM-SCH-017.
 - **OQ-10: Exact mode and partitioned mode on one code path** (SIM-MODEL-008, section 11).
   - **Question:** the vanilla collection order (SIM-SCH-006) compares heads of different columns by (priority, sequence) while ignoring the due tick. In a partitioned instance the sequence must be stable (P-SEQ); a sequence derived from partition-local state is not the vanilla counter. Can one ordering policy reproduce the vanilla order exactly when there is one partition and still be stable with several?
   - **Proposal:** the sequence is (partition time at scheduling, partition id, local counter) in a partitioned mode and the vanilla counter in exact mode; the two modes differ only in that policy. Decide when the scheduled-tick kernel is designed.
@@ -1731,7 +1769,7 @@ applied in a stable order) may and may not do, derived from Part A.
 - **No dropped cross-partition effects.** A neighbour, shape, tick or event item
   aimed outside the partition is a message, never a silent skip or an error, or
   contraptions on a partition boundary behave differently from the same
-  contraption inside one partition.
+  contraption inside one partition (B.3).
 - **Stable order.** Every order is a function of item keys and stored state
   (SIM-MODEL-008). A shared atomic counter, hash iteration or "first region found"
   is not.
