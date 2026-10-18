@@ -37,7 +37,9 @@ pub mod painting_variant_tags;
 pub mod potion;
 pub mod potion_tags;
 pub mod recipe_book_category;
+pub mod recipe_display;
 pub mod recipe_serializer;
+pub mod slot_display;
 pub mod trim_material;
 pub mod trim_pattern;
 
@@ -58,7 +60,9 @@ pub use menu::MenuType;
 pub use mob_effect::MobEffect;
 pub use potion::Potion;
 pub use recipe_book_category::RecipeBookCategory;
+pub use recipe_display::RecipeDisplayType;
 pub use recipe_serializer::RecipeSerializer;
+pub use slot_display::SlotDisplayType;
 
 use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
 
@@ -238,10 +242,22 @@ impl Registered for crate::keys::RecipeBookCategory {
     const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
 }
 
+pub const RECIPE_DISPLAY: RegistryKey<crate::keys::RecipeDisplayType> =
+    RegistryKey::new(rl!("minecraft:recipe_display"));
+impl Registered for crate::keys::RecipeDisplayType {
+    const REGISTRY: RegistryKey<Self> = RECIPE_DISPLAY;
+}
+
 pub const RECIPE_SERIALIZER: RegistryKey<crate::keys::RecipeSerializer> =
     RegistryKey::new(rl!("minecraft:recipe_serializer"));
 impl Registered for crate::keys::RecipeSerializer {
     const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
+}
+
+pub const SLOT_DISPLAY: RegistryKey<crate::keys::SlotDisplayType> =
+    RegistryKey::new(rl!("minecraft:slot_display"));
+impl Registered for crate::keys::SlotDisplayType {
+    const REGISTRY: RegistryKey<Self> = SLOT_DISPLAY;
 }
 
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> =
@@ -256,7 +272,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 33] {
+pub fn bindings() -> [TypeBinding; 35] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -288,7 +304,9 @@ pub fn bindings() -> [TypeBinding; 33] {
         POTION.binding(),
         RECIPE.binding(),
         RECIPE_BOOK_CATEGORY.binding(),
+        RECIPE_DISPLAY.binding(),
         RECIPE_SERIALIZER.binding(),
+        SLOT_DISPLAY.binding(),
         TRIM_MATERIAL.binding(),
         TRIM_PATTERN.binding(),
     ]

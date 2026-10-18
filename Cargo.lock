@@ -4124,7 +4124,6 @@ dependencies = [
  "mcrs_minecraft_loot",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_predicate",
- "mcrs_minecraft_protocol",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_worldgen_carver",

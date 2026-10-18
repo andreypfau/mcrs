@@ -28,7 +28,6 @@ pub mod __private {
 }
 
 #[rustfmt::skip]
-pub mod keys;
 pub mod advancement;
 pub mod block;
 pub mod block_pos;

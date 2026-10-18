@@ -27,7 +27,6 @@ mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_predicate.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true

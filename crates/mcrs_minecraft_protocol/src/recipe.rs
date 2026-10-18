@@ -1,5 +1,4 @@
-use crate::keys::{RecipeDisplayType, SlotDisplayType};
-use mcrs_minecraft_item::keys::RecipeBookCategory;
+use mcrs_minecraft_item::keys::{RecipeBookCategory, RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
@@ -82,7 +81,7 @@ pub enum SlotDisplay {
 }
 
 mcrs_minecraft_registry::dispatch! {
-    SlotDisplay, key = "type", registry = crate::keys::SlotDisplayType,
+    SlotDisplay, key = "type", registry = SlotDisplayType,
     {
         Empty,
         AnyFuel,
@@ -219,7 +218,7 @@ pub enum RecipeDisplay {
 }
 
 mcrs_minecraft_registry::dispatch! {
-    validated RecipeDisplay, key = "type", registry = crate::keys::RecipeDisplayType,
+    validated RecipeDisplay, key = "type", registry = RecipeDisplayType,
     {
         CraftingShapeless,
         CraftingShaped,

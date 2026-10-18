@@ -508,12 +508,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:recipe_display",
-        krate: "mcrs_minecraft_protocol",
+        krate: "mcrs_minecraft_item",
         value: ValueType::Enum("RecipeDisplayType"),
     },
     Owner {
         registry: "minecraft:slot_display",
-        krate: "mcrs_minecraft_protocol",
+        krate: "mcrs_minecraft_item",
         value: ValueType::Enum("SlotDisplayType"),
     },
     Owner {
