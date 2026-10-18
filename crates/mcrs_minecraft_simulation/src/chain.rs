@@ -33,7 +33,6 @@ pub(crate) struct Chain<K: Kinds> {
     added: Vec<UpdateRequest<K>>,
     count: u32,
     running: bool,
-    dropped: bool,
     origin: Option<SubTick>,
     sent: bool,
 }
@@ -45,7 +44,6 @@ impl<K: Kinds> Default for Chain<K> {
             added: Vec::new(),
             count: 0,
             running: false,
-            dropped: false,
             origin: None,
             sent: false,
         }
@@ -58,7 +56,6 @@ impl<K: Kinds> Chain<K> {
         self.added.clear();
         self.count = 0;
         self.running = false;
-        self.dropped = false;
         self.origin = None;
         self.sent = false;
     }
@@ -181,13 +178,14 @@ where
 
     fn count_offer(&mut self, pos: BlockPos) -> bool {
         let chain = &mut self.shard.chain;
-        let over = match self.config.chain_limit {
-            ChainLimit::Limited(limit) => chain.count >= limit,
-            ChainLimit::Unlimited => false,
+        let (over, first_over) = match self.config.chain_limit {
+            ChainLimit::Limited(limit) => (chain.count >= limit, chain.count == limit),
+            ChainLimit::Unlimited => (false, false),
         };
         chain.count = chain.count.saturating_add(1);
-        if over && !chain.dropped {
-            chain.dropped = true;
+        // Keyed on the count, not a per-piece flag: a continuation seeded past the limit
+        // belongs to a chain whose sender already reported the overflow.
+        if first_over {
             bump(&mut self.out.report.chain_overflows);
             self.out.report.first_chain_overflow.get_or_insert(pos);
         }
@@ -227,7 +225,6 @@ where
         }
         chain.count = 0;
         chain.running = false;
-        chain.dropped = false;
         chain.origin = None;
         chain.sent = false;
     }

@@ -809,9 +809,9 @@ fn sim_model_103_the_update_limit_travels_inside_a_shape_message() {
 
 fn check_sim_model_103_count(
     log: &[Entry],
-    report: &StepReport,
+    reports: [&StepReport; 2],
     served: [BlockPos; 2],
-    dropped: BlockPos,
+    [first_skipped, dropped]: [BlockPos; 2],
 ) -> Result<(), String> {
     let hits = neighbour_hits(log);
     for pos in served {
@@ -824,12 +824,13 @@ fn check_sim_model_103_count(
             "the request for {dropped:?} ran past the chain limit"
         ));
     }
-    if report.chain_overflows == 1 && report.first_chain_overflow == Some(dropped) {
+    let [sender, receiver] = reports.map(|r| (r.chain_overflows, r.first_chain_overflow));
+    if sender == (1, Some(first_skipped)) && receiver == (0, None) {
         Ok(())
     } else {
         Err(format!(
-            "the overflow was {} at {:?}",
-            report.chain_overflows, report.first_chain_overflow
+            "the sender reported {sender:?} and the receiver {receiver:?}; \
+             expected one report, by the sender, at {first_skipped:?}"
         ))
     }
 }
@@ -887,14 +888,23 @@ fn sim_model_103_a_chain_count_travels_with_its_continuations() {
         (receiver.behaviour.log(), out.report)
     };
     let served = [remote[0], remote[1]];
+    let skipped = [remote[2], further];
     let (log, report) = receive(&sent.chains);
     assert_eq!(
-        check_sim_model_103_count(&log, &report, served, further),
+        check_sim_model_103_count(&log, [&sent.report, &report], served, skipped),
         Ok(())
     );
 
+    let reported_twice = StepReport {
+        chain_overflows: 1,
+        first_chain_overflow: Some(further),
+        ..report
+    };
+    assert!(
+        check_sim_model_103_count(&log, [&sent.report, &reported_twice], served, skipped).is_err()
+    );
     let (log, report) = receive(&[]);
-    assert!(check_sim_model_103_count(&log, &report, served, further).is_err());
+    assert!(check_sim_model_103_count(&log, [&sent.report, &report], served, skipped).is_err());
 }
 
 fn check_sim_model_007_update(
