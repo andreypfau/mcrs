@@ -36,16 +36,17 @@ only the layers it needs and pay for nothing above them.
 ## Layers
 
 Each layer depends only on the layers below it.
+[`quality/layers.toml`](quality/layers.toml) gives every crate its layer, and the layer check fails a change that breaks the order.
 
-| Layer | What it holds | Crates |
-|---|---|---|
-| Data and wire | NBT, text, keys, registries, typed packets in both directions, framing | `nbt`, `text`, `core`, `keys`, `registry`, `protocol` |
-| Network | connections, login, packet I/O on tokio | `network` |
-| Game data | blocks, items, biomes, dimensions, chunks, Anvil saves, lighting | `block`, `item`, `biome`, `dimension`, `chunk`, `anvil`, `light` |
-| Engine | worlds, dimensions, players, entities as Bevy plugins | `world`, `level`, `entity`, `inventory` |
-| Vanilla | gameplay and world generation | `server`, `worldgen*` |
-| Rendering | meshing, terrain, sky and light pipelines | `mesh`, `render`, `render_*` |
-| Applications | the server and the client | `mcrs`, `client` |
+| Layer | What it holds |
+|---|---|
+| Data and wire | NBT, text, keys, registries, typed packets in both directions, framing |
+| Network | connections, login, packet I/O on tokio |
+| Game data | blocks, items, biomes, dimensions, chunks, Anvil saves, lighting |
+| Engine | worlds, dimensions, players, entities as Bevy plugins |
+| Vanilla | gameplay and world generation |
+| Rendering | meshing, terrain, sky and light pipelines |
+| Applications | the server and the client |
 
 Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 

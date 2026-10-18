@@ -155,14 +155,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Fmt => fmt(ctx),
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
-        Check::NoBevy => {
-            let passed = ctx.exec("scripts/check-no-bevy.sh", &[])?;
-            verdict(
-                passed,
-                "a crate that must build without Bevy pulls it in or fails to build",
-                "remove the dependency or put it behind the bevy feature",
-            )
-        }
+        Check::NoBevy => no_bevy(ctx),
         Check::Wasm32 => {
             let mut args = vec!["build", "--locked", "--target", "wasm32-unknown-unknown"];
             for package in WASM32_PACKAGES {
@@ -175,6 +168,25 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             )
         }
     }
+}
+
+fn no_bevy(ctx: &Context) -> Outcome {
+    let selection = layers::no_bevy_packages(&ctx.root, &ctx.head)?;
+    if !selection.left_out.is_empty() {
+        println!(
+            "left out, they still need Bevy without default features: {}",
+            selection.left_out.join(" ")
+        );
+    }
+    let mut args = vec!["check", "--locked", "--no-default-features"];
+    for package in &selection.build {
+        args.extend(["-p", package.as_str()]);
+    }
+    verdict(
+        ctx.exec("cargo", &args)?,
+        "a crate below layer 4 does not build without its default features",
+        "put the code that needs Bevy behind the bevy feature",
+    )
 }
 
 fn parity_check(ctx: &Context) -> Outcome {

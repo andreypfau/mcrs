@@ -342,13 +342,72 @@ impl Report {
     }
 }
 
-pub(crate) fn check(repo: &Path, base: &str, head: &Head, workspace: &Workspace) -> Outcome {
+fn head_map(repo: &Path, head: &Head) -> Result<Parsed, String> {
     let text = scope::head_text(repo, head, LAYERS_FILE)?.ok_or_else(|| {
         format!(
             "{LAYERS_FILE} is missing at the head; map every workspace crate to a layer and a kind"
         )
     })?;
-    let map = parse(&text, "at the head")?;
+    parse(&text, "at the head")
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct NoBevy {
+    pub(crate) build: Vec<String>,
+    pub(crate) left_out: Vec<String>,
+}
+
+fn bevy_exception_holders(map: &Parsed) -> BTreeSet<&str> {
+    map.exceptions
+        .iter()
+        .filter(|(_, target)| *target == Target::Reach(Reach::Bevy))
+        .map(|(name, _)| name.as_str())
+        .collect()
+}
+
+fn select_no_bevy(map: &Parsed, needs_bevy: &BTreeSet<String>) -> NoBevy {
+    let holders = bevy_exception_holders(map);
+    let mut selection = NoBevy {
+        build: Vec::new(),
+        left_out: Vec::new(),
+    };
+    for (name, entry) in &map.crates {
+        if entry.layer >= FIRST_LAYER_WITH_BEVY {
+            continue;
+        }
+        if holders.contains(name.as_str()) && needs_bevy.contains(name) {
+            selection.left_out.push(name.clone());
+        } else {
+            selection.build.push(name.clone());
+        }
+    }
+    selection
+}
+
+pub(crate) fn no_bevy_packages(repo: &Path, head: &Head) -> Result<NoBevy, String> {
+    let map = head_map(repo, head)?;
+    let mut needs_bevy = BTreeSet::new();
+    let below_engine = |name: &&str| {
+        map.crates
+            .get(*name)
+            .is_some_and(|entry| entry.layer < FIRST_LAYER_WITH_BEVY)
+    };
+    for name in bevy_exception_holders(&map)
+        .into_iter()
+        .filter(below_engine)
+    {
+        // Such a crate needs Bevy until its issue lands, and in one shared build
+        // the features it turns on would switch Bevy on for every other package.
+        let tree = tree_packages(repo, name, false)?;
+        if tree.iter().any(|package| is_bevy(package)) {
+            needs_bevy.insert(name.to_owned());
+        }
+    }
+    Ok(select_no_bevy(&map, &needs_bevy))
+}
+
+pub(crate) fn check(repo: &Path, base: &str, head: &Head, workspace: &Workspace) -> Outcome {
+    let map = head_map(repo, head)?;
     let mut found = violations(&map.crates, workspace);
     found.extend(reach_violations(repo, &map.crates, workspace)?);
     let from_base = base_exceptions(repo, base, head)?;
@@ -673,6 +732,38 @@ mod tests {
                 expect: Expect::Fail(&["#N"]),
             },
         ]
+    }
+
+    #[test]
+    fn the_no_bevy_build_takes_layers_one_to_three_but_the_crates_that_still_need_bevy() {
+        let map = parse(
+            "[crates]\n\
+             low = { layer = 1, kind = \"data\" }\n\
+             high = { layer = 4, kind = \"engine\" }\n\
+             stuck = { layer = 3, kind = \"rules\" }\n\
+             freed = { layer = 3, kind = \"rules\" }\n\
+             tokio_only = { layer = 2, kind = \"library\" }\n\
+             linked = { layer = 3, kind = \"data\" }\n\
+             [[exception]]\ncrate = \"stuck\"\nreaches = \"bevy\"\nissue = \"#1\"\n\
+             [[exception]]\ncrate = \"freed\"\nreaches = \"bevy\"\nissue = \"#2\"\n\
+             [[exception]]\ncrate = \"tokio_only\"\nreaches = \"tokio\"\nissue = \"#3\"\n\
+             [[exception]]\ncrate = \"linked\"\ndependency = \"low\"\nissue = \"#4\"\n",
+            "at the head",
+        )
+        .unwrap();
+        let needs_bevy = ["stuck", "tokio_only", "linked"]
+            .map(str::to_owned)
+            .into_iter()
+            .collect();
+        assert_eq!(
+            select_no_bevy(&map, &needs_bevy),
+            NoBevy {
+                build: ["freed", "linked", "low", "tokio_only"]
+                    .map(str::to_owned)
+                    .to_vec(),
+                left_out: vec!["stuck".to_owned()],
+            }
+        );
     }
 
     #[test]
