@@ -7,7 +7,6 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_volume::BlockStateId;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, Rule, WorldStates, single_state};
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
@@ -118,7 +117,7 @@ pub(crate) fn stone_world(
     )
     .with_height(move |_, _, _, _| ocean_floor);
     for y in (MIN_Y - 8..MIN_Y).chain(MAX_Y..MAX_Y + 8) {
-        world.blocks.fill_layer(y, BlockStateId(air.0));
+        world.seed_layer(y, air);
     }
     world.extent.min_y = MIN_Y;
     world.extent.depth = MAX_Y - MIN_Y;

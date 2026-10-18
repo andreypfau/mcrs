@@ -30,7 +30,7 @@ pub mod __private {
 #[rustfmt::skip]
 pub mod keys;
 pub mod advancement;
-mod block;
+pub mod block;
 pub mod block_pos;
 mod byte_angle;
 pub mod chunk;

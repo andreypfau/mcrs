@@ -1,4 +1,4 @@
-use crate::BlockStateId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 
 use crate::access::{Denied, Unavailable, Volume};

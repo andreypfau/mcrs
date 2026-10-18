@@ -1,5 +1,4 @@
-use crate::BlockStateId;
-use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 
 use crate::access::{Denied, Unavailable, Volume};
@@ -109,7 +108,7 @@ pub struct Palette<'a>(Entries<'a>);
 enum Entries<'a> {
     Uniform(BlockStateId),
     Listed {
-        values: &'a [VoxelId],
+        values: &'a [BlockStateId],
         counts: &'a [u16],
     },
 }
@@ -119,7 +118,7 @@ impl<'a> Palette<'a> {
         Self(Entries::Uniform(state))
     }
 
-    pub(crate) const fn listed(values: &'a [VoxelId], counts: &'a [u16]) -> Self {
+    pub(crate) const fn listed(values: &'a [BlockStateId], counts: &'a [u16]) -> Self {
         Self(Entries::Listed { values, counts })
     }
 
@@ -146,7 +145,7 @@ impl<'a> Palette<'a> {
                 values
                     .iter()
                     .zip(counts)
-                    .map(|(value, count)| (BlockStateId(value.0), *count)),
+                    .map(|(value, count)| (*value, *count)),
             )
     }
 
@@ -172,7 +171,7 @@ impl<'a> Palette<'a> {
 /// stops allocating once it has held the largest palette asked of it.
 #[derive(Clone, Debug, Default)]
 pub struct PaletteBuffer {
-    values: Vec<VoxelId>,
+    values: Vec<BlockStateId>,
     counts: Vec<u16>,
 }
 
@@ -184,17 +183,14 @@ impl PaletteBuffer {
         section.for_each(|_, state| {
             let slot = match last {
                 Some((previous, slot)) if previous == state => slot,
-                _ => {
-                    let voxel = VoxelId(state.0);
-                    match self.values.binary_search(&voxel) {
-                        Ok(slot) => slot,
-                        Err(slot) => {
-                            self.values.insert(slot, voxel);
-                            self.counts.insert(slot, 0);
-                            slot
-                        }
+                _ => match self.values.binary_search(&state) {
+                    Ok(slot) => slot,
+                    Err(slot) => {
+                        self.values.insert(slot, state);
+                        self.counts.insert(slot, 0);
+                        slot
                     }
-                }
+                },
             };
             last = Some((state, slot));
             if let Some(count) = self.counts.get_mut(slot) {

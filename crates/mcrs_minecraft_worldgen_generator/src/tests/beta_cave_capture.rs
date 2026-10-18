@@ -3,10 +3,10 @@ use mcrs_minecraft_core::LocalPos;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_carver::modern::SOURCE_RADIUS;
@@ -387,7 +387,7 @@ mod exhaustive {
                                 let beta_id = fix_col.pre_cave[world_y as usize];
                                 palette.set(
                                     LocalPos::from(BlockPos::new(local_x, local_y, local_z)),
-                                    modern_id_for_beta(beta_id).0.into(),
+                                    modern_id_for_beta(beta_id).number().into(),
                                 );
                             }
                         }
@@ -413,7 +413,7 @@ mod exhaustive {
                             if world_y < 128 {
                                 let state = palette
                                     .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
-                                let got = beta_id_for_modern(state.0.into());
+                                let got = beta_id_for_modern(crate::tests::corpus_state_of(state));
                                 let want = fix_col.post_cave[world_y as usize];
                                 if got != want {
                                     col_mismatches.push((world_y, got, want));

@@ -6,8 +6,9 @@ use crate::keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{BlockStateId, Id, Registry, UnknownEntry};
+use mcrs_minecraft_registry::{Id, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";

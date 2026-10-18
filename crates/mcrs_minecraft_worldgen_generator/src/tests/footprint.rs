@@ -8,16 +8,18 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_volume::BlockStateId;
 use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, Denied, Unavailable, Volume};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
 use crate::ColumnBlocks;
 use crate::stages::ColumnRegion;
 use crate::staging::RegionSnapshots;
-use crate::tests::{bare_fill_context, build_beta_router, flat_snapshot, region_of};
+use crate::tests::{
+    bare_fill_context, build_beta_router, corpus, corpus_state_of, flat_snapshot, region_of,
+};
 
 const CENTRE: ColumnPos = ColumnPos { x: 0, z: 0 };
 const Y_SECTIONS: [i32; 1] = [0];
@@ -61,7 +63,7 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
     let blocks = ColumnBlocks::new(&Y_SECTIONS);
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    let state = BlockStateId(1);
+    let state = corpus().default_state("minecraft:stone");
     let (bottom, top) = (0, 15);
     let corners: [((i32, i32), &[(i32, i32)]); 4] = [
         ((-16, -16), &[(-1, 0), (0, -1)]),
@@ -73,10 +75,10 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
         for y in [bottom, top] {
             let at = BlockPos::new(x, y, z);
             assert_eq!(region.access(SectionPos::from(at)), Access::Write, "{at}");
-            assert_eq!(region.set_block(at, state), Ok(BlockStateId(0)), "{at}");
+            assert_eq!(region.set_block(at, state), Ok(BlockStateId::AIR), "{at}");
             assert_eq!(region.block(at), Ok(state), "{at}");
-            region.set(at, VoxelId(state.0));
-            assert_eq!(region.get(at), VoxelId(state.0), "{at}");
+            region.set(at, VoxelId(state.number()));
+            assert_eq!(region.get(at), VoxelId(state.number()), "{at}");
         }
         for &(dx, dz) in outward {
             let past = BlockPos::new(x + dx, bottom, z + dz);
@@ -121,7 +123,7 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
 /// earlier write, in a ring column and in the centre alike.
 #[test]
 fn a_rewrite_answers_the_earlier_write() {
-    let stone = VoxelId(1);
+    let stone = VoxelId::from(corpus().default_state("minecraft:stone").number());
     let y_sections: Arc<[i32]> = Y_SECTIONS.as_slice().into();
     let snapshots = region_of(CENTRE, |col| {
         flat_snapshot(col, &y_sections, |_| Some(stone), None)
@@ -130,11 +132,14 @@ fn a_rewrite_answers_the_earlier_write() {
     blocks.unpack(&snapshots[4].sections);
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    let (first, second) = (BlockStateId(2), BlockStateId(3));
+    let (first, second) = (
+        corpus().default_state("minecraft:dirt"),
+        corpus().default_state("minecraft:gravel"),
+    );
     for at in [BlockPos::new(20, 4, -3), BlockPos::new(5, 4, 9)] {
         assert_eq!(
             region.set_block(at, first),
-            Ok(BlockStateId(stone.0)),
+            Ok(corpus_state_of(stone)),
             "{at}"
         );
         assert_eq!(region.set_block(at, second), Ok(first), "{at}");

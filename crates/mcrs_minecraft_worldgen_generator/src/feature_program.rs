@@ -20,6 +20,7 @@ use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -29,7 +30,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -37,8 +38,8 @@ use mcrs_minecraft_worldgen_feature::compile::{
 };
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::{
-    BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
-    WorldGenVolume, WorldStates, place,
+    BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateCount,
+    StateMask, WorldGenVolume, WorldStates, place,
 };
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature::proto::{
@@ -1316,10 +1317,10 @@ fn compile_generator(
             // anything else survives, which is the default `canSurvive`.
             let hanging_survive = match &hanging {
                 StateProvider::Simple(state) => {
-                    let block = resolver
-                        .blocks
-                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0));
-                    trees.survive.get(&block).cloned()
+                    crate::block_state::state_of(resolver.blocks, *state).and_then(|state| {
+                        let block = resolver.blocks.block_index(state);
+                        trees.survive.get(&block).cloned()
+                    })
                 }
                 _ => None,
             };
@@ -1525,8 +1526,10 @@ fn compile_generator(
             Generator::FreezeTopLayer(Box::new(CompiledFreezeTopLayer {
                 biomes: resolver.climate.to_vec(),
                 ice: resolver.default_state_of(Block::Ice.id()),
-                snow: VoxelId::from(snow.default_state_id.0),
-                snow_layers_8: VoxelId::from(set(snow, snow.default_state_id, "layers", "8")?.0),
+                snow: VoxelId::from(snow.default_state_id.number()),
+                snow_layers_8: VoxelId::from(
+                    set(snow, snow.default_state_id, "layers", "8")?.number(),
+                ),
                 snow_states: block_mask(resolver, &[Block::Snow])?,
                 cannot_support_snow: resolver
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::CANNOT_SUPPORT_SNOW_LAYER)?,
@@ -1775,7 +1778,7 @@ fn compile_generator(
                 let id = set(bamboo, bamboo.default_state_id, "age", "1")?;
                 let id = set(bamboo, id, "leaves", leaves)?;
                 let id = set(bamboo, id, "stage", stage)?;
-                Ok(VoxelId::from(id.0))
+                Ok(VoxelId::from(id.number()))
             };
             Generator::Bamboo(CompiledBamboo {
                 probability: probability.0 as f32,
@@ -1806,7 +1809,9 @@ fn compile_generator(
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::SUPPORTS_CHORUS_PLANT)?,
                 plant_or_flower: block_mask(resolver, &[Block::ChorusPlant, Block::ChorusFlower])?,
                 plant_by_connections,
-                flower_age5: VoxelId::from(set(flower, flower.default_state_id, "age", "5")?.0),
+                flower_age5: VoxelId::from(
+                    set(flower, flower.default_state_id, "age", "5")?.number(),
+                ),
             }))
         }
         Feature::HugeFungus {
@@ -1830,9 +1835,9 @@ fn compile_generator(
                 planted: *planted,
                 weeping_vines_plant: resolver.default_state_of(Block::WeepingVinesPlant.id()),
                 weeping_vines_by_age: [
-                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "23")?.0),
-                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "24")?.0),
-                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "25")?.0),
+                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "23")?.number()),
+                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "24")?.number()),
+                    VoxelId::from(set(weeping, weeping.default_state_id, "age", "25")?.number()),
                 ],
             }))
         }
@@ -2179,11 +2184,10 @@ pub(crate) fn spring_state(state: &FluidState, resolver: &Resolver<'_>) -> Optio
     let name = Fluid::from_id(fluid.fluid)?.location().to_arc();
     let default = crate::block_state::try_resolve_state(resolver.blocks, &BlockState::bare(name))?;
     let entry = resolver.block_of(resolver.blocks.block_index(default));
-    (entry.base_state_id.0..)
-        .take(entry.state_count.into())
-        .map(BlockStateId)
+    (0..entry.state_count)
+        .filter_map(|offset| entry.state_at(offset))
         .find(|&id| resolver.blocks.state(id).fluid == Some(fluid))
-        .map(|id| VoxelId::from(id.0))
+        .map(|id| VoxelId::from(id.number()))
 }
 
 fn unsupported(what: &str) -> FeatureCompileError {
@@ -2213,13 +2217,12 @@ fn waterlogged_pair(
         state_of(resolver.blocks, block.id(), properties),
         block.as_static_str(),
     )?;
-    let wet = set(
-        resolver.blocks.owner(BlockStateId(dry.0)),
-        BlockStateId(dry.0),
-        "waterlogged",
-        "true",
+    let dry_id = missing(
+        crate::block_state::state_of(resolver.blocks, dry),
+        block.as_static_str(),
     )?;
-    Ok([dry, VoxelId::from(wet.0)])
+    let wet = set(resolver.blocks.owner(dry_id), dry_id, "waterlogged", "true")?;
+    Ok([dry, VoxelId::from(wet.number())])
 }
 
 /// `BlockState.setValue` at freeze, naming the state it could not reach.
@@ -2254,7 +2257,7 @@ fn with_bits_from(
             let on = bits >> (properties.len() - 1 - index) & 1 == 1;
             entry.with_text(id, property, if on { "true" } else { "false" })
         })?;
-    Some(VoxelId::from(id.0))
+    Some(VoxelId::from(id.number()))
 }
 
 const DELTA_CANNOT_REPLACE: &[Block] = &[
@@ -2347,7 +2350,9 @@ fn double_plant_table(blocks: &BlockDefinitions) -> FxHashMap<u16, DoublePlant> 
         if !value.renders_to("lower") {
             continue;
         }
-        let id = BlockStateId(state.0);
+        let Some(id) = crate::block_state::state_of(blocks, state) else {
+            continue;
+        };
         let entry = blocks.owner(id);
         let Some(upper) = entry.with_text(id, "half", "upper") else {
             continue;
@@ -2355,12 +2360,12 @@ fn double_plant_table(blocks: &BlockDefinitions) -> FxHashMap<u16, DoublePlant> 
         let waterlogged = entry
             .with_text(id, "waterlogged", "true")
             .zip(entry.with_text(upper, "waterlogged", "true"))
-            .map(|(lower, upper)| (VoxelId::from(lower.0), VoxelId::from(upper.0)));
+            .map(|(lower, upper)| (VoxelId::from(lower.number()), VoxelId::from(upper.number())));
         table.insert(
-            id.0,
+            id.number(),
             DoublePlant {
-                lower: VoxelId::from(id.0),
-                upper: VoxelId::from(upper.0),
+                lower: VoxelId::from(id.number()),
+                upper: VoxelId::from(upper.number()),
                 waterlogged,
             },
         );
@@ -2372,9 +2377,9 @@ fn double_plant_table(blocks: &BlockDefinitions) -> FxHashMap<u16, DoublePlant> 
 fn snowy_table(blocks: &BlockDefinitions) -> FxHashMap<VoxelId, VoxelId> {
     with_property(blocks, "snowy")
         .filter_map(|(state, _)| {
-            let id = BlockStateId(state.0);
+            let id = crate::block_state::state_of(blocks, state)?;
             let snowy = blocks.owner(id).with_text(id, "snowy", "true")?;
-            Some((state, VoxelId::from(snowy.0)))
+            Some((state, VoxelId::from(snowy.number())))
         })
         .collect()
 }
@@ -2383,9 +2388,9 @@ fn waterlogging(blocks: &BlockDefinitions, water: VoxelId) -> Waterlogging {
     let flooded = with_property(blocks, "waterlogged")
         .filter(|(_, value)| !value.renders_to("true"))
         .filter_map(|(state, _)| {
-            let id = BlockStateId(state.0);
+            let id = crate::block_state::state_of(blocks, state)?;
             let flooded = blocks.owner(id).with_text(id, "waterlogged", "true")?;
-            Some((state.0, VoxelId::from(flooded.0)))
+            Some((state.0, VoxelId::from(flooded.number())))
         })
         .collect();
     Waterlogging { water, flooded }
@@ -2397,7 +2402,7 @@ fn horizontal_facings(blocks: &BlockDefinitions, block: Id<Block>) -> Option<[Vo
     let mut states = [VoxelId(0); 4];
     for (index, direction) in Direction::HORIZONTAL.into_iter().enumerate() {
         let id = entry.with_text(entry.default_state_id, "facing", direction.name())?;
-        states[index] = VoxelId::from(id.0);
+        states[index] = VoxelId::from(id.number());
     }
     Some(states)
 }
@@ -2425,17 +2430,16 @@ fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceS
             let id = with_bits(entry, &faces_high_first, faces)?;
             let id = entry
                 .with_text(
-                    BlockStateId(id.0),
+                    crate::block_state::state_of(blocks, id)?,
                     "waterlogged",
                     if waterlogged == 1 { "true" } else { "false" },
                 )
-                .map_or(id, |flooded| VoxelId::from(flooded.0));
+                .map_or(id, |flooded| VoxelId::from(flooded.number()));
             *slot = id;
         }
     }
     let mut of_state = FxHashMap::default();
-    for offset in 0..entry.state_count {
-        let id = BlockStateId(entry.base_state_id.0 + offset);
+    for id in (0..entry.state_count).filter_map(|offset| entry.state_at(offset)) {
         let mut faces = 0u8;
         for (bit, direction) in Direction::all().into_iter().enumerate() {
             if entry
@@ -2448,7 +2452,7 @@ fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceS
         let waterlogged = entry
             .value_of(id, "waterlogged")
             .is_some_and(|value| value.renders_to("true"));
-        of_state.insert(id.0, (faces, waterlogged));
+        of_state.insert(id.number(), (faces, waterlogged));
     }
     Some(MultifaceStates { by_faces, of_state })
 }
@@ -2465,16 +2469,16 @@ fn mushroom_faces(blocks: &BlockDefinitions) -> MushroomFaces {
         {
             continue;
         }
-        for offset in 0..entry.state_count {
-            let id = BlockStateId(entry.base_state_id.0 + offset);
+        for id in (0..entry.state_count).filter_map(|offset| entry.state_at(offset)) {
             let up = entry
                 .value_of(id, "up")
                 .is_some_and(|value| value.renders_to("true"));
             let mut by_faces = [VoxelId(0); 32];
             for (index, slot) in by_faces.iter_mut().enumerate() {
-                *slot = with_bits_from(entry, id, &FACES, index).unwrap_or(VoxelId::from(id.0));
+                *slot =
+                    with_bits_from(entry, id, &FACES, index).unwrap_or(VoxelId::from(id.number()));
             }
-            table.insert(VoxelId::from(id.0), up, by_faces);
+            table.insert(VoxelId::from(id.number()), up, by_faces);
         }
     }
     table
@@ -2613,7 +2617,7 @@ fn compile_ore(
 fn block_layout(entry: &BlockEntry) -> BlockLayout {
     let properties = &entry.properties.0;
     BlockLayout {
-        base: entry.base_state_id.0,
+        base: entry.base_state_id.number(),
         properties: properties
             .iter()
             .enumerate()
@@ -2690,8 +2694,9 @@ impl ShapeMasks {
         let mut full_outline = empty();
         let mut sturdy_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
         let mut full_collision_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
-        for id in 0..count {
-            let state = blocks.state(BlockStateId(id as u16));
+        for state_id in crate::block_state::states(blocks) {
+            let id = state_id.index();
+            let state = blocks.state(state_id);
             let (selection_full, selection_faces) = fact(state.selection_shape);
             let (_, collision_faces) = fact(state.collision_shape);
             full_outline.set(id, selection_full);
@@ -2751,7 +2756,7 @@ impl<'a> Resolver<'a> {
             double_plants: double_plant_table(self.blocks),
             mossy_carpet: mossy_carpet_states(self)?,
             snowy: snowy_table(self.blocks),
-            waterlogging: waterlogging(self.blocks, VoxelId::from(water.0)),
+            waterlogging: waterlogging(self.blocks, VoxelId::from(water.number())),
             vine: vine_states(self.blocks),
             mushroom_faces: mushroom_faces(self.blocks),
         })
@@ -2776,6 +2781,7 @@ impl<'a> Resolver<'a> {
         let mut freezable_water = (*block(Block::Water)).clone();
         freezable_water.intersect_with(&water_source);
         WorldStates {
+            state_count: StateCount(self.blocks.state_count()),
             air: self.default_state_of(Block::Air.id()),
             cave_air: self.default_state_of(Block::CaveAir.id()),
             water: self.default_state_of(Block::Water.id()),
@@ -2806,14 +2812,12 @@ impl<'a> Resolver<'a> {
                 &block(Block::DamagedAnvil),
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
-            block_of_state: (0..=u16::MAX)
-                .take(self.blocks.state_count())
-                .map(|id| self.blocks.block_index(BlockStateId(id)))
+            block_of_state: crate::block_state::states(self.blocks)
+                .map(|id| self.blocks.block_index(id))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
-            fluid_states: (0..=u16::MAX)
-                .take(self.blocks.state_count())
-                .map(|id| fluid_state_number(self.blocks.state(BlockStateId(id)).fluid))
+            fluid_states: crate::block_state::states(self.blocks)
+                .map(|id| fluid_state_number(self.blocks.state(id).fluid))
                 .collect(),
         }
     }
@@ -2855,13 +2859,14 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn default_state_of(&self, block: Id<Block>) -> VoxelId {
-        VoxelId::from(self.blocks.default_state_of(block).0)
+        VoxelId::from(self.blocks.default_state_of(block).number())
     }
 
     /// Every state `keep` answers for.
     pub fn state_mask(&self, keep: impl Fn(&BlockStateData) -> bool) -> StateMask {
-        let mut mask: FixedBitSet = (0..self.blocks.state_count())
-            .filter(|&id| keep(self.blocks.state(BlockStateId(id as u16))))
+        let mut mask: FixedBitSet = crate::block_state::states(self.blocks)
+            .filter(|&id| keep(self.blocks.state(id)))
+            .map(BlockStateId::index)
             .collect();
         mask.grow(self.blocks.state_count());
         Arc::new(mask)
@@ -2889,14 +2894,16 @@ impl<'a> Resolver<'a> {
     /// `random_block_provider` draws one of.
     pub fn block_set_defaults(&self, set: &HolderSet<Block>) -> Vec<VoxelId> {
         set.ids(&self.tags)
-            .map(|id| VoxelId::from(self.blocks[id].default_state_id.0))
+            .map(|id| VoxelId::from(self.blocks[id].default_state_id.number()))
             .collect()
     }
 
     /// The block's name when no `canSurvive` rule covers it, which makes a
     /// `would_survive` naming it unanswerable.
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
-        let block = self.blocks.block_index(BlockStateId(state.0));
+        let block = self
+            .blocks
+            .block_index(crate::block_state::state_of(self.blocks, state)?);
         if trees.survive.contains_key(&block) {
             return None;
         }
@@ -2904,7 +2911,7 @@ impl<'a> Resolver<'a> {
     }
 
     fn add_entry(mask: &mut FixedBitSet, entry: &BlockEntry) {
-        let base = entry.base_state_id.0 as usize;
+        let base = entry.base_state_id.number() as usize;
         mask.insert_range(base..base + entry.state_count as usize);
     }
 
@@ -2930,7 +2937,8 @@ impl<'a> Resolver<'a> {
 
 impl BlockResolver for Resolver<'_> {
     fn state(&self, state: &BlockState) -> Option<VoxelId> {
-        crate::block_state::try_resolve_state(self.blocks, state).map(|id| VoxelId::from(id.0))
+        crate::block_state::try_resolve_state(self.blocks, state)
+            .map(|id| VoxelId::from(id.number()))
     }
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask> {

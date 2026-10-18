@@ -1,4 +1,4 @@
-use crate::BlockStateId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
 
 use crate::access::{Access, Volume, section_meets, within};
@@ -6,7 +6,7 @@ use crate::bounds::span;
 use crate::voxels::{VoxelStore, VoxelStoreMut};
 
 /// An owned dense box of block states: a schematic, a dense test world. Cells of a section
-/// it only partly covers read as the default state and drop writes.
+/// it only partly covers read as air and drop writes.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BoxVolume {
     bounds: BoundingBox,
@@ -98,7 +98,7 @@ impl VoxelStore for BoxVolume {
         self.index(at)
             .and_then(|index| self.cells.get(index))
             .copied()
-            .unwrap_or_default()
+            .unwrap_or(BlockStateId::AIR)
     }
 }
 
@@ -107,7 +107,7 @@ impl VoxelStoreMut for BoxVolume {
     fn set_voxel(&mut self, at: BlockPos, state: BlockStateId) -> BlockStateId {
         match self.index(at).and_then(|index| self.cells.get_mut(index)) {
             Some(cell) => std::mem::replace(cell, state),
-            None => BlockStateId::default(),
+            None => BlockStateId::AIR,
         }
     }
 }

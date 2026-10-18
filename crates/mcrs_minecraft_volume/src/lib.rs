@@ -9,7 +9,6 @@
 
 mod access;
 mod block;
-mod block_state_id;
 mod bounds;
 mod box_volume;
 mod cursor;
@@ -23,7 +22,6 @@ pub use access::{Access, Denied, Unavailable, Volume};
 pub use block::{
     BlockVolume, BlockVolumeMut, Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut,
 };
-pub use block_state_id::BlockStateId;
 pub use bounds::{ColumnLayout, SectionBox};
 pub use box_volume::BoxVolume;
 pub use cursor::Cursor;

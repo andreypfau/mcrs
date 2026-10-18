@@ -369,9 +369,9 @@ pub(crate) mod fake {
     use rustc_hash::FxHashMap as HashMap;
 
     use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+    use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_core::{BoundingBox, SectionPos};
     use mcrs_minecraft_value_provider::HeightContext;
-    use mcrs_minecraft_volume::BlockStateId;
     use mcrs_minecraft_volume::{Access, Volume, VoxelStore, VoxelStoreMut};
     use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 
@@ -415,6 +415,12 @@ pub(crate) mod fake {
         }
     }
 
+    impl FakeVolume {
+        fn state(&self, voxel: VoxelId) -> BlockStateId {
+            BlockStateId::checked(voxel.0, self.world.state_count.0).unwrap_or(BlockStateId::AIR)
+        }
+    }
+
     impl Volume for FakeVolume {
         fn bounds(&self) -> BoundingBox {
             BoundingBox {
@@ -430,16 +436,16 @@ pub(crate) mod fake {
 
     impl VoxelStore for FakeVolume {
         fn voxel(&self, p: BlockPos) -> BlockStateId {
-            BlockStateId(self.blocks.get(&(p.x, p.y, p.z)).copied().unwrap_or(AIR).0)
+            self.state(self.blocks.get(&(p.x, p.y, p.z)).copied().unwrap_or(AIR))
         }
     }
 
     impl VoxelStoreMut for FakeVolume {
         fn set_voxel(&mut self, p: BlockPos, state: BlockStateId) -> BlockStateId {
-            let state = VoxelId(state.0);
+            let state = VoxelId(state.number());
             self.writes.push(((p.x, p.y, p.z), state));
             let old = self.blocks.insert((p.x, p.y, p.z), state);
-            BlockStateId(old.unwrap_or(AIR).0)
+            self.state(old.unwrap_or(AIR))
         }
     }
 

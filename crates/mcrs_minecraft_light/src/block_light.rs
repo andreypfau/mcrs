@@ -2,8 +2,8 @@ use std::sync::{Arc, OnceLock};
 
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, ShapeId};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::voxel_shape::{ShapeRegistry, VoxelShape};
-use mcrs_minecraft_registry::BlockStateId;
 use rustc_hash::FxHashMap;
 
 use crate::block::{LightProperties, LightRegistry, SpecialBlocks};
@@ -32,8 +32,8 @@ fn build(blocks: &BlockDefinitions) -> LightRegistry {
     let mut interned: FxHashMap<ShapeId, &'static VoxelShape> = FxHashMap::default();
     let mut properties = Vec::with_capacity(state_count + 2);
 
-    for index in 0..state_count {
-        let state = blocks.state(BlockStateId(index as u16));
+    for id in (0..state_count).filter_map(|n| BlockStateId::checked(n as u16, state_count)) {
+        let state = blocks.state(id);
         let occlusion = state
             .flags
             .contains(BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION)
@@ -97,13 +97,17 @@ mod tests {
         })
     }
 
+    fn state_of(blocks: &Blocks, voxel: VoxelId) -> BlockStateId {
+        BlockStateId::checked(voxel.0, blocks.state_count()).expect("a corpus state")
+    }
+
     fn default_state(block: &str) -> VoxelId {
         VoxelId(
             corpus()
                 .block(block)
                 .expect("the block is declared")
                 .default_state_id
-                .0,
+                .number(),
         )
     }
 
@@ -115,7 +119,7 @@ mod tests {
         for index in 0..blocks.state_count() {
             let id = VoxelId(index as u16);
             let expected = blocks
-                .state(id.0.into())
+                .state(state_of(blocks, id))
                 .flags
                 .contains(BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION);
             assert_eq!(
@@ -134,7 +138,7 @@ mod tests {
         let bottom = VoxelId(
             slab.with_text(slab.default_state_id, "type", "bottom")
                 .expect("a bottom slab")
-                .0,
+                .number(),
         );
         assert!(registry.get(bottom).occlusion.is_some());
 
@@ -146,7 +150,7 @@ mod tests {
 
     fn emission_comes_from_the_corpus(blocks: &Blocks, registry: &LightRegistry) {
         let torch = default_state("minecraft:torch");
-        let expected = blocks.state(torch.0.into()).light_emission;
+        let expected = blocks.state(state_of(blocks, torch)).light_emission;
         assert!(expected > 0, "a torch emits light");
         assert_eq!(registry.get(torch).emission.get(), expected);
         assert_eq!(

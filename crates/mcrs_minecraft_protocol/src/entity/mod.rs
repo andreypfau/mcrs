@@ -1,3 +1,4 @@
+use crate::block::BlockStateNumber;
 use crate::item::RawStack;
 pub use crate::item::component::enums::DyeColor;
 pub use crate::item::component::equippable::EquipmentSlot;
@@ -15,7 +16,7 @@ pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registry::{BlockStateId, Id};
+use mcrs_minecraft_registry::Id;
 use std::io::Write;
 use uuid::Uuid;
 
@@ -96,7 +97,7 @@ pub enum MetaDataValue<'a> {
     OptionalBlockPos(Option<BlockPos>),
     Direction(Direction),
     OptionalLivingEntityReference(Option<Uuid>),
-    BlockState(BlockStateId),
+    BlockState(BlockStateNumber),
     OptionalBlockState(OptionalBlockState),
     Particle,
     Particles,
@@ -131,18 +132,18 @@ pub enum MetaDataValue<'a> {
 /// `Optional<BlockState>` on the wire: the state id, with 0 (air) standing for
 /// absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct OptionalBlockState(pub Option<BlockStateId>);
+pub struct OptionalBlockState(pub Option<BlockStateNumber>);
 
 impl crate::Encode for OptionalBlockState {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_registry_id(self.0.map_or(0, u16::from), w)
+        encode_registry_id(self.0.map_or(0, |state| state.0), w)
     }
 }
 
 impl crate::Decode<'_> for OptionalBlockState {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = decode_registry_id(r)?;
-        Ok(Self((id != 0).then_some(BlockStateId(id))))
+        Ok(Self((id != 0).then_some(BlockStateNumber(id))))
     }
 }
 

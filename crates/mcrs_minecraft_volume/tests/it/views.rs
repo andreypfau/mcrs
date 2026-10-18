@@ -1,21 +1,23 @@
 use std::ops::ControlFlow;
 
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
 use mcrs_minecraft_volume::{
-    Access, AccessPolicy, BlockStateId, BlockVolume, BlockVolumeMut, BoxVolume, Cursor, Missing,
-    Restricted, SectionBox, SectionVolume, SparseVolume, Unavailable, VisitOptions, VisitOrder,
-    Volume, VoxelStore, VoxelStoreMut,
+    Access, AccessPolicy, BlockVolume, BlockVolumeMut, BoxVolume, Cursor, Missing, Restricted,
+    SectionBox, SectionVolume, SparseVolume, Unavailable, VisitOptions, VisitOrder, Volume,
+    VoxelStore, VoxelStoreMut,
 };
 
 use crate::access::WEAKEST_FIRST;
 
-const AIR: BlockStateId = BlockStateId(0);
-const STONE: BlockStateId = BlockStateId(1);
+fn stone() -> BlockStateId {
+    crate::states(3)[1]
+}
 
 fn world(held: &[(i32, i32, i32)]) -> SparseVolume {
     let mut volume = SparseVolume::unbounded();
     for &(x, y, z) in held {
-        volume.insert(SectionPos::new(x, y, z), AIR);
+        volume.insert(SectionPos::new(x, y, z), BlockStateId::AIR);
     }
     volume
 }
@@ -24,10 +26,10 @@ fn world(held: &[(i32, i32, i32)]) -> SparseVolume {
 fn a_cursor_reads_what_the_volume_reads_across_sections() {
     let mut volume = world(&[(0, 0, 0), (1, 0, 0)]);
     volume
-        .set_block(BlockPos::new(15, 4, 4), STONE)
+        .set_block(BlockPos::new(15, 4, 4), stone())
         .expect("held");
     volume
-        .set_block(BlockPos::new(16, 4, 4), STONE)
+        .set_block(BlockPos::new(16, 4, 4), stone())
         .expect("held");
     let mut cursor = Cursor::new(&volume);
     for x in [14, 15, 16, 17, 32, 15, -1] {
@@ -46,9 +48,9 @@ fn a_cursor_holding_a_cut_section_still_refuses_cells_past_the_bounds() {
         min: BlockPos::new(-2, 0, 5),
         max: BlockPos::new(1, 3, 6),
     };
-    let volume = BoxVolume::filled(bounds, STONE).expect("small");
+    let volume = BoxVolume::filled(bounds, stone()).expect("small");
     let mut cursor = Cursor::new(&volume);
-    assert_eq!(cursor.block(BlockPos::new(-1, 0, 5)), Ok(STONE));
+    assert_eq!(cursor.block(BlockPos::new(-1, 0, 5)), Ok(stone()));
     assert_eq!(
         cursor.block(BlockPos::new(-3, 0, 5)),
         Err(Unavailable::Outside)
@@ -72,13 +74,13 @@ impl Volume for Fixed {
 
 impl VoxelStore for Fixed {
     fn voxel(&self, _: BlockPos) -> BlockStateId {
-        STONE
+        stone()
     }
 }
 
 impl VoxelStoreMut for Fixed {
     fn set_voxel(&mut self, _: BlockPos, _: BlockStateId) -> BlockStateId {
-        STONE
+        stone()
     }
 }
 
@@ -100,10 +102,10 @@ fn a_restriction_answers_the_weaker_of_store_and_policy() {
             let mut view = Restricted::new(&mut inner, Policy(policy));
             let case = format!("store {store:?}, policy {policy:?}");
             assert_eq!(view.access(SectionPos::from(at)), met, "{case}");
-            assert_eq!(view.block(at), met.check_read().map(|()| STONE), "{case}");
+            assert_eq!(view.block(at), met.check_read().map(|()| stone()), "{case}");
             assert_eq!(
-                view.set_block(at, AIR),
-                met.check_write().map(|()| STONE),
+                view.set_block(at, BlockStateId::AIR),
+                met.check_write().map(|()| stone()),
                 "{case}"
             );
         }
@@ -185,8 +187,8 @@ fn a_sparse_visit_stays_inside_the_bounds_and_survives_an_empty_area() {
         min: BlockPos::new(0, 0, 0),
         max: BlockPos::new(31, 15, 15),
     });
-    assert!(volume.insert(SectionPos::new(1, 0, 0), STONE));
-    assert!(!volume.insert(SectionPos::new(2, 0, 0), STONE));
+    assert!(volume.insert(SectionPos::new(1, 0, 0), stone()));
+    assert!(!volume.insert(SectionPos::new(2, 0, 0), stone()));
     let area = SectionBox {
         min: SectionPos::new(0, 0, 0),
         max: SectionPos::new(3, 0, 0),

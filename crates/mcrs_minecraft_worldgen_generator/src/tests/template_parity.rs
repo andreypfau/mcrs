@@ -20,7 +20,6 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_volume::{BoxVolume, Volume, VoxelStore};
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
@@ -35,6 +34,7 @@ use mcrs_minecraft_worldgen_feature_place::template::{
 };
 use mcrs_minecraft_worldgen_testing::dump_string;
 
+use super::corpus_state_of;
 use super::structures::frozen_shared;
 use super::template_manifest::{freeze, parse_state, resolve};
 use super::{
@@ -238,7 +238,7 @@ pub(super) fn state_named(id: VoxelId) -> String {
 }
 
 fn block_name(id: VoxelId) -> &'static str {
-    let index = corpus().block_index(BlockStateId(id.0));
+    let index = corpus().block_index(corpus_state_of(id));
     corpus()[index].identifier.as_str()
 }
 
@@ -318,7 +318,7 @@ pub(super) fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
     let world = WorldStates::clone(&program().world);
     let air = world.air_states.clone();
     let fluid = world.any_fluid.clone();
-    let state = |block: &str| VoxelId::from(corpus().default_state(block).0);
+    let state = |block: &str| VoxelId::from(corpus().default_state(block).number());
     let region = BoxRegion::new(min, max, world.air);
     let mut region = match floor {
         0 => region.floor(63, state("minecraft:dirt")),
@@ -339,7 +339,7 @@ pub(super) fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
         (min.y..=max.y)
             .rev()
             .find(|&y| {
-                let state = blocks.voxel(BlockPos::new(x, y, z)).0 as usize;
+                let state = blocks.voxel(BlockPos::new(x, y, z)).number() as usize;
                 !air.contains(state) && !(sees_through_fluid && fluid.contains(state))
             })
             .map_or(min.y, |y| y + 1)

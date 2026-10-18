@@ -1,12 +1,11 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_math::DVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
-use mcrs_minecraft_registry::BlockStateId;
-
-const OBSIDIAN: BlockStateId = BlockStateId(1126);
 
 /// Write a 5×5 obsidian floor at `floor_y = arrival_y - 1` and clear a 3×3×3
 /// air volume directly above the center. Returns the spawn position one block
@@ -18,6 +17,7 @@ const OBSIDIAN: BlockStateId = BlockStateId(1126);
 pub fn place_end_platform(
     dim_entity: Entity,
     arrival: DVec3,
+    obsidian: BlockStateId,
     writer: &mut MessageWriter<BlockSetRequest>,
 ) -> DVec3 {
     let center_x = arrival.x as i32;
@@ -29,7 +29,7 @@ pub fn place_end_platform(
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: BlockPos::new(center_x + dx, floor_y, center_z + dz),
-                new_state: OBSIDIAN.0.into(),
+                new_state: VoxelId::from(obsidian.number()),
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 512,
             });

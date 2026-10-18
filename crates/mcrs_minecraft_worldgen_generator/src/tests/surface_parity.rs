@@ -4,10 +4,9 @@ use mcrs_minecraft_worldgen_testing::dump_string;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_registry::BlockStateId;
 
-use super::corpus;
 use super::surface::{biome_ids, overworld_material_router, surfaced_column};
+use super::{corpus, corpus_state_of};
 
 const MAGIC: &[u8; 8] = b"MCSURFC0";
 
@@ -73,7 +72,7 @@ pub(super) fn read_dump(name: &str) -> Dump {
 }
 
 fn name_of(state: VoxelId) -> &'static str {
-    corpus().owner(BlockStateId(state.0)).identifier.as_str()
+    corpus().owner(corpus_state_of(state)).identifier.as_str()
 }
 
 /// Block for block against chunks the game generated itself: every position

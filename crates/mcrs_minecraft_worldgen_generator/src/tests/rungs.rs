@@ -9,7 +9,6 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -17,7 +16,7 @@ use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use crate::features::FeatureTables;
 use crate::staging::FilledSnapshot;
 
-use super::{TEMPERATE, blocks, generate_region};
+use super::{TEMPERATE, blocks, corpus_state_of, generate_region};
 
 const BIOME: &str = "minecraft:badlands";
 const SEED: u64 = 0x1a2e;
@@ -100,11 +99,11 @@ fn tables() -> FeatureTables {
 }
 
 fn state_of(name: &str) -> VoxelId {
-    VoxelId::from(blocks().0.default_state(name).0)
+    VoxelId::from(blocks().0.default_state(name).number())
 }
 
 fn named(state: VoxelId) -> &'static str {
-    let index = blocks().0.block_index(BlockStateId(state.0));
+    let index = blocks().0.block_index(corpus_state_of(state));
     blocks().0[index].identifier.as_str()
 }
 

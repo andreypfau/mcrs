@@ -11,6 +11,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_level::block_update::BlockSetRequest;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -38,6 +39,7 @@ impl Plugin for ArrivalPlugin {
 fn resolve_arrivals(
     mut reader: MessageReader<InboundEntitySpawn>,
     mut block_writer: MessageWriter<BlockSetRequest>,
+    blocks: Res<Blocks>,
     sender: Res<FromDimSender<FromDim>>,
     dims: Query<Entity, With<Dimension>>,
     chunk_index_query: Query<&SectionIndex>,
@@ -55,6 +57,7 @@ fn resolve_arrivals(
             dim_entity,
             &spawn.cause,
             &mut block_writer,
+            &blocks,
             &chunk_index_query,
             &palette_query,
         );
@@ -98,13 +101,17 @@ fn resolve_position(
     dim_entity: Entity,
     cause: &ArrivalCause,
     block_writer: &mut MessageWriter<BlockSetRequest>,
+    blocks: &Blocks,
     chunk_index_query: &Query<&SectionIndex>,
     palette_query: &Query<&ChunkBlocks>,
 ) -> DVec3 {
     match cause {
-        ArrivalCause::EndPlatform => {
-            place_end_platform(dim_entity, END_ARRIVAL_DEFAULT, block_writer)
-        }
+        ArrivalCause::EndPlatform => place_end_platform(
+            dim_entity,
+            END_ARRIVAL_DEFAULT,
+            blocks.default_state("minecraft:obsidian"),
+            block_writer,
+        ),
         ArrivalCause::NetherPortal { source_pos } => {
             find_or_create_nether_landing(dim_entity, *source_pos, chunk_index_query, palette_query)
         }

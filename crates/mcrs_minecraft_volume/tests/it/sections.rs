@@ -1,12 +1,17 @@
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, LocalPos, SectionPos};
 use mcrs_minecraft_volume::{
-    BlockStateId, BlockVolume, BlockVolumeMut, BoxVolume, PaletteBuffer, SectionBlocks,
-    SectionBlocksMut, SectionBox, SparseVolume, VisitOrder, Volume,
+    BlockVolume, BlockVolumeMut, BoxVolume, PaletteBuffer, SectionBlocks, SectionBlocksMut,
+    SectionBox, SparseVolume, VisitOrder, Volume,
 };
 
-const AIR: BlockStateId = BlockStateId(0);
-const STONE: BlockStateId = BlockStateId(1);
-const ORE: BlockStateId = BlockStateId(7);
+fn stone() -> BlockStateId {
+    crate::states(3)[1]
+}
+
+fn ore() -> BlockStateId {
+    crate::states(3)[2]
+}
 
 fn sorted<I>(palette: I) -> Vec<(BlockStateId, u16)>
 where
@@ -21,11 +26,14 @@ where
 fn a_paletted_section_fills_inclusive_boxes_and_counts_its_palette() {
     let at = SectionPos::new(0, 0, 0);
     let mut volume = SparseVolume::unbounded();
-    volume.insert(at, AIR);
+    volume.insert(at, BlockStateId::AIR);
     let mut section = volume.section_mut(at).expect("present");
-    section.fill_box(LocalPos::new(0, 0, 0), LocalPos::new(15, 3, 15), STONE);
-    section.fill_box(LocalPos::new(2, 1, 2), LocalPos::new(3, 2, 3), ORE);
-    assert_eq!(section.set(LocalPos::new(15, 15, 15), ORE), AIR);
+    section.fill_box(LocalPos::new(0, 0, 0), LocalPos::new(15, 3, 15), stone());
+    section.fill_box(LocalPos::new(2, 1, 2), LocalPos::new(3, 2, 3), ore());
+    assert_eq!(
+        section.set(LocalPos::new(15, 15, 15), ore()),
+        BlockStateId::AIR
+    );
 
     let section = volume.section(at).expect("present");
     assert_eq!(section.uniform(), None);
@@ -33,20 +41,27 @@ fn a_paletted_section_fills_inclusive_boxes_and_counts_its_palette() {
     let palette = section.palette(&mut buffer);
     assert_eq!(
         sorted(palette.iter()),
-        vec![(AIR, 4096 - 1024 - 1), (STONE, 1024 - 8), (ORE, 9)]
+        vec![
+            (BlockStateId::AIR, 4096 - 1024 - 1),
+            (stone(), 1024 - 8),
+            (ore(), 9)
+        ]
     );
-    assert!(palette.any(|state| state == ORE));
-    assert_eq!(palette.count(|state| state != AIR), 1024 + 1);
+    assert!(palette.any(|state| state == ore()));
+    assert_eq!(palette.count(|state| state != BlockStateId::AIR), 1024 + 1);
 
-    let mut cells = [BlockStateId(u16::MAX); SectionPos::VOLUME];
+    let mut cells = [crate::states(4)[3]; SectionPos::VOLUME];
     section.copy_to(&mut cells);
     for at in LocalPos::all() {
         assert_eq!(cells[at.index()], section.get(at), "{at:?}");
     }
-    assert_eq!(cells[LocalPos::new(2, 2, 3).index()], ORE);
+    assert_eq!(cells[LocalPos::new(2, 2, 3).index()], ore());
 
-    volume.section_mut(at).expect("present").fill(STONE);
-    assert_eq!(volume.section(at).expect("present").uniform(), Some(STONE));
+    volume.section_mut(at).expect("present").fill(stone());
+    assert_eq!(
+        volume.section(at).expect("present").uniform(),
+        Some(stone())
+    );
 }
 
 #[test]
@@ -55,15 +70,15 @@ fn a_dense_section_builds_the_palette_its_paletted_twin_keeps() {
         min: BlockPos::new(0, 0, 0),
         max: BlockPos::new(15, 15, 15),
     };
-    let mut dense = BoxVolume::filled(bounds, AIR).expect("one section");
+    let mut dense = BoxVolume::filled(bounds, BlockStateId::AIR).expect("one section");
     let mut paletted = SparseVolume::unbounded();
     let at = SectionPos::new(0, 0, 0);
-    paletted.insert(at, AIR);
+    paletted.insert(at, BlockStateId::AIR);
     for (i, pos) in [(1, 2, 3), (4, 5, 6), (7, 8, 9), (1, 1, 1)]
         .into_iter()
         .enumerate()
     {
-        let state = BlockStateId(if i % 2 == 0 { 3 } else { 9 });
+        let state = crate::states(5)[if i % 2 == 0 { 3 } else { 4 }];
         let pos = BlockPos::from(pos);
         dense.set_block(pos, state).expect("inside");
         paletted.set_block(pos, state).expect("present");
@@ -116,12 +131,11 @@ fn origin(at: SectionPos) -> BlockPos {
 }
 
 fn numbered(bounds: BoundingBox) -> BoxVolume {
-    let mut volume = BoxVolume::filled(bounds, AIR).expect("small");
+    let table = crate::states(10_000);
+    let mut volume = BoxVolume::filled(bounds, BlockStateId::AIR).expect("small");
     let cells: Vec<BlockPos> = volume.iter().map(|(at, _)| at).collect();
     for (n, at) in cells.into_iter().enumerate() {
-        volume
-            .set_block(at, BlockStateId(n as u16 + 1))
-            .expect("inside");
+        volume.set_block(at, table[n + 1]).expect("inside");
     }
     volume
 }
@@ -149,7 +163,7 @@ fn a_box_section_reads_the_cells_the_box_reads_at_any_origin() {
                     base.y + i32::from(local.y()),
                     base.z + i32::from(local.z()),
                 );
-                let expected = volume.block(pos).unwrap_or(AIR);
+                let expected = volume.block(pos).unwrap_or(BlockStateId::AIR);
                 assert_eq!(section.get(local), expected, "{pos}");
             }
         }
@@ -162,12 +176,15 @@ fn a_cut_box_section_reads_default_and_drops_writes_past_the_box() {
         min: BlockPos::new(-2, 0, 5),
         max: BlockPos::new(1, 3, 6),
     };
-    let mut volume = BoxVolume::filled(bounds, AIR).expect("small");
+    let mut volume = BoxVolume::filled(bounds, BlockStateId::AIR).expect("small");
     let at = SectionPos::new(-1, 0, 0);
     let mut section = volume.section_mut(at).expect("touched");
-    section.fill(STONE);
-    assert_eq!(section.set(LocalPos::new(0, 0, 0), ORE), AIR);
-    assert_eq!(section.set(LocalPos::new(14, 0, 5), ORE), STONE);
+    section.fill(stone());
+    assert_eq!(
+        section.set(LocalPos::new(0, 0, 0), ore()),
+        BlockStateId::AIR
+    );
+    assert_eq!(section.set(LocalPos::new(14, 0, 5), ore()), stone());
 
     let section = volume.section(at).expect("touched");
     let mut inside = 0;
@@ -181,13 +198,13 @@ fn a_cut_box_section_reads_default_and_drops_writes_past_the_box() {
         if volume.contains(pos) {
             inside += 1;
             let want = if (local.x(), local.y(), local.z()) == (14, 0, 5) {
-                ORE
+                ore()
             } else {
-                STONE
+                stone()
             };
             assert_eq!(state, want, "{pos}");
         } else {
-            assert_eq!(state, AIR, "{pos}");
+            assert_eq!(state, BlockStateId::AIR, "{pos}");
         }
     }
     assert_eq!(inside, 2 * 4 * 2);

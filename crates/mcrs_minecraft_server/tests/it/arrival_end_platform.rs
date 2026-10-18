@@ -3,7 +3,9 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
@@ -18,7 +20,6 @@ use mcrs_minecraft_level::world::storage::section::Section;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
@@ -29,14 +30,22 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, 
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 
+use crate::support::standalone_corpus;
+
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct TestDimLabel(u8);
 
-/// Obsidian block state id (vanilla network id 1126).
-const OBSIDIAN_STATE: BlockStateId = BlockStateId(1126);
+fn obsidian() -> VoxelId {
+    VoxelId::from(
+        standalone_corpus()
+            .0
+            .default_state("minecraft:obsidian")
+            .number(),
+    )
+}
 
 fn register_sub_messages(sub_app: &mut SubApp) {
     sub_app.add_message::<OutboundPlayerPacket>();
@@ -185,6 +194,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         sub.insert_resource(FromDimSender::<FromDim>(from_tx2));
         sub.init_resource::<DimPlayerIndex>();
+        sub.insert_resource(standalone_corpus().0.clone());
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
         let chunk_entity = sub
@@ -255,16 +265,14 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 floor_y,
                 arrival_pos.z as i32 + dz,
             );
-            let state: BlockStateId = app
+            let state = app
                 .sub_app(TestDimLabel(1))
                 .world()
                 .entity(chunk_entity)
                 .get::<ChunkBlocks>()
                 .expect("BlockPalette")
-                .get(LocalPos::from(pos))
-                .0
-                .into();
-            if state != OBSIDIAN_STATE {
+                .get(LocalPos::from(pos));
+            if state != obsidian() {
                 obsidian_floor_ok = false;
             }
         }
@@ -283,18 +291,16 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     floor_y + 1 + dy,
                     arrival_pos.z as i32 + dz,
                 );
-                let state: BlockStateId = app
+                let state = app
                     .sub_app(TestDimLabel(1))
                     .world()
                     .entity(chunk_entity)
                     .get::<ChunkBlocks>()
                     .expect("BlockPalette")
-                    .get(LocalPos::from(pos))
-                    .0
-                    .into();
+                    .get(LocalPos::from(pos));
                 assert_eq!(
                     state,
-                    BlockStateId(0),
+                    VoxelId::from(BlockStateId::AIR.number()),
                     "block above End platform at {pos:?} must be air"
                 );
             }

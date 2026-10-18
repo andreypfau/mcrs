@@ -8,7 +8,7 @@ use mcrs_minecraft_block::keys::block_tags::{
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registry::{BlockStateId, Tags};
+use mcrs_minecraft_registry::Tags;
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -73,7 +73,7 @@ pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPre
         .get(&BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES)
         .expect("the loaded block tags hold #minecraft:blocks_motion_in_heightmap_no_leaves");
     let mut table = Vec::with_capacity(blocks.state_count());
-    for id in (0..=u16::MAX).take(blocks.state_count()).map(BlockStateId) {
+    for id in crate::block_state::states(blocks) {
         let state = blocks.state(id);
         let block = blocks.block_index(id);
         let mut kinds = HeightmapKinds::empty();

@@ -4,11 +4,11 @@ use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{MessageWriter, On};
 use bevy_ecs::system::Query;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_item::SelectedHotbarSlot;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Direction;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundPlayerAction;
-use mcrs_minecraft_registry::BlockStateId;
 
 pub struct PlayerActionPlugin;
 

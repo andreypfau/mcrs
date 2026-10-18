@@ -8,7 +8,6 @@ use mcrs_minecraft_anvil::{
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, RegionPos};
 use mcrs_minecraft_light_color_bench::corpus::Corpus;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use serde::Deserialize;
 
@@ -168,7 +167,7 @@ fn place(placement: &Placement) -> Result<Placed, String> {
     Ok(Placed {
         from: *from,
         to,
-        state: VoxelId(state.0),
+        state: VoxelId(state.number()),
         name: id.clone(),
         properties: spelled,
     })
@@ -330,7 +329,7 @@ impl PaletteLookup<VoxelId> for CorpusStates {
         for (property, text) in properties.iter() {
             id = block.with_text(id, property, text)?;
         }
-        Some(VoxelId(id.0))
+        Some(VoxelId(id.number()))
     }
 }
 
@@ -390,8 +389,9 @@ fn state_at(chunk: &Chunk, pos: BlockPos) -> Result<VoxelId, String> {
 }
 
 fn describe(state: VoxelId) -> String {
-    let blocks = Corpus::get().blocks;
-    let id = BlockStateId(state.0);
+    let corpus = Corpus::get();
+    let blocks = corpus.blocks;
+    let id = corpus.state(state);
     let block = blocks.owner(id);
     let properties: Vec<String> = block
         .properties

@@ -1,12 +1,16 @@
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
-use mcrs_minecraft_volume::BlockStateId;
 use mcrs_minecraft_volume::{Access, BoxVolume, Volume, VoxelStore, VoxelStoreMut};
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
 
-use super::{WorldGenVolume, WorldStates};
+use super::{StateCount, WorldGenVolume, WorldStates};
+
+fn test_state(voxel: VoxelId) -> BlockStateId {
+    BlockStateId::checked(voxel.0, StateCount::default().0).expect("a test world has no table")
+}
 
 type HeightFn = Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>;
 
@@ -27,7 +31,7 @@ impl BoxRegion {
     /// and the height map answers one past its top.
     pub fn new(min: BlockPos, max: BlockPos, fill: VoxelId) -> Self {
         BoxRegion {
-            blocks: BoxVolume::filled(BoundingBox { min, max }, BlockStateId(fill.0))
+            blocks: BoxVolume::filled(BoundingBox { min, max }, test_state(fill))
                 .expect("a test box fits in memory"),
             world: WorldStates::default(),
             extent: HeightContext {
@@ -53,9 +57,18 @@ impl BoxRegion {
     /// Every cell from the bottom of the box up to and including `top`.
     pub fn floor(mut self, top: i32, id: VoxelId) -> Self {
         for y in self.blocks.bounds().min.y..=top {
-            self.blocks.fill_layer(y, BlockStateId(id.0));
+            self.blocks.fill_layer(y, test_state(id));
         }
         self
+    }
+
+    /// Puts a block in the world without logging a write.
+    pub fn seed(&mut self, at: BlockPos, voxel: VoxelId) {
+        self.blocks.set_voxel(at, test_state(voxel));
+    }
+
+    pub fn seed_layer(&mut self, y: i32, voxel: VoxelId) {
+        self.blocks.fill_layer(y, test_state(voxel));
     }
 
     pub fn with_height(
@@ -86,7 +99,7 @@ impl VoxelStore for BoxRegion {
 impl VoxelStoreMut for BoxRegion {
     fn set_voxel(&mut self, at: BlockPos, state: BlockStateId) -> BlockStateId {
         if self.contains(at) {
-            self.writes.push((at, VoxelId(state.0)));
+            self.writes.push((at, VoxelId(state.number())));
         }
         self.blocks.set_voxel(at, state)
     }

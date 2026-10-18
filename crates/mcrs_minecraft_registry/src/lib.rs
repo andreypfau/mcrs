@@ -29,7 +29,7 @@ pub use entries::Entries;
 pub use holder::*;
 pub use holder_list::HolderList;
 pub use holder_set::{AlwaysList, HolderSet, skip_sets, skipping_sets};
-pub use id::{BlockStateId, Id, NarrowError};
+pub use id::{Id, NarrowError};
 pub use load::{
     PACKS_ROOT, Parts, SyncedNbt, VANILLA_PACK, VANILLA_ROOT, WorldRegistries, below_vanilla_root,
 };

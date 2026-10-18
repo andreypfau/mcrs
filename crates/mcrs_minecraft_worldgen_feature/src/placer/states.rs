@@ -6,10 +6,22 @@ use mcrs_minecraft_registry::Id;
 
 use super::StateMask;
 
+/// The size of the block-state table the voxel numbers of a world index. A world built without a
+/// table accepts every number.
+#[derive(Clone, Copy, Debug)]
+pub struct StateCount(pub usize);
+
+impl Default for StateCount {
+    fn default() -> Self {
+        Self(usize::from(u16::MAX) + 1)
+    }
+}
+
 /// The state sets every generator asks about and no feature configures: the
 /// same for every feature of a dimension, resolved once at freeze.
 #[derive(Clone, Debug, Default)]
 pub struct WorldStates {
+    pub state_count: StateCount,
     pub air: VoxelId,
     pub cave_air: VoxelId,
     pub water: VoxelId,

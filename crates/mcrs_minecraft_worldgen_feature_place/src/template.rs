@@ -1001,8 +1001,6 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_core::rl;
-    use mcrs_minecraft_volume::BlockStateId;
-    use mcrs_minecraft_volume::VoxelStoreMut;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 
@@ -1148,7 +1146,7 @@ mod tests {
 
     fn region_with_water_at(at: BlockPos) -> BoxRegion {
         let mut region = new_region();
-        region.blocks.set_voxel(at, BlockStateId(WATER.0));
+        region.seed(at, WATER);
         region
     }
 
@@ -1615,9 +1613,7 @@ mod tests {
         let template = template();
         let chain = vec![CompiledProcessor::ProtectedBlocks(mask_of([STONE.0]))];
         let mut region = new_region();
-        region
-            .blocks
-            .set_voxel(BlockPos::new(4, 5, 4), BlockStateId(STONE.0));
+        region.seed(BlockPos::new(4, 5, 4), STONE);
         let mut rng = WorldgenRandom::new(1);
         place_template(
             &placement(&template, &chain, Rotation::None, None),

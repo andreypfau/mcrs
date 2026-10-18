@@ -3,12 +3,19 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_registry::static_report::shipped_report;
 
 /// The corpus, loaded once per process. Worldgen resolves every block it
 /// places against it, so a stub would fail at the first lookup.
 pub fn corpus() -> &'static BlockDefinitions {
     &blocks().0
+}
+
+/// The corpus state a worldgen test voxel names.
+pub fn corpus_state_of(voxel: VoxelId) -> BlockStateId {
+    BlockStateId::checked(voxel.0, corpus().state_count()).expect("a voxel the corpus holds")
 }
 
 /// The corpus as the generation systems take it, sharing the one load above.

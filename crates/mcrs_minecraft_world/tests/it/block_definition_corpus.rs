@@ -12,10 +12,11 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::section::block_direct_bits;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{BlockStateId, Registry};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_world::registry_load::test_registries;
 
@@ -77,7 +78,7 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
     let mut claimed = vec![false; report.states];
     for block in definitions.blocks() {
         for offset in 0..block.state_count {
-            let state = block.base_state_id.0 as usize + offset as usize;
+            let state = block.base_state_id.number() as usize + offset as usize;
             assert!(!claimed[state], "state {state} is claimed twice");
             claimed[state] = true;
         }
@@ -106,12 +107,12 @@ fn the_block_container_width_is_the_narrowest_that_holds_every_state() {
 fn every_default_state_lies_in_its_block_and_named_defaults_reconstruct() {
     let (definitions, _) = corpus();
     for block in definitions.blocks() {
-        let offset = block.default_state_id.0 - block.base_state_id.0;
+        let offset = block.default_state_id.number() - block.base_state_id.number();
         assert!(
             offset < block.state_count,
             "{} default state {} is outside its range",
             block.identifier.as_str(),
-            block.default_state_id.0
+            block.default_state_id.number()
         );
     }
 
@@ -150,7 +151,7 @@ fn stone_has_one_state_and_a_full_cube() {
     let (definitions, _) = corpus();
     let stone = definitions.block("minecraft:stone").unwrap();
     assert_eq!(stone.state_count, 1);
-    assert_eq!(stone.base_state_id, BlockStateId(1));
+    assert_eq!(stone.base_state_id.number(), 1);
     assert_eq!(stone.base_state_id, stone.default_state_id);
     assert!(stone.properties.0.is_empty());
 
@@ -294,10 +295,7 @@ fn note_block_carries_a_large_integer_property() {
             ("powered", PropertyValue::Bool(false)),
         ])
         .unwrap();
-    assert_eq!(
-        last.0,
-        note_block.base_state_id.0 + note_block.state_count - 1
-    );
+    assert_eq!(Some(last), note_block.state_at(note_block.state_count - 1));
     assert_eq!(definitions.state(last).hardness, 0.8);
 }
 
@@ -431,8 +429,8 @@ fn every_state_is_reachable_one_property_at_a_time() {
                 });
         }
         assert_eq!(
-            id.0,
-            block.base_state_id.0 + block.state_count - 1,
+            Some(id),
+            block.state_at(block.state_count - 1),
             "{} did not land on its last state",
             block.identifier.as_str()
         );
@@ -447,9 +445,10 @@ fn every_sound_set_a_state_names_is_in_the_loaded_registry() {
     let resolved =
         BlockSoundSets::resolve(definitions, &registry).unwrap_or_else(|e| panic!("{e}"));
     let mut named = 0;
-    for state in 0..definitions.state_count() {
-        if let Some(set) = definitions.state(BlockStateId(state as u16)).sound_set {
-            assert!(resolved.get(set).is_some(), "state {state}");
+    let count = definitions.state_count();
+    for state in (0..count).filter_map(|n| BlockStateId::checked(n as u16, count)) {
+        if let Some(set) = definitions.state(state).sound_set {
+            assert!(resolved.get(set).is_some(), "state {}", state.number());
             named += 1;
         }
     }

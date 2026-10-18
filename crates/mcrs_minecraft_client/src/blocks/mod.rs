@@ -6,9 +6,9 @@ use build::build_one;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
-use mcrs_minecraft_registry::BlockStateId;
 pub use tint::{BiomeTint, BiomeTints, derive_tints, tint_column};
 
 mod build;
@@ -47,8 +47,7 @@ impl BlockStateKey {
 }
 
 /// The state the server's global block state id stands for.
-pub fn state_key(definitions: &BlockDefinitions, id: u16) -> BlockStateKey {
-    let state = BlockStateId(id);
+pub fn state_key(definitions: &BlockDefinitions, state: BlockStateId) -> BlockStateKey {
     let block = definitions.owner(state);
     let props = block
         .properties
@@ -100,9 +99,16 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions
             .resize(definitions.state_count(), BlockInfo::default());
     }
     for &id in ids {
-        let state = state_key(definitions, id);
-        let data = definitions.state(BlockStateId(id));
-        let block = Block::from_id(definitions.block_index(BlockStateId(id)))
+        let Some(id_state) = BlockStateId::checked(id, definitions.state_count()) else {
+            catalog.failures.push(format!(
+                "state {id}: past the {} corpus states",
+                definitions.state_count()
+            ));
+            continue;
+        };
+        let state = state_key(definitions, id_state);
+        let data = definitions.state(id_state);
+        let block = Block::from_id(definitions.block_index(id_state))
             .expect("a corpus block is a registry entry");
         match build_one(
             pack,
@@ -148,7 +154,7 @@ mod tests {
     fn a_global_state_id_names_the_block_and_every_property_it_stands_for() {
         let corpus = corpus();
         assert_eq!(
-            state_key(corpus, corpus.default_state("minecraft:stone").0).label(),
+            state_key(corpus, corpus.default_state("minecraft:stone")).label(),
             "minecraft:stone",
             "a block with no properties is named on its own"
         );
@@ -156,8 +162,7 @@ mod tests {
         let slab = corpus
             .block("minecraft:oak_slab")
             .expect("the corpus has oak slabs");
-        for offset in 0..slab.state_count {
-            let id = slab.base_state_id.0 + offset;
+        for id in (0..slab.state_count).filter_map(|offset| slab.state_at(offset)) {
             let key = state_key(corpus, id);
             assert_eq!(key.name, "minecraft:oak_slab");
             assert_eq!(key.props.len(), slab.properties.0.len());
@@ -169,7 +174,7 @@ mod tests {
                 });
             assert_eq!(
                 walked,
-                Some(BlockStateId(id)),
+                Some(id),
                 "{} does not lead back to the state it was read from",
                 key.label(),
             );

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use mcrs_minecraft_worldgen_generator::generate_column;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -53,7 +53,13 @@ fn main() {
                             let id = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
                             ids.extend_from_slice(&(id.0 as u32).to_le_bytes());
                             legend.entry(id.0 as u32).or_insert_with(|| {
-                                corpus().owner(BlockStateId(id.0)).identifier.to_string()
+                                corpus()
+                                    .owner(
+                                        BlockStateId::checked(id.0, corpus().state_count())
+                                            .unwrap_or(BlockStateId::AIR),
+                                    )
+                                    .identifier
+                                    .to_string()
                             });
                         }
                     }

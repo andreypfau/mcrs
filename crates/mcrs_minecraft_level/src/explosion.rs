@@ -11,9 +11,9 @@ use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_registry::BlockStateId;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
@@ -95,7 +95,10 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 let item = (|| {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
-                    let block_state = BlockStateId(palette.get(LocalPos::from(pos)).0);
+                    let block_state = BlockStateId::checked(
+                        palette.get(LocalPos::from(pos)).0,
+                        blocks.state_count(),
+                    )?;
                     let data = blocks.state(block_state);
                     let resistance = (data.explosion_resistance + 0.3) * 0.3;
                     Some(BlockCacheItem {
@@ -109,7 +112,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 })()
                 .unwrap_or(BlockCacheItem {
                     pos,
-                    block: BlockStateId(0),
+                    block: BlockStateId::AIR,
                     is_air: true,
                     resistance: 0.0,
                     chunk: None,

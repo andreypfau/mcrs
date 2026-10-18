@@ -2,11 +2,11 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_block::definition::LootId;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_protocol::item::Enchantments;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::loot::condition::check;
 use mcrs_minecraft_server::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_server::world::loot::entry::roll;

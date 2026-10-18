@@ -1,10 +1,10 @@
-use crate::BlockStateId;
-use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
+use mcrs_minecraft_chunk::PalettedContainer;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{LocalPos, SectionPos};
 
 use crate::block::{Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut};
 
-pub(crate) type Container = PalettedContainer<VoxelId, { SectionPos::SIZE }>;
+pub(crate) type Container = PalettedContainer<BlockStateId, { SectionPos::SIZE }>;
 
 /// A section kept as a paletted container: its palette is read, never rebuilt.
 #[derive(Clone, Copy, Debug)]
@@ -15,7 +15,7 @@ pub struct PalettedSectionMut<'a>(pub &'a mut Container);
 
 fn palette_of(container: &Container) -> Palette<'_> {
     match container {
-        PalettedContainer::Homogeneous(value) => Palette::uniform(BlockStateId(value.0)),
+        PalettedContainer::Homogeneous(value) => Palette::uniform(*value),
         PalettedContainer::Heterogeneous(data) => Palette::listed(&data.palette, &data.counts),
     }
 }
@@ -28,12 +28,12 @@ impl SectionBlocks for PalettedSection<'_> {
             usize::from(at.y()),
             usize::from(at.z()),
         );
-        BlockStateId(self.0.get(at.0, at.1, at.2).0)
+        self.0.get(at.0, at.1, at.2)
     }
 
     fn uniform(&self) -> Option<BlockStateId> {
         match self.0 {
-            PalettedContainer::Homogeneous(value) => Some(BlockStateId(value.0)),
+            PalettedContainer::Homogeneous(value) => Some(*value),
             PalettedContainer::Heterogeneous(_) => None,
         }
     }
@@ -48,7 +48,7 @@ impl SectionBlocks for PalettedSection<'_> {
     {
         let mut index = 0usize;
         self.0.for_each(|value| {
-            f(LocalPos::from_index(index), BlockStateId(value.0));
+            f(LocalPos::from_index(index), value);
             index = index.wrapping_add(1);
         });
     }
@@ -90,11 +90,11 @@ impl SectionBlocksMut for PalettedSectionMut<'_> {
             usize::from(at.y()),
             usize::from(at.z()),
         );
-        BlockStateId(self.0.set(at.0, at.1, at.2, VoxelId(state.0)).0)
+        self.0.set(at.0, at.1, at.2, state)
     }
 
     fn fill(&mut self, state: BlockStateId) {
-        *self.0 = PalettedContainer::Homogeneous(VoxelId(state.0));
+        *self.0 = PalettedContainer::Homogeneous(state);
     }
 
     fn fill_box(&mut self, min: LocalPos, max: LocalPos, state: BlockStateId) {
@@ -106,7 +106,7 @@ impl SectionBlocksMut for PalettedSectionMut<'_> {
             end(max.y()),
             usize::from(min.z()),
             end(max.z()),
-            VoxelId(state.0),
+            state,
         );
     }
 }

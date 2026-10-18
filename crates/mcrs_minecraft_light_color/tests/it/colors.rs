@@ -1,9 +1,9 @@
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
@@ -20,8 +20,12 @@ fn block(id: &str) -> &'static BlockEntry {
         .unwrap_or_else(|| panic!("the corpus has no `{id}`"))
 }
 
-fn states(block: &BlockEntry) -> impl Iterator<Item = VoxelId> + '_ {
-    (0..block.state_count).map(|offset| VoxelId(block.base_state_id.0 + offset))
+fn states(block: &BlockEntry) -> impl Iterator<Item = BlockStateId> + '_ {
+    (0..block.state_count).filter_map(|offset| block.state_at(offset))
+}
+
+fn voxel(state: BlockStateId) -> VoxelId {
+    VoxelId(state.number())
 }
 
 fn load(files: &[(&str, &str)]) -> Result<LightColors, LightColorError> {
@@ -95,16 +99,16 @@ fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {
     let mut coloured = 0;
     for block in blocks().blocks() {
         let id = block.identifier.as_str();
-        let first = colours.rgb(colours.light_type(VoxelId(block.base_state_id.0)));
+        let first = colours.rgb(colours.light_type(voxel(block.base_state_id)));
         let mut emits = false;
         for state in states(block) {
             assert_eq!(
-                colours.rgb(colours.light_type(state)),
+                colours.rgb(colours.light_type(voxel(state))),
                 first,
                 "{id} state {}",
-                state.0
+                state.number()
             );
-            emits |= blocks().state(BlockStateId(state.0)).light_emission > 0;
+            emits |= blocks().state(state).light_emission > 0;
         }
         if first.is_some() {
             assert!(emits, "{id} is coloured but emits no light");
@@ -128,15 +132,12 @@ fn a_candle_predicate_colours_only_the_lit_states() {
     let colours = load(&[("pack/glow.json", &file(&["minecraft:candle[lit=true]"]))]).unwrap();
     let candle = block("minecraft:candle");
     for state in states(candle) {
-        let lit = candle
-            .value_of(BlockStateId(state.0), "lit")
-            .unwrap()
-            .renders_to("true");
+        let lit = candle.value_of(state, "lit").unwrap().renders_to("true");
         assert_eq!(
-            colours.light_type(state) != LightType::DEFAULT,
+            colours.light_type(voxel(state)) != LightType::DEFAULT,
             lit,
             "state {}",
-            state.0
+            state.number()
         );
     }
 }

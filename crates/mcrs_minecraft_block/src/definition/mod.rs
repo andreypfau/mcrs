@@ -25,9 +25,10 @@ use crate::material::PushReaction;
 use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
+use mcrs_minecraft_registry::{Id, Registry, RegistryLookup, UnknownEntry};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
@@ -124,7 +125,19 @@ pub struct BlockEntry {
 
 impl BlockEntry {
     pub fn owns(&self, id: BlockStateId) -> bool {
-        id.0 >= self.base_state_id.0 && id.0 - self.base_state_id.0 < self.state_count
+        id.number() >= self.base_state_id.number()
+            && id.number() - self.base_state_id.number() < self.state_count
+    }
+
+    pub fn state_at(&self, offset: u16) -> Option<BlockStateId> {
+        if offset >= self.state_count {
+            return None;
+        }
+        let base = self.base_state_id.number();
+        BlockStateId::checked(
+            base.checked_add(offset)?,
+            usize::from(base) + usize::from(self.state_count),
+        )
     }
 
     /// The state that differs from `id` in one property, the way vanilla's
@@ -146,8 +159,9 @@ impl BlockEntry {
             .iter()
             .map(|p| p.values.len() as u16)
             .product();
-        let current = (id.0 - self.base_state_id.0) / stride % property.values.len() as u16;
-        Some(BlockStateId(id.0 - current * stride + target * stride))
+        let offset = id.number() - self.base_state_id.number();
+        let current = offset / stride % property.values.len() as u16;
+        self.state_at(offset - current * stride + target * stride)
     }
 
     /// The state's value for one property, the way vanilla's
@@ -162,7 +176,8 @@ impl BlockEntry {
             .iter()
             .map(|p| p.values.len() as u16)
             .product();
-        let current = (id.0 - self.base_state_id.0) / stride % property.values.len() as u16;
+        let current =
+            (id.number() - self.base_state_id.number()) / stride % property.values.len() as u16;
         property.values.get(current as usize)
     }
 
@@ -191,7 +206,7 @@ impl BlockEntry {
             let index = property.values.iter().position(|v| v == value)?;
             offset = offset * property.values.len() as u16 + index as u16;
         }
-        Some(BlockStateId(self.base_state_id.0 + offset))
+        self.state_at(offset)
     }
 }
 
@@ -217,7 +232,7 @@ const _: () = assert!(size_of::<BlockStateData>() <= 52);
 impl BlockDefinitions {
     #[inline]
     pub fn state(&self, id: BlockStateId) -> &BlockStateData {
-        &self.states[id.0 as usize]
+        &self.states[id.index()]
     }
 
     #[inline]
@@ -280,7 +295,7 @@ impl BlockDefinitions {
     /// resolved against it, so a state's tag membership is two array reads.
     #[inline]
     pub fn block_index(&self, id: BlockStateId) -> Id<Block> {
-        self.owners[id.0 as usize]
+        self.owners[id.index()]
     }
 
     #[inline]
@@ -325,14 +340,11 @@ impl RegistryLookup for BlockDefinitions {
             .fold(entry.default_state_id, |id, (name, value)| {
                 entry.with_text(id, name, value).unwrap_or(id)
             });
-        Some(id.0)
+        Some(id.number())
     }
 
     fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
-        let id = BlockStateId(id);
-        if usize::from(id.0) >= self.states.len() {
-            return None;
-        }
+        let id = BlockStateId::checked(id, self.states.len())?;
         let entry = self.owner(id);
         let properties = if id == entry.default_state_id {
             Vec::new()
@@ -643,6 +655,16 @@ impl Builder {
         self.permutations += permutations.len();
 
         let end = base as usize + state_count;
+        let base_state_id = BlockStateId::checked(base, end).ok_or(BlockError::StateSpace {
+            base,
+            states: state_count,
+        })?;
+        let default_state_id =
+            BlockStateId::checked(default, end).ok_or(BlockError::DefaultOutOfRange {
+                base,
+                default,
+                states: state_count,
+            })?;
         if self.states.len() < end {
             self.states.resize(end, UNCLAIMED);
             self.owners.resize(end, None);
@@ -698,8 +720,8 @@ impl Builder {
             .clone();
         self.blocks[id.index()] = Some(BlockEntry {
             identifier,
-            base_state_id: BlockStateId(base),
-            default_state_id: BlockStateId(default),
+            base_state_id,
+            default_state_id,
             state_count: state_count as u16,
             properties,
             placement_filter: components.placement_filter,
@@ -1049,8 +1071,9 @@ mod tests {
             definitions.blocks()[0].identifier.as_str(),
             "minecraft:second"
         );
-        assert_eq!(definitions.block_index(BlockStateId(0)).index(), 1);
-        assert_eq!(definitions.block_index(BlockStateId(1)).index(), 0);
+        let blocks = definitions.blocks();
+        assert_eq!(definitions.block_index(blocks[1].base_state_id).index(), 1);
+        assert_eq!(definitions.block_index(blocks[0].base_state_id).index(), 0);
     }
 
     #[test]
@@ -1101,7 +1124,7 @@ mod tests {
         assert_eq!(block.state_count, 1);
         assert_eq!(block.base_state_id, block.default_state_id);
         assert_eq!(
-            definitions.shape(definitions.state(BlockStateId(0)).collision_shape),
+            definitions.shape(definitions.state(block.base_state_id).collision_shape),
             [Aabb {
                 min: Vec3::ZERO,
                 max: Vec3::ONE
@@ -1152,7 +1175,12 @@ mod tests {
             ]"#,
         );
         let definitions = build(&[source]).unwrap();
-        assert_eq!(definitions.state(BlockStateId(0)).light_emission, 9);
+        assert_eq!(
+            definitions
+                .state(definitions.blocks()[0].base_state_id)
+                .light_emission,
+            9
+        );
     }
 
     #[test]
@@ -1207,8 +1235,14 @@ mod tests {
             }]"#,
         );
         let definitions = build(&[source]).unwrap();
-        assert_eq!(definitions.state(BlockStateId(0)).light_emission, 15);
-        assert_eq!(definitions.state(BlockStateId(1)).light_emission, 0);
+        let block = &definitions.blocks()[0];
+        let light = |offset| {
+            definitions
+                .state(block.state_at(offset).unwrap())
+                .light_emission
+        };
+        assert_eq!(light(0), 15);
+        assert_eq!(light(1), 0);
     }
 
     #[test]
@@ -1225,9 +1259,14 @@ mod tests {
             ]"#,
         );
         let definitions = build(&[pot, file("minecraft:water", 2, "", "")]).unwrap();
-        let set_of = |state| {
+        let states: Vec<BlockStateId> = definitions
+            .blocks()
+            .iter()
+            .flat_map(|block| (0..block.state_count).filter_map(|offset| block.state_at(offset)))
+            .collect();
+        let set_of = |state: usize| {
             definitions
-                .state(BlockStateId(state))
+                .state(states[state])
                 .sound_set
                 .and_then(|id| definitions.sound_set(id))
                 .map(ResourceKey::as_str)
@@ -1256,9 +1295,9 @@ mod tests {
             "minecraft:decorated_pot_cracked",
         ]);
         let resolved = BlockSoundSets::resolve(&definitions, &loaded).unwrap();
-        let resolved_of = |state| {
+        let resolved_of = |state: usize| {
             definitions
-                .state(BlockStateId(state))
+                .state(states[state])
                 .sound_set
                 .and_then(|id| resolved.get(id))
                 .and_then(|id| loaded.name(id))

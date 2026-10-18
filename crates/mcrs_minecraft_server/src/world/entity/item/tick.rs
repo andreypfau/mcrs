@@ -4,6 +4,7 @@ use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_inventory::{Op, Transaction};
 use mcrs_minecraft_item::dropped::{
@@ -17,7 +18,6 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_registry::BlockStateId;
 
 const REST_SPEED_SQ: f64 = 1e-5;
 const MERGE_RATE_MOVING: i32 = 2;
@@ -92,7 +92,12 @@ pub fn tick_dropped_items(world: &mut World) {
             let grounded = on_ground(world, &blocks, current.dim, pos);
             let friction = if grounded {
                 let below = BlockPos::from(pos - DVec3::new(0.0, 0.5000001, 0.0));
-                AIR_DRAG * f64::from(blocks.state(state_at(world, current.dim, below)).friction)
+                AIR_DRAG
+                    * f64::from(
+                        blocks
+                            .state(state_at(world, &blocks, current.dim, below))
+                            .friction,
+                    )
             } else {
                 AIR_DRAG
             };
@@ -193,19 +198,20 @@ fn count(world: &World, stack: Entity) -> u8 {
     world.get::<ItemStack>(stack).map_or(0, |stack| stack.count)
 }
 
-fn state_at(world: &World, dim: Entity, pos: BlockPos) -> BlockStateId {
+fn state_at(world: &World, blocks: &Blocks, dim: Entity, pos: BlockPos) -> BlockStateId {
     world
         .get::<SectionIndex>(dim)
         .and_then(|index| index.get(pos))
         .and_then(|section| world.get::<ChunkBlocks>(section))
-        .map_or(BlockStateId::default(), |blocks| {
-            BlockStateId::from(blocks.get(LocalPos::from(pos)).0)
+        .and_then(|chunk| {
+            BlockStateId::checked(chunk.get(LocalPos::from(pos)).0, blocks.state_count())
         })
+        .unwrap_or(BlockStateId::AIR)
 }
 
 fn is_full_block(world: &World, blocks: &Blocks, dim: Entity, pos: BlockPos) -> bool {
     blocks
-        .state(state_at(world, dim, pos))
+        .state(state_at(world, blocks, dim, pos))
         .flags
         .contains(BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK)
 }

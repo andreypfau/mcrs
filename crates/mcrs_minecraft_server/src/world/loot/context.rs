@@ -1,8 +1,9 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::item::Enchantments;
-use mcrs_minecraft_registry::{BlockStateId, Tags};
+use mcrs_minecraft_registry::Tags;
 
 use crate::world::loot::LootRegistries;
 

@@ -8,6 +8,7 @@ use mcrs_minecraft_entity::keys::{
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item::keys::PAINTING_VARIANT;
+use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
@@ -19,7 +20,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Id, NoRegistries, Registry, RegistrySet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -101,7 +102,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         (6, MetaDataValue::Boolean(true), 8),
         (
             7,
-            MetaDataValue::OptionalBlockState(OptionalBlockState(Some(BlockStateId(9)))),
+            MetaDataValue::OptionalBlockState(OptionalBlockState(Some(BlockStateNumber(9)))),
             15,
         ),
         (

@@ -15,8 +15,8 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_registry::BlockStateId;
 
 use super::knobs::Guard;
 
@@ -81,13 +81,10 @@ struct Fault {
 }
 
 fn air_table(blocks: &Blocks) -> Arc<[bool]> {
-    (0..blocks.state_count())
-        .map(|index| {
-            blocks
-                .state(BlockStateId(index as u16))
-                .flags
-                .contains(BlockStateFlags::IS_AIR)
-        })
+    let count = blocks.state_count();
+    (0..count)
+        .filter_map(|index| BlockStateId::checked(index as u16, count))
+        .map(|state| blocks.state(state).flags.contains(BlockStateFlags::IS_AIR))
         .collect()
 }
 

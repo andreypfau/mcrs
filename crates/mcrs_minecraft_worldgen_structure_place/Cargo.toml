@@ -27,5 +27,4 @@ mcrs_minecraft_worldgen_feature_place.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }

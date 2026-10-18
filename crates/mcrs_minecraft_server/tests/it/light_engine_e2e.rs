@@ -148,7 +148,9 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
 fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
-    let emission = blocks.state(torch.0.into()).light_emission;
+    let emission = blocks
+        .state(blocks.default_state("minecraft:torch"))
+        .light_emission;
 
     let sub_app = app
         .sub_apps_mut()

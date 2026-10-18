@@ -235,7 +235,7 @@ fn deep_critical_queue_is_not_kicked() {
 #[test]
 fn coalesce_single_write_per_tick() {
     use mcrs_minecraft_core::BlockPos;
-    use mcrs_minecraft_registry::BlockStateId;
+    use mcrs_minecraft_protocol::block::BlockStateNumber;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
@@ -252,7 +252,7 @@ fn coalesce_single_write_per_tick() {
                 priority: PacketPriority::Normal,
                 data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                     block_pos: BlockPos::new(i as i32, 64, 0),
-                    block_state_id: BlockStateId(i as u16),
+                    block_state_id: BlockStateNumber(i as u16),
                 }),
                 session: PlayerSession(0),
                 epoch: 0,

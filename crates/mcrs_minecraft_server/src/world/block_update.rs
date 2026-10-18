@@ -28,6 +28,7 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
+use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
@@ -105,7 +106,7 @@ pub fn update_client_blocks_per_dim(
         }
 
         for position in positions {
-            let new_state = palette.get(LocalPos::from(position)).0.into();
+            let new_state = BlockStateNumber(palette.get(LocalPos::from(position)).0);
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(targets.clone()),
                 priority: PacketPriority::Normal,

@@ -1,5 +1,6 @@
 pub mod clientbound {
     use crate::advancement::{AdvancementProgress, RawAdvancement};
+    use crate::block::BlockStateNumber;
     use crate::chunk::ChunkBlockUpdateEntry;
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
@@ -22,7 +23,6 @@ pub mod clientbound {
     use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
-    use mcrs_minecraft_registry::BlockStateId;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -50,7 +50,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundBlockUpdate {
         pub block_pos: BlockPos,
-        pub block_state_id: BlockStateId,
+        pub block_state_id: BlockStateNumber,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]

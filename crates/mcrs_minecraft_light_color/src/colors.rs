@@ -65,8 +65,9 @@ mod load {
     use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
     use mcrs_minecraft_block::keys::Block;
+    use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_core::tag_key::TagKey;
-    use mcrs_minecraft_registry::{BlockStateId, Tags};
+    use mcrs_minecraft_registry::Tags;
 
     use super::{LightColors, LightType};
     use crate::asset::{BlockStateRef, LightColorFile, StateTarget};
@@ -164,7 +165,7 @@ mod load {
                     let mut emits = false;
                     for block in members {
                         for id in states(block).filter(|&id| matches(block, id, entry)) {
-                            let slot = id.0 as usize;
+                            let slot = id.index();
                             if let Some(first) = claimed_by[slot] {
                                 return Err(LightColorError::TwoColours {
                                     state: describe(block, id),
@@ -248,7 +249,7 @@ mod load {
     }
 
     fn states(block: &BlockEntry) -> impl Iterator<Item = BlockStateId> + '_ {
-        (0..block.state_count).map(|offset| BlockStateId(block.base_state_id.0 + offset))
+        (0..block.state_count).filter_map(|offset| block.state_at(offset))
     }
 
     fn matches(block: &BlockEntry, id: BlockStateId, entry: &BlockStateRef) -> bool {

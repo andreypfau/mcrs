@@ -4,9 +4,9 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_volume::BlockStateId;
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -22,7 +22,7 @@ mod states;
 pub use box_region::BoxRegion;
 pub use modifier::{Modifier, biome_info_noise};
 pub use predicate::{Predicate, Rule, mask_of, single_state};
-pub use states::{BlockLayout, PropertyLayout, WorldStates, with_digit};
+pub use states::{BlockLayout, PropertyLayout, StateCount, WorldStates, with_digit};
 
 /// What a placement modifier or a generator may ask of the volume it runs in,
 /// beyond the blocks themselves.
@@ -34,12 +34,14 @@ pub trait WorldGenVolume: BlockVolumeMut {
     /// Generation reads a block it cannot reach as air.
     fn get(&self, p: BlockPos) -> VoxelId {
         self.block(p)
-            .map_or(VoxelId::default(), |state| VoxelId(state.0))
+            .map_or(VoxelId::default(), |state| VoxelId(state.number()))
     }
 
     /// Generation drops a write it cannot make.
     fn set(&mut self, p: BlockPos, state: VoxelId) {
-        let _ = self.set_block(p, BlockStateId(state.0));
+        if let Some(state) = BlockStateId::checked(state.0, self.world().state_count.0) {
+            let _ = self.set_block(p, state);
+        }
     }
 
     fn is_air(&self, p: BlockPos) -> bool {

@@ -103,7 +103,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
             );
             // Use a non-zero block state — apply_voxel_set_requests short-circuits
             // when old_state == new_state. Default-init BlockPalettes are all
-            // BlockStateId(0), so setting to a sentinel non-zero id ensures the
+            // air, so setting to a sentinel non-zero id ensures the
             // change is recorded.
             writer.write(BlockSetRequest {
                 dimension: dim_entity,

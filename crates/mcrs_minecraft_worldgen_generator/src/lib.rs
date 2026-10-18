@@ -19,10 +19,11 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{BlockStateId, NarrowError};
+use mcrs_minecraft_registry::NarrowError;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
@@ -1003,11 +1004,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level;
     let default_fluid = noise_router.default_fluid_state;
     let stone = noise_router.default_block_state;
-    let bedrock = VoxelId::from(blocks.default_state_of(Block::Bedrock.id()).0);
-    let sandstone = VoxelId::from(blocks.default_state_of(Block::Sandstone.id()).0);
-    let gravel = VoxelId::from(blocks.default_state_of(Block::Gravel.id()).0);
-    let ice = VoxelId::from(blocks.default_state_of(Block::Ice.id()).0);
-    let sand = VoxelId::from(blocks.default_state_of(Block::Sand.id()).0);
+    let bedrock = VoxelId::from(blocks.default_state_of(Block::Bedrock.id()).number());
+    let sandstone = VoxelId::from(blocks.default_state_of(Block::Sandstone.id()).number());
+    let gravel = VoxelId::from(blocks.default_state_of(Block::Gravel.id()).number());
+    let ice = VoxelId::from(blocks.default_state_of(Block::Ice.id()).number());
+    let sand = VoxelId::from(blocks.default_state_of(Block::Sand.id()).number());
 
     const D0: f64 = 0.03125;
 
@@ -1059,8 +1060,10 @@ pub fn apply_beta_surface(
             let (temp, humidity) = (temperatures[idx], humidities[idx]);
             let biome_land: BetaLandBiome = beta_biome_from_climate(beta_lookup, temp, humidity);
             let (top_block, filler_block) = beta_surface_blocks(biome_land, blocks);
-            let (top_block, filler_block) =
-                (VoxelId::from(top_block.0), VoxelId::from(filler_block.0));
+            let (top_block, filler_block) = (
+                VoxelId::from(top_block.number()),
+                VoxelId::from(filler_block.number()),
+            );
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;

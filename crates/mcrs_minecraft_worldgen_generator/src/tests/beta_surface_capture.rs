@@ -6,7 +6,7 @@ use mcrs_minecraft_biome::source::{
     BetaLandBiome, beta_biome_from_climate, build_beta_lookup_table,
 };
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_core::BlockStateId;
 
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
@@ -363,17 +363,17 @@ mod exhaustive {
                 let local_z = fix_col.wz - block_z;
 
                 // Assemble a flat Y-indexed array from the 8 sections.
-                let mut generated: [BlockStateId; 128] = [BlockStateId(0); 128];
+                let mut generated: [BlockStateId; 128] = [BlockStateId::AIR; 128];
                 for (si, sy) in y_sections.iter().enumerate() {
                     if let Some(Some((blocks, _))) = sections.get(si) {
                         let base_y = sy * 16;
                         for local_y in 0..16i32 {
                             let world_y = base_y + local_y;
                             if world_y < 128 {
-                                generated[world_y as usize] = blocks
-                                    .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
-                                    .0
-                                    .into();
+                                generated[world_y as usize] =
+                                    crate::tests::corpus_state_of(blocks.get(LocalPos::from(
+                                        BlockPos::new(local_x, local_y, local_z),
+                                    )));
                             }
                         }
                     }

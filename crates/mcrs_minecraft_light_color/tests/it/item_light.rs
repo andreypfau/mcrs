@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
@@ -9,7 +10,7 @@ use mcrs_minecraft_light_color::item::{
 };
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
-use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport};
+use mcrs_minecraft_registry::{Id, LoadReport};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
@@ -325,12 +326,15 @@ mod exhaustive {
             stack in prop::collection::vec((stack_text(), stack_text()), 0..=8),
             origin in 0..=u16::MAX,
         ) {
+            let Some(origin) = BlockStateId::checked(origin, blocks().state_count()) else {
+                return Ok(());
+            };
             let light = shipped().light(
                 blocks(),
                 colours(),
                 Id::from_raw(item),
                 stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
-                BlockStateId(origin),
+                origin,
             );
             prop_assert!(light.is_none_or(|l| l.emission > 0));
         }

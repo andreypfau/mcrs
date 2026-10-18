@@ -106,7 +106,7 @@ fn stone_volume(stone: VoxelId) -> BoxVolume {
         min: BlockPos::new(-16, 0, -16),
         max: BlockPos::new(31, 127, 31),
     };
-    BoxVolume::filled(bounds, mcrs_minecraft_volume::BlockStateId(stone.0)).expect("a small box")
+    BoxVolume::filled(bounds, super::corpus_state_of(stone)).expect("a small box")
 }
 
 /// Every placed block as (column offset from the centre, state), so a census
@@ -114,7 +114,7 @@ fn stone_volume(stone: VoxelId) -> BoxVolume {
 fn placed(volume: &BoxVolume, stone: VoxelId) -> Vec<((i32, i32), VoxelId)> {
     volume
         .iter()
-        .map(|(at, state)| (at, VoxelId(state.0)))
+        .map(|(at, state)| (at, VoxelId(state.number())))
         .filter(|(_, state)| *state != stone)
         .map(|(at, state)| ((at.x.div_euclid(16), at.z.div_euclid(16)), state))
         .collect()
@@ -145,7 +145,7 @@ const ORE_BLOCKS_CHUNK_0_0_SEED_12345: (usize, usize) = (964, 2580);
 fn drive(seed: i64, ids: &BetaOreBlockIds) -> (BoxVolume, u64) {
     let draws = Rc::new(Cell::new(0u64));
     let mut rng = CountingRng::new(seed as u64, draws.clone());
-    let mut volume = stone_volume(ids.stone.0.into());
+    let mut volume = stone_volume(ids.stone.number().into());
     place_all_ores(&mut volume, 0, 0, &mut rng, ids);
     (volume, draws.get())
 }
@@ -155,7 +155,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
     let ids = BetaOreBlockIds::resolve(super::corpus());
     let (volume, draws) = drive(populate_seed(0, 0, 12345), &ids);
     assert_eq!(draws, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);
-    let placed = placed(&volume, ids.stone.0.into());
+    let placed = placed(&volume, ids.stone.number().into());
 
     let own = placed.iter().filter(|(col, _)| *col == (0, 0)).count();
     let crossed = placed.len() - own;
@@ -183,7 +183,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
         ids.lapis,
     ] {
         assert!(
-            placed.iter().any(|(_, got)| *got == state.0.into()),
+            placed.iter().any(|(_, got)| *got == state.number().into()),
             "no block of {state:?} was placed"
         );
     }
@@ -201,7 +201,7 @@ fn the_region_takes_the_veins_the_box_takes() {
 
     let ctx = super::bare_fill_context(super::build_beta_router());
     let ids = BetaOreBlockIds::resolve(super::corpus());
-    let stone = VoxelId(ids.stone.0);
+    let stone = VoxelId(ids.stone.number());
     let center = ColumnPos::new(0, 0);
     let snapshots = super::region_of(center, |col| {
         super::flat_snapshot(
@@ -244,7 +244,10 @@ fn the_populate_feature_is_the_populate_step() {
     let (_, registry) = super::beta_surface::build_beta_biome_source();
     let program = Arc::new(super::beta_populate_program(&registry, seed));
     let ctx = super::fill_context_with(router, Some(program));
-    let stone: VoxelId = super::corpus().default_state("minecraft:stone").0.into();
+    let stone: VoxelId = super::corpus()
+        .default_state("minecraft:stone")
+        .number()
+        .into();
     let center = ColumnPos::new(3, -2);
     let snapshots = super::region_of(center, |col| {
         super::flat_snapshot(

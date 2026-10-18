@@ -1,5 +1,6 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen_generator::heightmap::*;
 use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
@@ -22,17 +23,15 @@ fn state_of(block: &str) -> VoxelId {
 fn air_never_blocks_motion() {
     let blocks = corpus();
     let table = predicates();
-    for index in 0..blocks.state_count() {
-        let id = VoxelId(index as u16);
-        if blocks
-            .state(id.0.into())
-            .flags
-            .contains(BlockStateFlags::IS_AIR)
-        {
+    let count = blocks.state_count();
+    for state in (0..count).filter_map(|index| BlockStateId::checked(index as u16, count)) {
+        let id = VoxelId(state.number());
+        if blocks.state(state).flags.contains(BlockStateFlags::IS_AIR) {
             assert_eq!(
                 table.get(id),
                 HeightmapKinds::empty(),
-                "air state {index} satisfies a heightmap predicate"
+                "air state {} satisfies a heightmap predicate",
+                state.number()
             );
         }
     }
@@ -515,24 +514,26 @@ mod exhaustive {
         let blocks = corpus();
         let table = predicates();
         for block in blocks.blocks() {
-            let base = block.base_state_id.number();
-            let solid = table.get(VoxelId(base)) & HeightmapKinds::SOLID;
+            let solid = table.get(VoxelId(block.base_state_id.number())) & HeightmapKinds::SOLID;
             // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
             // only comparable among the states that carry none.
-            let dry = |id: VoxelId| blocks.state(id.0.into()).fluid.is_none();
+            let dry = |state: BlockStateId| blocks.state(state).fluid.is_none();
             let no_leaves = (0..block.state_count)
-                .map(|offset| VoxelId(base + offset))
-                .find(|&id| dry(id))
-                .map(|id| table.get(id) & HeightmapKinds::NO_LEAVES);
+                .filter_map(|offset| block.state_at(offset))
+                .find(|&state| dry(state))
+                .map(|state| table.get(VoxelId(state.number())) & HeightmapKinds::NO_LEAVES);
             for offset in 0..block.state_count {
-                let id = VoxelId(base + offset);
+                let Some(state) = block.state_at(offset) else {
+                    continue;
+                };
+                let id = VoxelId(state.number());
                 let name = block.identifier.as_str();
                 assert_eq!(
                     table.get(id) & HeightmapKinds::SOLID,
                     solid,
                     "{name} state {offset} disagrees with its block"
                 );
-                if dry(id) {
+                if dry(state) {
                     assert_eq!(
                         Some(table.get(id) & HeightmapKinds::NO_LEAVES),
                         no_leaves,

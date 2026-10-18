@@ -8,7 +8,7 @@ use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::{BlockStateId, Registry};
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_testing::{registry, registry_in};
 
 use super::modern_carvers::carvers_of;
 use super::surface::fill_context;
-use super::{build_settings_router, corpus, router_blocks};
+use super::{build_settings_router, corpus, corpus_state_of, router_blocks};
 use crate::ColumnBlocks;
 use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, modern_carving_mask};
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
@@ -188,7 +188,7 @@ fn material_router(
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|block| block.default_state_id.0.into())
+                .map(|block| block.default_state_id.number().into())
         },
         biome_tags: &biome_tags,
     };
@@ -229,7 +229,7 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let mut context = fill_context(router, material, registry, source);
     let (_, table) = world(dimension, seed);
     context.program.carvers = Some(Arc::new(table));
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").0.into();
+    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").number().into();
     if let ColumnGenerator::Modern { carver_blocks, .. } = &mut context.program.generator {
         *carver_blocks = Arc::new(ModernCarverBlockIds::for_test(vec![bedrock]));
     }
@@ -238,14 +238,14 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
 
 fn block_key(keys: &mut HashMap<u16, u64>, state: VoxelId) -> u64 {
     *keys.entry(state.0).or_insert_with(|| {
-        let id = BlockStateId(state.0);
+        let id = corpus_state_of(state);
         let block = corpus().owner(id);
         let name = block
             .identifier
             .as_str()
             .bytes()
             .fold(FNV_OFFSET, |hash, byte| mix(hash, u64::from(byte)));
-        mix(name, u64::from(id.0 - block.base_state_id.0))
+        mix(name, u64::from(id.number() - block.base_state_id.number()))
     })
 }
 

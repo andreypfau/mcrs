@@ -10,6 +10,7 @@ use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_inventory::{
     CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots,
@@ -24,7 +25,6 @@ use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
-use mcrs_minecraft_registry::BlockStateId;
 
 const CHEST_ROWS: usize = 3;
 
@@ -87,8 +87,13 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
     let Some(palette) = world.get::<ChunkBlocks>(section.0) else {
         return false;
     };
-    let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)).0);
-    let block = world.resource::<Blocks>().block_index(state);
+    let blocks = world.resource::<Blocks>();
+    let Some(state) =
+        BlockStateId::checked(palette.get(LocalPos::from(pos.0)).0, blocks.state_count())
+    else {
+        return false;
+    };
+    let block = blocks.block_index(state);
     world.resource::<ShulkerBoxes>().has_block(block)
 }
 

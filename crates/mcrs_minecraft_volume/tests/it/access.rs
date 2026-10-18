@@ -19,7 +19,8 @@ fn meet_keeps_the_weaker_right() {
 
 #[test]
 fn per_call_types_stay_small() {
-    use mcrs_minecraft_volume::{BlockStateId, Cursor, SparseVolume};
+    use mcrs_minecraft_core::BlockStateId;
+    use mcrs_minecraft_volume::{Cursor, SparseVolume};
     use std::mem::size_of;
     assert!(size_of::<Result<BlockStateId, Unavailable>>() <= 4);
     assert!(size_of::<Result<BlockStateId, Denied>>() <= 4);

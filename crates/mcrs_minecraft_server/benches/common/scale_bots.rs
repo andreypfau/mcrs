@@ -28,7 +28,7 @@ use mcrs_minecraft_level::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
@@ -163,7 +163,7 @@ pub fn run_profile_ticks(
                         priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                             block_pos: mcrs_minecraft_core::BlockPos::new(0, 64, 0),
-                            block_state_id: BlockStateId(1),
+                            block_state_id: BlockStateNumber(1),
                         }),
                         session: *session,
                         epoch: 0,

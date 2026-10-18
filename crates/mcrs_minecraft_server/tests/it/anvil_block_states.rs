@@ -2,6 +2,7 @@ use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -24,8 +25,8 @@ fn text(value: &PropertyValue) -> String {
 
 /// The property values of one of a block's states, in the corpus's own order.
 /// The last property varies fastest, so the offset unwinds from the back.
-fn state_properties(block: &BlockEntry, state: u16) -> Vec<(&str, &PropertyValue)> {
-    let mut offset = state - block.base_state_id.number();
+fn state_properties(block: &BlockEntry, state: BlockStateId) -> Vec<(&str, &PropertyValue)> {
+    let mut offset = state.number() - block.base_state_id.number();
     let mut values = Vec::new();
     for property in block.properties.0.iter().rev() {
         let index = offset as usize % property.values.len();
@@ -50,7 +51,7 @@ fn entry(name: &str, properties: &[(&str, String)]) -> NbtTag {
 }
 
 fn default_entry(block: &BlockEntry) -> NbtTag {
-    let properties: Vec<(&str, String)> = state_properties(block, block.default_state_id.number())
+    let properties: Vec<(&str, String)> = state_properties(block, block.default_state_id)
         .iter()
         .map(|(name, value)| (*name, text(value)))
         .collect();
@@ -147,8 +148,8 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
     let definitions = corpus();
     for name in ["minecraft:oak_stairs", "minecraft:note_block"] {
         let block = definitions.block(name).unwrap();
-        let states: Vec<u16> = (0..block.state_count)
-            .map(|i| block.base_state_id.number() + i)
+        let states: Vec<BlockStateId> = (0..block.state_count)
+            .filter_map(|offset| block.state_at(offset))
             .collect();
         let palette: Vec<NbtTag> = states
             .iter()
@@ -163,7 +164,10 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
         let ids = resolve(vec![(0, palette)]).unwrap();
         assert_eq!(
             ids,
-            states.iter().map(|&s| s as u32).collect::<Vec<_>>(),
+            states
+                .iter()
+                .map(|s| u32::from(s.number()))
+                .collect::<Vec<_>>(),
             "{name}"
         );
     }

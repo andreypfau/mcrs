@@ -57,9 +57,9 @@ pub(super) fn with_property<'a>(
 ) -> impl Iterator<Item = (VoxelId, &'a PropertyValue)> + 'a {
     blocks.blocks().iter().flat_map(move |entry| {
         (0..entry.state_count).filter_map(move |offset| {
-            let id = mcrs_minecraft_registry::BlockStateId(entry.base_state_id.0 + offset);
+            let id = entry.state_at(offset)?;
             let value = entry.value_of(id, property)?;
-            Some((VoxelId::from(id.0), value))
+            Some((VoxelId::from(id.number()), value))
         })
     })
 }
@@ -74,7 +74,7 @@ pub(super) fn state_of(
     for (name, value) in properties {
         id = entry.with_text(id, name, value)?;
     }
-    Some(VoxelId::from(id.0))
+    Some(VoxelId::from(id.number()))
 }
 
 pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
@@ -166,17 +166,17 @@ fn property_table<const N: usize>(
     values: [&str; N],
 ) -> HashMap<u16, [VoxelId; N]> {
     with_property(blocks, property)
-        .map(|(state, _)| {
-            let id = mcrs_minecraft_registry::BlockStateId(state.0);
+        .filter_map(|(state, _)| {
+            let id = crate::block_state::state_of(blocks, state)?;
             let entry = blocks.owner(id);
-            (
+            Some((
                 state.0,
                 values.map(|value| {
                     entry
                         .with_text(id, property, value)
-                        .map_or(state, |set| VoxelId::from(set.0))
+                        .map_or(state, |set| VoxelId::from(set.number()))
                 }),
-            )
+            ))
         })
         .collect()
 }
@@ -234,10 +234,8 @@ pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
         center_down: empty_mask(blocks),
         center_up: empty_mask(blocks),
     };
-    for id in (0..=u16::MAX).take(blocks.state_count()) {
-        let shape = blocks
-            .state(mcrs_minecraft_registry::BlockStateId(id))
-            .collision_shape;
+    for state in crate::block_state::states(blocks) {
+        let shape = blocks.state(state).collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));
             let up = voxels.face_mask(mcrs_minecraft_core::Direction::Up);
@@ -255,7 +253,7 @@ pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
             &mut out.center_up,
         ]) {
             if *holds {
-                mask.insert(usize::from(id));
+                mask.insert(state.index());
             }
         }
     }
@@ -347,7 +345,7 @@ fn rule_of(
             let mut supports = faces.sturdy_up.clone();
             supports.union_with(&tag(block_tags::SUPPORT_OVERRIDE_SNOW_LAYER)?);
             supports.insert(usize::from(
-                set(snow, snow.default_state_id, "layers", "8")?.0,
+                set(snow, snow.default_state_id, "layers", "8")?.number(),
             ));
             supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SNOW_LAYER)?);
             below(supports)
@@ -434,8 +432,8 @@ fn rule_of(
 
 fn on_facing_face(blocks: &BlockDefinitions, entry: &BlockEntry) -> Compiled<SurviveRule> {
     let facing = (0..entry.state_count)
-        .map(|offset| {
-            let state = mcrs_minecraft_registry::BlockStateId(entry.base_state_id.0 + offset);
+        .filter_map(|offset| entry.state_at(offset))
+        .map(|state| {
             match entry.value_of(state, "facing") {
                 Some(PropertyValue::Str(name)) => Direction::all()
                     .into_iter()
@@ -452,10 +450,8 @@ fn on_facing_face(blocks: &BlockDefinitions, entry: &BlockEntry) -> Compiled<Sur
         .collect::<Compiled<Vec<_>>>()?;
     let mut sturdy: [FixedBitSet; 6] = std::array::from_fn(|_| empty_mask(blocks));
     let mut answers: HashMap<u32, [bool; 6]> = HashMap::default();
-    for id in (0..=u16::MAX).take(blocks.state_count()) {
-        let shape = blocks
-            .state(mcrs_minecraft_registry::BlockStateId(id))
-            .collision_shape;
+    for state in crate::block_state::states(blocks) {
+        let shape = blocks.state(state).collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));
             Direction::all().map(|direction| *voxels.face_mask(direction) == FACE_MASK_FULL)
@@ -464,12 +460,12 @@ fn on_facing_face(blocks: &BlockDefinitions, entry: &BlockEntry) -> Compiled<Sur
             if answer.get(direction.id()).copied().unwrap_or(false)
                 && let Some(mask) = sturdy.get_mut(direction.id())
             {
-                mask.insert(usize::from(id));
+                mask.insert(state.index());
             }
         }
     }
     Ok(SurviveRule::OnFacingFace {
-        base: entry.base_state_id.0,
+        base: entry.base_state_id.number(),
         facing,
         sturdy,
     })

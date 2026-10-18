@@ -11,11 +11,12 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::keys::fluid_tags::WATER;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -252,7 +253,7 @@ impl ItemLights {
         let emission = blocks.state(state).light_emission;
         (emission > 0).then(|| ItemLight {
             emission,
-            light_type: colours.light_type(VoxelId(state.0)),
+            light_type: colours.light_type(VoxelId(state.number())),
             state,
         })
     }
@@ -260,7 +261,7 @@ impl ItemLights {
 
 impl ItemLights {
     fn holds_water(&self, blocks: &BlockDefinitions, state: BlockStateId) -> bool {
-        (state.0 as usize) < blocks.state_count()
+        state.index() < blocks.state_count()
             && blocks
                 .state(state)
                 .fluid
@@ -307,10 +308,7 @@ fn resolve(
 }
 
 fn emits(blocks: &BlockDefinitions, block: &BlockEntry) -> bool {
-    (0..block.state_count).any(|offset| {
-        blocks
-            .state(BlockStateId(block.base_state_id.0 + offset))
-            .light_emission
-            > 0
-    })
+    (0..block.state_count)
+        .filter_map(|offset| block.state_at(offset))
+        .any(|state| blocks.state(state).light_emission > 0)
 }

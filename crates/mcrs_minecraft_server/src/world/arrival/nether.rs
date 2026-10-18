@@ -1,14 +1,15 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_math::DVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_registry::BlockStateId;
 
-const AIR: BlockStateId = BlockStateId(0);
+const AIR: VoxelId = VoxelId(BlockStateId::AIR.number());
 
 /// Scale a horizontal overworld coordinate into the nether by the vanilla
 /// divisor of 8. Uses floor division so negative coordinates round toward
@@ -68,10 +69,10 @@ fn read_block(
     pos: BlockPos,
     chunk_index: &SectionIndex,
     palette_query: &Query<&ChunkBlocks>,
-) -> Option<BlockStateId> {
+) -> Option<VoxelId> {
     let chunk_entity = chunk_index.get(SectionPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;
-    Some(palette.get(LocalPos::from(pos)).0.into())
+    Some(palette.get(LocalPos::from(pos)))
 }
 
 #[cfg(test)]

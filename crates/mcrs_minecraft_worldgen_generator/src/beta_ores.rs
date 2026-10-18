@@ -3,9 +3,9 @@ use mcrs_minecraft_core::BlockPos;
 use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
 
@@ -41,14 +41,6 @@ impl BetaOreBlockIds {
             lapis: blocks.default_state_of(Block::LapisOre.id()),
             water: blocks.default_state_of(Block::Water.id()),
         }
-    }
-}
-
-fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
-    OreConfig {
-        target: mcrs_minecraft_volume::BlockStateId(stone.0),
-        state: mcrs_minecraft_volume::BlockStateId(state.0),
-        size,
     }
 }
 
@@ -93,10 +85,19 @@ fn place_clay_vein<V: BlockVolumeMut, R: Random>(
     volume: &mut V,
     rng: &mut R,
 ) {
-    if volume.block(origin) != Ok(mcrs_minecraft_volume::BlockStateId(ids.water.0)) {
+    if volume.block(origin) != Ok(ids.water) {
         return;
     }
-    place_beta_ore(&ore_config(ids.sand, ids.clay, 32), origin, volume, rng);
+    place_beta_ore(
+        &OreConfig {
+            target: ids.sand,
+            state: ids.clay,
+            size: 32,
+        },
+        origin,
+        volume,
+        rng,
+    );
 }
 
 /// Beta's populate step for one column against the region it runs in, so the
@@ -144,7 +145,11 @@ pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
         (ids.redstone, 8, 7, 16),
         (ids.diamond, 1, 7, 16),
     ] {
-        let config = ore_config(stone, state, size);
+        let config = OreConfig {
+            target: stone,
+            state,
+            size,
+        };
         place_ore(&config, count, y_bound, origin_x, origin_z, volume, rng);
     }
 
@@ -152,7 +157,11 @@ pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
     let lapis_x = origin_x + rng.next_i32_bound(16);
     let lapis_y = rng.next_i32_bound(16) + rng.next_i32_bound(16);
     let lapis_z = origin_z + rng.next_i32_bound(16);
-    let lapis_cfg = ore_config(stone, ids.lapis, 6);
+    let lapis_cfg = OreConfig {
+        target: stone,
+        state: ids.lapis,
+        size: 6,
+    };
 
     place_beta_ore(
         &lapis_cfg,
@@ -170,21 +179,19 @@ mod tests {
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_volume::BoxVolume;
 
-    use mcrs_minecraft_volume::BlockStateId as State;
-
     fn filled(state: BlockStateId) -> BoxVolume {
         let bounds = BoundingBox {
             min: BlockPos::new(-8, 40, -8),
             max: BlockPos::new(40, 100, 40),
         };
-        BoxVolume::filled(bounds, State(state.0)).expect("a small box")
+        BoxVolume::filled(bounds, state).expect("a small box")
     }
 
     #[test]
     fn clay_starts_only_in_water_and_turns_only_sand() {
         let ids = BetaOreBlockIds::resolve(corpus());
         let origin = BlockPos::new(8, 64, 8);
-        let (sand, clay, water) = (State(ids.sand.0), State(ids.clay.0), State(ids.water.0));
+        let (sand, clay, water) = (ids.sand, ids.clay, ids.water);
 
         let mut shore = filled(ids.sand);
         shore.set_block(origin, water).expect("inside the box");

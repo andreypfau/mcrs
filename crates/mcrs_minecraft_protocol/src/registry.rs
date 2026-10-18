@@ -114,17 +114,18 @@ pub struct Entry<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block::BlockStateNumber;
     use crate::entity::OptionalBlockState;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
     use mcrs_minecraft_particle::keys::ParticleType;
-    use mcrs_minecraft_registry::{BlockStateId, Id};
+    use mcrs_minecraft_registry::Id;
 
     type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
 
     const DECODERS: [(&str, Decoder); 7] = [
         ("registry id", |r| decode_registry_id(r).map(drop)),
-        ("block state", |r| BlockStateId::decode(r).map(drop)),
+        ("block state", |r| BlockStateNumber::decode(r).map(drop)),
         ("item", |r| Id::<Item>::decode(r).map(drop)),
         ("optional block state", |r| {
             OptionalBlockState::decode(r).map(drop)

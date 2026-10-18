@@ -5,11 +5,11 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::block_light::block_light_registry;
 use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
 
@@ -57,11 +57,16 @@ impl Corpus {
                 .with_text(resolved, name, value)
                 .unwrap_or_else(|| panic!("`{state}`: the block declares no `{name}={value}`"));
         }
-        VoxelId(resolved.0)
+        VoxelId(resolved.number())
+    }
+
+    pub fn state(&self, id: VoxelId) -> BlockStateId {
+        BlockStateId::checked(id.0, self.blocks.state_count())
+            .unwrap_or_else(|| panic!("voxel {} is past the corpus states", id.0))
     }
 
     pub fn name(&self, id: VoxelId) -> BlockStateRef {
-        let state = BlockStateId(id.0);
+        let state = self.state(id);
         let block = self.blocks.owner(state);
         BlockStateRef {
             target: StateTarget::Block(block.identifier.clone()),
@@ -92,7 +97,7 @@ impl Corpus {
         let palette = states
             .iter()
             .map(|&id| {
-                let data = self.blocks.state(BlockStateId(id.0));
+                let data = self.blocks.state(self.state(id));
                 let occlusion = data
                     .flags
                     .contains(BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION)

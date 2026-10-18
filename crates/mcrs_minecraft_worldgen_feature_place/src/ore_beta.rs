@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_volume::BlockStateId;
 use mcrs_minecraft_volume::BlockVolumeMut;
 
 #[derive(Clone, Debug)]
@@ -93,14 +93,22 @@ mod tests {
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_volume::{BlockVolume, BoxVolume};
 
-    const STONE: BlockStateId = BlockStateId(1);
-    const COAL_ORE: BlockStateId = BlockStateId(16);
-    const NON_STONE: BlockStateId = BlockStateId(2);
+    fn anonymous_states() -> Vec<BlockStateId> {
+        (0..3).filter_map(|n| BlockStateId::checked(n, 3)).collect()
+    }
+
+    fn stone() -> BlockStateId {
+        anonymous_states()[1]
+    }
+
+    fn coal_ore() -> BlockStateId {
+        anonymous_states()[2]
+    }
 
     fn beta_coal_config() -> OreConfig {
         OreConfig {
-            target: STONE,
-            state: COAL_ORE,
+            target: stone(),
+            state: coal_ore(),
             size: 16,
         }
     }
@@ -110,7 +118,7 @@ mod tests {
             min: BlockPos::new(0, 0, 0),
             max: BlockPos::new(width - 1, height - 1, width - 1),
         };
-        BoxVolume::filled(bounds, STONE).expect("a small box")
+        BoxVolume::filled(bounds, stone()).expect("a small box")
     }
 
     #[test]
@@ -121,7 +129,9 @@ mod tests {
 
         // Mark a non-stone cell inside the likely vein range
         let non = BlockPos::new(12, 50, 12);
-        world.set_block(non, NON_STONE).expect("inside the box");
+        world
+            .set_block(non, BlockStateId::AIR)
+            .expect("inside the box");
 
         place_beta_ore(
             &config,
@@ -133,13 +143,13 @@ mod tests {
         assert!(
             world
                 .iter()
-                .all(|(_, state)| matches!(state, STONE | COAL_ORE | NON_STONE)),
+                .all(|(_, state)| [stone(), coal_ore(), BlockStateId::AIR].contains(&state)),
             "ore placer must only write the target ore state"
         );
-        assert!(world.iter().any(|(_, state)| state == COAL_ORE));
+        assert!(world.iter().any(|(_, state)| state == coal_ore()));
         assert_eq!(
             world.block(non),
-            Ok(NON_STONE),
+            Ok(BlockStateId::AIR),
             "non-stone cell must not be replaced"
         );
     }
@@ -166,7 +176,7 @@ mod tests {
 
             let lowest = world
                 .iter()
-                .filter(|(_, state)| *state == COAL_ORE)
+                .filter(|(_, state)| *state == coal_ore())
                 .map(|(at, _)| at.y)
                 .min()
                 .expect("the vein writes something");
@@ -185,8 +195,8 @@ mod tests {
         //   = 3 + 9 = 12 method calls consuming 3 + 18 = 21 LCG advances.
         // This test pins the RNG state after placement for regression detection.
         let config = OreConfig {
-            target: STONE,
-            state: COAL_ORE,
+            target: stone(),
+            state: coal_ore(),
             size: 8,
         };
         let mut world = all_stone(32, 128);

@@ -22,6 +22,7 @@ use mcrs_minecraft_worldgen_structure::piece::Start;
 use mcrs_minecraft_worldgen_structure::site::{BaseColumn, Context, SiteWorld, layout, site};
 use mcrs_minecraft_worldgen_testing::dump_string;
 
+use super::corpus_state_of;
 use super::structure_pieces::{read_box, read_nbt};
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
@@ -189,7 +190,7 @@ fn dimension(id: &str) -> (i32, i32, i32) {
 /// The oracle's flat bases: the layers from the dimension floor up to y 63,
 /// `None` being air.
 fn layers(base: u8, min_y: i32) -> Vec<Option<VoxelId>> {
-    let state = |block: &str| VoxelId::from(corpus().default_state(block).0);
+    let state = |block: &str| VoxelId::from(corpus().default_state(block).number());
     let stone = state("minecraft:stone");
     (min_y..=63)
         .map(|y| match base {
@@ -323,10 +324,9 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     );
     for (layer, state) in layers.iter().enumerate() {
         if let Some(state) = state {
-            region.blocks.fill_layer(
-                min_y + layer as i32,
-                mcrs_minecraft_volume::BlockStateId(state.0),
-            );
+            region
+                .blocks
+                .fill_layer(min_y + layer as i32, corpus_state_of(*state));
         }
     }
     region.world = world;

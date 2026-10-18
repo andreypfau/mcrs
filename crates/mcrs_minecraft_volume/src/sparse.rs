@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 
-use crate::BlockStateId;
-use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
+use mcrs_minecraft_chunk::PalettedContainer;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
 
 use crate::access::{Access, Denied, Unavailable, Volume};
@@ -55,7 +55,7 @@ impl SparseVolume {
             return false;
         }
         self.sections
-            .insert(key(at), PalettedContainer::Homogeneous(VoxelId(state.0)));
+            .insert(key(at), PalettedContainer::Homogeneous(state));
         true
     }
 

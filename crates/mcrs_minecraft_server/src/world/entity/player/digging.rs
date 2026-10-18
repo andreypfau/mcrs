@@ -14,6 +14,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
@@ -26,7 +27,7 @@ use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{Enchantments, Tool};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockDestruction;
-use mcrs_minecraft_registry::{BlockStateId, RegistrySet, Tags};
+use mcrs_minecraft_registry::{RegistrySet, Tags};
 use mcrs_minecraft_world::item::tool::{is_correct_for_drops, mining_speed};
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
@@ -86,6 +87,7 @@ fn tick_digging(
     time: Res<Time<Fixed>>,
     mut players: Query<(Entity, &InDimension, &mut Digging, &Transform)>,
     chunks: Query<&ChunkBlocks>,
+    blocks: Res<Blocks>,
     mut packet_queue: Local<Vec<(Entity, Entity, BlockPos, i8)>>,
     mut send: SendDestroyBlockProgress,
     mut commands: Commands,
@@ -96,8 +98,11 @@ fn tick_digging(
             let Some(chunk) = chunks.get(digging.chunk).ok() else {
                 return;
             };
-            let block_state = BlockStateId::from(chunk.get(LocalPos::from(digging.block_pos)).0);
-            if block_state == digging.block_state {
+            let block_state = BlockStateId::checked(
+                chunk.get(LocalPos::from(digging.block_pos)).0,
+                blocks.state_count(),
+            );
+            if block_state == Some(digging.block_state) {
                 let progress = digging.progress(time.elapsed());
                 let stage = (progress * 10.0).floor() as i8;
                 trace!("progress: {:?}", progress);
@@ -177,7 +182,12 @@ fn player_start_destroy_block(
             return;
         };
 
-        let block_state = BlockStateId::from(block_states.get(LocalPos::from(block_pos)).0);
+        let Some(block_state) = BlockStateId::checked(
+            block_states.get(LocalPos::from(block_pos)).0,
+            blocks.state_count(),
+        ) else {
+            return;
+        };
         if blocks
             .state(block_state)
             .flags
@@ -187,7 +197,7 @@ fn player_start_destroy_block(
         };
 
         let mut damage = 1.0;
-        if block_state.0 != 0 {
+        if block_state != BlockStateId::AIR {
             damage = get_destroy_speed(
                 block_state,
                 &blocks,

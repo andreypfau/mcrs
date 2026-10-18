@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use bevy_math::IVec3;
+use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
@@ -17,8 +18,7 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::Id;
-use mcrs_minecraft_volume::BlockStateId;
-use mcrs_minecraft_volume::{BlockVolume, BlockVolumeMut, BoxVolume, Volume};
+
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::tree::FeatureSize;
 
@@ -147,10 +147,10 @@ pub fn place_tree<W: WorldGenVolume>(
         min: min.into(),
         max: max.into(),
     };
-    let Some(shape) = BoxVolume::filled(bounds, UNMARKED) else {
+    let Some(marks) = Marks::new(bounds) else {
         return true;
     };
-    update_leaves(tree, volume, shape, &logs, &decorations, &roots);
+    update_leaves(tree, volume, marks, &logs, &decorations, &roots);
     true
 }
 
@@ -226,19 +226,72 @@ fn max_free_tree_height<W: WorldGenVolume>(
 /// The reference pops from a `HashSet`, so within one distance the order is
 /// its own; this pops the most recently added, which is what makes the pass
 /// reproducible here.
-const UNMARKED: BlockStateId = BlockStateId(0);
-const IN_SHAPE: BlockStateId = BlockStateId(1);
+struct Marks {
+    bounds: BoundingBox,
+    size: [usize; 3],
+    bits: FixedBitSet,
+}
+
+impl Marks {
+    fn new(bounds: BoundingBox) -> Option<Self> {
+        let span = |lo: i32, hi: i32| usize::try_from(i64::from(hi) - i64::from(lo) + 1).ok();
+        let size = [
+            span(bounds.min.x, bounds.max.x)?,
+            span(bounds.min.y, bounds.max.y)?,
+            span(bounds.min.z, bounds.max.z)?,
+        ];
+        let len = size[0].checked_mul(size[1])?.checked_mul(size[2])?;
+        Some(Self {
+            bounds,
+            size,
+            bits: FixedBitSet::with_capacity(len),
+        })
+    }
+
+    fn index(&self, pos: BlockPos) -> Option<usize> {
+        let offset = |value: i32, min: i32| usize::try_from(i64::from(value) - i64::from(min)).ok();
+        let (min, max) = (self.bounds.min, self.bounds.max);
+        if pos.x > max.x || pos.y > max.y || pos.z > max.z {
+            return None;
+        }
+        let (x, y, z) = (
+            offset(pos.x, min.x)?,
+            offset(pos.y, min.y)?,
+            offset(pos.z, min.z)?,
+        );
+        let [sx, _, sz] = self.size;
+        y.checked_mul(sz)?
+            .checked_add(z)?
+            .checked_mul(sx)?
+            .checked_add(x)
+    }
+
+    fn contains(&self, pos: BlockPos) -> bool {
+        self.index(pos).is_some()
+    }
+
+    fn mark(&mut self, pos: BlockPos) {
+        if let Some(index) = self.index(pos) {
+            self.bits.insert(index);
+        }
+    }
+
+    fn is_unmarked(&self, pos: BlockPos) -> bool {
+        self.index(pos)
+            .is_some_and(|index| !self.bits.contains(index))
+    }
+}
 
 fn update_leaves<W: WorldGenVolume>(
     tree: &CompiledTree,
     volume: &mut W,
-    mut shape: BoxVolume,
+    mut shape: Marks,
     logs: &[BlockPos],
     decorations: &[BlockPos],
     roots: &[BlockPos],
 ) {
     for &pos in decorations.iter().chain(roots) {
-        let _ = shape.set_block(pos, IN_SHAPE);
+        shape.mark(pos);
     }
 
     let mut to_check: [Vec<BlockPos>; MAX_LEAF_DISTANCE] = Default::default();
@@ -266,11 +319,11 @@ fn update_leaves<W: WorldGenVolume>(
                 volume.set(pos, lowered);
             }
         }
-        let _ = shape.set_block(pos, IN_SHAPE);
+        shape.mark(pos);
 
         for direction in Direction::all() {
             let neighbour = pos + direction.normal();
-            if shape.block(neighbour) != Ok(UNMARKED) {
+            if !shape.is_unmarked(neighbour) {
                 continue;
             }
             let state = volume.get(neighbour);
@@ -293,7 +346,6 @@ mod tests {
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
-    use mcrs_minecraft_volume::VoxelStoreMut;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
     use mcrs_minecraft_worldgen_feature::tree::TreeDecorator;
@@ -324,7 +376,7 @@ mod tests {
     }
 
     fn blocked_at(mut volume: BoxRegion, at: BlockPos) -> BoxRegion {
-        volume.blocks.set_voxel(at, BlockStateId(DIRT.0));
+        volume.seed(at, DIRT);
         volume
     }
 
@@ -554,9 +606,7 @@ mod tests {
             let crown = ORIGIN + IVec3::Y * height_of(3);
             let under_edge = crown + IVec3::new(2, -1, 0);
             let mut volume = flat();
-            volume
-                .blocks
-                .set_voxel(under_edge, BlockStateId(existing.0));
+            volume.seed(under_edge, existing);
 
             let mut rng = WorldgenRandom::new(3);
             let mut entities = EntitiesOnly::default();

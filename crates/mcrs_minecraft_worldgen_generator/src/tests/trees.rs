@@ -203,8 +203,8 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     ) {
         let index = id.index();
         let entry = &blocks().0.blocks()[index];
-        for offset in 0..entry.state_count {
-            mask.insert((entry.base_state_id.number() + offset) as usize);
+        for state in (0..entry.state_count).filter_map(|offset| entry.state_at(offset)) {
+            mask.insert(state.index());
         }
     }
     mask

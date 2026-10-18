@@ -8,29 +8,6 @@ use std::any::type_name;
 use std::fmt;
 use std::marker::PhantomData;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
-pub struct BlockStateId(pub u16);
-
-impl BlockStateId {
-    pub const fn number(self) -> u16 {
-        self.0
-    }
-}
-
-impl From<u16> for BlockStateId {
-    #[inline]
-    fn from(id: u16) -> Self {
-        BlockStateId(id)
-    }
-}
-
-impl From<BlockStateId> for u16 {
-    #[inline]
-    fn from(id: BlockStateId) -> Self {
-        id.0
-    }
-}
-
 pub struct Id<R> {
     number: u16,
     _marker: PhantomData<fn() -> R>,
