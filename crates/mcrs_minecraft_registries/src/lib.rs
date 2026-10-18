@@ -16,6 +16,7 @@ mod load;
 mod order;
 mod pack;
 mod registry;
+pub mod static_key;
 mod tags;
 
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
@@ -29,6 +30,7 @@ pub use pack::{
     StackedPack, pack_stack,
 };
 pub use registry::{ReadValue, Registry, RegistryOf, RegistryType};
+pub use static_key::StaticKey;
 pub use tags::{IdSet, Ref, Tags};
 
 #[doc(hidden)]

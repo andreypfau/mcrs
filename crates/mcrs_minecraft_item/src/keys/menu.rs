@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_registry! {
+mcrs_minecraft_registries::static_registry! {
     pub enum MenuType;
     Generic9x1 = "minecraft:generic_9x1",
     Generic9x2 = "minecraft:generic_9x2",

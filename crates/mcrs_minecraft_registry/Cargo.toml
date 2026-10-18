@@ -19,6 +19,9 @@ serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+mcrs_minecraft_registries.workspace = true
+
 [features]
 default = []
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_core/bevy"]

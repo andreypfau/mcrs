@@ -501,7 +501,7 @@ fn static_module(
     value: &str,
     report: &registries::Registry,
 ) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nmcrs_minecraft_registry::static_keys! {{\n    {value};\n");
+    let mut out = format!("{HEADER}\nmcrs_minecraft_registries::static_keys! {{\n    {value};\n");
     let names = by_protocol_id(registry, report)?;
     let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
     for (position, (constant, name)) in constants.into_iter().enumerate() {
@@ -535,8 +535,9 @@ fn enum_module(
     marker: &str,
     report: &registries::Registry,
 ) -> Result<String, String> {
-    let mut out =
-        format!("{HEADER}\nmcrs_minecraft_registry::static_registry! {{\n    pub enum {marker};\n");
+    let mut out = format!(
+        "{HEADER}\nmcrs_minecraft_registries::static_registry! {{\n    pub enum {marker};\n"
+    );
     let names = by_protocol_id(registry, report)?;
     let mut seen: BTreeMap<String, &str> = BTreeMap::new();
     for (constant, name) in constants(registry, names.into_iter(), &[])? {
@@ -1426,7 +1427,7 @@ mod tests {
             files["crates/mcrs_minecraft_food/src/keys/fruit.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             mcrs_minecraft_registry::static_registry! {\n\
+             mcrs_minecraft_registries::static_registry! {\n\
              \x20   pub enum Fruit;\n\
              \x20   Zebra = \"minecraft:zebra\",\n\
              \x20   Apple = \"minecraft:apple\",\n\

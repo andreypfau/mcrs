@@ -715,8 +715,8 @@ where
         Pick::Unsupported => Err(D::Error::custom(format_args!(
             "{location} is not supported by {registry}"
         ))),
-        Pick::Unknown => Err(D::Error::custom(crate::static_key::unknown_entry(
-            registry, &location,
+        Pick::Unknown => Err(D::Error::custom(format_args!(
+            "Unknown registry key in ResourceKey[minecraft:root / {registry}]: {location}"
         ))),
     }
 }
@@ -1284,7 +1284,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use std::io::Cursor;
 
-    crate::static_registry! {
+    mcrs_minecraft_registries::static_registry! {
         pub enum Shape;
         Circle = "minecraft:circle",
         Square = "minecraft:square",

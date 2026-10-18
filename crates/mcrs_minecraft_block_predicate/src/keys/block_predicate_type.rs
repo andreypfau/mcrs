@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_registry! {
+mcrs_minecraft_registries::static_registry! {
     pub enum BlockPredicateType;
     MatchingBlocks = "minecraft:matching_blocks",
     MatchingBlockTag = "minecraft:matching_block_tag",

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
+mcrs_minecraft_registries::static_keys! {
     crate::SoundEvent;
     0: ENTITY_ALLAY_AMBIENT_WITH_ITEM = "minecraft:entity.allay.ambient_with_item",
     1: ENTITY_ALLAY_AMBIENT_WITHOUT_ITEM = "minecraft:entity.allay.ambient_without_item",

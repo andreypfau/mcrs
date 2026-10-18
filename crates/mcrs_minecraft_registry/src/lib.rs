@@ -19,7 +19,6 @@ pub mod report;
 pub mod set;
 #[cfg(feature = "bevy")]
 pub mod shared;
-pub mod static_key;
 pub mod static_report;
 pub mod tags;
 
@@ -37,5 +36,4 @@ pub use network::{KnownPackEntries, NetworkEntry, NetworkRegistry, NetworkTags};
 pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
-pub use static_key::StaticKey;
 pub use tags::{TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};
