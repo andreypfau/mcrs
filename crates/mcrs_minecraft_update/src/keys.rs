@@ -696,6 +696,7 @@ fn catalog_manifest(owning: &[&str]) -> String {
     for krate in owning {
         out.push_str(&format!("{krate}.workspace = true\n"));
     }
+    out.push_str("\n[dev-dependencies]\nserde.workspace = true\nserde_json.workspace = true\n");
     out
 }
 

@@ -36,3 +36,7 @@ mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

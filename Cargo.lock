@@ -4133,6 +4133,8 @@ dependencies = [
  "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
