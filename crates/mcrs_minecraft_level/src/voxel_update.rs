@@ -1,4 +1,3 @@
-use crate::block::BlockUpdateFlags;
 use crate::palette::ChunkBlocks;
 use crate::world::storage::section::SectionIndex;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
@@ -9,6 +8,7 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::{LocalPos, SectionPos};
+use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {

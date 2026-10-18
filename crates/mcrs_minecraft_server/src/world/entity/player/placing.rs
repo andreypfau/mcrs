@@ -5,12 +5,12 @@ use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{On, Query, Res, With};
 use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
-use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::BlockSetRequest;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundUseItemOn;
+use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 pub struct PlacingPlugin;
 

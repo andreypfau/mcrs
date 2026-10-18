@@ -20,7 +20,6 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
-use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -30,6 +29,7 @@ use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_simulation::BlockUpdateFlags;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 

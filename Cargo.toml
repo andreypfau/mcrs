@@ -125,6 +125,7 @@ mcrs_minecraft_light_color = { path = "crates/mcrs_minecraft_light_color", defau
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
+mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
 mcrs_minecraft_fixtures = { path = "crates/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 

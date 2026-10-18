@@ -1,5 +1,4 @@
 pub mod aoi;
-pub mod block;
 pub mod block_update;
 pub mod entity;
 pub mod experience;

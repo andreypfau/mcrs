@@ -4,8 +4,8 @@ use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
+use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 /// Write a 5×5 obsidian floor at `floor_y = arrival_y - 1` and clear a 3×3×3
 /// air volume directly above the center. Returns the spawn position one block
