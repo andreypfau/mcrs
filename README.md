@@ -36,17 +36,16 @@ only the layers it needs and pay for nothing above them.
 ## Layers
 
 Each layer depends only on the layers below it.
-[`quality/layers.toml`](quality/layers.toml) gives every crate its layer, and the layer check fails a change that breaks the order.
 
-| Layer | What it holds |
-|---|---|
-| Data and wire | NBT, text, keys, registries, typed packets in both directions, framing |
-| Network | connections, login, packet I/O on tokio |
-| Game data | blocks, items, biomes, dimensions, chunks, Anvil saves, lighting |
-| Engine | worlds, dimensions, players, entities as Bevy plugins |
-| Vanilla | gameplay and world generation |
-| Rendering | meshing, terrain, sky and light pipelines |
-| Applications | the server and the client |
+| # | Layer | What it holds |
+|---|---|---|
+| 1 | Data and wire | NBT, text, keys, typed packets in both directions, framing |
+| 2 | Network | connections, login, packet I/O on tokio |
+| 3 | Game data and rules | registries, blocks, items, biomes, dimensions, chunks, Anvil saves; the rules of lighting, world generation, inventory and block simulation |
+| 4 | Engine | worlds, dimensions, players, entities, the server loop and gameplay as Bevy plugins |
+| 5 | Vanilla | the world generator as a Bevy plugin |
+| 6 | Rendering | meshing, terrain, sky and light pipelines |
+| 7 | Applications | the server binary, the client and tools |
 
 Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 
@@ -61,7 +60,7 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 | Protocol | Status, login, configuration and play; about half the packets typed |
 | Gameplay | Movement, digging, placing, chat, items, TNT, experience, early mobs |
 | Online mode, encryption, proxy forwarding | Not yet |
-| Crates usable without Bevy | Partly: `nbt`, `protocol`; more in progress |
+| Crates usable without Bevy | Layers 1 to 3 with default features off, except `assets` and `inventory` |
 | Library examples (proxy, bot, lobby server, map renderer) | Planned |
 
 ## Quick start
