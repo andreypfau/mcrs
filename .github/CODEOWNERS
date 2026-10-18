@@ -3,3 +3,5 @@
 /clippy.toml @andreypfau
 /.github/ @andreypfau
 /.config/ @andreypfau
+/.gitattributes @andreypfau
+/.coderabbit.yaml @andreypfau

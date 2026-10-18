@@ -3,6 +3,9 @@ assets/mcrs/reports/** linguist-generated
 assets/mcrs/block_definition/** linguist-generated
 assets/mcrs/item_definition/** linguist-generated
 assets/mcrs/registry_definition/** linguist-generated
+crates/*/src/keys/** linguist-generated
+crates/mcrs_minecraft_keys/src/** linguist-generated
+crates/mcrs_minecraft_registry_catalog/src/** linguist-generated
 crates/mcrs_minecraft_client_jar/src/release.json linguist-generated
 crates/mcrs_minecraft_client_jar/src/font_hint.json linguist-generated
 tools/captures.json linguist-generated
