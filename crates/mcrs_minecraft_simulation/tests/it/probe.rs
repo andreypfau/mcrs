@@ -1,10 +1,10 @@
 use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, Direction, SectionPos};
 use mcrs_minecraft_simulation::SimulationVolume;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, Cx, Env,
-    GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
-    SectionProperties, SemanticOrder, SimulatedSections, StepAt, StepError, StepOutput, SubTick,
-    TickPriority, step,
+    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, ChainOrigin,
+    Cx, Env, GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
+    SectionProperties, SemanticOrder, ShardId, SimulatedSections, StepAt, StepError, StepOutput,
+    SubTick, TickPriority, step,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
@@ -591,6 +591,7 @@ pub struct Runner {
     pub behaviour: ProbeBehaviour,
     pub config: KernelConfig,
     pub kind: PartitionKind,
+    pub partition: ShardId,
 }
 
 impl Runner {
@@ -602,6 +603,7 @@ impl Runner {
             behaviour: ProbeBehaviour::new(rules),
             config: KernelConfig::default(),
             kind: PartitionKind::Shard,
+            partition: ShardId(0),
         }
     }
 
@@ -624,6 +626,7 @@ impl Runner {
         out: &mut StepOutput<ProbeKinds>,
     ) -> Result<(), StepError> {
         let env = Env {
+            partition: self.partition,
             facts: &self.facts,
             behaviour: &self.behaviour,
             policy: &SemanticOrder,
@@ -687,13 +690,21 @@ pub fn stamp(tick: i64, counter: u32) -> SubTick {
     SubTick::runtime(GameTick(tick), counter)
 }
 
-fn message(counter: u32, body: MessageBody<ProbeKinds>) -> Message<ProbeKinds> {
-    let stamp = stamp(1, counter);
+pub const ELSEWHERE: ShardId = ShardId(7);
+
+pub fn inbound(stamp: SubTick, body: MessageBody<ProbeKinds>) -> Message<ProbeKinds> {
     Message {
         stamp,
-        origin: stamp,
+        origin: ChainOrigin {
+            stamp,
+            partition: ELSEWHERE,
+        },
         body,
     }
+}
+
+fn message(counter: u32, body: MessageBody<ProbeKinds>) -> Message<ProbeKinds> {
+    inbound(stamp(1, counter), body)
 }
 
 pub fn block_tick_message(

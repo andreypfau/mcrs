@@ -1,8 +1,7 @@
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::{Cx, bump};
-use crate::message::{Message, MessageBody, UpdateRequest};
+use crate::message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 use crate::output::ChainLedger;
-use crate::sequence::SubTick;
 use crate::shard::ChainLimit;
 use crate::tick_queue::Kinds;
 use crate::{BlockUpdateFlags, SimulationVolume};
@@ -33,7 +32,7 @@ pub(crate) struct Chain<K: Kinds> {
     added: Vec<UpdateRequest<K>>,
     count: u32,
     running: bool,
-    origin: Option<SubTick>,
+    origin: Option<ChainOrigin>,
     sent: bool,
 }
 
@@ -161,7 +160,7 @@ where
         }
     }
 
-    pub(crate) fn seed_chain(&mut self, origin: SubTick, offered: u32, run: &[Message<K>]) {
+    pub(crate) fn seed_chain(&mut self, origin: ChainOrigin, offered: u32, run: &[Message<K>]) {
         let chain = &mut self.shard.chain;
         chain.running = true;
         chain.origin = Some(origin);
@@ -203,8 +202,9 @@ where
 
     fn send_update(&mut self, request: UpdateRequest<K>) {
         let stamp = self.shard.clock.stamp(self.now);
+        let own = self.origin_at(stamp);
         let chain = &mut self.shard.chain;
-        let origin = *chain.origin.get_or_insert(stamp);
+        let origin = *chain.origin.get_or_insert(own);
         chain.sent = true;
         self.out.outbound.push(Message {
             stamp,

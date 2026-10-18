@@ -1,9 +1,9 @@
 use crate::access::{PartitionKind, SectionProperties};
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::event_queue::{BlockEvent, QueuedEvent};
-use crate::message::{Message, MessageBody};
+use crate::message::{ChainOrigin, Message, MessageBody};
 use crate::output::{BlockWrite, Destroyed, StepOutput};
-use crate::scalar::{GameTick, TickPriority};
+use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
 use crate::tick_queue::{Collected, Kinds, ScheduledTick};
@@ -54,6 +54,7 @@ pub struct Cx<'a, K: Kinds, V, F, B> {
     pub(crate) behaviour: &'a B,
     pub(crate) config: &'a KernelConfig,
     pub(crate) kind: PartitionKind,
+    pub(crate) partition: ShardId,
     pub(crate) now: GameTick,
 }
 
@@ -79,6 +80,7 @@ where
             behaviour: env.behaviour,
             config: env.config,
             kind: env.kind,
+            partition: env.partition,
             now,
         }
     }
@@ -111,10 +113,18 @@ where
         event_lane(self.kind, self.volume.access(SectionPos::from(pos)))
     }
 
+    pub(crate) fn origin_at(&self, stamp: SubTick) -> ChainOrigin {
+        ChainOrigin {
+            stamp,
+            partition: self.partition,
+        }
+    }
+
     fn send(&mut self, stamp: SubTick, body: MessageBody<K>) {
+        let origin = self.origin_at(stamp);
         self.out.outbound.push(Message {
             stamp,
-            origin: stamp,
+            origin,
             body,
         });
     }

@@ -29,7 +29,7 @@ pub use access::{PartitionKind, SectionProperties, SimulatedSections, Simulation
 pub use behaviour::{BlockBehaviour, BlockFacts};
 pub use cx::Cx;
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
-pub use message::{Message, MessageBody, UpdateRequest};
+pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
 pub use scalar::{GameTick, ShardId, TickPriority};
@@ -81,7 +81,7 @@ mod tests {
         assert!(size_of::<QueuedEvent<u16>>() <= 32);
         assert!(size_of::<SectionQueue<u16>>() <= 80);
         assert!(size_of::<UpdateRequest<Narrow>>() <= 24);
-        assert!(size_of::<Message<Narrow>>() <= 48);
+        assert!(size_of::<Message<Narrow>>() <= 56);
         assert!(size_of::<BlockWrite>() <= 24);
     }
 }

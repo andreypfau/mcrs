@@ -1,14 +1,22 @@
 use crate::BlockUpdateFlags;
 use crate::event_queue::BlockEvent;
-use crate::scalar::{GameTick, TickPriority};
+use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::SubTick;
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
 
+/// Stamps of different partitions collide, so a chain is told apart by the partition that
+/// started it as well.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ChainOrigin {
+    pub stamp: SubTick,
+    pub partition: ShardId,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Message<K: Kinds> {
     pub stamp: SubTick,
-    pub origin: SubTick,
+    pub origin: ChainOrigin,
     pub body: MessageBody<K>,
 }
 

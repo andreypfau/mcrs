@@ -1,7 +1,6 @@
 use crate::event_queue::BlockEvent;
-use crate::sequence::SubTick;
 use crate::tick_queue::Kinds;
-use crate::{BlockUpdateFlags, Message};
+use crate::{BlockUpdateFlags, ChainOrigin, Message};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, SectionPos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,7 +20,7 @@ pub struct Destroyed {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChainLedger {
-    pub origin: SubTick,
+    pub origin: ChainOrigin,
     pub offered: u32,
 }
 

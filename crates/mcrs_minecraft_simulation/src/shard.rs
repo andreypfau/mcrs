@@ -4,7 +4,7 @@ use crate::chain::Chain;
 use crate::event_queue::EventQueue;
 use crate::output::ChainLedger;
 use crate::policy::CollectScratch;
-use crate::scalar::GameTick;
+use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
 use mcrs_minecraft_core::BlockPos;
@@ -91,6 +91,9 @@ pub struct StepAt {
 }
 
 pub struct Env<'a, F, B, P> {
+    /// Unique among the partitions whose messages can meet in one inbound batch, and not
+    /// reused within a game tick: chains are keyed by it together with their first stamp.
+    pub partition: ShardId,
     pub facts: &'a F,
     pub behaviour: &'a B,
     pub policy: &'a P,

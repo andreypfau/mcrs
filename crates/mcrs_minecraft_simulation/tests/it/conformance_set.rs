@@ -1,6 +1,6 @@
 use crate::probe::*;
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
-use mcrs_minecraft_simulation::{BlockUpdateFlags, Message, MessageBody, Phase, StepOutput};
+use mcrs_minecraft_simulation::{BlockUpdateFlags, MessageBody, Phase, StepOutput};
 
 fn run_set(host: Host, rules: Vec<Rule>, pos: BlockPos, state: BlockStateId, flags: u32) -> Runner {
     run_set_out(host, rules, pos, state, flags).0
@@ -62,17 +62,15 @@ fn check_sim_set_001(row: Row, observed: Observed) -> Result<(), String> {
 
 fn observe_set(flags: u32) -> Observed {
     let p = at(8, 8, 8);
-    let stamp = stamp(1, 0);
-    let message = Message {
-        stamp,
-        origin: stamp,
-        body: MessageBody::Set {
+    let message = inbound(
+        stamp(1, 0),
+        MessageBody::Set {
             pos: p,
             state: B,
             flags: BlockUpdateFlags::from_bits_retain(flags),
             limit: 512,
         },
-    };
+    );
     let mut runner = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
     let out = runner
         .step(100, Phase::Ingress, &[message])

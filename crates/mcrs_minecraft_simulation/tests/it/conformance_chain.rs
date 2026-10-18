@@ -1,8 +1,8 @@
 use crate::probe::*;
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
 use mcrs_minecraft_simulation::{
-    BlockUpdateFlags, ChainLedger, ChainLimit, Destroyed, Message, MessageBody, PartitionKind,
-    Phase, StepError, StepOutput, StepReport, UpdateRequest,
+    BlockUpdateFlags, ChainLedger, ChainLimit, ChainOrigin, Destroyed, Message, MessageBody,
+    PartitionKind, Phase, ShardId, StepError, StepOutput, StepReport, UpdateRequest,
 };
 use mcrs_minecraft_volume::Access;
 
@@ -971,14 +971,13 @@ fn sim_model_007_a_neighbour_update_into_a_read_section_leaves_as_a_single_updat
 #[test]
 fn a_cell_continues_a_chain_that_spills_into_it_and_refuses_queued_work() {
     let target = at(8, 8, 8);
-    let spill = Message {
-        stamp: stamp(1, 0),
-        origin: stamp(1, 0),
-        body: MessageBody::Update(UpdateRequest::Single {
+    let spill = inbound(
+        stamp(1, 0),
+        MessageBody::Update(UpdateRequest::Single {
             target,
             block: BLOCK_A,
         }),
-    };
+    );
     let mut cell = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
     cell.kind = PartitionKind::Cell;
     cell.step(100, Phase::Ingress, &[spill])
@@ -992,4 +991,73 @@ fn a_cell_continues_a_chain_that_spills_into_it_and_refuses_queued_work() {
             section: section(0, 0, 0)
         })
     );
+}
+
+fn check_chains_with_one_stamp(
+    hits: &[BlockPos],
+    ran: BlockPos,
+    dropped: BlockPos,
+) -> Result<(), String> {
+    match (hits.contains(&ran), hits.contains(&dropped)) {
+        (true, false) => Ok(()),
+        (false, _) => Err(format!("the chain with budget left never reached {ran:?}")),
+        (true, true) => Err(format!("the exhausted chain still reached {dropped:?}")),
+    }
+}
+
+#[test]
+fn sim_model_103_chains_of_two_partitions_with_one_stamp_keep_their_own_budgets() {
+    let (exhausted, fresh) = (ShardId(1), ShardId(2));
+    let shared = stamp(100, 0);
+    let (first, second) = (at(1, 8, 1), at(3, 8, 1));
+    let (beyond_first, beyond_second) = (at(1, 8, 5), at(3, 8, 5));
+    let continuation = |partition, target| Message {
+        stamp: shared,
+        origin: ChainOrigin {
+            stamp: shared,
+            partition,
+        },
+        body: MessageBody::Update(UpdateRequest::Single {
+            target,
+            block: BLOCK_A,
+        }),
+    };
+    let inbound = [continuation(exhausted, first), continuation(fresh, second)];
+    let ledger = |partition, offered| ChainLedger {
+        origin: ChainOrigin {
+            stamp: shared,
+            partition,
+        },
+        offered,
+    };
+    let rules = [(first, beyond_first), (second, beyond_second)]
+        .into_iter()
+        .map(|(at, target)| {
+            neighbour_rule(
+                at,
+                vec![Action::UpdateNeighbour {
+                    target,
+                    source: BLOCK_A,
+                }],
+            )
+        })
+        .collect();
+    let mut receiver = Runner::new(filled(&[(0, 0, 0)]), rules);
+    receiver.config.chain_limit = ChainLimit::from_property(3);
+    receiver
+        .step_with(
+            101,
+            Phase::Ingress,
+            &inbound,
+            &[ledger(exhausted, 3), ledger(fresh, 0)],
+        )
+        .expect("owned messages");
+    let hits = neighbour_hits(&receiver.behaviour.log());
+    assert_eq!(
+        check_chains_with_one_stamp(&hits, beyond_second, beyond_first),
+        Ok(())
+    );
+
+    let merged = [first, second];
+    assert!(check_chains_with_one_stamp(&merged, beyond_second, beyond_first).is_err());
 }

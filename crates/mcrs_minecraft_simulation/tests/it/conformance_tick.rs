@@ -736,7 +736,7 @@ fn check_sim_model_007(observed: &Observed) -> Result<(), String> {
     let stamped = observed
         .outbound
         .iter()
-        .all(|m| m.stamp == m.origin && m.stamp >= stamp(100, 0) && m.stamp < stamp(101, 0));
+        .all(|m| m.origin.stamp == m.stamp && m.stamp >= stamp(100, 0) && m.stamp < stamp(101, 0));
     let ascending = observed.outbound.windows(2).all(|pair| match pair {
         [earlier, later] => earlier.stamp < later.stamp,
         _ => true,
