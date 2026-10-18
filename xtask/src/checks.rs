@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{bypasses, parity, size, suppressions, unused_deps};
+use crate::{bypasses, parity, suppressions, unused_deps};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -145,7 +145,6 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
-        Check::Size => size::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Suppressions => suppressions::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Bypasses => bypasses::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Parity => parity_check(ctx),

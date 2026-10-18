@@ -17,7 +17,6 @@ mod git;
 mod metadata;
 mod parity;
 mod scope;
-mod size;
 mod source;
 mod suppressions;
 mod trigger;

@@ -1,6 +1,6 @@
 use crate::git::{self, Failure};
 use crate::metadata::Workspace;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::path::Path;
 
@@ -17,13 +17,6 @@ impl Head {
         match self {
             Head::Worktree => "HEAD",
             Head::Commit(sha) => sha,
-        }
-    }
-
-    pub fn source(&self) -> Option<&str> {
-        match self {
-            Head::Worktree => None,
-            Head::Commit(sha) => Some(sha),
         }
     }
 }
@@ -281,108 +274,6 @@ pub(crate) fn paths_of(listing: &[u8]) -> Result<Vec<String>, String> {
         .collect()
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Entry {
-    pub path: String,
-    pub from: Option<String>,
-    pub added: Option<u64>,
-    pub deleted: Option<u64>,
-}
-
-pub fn numstat(repo: &Path, base: &str, head: &Head) -> Result<Vec<Entry>, String> {
-    let mut args = vec![
-        "diff",
-        "--numstat",
-        "-z",
-        "-M",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--no-color",
-    ];
-    args.extend(diff_args(base, head));
-    let listing = git::run(repo, &args).map_err(|e| e.to_string())?;
-    let mut fields = listing.split(|&byte| byte == 0);
-    let mut entries = Vec::new();
-    let utf8 = |bytes: &[u8]| {
-        String::from_utf8(bytes.to_vec())
-            .map_err(|_| "a path that is not valid UTF-8 was found; rename it".to_owned())
-    };
-    while let Some(field) = fields.next() {
-        if field.is_empty() {
-            continue;
-        }
-        let record = utf8(field)?;
-        let mut parts = record.splitn(3, '\t');
-        let (Some(added), Some(deleted), Some(path)) = (parts.next(), parts.next(), parts.next())
-        else {
-            return Err(format!(
-                "git diff --numstat printed an unreadable record: {record}"
-            ));
-        };
-        let count = |text: &str| match text {
-            "-" => Ok(None),
-            digits => digits
-                .parse::<u64>()
-                .map(Some)
-                .map_err(|_| format!("git diff --numstat printed a bad count {text:?}")),
-        };
-        let (added, deleted) = (count(added)?, count(deleted)?);
-        let (from, path) = if path.is_empty() {
-            let (Some(old), Some(new)) = (fields.next(), fields.next()) else {
-                return Err("git diff --numstat ended in the middle of a rename".to_owned());
-            };
-            (Some(utf8(old)?), utf8(new)?)
-        } else {
-            (None, path.to_owned())
-        };
-        entries.push(Entry {
-            path,
-            from,
-            added,
-            deleted,
-        });
-    }
-    Ok(entries)
-}
-
-pub fn attributes(
-    repo: &Path,
-    source: Option<&str>,
-    paths: &[String],
-) -> Result<BTreeMap<String, String>, String> {
-    if paths.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let source = source.map(|rev| format!("--source={rev}"));
-    let mut args = vec![
-        "-c",
-        "core.attributesFile=/dev/null",
-        "check-attr",
-        "-z",
-        "--stdin",
-    ];
-    args.extend(source.as_deref());
-    args.push("linguist-generated");
-    let mut input = Vec::new();
-    for path in paths {
-        input.extend_from_slice(path.as_bytes());
-        input.push(0);
-    }
-    let reply = git::pipe(repo, &args, &input).map_err(|e| e.to_string())?;
-    let fields = paths_of(&reply)?;
-    if fields.len() != paths.len() * 3 {
-        return Err("git check-attr answered for a different number of paths".to_owned());
-    }
-    Ok(fields
-        .chunks(3)
-        .map(|triple| (triple[0].clone(), triple[2].clone()))
-        .collect())
-}
-
-pub fn is_set(value: &str) -> bool {
-    value == "set"
-}
-
 pub fn tracked(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
     let listing = match head {
         Head::Worktree => git::run(repo, &["ls-files", "-z"]),
@@ -452,35 +343,6 @@ pub fn head_text(repo: &Path, head: &Head, path: &str) -> Result<Option<String>,
         Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("could not read {path}: {e}")),
-    }
-}
-
-pub fn line_count(bytes: &[u8]) -> u64 {
-    let breaks = bytes.iter().filter(|&&byte| byte == b'\n').count() as u64;
-    breaks + u64::from(!bytes.is_empty() && !bytes.ends_with(b"\n"))
-}
-
-pub fn line_counts(repo: &Path, head: &Head, paths: &[String]) -> Result<Vec<u64>, String> {
-    match head {
-        Head::Worktree => paths
-            .iter()
-            .map(|path| {
-                std::fs::read(repo.join(path))
-                    .map(|bytes| line_count(&bytes))
-                    .map_err(|e| format!("could not read {path}: {e}"))
-            })
-            .collect(),
-        Head::Commit(sha) => {
-            let specs: Vec<String> = paths.iter().map(|path| format!("{sha}:{path}")).collect();
-            blobs(repo, &specs)?
-                .into_iter()
-                .zip(paths)
-                .map(|(blob, path)| {
-                    blob.map(|bytes| line_count(&bytes))
-                        .ok_or_else(|| format!("{path} is missing from the head"))
-                })
-                .collect()
-        }
     }
 }
 
@@ -907,12 +769,6 @@ pub(crate) mod tests {
 
         pub(crate) fn remove(&self, file: &str) {
             std::fs::remove_file(self.0.join(file)).unwrap();
-        }
-
-        pub(crate) fn rename(&self, from: &str, to: &str) {
-            let target = self.0.join(to);
-            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-            std::fs::rename(self.0.join(from), target).unwrap();
         }
 
         pub(crate) fn commit(&self, message: &str) {

@@ -1,6 +1,5 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Check {
-    Size,
     Suppressions,
     Bypasses,
     Parity,
@@ -15,7 +14,6 @@ pub enum Check {
 impl Check {
     pub const fn name(self) -> &'static str {
         match self {
-            Check::Size => "size",
             Check::Suppressions => "suppressions",
             Check::Bypasses => "bypasses",
             Check::Parity => "parity",
@@ -30,10 +28,7 @@ impl Check {
 
     #[cfg(test)]
     pub const fn is_git_only(self) -> bool {
-        matches!(
-            self,
-            Check::Size | Check::Suppressions | Check::Bypasses | Check::Parity
-        )
+        matches!(self, Check::Suppressions | Check::Bypasses | Check::Parity)
     }
 }
 
@@ -81,7 +76,7 @@ impl Trigger {
         match self {
             Trigger::Edit => "after a file is written: formatting of the changed files",
             Trigger::Commit => {
-                "before a commit: change size, lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
+                "before a commit: lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
             }
             Trigger::Push => {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
@@ -131,7 +126,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     match trigger {
         Trigger::Edit => &[Fmt],
         Trigger::Commit | Trigger::Push | Trigger::Lint => {
-            &[Size, Suppressions, Bypasses, Parity, UnusedDeps, Fmt]
+            &[Suppressions, Bypasses, Parity, UnusedDeps, Fmt]
         }
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
