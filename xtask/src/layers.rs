@@ -1,4 +1,4 @@
-use crate::checks::Outcome;
+use crate::checks::{Outcome, capture};
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Found, Head};
 use serde::Deserialize;
@@ -10,6 +10,13 @@ pub(crate) const LAYERS_FILE: &str = "quality/layers.toml";
 
 const FIRST_LAYER: u8 = 1;
 const LAST_LAYER: u8 = 7;
+const FIRST_LAYER_WITH_BEVY: u8 = 4;
+const FIRST_LAYER_WITH_TOKIO: u8 = 2;
+
+// Below layer 4 the workspace takes only glam's vector types and core's prelude
+// from bevy_math, which it re-exports; without its bevy_reflect feature it pulls
+// in no other Bevy crate.
+const BEVY_MATH: &str = "bevy_math";
 
 const FIX_UNMAPPED: &str = "give every workspace crate one entry in [crates] of quality/layers.toml and remove the entries of crates that do not exist";
 const FIX_VIOLATION: &str = "depend only on crates in the same or a lower layer; a crate's layer and kind are set in quality/layers.toml, and an exception can only be removed";
@@ -176,6 +183,16 @@ fn describe(name: &str, entry: &Entry) -> String {
     format!("{name} (layer {}, {})", entry.layer, entry.kind)
 }
 
+fn forbidden(from: &Entry, to: &Entry) -> bool {
+    if from.layer != to.layer {
+        return from.layer < to.layer;
+    }
+    matches!(
+        (from.layer, from.kind, to.kind),
+        (3, CrateKind::Data, CrateKind::Rules) | (5, CrateKind::Behaviour, CrateKind::Plugin)
+    )
+}
+
 fn violations(crates: &BTreeMap<String, Entry>, workspace: &Workspace) -> BTreeMap<Key, String> {
     let members: BTreeSet<&str> = workspace.packages.iter().map(|p| p.name.as_str()).collect();
     let mut found = BTreeMap::new();
@@ -192,7 +209,7 @@ fn violations(crates: &BTreeMap<String, Entry>, workspace: &Workspace) -> BTreeM
             let Some(to) = crates.get(&dep.name) else {
                 continue;
             };
-            if from.layer < to.layer {
+            if forbidden(from, to) {
                 let line = format!(
                     "{} depends on {}",
                     describe(&package.name, from),
@@ -206,6 +223,77 @@ fn violations(crates: &BTreeMap<String, Entry>, workspace: &Workspace) -> BTreeM
         }
     }
     found
+}
+
+fn is_bevy(package: &str) -> bool {
+    (package == "bevy" || package.starts_with("bevy_")) && package != BEVY_MATH
+}
+
+fn tree_packages(
+    repo: &Path,
+    name: &str,
+    default_features: bool,
+) -> Result<BTreeSet<String>, String> {
+    // --target all keeps the answer the same on the machine that commits and in CI.
+    let mut args = vec![
+        "tree", "--locked", "-e", "normal", "--target", "all", "-p", name, "--prefix", "none",
+        "--format", "{p}",
+    ];
+    if !default_features {
+        args.push("--no-default-features");
+    }
+    let output = capture(repo, "cargo", &args, &[])?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "cargo tree failed for {name}: {}",
+            stderr.lines().next().unwrap_or_default()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .map(str::to_owned)
+        .collect())
+}
+
+fn reach_violations(
+    repo: &Path,
+    crates: &BTreeMap<String, Entry>,
+    workspace: &Workspace,
+) -> Result<BTreeMap<Key, String>, String> {
+    let mut found = BTreeMap::new();
+    for package in &workspace.packages {
+        let Some(entry) = crates.get(&package.name) else {
+            continue;
+        };
+        if entry.layer >= FIRST_LAYER_WITH_BEVY {
+            continue;
+        }
+        // One process per crate: a run over several -p arguments unifies their
+        // features, so one crate's defaults would count against another.
+        let tree = tree_packages(repo, &package.name, true)?;
+        let reached = [
+            (Reach::Bevy, tree.iter().find(|name| is_bevy(name))),
+            (
+                Reach::Tokio,
+                tree.get("tokio")
+                    .filter(|_| entry.layer < FIRST_LAYER_WITH_TOKIO),
+            ),
+        ];
+        for (reach, name) in reached {
+            if let Some(name) = name {
+                found.insert(
+                    (package.name.clone(), Target::Reach(reach)),
+                    format!(
+                        "{} (layer {}) reaches {name} under its default features",
+                        package.name, entry.layer
+                    ),
+                );
+            }
+        }
+    }
+    Ok(found)
 }
 
 fn base_exceptions(repo: &Path, base: &str, head: &Head) -> Result<Option<BTreeSet<Key>>, String> {
@@ -261,7 +349,8 @@ pub(crate) fn check(repo: &Path, base: &str, head: &Head, workspace: &Workspace)
         )
     })?;
     let map = parse(&text, "at the head")?;
-    let found = violations(&map.crates, workspace);
+    let mut found = violations(&map.crates, workspace);
+    found.extend(reach_violations(repo, &map.crates, workspace)?);
     let from_base = base_exceptions(repo, base, head)?;
     let in_force = from_base.is_none();
     let base_keys = from_base.unwrap_or_else(|| map.exceptions.clone());
@@ -307,7 +396,6 @@ pub(crate) fn check(repo: &Path, base: &str, head: &Head, workspace: &Workspace)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checks::capture;
     use crate::scope::tests::{Repo, judge_rows_in_parallel};
 
     type Edit = (String, Option<String>);
@@ -324,15 +412,23 @@ mod tests {
         expect: Expect,
     }
 
-    const MEMBERS: [(&str, u8, &str, &str); 7] = [
-        ("wire", 1, "data", ""),
-        ("link", 2, "library", "wire"),
-        ("values", 3, "data", "wire"),
-        ("kernels", 3, "rules", "values"),
-        ("engine", 4, "engine", "kernels"),
-        ("behaviour", 5, "behaviour", "values"),
-        ("plugin", 5, "plugin", "behaviour engine"),
+    const MEMBERS: [(&str, u8, &str); 7] = [
+        ("wire", 1, "data"),
+        ("link", 2, "library"),
+        ("values", 3, "data"),
+        ("kernels", 3, "rules"),
+        ("engine", 4, "engine"),
+        ("behaviour", 5, "behaviour"),
+        ("plugin", 5, "plugin"),
     ];
+
+    const MATH: &str = "bevy_math = { path = \"../vendor/bevy_math\" }\n";
+    const TOKIO: &str = "tokio = { path = \"../vendor/tokio\" }\n";
+    const ECS: &str = "bevy_ecs = { path = \"../vendor/bevy_ecs\" }\n";
+    const OPTIONAL_ECS: &str = "bevy_ecs = { path = \"../vendor/bevy_ecs\", optional = true }\n";
+    const BEVY_OFF: &str = "\n[features]\nbevy = [\"dep:bevy_ecs\"]\n";
+    const BEVY_DEFAULT: &str = "\n[features]\ndefault = [\"bevy\"]\nbevy = [\"dep:bevy_ecs\"]\n";
+    const DEV_ENGINE: &str = "\n[dev-dependencies]\nengine = { path = \"../engine\" }\n";
 
     fn put(path: &str, text: &str) -> Edit {
         (path.to_owned(), Some(text.to_owned()))
@@ -345,13 +441,17 @@ mod tests {
             .collect()
     }
 
-    fn member(name: &str, dependencies: &str, tail: &str) -> Edit {
+    fn package(dir: &str, name: &str, dependencies: &str, tail: &str) -> Edit {
         put(
-            &format!("{name}/Cargo.toml"),
+            &format!("{dir}/Cargo.toml"),
             &format!(
                 "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n{dependencies}{tail}"
             ),
         )
+    }
+
+    fn member(name: &str, dependencies: &str, tail: &str) -> Edit {
+        package(name, name, dependencies, tail)
     }
 
     fn root(extra: &[&str]) -> Edit {
@@ -364,7 +464,7 @@ mod tests {
         put(
             "Cargo.toml",
             &format!(
-                "[workspace]\nmembers = [{}]\nresolver = \"3\"\n",
+                "[workspace]\nmembers = [{}]\nexclude = [\"vendor\"]\nresolver = \"3\"\n",
                 names.join(", ")
             ),
         )
@@ -372,7 +472,7 @@ mod tests {
 
     fn layer_file(extra: &str, exceptions: &[(&str, &str, &str)]) -> Edit {
         let mut text = String::from("[crates]\n");
-        for (name, layer, kind, _) in MEMBERS {
+        for (name, layer, kind) in MEMBERS {
             text.push_str(&format!(
                 "{name} = {{ layer = {layer}, kind = \"{kind}\" }}\n"
             ));
@@ -387,10 +487,24 @@ mod tests {
     }
 
     fn standard() -> Vec<Edit> {
+        let engine = format!("{ECS}kernels = {{ path = \"../kernels\", features = [\"bevy\"] }}\n");
+        let manifests = [
+            ("wire", MATH.to_owned(), ""),
+            ("link", paths("wire") + TOKIO, ""),
+            ("values", paths("wire"), DEV_ENGINE),
+            ("kernels", paths("values") + OPTIONAL_ECS, BEVY_OFF),
+            ("engine", engine, ""),
+            ("behaviour", paths("values"), ""),
+            ("plugin", paths("behaviour engine"), ""),
+        ];
         let mut files = vec![root(&[]), layer_file("", &[])];
-        for (name, _, _, dependencies) in MEMBERS {
-            files.push(member(name, &paths(dependencies), ""));
+        for (name, dependencies, tail) in manifests {
+            files.push(member(name, &dependencies, tail));
             files.push(put(&format!("{name}/src/lib.rs"), ""));
+        }
+        for name in ["bevy_ecs", "bevy_math", "tokio"] {
+            files.push(package(&format!("vendor/{name}"), name, "", ""));
+            files.push(put(&format!("vendor/{name}/src/lib.rs"), ""));
         }
         files
     }
@@ -435,16 +549,16 @@ mod tests {
         }
     }
 
-    const LINK_ENGINE: (&str, &str, &str) = ("link", "engine", "#59");
+    const LINK_BEHAVIOUR: (&str, &str, &str) = ("link", "behaviour", "#59");
 
-    fn link_reaches_engine() -> Edit {
-        member("link", &paths("wire engine"), "")
+    fn link_reaches_behaviour() -> Edit {
+        member("link", &paths("wire behaviour"), "")
     }
 
     fn order_cases() -> Vec<Case> {
         vec![
             Case {
-                name: "same-layer, downward and dev-dependency edges pass",
+                name: "same-layer, downward and dev-dependency edges pass, and so do bevy_math, Bevy from layer 4, tokio from layer 2 and a feature another crate turns on",
                 base: vec![],
                 head: vec![],
                 expect: Expect::Pass("exceptions applied"),
@@ -455,13 +569,13 @@ mod tests {
                 head: vec![member(
                     "link",
                     &format!(
-                        "{}engine = {{ path = \"../engine\", optional = true }}\n",
+                        "{}behaviour = {{ path = \"../behaviour\", optional = true }}\n",
                         paths("wire")
                     ),
                     "",
                 )],
                 expect: Expect::Fail(&[
-                    "link (layer 2, library) depends on engine (layer 4, engine)",
+                    "link (layer 2, library) depends on behaviour (layer 5, behaviour)",
                 ]),
             },
             Case {
@@ -478,36 +592,84 @@ mod tests {
         ]
     }
 
+    fn kind_cases() -> Vec<Case> {
+        vec![
+            Case {
+                name: "a data crate depending on a rules crate in layer 3 fails",
+                base: vec![],
+                head: vec![
+                    member("values", &paths("wire kernels"), DEV_ENGINE),
+                    member("kernels", OPTIONAL_ECS, BEVY_OFF),
+                ],
+                expect: Expect::Fail(&[
+                    "values (layer 3, data) depends on kernels (layer 3, rules)",
+                ]),
+            },
+            Case {
+                name: "a behaviour crate depending on a plugin crate in layer 5 fails",
+                base: vec![],
+                head: vec![
+                    member("behaviour", &paths("values plugin"), ""),
+                    member("plugin", &paths("engine"), ""),
+                ],
+                expect: Expect::Fail(&[
+                    "behaviour (layer 5, behaviour) depends on plugin (layer 5, plugin)",
+                ]),
+            },
+        ]
+    }
+
+    fn reach_cases() -> Vec<Case> {
+        vec![
+            Case {
+                name: "Bevy under default features below layer 4 fails",
+                base: vec![],
+                head: vec![member(
+                    "kernels",
+                    &(paths("values") + OPTIONAL_ECS),
+                    BEVY_DEFAULT,
+                )],
+                expect: Expect::Fail(&["kernels (layer 3) reaches bevy_ecs"]),
+            },
+            Case {
+                name: "tokio below layer 2 fails",
+                base: vec![],
+                head: vec![member("wire", &(MATH.to_owned() + TOKIO), "")],
+                expect: Expect::Fail(&["wire (layer 1) reaches tokio"]),
+            },
+        ]
+    }
+
     fn exception_cases() -> Vec<Case> {
         vec![
             Case {
                 name: "an exception on the base and the head is applied",
-                base: vec![layer_file("", &[LINK_ENGINE])],
-                head: vec![layer_file("", &[LINK_ENGINE]), link_reaches_engine()],
+                base: vec![layer_file("", &[LINK_BEHAVIOUR])],
+                head: vec![layer_file("", &[LINK_BEHAVIOUR]), link_reaches_behaviour()],
                 expect: Expect::Pass("1 exceptions applied"),
             },
             Case {
                 name: "an exception added at the head fails",
                 base: vec![],
-                head: vec![layer_file("", &[LINK_ENGINE]), link_reaches_engine()],
+                head: vec![layer_file("", &[LINK_BEHAVIOUR]), link_reaches_behaviour()],
                 expect: Expect::Fail(&["is not on the base branch"]),
             },
             Case {
                 name: "a stale exception fails",
-                base: vec![layer_file("", &[LINK_ENGINE])],
-                head: vec![layer_file("", &[LINK_ENGINE])],
-                expect: Expect::Fail(&["stale exception for `engine`"]),
+                base: vec![layer_file("", &[LINK_BEHAVIOUR])],
+                head: vec![layer_file("", &[LINK_BEHAVIOUR])],
+                expect: Expect::Fail(&["stale exception for `behaviour`"]),
             },
             Case {
                 name: "a base that never carried the file puts the head's exceptions in force",
                 base: vec![(LAYERS_FILE.to_owned(), None)],
-                head: vec![layer_file("", &[LINK_ENGINE]), link_reaches_engine()],
+                head: vec![layer_file("", &[LINK_BEHAVIOUR]), link_reaches_behaviour()],
                 expect: Expect::Pass("in force"),
             },
             Case {
                 name: "an issue not written as #N fails",
                 base: vec![],
-                head: vec![layer_file("", &[("link", "engine", "59")])],
+                head: vec![layer_file("", &[("link", "behaviour", "59")])],
                 expect: Expect::Fail(&["#N"]),
             },
         ]
@@ -516,6 +678,8 @@ mod tests {
     #[test]
     fn the_check_judges_a_workspace_against_the_map_and_the_exceptions_at_its_base() {
         let mut cases = order_cases();
+        cases.extend(kind_cases());
+        cases.extend(reach_cases());
         cases.extend(exception_cases());
         judge_rows_in_parallel(&cases, judge);
     }

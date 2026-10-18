@@ -135,3 +135,93 @@ issue = "#513"
 crate = "mcrs_minecraft_server"
 dependency = "mcrs_minecraft_worldgen_generator"
 issue = "#279"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_carver"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_density"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_feature"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_noise"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_structure"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_registry_catalog"
+dependency = "mcrs_minecraft_worldgen_surface"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_biome"
+dependency = "mcrs_minecraft_worldgen_carver"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_biome_file"
+dependency = "mcrs_minecraft_worldgen_carver"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_biome_file"
+dependency = "mcrs_minecraft_worldgen_feature"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_block_predicate"
+dependency = "mcrs_minecraft_worldgen_noise"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_loot"
+dependency = "mcrs_minecraft_worldgen_structure"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_predicate"
+dependency = "mcrs_minecraft_worldgen_structure"
+issue = "#514"
+
+[[exception]]
+crate = "mcrs_minecraft_assets"
+reaches = "bevy"
+issue = "#55"
+
+[[exception]]
+crate = "mcrs_minecraft_inventory"
+reaches = "bevy"
+issue = "#322"
+
+[[exception]]
+crate = "mcrs_minecraft_light"
+reaches = "bevy"
+issue = "#513"
+
+[[exception]]
+crate = "mcrs_minecraft_light_color"
+reaches = "bevy"
+issue = "#513"
+
+[[exception]]
+crate = "mcrs_minecraft_network"
+reaches = "bevy"
+issue = "#60"
+
+[[exception]]
+crate = "mcrs_minecraft_worldgen"
+reaches = "bevy"
+issue = "#55"
