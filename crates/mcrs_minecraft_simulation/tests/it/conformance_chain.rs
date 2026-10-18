@@ -1061,3 +1061,52 @@ fn sim_model_103_chains_of_two_partitions_with_one_stamp_keep_their_own_budgets(
     let merged = [first, second];
     assert!(check_chains_with_one_stamp(&merged, beyond_second, beyond_first).is_err());
 }
+
+#[test]
+fn sim_model_103_a_chain_split_by_other_messages_keeps_one_budget() {
+    let (first, second) = (at(1, 8, 1), at(3, 8, 1));
+    let spent = [at(1, 8, 5), at(2, 8, 5)];
+    let over = at(3, 8, 5);
+    let origin = ChainOrigin {
+        stamp: stamp(100, 0),
+        partition: ELSEWHERE,
+    };
+    let continuation = |counter, target| Message {
+        stamp: stamp(100, counter),
+        origin,
+        body: MessageBody::Update(UpdateRequest::Single {
+            target,
+            block: BLOCK_A,
+        }),
+    };
+    let inbound = [
+        continuation(0, first),
+        set_message(1, at(12, 12, 12), B, 2),
+        continuation(2, second),
+    ];
+    let update = |target| Action::UpdateNeighbour {
+        target,
+        source: BLOCK_A,
+    };
+    let rules = vec![
+        neighbour_rule(first, spent.map(update).to_vec()),
+        neighbour_rule(second, vec![update(over)]),
+    ];
+    let mut receiver = Runner::new(filled(&[(0, 0, 0)]), rules);
+    receiver.config.chain_limit = ChainLimit::from_property(3);
+    let out = receiver
+        .step_with(
+            101,
+            Phase::Ingress,
+            &inbound,
+            &[ChainLedger { origin, offered: 1 }],
+        )
+        .expect("owned messages");
+    let hits = neighbour_hits(&receiver.behaviour.log());
+    assert!(spent.iter().all(|pos| hits.contains(pos)), "{hits:?}");
+    assert!(
+        !hits.contains(&over),
+        "the second run restarted the budget: {hits:?}"
+    );
+    assert_eq!(out.report.first_chain_overflow, Some(over));
+}

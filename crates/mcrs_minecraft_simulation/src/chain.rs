@@ -160,7 +160,12 @@ where
         }
     }
 
-    pub(crate) fn seed_chain(&mut self, origin: ChainOrigin, offered: u32, run: &[Message<K>]) {
+    pub(crate) fn seed_chain(
+        &mut self,
+        origin: ChainOrigin,
+        offered: u32,
+        run: &[Message<K>],
+    ) -> u32 {
         let chain = &mut self.shard.chain;
         chain.running = true;
         chain.origin = Some(origin);
@@ -172,7 +177,9 @@ where
             }
         }
         self.drain_chain();
+        let ended = self.shard.chain.count;
         self.end_chain();
+        ended
     }
 
     fn count_offer(&mut self, pos: BlockPos) -> bool {
@@ -218,10 +225,16 @@ where
         if chain.sent
             && let Some(origin) = chain.origin
         {
-            self.out.chains.push(ChainLedger {
-                origin,
-                offered: chain.count,
-            });
+            let offered = chain.count;
+            match self
+                .out
+                .chains
+                .iter_mut()
+                .find(|ledger| ledger.origin == origin)
+            {
+                Some(ledger) => ledger.offered = ledger.offered.max(offered),
+                None => self.out.chains.push(ChainLedger { origin, offered }),
+            }
         }
         chain.count = 0;
         chain.running = false;

@@ -10,6 +10,7 @@ use crate::shard::{BlockShard, Env, Phase, PhaseInput, StepAt};
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_volume::{Access, Volume};
+use rustc_hash::FxHashMap;
 use std::mem::take;
 
 fn runs_ticks<V: SimulatedSections>(volume: &V, section: SectionPos) -> bool {
@@ -86,6 +87,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
 {
+    let mut carried = FxHashMap::default();
     let mut rest = input.inbound;
     while let Some((first, tail)) = rest.split_first() {
         if !is_update(first) {
@@ -100,12 +102,19 @@ where
         let Some((run, after)) = rest.split_at_checked(length) else {
             return;
         };
-        let offered = input
-            .ledgers
-            .iter()
-            .find(|ledger| ledger.origin == first.origin)
-            .map_or(0, |ledger| ledger.offered);
-        cx.seed_chain(first.origin, offered, run);
+        // A chain's continuations need not be contiguous: a later run of the same chain
+        // continues from where the earlier one ended, not from the ledger again.
+        let offered = carried.get(&first.origin).copied().unwrap_or_else(|| {
+            input
+                .ledgers
+                .iter()
+                .filter(|ledger| ledger.origin == first.origin)
+                .map(|ledger| ledger.offered)
+                .max()
+                .unwrap_or(0)
+        });
+        let ended = cx.seed_chain(first.origin, offered, run);
+        carried.insert(first.origin, ended);
         rest = after;
     }
 }
