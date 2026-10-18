@@ -1,0 +1,137 @@
+[crates]
+mcrs_minecraft_core = { layer = 1, kind = "data" }
+mcrs_minecraft_keys = { layer = 1, kind = "data" }
+mcrs_minecraft_nbt = { layer = 1, kind = "data" }
+mcrs_minecraft_profile = { layer = 1, kind = "data" }
+mcrs_minecraft_protocol = { layer = 1, kind = "data" }
+mcrs_minecraft_protocol_macros = { layer = 1, kind = "data" }
+mcrs_minecraft_text = { layer = 1, kind = "data" }
+
+mcrs_minecraft_network = { layer = 2, kind = "library" }
+
+mcrs_minecraft_anvil = { layer = 3, kind = "data" }
+mcrs_minecraft_assets = { layer = 3, kind = "data" }
+mcrs_minecraft_biome = { layer = 3, kind = "data" }
+mcrs_minecraft_biome_file = { layer = 3, kind = "data" }
+mcrs_minecraft_block = { layer = 3, kind = "data" }
+mcrs_minecraft_block_predicate = { layer = 3, kind = "data" }
+mcrs_minecraft_chunk = { layer = 3, kind = "data" }
+mcrs_minecraft_dimension = { layer = 3, kind = "data" }
+mcrs_minecraft_dimension_environment = { layer = 3, kind = "data" }
+mcrs_minecraft_enchantment = { layer = 3, kind = "data" }
+mcrs_minecraft_entity = { layer = 3, kind = "data" }
+mcrs_minecraft_environment = { layer = 3, kind = "data" }
+mcrs_minecraft_game_rule = { layer = 3, kind = "data" }
+mcrs_minecraft_item = { layer = 3, kind = "data" }
+mcrs_minecraft_loot = { layer = 3, kind = "data" }
+mcrs_minecraft_particle = { layer = 3, kind = "data" }
+mcrs_minecraft_predicate = { layer = 3, kind = "data" }
+mcrs_minecraft_random = { layer = 3, kind = "data" }
+mcrs_minecraft_registries = { layer = 3, kind = "data" }
+mcrs_minecraft_registry = { layer = 3, kind = "data" }
+mcrs_minecraft_registry_catalog = { layer = 3, kind = "data" }
+mcrs_minecraft_sound = { layer = 3, kind = "data" }
+mcrs_minecraft_value_provider = { layer = 3, kind = "data" }
+mcrs_minecraft_volume = { layer = 3, kind = "data" }
+
+mcrs_minecraft_inventory = { layer = 3, kind = "rules" }
+mcrs_minecraft_light = { layer = 3, kind = "rules" }
+mcrs_minecraft_light_color = { layer = 3, kind = "rules" }
+mcrs_minecraft_simulation = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_builtin = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_carver = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_density = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_feature = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_feature_place = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_noise = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_structure = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_structure_place = { layer = 3, kind = "rules" }
+mcrs_minecraft_worldgen_surface = { layer = 3, kind = "rules" }
+
+mcrs_minecraft_client_jar = { layer = 3, kind = "tool" }
+mcrs_minecraft_fixtures = { layer = 3, kind = "tool" }
+mcrs_minecraft_worldgen_testing = { layer = 3, kind = "tool" }
+
+mcrs_minecraft_level = { layer = 4, kind = "engine" }
+mcrs_minecraft_server = { layer = 4, kind = "engine" }
+mcrs_minecraft_world = { layer = 4, kind = "engine" }
+
+mcrs_minecraft_worldgen_generator = { layer = 5, kind = "plugin" }
+
+mcrs_minecraft_mesh = { layer = 6, kind = "render" }
+mcrs_minecraft_render = { layer = 6, kind = "render" }
+mcrs_minecraft_render_light_color = { layer = 6, kind = "render" }
+mcrs_minecraft_render_probe = { layer = 6, kind = "render" }
+
+mcrs_minecraft_client = { layer = 7, kind = "app" }
+mcrs = { layer = 7, kind = "app" }
+
+mcrs_minecraft_light_color_bench = { layer = 7, kind = "tool" }
+mcrs_minecraft_update = { layer = 7, kind = "tool" }
+xtask = { layer = 7, kind = "tool" }
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_block"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_chunk"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_dimension"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_entity"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_item"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_particle"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_sound"
+issue = "#59"
+
+[[exception]]
+crate = "mcrs_minecraft_protocol"
+dependency = "mcrs_minecraft_registry"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_network"
+dependency = "mcrs_minecraft_dimension"
+issue = "#60"
+
+[[exception]]
+crate = "mcrs_minecraft_network"
+dependency = "mcrs_minecraft_registry"
+issue = "#488"
+
+[[exception]]
+crate = "mcrs_minecraft_inventory"
+dependency = "mcrs_minecraft_world"
+issue = "#322"
+
+[[exception]]
+crate = "mcrs_minecraft_light_color"
+dependency = "mcrs_minecraft_world"
+issue = "#513"
+
+[[exception]]
+crate = "mcrs_minecraft_server"
+dependency = "mcrs_minecraft_worldgen_generator"
+issue = "#279"

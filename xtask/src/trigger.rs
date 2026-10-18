@@ -4,6 +4,7 @@ pub enum Check {
     Bypasses,
     Parity,
     UnusedDeps,
+    Layers,
     Fmt,
     Clippy,
     Test,
@@ -18,6 +19,7 @@ impl Check {
             Check::Bypasses => "bypasses",
             Check::Parity => "parity",
             Check::UnusedDeps => "unused-deps",
+            Check::Layers => "layers",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
             Check::Test => "test",
@@ -76,7 +78,7 @@ impl Trigger {
         match self {
             Trigger::Edit => "after a file is written: formatting of the changed files",
             Trigger::Commit => {
-                "before a commit: lint suppressions, test bypasses, fixture parity, unused dependencies, formatting"
+                "before a commit: lint suppressions, test bypasses, fixture parity, unused dependencies, crate layers, formatting"
             }
             Trigger::Push => {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
@@ -126,7 +128,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     match trigger {
         Trigger::Edit => &[Fmt],
         Trigger::Commit | Trigger::Push | Trigger::Lint => {
-            &[Suppressions, Bypasses, Parity, UnusedDeps, Fmt]
+            &[Suppressions, Bypasses, Parity, UnusedDeps, Layers, Fmt]
         }
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],

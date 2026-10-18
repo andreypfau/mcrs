@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{bypasses, parity, suppressions, unused_deps};
+use crate::{bypasses, layers, parity, suppressions, unused_deps};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -151,6 +151,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::UnusedDeps => {
             unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
         }
+        Check::Layers => layers::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?),
         Check::Fmt => fmt(ctx),
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),

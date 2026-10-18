@@ -14,6 +14,7 @@
 mod bypasses;
 mod checks;
 mod git;
+mod layers;
 mod metadata;
 mod parity;
 mod scope;
