@@ -3,13 +3,50 @@ use crate::event_queue::BlockEvent;
 use crate::scalar::{GameTick, TickPriority};
 use crate::sequence::SubTick;
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Message<K: Kinds> {
     pub stamp: SubTick,
     pub origin: SubTick,
     pub body: MessageBody<K>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UpdateRequest<K: Kinds> {
+    Around {
+        source: BlockPos,
+        block: K::Block,
+        skip: Option<Direction>,
+    },
+    Single {
+        target: BlockPos,
+        block: K::Block,
+    },
+    WithState {
+        target: BlockPos,
+        state: BlockStateId,
+        block: K::Block,
+        moved_by_piston: bool,
+    },
+    Shape {
+        target: BlockPos,
+        from: Direction,
+        neighbour_state: BlockStateId,
+        flags: BlockUpdateFlags,
+        limit: u16,
+    },
+}
+
+impl<K: Kinds> UpdateRequest<K> {
+    pub fn pos(&self) -> BlockPos {
+        match self {
+            Self::Around { source, .. } => *source,
+            Self::Single { target, .. }
+            | Self::WithState { target, .. }
+            | Self::Shape { target, .. } => *target,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,6 +70,7 @@ pub enum MessageBody<K: Kinds> {
         priority: TickPriority,
     },
     Event(BlockEvent<K::Block>),
+    Update(UpdateRequest<K>),
 }
 
 impl<K: Kinds> Message<K> {
@@ -42,6 +80,7 @@ impl<K: Kinds> Message<K> {
             | MessageBody::BlockTick { pos, .. }
             | MessageBody::FluidTick { pos, .. } => *pos,
             MessageBody::Event(event) => event.pos,
+            MessageBody::Update(request) => request.pos(),
         };
         SectionPos::from(pos)
     }

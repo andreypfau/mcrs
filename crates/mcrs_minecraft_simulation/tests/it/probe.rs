@@ -1,9 +1,10 @@
-use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, Direction, SectionPos};
 use mcrs_minecraft_simulation::SimulationVolume;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, GameTick,
-    KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput, SectionProperties,
-    SemanticOrder, SimulatedSections, StepAt, StepError, StepOutput, SubTick, TickPriority, step,
+    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, Cx, Env,
+    GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
+    SectionProperties, SemanticOrder, SimulatedSections, StepAt, StepError, StepOutput, SubTick,
+    TickPriority, step,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
@@ -11,6 +12,7 @@ use mcrs_minecraft_volume::{
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProbeBlock(pub u16);
@@ -43,13 +45,21 @@ pub const B: BlockStateId = state(4);
 pub const C: BlockStateId = state(5);
 pub const FLOWING: BlockStateId = state(7);
 pub const SOURCE: BlockStateId = state(8);
+pub const RAIL_FLAT: BlockStateId = state(9);
+pub const RAIL_SLOPED: BlockStateId = state(10);
+pub const STACK: BlockStateId = state(11);
+pub const STACK_CHANGED: BlockStateId = state(12);
+pub const NEEDS_SUPPORT: BlockStateId = state(13);
+pub const NEEDS_SUPPORT_WET: BlockStateId = state(14);
+pub const WIRE: BlockStateId = state(15);
 
 pub const BLOCK_A: ProbeBlock = ProbeBlock(10);
 pub const BLOCK_B: ProbeBlock = ProbeBlock(11);
 pub const BLOCK_C: ProbeBlock = ProbeBlock(12);
+pub const BLOCK_NEEDS_SUPPORT: ProbeBlock = ProbeBlock(42);
 pub const WATER: ProbeFluid = ProbeFluid(1);
 
-const BLOCKS: [u16; STATES] = [0, 1, 10, 10, 11, 12, 13, 20, 21, 30, 30, 0, 0, 0, 0, 0];
+const BLOCKS: [u16; STATES] = [0, 1, 10, 10, 11, 12, 13, 20, 21, 30, 30, 40, 41, 42, 42, 44];
 
 pub struct ProbeFacts;
 
@@ -59,7 +69,7 @@ impl BlockFacts<ProbeKinds> for ProbeFacts {
     }
 
     fn fluid_of(&self, state: BlockStateId) -> Option<ProbeFluid> {
-        (state == FLOWING || state == SOURCE).then_some(WATER)
+        (state == FLOWING || state == SOURCE || state == NEEDS_SUPPORT_WET).then_some(WATER)
     }
 
     fn void_air(&self) -> BlockStateId {
@@ -72,6 +82,14 @@ impl BlockFacts<ProbeKinds> for ProbeFacts {
 
     fn is_rail(&self, state: BlockStateId) -> bool {
         self.block_of(state) == ProbeBlock(30)
+    }
+
+    fn is_redstone_wire(&self, state: BlockStateId) -> bool {
+        state == WIRE
+    }
+
+    fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId {
+        self.fluid_of(state).map_or(AIR, |_| SOURCE)
     }
 }
 
@@ -89,6 +107,7 @@ pub enum Hook {
     FluidTick,
     BlockEvent,
     Placed,
+    Neighbour,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -134,6 +153,20 @@ pub enum Entry {
         pos: BlockPos,
         result: Result<BlockStateId, Unavailable>,
     },
+    Neighbour {
+        pos: BlockPos,
+        state: BlockStateId,
+        source: ProbeBlock,
+        moved_by_piston: bool,
+    },
+    Shape {
+        pos: BlockPos,
+        state: BlockStateId,
+        from: Direction,
+        neighbour: BlockPos,
+        neighbour_state: BlockStateId,
+    },
+    Mark(u8),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -171,6 +204,16 @@ pub enum Action {
     Read {
         pos: BlockPos,
     },
+    UpdateNeighbour {
+        target: BlockPos,
+        source: ProbeBlock,
+    },
+    UpdateNeighbourWithState {
+        target: BlockPos,
+        state: BlockStateId,
+        source: ProbeBlock,
+    },
+    Mark(u8),
 }
 
 #[derive(Clone, Debug)]
@@ -208,6 +251,8 @@ pub struct ProbeBehaviour {
     rules: Vec<Rule>,
     fired: Mutex<Vec<bool>>,
     log: Mutex<Vec<Entry>>,
+    nesting: AtomicU32,
+    deepest: AtomicU32,
 }
 
 impl ProbeBehaviour {
@@ -217,7 +262,13 @@ impl ProbeBehaviour {
             rules,
             fired,
             log: Mutex::new(Vec::new()),
+            nesting: AtomicU32::new(0),
+            deepest: AtomicU32::new(0),
         }
+    }
+
+    pub fn deepest_nesting(&self) -> u32 {
+        self.deepest.load(Ordering::Relaxed)
     }
 
     pub fn log(&self) -> Vec<Entry> {
@@ -305,6 +356,13 @@ impl ProbeBehaviour {
                 let result = cx.state(pos);
                 self.push(Entry::Read { now, pos, result });
             }
+            Action::UpdateNeighbour { target, source } => cx.update_neighbour(target, source),
+            Action::UpdateNeighbourWithState {
+                target,
+                state,
+                source,
+            } => cx.update_neighbour_with_state(target, state, source, false),
+            Action::Mark(label) => self.push(Entry::Mark(label)),
         }
     }
 }
@@ -390,6 +448,50 @@ impl BlockBehaviour<ProbeKinds> for ProbeBehaviour {
         });
         self.run(cx, Hook::Placed, at);
     }
+
+    fn neighbour_changed<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        source: ProbeBlock,
+        moved_by_piston: bool,
+    ) {
+        let depth = self.nesting.fetch_add(1, Ordering::Relaxed) + 1;
+        self.deepest.fetch_max(depth, Ordering::Relaxed);
+        self.push(Entry::Neighbour {
+            pos: at,
+            state,
+            source,
+            moved_by_piston,
+        });
+        self.run(cx, Hook::Neighbour, at);
+        self.nesting.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    fn update_shape<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        _cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        from: Direction,
+        neighbour: BlockPos,
+        neighbour_state: BlockStateId,
+    ) -> BlockStateId {
+        self.push(Entry::Shape {
+            pos: at,
+            state,
+            from,
+            neighbour,
+            neighbour_state,
+        });
+        let supported = from != Direction::Down || !ProbeFacts.is_air(neighbour_state);
+        match state {
+            STACK if from == Direction::Down => STACK_CHANGED,
+            NEEDS_SUPPORT | NEEDS_SUPPORT_WET if !supported => AIR,
+            _ => state,
+        }
+    }
 }
 
 pub struct Host {
@@ -400,11 +502,22 @@ pub struct Host {
 
 impl Host {
     pub fn new() -> Self {
+        Self::within(BoundingBox {
+            min: BlockPos::new(-512, -64, -512),
+            max: BlockPos::new(511, 319, 511),
+        })
+    }
+
+    pub fn tall() -> Self {
+        Self::within(BoundingBox {
+            min: BlockPos::new(-512, -64, -512),
+            max: BlockPos::new(1535, 1023, 511),
+        })
+    }
+
+    fn within(bounds: BoundingBox) -> Self {
         Self {
-            volume: SparseVolume::new(BoundingBox {
-                min: BlockPos::new(-512, -64, -512),
-                max: BlockPos::new(511, 319, 511),
-            }),
+            volume: SparseVolume::new(bounds),
             overrides: HashMap::new(),
             properties: HashMap::new(),
         }
@@ -499,6 +612,17 @@ impl Runner {
         inbound: &[Message<ProbeKinds>],
         out: &mut StepOutput<ProbeKinds>,
     ) -> Result<(), StepError> {
+        self.step_into_with(now, phase, inbound, &[], out)
+    }
+
+    pub fn step_into_with(
+        &mut self,
+        now: i64,
+        phase: Phase,
+        inbound: &[Message<ProbeKinds>],
+        ledgers: &[ChainLedger],
+        out: &mut StepOutput<ProbeKinds>,
+    ) -> Result<(), StepError> {
         let env = Env {
             facts: &self.facts,
             behaviour: &self.behaviour,
@@ -515,7 +639,7 @@ impl Runner {
             at,
             &mut self.host,
             &env,
-            PhaseInput { inbound },
+            PhaseInput { inbound, ledgers },
             out,
         )
     }
@@ -528,6 +652,18 @@ impl Runner {
     ) -> Result<StepOutput<ProbeKinds>, StepError> {
         let mut out = StepOutput::default();
         self.step_into(now, phase, inbound, &mut out)?;
+        Ok(out)
+    }
+
+    pub fn step_with(
+        &mut self,
+        now: i64,
+        phase: Phase,
+        inbound: &[Message<ProbeKinds>],
+        ledgers: &[ChainLedger],
+    ) -> Result<StepOutput<ProbeKinds>, StepError> {
+        let mut out = StepOutput::default();
+        self.step_into_with(now, phase, inbound, ledgers, &mut out)?;
         Ok(out)
     }
 
@@ -612,13 +748,88 @@ pub fn set_message(
     state: BlockStateId,
     flags: u32,
 ) -> Message<ProbeKinds> {
+    limited_set_message(counter, pos, state, flags, 512)
+}
+
+pub fn limited_set_message(
+    counter: u32,
+    pos: BlockPos,
+    state: BlockStateId,
+    flags: u32,
+    limit: u16,
+) -> Message<ProbeKinds> {
     message(
         counter,
         MessageBody::Set {
             pos,
             state,
             flags: BlockUpdateFlags::from_bits_retain(flags),
-            limit: 512,
+            limit,
         },
     )
+}
+
+pub const NEIGHBOUR_ORDER: [Direction; 6] = [
+    Direction::West,
+    Direction::East,
+    Direction::Down,
+    Direction::Up,
+    Direction::North,
+    Direction::South,
+];
+
+pub const SHAPE_ORDER: [Direction; 6] = [
+    Direction::West,
+    Direction::East,
+    Direction::North,
+    Direction::South,
+    Direction::Down,
+    Direction::Up,
+];
+
+pub fn offset(pos: BlockPos, direction: Direction) -> BlockPos {
+    let normal = direction.normal();
+    at(pos.x + normal.x, pos.y + normal.y, pos.z + normal.z)
+}
+
+pub fn around(pos: BlockPos, order: &[Direction; 6]) -> Vec<BlockPos> {
+    order.iter().map(|d| offset(pos, *d)).collect()
+}
+
+pub fn filled(sections: &[(i32, i32, i32)]) -> Host {
+    let mut host = Host::new();
+    for (x, y, z) in sections {
+        host.insert(section(*x, *y, *z), A);
+    }
+    host
+}
+
+pub fn neighbour_entries(log: &[Entry]) -> Vec<(BlockPos, BlockStateId, ProbeBlock)> {
+    log.iter()
+        .filter_map(|entry| match entry {
+            Entry::Neighbour {
+                pos, state, source, ..
+            } => Some((*pos, *state, *source)),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn shape_entries(log: &[Entry]) -> Vec<(BlockPos, Direction, BlockPos, BlockStateId)> {
+    log.iter()
+        .filter_map(|entry| match entry {
+            Entry::Shape {
+                pos,
+                from,
+                neighbour,
+                neighbour_state,
+                ..
+            } => Some((*pos, *from, *neighbour, *neighbour_state)),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn neighbour_rule(at: BlockPos, actions: Vec<Action>) -> Rule {
+    Rule::on(Hook::Neighbour, at, actions)
 }

@@ -11,6 +11,7 @@
 
 mod access;
 mod behaviour;
+mod chain;
 mod cx;
 mod event_queue;
 mod message;
@@ -28,12 +29,12 @@ pub use access::{PartitionKind, SectionProperties, SimulatedSections, Simulation
 pub use behaviour::{BlockBehaviour, BlockFacts};
 pub use cx::Cx;
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
-pub use message::{Message, MessageBody};
-pub use output::{BlockWrite, StepError, StepOutput, StepReport};
+pub use message::{Message, MessageBody, UpdateRequest};
+pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use sequence::{SequenceClock, SubTick, TickKey};
-pub use shard::{BlockShard, Env, KernelConfig, Phase, PhaseInput, StepAt};
+pub use shard::{BlockShard, ChainLimit, Env, KernelConfig, Phase, PhaseInput, StepAt};
 pub use step::step;
 pub use stream::{StreamKey, StreamSeed};
 pub use tick_queue::{
@@ -63,7 +64,7 @@ bitflags::bitflags! {
 #[cfg(test)]
 mod tests {
     use crate::tick_queue::{QueuedTick, SectionQueue};
-    use crate::{BlockWrite, Collected, Kinds, Message, QueuedEvent};
+    use crate::{BlockWrite, Collected, Kinds, Message, QueuedEvent, UpdateRequest};
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     struct Narrow;
@@ -79,6 +80,7 @@ mod tests {
         assert!(size_of::<Collected<u16>>() <= 24);
         assert!(size_of::<QueuedEvent<u16>>() <= 32);
         assert!(size_of::<SectionQueue<u16>>() <= 80);
+        assert!(size_of::<UpdateRequest<Narrow>>() <= 24);
         assert!(size_of::<Message<Narrow>>() <= 48);
         assert!(size_of::<BlockWrite>() <= 24);
     }

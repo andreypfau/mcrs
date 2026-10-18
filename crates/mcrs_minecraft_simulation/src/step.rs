@@ -58,11 +58,10 @@ where
     B: BlockBehaviour<K>,
     P: OrderingPolicy,
 {
+    shard.chain.reset();
     validate(&*volume, env.kind, input.inbound)?;
     let mut cx = Cx::new(shard, volume, out, env, at.now);
-    for message in input.inbound {
-        cx.apply(*message);
-    }
+    ingress(&mut cx, input);
     match at.phase {
         Phase::Ingress => {}
         Phase::BlockTicks => block_phase(&mut cx, env.policy),
@@ -70,6 +69,41 @@ where
         Phase::BlockEvents => event_phase(&mut cx),
     }
     Ok(())
+}
+
+fn is_update<K: Kinds>(message: &Message<K>) -> bool {
+    matches!(message.body, MessageBody::Update(_))
+}
+
+fn ingress<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, input: PhaseInput<'_, K>)
+where
+    K: Kinds,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+{
+    let mut rest = input.inbound;
+    while let Some((first, tail)) = rest.split_first() {
+        if !is_update(first) {
+            cx.apply(*first);
+            rest = tail;
+            continue;
+        }
+        let length = rest
+            .iter()
+            .take_while(|message| is_update(message) && message.origin == first.origin)
+            .count();
+        let Some((run, after)) = rest.split_at_checked(length) else {
+            return;
+        };
+        let offered = input
+            .ledgers
+            .iter()
+            .find(|ledger| ledger.origin == first.origin)
+            .map_or(0, |ledger| ledger.offered);
+        cx.seed_chain(first.origin, offered, run);
+        rest = after;
+    }
 }
 
 fn block_phase<K, V, F, B, P>(cx: &mut Cx<'_, K, V, F, B>, policy: &P)

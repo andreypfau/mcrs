@@ -1,4 +1,5 @@
 use crate::event_queue::BlockEvent;
+use crate::sequence::SubTick;
 use crate::tick_queue::Kinds;
 use crate::{BlockUpdateFlags, Message};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, SectionPos};
@@ -11,6 +12,19 @@ pub struct BlockWrite {
     pub flags: BlockUpdateFlags,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Destroyed {
+    pub pos: BlockPos,
+    pub state: BlockStateId,
+    pub drops: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChainLedger {
+    pub origin: SubTick,
+    pub offered: u32,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StepReport {
     pub unaccepted_ticks: u32,
@@ -19,6 +33,8 @@ pub struct StepReport {
     pub events_deferred: u32,
     pub events_left_by_bound: u32,
     pub foreign_reads: u32,
+    pub first_chain_overflow: Option<BlockPos>,
+    pub chain_overflows: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +43,8 @@ pub struct StepOutput<K: Kinds> {
     pub marked: Vec<BlockPos>,
     pub outbound: Vec<Message<K>>,
     pub delivered: Vec<BlockEvent<K::Block>>,
+    pub destroyed: Vec<Destroyed>,
+    pub chains: Vec<ChainLedger>,
     pub report: StepReport,
 }
 
@@ -37,6 +55,8 @@ impl<K: Kinds> Default for StepOutput<K> {
             marked: Vec::new(),
             outbound: Vec::new(),
             delivered: Vec::new(),
+            destroyed: Vec::new(),
+            chains: Vec::new(),
             report: StepReport::default(),
         }
     }

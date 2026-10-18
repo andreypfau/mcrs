@@ -1,3 +1,5 @@
+mod conformance_chain;
+mod conformance_set;
 mod conformance_tick;
 mod determinism;
 mod events;

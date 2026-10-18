@@ -2,7 +2,7 @@ use crate::access::{PartitionKind, SectionProperties};
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::event_queue::{BlockEvent, QueuedEvent};
 use crate::message::{Message, MessageBody};
-use crate::output::{BlockWrite, StepOutput};
+use crate::output::{BlockWrite, Destroyed, StepOutput};
 use crate::scalar::{GameTick, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
@@ -38,7 +38,7 @@ fn event_lane(kind: PartitionKind, access: Access) -> Lane {
     }
 }
 
-fn bump(counter: &mut u32) {
+pub(crate) fn bump(counter: &mut u32) {
     *counter = counter.saturating_add(1);
 }
 
@@ -225,7 +225,7 @@ where
         limit: u16,
     ) -> bool {
         match self.volume.access(SectionPos::from(pos)) {
-            Access::Write => self.write_block(pos, state, flags),
+            Access::Write => self.write_block(pos, state, flags, limit),
             Access::Read | Access::Foreign => {
                 let stamp = self.shard.clock.stamp(self.now);
                 self.send(
@@ -263,7 +263,13 @@ where
             .is_ok_and(|now| self.facts.block_of(now) == self.facts.block_of(state))
     }
 
-    fn write_block(&mut self, pos: BlockPos, state: BlockStateId, flags: BlockUpdateFlags) -> bool {
+    fn write_block(
+        &mut self,
+        pos: BlockPos,
+        state: BlockStateId,
+        flags: BlockUpdateFlags,
+        limit: u16,
+    ) -> bool {
         if self.facts.is_air(state) && self.section_is_air(pos) {
             return false;
         }
@@ -293,21 +299,47 @@ where
         if !flags.contains(BlockUpdateFlags::SKIP_ON_PLACE) {
             behaviour.placed(self, pos, state, old, moved_by_piston);
         }
-        self.mark_for_clients(pos, state, flags);
+        if self.volume.block(pos).is_ok_and(|now| now == state) {
+            self.mark_for_clients(pos, flags);
+            if flags.contains(BlockUpdateFlags::NEIGHBORS) {
+                self.update_neighbours(pos, self.facts.block_of(old), None);
+            }
+            if !flags.contains(BlockUpdateFlags::KNOWN_SHAPE) {
+                self.emit_shape_updates(pos, state, flags, limit);
+            }
+        }
         true
     }
 
-    fn mark_for_clients(&mut self, pos: BlockPos, state: BlockStateId, flags: BlockUpdateFlags) {
+    fn mark_for_clients(&mut self, pos: BlockPos, flags: BlockUpdateFlags) {
         let broadcasts = self
             .volume
             .properties(SectionPos::from(pos))
             .contains(SectionProperties::BROADCASTS_CHANGES);
-        if flags.contains(BlockUpdateFlags::CLIENTS)
-            && broadcasts
-            && self.volume.block(pos).is_ok_and(|now| now == state)
-        {
+        if flags.contains(BlockUpdateFlags::CLIENTS) && broadcasts {
             self.out.marked.push(pos);
         }
+    }
+
+    pub(crate) fn destroy(&mut self, pos: BlockPos, drops: bool, limit: u16) -> bool {
+        let Ok(old) = self.state(pos) else {
+            return false;
+        };
+        if self.facts.is_air(old) {
+            return false;
+        }
+        self.out.destroyed.push(Destroyed {
+            pos,
+            state: old,
+            drops,
+        });
+        let replacement = self.facts.legacy_block_of_fluid(old);
+        self.set(
+            pos,
+            replacement,
+            BlockUpdateFlags::from_bits_retain(3),
+            limit,
+        )
     }
 
     pub(crate) fn apply(&mut self, message: Message<K>) {
@@ -369,6 +401,7 @@ where
                     bump(&mut self.out.report.unloaded_drops);
                 }
             }
+            MessageBody::Update(_) => {}
         }
     }
 

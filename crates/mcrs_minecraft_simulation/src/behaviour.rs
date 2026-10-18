@@ -1,7 +1,7 @@
 use crate::SimulationVolume;
 use crate::cx::Cx;
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
 
 pub trait BlockFacts<K: Kinds> {
     fn block_of(&self, state: BlockStateId) -> K::Block;
@@ -13,6 +13,10 @@ pub trait BlockFacts<K: Kinds> {
     fn is_air(&self, state: BlockStateId) -> bool;
 
     fn is_rail(&self, state: BlockStateId) -> bool;
+
+    fn is_redstone_wire(&self, state: BlockStateId) -> bool;
+
+    fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId;
 }
 
 pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
@@ -61,5 +65,27 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
         _old: BlockStateId,
         _moved_by_piston: bool,
     ) {
+    }
+
+    fn neighbour_changed<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _source: K::Block,
+        _moved_by_piston: bool,
+    ) {
+    }
+
+    fn update_shape<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _at: BlockPos,
+        state: BlockStateId,
+        _from: Direction,
+        _neighbour: BlockPos,
+        _neighbour_state: BlockStateId,
+    ) -> BlockStateId {
+        state
     }
 }
