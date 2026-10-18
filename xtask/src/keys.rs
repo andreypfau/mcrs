@@ -1,8 +1,7 @@
 use crate::checks::Outcome;
-use crate::scope::Head;
+use crate::scope::{self, Head};
 use std::path::Path;
 
-#[cfg(test)]
 pub(crate) const HEADER: &str =
     "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.";
 
@@ -73,6 +72,43 @@ fn dirty(repo: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
+struct Headers {
+    marked: usize,
+    wrong: Vec<String>,
+}
+
+fn headers(repo: &Path, head: &Head) -> Result<Headers, String> {
+    let marked: Vec<String> = scope::tracked(repo, head)?
+        .into_iter()
+        .filter(|path| is_marked(path))
+        .collect();
+    let specs: Vec<String> = marked
+        .iter()
+        .map(|path| match head {
+            Head::Commit(sha) => format!("{sha}:{path}"),
+            Head::Worktree => format!(":{path}"),
+        })
+        .collect();
+    let mut wrong = Vec::new();
+    for (path, blob) in marked.iter().zip(scope::blobs(repo, &specs)?) {
+        let bytes = blob.ok_or_else(|| format!("{path} is tracked but could not be read"))?;
+        if !path.ends_with(".rs") {
+            wrong.push(format!(
+                "{path}: the key generator writes only .rs files here"
+            ));
+        } else if bytes.split(|&byte| byte == b'\n').next() != Some(HEADER.as_bytes()) {
+            wrong.push(format!(
+                "{path}: the first line is not the key generator's header"
+            ));
+        }
+    }
+    wrong.sort();
+    Ok(Headers {
+        marked: marked.len(),
+        wrong,
+    })
+}
+
 fn failure(condition: &str, lines: &[String], fix: &str) -> String {
     let mut text = vec![condition.to_owned()];
     text.extend(lines.iter().cloned());
@@ -82,12 +118,20 @@ fn failure(condition: &str, lines: &[String], fix: &str) -> String {
 
 pub(crate) fn check(
     repo: &Path,
-    _head: &Head,
+    head: &Head,
     changed: &[String],
     generate: impl FnOnce() -> Result<bool, String>,
 ) -> Outcome {
     if !regenerates(changed) {
         return Ok("no generator input or output changed; not regenerated".to_owned());
+    }
+    let headers = headers(repo, head)?;
+    if !headers.wrong.is_empty() {
+        return Err(failure(
+            "these files sit under the key paths but the generator did not write them:",
+            &headers.wrong,
+            "only cargo run -p mcrs_minecraft_update -- keys writes under crates/*/src/keys, crates/mcrs_minecraft_keys/src and crates/mcrs_minecraft_registry_catalog/src; move hand-written files out of them",
+        ));
     }
     let before = dirty(repo)?;
     if !before.is_empty() {
@@ -108,7 +152,10 @@ pub(crate) fn check(
             "run cargo run -p mcrs_minecraft_update -- keys and commit what it writes; never edit a generated source by hand",
         ));
     }
-    Ok("regenerating the key sources changed nothing".to_owned())
+    Ok(format!(
+        "{} marked files carry the header; regenerating the key sources changed nothing",
+        headers.marked
+    ))
 }
 
 #[cfg(test)]
@@ -160,6 +207,48 @@ mod tests {
                 "{glob}: .coderabbit.yaml"
             );
         }
+    }
+
+    #[test]
+    fn only_rs_files_that_open_with_the_generator_header_may_sit_under_the_marked_paths() {
+        let repo = Repo::new("keys-header");
+        repo.init();
+        let headed = format!("{HEADER}\npub const A: u8 = 1;\n");
+        repo.write("crates/a/src/keys/mod.rs", &headed);
+        repo.write("crates/a/src/keys/plain.rs", "pub const A: u8 = 1;\n");
+        repo.write(
+            "crates/a/src/keys/altered.rs",
+            &headed.replace("do not edit.", "do not change."),
+        );
+        repo.write("crates/a/src/keys/second.rs", &format!("\n{headed}"));
+        repo.write("crates/a/src/keys/data.json", &format!("{HEADER}\n{{}}\n"));
+        repo.write("crates/a/src/keys/notes.txt", "notes\n");
+        repo.write("crates/a/src/lib.rs", "pub const A: u8 = 1;\n");
+        repo.write("crates/mcrs_minecraft_keys/src/lib.rs", &headed);
+        repo.write(
+            "crates/mcrs_minecraft_registry_catalog/src/extra.rs",
+            "pub const A: u8 = 1;\n",
+        );
+        repo.commit("base");
+
+        let found = headers(&repo.0, &Head::Commit(repo.sha())).unwrap();
+        let paths: Vec<&str> = found
+            .wrong
+            .iter()
+            .map(|line| line.split(": ").next().unwrap())
+            .collect();
+        assert_eq!(found.marked, 8);
+        assert_eq!(
+            paths,
+            [
+                "crates/a/src/keys/altered.rs",
+                "crates/a/src/keys/data.json",
+                "crates/a/src/keys/notes.txt",
+                "crates/a/src/keys/plain.rs",
+                "crates/a/src/keys/second.rs",
+                "crates/mcrs_minecraft_registry_catalog/src/extra.rs",
+            ]
+        );
     }
 
     struct Row {
