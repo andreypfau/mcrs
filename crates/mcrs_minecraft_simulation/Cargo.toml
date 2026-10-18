@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_simulation"
-description = "Block simulation kernels: scheduled tick and block event queues and their ordering policies"
+description = "Block simulation kernels: the step and update chain over a volume, their queues and ordering policies"
 version.workspace = true
 edition.workspace = true
 
@@ -14,5 +14,6 @@ workspace = true
 bitflags = "2.10.0"
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_random.workspace = true
+mcrs_minecraft_volume.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true

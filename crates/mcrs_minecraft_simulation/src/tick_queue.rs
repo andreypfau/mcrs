@@ -13,6 +13,11 @@ pub trait TickKind: Copy + Eq + Ord + Hash + Debug {}
 
 impl<T: Copy + Eq + Ord + Hash + Debug> TickKind for T {}
 
+pub trait Kinds: Copy + Eq + Debug {
+    type Block: TickKind;
+    type Fluid: TickKind;
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScheduledTick<T> {
     pub pos: BlockPos,
