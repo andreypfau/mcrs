@@ -19,7 +19,7 @@ mod registry;
 mod tags;
 
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
-pub use id::{Id, Key, TagId};
+pub use id::Key;
 pub use load::{
     DataDeclaration, Declaration, IdSeed, IdSetSeed, LoadCtx, RefSeed, Registries, RegistryView,
     Stage, StageScope, StageView, ValueSeed, load, load_with,

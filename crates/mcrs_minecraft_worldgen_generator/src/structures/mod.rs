@@ -83,7 +83,7 @@ pub fn resolve_palette_state(
         .contains(BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK)
         && !DYNAMIC_SHAPE_BLOCKS.contains(&state.id.as_str());
     Some(ResolvedState {
-        id: VoxelId(id.0),
+        id: VoxelId(id.number()),
         full_block,
     })
 }

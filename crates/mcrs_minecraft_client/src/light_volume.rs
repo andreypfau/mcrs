@@ -767,7 +767,7 @@ mod tests {
     fn glowstone() -> u16 {
         crate::blocks::corpus()
             .default_state("minecraft:glowstone")
-            .0
+            .number()
     }
 
     fn light_colours(rgb: [u8; 3]) -> LightColors {

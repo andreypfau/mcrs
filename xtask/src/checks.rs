@@ -326,10 +326,25 @@ fn test(ctx: &Context) -> Outcome {
             }
         }
     }
+    let passed = ctx.exec("cargo", &args)?;
+    let core_selected = match &selection {
+        Scope::Workspace => true,
+        Scope::Packages(names) => names.iter().any(|n| n == "mcrs_minecraft_core"),
+    };
+    if !passed || ctx.trigger == Trigger::Gpu || !core_selected {
+        return verdict(
+            passed,
+            "a test failed, or the selection ran no test",
+            "fix the failing tests above; a crate with no default-tier test needs one",
+        );
+    }
     verdict(
-        ctx.exec("cargo", &args)?,
-        "a test failed, or the selection ran no test",
-        "fix the failing tests above; a crate with no default-tier test needs one",
+        ctx.exec(
+            "cargo",
+            &["test", "--doc", "--locked", "-p", "mcrs_minecraft_core"],
+        )?,
+        "a core doctest failed",
+        "fix the doctests above",
     )
 }
 

@@ -13,7 +13,7 @@ use mcrs_minecraft_assets::packs::{
 };
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -22,7 +22,7 @@ use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{Diagnostic, Level};
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{HolderSet, RegistrySet, TagId, WorldRegistries};
+use mcrs_minecraft_registry::{HolderSet, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
     reloadable_registries, static_registries as build_static_registries, world_registries,

@@ -8,7 +8,7 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
-use mcrs_minecraft_item::keys::MenuType;
+use mcrs_minecraft_item::keys::{Item, MenuType};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
 };
@@ -25,7 +25,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::static_report::shipped_report;
-use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{NameTable, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 
 use super::{ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell};
@@ -128,17 +128,7 @@ impl Client {
     }
 
     fn raw(&self, path: &str, count: i32) -> RawStack {
-        let id = registries()
-            .id(
-                "item",
-                &mcrs_minecraft_core::ResourceLocation::minecraft(path).unwrap(),
-            )
-            .unwrap();
-        let slot = ProtoStack::new(
-            mcrs_minecraft_registry::Id::from_raw(id),
-            count,
-            ComponentPatch::EMPTY,
-        );
+        let slot = ProtoStack::new(Item::read(path).unwrap().id(), count, ComponentPatch::EMPTY);
         RawStack::from_stack(&slot, registries()).unwrap()
     }
 
@@ -526,10 +516,7 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
         ResourceKey::from_location(enchantment("protection")),
         1,
     )]));
-    let sword = registries()
-        .id("item", &rl!("minecraft:diamond_sword").to_arc())
-        .unwrap();
-    let stack = ProtoStack::new(mcrs_minecraft_registry::Id::from_raw(sword), 1, patch);
+    let stack = ProtoStack::new(Item::DiamondSword.id(), 1, patch);
     let raw = RawStack::from_stack(&stack, &session).unwrap();
     assert_ne!(
         raw.0,

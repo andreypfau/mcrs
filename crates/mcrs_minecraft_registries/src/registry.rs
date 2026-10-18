@@ -3,10 +3,10 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Id, ResourceLocation};
 use serde::Deserializer;
 
-use crate::id::{Id, MAX_ENTRIES};
+use crate::id::MAX_ENTRIES;
 use crate::load::LoadCtx;
 use crate::pack::PackIndex;
 
@@ -109,20 +109,25 @@ impl<R: RegistryType> Registry<R> {
     }
 
     pub fn by_name(&self, name: &ResourceLocation) -> Option<Id<R>> {
-        self.names.get(name).map(Id::new)
+        self.names
+            .get(name)
+            .and_then(|number| Id::checked(number, self.names.len()))
     }
 
     pub(crate) fn origin(&self, id: Id<R>) -> Option<PackIndex> {
         self.origins.get(id.index()).copied()
     }
 
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (Id<R>, &ResourceLocation, &R::Value)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &ResourceLocation, &R::Value)> {
+        let len = self.names.len();
         self.names
             .all()
             .iter()
             .zip(self.values.iter())
             .zip(0..=u16::MAX)
-            .map(|((name, value), number)| (Id::new(number), name, value))
+            .filter_map(move |((name, value), number)| {
+                Some((Id::checked(number, len)?, name, value))
+            })
     }
 
     pub fn entry_failures(&self, failures: Vec<(usize, String)>) -> Result<(), String> {

@@ -2,10 +2,11 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::item_tags;
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet, TagId, Tags};
+use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet, Tags};
 use mcrs_minecraft_world::resolvers::AddRegistryResolver;
 use std::sync::Arc;
 

@@ -250,7 +250,7 @@ fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
         (MIN_Y..MIN_Y + DEPTH)
             .rev()
             .find(|&y| {
-                let state = VoxelId(volume.voxel(BlockPos::new(x, y, z)).0);
+                let state = VoxelId(volume.voxel(BlockPos::new(x, y, z)).number());
                 state != air
                     && !(leaves.contains(&state)
                         && matches!(kind, HeightmapName::MotionBlockingNoLeaves))

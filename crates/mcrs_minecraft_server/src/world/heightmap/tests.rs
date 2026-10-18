@@ -15,7 +15,7 @@ fn state_of(block: &str) -> VoxelId {
         .block(block)
         .unwrap_or_else(|| panic!("the corpus declares {block}"))
         .default_state_id
-        .0
+        .number()
         .into()
 }
 
@@ -515,7 +515,7 @@ mod exhaustive {
         let blocks = corpus();
         let table = predicates();
         for block in blocks.blocks() {
-            let base = block.base_state_id.0;
+            let base = block.base_state_id.number();
             let solid = table.get(VoxelId(base)) & HeightmapKinds::SOLID;
             // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
             // only comparable among the states that carry none.

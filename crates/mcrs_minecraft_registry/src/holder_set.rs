@@ -1,7 +1,7 @@
 use crate::id::Id;
-use crate::tags::{TagId, Tags};
-use mcrs_minecraft_core::ResourceLocation;
+use crate::tags::Tags;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::{ResourceLocation, TagId};
 use serde::de::{SeqAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

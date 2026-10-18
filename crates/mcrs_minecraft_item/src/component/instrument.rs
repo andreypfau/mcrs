@@ -55,7 +55,7 @@ impl Sample for Instrument {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, STRING_ID};
         match &self.0 {
-            Holder::Reference(_) => vec![("", STRING_ID)],
+            Holder::Reference(_) | Holder::Skipped => vec![("", STRING_ID)],
             Holder::Direct(value) => {
                 let mut tags = vec![
                     ("", COMPOUND_ID),

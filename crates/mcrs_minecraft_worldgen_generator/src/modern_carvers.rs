@@ -510,7 +510,7 @@ impl ModernCarverBlockIds {
             .filter_map(|id| blocks.blocks().get(id.index()))
             .flat_map(|entry| {
                 (0..entry.state_count)
-                    .map(move |offset| VoxelId::from(entry.base_state_id.0 + offset))
+                    .map(move |offset| VoxelId::from(entry.base_state_id.number() + offset))
             })
             .collect();
         ModernCarverBlockIds { uncarvable }

@@ -5,7 +5,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
     SeqAccessDeserializer, U64Deserializer,
@@ -15,7 +15,6 @@ use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visit
 use super::declaration::Erased;
 use super::{Stage, Table};
 use crate::diagnostics::{Missing, Referrer};
-use crate::id::{Id, TagId};
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
 use crate::tags::{IdSet, Ref, TagTable};
 
@@ -173,7 +172,7 @@ impl<'a> LoadCtx<'a> {
         let names = slot.names.as_ref().ok_or_else(|| not_loaded(slot))?;
         names
             .get(name)
-            .map(Id::new)
+            .and_then(|number| Id::checked(number, names.len()))
             .ok_or_else(|| self.miss(index, slot, name, false))
     }
 
@@ -181,7 +180,7 @@ impl<'a> LoadCtx<'a> {
         let (index, slot) = self.visible::<R>()?;
         let tags = slot.tags.as_ref().ok_or_else(|| not_loaded(slot))?;
         tags.get(name)
-            .map(TagId::new)
+            .and_then(|number| TagId::checked(number, tags.len()))
             .ok_or_else(|| self.miss(index, slot, name, true))
     }
 }

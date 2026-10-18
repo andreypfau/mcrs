@@ -35,7 +35,7 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
         for (property, text) in properties.iter() {
             id = block.with_text(id, property, text)?;
         }
-        Some(id.0.into())
+        Some(id.number().into())
     }
 }
 

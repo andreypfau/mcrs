@@ -7,7 +7,7 @@ use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Stag
 use serde::Deserialize;
 
 use crate::support::{
-    Block, Packs, VillagerTrade, assets, damage, declarations, report_errors, rl, tag,
+    Block, Packs, VillagerTrade, assets, damage, declarations, get, report_errors, rl, tag,
 };
 
 fn block_tags(files: &[(&str, &str)]) -> Packs {
@@ -20,6 +20,45 @@ fn block_tags(files: &[(&str, &str)]) -> Packs {
         .collect();
     let files: Vec<(&str, &str)> = files.iter().map(|(p, b)| (p.as_str(), *b)).collect();
     Packs::new().world("a", &files)
+}
+
+fn block_tag_files(count: u32) -> Packs {
+    let mut packs = Packs::new().world("a", &[]);
+    for n in 0..count {
+        packs.files_mut().insert(
+            "file/a",
+            format!("data/t/tags/block/e{n:05}.json"),
+            r#"{"values":["stone"]}"#,
+        );
+    }
+    packs
+}
+
+#[test]
+fn a_registry_past_the_tag_range_fails_to_load() {
+    assert_eq!(
+        report_errors(&block_tag_files(65_537).load(&declarations())),
+        [Diagnostic::TooManyTags {
+            registry: rl("block"),
+            count: 65_537,
+        }]
+    );
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn a_registry_at_the_end_of_the_tag_range_loads() {
+        let (registries, _) = block_tag_files(65_536).load(&declarations()).unwrap();
+        let tags = registries.tags::<Block>().unwrap();
+        let last = tags.by_name(&rl("t:e65535")).unwrap();
+        assert_eq!(last.number(), u16::MAX);
+        assert_eq!(
+            tags.members(last).collect::<Vec<_>>(),
+            [get::<Block>(&registries, "stone")]
+        );
+    }
 }
 
 #[test]

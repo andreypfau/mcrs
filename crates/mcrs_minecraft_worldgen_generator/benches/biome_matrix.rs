@@ -106,7 +106,7 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|b| b.default_state_id.0.into())
+                .map(|b| b.default_state_id.number().into())
         },
         biome_tags: &biome_tags,
     };

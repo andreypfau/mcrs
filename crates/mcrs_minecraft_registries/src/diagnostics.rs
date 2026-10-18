@@ -107,6 +107,10 @@ pub enum Diagnostic {
         registry: ResourceLocation,
         count: usize,
     },
+    TooManyTags {
+        registry: ResourceLocation,
+        count: usize,
+    },
     Validation {
         registry: ResourceLocation,
         message: String,
@@ -142,6 +146,7 @@ impl Diagnostic {
             Diagnostic::Unresolved { registry, .. }
             | Diagnostic::EmptyRegistry { registry }
             | Diagnostic::TooManyEntries { registry, .. }
+            | Diagnostic::TooManyTags { registry, .. }
             | Diagnostic::Validation { registry, .. }
             | Diagnostic::Declaration { registry, .. } => Some((ROOT.into(), registry.clone())),
             _ => None,
@@ -266,14 +271,17 @@ impl fmt::Display for Diagnostic {
                 list(f, missing)
             }
             Diagnostic::EmptyRegistry { .. } => f.write_str("the registry must not be empty"),
-            Diagnostic::TooManyEntries { count, .. } => {
-                write!(f, "{count} entries is more than a registry can number")
-            }
+            Diagnostic::TooManyEntries { count, .. } => over_range(f, *count, "entries"),
+            Diagnostic::TooManyTags { count, .. } => over_range(f, *count, "tags"),
             Diagnostic::Validation { message, .. } | Diagnostic::Declaration { message, .. } => {
                 f.write_str(message)
             }
         }
     }
+}
+
+fn over_range(f: &mut fmt::Formatter<'_>, count: usize, what: &str) -> fmt::Result {
+    write!(f, "{count} {what} is more than a registry can number")
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

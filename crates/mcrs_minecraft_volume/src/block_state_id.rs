@@ -2,3 +2,9 @@
 /// was loaded, so it is not stable across versions or packs.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 pub struct BlockStateId(pub u16);
+
+impl BlockStateId {
+    pub const fn number(self) -> u16 {
+        self.0
+    }
+}

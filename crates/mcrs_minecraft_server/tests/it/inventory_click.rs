@@ -1265,7 +1265,7 @@ fn opened_over(block: &str) -> (World, Entity, Entity) {
     let mut palette = ChunkBlocks::default();
     palette
         .make_mut()
-        .set_cell(1, 1, 1, VoxelId(blocks.default_state(block).0));
+        .set_cell(1, 1, 1, VoxelId(blocks.default_state(block).number()));
     let section = world.spawn(palette).id();
     let container = world
         .spawn((

@@ -11,6 +11,12 @@ use std::marker::PhantomData;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 pub struct BlockStateId(pub u16);
 
+impl BlockStateId {
+    pub const fn number(self) -> u16 {
+        self.0
+    }
+}
+
 impl From<u16> for BlockStateId {
     #[inline]
     fn from(id: u16) -> Self {

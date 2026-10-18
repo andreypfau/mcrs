@@ -4,8 +4,9 @@ use crate::structures::index::EndBiomes;
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet, TagId};
+use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_world::resolvers::AddRegistryResolver;
 
 pub struct GeneratorIdsPlugin;

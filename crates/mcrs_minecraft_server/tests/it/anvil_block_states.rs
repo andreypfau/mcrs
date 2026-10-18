@@ -25,7 +25,7 @@ fn text(value: &PropertyValue) -> String {
 /// The property values of one of a block's states, in the corpus's own order.
 /// The last property varies fastest, so the offset unwinds from the back.
 fn state_properties(block: &BlockEntry, state: u16) -> Vec<(&str, &PropertyValue)> {
-    let mut offset = state - block.base_state_id.0;
+    let mut offset = state - block.base_state_id.number();
     let mut values = Vec::new();
     for property in block.properties.0.iter().rev() {
         let index = offset as usize % property.values.len();
@@ -50,7 +50,7 @@ fn entry(name: &str, properties: &[(&str, String)]) -> NbtTag {
 }
 
 fn default_entry(block: &BlockEntry) -> NbtTag {
-    let properties: Vec<(&str, String)> = state_properties(block, block.default_state_id.0)
+    let properties: Vec<(&str, String)> = state_properties(block, block.default_state_id.number())
         .iter()
         .map(|(name, value)| (*name, text(value)))
         .collect();
@@ -148,7 +148,7 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
     for name in ["minecraft:oak_stairs", "minecraft:note_block"] {
         let block = definitions.block(name).unwrap();
         let states: Vec<u16> = (0..block.state_count)
-            .map(|i| block.base_state_id.0 + i)
+            .map(|i| block.base_state_id.number() + i)
             .collect();
         let palette: Vec<NbtTag> = states
             .iter()
@@ -190,7 +190,7 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
         let properties: Vec<(&str, String)> =
             saved.iter().map(|(k, v)| (*k, v.to_string())).collect();
         let ids = resolve(vec![(0, vec![entry(name, &properties)])]).unwrap();
-        assert_eq!(ids, vec![expected.0 as u32], "{name}");
+        assert_eq!(ids, vec![expected.number() as u32], "{name}");
     }
 }
 
@@ -230,7 +230,7 @@ fn a_decoded_chunk_resolves_every_section_palette() {
             .block("minecraft:bedrock")
             .unwrap()
             .default_state_id
-            .0 as u32
+            .number() as u32
     );
     assert_eq!(
         ids[2],
@@ -238,7 +238,7 @@ fn a_decoded_chunk_resolves_every_section_palette() {
             .block("minecraft:stone")
             .unwrap()
             .default_state_id
-            .0 as u32
+            .number() as u32
     );
     assert_eq!(
         ids[3],
@@ -246,7 +246,7 @@ fn a_decoded_chunk_resolves_every_section_palette() {
             .block("minecraft:air")
             .unwrap()
             .default_state_id
-            .0 as u32
+            .number() as u32
     );
     assert!(
         ids.iter()
@@ -296,7 +296,10 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
         ],
     )])
     .expect("a partial property set resolves");
-    assert_eq!(ids, vec![default.0 as u32, facing_north.0 as u32]);
+    assert_eq!(
+        ids,
+        vec![default.number() as u32, facing_north.number() as u32]
+    );
 }
 
 /// The save's light arrays are not read: nothing writes a region file back, so
@@ -314,7 +317,10 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let sections = column_sections(chunk.sections, &[0, 1]);
 
     let (blocks, _) = sections[0].as_ref().expect("the saved section");
-    assert_eq!(blocks.0.get(0, 0, 0), stone.default_state_id.0.into());
+    assert_eq!(
+        blocks.0.get(0, 0, 0),
+        stone.default_state_id.number().into()
+    );
 
     let (blocks, _) = sections[1]
         .as_ref()
@@ -346,12 +352,12 @@ mod exhaustive {
             .blocks()
             .iter()
             .zip(&ids)
-            .filter(|(block, id)| **id != block.default_state_id.0 as u32)
+            .filter(|(block, id)| **id != block.default_state_id.number() as u32)
             .map(|(block, &id)| {
                 format!(
                     "{} resolved to {id}, expected {}",
                     block.identifier.as_str(),
-                    block.default_state_id.0
+                    block.default_state_id.number()
                 )
             })
             .collect();

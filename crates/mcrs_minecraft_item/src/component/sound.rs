@@ -12,7 +12,7 @@ pub struct BreakSound(pub Holder<SoundEvent>);
 pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> {
     use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, STRING_ID};
     match sound {
-        Holder::Reference(_) => vec![("", STRING_ID)],
+        Holder::Reference(_) | Holder::Skipped => vec![("", STRING_ID)],
         Holder::Direct(event) => {
             let mut tags = vec![("", COMPOUND_ID), ("sound_id", STRING_ID)];
             if event.range.is_some() {

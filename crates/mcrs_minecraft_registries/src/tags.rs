@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
 
-use crate::id::{Id, TagId};
+use crate::id::MAX_ENTRIES;
 use crate::registry::RegistryType;
 
 #[derive(Debug)]
@@ -18,16 +18,23 @@ struct Tag {
 
 #[derive(Debug)]
 pub(crate) struct TagTable {
+    entries: usize,
     tags: Box<[Tag]>,
-    index: HashMap<ResourceLocation, u32>,
+    index: HashMap<ResourceLocation, u16>,
 }
 
 impl TagTable {
-    pub(crate) fn new(tags: Vec<(ResourceLocation, Option<Vec<u16>>)>) -> Self {
+    pub(crate) fn new(
+        entries: usize,
+        tags: Vec<(ResourceLocation, Option<Vec<u16>>)>,
+    ) -> Result<Self, usize> {
+        if tags.len() > MAX_ENTRIES {
+            return Err(tags.len());
+        }
         let mut index = HashMap::new();
         let tags = tags
             .into_iter()
-            .zip(0..=u32::MAX)
+            .zip(0..=u16::MAX)
             .map(|((name, resolved), number)| {
                 if resolved.is_some() {
                     index.insert(name.clone(), number);
@@ -40,21 +47,29 @@ impl TagTable {
                 }
             })
             .collect();
-        Self { tags, index }
+        Ok(Self {
+            entries,
+            tags,
+            index,
+        })
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.tags.len()
     }
 
     pub(crate) fn names(&self) -> impl Iterator<Item = &ResourceLocation> {
         self.tags.iter().map(|tag| &tag.name)
     }
 
-    pub(crate) fn resolved(&self) -> impl Iterator<Item = (u32, &ResourceLocation, &[u16])> {
+    pub(crate) fn resolved(&self) -> impl Iterator<Item = (u16, &ResourceLocation, &[u16])> {
         self.tags
             .iter()
-            .zip(0..=u32::MAX)
+            .zip(0..=u16::MAX)
             .filter_map(|(tag, number)| Some((number, &tag.name, tag.members.as_deref()?)))
     }
 
-    pub(crate) fn get(&self, name: &ResourceLocation) -> Option<u32> {
+    pub(crate) fn get(&self, name: &ResourceLocation) -> Option<u16> {
         self.index.get(name).copied()
     }
 
@@ -87,7 +102,9 @@ impl<R: RegistryType> Tags<R> {
     }
 
     pub fn by_name(&self, name: &ResourceLocation) -> Option<TagId<R>> {
-        self.table.get(name).map(TagId::new)
+        self.table
+            .get(name)
+            .and_then(|number| TagId::checked(number, self.table.len()))
     }
 
     pub fn name(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
@@ -98,17 +115,19 @@ impl<R: RegistryType> Tags<R> {
         self.table.contains(tag.index(), id.index())
     }
 
-    pub fn members(&self, tag: TagId<R>) -> impl ExactSizeIterator<Item = Id<R>> + '_ {
+    pub fn members(&self, tag: TagId<R>) -> impl Iterator<Item = Id<R>> + '_ {
+        let entries = self.table.entries;
         self.table
             .members(tag.index())
             .iter()
-            .map(|&id| Id::new(id))
+            .filter_map(move |&id| Id::checked(id, entries))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (TagId<R>, &ResourceLocation)> {
+        let len = self.table.len();
         self.table
             .resolved()
-            .map(|(number, name, _)| (TagId::new(number), name))
+            .filter_map(move |(number, name, _)| Some((TagId::checked(number, len)?, name)))
     }
 }
 

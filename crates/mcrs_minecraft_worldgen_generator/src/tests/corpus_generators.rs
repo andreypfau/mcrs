@@ -455,7 +455,7 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
         carpet
             .attaches
             .iter()
-            .all(|mask| mask.contains(usize::from(moss_block.0))),
+            .all(|mask| mask.contains(usize::from(moss_block.number()))),
         "a full cube is something the carpet can climb on every side"
     );
 }

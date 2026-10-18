@@ -192,7 +192,7 @@ impl Sample for Equippable {
             Holder::Reference(id) if *id != sound_event::ITEM_SHEARS_SNIP.id() => {
                 tags.push(("shearing_sound", STRING_ID))
             }
-            Holder::Reference(_) => {}
+            Holder::Reference(_) | Holder::Skipped => {}
         }
         tags
     }

@@ -41,4 +41,4 @@ pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
 pub use static_key::StaticKey;
-pub use tags::{TagId, TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};
+pub use tags::{TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};

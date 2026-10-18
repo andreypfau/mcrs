@@ -20,12 +20,19 @@ const UNDECIDABLE: bool = false;
 pub(crate) type Term<'a> = (Option<Id<LootCondition>>, &'a LootCondition);
 
 pub fn holds(condition: Option<&Holder<LootCondition>>, ctx: &BlockBreakContext) -> bool {
-    condition.is_none_or(|condition| check(ctx.loot.resolve(condition).1, ctx))
+    condition.is_none_or(|condition| {
+        ctx.loot
+            .resolve(condition)
+            .map_or(UNDECIDABLE, |(_, term)| check(term, ctx))
+    })
 }
 
 pub fn check(condition: &LootCondition, ctx: &BlockBreakContext) -> bool {
     match condition {
-        LootCondition::Inverted(inverted) => !check(ctx.loot.resolve(&inverted.term).1, ctx),
+        LootCondition::Inverted(inverted) => ctx
+            .loot
+            .resolve(&inverted.term)
+            .is_some_and(|(_, term)| !check(term, ctx)),
         LootCondition::AnyOf(terms) => ctx
             .loot
             .terms(&terms.terms)
@@ -111,10 +118,11 @@ fn block_matches(predicate: &BlockPredicate, ctx: &BlockBreakContext) -> bool {
 }
 
 impl LootRegistries {
-    pub(crate) fn resolve<'a>(&'a self, holder: &'a Holder<LootCondition>) -> Term<'a> {
+    pub(crate) fn resolve<'a>(&'a self, holder: &'a Holder<LootCondition>) -> Option<Term<'a>> {
         match holder {
-            Holder::Direct(condition) => (None, condition),
-            Holder::Reference(id) => (Some(*id), &self.predicates[*id]),
+            Holder::Direct(condition) => Some((None, condition)),
+            Holder::Reference(id) => Some((Some(*id), &self.predicates[*id])),
+            Holder::Skipped => None,
         }
     }
 
@@ -127,11 +135,14 @@ impl LootRegistries {
             HolderList::One(holder) => (std::slice::from_ref(&**holder), None),
             HolderList::List(holders) => (&holders[..], None),
         };
-        holders.iter().map(|holder| self.resolve(holder)).chain(
-            tag.into_iter()
-                .flat_map(|tag| self.predicate_tags.members(tag))
-                .map(|id| (Some(id), &self.predicates[id])),
-        )
+        holders
+            .iter()
+            .filter_map(|holder| self.resolve(holder))
+            .chain(
+                tag.into_iter()
+                    .flat_map(|tag| self.predicate_tags.members(tag))
+                    .map(|id| (Some(id), &self.predicates[id])),
+            )
     }
 
     fn subterms<'a>(&'a self, condition: &'a LootCondition) -> impl Iterator<Item = Term<'a>> + 'a {
@@ -142,7 +153,7 @@ impl LootRegistries {
         };
         single
             .into_iter()
-            .map(|holder| self.resolve(holder))
+            .filter_map(|holder| self.resolve(holder))
             .chain(list.into_iter().flat_map(|list| self.terms(list)))
     }
 

@@ -72,12 +72,12 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
 /// A paletted container is a cube of registry ids. It uses a custom compression scheme based on how
 /// may distinct registry ids are in the cube.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PalettedContainer<V: Hash + Eq + Copy + Default, const DIM: usize> {
+pub enum PalettedContainer<V: Hash + Eq + Copy, const DIM: usize> {
     Homogeneous(V),
     Heterogeneous(Box<HeterogeneousPaletteData<V, DIM>>),
 }
 
-impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> {
+impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
 
@@ -161,7 +161,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     /// Cells in `index` order: y-major, then z, then x.
     pub fn from_cells(cells: &[V]) -> Self {
         assert_eq!(cells.len(), Self::VOLUME);
-        let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
+        let mut cube = Box::new([[[cells[0]; DIM]; DIM]; DIM]);
         cube.as_flattened_mut()
             .as_flattened_mut()
             .copy_from_slice(cells);

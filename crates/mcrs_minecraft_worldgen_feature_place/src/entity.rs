@@ -627,7 +627,7 @@ mod tests {
         spawn_conditions: Vec<SpawnSelector>,
     }
 
-    fn tag_of<R: 'static>(tag: &str) -> Option<mcrs_minecraft_registry::TagId<R>> {
+    fn tag_of<R: 'static>(tag: &str) -> Option<mcrs_minecraft_core::TagId<R>> {
         corpus_set()
             .tags::<R>()?
             .get(&TagKey::<R, _>::from_location(

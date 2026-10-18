@@ -111,7 +111,7 @@ fn material_router(registry: &Registry<Biome>, seed: u64) -> (NoiseRouter, Mater
             blocks()
                 .0
                 .block(state.name.as_str())
-                .map(|entry| entry.default_state_id.0.into())
+                .map(|entry| entry.default_state_id.number().into())
         },
         biome_tags: &biome_tags,
     };
@@ -204,7 +204,7 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
         let index = id.index();
         let entry = &blocks().0.blocks()[index];
         for offset in 0..entry.state_count {
-            mask.insert((entry.base_state_id.0 + offset) as usize);
+            mask.insert((entry.base_state_id.number() + offset) as usize);
         }
     }
     mask
@@ -401,7 +401,7 @@ fn states_of(name: &str) -> std::ops::Range<u16> {
         .0
         .block(name)
         .unwrap_or_else(|| panic!("{name} is not a block"));
-    let base = entry.base_state_id.0;
+    let base = entry.base_state_id.number();
     base..base + entry.state_count
 }
 

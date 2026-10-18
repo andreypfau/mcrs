@@ -12,6 +12,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub enum Holder<V: RegistryValue> {
     Reference(Id<V::Registry>),
     Direct(V),
+    /// A reference a walk read past without a registry.
+    Skipped,
 }
 
 impl<V: RegistryValue + Clone> Clone for Holder<V> {
@@ -19,6 +21,7 @@ impl<V: RegistryValue + Clone> Clone for Holder<V> {
         match self {
             Holder::Reference(id) => Holder::Reference(*id),
             Holder::Direct(value) => Holder::Direct(value.clone()),
+            Holder::Skipped => Holder::Skipped,
         }
     }
 }
@@ -28,6 +31,7 @@ impl<V: RegistryValue + PartialEq> PartialEq for Holder<V> {
         match (self, other) {
             (Holder::Reference(a), Holder::Reference(b)) => a == b,
             (Holder::Direct(a), Holder::Direct(b)) => a == b,
+            (Holder::Skipped, Holder::Skipped) => true,
             _ => false,
         }
     }
@@ -38,6 +42,7 @@ impl<V: RegistryValue + fmt::Debug> fmt::Debug for Holder<V> {
         match self {
             Holder::Reference(id) => f.debug_tuple("Reference").field(id).finish(),
             Holder::Direct(value) => f.debug_tuple("Direct").field(value).finish(),
+            Holder::Skipped => f.write_str("Skipped"),
         }
     }
 }
@@ -47,6 +52,7 @@ impl<V: RegistryValue + Serialize> Serialize for Holder<V> {
         match self {
             Holder::Reference(id) => id.serialize(s),
             Holder::Direct(value) => value.serialize(s),
+            Holder::Skipped => Err(S::Error::custom("a skipped reference has no name to write")),
         }
     }
 }
@@ -68,7 +74,7 @@ impl<'de, V: RegistryValue + DeserializeOwned> Deserialize<'de> for Holder<V> {
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 if skipping_sets() {
-                    return Ok(Holder::Reference(Id::from_raw(0)));
+                    return Ok(Holder::Skipped);
                 }
                 Id::deserialize(value::StrDeserializer::new(text)).map(Holder::Reference)
             }
@@ -148,6 +154,7 @@ impl<V: RegistryValue + Serialize> Serialize for HolderWireOnly<V> {
                 "an inline {} entry has no persistent form",
                 crate::set::label::<V::Registry>()
             ))),
+            Holder::Skipped => Err(S::Error::custom("a skipped reference has no name to write")),
         }
     }
 }
@@ -279,7 +286,7 @@ mod tests {
     #[test]
     fn a_walk_that_skips_sets_reads_a_reference_without_a_registry() {
         let skipped = skip_sets(|| read("minecraft:anything").unwrap());
-        assert!(matches!(skipped, Holder::Reference(_)));
+        assert!(matches!(skipped, Holder::Skipped));
         assert!(read("minecraft:anything").is_err());
     }
 

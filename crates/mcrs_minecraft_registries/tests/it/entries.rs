@@ -1,7 +1,7 @@
 use std::mem::size_of;
 
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Id, Level, LoadCtx, Stage};
+use mcrs_minecraft_core::{Id, ResourceLocation};
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Level, LoadCtx, Stage};
 
 use crate::support::{
     Damage, DamageType, LootTable, Packs, damage, declarations, get, names, report_errors, rl, tag,

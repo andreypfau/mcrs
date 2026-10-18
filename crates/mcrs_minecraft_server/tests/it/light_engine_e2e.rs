@@ -36,7 +36,7 @@ fn state(blocks: &Blocks, name: &str) -> VoxelId {
         .block(name)
         .unwrap_or_else(|| panic!("{name} is declared"))
         .default_state_id
-        .0
+        .number()
         .into()
 }
 

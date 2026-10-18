@@ -246,7 +246,13 @@ fn build_tags(
         if !outcome.unresolved.is_empty() {
             unresolved.entry(at).or_default().extend(outcome.unresolved);
         }
-        slot.tags = Some(Arc::new(outcome.table));
+        match outcome.table {
+            Ok(table) => slot.tags = Some(Arc::new(table)),
+            Err(count) => errors.push(Diagnostic::TooManyTags {
+                registry: slot.key().clone(),
+                count,
+            }),
+        }
     }
     diagnostics.extend(resolution);
     unresolved

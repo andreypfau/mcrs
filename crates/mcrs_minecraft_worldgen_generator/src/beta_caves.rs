@@ -24,7 +24,7 @@ pub struct BetaCaveBlockIds {
 impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
         let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
-            blocks.default_state_of(block).0.into()
+            blocks.default_state_of(block).number().into()
         };
         BetaCaveBlockIds {
             air: state(mcrs_minecraft_block::keys::Block::Air.id()),
@@ -135,7 +135,7 @@ mod tests {
         let ids = BetaCaveBlockIds::resolve(corpus());
         let sand: VoxelId = corpus()
             .default_state_of(mcrs_minecraft_block::keys::Block::Sand.id())
-            .0
+            .number()
             .into();
         let sections: Vec<i32> = (0..8).collect();
         let column = ColumnBlocks::new(&sections);

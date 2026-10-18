@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for Member {
 }
 
 pub(crate) struct TagOutcome {
-    pub(crate) table: TagTable,
+    pub(crate) table: Result<TagTable, usize>,
     pub(crate) file_diagnostics: Vec<Diagnostic>,
     pub(crate) resolution_diagnostics: Vec<Diagnostic>,
     pub(crate) unresolved: Vec<Missing>,
@@ -502,7 +502,7 @@ pub(crate) fn build(
         .collect();
 
     TagOutcome {
-        table: TagTable::new(number(&nodes, &index, resolved, previous)),
+        table: TagTable::new(names.len(), number(&nodes, &index, resolved, previous)),
         file_diagnostics,
         resolution_diagnostics,
         unresolved,

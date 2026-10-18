@@ -371,7 +371,7 @@ fn overworld_context(seed: u64) -> FillContext {
         Preset::Overworld.name(),
     )));
     let mut context = fill_context(router, material, registry, source);
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").0.into();
+    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").number().into();
     if let ColumnGenerator::Modern { carver_blocks, .. } = &mut context.program.generator {
         *carver_blocks = Arc::new(ModernCarverBlockIds::for_test(vec![bedrock]));
     }

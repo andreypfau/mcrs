@@ -1,9 +1,7 @@
 use std::cell::Cell;
 
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::{
-    Declaration, Id, LoadCtx, ReadValue, Registries, RegistryType, Stage,
-};
+use mcrs_minecraft_core::{Id, ResourceLocation};
+use mcrs_minecraft_registries::{Declaration, LoadCtx, ReadValue, Registries, RegistryType, Stage};
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer};
 
@@ -31,7 +29,7 @@ impl ReadValue for Seen {
     }
 }
 
-type TagView = Vec<(u32, ResourceLocation, Vec<u16>)>;
+type TagView = Vec<(u16, ResourceLocation, Vec<u16>)>;
 type RegistrySnapshot = (ResourceLocation, Vec<ResourceLocation>, TagView);
 
 fn snapshot<R: RegistryType>(registries: &Registries) -> (Vec<ResourceLocation>, TagView) {
@@ -42,7 +40,7 @@ fn snapshot<R: RegistryType>(registries: &Registries) -> (Vec<ResourceLocation>,
         .iter()
         .map(|(tag, name)| {
             let members = tags.members(tag).map(Id::number).collect();
-            (u32::try_from(tag.index()).unwrap(), name.clone(), members)
+            (tag.number(), name.clone(), members)
         })
         .collect();
     (names, tags)

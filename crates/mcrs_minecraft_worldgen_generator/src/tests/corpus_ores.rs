@@ -137,7 +137,7 @@ impl Terrain {
 
 #[cfg(test)]
 fn state(name: &str) -> VoxelId {
-    VoxelId::from(blocks().0.default_state(name).0)
+    VoxelId::from(blocks().0.default_state(name).number())
 }
 
 #[cfg(test)]

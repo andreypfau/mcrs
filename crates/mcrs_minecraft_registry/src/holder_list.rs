@@ -1,14 +1,13 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::RegistryValue;
+use mcrs_minecraft_core::{RegistryValue, TagId};
 use serde::de::{DeserializeOwned, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::holder::Holder;
 use crate::holder_set::HolderSet;
-use crate::tags::TagId;
 
 /// A tag of a registry, or entries of it each named by id or written inline.
 pub enum HolderList<V: RegistryValue> {

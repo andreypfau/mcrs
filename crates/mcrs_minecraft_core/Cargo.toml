@@ -4,9 +4,6 @@ description = "Positions, directions, Mth, ResourceLocation, ResourceKey and Tag
 version.workspace = true
 edition.workspace = true
 
-[lib]
-doctest = false
-
 [lints]
 workspace = true
 

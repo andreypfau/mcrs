@@ -46,7 +46,7 @@ const FLOOR_TOP: f64 = 1.0;
 /// A dimension whose only section is ticking and has a stone floor at y = 0.
 fn dimension(world: &mut World) -> Entity {
     let (blocks, _) = standalone_corpus();
-    let stone = VoxelId(blocks.default_state("minecraft:stone").0);
+    let stone = VoxelId(blocks.default_state("minecraft:stone").number());
     let mut tickets = SectionTickets::default();
     tickets.add(SectionPos::new(0, 0, 0), Ticket::player_simulation(1));
     let dim = world

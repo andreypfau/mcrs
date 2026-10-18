@@ -217,8 +217,8 @@ fn grow<W>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
+    use mcrs_minecraft_block::keys::Block;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
-    use mcrs_minecraft_registry::Id;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -254,7 +254,7 @@ mod tests {
     fn flat_world() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.sturdy_up = mask_of([STONE, MOSS, DRY, WET]);
-        volume.world.block_of_state = (0..64).map(Id::from_raw).collect();
+        volume.world.block_of_state = Block::ALL.iter().take(64).map(|block| block.id()).collect();
         for x in -12..=12 {
             for z in -12..=12 {
                 for y in 0..=FLOOR_TOP {

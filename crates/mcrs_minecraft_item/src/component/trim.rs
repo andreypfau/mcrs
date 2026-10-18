@@ -59,11 +59,11 @@ impl Sample for Trim {
         use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, STRING_ID};
         let mut tags = vec![("", COMPOUND_ID)];
         tags.push(match self.material {
-            Holder::Reference(_) => ("material", STRING_ID),
+            Holder::Reference(_) | Holder::Skipped => ("material", STRING_ID),
             Holder::Direct(_) => ("material", COMPOUND_ID),
         });
         match self.pattern {
-            Holder::Reference(_) => tags.push(("pattern", STRING_ID)),
+            Holder::Reference(_) | Holder::Skipped => tags.push(("pattern", STRING_ID)),
             Holder::Direct(_) => {
                 tags.extend([("pattern", COMPOUND_ID), ("pattern.decal", BYTE_ID)])
             }
@@ -101,7 +101,7 @@ impl Sample for ProvidesTrimMaterial {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{COMPOUND_ID, STRING_ID};
         match self.0 {
-            Holder::Reference(_) => vec![("", STRING_ID)],
+            Holder::Reference(_) | Holder::Skipped => vec![("", STRING_ID)],
             Holder::Direct(_) => vec![("", COMPOUND_ID), ("palette_id", STRING_ID)],
         }
     }

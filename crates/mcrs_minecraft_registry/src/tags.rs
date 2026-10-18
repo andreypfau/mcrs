@@ -4,6 +4,7 @@ use crate::names::NameTable;
 use crate::registry::Registry;
 use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use serde::de::value::MapAccessDeserializer;
@@ -16,47 +17,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 type Name = ResourceLocation<Arc<str>>;
-
-pub struct TagId<R> {
-    number: u16,
-    _marker: PhantomData<fn() -> R>,
-}
-
-impl<R> Clone for TagId<R> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<R> Copy for TagId<R> {}
-impl<R> PartialEq for TagId<R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.number == other.number
-    }
-}
-impl<R> Eq for TagId<R> {}
-impl<R> std::hash::Hash for TagId<R> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.number.hash(state);
-    }
-}
-impl<R> fmt::Debug for TagId<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TagId({})", self.number)
-    }
-}
-
-impl<R> TagId<R> {
-    fn from_number(number: u16) -> Self {
-        TagId {
-            number,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn number(self) -> u16 {
-        self.number
-    }
-}
 
 #[derive(Debug)]
 pub struct TagTable {
@@ -180,7 +140,7 @@ impl<R> Tags<R> {
             .numbers
             .get(key.as_str())
             .copied()
-            .map(TagId::from_number)
+            .and_then(|number| TagId::checked(number, self.table.names.len()))
     }
 
     pub fn registry(&self) -> &Name {
@@ -202,27 +162,28 @@ impl<R> Tags<R> {
         &self.table
     }
 
-    pub fn tag_ids(&self) -> impl ExactSizeIterator<Item = TagId<R>> + use<R> {
+    pub fn tag_ids(&self) -> impl Iterator<Item = TagId<R>> + use<R> {
+        let len = self.table.names.len();
         (0..=u16::MAX)
-            .take(self.table.names.len())
-            .map(TagId::from_number)
+            .take(len)
+            .filter_map(move |number| TagId::checked(number, len))
     }
 
     pub fn members(
         &self,
         tag: TagId<R>,
     ) -> impl ExactSizeIterator<Item = Id<R>> + DoubleEndedIterator + '_ {
-        self.table.members[usize::from(tag.number)]
+        self.table.members[tag.index()]
             .iter()
             .map(|&number| Id::from_number(number))
     }
 
     pub fn contains(&self, tag: TagId<R>, id: Id<R>) -> bool {
-        self.table.bits[usize::from(tag.number)].contains(id.index())
+        self.table.bits[tag.index()].contains(id.index())
     }
 
     pub fn name(&self, tag: TagId<R>) -> &Name {
-        &self.table.names[usize::from(tag.number)]
+        &self.table.names[tag.index()]
     }
 }
 
@@ -1602,7 +1563,7 @@ mod tests {
         let (tags, problems) =
             many_tags(usize::from(u16::MAX) + 2, |_| r#"{"values":[]}"#.to_owned());
         assert_eq!(tags.table().len(), usize::from(u16::MAX) + 1);
-        assert_eq!(tags.tag_ids().len(), usize::from(u16::MAX) + 1);
+        assert_eq!(tags.tag_ids().count(), usize::from(u16::MAX) + 1);
         assert_eq!(tags.tag_ids().last().map(TagId::number), Some(u16::MAX));
         assert_eq!(problems.len(), 1, "{problems:?}");
         let TagProblem::Dropped { tag, message, .. } = &problems[0] else {

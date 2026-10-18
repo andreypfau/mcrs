@@ -207,7 +207,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                         .ok()??;
                     find(cases, &ResourceKey::from_location(name))
                 }
-                Holder::Direct(_) => None,
+                Holder::Direct(_) | Holder::Skipped => None,
             },
             SelectSwitch::DisplayContext { cases } => find(cases, &DisplayContext::Gui),
             SelectSwitch::BlockState {

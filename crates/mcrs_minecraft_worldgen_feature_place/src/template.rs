@@ -1001,7 +1001,6 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_core::rl;
-    use mcrs_minecraft_registry::Id;
     use mcrs_minecraft_volume::BlockStateId;
     use mcrs_minecraft_volume::VoxelStoreMut;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
@@ -1058,12 +1057,12 @@ mod tests {
                 ],
             },
         ];
-        let mut block_of_state = vec![Id::from_raw(0); 128];
+        let mut block_of_state = vec![Block::Air.id(); 128];
         let mut any_source = FixedBitSet::with_capacity(128);
         any_source.insert(WATER.0 as usize);
-        for (block, layout) in (0..).zip(&layouts) {
+        for (block, layout) in Block::ALL.iter().zip(&layouts) {
             for id in layout.base..layout.base + 32 {
-                block_of_state[id as usize] = Id::from_raw(block);
+                block_of_state[id as usize] = block.id();
                 if value_of(layout, VoxelId(id), "waterlogged") == Some("true") {
                     any_source.insert(id as usize);
                 }

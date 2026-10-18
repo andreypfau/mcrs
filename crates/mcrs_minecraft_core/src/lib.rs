@@ -18,11 +18,16 @@ pub mod tag_key;
 pub mod version;
 pub mod voxel_shape;
 
+mod block_state_id;
+mod id;
+
 pub use block_pos::BlockPos;
+pub use block_state_id::BlockStateId;
 pub use bounded::Bounded;
 pub use bounding_box::BoundingBox;
 pub use column_pos::ColumnPos;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
+pub use id::{Id, NarrowError, TagId};
 pub use local_pos::LocalPos;
 pub use mirror::Mirror;
 pub use quart_pos::QuartPos;

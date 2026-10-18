@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
@@ -6,7 +7,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload, tags_payload_of};
 use mcrs_minecraft_registry::Registered;
-use mcrs_minecraft_registry::{Registry, TagId, Tags};
+use mcrs_minecraft_registry::{Registry, Tags};
 use std::borrow::Cow;
 use std::sync::Arc;
 

@@ -52,7 +52,7 @@ pub struct SurfaceStates {
 impl SurfaceStates {
     pub fn new(blocks: &BlockDefinitions) -> Self {
         let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
-            blocks.default_state_of(block).0.into()
+            blocks.default_state_of(block).number().into()
         };
         Self {
             snow_block: state(mcrs_minecraft_block::keys::Block::SnowBlock.id()),

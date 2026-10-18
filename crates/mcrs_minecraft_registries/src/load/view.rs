@@ -59,7 +59,7 @@ impl<'a> RegistryView<'a> {
         self.visible.names.as_deref().map_or(&[], Names::all)
     }
 
-    pub fn tags(&self) -> impl Iterator<Item = (u32, &'a ResourceLocation, &'a [u16])> {
+    pub fn tags(&self) -> impl Iterator<Item = (u16, &'a ResourceLocation, &'a [u16])> {
         self.visible
             .tags
             .as_deref()

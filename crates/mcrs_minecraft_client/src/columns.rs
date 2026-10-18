@@ -1279,7 +1279,7 @@ mod tests {
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_protocol::GameMode;
-        use mcrs_minecraft_registry::Id;
+        use mcrs_minecraft_registry::{Registered, Registry};
 
         let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionType>().unwrap();
@@ -1307,8 +1307,16 @@ mod tests {
                 sections: 16,
             })
         );
+        let widened = Registry::<DimensionType>::new(
+            DimensionType::REGISTRY,
+            types
+                .iter()
+                .map(|(_, name)| name.clone())
+                .chain([mcrs_minecraft_core::rl!("mcrs:beyond").to_arc()]),
+        )
+        .unwrap();
         let past = CurrentDimension::of(&PlayerSpawnInfo::new(
-            Id::from_raw(u16::try_from(types.len()).unwrap()),
+            widened.by_name("mcrs:beyond").unwrap(),
             OVERWORLD.into(),
             GameMode::Survival,
         ));

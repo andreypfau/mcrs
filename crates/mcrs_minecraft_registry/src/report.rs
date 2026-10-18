@@ -1,7 +1,8 @@
 use crate::id::Id;
 use crate::registry::{Registry, UnknownEntry};
 use crate::set::RegistrySet;
-use crate::tags::{TagId, Tags};
+use crate::tags::Tags;
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;

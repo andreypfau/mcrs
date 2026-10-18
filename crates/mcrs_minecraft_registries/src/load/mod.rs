@@ -15,10 +15,10 @@ pub use declaration::{DataDeclaration, Declaration};
 pub use loader::{StageScope, load, load_with};
 pub use view::{RegistryView, StageView};
 
-use crate::id::Id;
 use crate::pack::{KnownPack, PackStack, StackedPack};
 use crate::registry::{Names, Registry, RegistryType};
 use crate::tags::{TagTable, Tags};
+use mcrs_minecraft_core::Id;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Stage {

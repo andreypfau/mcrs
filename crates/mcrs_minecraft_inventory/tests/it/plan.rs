@@ -3,16 +3,16 @@ use mcrs_minecraft_inventory::{
     Click, Drag, Feed, MenuSnapshot, Op, Planner, SLOT_CLICKED_OUTSIDE, Slot, Source, StackKey,
     StackView, player_menu_layout, quick_craft_counts,
 };
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ContainerInput, QuickCraftButton, QuickCraftKind, QuickCraftStage,
 };
-use mcrs_minecraft_registry::Id;
 
 fn stone(count: u8) -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(1),
+            item: Item::Stone.id(),
             components: ComponentPatch::EMPTY,
         },
         count,
@@ -29,7 +29,7 @@ fn stone(count: u8) -> StackView {
 fn ender_pearl(count: u8) -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(8),
+            item: Item::Deepslate.id(),
             components: ComponentPatch::EMPTY,
         },
         count,
@@ -46,7 +46,7 @@ fn ender_pearl(count: u8) -> StackView {
 fn helmet() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(2),
+            item: Item::Granite.id(),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -63,7 +63,7 @@ fn helmet() -> StackView {
 fn leggings() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(3),
+            item: Item::PolishedGranite.id(),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -80,7 +80,7 @@ fn leggings() -> StackView {
 fn sword() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(4),
+            item: Item::Diorite.id(),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -97,7 +97,7 @@ fn sword() -> StackView {
 fn cursed_chestplate() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_raw(7),
+            item: Item::PolishedAndesite.id(),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -693,7 +693,7 @@ fn a_sword_is_refused_by_every_armour_slot() {
 fn swapping_onto_worn_armour_is_gated_by_the_incoming_stack() {
     let other_helmet = StackView {
         key: StackKey {
-            item: Id::from_raw(5),
+            item: Item::PolishedDiorite.id(),
             components: ComponentPatch::EMPTY,
         },
         ..helmet()

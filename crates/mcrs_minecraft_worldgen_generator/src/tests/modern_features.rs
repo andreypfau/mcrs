@@ -76,11 +76,11 @@ fn program_of(tables: &FeatureTables, registry: &Registry<Biome>) -> FeatureProg
 }
 
 fn stone() -> VoxelId {
-    VoxelId::from(blocks().0.default_state("minecraft:stone").0)
+    VoxelId::from(blocks().0.default_state("minecraft:stone").number())
 }
 
 fn coal_ore() -> VoxelId {
-    VoxelId::from(blocks().0.default_state("minecraft:coal_ore").0)
+    VoxelId::from(blocks().0.default_state("minecraft:coal_ore").number())
 }
 
 fn region(center: ColumnPos, y_sections: &Arc<[i32]>) -> RegionSnapshots {
@@ -310,13 +310,13 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     for name in ["minecraft:air", "minecraft:stone", "minecraft:short_grass"] {
         let state = blocks().0.default_state(name);
         assert!(
-            mask.contains(state.0 as usize),
+            mask.contains(state.number() as usize),
             "{name} holds no fluid, so the empty fluid matches it"
         );
     }
     let water = blocks().0.default_state("minecraft:water");
     assert!(
-        !mask.contains(water.0 as usize),
+        !mask.contains(water.number() as usize),
         "water is not the empty fluid"
     );
 }

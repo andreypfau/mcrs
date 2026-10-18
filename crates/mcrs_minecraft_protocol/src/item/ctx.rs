@@ -291,6 +291,7 @@ where
                 encode_holder_id(None, &mut w)?;
                 value.encode_ctx(ctx, w)
             }
+            Holder::Skipped => anyhow::bail!("a skipped reference has no wire form"),
         }
     }
 }
@@ -311,7 +312,7 @@ where
             .with_context(|| format!("registry {registry} has no id {wire}"))?;
         if skipping_sets() {
             // The walk discards its value and has no registry to resolve the name against.
-            return Ok(Holder::Reference(Id::from_raw(0)));
+            return Ok(Holder::Skipped);
         }
         let id = local_registry::<V::Registry>(ctx)?
             .get(&ResourceKey::<V::Registry>::from_location(name.clone()))

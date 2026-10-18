@@ -2,9 +2,9 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_registries::{
-    AvailablePack, Declaration, Diagnostic, Diagnostics, Features, Id, IdSet, LoadCtx, PackFiles,
+    AvailablePack, Declaration, Diagnostic, Diagnostics, Features, IdSet, LoadCtx, PackFiles,
     PackSelection, PackStack, ReadValue, Ref, Registries, RegistryType, Stage, StageScope,
     load_with, pack_stack,
 };
