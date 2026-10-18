@@ -66,4 +66,6 @@ impl<K: Kinds> Default for StepOutput<K> {
 pub enum StepError {
     #[error("message for section {section} reached a partition that does not own it")]
     NotOwned { section: SectionPos },
+    #[error("a tick or event for section {section} reached a cell, which holds no queues")]
+    NoQueues { section: SectionPos },
 }

@@ -33,11 +33,15 @@ fn validate<K: Kinds, V: Volume>(
 ) -> Result<(), StepError> {
     for message in inbound {
         let section = message.section();
-        let unowned = matches!(volume.access(section), Access::Read | Access::Foreign);
-        let cell_work =
-            kind == PartitionKind::Cell && !matches!(message.body, MessageBody::Set { .. });
-        if unowned || cell_work {
+        if matches!(volume.access(section), Access::Read | Access::Foreign) {
             return Err(StepError::NotOwned { section });
+        }
+        let queued = !matches!(
+            message.body,
+            MessageBody::Set { .. } | MessageBody::Update(_)
+        );
+        if kind == PartitionKind::Cell && queued {
+            return Err(StepError::NoQueues { section });
         }
     }
     Ok(())

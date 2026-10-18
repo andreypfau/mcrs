@@ -1,8 +1,8 @@
 use crate::probe::*;
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
 use mcrs_minecraft_simulation::{
-    BlockUpdateFlags, ChainLedger, ChainLimit, Destroyed, Message, MessageBody, Phase, StepOutput,
-    StepReport, UpdateRequest,
+    BlockUpdateFlags, ChainLedger, ChainLimit, Destroyed, Message, MessageBody, PartitionKind,
+    Phase, StepError, StepOutput, StepReport, UpdateRequest,
 };
 use mcrs_minecraft_volume::Access;
 
@@ -956,4 +956,30 @@ fn sim_model_007_a_neighbour_update_into_a_read_section_leaves_as_a_single_updat
     local.push(target);
     assert!(check_sim_model_007_update(&local, &requests, &receiver_hits, target).is_err());
     assert!(check_sim_model_007_update(&sender_hits, &requests, &[], target).is_err());
+}
+
+#[test]
+fn a_cell_continues_a_chain_that_spills_into_it_and_refuses_queued_work() {
+    let target = at(8, 8, 8);
+    let spill = Message {
+        stamp: stamp(1, 0),
+        origin: stamp(1, 0),
+        body: MessageBody::Update(UpdateRequest::Single {
+            target,
+            block: BLOCK_A,
+        }),
+    };
+    let mut cell = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
+    cell.kind = PartitionKind::Cell;
+    cell.step(100, Phase::Ingress, &[spill])
+        .expect("a cell takes chain continuations");
+    assert_eq!(neighbour_hits(&cell.behaviour.log()), [target]);
+
+    let tick = block_tick_message(1, target, BLOCK_A, 100);
+    assert_eq!(
+        cell.step(100, Phase::Ingress, &[tick]),
+        Err(StepError::NoQueues {
+            section: section(0, 0, 0)
+        })
+    );
 }
