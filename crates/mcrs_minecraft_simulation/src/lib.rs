@@ -10,6 +10,8 @@
 )]
 
 mod access;
+mod behaviour;
+mod cx;
 mod event_queue;
 mod message;
 mod output;
@@ -17,16 +19,22 @@ mod policy;
 mod scalar;
 mod section;
 mod sequence;
+mod shard;
+mod step;
 mod stream;
 mod tick_queue;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
+pub use behaviour::{BlockBehaviour, BlockFacts};
+pub use cx::Cx;
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
 pub use message::{Message, MessageBody};
-pub use output::BlockWrite;
+pub use output::{BlockWrite, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use sequence::{SequenceClock, SubTick, TickKey};
+pub use shard::{BlockShard, Env, KernelConfig, Phase, PhaseInput, StepAt};
+pub use step::step;
 pub use stream::{StreamKey, StreamSeed};
 pub use tick_queue::{
     Collected, Kinds, Queued, SavedTick, ScheduledTick, SectionOccupied, SectionTicks,
