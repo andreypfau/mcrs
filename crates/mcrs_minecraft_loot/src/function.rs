@@ -1,6 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{
     BoundedString, CompactList, NonNegativeInt, Validate, default_true, is_default, is_true,
 };
@@ -16,8 +17,8 @@ use mcrs_minecraft_item::keys::{DataComponentType, Item, MapDecorationType, MobE
 use mcrs_minecraft_item::loot::LootTable;
 use mcrs_minecraft_item::patch::ComponentPatch;
 use mcrs_minecraft_item::{AttributeOperation, InstrumentValue, Text};
-use mcrs_minecraft_predicate::UniqueMap;
-use mcrs_minecraft_registry::{Holder, HolderList, HolderSet, Id};
+use mcrs_minecraft_predicate::{EnchantmentKey, UniqueMap};
+use mcrs_minecraft_registry::{Holder, HolderList, HolderSet};
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
@@ -247,7 +248,7 @@ function! {
 }
 
 /// Levels by enchantment, in the order read.
-pub type Enchantments = UniqueMap<Id<EnchantmentData>, Holder<IntExpression>>;
+pub type Enchantments = UniqueMap<EnchantmentKey, Holder<IntExpression>>;
 
 function! {
     pub struct SetCustomData {
@@ -270,6 +271,7 @@ function! {
 
 function! {
     pub struct EnchantedCountIncrease {
+        #[serde(with = "mcrs_minecraft_registry::by_name")]
         pub enchantment: Id<EnchantmentData>,
         pub count: Holder<FloatExpression>,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -493,11 +495,17 @@ pub struct UniformParameters {
 struct ApplyBonusRepr {
     #[serde(default)]
     condition: Option<Holder<LootCondition>>,
+    #[serde(deserialize_with = "mcrs_minecraft_registry::by_name::deserialize")]
     enchantment: Id<EnchantmentData>,
     formula: ResourceLocation,
     #[serde(default)]
     parameters: Option<mcrs_minecraft_registry::dispatch::Buffered>,
 }
+
+#[derive(Serialize)]
+struct EnchantmentRef<'a>(
+    #[serde(with = "mcrs_minecraft_registry::by_name")] &'a Id<EnchantmentData>,
+);
 
 impl Serialize for ApplyBonus {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -505,7 +513,7 @@ impl Serialize for ApplyBonus {
         if let Some(condition) = &self.condition {
             map.serialize_entry("condition", condition)?;
         }
-        map.serialize_entry("enchantment", &self.enchantment)?;
+        map.serialize_entry("enchantment", &EnchantmentRef(&self.enchantment))?;
         match &self.formula {
             BonusFormula::BinomialWithBonusCount(parameters) => {
                 map.serialize_entry("formula", "minecraft:binomial_with_bonus_count")?;

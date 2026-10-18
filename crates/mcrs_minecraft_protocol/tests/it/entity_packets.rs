@@ -1,4 +1,5 @@
 use bevy_math::DVec3;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{
@@ -7,7 +8,7 @@ use mcrs_minecraft_entity::keys::{
 };
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_item::PaintingVariantValue;
-use mcrs_minecraft_item::keys::PAINTING_VARIANT;
+use mcrs_minecraft_item::keys::{Item, PAINTING_VARIANT};
 use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
@@ -20,7 +21,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{Id, NoRegistries, Registry, RegistrySet};
+use mcrs_minecraft_registry::{NoRegistries, Registry, RegistrySet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -93,7 +94,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         (
             5,
             MetaDataValue::Slot(raw(ProtoStack::new(
-                Id::from_raw(974),
+                Item::PhantomMembrane.id(),
                 1,
                 Default::default(),
             ))),
@@ -202,12 +203,16 @@ fn equipment_chains_slots_with_the_continuation_bit() {
         slots: vec![
             (
                 EquipmentSlot::MainHand,
-                raw(ProtoStack::new(Id::from_raw(1483), 1, Default::default())),
+                raw(ProtoStack::new(
+                    Item::MusicDiscPrecipice.id(),
+                    1,
+                    Default::default(),
+                )),
             ),
             (EquipmentSlot::OffHand, RawStack::EMPTY),
             (
                 EquipmentSlot::Head,
-                raw(ProtoStack::new(Id::from_raw(1), 3, Default::default())),
+                raw(ProtoStack::new(Item::Stone.id(), 3, Default::default())),
             ),
         ],
     };

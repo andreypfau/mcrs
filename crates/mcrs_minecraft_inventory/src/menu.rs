@@ -1,9 +1,9 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
-use mcrs_minecraft_registry::Id;
 
 use crate::drag::Drag;
 use crate::slot::Slot;

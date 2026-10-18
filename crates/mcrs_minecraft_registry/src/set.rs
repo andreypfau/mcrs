@@ -456,7 +456,7 @@ mod tests {
     use super::*;
     use crate::holder::{Holder, HolderWireOnly};
     use crate::holder_set::HolderSet;
-    use crate::id::Id;
+    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::{RegistryValue, rl};
     use serde::de::DeserializeOwned;
@@ -485,8 +485,15 @@ mod tests {
             .unwrap()
     }
 
+    #[derive(Serialize, Deserialize)]
+    struct Named(#[serde(with = "crate::by_name")] Id<Biome>);
+
     fn parse(name: &str) -> Result<Id<Biome>, serde_json::Error> {
-        serde_json::from_str(&format!("\"{name}\""))
+        serde_json::from_str::<Named>(&format!("\"{name}\"")).map(|named| named.0)
+    }
+
+    fn written(id: Id<Biome>) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&Named(id))
     }
 
     fn index_of(name: &str) -> usize {
@@ -517,10 +524,10 @@ mod tests {
         let biomes = registry(Biome::KEY, &["minecraft:plains", "minecraft:desert"]);
         let set = RegistrySet::new().with(biomes.clone()).unwrap();
         set.scope(|| {
-            let id: Id<Biome> = serde_json::from_str("\"minecraft:desert\"").unwrap();
+            let id = parse("minecraft:desert").unwrap();
             assert_eq!(Some(id), biomes.by_name("minecraft:desert"));
             assert_eq!(id.index(), 1);
-            assert_eq!(serde_json::to_string(&id).unwrap(), "\"minecraft:desert\"");
+            assert_eq!(written(id).unwrap(), "\"minecraft:desert\"");
         });
         assert!(no_scope_here());
     }
@@ -575,7 +582,7 @@ mod tests {
 
     #[test]
     fn scoped_types_refuse_to_work_without_a_scope() {
-        refuses_without_the_registry("Id", |id| id);
+        refuses_without_the_registry("Id", Named);
         refuses_without_the_registry("Holder", Holder::<Entry>::Reference);
         refuses_without_the_registry("HolderWireOnly", |id| {
             HolderWireOnly(Holder::<Entry>::Reference(id))
@@ -766,10 +773,7 @@ mod tests {
             let bare = parse("desert").unwrap();
             assert_eq!(bare, parse("minecraft:desert").unwrap());
             assert_eq!(bare.index(), 1);
-            assert_eq!(
-                serde_json::to_string(&bare).unwrap(),
-                "\"minecraft:desert\""
-            );
+            assert_eq!(written(bare).unwrap(), "\"minecraft:desert\"");
         });
         assert!(no_scope_here());
     }
@@ -801,11 +805,8 @@ mod tests {
         });
         assert_eq!(last.index(), 2);
         smaller.scope(|| {
-            assert_eq!(
-                serde_json::to_string(&first).unwrap(),
-                "\"minecraft:plains\""
-            );
-            let message = serde_json::to_string(&last).unwrap_err().to_string();
+            assert_eq!(written(first).unwrap(), "\"minecraft:plains\"");
+            let message = written(last).unwrap_err().to_string();
             assert!(message.contains("minecraft:worldgen/biome"), "{message}");
             assert!(message.contains('2'), "{message}");
         });
@@ -818,7 +819,7 @@ mod tests {
 
         impl<'de> Deserialize<'de> for Reentrant {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                let id = Id::<Biome>::deserialize(deserializer)?;
+                let Named(id) = Named::deserialize(deserializer)?;
                 let inner = set_of(&PLAINS_LAST);
                 Registry::<Biome>::in_scope("reentrant", |_| {
                     inner.scope(|| Reentrant(index_of("minecraft:plains") * 10 + id.index()))

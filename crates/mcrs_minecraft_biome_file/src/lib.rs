@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 use mcrs_minecraft_biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureModifier};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
 use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf, Stage};
-use mcrs_minecraft_registry::{AlwaysList, HolderSet, Id, RegistrySet};
+use mcrs_minecraft_registry::{AlwaysList, HolderSet, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;

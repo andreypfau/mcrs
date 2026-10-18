@@ -1,4 +1,4 @@
-use crate::id::Id;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::fmt;
 
@@ -20,11 +20,9 @@ impl<R> StaticKey<R> {
                 entries[index].as_static_str().as_bytes(),
                 location.as_static_str().as_bytes(),
             )
+            && let Some(id) = Id::checked(position, entries.len())
         {
-            return StaticKey {
-                id: Id::from_number(position),
-                location,
-            };
+            return StaticKey { id, location };
         }
         panic!("a static key's location is not the entry at its position")
     }
@@ -130,8 +128,11 @@ macro_rules! static_registry {
             pub const ENTRIES: &'static [$crate::static_key::StaticLocation] =
                 &[$($crate::static_key::__rl!($location),)+];
 
-            pub const fn id(self) -> $crate::Id<$name> {
-                $crate::Id::from_raw(self as u16)
+            pub const fn id(self) -> ::mcrs_minecraft_core::Id<$name> {
+                match ::mcrs_minecraft_core::Id::checked(self as u16, Self::ALL.len()) {
+                    Some(id) => id,
+                    None => panic!("an entry's discriminant lies outside its own entry list"),
+                }
             }
 
             pub const fn location(self) -> $crate::static_key::StaticLocation {
@@ -142,7 +143,7 @@ macro_rules! static_registry {
                 self.location().as_static_str()
             }
 
-            pub const fn from_id(id: $crate::Id<$name>) -> Option<$name> {
+            pub const fn from_id(id: ::mcrs_minecraft_core::Id<$name>) -> Option<$name> {
                 Self::from_protocol_id(id.number())
             }
 
@@ -167,7 +168,7 @@ macro_rules! static_registry {
             }
         }
 
-        impl From<$name> for $crate::Id<$name> {
+        impl From<$name> for ::mcrs_minecraft_core::Id<$name> {
             fn from(entry: $name) -> Self {
                 entry.id()
             }
@@ -202,7 +203,7 @@ macro_rules! static_registry {
 
 #[cfg(test)]
 mod tests {
-    use crate::id::Id;
+    use mcrs_minecraft_core::Id;
 
     crate::static_registry! {
         pub enum Fruit;
@@ -231,7 +232,14 @@ mod tests {
         assert_eq!(Fruit::from_id(Fruit::Apple.id()), Some(Fruit::Apple));
         assert_eq!(Fruit::find("minecraft:zebra"), Some(Fruit::Zebra));
         assert_eq!(Fruit::find("minecraft:mango"), None);
-        let beyond: Id<Fruit> = Id::from_raw(2);
+        let wider = crate::Registry::<Fruit>::new(
+            <Fruit as crate::Registered>::REGISTRY,
+            ["zebra", "apple", "mango"].map(|name| {
+                mcrs_minecraft_core::ResourceLocation::read(&format!("minecraft:{name}")).unwrap()
+            }),
+        )
+        .unwrap();
+        let beyond: Id<Fruit> = wider.id(2).unwrap();
         assert_eq!(Fruit::from_id(beyond), None);
         assert_eq!(Fruit::from_protocol_id(1), Some(Fruit::Apple));
         assert_eq!(Fruit::from_protocol_id(2), None);

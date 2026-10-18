@@ -6,10 +6,11 @@ use crate::loaded::Loaded;
 use bevy_app::{App, Plugin};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::loot::LootTable;
 use mcrs_minecraft_loot::{LootCondition, LootTableBody};
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use tracing::warn;
 
 /// The loaded registries a loot table is rolled against.

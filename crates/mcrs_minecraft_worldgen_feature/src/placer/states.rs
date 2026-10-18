@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_core::Id;
 
 use super::StateMask;
 
@@ -159,7 +159,7 @@ impl WorldStates {
     }
 
     pub fn layout_of(&self, state: VoxelId) -> Option<&BlockLayout> {
-        self.layouts.get(self.block_of(state).index())
+        self.layouts.get(self.block_of(state)?.index())
     }
 
     /// [`BlockLayout::with_properties_of`], leaving `target` alone when either
@@ -180,10 +180,7 @@ impl WorldStates {
         self.is_empty_or_water(state) || self.lava_states.contains(state.0 as usize)
     }
 
-    pub fn block_of(&self, state: VoxelId) -> Id<Block> {
-        self.block_of_state
-            .get(usize::from(state.0))
-            .copied()
-            .unwrap_or_else(|| Id::from_raw(state.0))
+    pub fn block_of(&self, state: VoxelId) -> Option<Id<Block>> {
+        self.block_of_state.get(usize::from(state.0)).copied()
     }
 }

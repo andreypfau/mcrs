@@ -5,6 +5,7 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::NonNegativeInt;
 use mcrs_minecraft_entity::keys::Attribute;
@@ -14,7 +15,7 @@ use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::dispatched_map;
-use mcrs_minecraft_registry::{Holder, HolderSet, Id};
+use mcrs_minecraft_registry::{Holder, HolderSet};
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_value_provider::FloatProvider;
 
@@ -169,6 +170,7 @@ pub enum BlockStateProvider {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FullBlockState {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub id: Id<mcrs_minecraft_block::keys::Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<BTreeMap<String, String>>,
@@ -199,6 +201,10 @@ mcrs_minecraft_registry::dispatch! {
 struct ProviderObject {
     #[serde(rename = "type")]
     kind: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "mcrs_minecraft_registry::by_name::option::deserialize"
+    )]
     id: Option<Id<mcrs_minecraft_block::keys::Block>>,
     properties: Option<BTreeMap<String, String>>,
     state: Option<BlockState>,
@@ -234,7 +240,7 @@ impl ProviderObject {
 impl Serialize for BlockStateProvider {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
-            BlockStateProvider::Reference(id) => id.serialize(s),
+            BlockStateProvider::Reference(id) => mcrs_minecraft_registry::by_name::serialize(id, s),
             BlockStateProvider::State(state) => state.serialize(s),
             BlockStateProvider::Typed(typed) => typed.serialize(s),
         }
@@ -253,7 +259,7 @@ impl<'de> Deserialize<'de> for BlockStateProvider {
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                Id::deserialize(de::value::StrDeserializer::new(text))
+                mcrs_minecraft_registry::by_name::deserialize(de::value::StrDeserializer::new(text))
                     .map(BlockStateProvider::Reference)
             }
 
@@ -271,7 +277,7 @@ impl<'de> Deserialize<'de> for BlockStateProvider {
 impl Serialize for BlockState {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
-            BlockState::Block(id) => id.serialize(s),
+            BlockState::Block(id) => mcrs_minecraft_registry::by_name::serialize(id, s),
             BlockState::Full(state) => state.serialize(s),
         }
     }
@@ -289,7 +295,8 @@ impl<'de> Deserialize<'de> for BlockState {
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                Id::deserialize(de::value::StrDeserializer::new(text)).map(BlockState::Block)
+                mcrs_minecraft_registry::by_name::deserialize(de::value::StrDeserializer::new(text))
+                    .map(BlockState::Block)
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -346,12 +353,17 @@ macro_rules! effect_enum {
         DamageEntity {
             min_damage: LevelBasedValue,
             max_damage: LevelBasedValue,
+            #[serde(with = "mcrs_minecraft_registry::by_name")]
             damage_type: Id<DamageType>,
         },
         Explode {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             attribute_to_user: Option<bool>,
-            #[serde(default, skip_serializing_if = "Option::is_none")]
+            #[serde(
+                default,
+                skip_serializing_if = "Option::is_none",
+                with = "mcrs_minecraft_registry::by_name::option"
+            )]
             damage_type: Option<Id<DamageType>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             knockback_multiplier: Option<LevelBasedValue>,

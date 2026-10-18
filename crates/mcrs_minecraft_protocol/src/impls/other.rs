@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::Id;
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -120,6 +120,12 @@ impl Encode for Id<Item> {
 
 impl Decode<'_> for Id<Item> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        decode_registry_id(r).map(Id::from_raw)
+        let number = decode_registry_id(r)?;
+        Id::checked(number, Item::ALL.len()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown item {number}: the item registry has {} entries",
+                Item::ALL.len()
+            )
+        })
     }
 }

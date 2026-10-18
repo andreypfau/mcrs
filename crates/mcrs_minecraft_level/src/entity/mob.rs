@@ -2,6 +2,7 @@ use bevy_derive::Deref;
 use bevy_ecs::prelude::{Component, Entity};
 use bitflags::bitflags;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant as CatVariantValue, ChickenSoundVariant,
@@ -9,7 +10,6 @@ use mcrs_minecraft_entity::variant::{
 };
 use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_registry::Id;
 use uuid::Uuid;
 
 #[derive(Component, Clone, Copy, Debug, Deref)]

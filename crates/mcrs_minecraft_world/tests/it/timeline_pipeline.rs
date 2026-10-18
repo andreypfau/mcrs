@@ -1,6 +1,7 @@
 use bevy_app::App;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -14,7 +15,7 @@ use mcrs_minecraft_dimension_environment::environment::{
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registry_load::test_registries;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";

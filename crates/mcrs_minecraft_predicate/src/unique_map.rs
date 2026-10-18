@@ -1,9 +1,9 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_registry::Id;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -47,7 +47,13 @@ impl UniqueKey for DataComponentType {
     }
 }
 
-impl UniqueKey for Id<EnchantmentData> {
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct EnchantmentKey(
+    #[serde(with = "mcrs_minecraft_registry::by_name")] pub Id<EnchantmentData>,
+);
+
+impl UniqueKey for EnchantmentKey {
     fn duplicate_error(&self) -> String {
         "Duplicate enchantment".to_owned()
     }

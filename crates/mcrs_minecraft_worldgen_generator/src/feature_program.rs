@@ -22,6 +22,7 @@ use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
@@ -30,7 +31,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -624,9 +625,9 @@ impl FeatureProgram {
         p: BlockPos,
         get: impl Fn(BlockPos) -> VoxelId,
     ) -> bool {
-        self.trees
-            .survive
-            .get(&self.world.block_of(state))
+        self.world
+            .block_of(state)
+            .and_then(|block| self.trees.survive.get(&block))
             .is_none_or(|rule| rule.test(state, p, get))
     }
 }

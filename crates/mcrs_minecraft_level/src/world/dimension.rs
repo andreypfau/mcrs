@@ -13,9 +13,9 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs,
     Query, Ref, With,
 };
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, SectionPos};
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_registry::Id;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;

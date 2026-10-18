@@ -11,8 +11,9 @@ use std::sync::LazyLock;
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 
 use crate::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};

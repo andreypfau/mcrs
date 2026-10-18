@@ -8,6 +8,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_client::inventory::{ContainerSeqno, InventoryPlugin, inventory_index_to_cell};
 use mcrs_minecraft_client::player::Player;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots};
@@ -21,7 +22,7 @@ use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::item::{ComponentPatch, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPlayerInventory;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);

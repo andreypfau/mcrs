@@ -1,9 +1,9 @@
 use crate::assembly::AssemblyError;
-use crate::id::Id;
 use crate::names::NameTable;
 use crate::registry::Registry;
 use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -25,6 +25,7 @@ pub struct TagTable {
     numbers: HashMap<Name, u16>,
     members: Box<[Box<[u16]>]>,
     bits: Box<[FixedBitSet]>,
+    entries: usize,
 }
 
 impl TagTable {
@@ -169,13 +170,11 @@ impl<R> Tags<R> {
             .filter_map(move |number| TagId::checked(number, len))
     }
 
-    pub fn members(
-        &self,
-        tag: TagId<R>,
-    ) -> impl ExactSizeIterator<Item = Id<R>> + DoubleEndedIterator + '_ {
+    pub fn members(&self, tag: TagId<R>) -> impl DoubleEndedIterator<Item = Id<R>> + '_ {
+        let entries = self.table.entries;
         self.table.members[tag.index()]
             .iter()
-            .map(|&number| Id::from_number(number))
+            .filter_map(move |&number| Id::checked(number, entries))
     }
 
     pub fn contains(&self, tag: TagId<R>, id: Id<R>) -> bool {
@@ -604,6 +603,7 @@ pub(crate) fn assemble(
         numbers,
         members: table_members.into(),
         bits: bits.into(),
+        entries: names.len(),
     }
 }
 
@@ -1267,7 +1267,7 @@ mod tests {
                 "minecraft:t",
             )))
             .expect("the tag exists");
-        assert_eq!(tags.members(id).len(), 0);
+        assert_eq!(tags.members(id).count(), 0);
         assert!(registry.ids().all(|member| !tags.contains(id, member)));
     }
 
@@ -1555,7 +1555,7 @@ mod tests {
                 "minecraft:t00000",
             )))
             .unwrap();
-        assert_eq!(tags.members(first).len(), 1);
+        assert_eq!(tags.members(first).count(), 1);
     }
 
     #[test]

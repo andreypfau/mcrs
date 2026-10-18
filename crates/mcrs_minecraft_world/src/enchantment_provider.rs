@@ -1,6 +1,7 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,7 @@ pub enum EnchantmentProvider {
         max_cost_span: Bounded<0, 10000>,
     },
     Single {
+        #[serde(with = "mcrs_minecraft_registry::by_name")]
         enchantment: Id<EnchantmentData>,
         level: IntProvider,
     },

@@ -6,8 +6,9 @@ use bevy::render::render_resource::{
 };
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;

@@ -12,6 +12,7 @@ use bevy_ecs::prelude::{
 use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
 use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::ItemStack;
@@ -37,7 +38,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassenger
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, Id, Registered, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{ChainLookup, Registered, RegistryLookup, RegistrySet};
 use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
 };

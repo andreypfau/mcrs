@@ -6,10 +6,10 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
@@ -136,10 +136,10 @@ impl Rotations {
     }
 }
 
-fn block_id(position: usize) -> Id<Block> {
-    Id::from_raw(
-        u16::try_from(position).expect("the block registry numbers its blocks in sixteen bits"),
-    )
+fn block_id(position: usize, blocks: usize) -> Option<Id<Block>> {
+    u16::try_from(position)
+        .ok()
+        .and_then(|number| Id::checked(number, blocks))
 }
 
 /// [`Rotations`] for every block that declares any of the three properties,
@@ -173,7 +173,10 @@ pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<Id<Block>, Rotations> 
                     direction.name()
                 }),
             };
-            (rotations != Rotations::default()).then_some((block_id(block), rotations))
+            (rotations != Rotations::default())
+                .then(|| block_id(block, layouts.len()))
+                .flatten()
+                .map(|block| (block, rotations))
         })
         .collect()
 }
@@ -192,8 +195,9 @@ pub fn int_property_table(layouts: &[BlockLayout], name: &str) -> HashMap<Id<Blo
                 .map(|value| value.parse().ok())
                 .collect::<Option<_>>()?;
             let min = *ints.first()?;
+            let block = block_id(block, layouts.len())?;
             (ints.iter().enumerate().all(|(i, v)| *v == min + i as i32)).then_some((
-                block_id(block),
+                block,
                 IntProperty {
                     base: layout.base,
                     stride: property.stride,
@@ -249,7 +253,11 @@ impl StateProvider {
                 values,
             } => {
                 let state = source.state(volume, rng, pos);
-                let Some(property) = property.get(&volume.world().block_of(state)) else {
+                let Some(property) = volume
+                    .world()
+                    .block_of(state)
+                    .and_then(|block| property.get(&block))
+                else {
                     return Some(state);
                 };
                 Some(property.set(state, values.sample(rng)))
@@ -262,8 +270,10 @@ impl StateProvider {
                 let direction = direction.unwrap_or_else(|| random_direction(rng));
                 let state = source.state(volume, rng, pos);
                 Some(
-                    rotations
-                        .get(&volume.world().block_of(state))
+                    volume
+                        .world()
+                        .block_of(state)
+                        .and_then(|block| rotations.get(&block))
                         .map_or(state, |rotations| rotations.rotate(state, direction)),
                 )
             }
@@ -589,7 +599,7 @@ mod tests {
         let text =
             |values: &[&str]| -> Arc<[Arc<str>]> { values.iter().map(|v| Arc::from(*v)).collect() };
         let mut volume = FakeVolume::default();
-        volume.world.block_of_state = (0..64).map(|_| Id::from_raw(0)).collect();
+        volume.world.block_of_state = (0..64).map(|_| Block::Air.id()).collect();
         volume.world.layouts = Arc::new([BlockLayout {
             base: 0,
             properties: vec![

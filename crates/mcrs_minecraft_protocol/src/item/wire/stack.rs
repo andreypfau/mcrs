@@ -3,9 +3,10 @@ use std::marker::PhantomData;
 
 use anyhow::ensure;
 use bytes::Bytes;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::{Id, RegistryLookup};
+use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, scoped};
 use crate::item::patch::ComponentPatch;

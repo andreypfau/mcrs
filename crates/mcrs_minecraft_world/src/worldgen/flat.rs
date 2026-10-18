@@ -3,9 +3,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::Registry;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -16,6 +17,7 @@ pub struct FlatChunkGenerator {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "FlatSettingsFields")]
 pub struct FlatLevelGeneratorSettings {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub biome: Id<Biome>,
     pub features: bool,
     pub lakes: bool,
@@ -37,6 +39,10 @@ const Y_SIZE: i32 = 4064;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FlatSettingsFields {
+    #[serde(
+        default,
+        deserialize_with = "mcrs_minecraft_registry::by_name::option::deserialize"
+    )]
     biome: Option<Id<Biome>>,
     #[serde(default)]
     features: bool,

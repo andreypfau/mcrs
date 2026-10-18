@@ -499,9 +499,9 @@ pub(crate) fn directory_of(registry: &Name) -> String {
 mod tests {
     use super::*;
     use crate::holder_set::HolderSet;
-    use crate::id::Id;
     use crate::names::NameTable;
     use crate::tags::TagTable;
+    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
     use serde::Deserialize;
@@ -511,6 +511,7 @@ mod tests {
     #[serde(deny_unknown_fields)]
     struct Variant {
         asset_id: String,
+        #[serde(with = "crate::by_name")]
         next: Id<Variant>,
     }
 
@@ -527,6 +528,7 @@ mod tests {
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     struct Linked {
+        #[serde(default, with = "crate::by_name::option")]
         marker: Option<Id<Marker>>,
         tag: Option<HolderSet<Marker>>,
     }

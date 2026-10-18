@@ -1,14 +1,14 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::for_each_data_component;
-use mcrs_minecraft_protocol::item::harness::Sample;
+use mcrs_minecraft_protocol::item::harness::{Sample, sample_registries};
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
     EncodeCtx, Holder, ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, RawStack,
     SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::Id;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
@@ -19,12 +19,7 @@ use crate::item::harness::{
 use mcrs_minecraft_item::keys::Item;
 
 const ITERATIONS: usize = 256;
-const ITEMS: [(&str, u16); 4] = [
-    ("stone", 1),
-    ("diamond_sword", 2),
-    ("apple", 3),
-    ("bundle", 4),
-];
+const ITEMS: [&str; 4] = ["stone", "diamond_sword", "apple", "bundle"];
 
 // chisle: the pool is every kind's Sample::samples(); only the nested kinds
 // are generated fresh, so scalar kinds are exercised in combination, not with
@@ -59,10 +54,14 @@ impl Gen {
     }
 
     fn item(&mut self) -> (ResourceKey<Item>, Id<Item>) {
-        let (name, id) = *ITEMS.choose(&mut self.rng).unwrap();
+        let name = *ITEMS.choose(&mut self.rng).unwrap();
+        let id = sample_registries()
+            .registry::<Item>()
+            .and_then(|items| items.by_name(&format!("minecraft:{name}")))
+            .unwrap();
         (
             ResourceKey::from_location(ResourceLocation::minecraft(name).unwrap()),
-            Id::from_raw(id),
+            id,
         )
     }
 

@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::component::ValueMatcher;
 use mcrs_minecraft_item::component::predicate::{
     BlockPredicate, ComponentPredicate, ComponentPredicateEntry, EnchantmentPredicate,
@@ -6,7 +7,7 @@ use mcrs_minecraft_item::component::predicate::{
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_loot::condition::EntityProperties;
 use mcrs_minecraft_loot::{EntityTarget, LootCondition};
-use mcrs_minecraft_registry::{Holder, HolderList, Id};
+use mcrs_minecraft_registry::{Holder, HolderList};
 
 use crate::world::loot::LootRegistries;
 use crate::world::loot::context::BlockBreakContext;

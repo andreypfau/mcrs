@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::{Item, MenuType};
@@ -15,7 +16,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{Id, RegistryLookup};
+use mcrs_minecraft_registry::RegistryLookup;
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("inventory_packets").text());
@@ -60,11 +61,12 @@ fn fixture() -> Fixture {
 }
 
 fn item(fixture: &Fixture, path: &str) -> Id<Item> {
-    Id::from_raw(
-        fixture
-            .id("item", &ResourceLocation::minecraft(path).unwrap())
-            .unwrap(),
-    )
+    let id = Item::find(&format!("minecraft:{path}")).unwrap().id();
+    assert_eq!(
+        fixture.id("item", &ResourceLocation::minecraft(path).unwrap()),
+        Some(id.number())
+    );
+    id
 }
 
 fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) {

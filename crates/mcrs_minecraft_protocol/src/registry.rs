@@ -1,8 +1,9 @@
 use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Id, Registered, Registry};
+use mcrs_minecraft_registry::{Registered, Registry};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -116,10 +117,10 @@ mod tests {
     use super::*;
     use crate::block::BlockStateNumber;
     use crate::entity::OptionalBlockState;
+    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
     use mcrs_minecraft_particle::keys::ParticleType;
-    use mcrs_minecraft_registry::Id;
 
     type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
 
@@ -239,6 +240,11 @@ mod tests {
             &encoded(&add_entity),
             |r| ClientboundAddEntity::decode(r).map(drop),
         );
+
+        let last_item = Item::ALL.last().unwrap().id();
+        refused_past_the_table("item", Item::ALL.len(), 0, &encoded(&last_item), |r| {
+            Id::<Item>::decode(r).map(drop)
+        });
 
         let open_screen = ClientboundOpenScreen {
             container_id: VarInt(1),

@@ -7,6 +7,7 @@ use crate::text::Text;
 use crate::{Direction, GlobalPos, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_entity::keys::{VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
@@ -16,7 +17,6 @@ pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registry::Id;
 use std::io::Write;
 use uuid::Uuid;
 

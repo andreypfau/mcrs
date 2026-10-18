@@ -1,9 +1,9 @@
 use bevy_app::AppLabel;
 use bevy_ecs::prelude::{Entity, Resource};
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_registry::Id;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
 pub struct DimAppLabel(pub Entity);

@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, VERSION};
 use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
@@ -15,7 +16,7 @@ use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, VarInt};
-use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use std::sync::Arc;
 
 static GOLDEN: LazyLock<String> =

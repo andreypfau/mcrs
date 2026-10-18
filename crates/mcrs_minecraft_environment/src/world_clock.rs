@@ -5,12 +5,13 @@ use std::sync::Arc;
 use bevy_app::{App, FixedUpdate, Plugin, Startup};
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;

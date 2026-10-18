@@ -2,7 +2,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use crate::holder_set::skipping_sets;
-use crate::id::Id;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::RegistryValue;
 use serde::de::{DeserializeOwned, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::Error as _;
@@ -50,7 +50,7 @@ impl<V: RegistryValue + fmt::Debug> fmt::Debug for Holder<V> {
 impl<V: RegistryValue + Serialize> Serialize for Holder<V> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
-            Holder::Reference(id) => id.serialize(s),
+            Holder::Reference(id) => crate::by_name::serialize(id, s),
             Holder::Direct(value) => value.serialize(s),
             Holder::Skipped => Err(S::Error::custom("a skipped reference has no name to write")),
         }
@@ -76,7 +76,8 @@ impl<'de, V: RegistryValue + DeserializeOwned> Deserialize<'de> for Holder<V> {
                 if skipping_sets() {
                     return Ok(Holder::Skipped);
                 }
-                Id::deserialize(value::StrDeserializer::new(text)).map(Holder::Reference)
+                crate::by_name::deserialize(value::StrDeserializer::new(text))
+                    .map(Holder::Reference)
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -149,7 +150,7 @@ impl<V: RegistryValue + fmt::Debug> fmt::Debug for HolderWireOnly<V> {
 impl<V: RegistryValue + Serialize> Serialize for HolderWireOnly<V> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match &self.0 {
-            Holder::Reference(id) => id.serialize(s),
+            Holder::Reference(id) => crate::by_name::serialize(id, s),
             Holder::Direct(_) => Err(S::Error::custom(format_args!(
                 "an inline {} entry has no persistent form",
                 crate::set::label::<V::Registry>()
@@ -161,7 +162,7 @@ impl<V: RegistryValue + Serialize> Serialize for HolderWireOnly<V> {
 
 impl<'de, V: RegistryValue> Deserialize<'de> for HolderWireOnly<V> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Id::deserialize(d).map(|id| HolderWireOnly(Holder::Reference(id)))
+        crate::by_name::deserialize(d).map(|id| HolderWireOnly(Holder::Reference(id)))
     }
 }
 

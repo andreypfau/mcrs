@@ -1,6 +1,7 @@
 use crate::shulker_boxes::ShulkerBoxes;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -11,7 +12,7 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

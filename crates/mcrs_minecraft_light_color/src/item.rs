@@ -12,11 +12,12 @@ use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::keys::fluid_tags::WATER;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};

@@ -6,12 +6,13 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, TagKey, rl};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_protocol::item::{Tool, ToolRule};
-use mcrs_minecraft_registry::{HolderSet, Id, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{HolderSet, LoadReport, RegistrySet};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::{

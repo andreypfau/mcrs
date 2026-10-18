@@ -10,10 +10,12 @@ use mcrs_minecraft_client::columns::{
 use mcrs_minecraft_client::inventory::{InventoryPlugin, OpenMenu, Screen};
 use mcrs_minecraft_client::player::{Player, PlayerCamera};
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{Held, ItemStack, Items, JukeboxPlayable, JukeboxSong, SlotTable, slots};
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -21,7 +23,7 @@ use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
-use mcrs_minecraft_registry::{Holder, Id, NetworkRegistry, RegistrySet};
+use mcrs_minecraft_registry::{Holder, NetworkRegistry, RegistrySet};
 
 use crate::boot::{boot, session_registries};
 
@@ -179,12 +181,7 @@ fn in_play() -> Play {
         .spawn((OpenMenu { container_id: 1 }, SlotTable::fixed(3)))
         .id();
     *app.world_mut().resource_mut::<Screen>() = Screen::Container(menu);
-    let stack = |holder| {
-        (
-            ItemStack::new(Id::from_raw(0), 1),
-            Held { holder, index: 0 },
-        )
-    };
+    let stack = |holder| (ItemStack::new(Item::Air.id(), 1), Held { holder, index: 0 });
     let stacks = [
         app.world_mut().spawn(stack(menu)).id(),
         app.world_mut().spawn(stack(player)).id(),

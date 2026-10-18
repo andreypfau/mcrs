@@ -11,6 +11,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_protocol::ColumnPos;
@@ -50,7 +51,7 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
 };
 use mcrs_minecraft_registry::{
-    Id, KnownPackEntries, LoadReport, NetworkEntry, NetworkRegistry, NetworkTags, RegistrySet,
+    KnownPackEntries, LoadReport, NetworkEntry, NetworkRegistry, NetworkTags, RegistrySet,
     WorldRegistries,
 };
 use md5::{Digest, Md5};
@@ -888,6 +889,16 @@ mod tests {
         .unwrap()
     }
 
+    fn dimension_type(number: u16) -> Id<DimensionType> {
+        Registry::<DimensionType>::new(
+            DIMENSION_TYPE,
+            (0..8).map(|n| name(&format!("minecraft:type{n}"))),
+        )
+        .unwrap()
+        .id(number)
+        .unwrap()
+    }
+
     fn statics() -> RegistrySet {
         RegistrySet::new()
             .with(dimension_types())
@@ -1039,7 +1050,7 @@ mod tests {
         }
     }
 
-    fn login(player_id: i32, dimension_type: u16) -> ClientboundLogin {
+    fn login(player_id: i32, dimension_type: Id<DimensionType>) -> ClientboundLogin {
         ClientboundLogin {
             player_id,
             hardcore: false,
@@ -1051,7 +1062,7 @@ mod tests {
             show_death_screen: true,
             do_limited_crafting: false,
             player_spawn_info: PlayerSpawnInfo::new(
-                Id::from_raw(dimension_type),
+                dimension_type,
                 mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
                 GameMode::Survival,
             ),
@@ -1060,13 +1071,12 @@ mod tests {
         }
     }
 
-    fn respawn(dimension: ResourceKey<Dimension>, dimension_type: u16) -> ClientboundRespawn {
+    fn respawn(
+        dimension: ResourceKey<Dimension>,
+        dimension_type: Id<DimensionType>,
+    ) -> ClientboundRespawn {
         ClientboundRespawn {
-            player_spawn_info: PlayerSpawnInfo::new(
-                Id::from_raw(dimension_type),
-                dimension,
-                GameMode::Survival,
-            ),
+            player_spawn_info: PlayerSpawnInfo::new(dimension_type, dimension, GameMode::Survival),
             data_to_keep: 0,
         }
     }
@@ -1236,7 +1246,7 @@ mod tests {
         let mut client = Harness::configuring(&runtime);
         client.deliver(&runtime, &probe_data(&["minecraft:a"]));
         client.deliver(&runtime, &ClientboundFinishConfiguration);
-        client.deliver(&runtime, &login(7, 2));
+        client.deliver(&runtime, &login(7, dimension_type(2)));
         client.app.update();
 
         let current = client
@@ -1262,13 +1272,13 @@ mod tests {
                 .cloned()
         };
 
-        client.deliver(&runtime, &login(7, 3));
+        client.deliver(&runtime, &login(7, dimension_type(3)));
         client.app.update();
         let first = current(&client).expect("the login names type 3");
         assert_eq!(first.key, OVERWORLD);
         assert_eq!(first.dimension_type.index(), 3);
 
-        client.deliver(&runtime, &respawn(THE_NETHER.into(), 1));
+        client.deliver(&runtime, &respawn(THE_NETHER.into(), dimension_type(1)));
         client.app.update();
         let second = current(&client).expect("the respawn names type 1");
         assert_eq!(second.key, THE_NETHER);
@@ -1283,7 +1293,7 @@ mod tests {
             7
         );
 
-        client.deliver(&runtime, &respawn(OVERWORLD.into(), 4));
+        client.deliver(&runtime, &respawn(OVERWORLD.into(), dimension_type(4)));
         client.app.update();
         assert!(client.dropped(), "a type number past the dimension types");
     }
@@ -1294,16 +1304,20 @@ mod tests {
         use mcrs_minecraft_entity::variant::CatVariant;
         use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 
-        let cats = Registry::<CatVariant>::new(
-            CAT_VARIANT,
-            ["minecraft:tabby", "minecraft:red"].map(name),
-        )
-        .unwrap();
+        let cats_of = |len: usize| {
+            Registry::<CatVariant>::new(
+                CAT_VARIANT,
+                (0..len).map(|n| name(&format!("minecraft:cat{n}"))),
+            )
+            .unwrap()
+        };
+        let cats = cats_of(2);
+        let wider = cats_of(3);
         let entity_data = |variant: u16| ClientboundSetEntityData {
             entity_id: VarInt(5),
             metadata: Metadata(vec![MetadataEntry {
                 index: 20,
-                value: MetaDataValue::CatVariant(Id::from_raw(variant)),
+                value: MetaDataValue::CatVariant(wider.id(variant).unwrap()),
             }]),
         };
 
@@ -1325,12 +1339,12 @@ mod tests {
         let runtime = runtime();
         let mut client = Harness::playing(&runtime);
         client.app.insert_resource(statics());
-        client.deliver(&runtime, &login(7, 4));
+        client.deliver(&runtime, &login(7, dimension_type(4)));
         client.app.update();
         assert!(client.dropped());
 
         let mut without = Harness::playing(&runtime);
-        without.deliver(&runtime, &login(7, 0));
+        without.deliver(&runtime, &login(7, dimension_type(0)));
         without.app.update();
         assert!(without.dropped(), "no session registries at all");
     }

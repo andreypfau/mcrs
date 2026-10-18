@@ -1,8 +1,9 @@
 use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
-use mcrs_minecraft_registry::{Id, LoadReport, Registry, RegistrySet};
+use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
 
 fn biomes_named(names: &[&str]) -> RegistrySet {

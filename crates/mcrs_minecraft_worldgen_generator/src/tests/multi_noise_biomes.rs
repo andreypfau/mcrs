@@ -9,9 +9,10 @@ use mcrs_minecraft_biome::parameter_list::{
 };
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{Id, LoadReport, Registry, RegistrySet};
+use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;

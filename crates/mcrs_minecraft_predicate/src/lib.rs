@@ -10,4 +10,4 @@ pub mod unique_map;
 pub use damage::{DamageSourcePredicate, TagPredicate};
 pub use entity::EntityPredicate;
 pub use location::LocationPredicate;
-pub use unique_map::UniqueMap;
+pub use unique_map::{EnchantmentKey, UniqueMap};

@@ -2,15 +2,16 @@ use std::sync::OnceLock;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, LightColorIds, WATER_SENSITIVE,
 };
+use mcrs_minecraft_registry::LoadReport;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
-use mcrs_minecraft_registry::{Id, LoadReport};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
@@ -322,7 +323,7 @@ mod exhaustive {
     proptest! {
         #[test]
         fn arbitrary_input_never_panics(
-            item in 0..=u16::MAX,
+            item in 0..Item::ALL.len(),
             stack in prop::collection::vec((stack_text(), stack_text()), 0..=8),
             origin in 0..=u16::MAX,
         ) {
@@ -332,7 +333,7 @@ mod exhaustive {
             let light = shipped().light(
                 blocks(),
                 colours(),
-                Id::from_raw(item),
+                Item::ALL[item].id(),
                 stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
                 origin,
             );

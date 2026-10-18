@@ -4,12 +4,13 @@ use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{RegistryValue, ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{
-    HolderSet, Id, Registry, RegistryLookup, Tags, skip_sets, skipping_sets,
+    HolderSet, Registry, RegistryLookup, Tags, skip_sets, skipping_sets,
 };
 use uuid::Uuid;
 

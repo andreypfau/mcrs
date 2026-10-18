@@ -1,6 +1,7 @@
 use bevy::ecs::system::Command;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_inventory::{
     MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
 };
@@ -20,7 +21,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
-use mcrs_minecraft_registry::{Id, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 use crate::player::{self, Player};
 use crate::registries::{SessionSet, entered_configuration};

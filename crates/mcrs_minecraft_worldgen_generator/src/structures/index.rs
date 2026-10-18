@@ -1,5 +1,6 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
-use mcrs_minecraft_registry::{Id, LoadReport, Registry};
+use mcrs_minecraft_registry::{LoadReport, Registry};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};

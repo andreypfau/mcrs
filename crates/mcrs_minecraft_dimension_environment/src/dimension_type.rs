@@ -2,12 +2,13 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
@@ -73,7 +74,11 @@ pub struct DimensionTypeFile {
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, skip_serializing_if = "is_default")]
     pub timelines: HolderSet<Timeline>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "mcrs_minecraft_registry::by_name::option"
+    )]
     pub default_clock: Option<Id<WorldClock>>,
 }
 

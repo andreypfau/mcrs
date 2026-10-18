@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::world_clock::WorldClock;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registry::Id;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -27,6 +27,7 @@ fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> 
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Timeline {
+    #[serde(serialize_with = "mcrs_minecraft_registry::by_name::serialize")]
     pub clock: Id<WorldClock>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_ticks: Option<u32>,
@@ -47,6 +48,7 @@ impl RegistryValue for Timeline {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRepr {
+    #[serde(deserialize_with = "mcrs_minecraft_registry::by_name::deserialize")]
     clock: Id<WorldClock>,
     #[serde(default)]
     period_ticks: Option<PositiveInt>,

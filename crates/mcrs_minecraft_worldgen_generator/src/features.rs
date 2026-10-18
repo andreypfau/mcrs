@@ -37,7 +37,7 @@ pub fn possible_biomes(
     biome_tags: &Tags<mcrs_minecraft_biome::Biome>,
     lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
-    let named = |id: &mcrs_minecraft_registry::Id<mcrs_minecraft_biome::Biome>| {
+    let named = |id: &mcrs_minecraft_core::Id<mcrs_minecraft_biome::Biome>| {
         biomes
             .name(*id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))

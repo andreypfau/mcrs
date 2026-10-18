@@ -307,9 +307,8 @@ pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables 
 
 pub fn parameter_list_id(
     name: &str,
-) -> mcrs_minecraft_registry::Id<
-    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
-> {
+) -> mcrs_minecraft_core::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>
+{
     parameter_lists()
         .0
         .require_by_name(name)

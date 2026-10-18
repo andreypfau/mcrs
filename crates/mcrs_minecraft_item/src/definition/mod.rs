@@ -7,8 +7,9 @@ use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{Id, Registry, UnknownEntry};
+use mcrs_minecraft_registry::{Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -152,7 +153,7 @@ mod tests {
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
             identifier: ResourceLocation::minecraft(name).unwrap(),
-            id: Id::from_raw(u16::MAX),
+            id: crate::keys::Item::Air.id(),
             prototype: ComponentMap::default(),
             block_placer: None,
             container_slots: None,

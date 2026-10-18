@@ -1,9 +1,9 @@
-use crate::id::{Id, id_number};
-use crate::names::NameTable;
+use crate::names::{NameTable, id_number};
 use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::{Id, NarrowError};
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -162,7 +162,9 @@ impl<R> Registry<R> {
     }
 
     pub fn get<S: AsRef<str>>(&self, key: &ResourceKey<R, S>) -> Option<Id<R>> {
-        self.table.number(key.as_str()).map(Id::from_number)
+        self.table
+            .number(key.as_str())
+            .and_then(|number| self.id(number))
     }
 
     pub fn require<S: AsRef<str>>(&self, key: &ResourceKey<R, S>) -> Result<Id<R>, UnknownEntry> {
@@ -174,7 +176,9 @@ impl<R> Registry<R> {
 
     pub fn by_name(&self, name: &str) -> Option<Id<R>> {
         let name = ResourceLocation::read(name).ok()?;
-        self.table.number(name.as_str()).map(Id::from_number)
+        self.table
+            .number(name.as_str())
+            .and_then(|number| self.id(number))
     }
 
     pub fn require_by_name(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
@@ -185,19 +189,24 @@ impl<R> Registry<R> {
     }
 
     pub fn id(&self, number: u16) -> Option<Id<R>> {
-        (usize::from(number) < self.len()).then(|| Id::from_number(number))
+        Id::checked(number, self.len())
     }
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {
-        (0..self.len()).filter_map(id_number).map(Id::from_number)
+        (0..self.len())
+            .filter_map(id_number)
+            .filter_map(|number| self.id(number))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &ResourceLocation<Arc<str>>)> {
         self.ids().zip(self.table.names())
     }
 
-    pub fn narrow<N: TryFrom<u16>>(&self, id: Id<R>) -> Result<N, crate::id::NarrowError> {
-        id.narrow_in(|| self.table.registry().to_string())
+    pub fn narrow<N: TryFrom<u16>>(&self, id: Id<R>) -> Result<N, NarrowError> {
+        id.narrow().map_err(|error| NarrowError {
+            registry: self.table.registry().to_string(),
+            ..error
+        })
     }
 }
 
@@ -356,5 +365,62 @@ mod tests {
         assert!(smaller.name(first).is_some());
         assert!(smaller.name(second).is_none());
         assert!(smaller.name(third).is_none());
+    }
+
+    struct Wide;
+
+    impl Wide {
+        const KEY: RegistryKey<Wide> = RegistryKey::new(rl!("minecraft:wide"));
+    }
+
+    fn wide_names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {
+        (0..len).map(|n| ResourceLocation::<Arc<str>>::read(&format!("minecraft:n{n}")).unwrap())
+    }
+
+    fn wide_registry(len: usize) -> Registry<Wide> {
+        Registry::new(Wide::KEY, wide_names(len)).unwrap()
+    }
+
+    fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
+        registry.by_name(&format!("minecraft:n{n}")).unwrap()
+    }
+
+    #[test]
+    fn an_id_narrows_to_eight_bits_up_to_255() {
+        let registry = wide_registry(257);
+        assert_eq!(id_at(&registry, 255).narrow::<u8>(), Ok(255));
+        assert_eq!(id_at(&registry, 0).narrow::<u8>(), Ok(0));
+        let error = id_at(&registry, 256).narrow::<u8>().unwrap_err();
+        assert_eq!(
+            error,
+            NarrowError {
+                registry: std::any::type_name::<Wide>().to_owned(),
+                id: 256,
+                bits: 8
+            }
+        );
+        let message = error.to_string();
+        assert!(message.contains("tests::Wide"), "{message}");
+        assert!(message.contains("256"), "{message}");
+        assert!(message.contains("8 bits"), "{message}");
+    }
+
+    #[test]
+    fn a_registry_numbers_ids_up_to_65535_and_refuses_more_entries() {
+        let registry = wide_registry(65536);
+        assert_eq!(id_at(&registry, 65535).number(), u16::MAX);
+        assert_eq!(registry.ids().count(), 65536);
+
+        let error = Registry::<Wide>::new(Wide::KEY, wide_names(65537)).unwrap_err();
+        assert_eq!(
+            error,
+            RegistryError::TooManyEntries {
+                registry: Wide::KEY.location().into(),
+                len: 65537
+            }
+        );
+        let message = error.to_string();
+        assert!(message.contains("minecraft:wide"), "{message}");
+        assert!(message.contains("65537"), "{message}");
     }
 }

@@ -1,5 +1,6 @@
 use std::fmt;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Validate, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_environment::attribute::Operation;
@@ -12,7 +13,7 @@ use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_predicate::{
     DamageSourcePredicate, EntityPredicate, LocationPredicate, UniqueMap,
 };
-use mcrs_minecraft_registry::{Holder, HolderList, Id};
+use mcrs_minecraft_registry::{Holder, HolderList};
 use serde::de::{DeserializeSeed, Error as _, IntoDeserializer, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -113,6 +114,7 @@ mcrs_minecraft_core::validated!(RandomChanceWithEnchantedBonus);
 pub struct RandomChanceWithEnchantedBonus {
     pub unenchanted_chance: f32,
     pub enchanted_chance: LevelBasedValue,
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub enchantment: Id<EnchantmentData>,
 }
 
@@ -159,6 +161,7 @@ mcrs_minecraft_core::validated!(TableBonus);
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct TableBonus {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub enchantment: Id<EnchantmentData>,
     pub chances: Vec<f32>,
 }

@@ -1,5 +1,5 @@
-use crate::id::Id;
 use crate::registry::{Registry, RegistryError};
+use mcrs_minecraft_core::Id;
 use std::marker::PhantomData;
 use std::ops::Index;
 use std::sync::Arc;

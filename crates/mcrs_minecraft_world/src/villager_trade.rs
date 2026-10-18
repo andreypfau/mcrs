@@ -1,5 +1,6 @@
 use std::fmt;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -7,7 +8,7 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_loot::number::{FloatExpression, IntExpression, is_zero_holder, zero_holder};
 use mcrs_minecraft_loot::{LootCondition, LootItemFunction};
-use mcrs_minecraft_registry::{Holder, HolderSet, Id};
+use mcrs_minecraft_registry::{Holder, HolderSet};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -46,7 +47,10 @@ pub struct VillagerTrade {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeCost {
-    #[serde(deserialize_with = "item_id")]
+    #[serde(
+        deserialize_with = "item_id",
+        serialize_with = "mcrs_minecraft_registry::by_name::serialize"
+    )]
     pub id: Id<Item>,
     #[serde(default = "constant::<1>", skip_serializing_if = "is_constant::<1>")]
     pub count: Holder<IntExpression>,
@@ -57,7 +61,10 @@ pub struct TradeCost {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct GivenStack {
-    #[serde(deserialize_with = "item_id")]
+    #[serde(
+        deserialize_with = "item_id",
+        serialize_with = "mcrs_minecraft_registry::by_name::serialize"
+    )]
     pub id: Id<Item>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub count: Bounded<1, 99, 1>,
@@ -100,7 +107,7 @@ impl<'de> Deserialize<'de> for GivenStack {
 }
 
 fn item_id<'de, D: Deserializer<'de>>(d: D) -> Result<Id<Item>, D::Error> {
-    let id = Id::<Item>::deserialize(d)?;
+    let id = mcrs_minecraft_registry::by_name::deserialize(d)?;
     if id == Item::Air.id() {
         return Err(D::Error::custom("Item must not be minecraft:air"));
     }

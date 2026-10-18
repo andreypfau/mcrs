@@ -11,6 +11,7 @@ pub trait Sample: Sized {
 
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation, TagKey, rl};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
@@ -18,7 +19,7 @@ use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
-use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

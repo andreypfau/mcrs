@@ -2,11 +2,11 @@ use bevy::prelude::*;
 use mcrs_minecraft_client::player::PlayerCamera;
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_client::sky_state::SkyFrame;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_render::sky::SkyUniform;
 
 use crate::boot::{boot, session_registries};

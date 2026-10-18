@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen_testing::{json_files, shipped_tags, vanilla_dir};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -21,6 +22,7 @@ use serde_json::Value;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRow {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     clock: Id<WorldClock>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     period_ticks: Option<u32>,
@@ -50,8 +52,10 @@ impl<'de> Deserialize<'de> for TimelineSet {
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<TimelineSet, E> {
                 let Some(tag) = text.strip_prefix('#') else {
-                    return Id::deserialize(value::StrDeserializer::new(text))
-                        .map(TimelineSet::One);
+                    return mcrs_minecraft_registry::by_name::deserialize(
+                        value::StrDeserializer::new(text),
+                    )
+                    .map(TimelineSet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
                 let known = Tags::<mcrs_minecraft_environment::timeline::Timeline>::in_scope("TimelineSet", |tags| {
@@ -69,7 +73,10 @@ impl<'de> Deserialize<'de> for TimelineSet {
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<TimelineSet, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(TimelineSet::List)
+                mcrs_minecraft_registry::by_name::vec::deserialize(
+                    value::SeqAccessDeserializer::new(seq),
+                )
+                .map(TimelineSet::List)
             }
         }
 
@@ -80,7 +87,7 @@ impl<'de> Deserialize<'de> for TimelineSet {
 #[derive(Deserialize)]
 struct DimensionProbe {
     timelines: TimelineSet,
-    #[serde(default)]
+    #[serde(default, with = "mcrs_minecraft_registry::by_name::option")]
     default_clock: Option<Id<WorldClock>>,
 }
 
@@ -269,6 +276,7 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
 fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     #[derive(Deserialize)]
     struct Holder {
+        #[serde(with = "mcrs_minecraft_registry::by_name")]
         clock: Id<WorldClock>,
     }
 
@@ -291,7 +299,7 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
             reason = "the untagged enum tries a number before a clock, and the test never reads the number"
         )]
         Number(u32),
-        Clock(Id<WorldClock>),
+        Clock(#[serde(with = "mcrs_minecraft_registry::by_name")] Id<WorldClock>),
     }
 
     let Slice { clocks, set, .. } = slice();

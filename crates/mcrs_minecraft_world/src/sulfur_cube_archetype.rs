@@ -1,9 +1,10 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::{Holder, HolderSet, Id};
+use mcrs_minecraft_registry::{Holder, HolderSet};
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_value_provider::{DispatchedFloatProvider, FloatProvider};
 use serde::de::Error as _;
@@ -27,6 +28,7 @@ pub struct SulfurCubeArchetype {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeEntry {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub attribute: Id<Attribute>,
     pub id: ResourceLocation,
     pub amount: f64,
@@ -36,6 +38,7 @@ pub struct AttributeEntry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContactDamage {
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub damage_type: Id<mcrs_minecraft_item::damage_type::DamageType>,
     #[serde(deserialize_with = "non_negative_float_provider")]
     pub amount: FloatProvider,

@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::climate::{ClimateParameters, ParameterPoint};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_registry::HolderSet;
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -90,6 +91,7 @@ pub enum BiomeSource {
     MultiNoise(MultiNoiseBiomeSource),
     TheEnd,
     Fixed {
+        #[serde(with = "mcrs_minecraft_registry::by_name")]
         biome: Id<crate::Biome>,
     },
     Checkerboard {
@@ -100,7 +102,7 @@ pub enum BiomeSource {
     Beta {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
-        #[serde(rename = "biomes")]
+        #[serde(rename = "biomes", with = "mcrs_minecraft_registry::by_name::array")]
         land_biomes: [Id<crate::Biome>; 11],
         #[serde(skip, default = "beta_lookup")]
         lookup: Arc<[[BetaLandBiome; 64]; 64]>,
@@ -145,9 +147,15 @@ pub enum MultiNoiseBiomeSource {
 struct MultiNoiseFields {
     #[serde(default, deserialize_with = "distinguishable_entries")]
     biomes: Option<Vec<MultiNoiseBiomeEntry>>,
-    #[serde(default)]
+    #[serde(default, with = "mcrs_minecraft_registry::by_name::option")]
     preset: Option<Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
 }
+
+#[derive(Serialize)]
+struct PresetRef<'a>(
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
+    &'a Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>,
+);
 
 impl<'de> Deserialize<'de> for MultiNoiseBiomeSource {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -176,7 +184,7 @@ impl Serialize for MultiNoiseBiomeSource {
         let mut fields = s.serialize_struct("MultiNoiseBiomeSource", 1)?;
         match self {
             Self::Biomes(biomes) => fields.serialize_field("biomes", biomes)?,
-            Self::Preset(preset) => fields.serialize_field("preset", preset)?,
+            Self::Preset(preset) => fields.serialize_field("preset", &PresetRef(preset))?,
         }
         fields.end()
     }
@@ -186,6 +194,7 @@ impl Serialize for MultiNoiseBiomeSource {
 #[serde(deny_unknown_fields)]
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
+    #[serde(with = "mcrs_minecraft_registry::by_name")]
     pub biome: Id<crate::Biome>,
 }
 

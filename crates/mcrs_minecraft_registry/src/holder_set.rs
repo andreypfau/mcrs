@@ -1,5 +1,5 @@
-use crate::id::Id;
 use crate::tags::Tags;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{ResourceLocation, TagId};
 use serde::de::{SeqAccess, Visitor, value};
@@ -132,10 +132,10 @@ impl<R: 'static> Serialize for HolderSet<R> {
                     .map_err(S::Error::custom)?;
                 serializer.serialize_str(&format!("#{}", name.as_str()))
             }
-            HolderSet::One(entry) => entry.serialize(serializer),
+            HolderSet::One(entry) => crate::by_name::serialize(entry, serializer),
             HolderSet::List(entries) => match &**entries {
-                [entry] => entry.serialize(serializer),
-                entries => serializer.collect_seq(entries),
+                [entry] => crate::by_name::serialize(entry, serializer),
+                entries => crate::by_name::vec::serialize(entries, serializer),
             },
         }
     }
@@ -148,8 +148,10 @@ impl<R: 'static> Serialize for AlwaysList<'_, R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self.0 {
             HolderSet::Named(_) => self.0.serialize(serializer),
-            HolderSet::One(entry) => serializer.collect_seq(std::slice::from_ref(entry)),
-            HolderSet::List(entries) => serializer.collect_seq(entries.iter()),
+            HolderSet::One(entry) => {
+                crate::by_name::vec::serialize(std::slice::from_ref(entry), serializer)
+            }
+            HolderSet::List(entries) => crate::by_name::vec::serialize(entries, serializer),
         }
     }
 }
@@ -170,7 +172,8 @@ impl<'de, R: 'static> Deserialize<'de> for HolderSet<R> {
                     return Ok(HolderSet::default());
                 }
                 let Some(tag) = text.strip_prefix('#') else {
-                    return Id::deserialize(value::StrDeserializer::new(text)).map(HolderSet::One);
+                    return crate::by_name::deserialize(value::StrDeserializer::new(text))
+                        .map(HolderSet::One);
                 };
                 let key =
                     TagKey::<R, _>::from_location(ResourceLocation::read(tag).map_err(E::custom)?);
@@ -191,7 +194,7 @@ impl<'de, R: 'static> Deserialize<'de> for HolderSet<R> {
                     while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                     return Ok(HolderSet::default());
                 }
-                Vec::<Id<R>>::deserialize(value::SeqAccessDeserializer::new(seq))
+                crate::by_name::vec::deserialize(value::SeqAccessDeserializer::new(seq))
                     .map(|entries| HolderSet::List(entries.into_boxed_slice()))
             }
         }

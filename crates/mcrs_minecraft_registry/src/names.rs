@@ -1,4 +1,3 @@
-use crate::id::id_number;
 use crate::registry::RegistryError;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::collections::HashMap;
@@ -9,6 +8,10 @@ pub struct NameTable {
     registry: ResourceLocation<Arc<str>>,
     names: Vec<ResourceLocation<Arc<str>>>,
     numbers: HashMap<ResourceLocation<Arc<str>>, u16>,
+}
+
+pub(crate) fn id_number(position: usize) -> Option<u16> {
+    u16::try_from(position).ok()
 }
 
 impl NameTable {
