@@ -10,6 +10,7 @@ pub enum Check {
     Test,
     NoBevy,
     Wasm32,
+    Keys,
 }
 
 impl Check {
@@ -25,6 +26,7 @@ impl Check {
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Wasm32 => "wasm32",
+            Check::Keys => "keys",
         }
     }
 
@@ -84,7 +86,7 @@ impl Trigger {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
             Trigger::Lint => {
-                "in CI on every pull request and every push to main: the commit checks over the whole branch"
+                "in CI on every pull request and every push to main: the commit checks over the whole branch, then the key sources regenerated when an input of the generator changed"
             }
             Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
             Trigger::Test => {
@@ -127,9 +129,18 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push | Trigger::Lint => {
+        Trigger::Commit | Trigger::Push => {
             &[Suppressions, Bypasses, Parity, UnusedDeps, Layers, Fmt]
         }
+        Trigger::Lint => &[
+            Suppressions,
+            Bypasses,
+            Parity,
+            UnusedDeps,
+            Layers,
+            Fmt,
+            Keys,
+        ],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Wasm32],

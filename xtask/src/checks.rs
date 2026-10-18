@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{bypasses, layers, parity, suppressions, unused_deps};
+use crate::{bypasses, keys, layers, parity, suppressions, unused_deps};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -153,6 +153,12 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         }
         Check::Layers => layers::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?),
         Check::Fmt => fmt(ctx),
+        Check::Keys => keys::check(
+            &ctx.root,
+            &ctx.head,
+            &scope::changed_paths(&ctx.root, ctx.base()?, &ctx.head)?,
+            || ctx.exec("cargo", &keys::GENERATE),
+        ),
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
