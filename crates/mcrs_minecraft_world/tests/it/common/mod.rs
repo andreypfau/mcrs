@@ -7,11 +7,11 @@ use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PackRoots;
-use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::{Registered, TagKey};
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registry::{Registered, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{

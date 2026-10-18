@@ -2435,7 +2435,7 @@ fn overworld_dimension_type_with(
     test_registries().scope(|| serde_json::from_value(file).map_err(|e| e.to_string()))
 }
 
-fn tag_in<R: mcrs_minecraft_registry::Registered>(set: &RegistrySet, name: &str) -> TagId<R> {
+fn tag_in<R: mcrs_minecraft_core::Registered>(set: &RegistrySet, name: &str) -> TagId<R> {
     set.tags::<R>()
         .unwrap_or_else(|| panic!("{} has loaded tags", R::REGISTRY))
         .get(&TagKey::<R, _>::from_location(

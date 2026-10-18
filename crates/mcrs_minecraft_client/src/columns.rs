@@ -1275,11 +1275,11 @@ mod tests {
 
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
-        use mcrs_minecraft_core::ResourceKey;
+        use mcrs_minecraft_core::{Registered, ResourceKey};
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_protocol::GameMode;
-        use mcrs_minecraft_registry::{Registered, Registry};
+        use mcrs_minecraft_registry::Registry;
 
         let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionType>().unwrap();

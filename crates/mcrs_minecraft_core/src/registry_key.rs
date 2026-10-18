@@ -73,6 +73,10 @@ pub struct TypeBinding {
     pub registry: ResourceLocation<&'static str>,
 }
 
+pub trait Registered: Sized + 'static {
+    const REGISTRY: RegistryKey<Self>;
+}
+
 pub trait RegistryValue {
     type Registry: 'static;
 }

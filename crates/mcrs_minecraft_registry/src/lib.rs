@@ -14,7 +14,6 @@ pub mod load;
 pub mod lookup;
 pub mod names;
 pub mod network;
-pub mod registered;
 pub mod registry;
 pub mod report;
 pub mod set;
@@ -35,7 +34,6 @@ pub use load::{
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;
 pub use network::{KnownPackEntries, NetworkEntry, NetworkRegistry, NetworkTags};
-pub use registered::Registered;
 pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};

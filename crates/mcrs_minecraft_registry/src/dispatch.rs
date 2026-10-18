@@ -1132,7 +1132,7 @@ macro_rules! dispatch {
                 let value = $crate::dispatch::read(
                     deserializer,
                     $key,
-                    <$gen as $crate::Registered>::REGISTRY.location().as_static_str(),
+                    <$gen as $crate::dispatch::__core::Registered>::REGISTRY.location().as_static_str(),
                     pick,
                     $crate::dispatch!(@body [$($gp),*] $ty),
                 )?;
@@ -1242,7 +1242,7 @@ macro_rules! dispatched_map {
                                     return Err(A::Error::custom(format_args!(
                                         "{} is not supported by {}",
                                         entry.as_static_str(),
-                                        <$gen as $crate::Registered>::REGISTRY.location()
+                                        <$gen as $crate::dispatch::__core::Registered>::REGISTRY.location()
                                     )));
                                 } )*)?
                             }
@@ -1274,7 +1274,7 @@ macro_rules! dispatched_map {
 
 #[cfg(test)]
 mod tests {
-    use crate::Registered;
+    use mcrs_minecraft_core::Registered;
     use mcrs_minecraft_core::{RegistryKey, rl};
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_nbt::tag::NbtTag;

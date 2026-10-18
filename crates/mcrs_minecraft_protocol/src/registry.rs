@@ -1,9 +1,9 @@
 use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Registered, ResourceLocation};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Registered, Registry};
+use mcrs_minecraft_registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
 

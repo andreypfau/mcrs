@@ -192,7 +192,7 @@ macro_rules! static_registry {
                 let location = $crate::static_key::__ResourceLocation::read(&text).map_err(D::Error::custom)?;
                 Self::find(location.as_str()).ok_or_else(|| {
                     D::Error::custom($crate::static_key::unknown_entry(
-                        <Self as $crate::Registered>::REGISTRY.location(),
+                        <Self as ::mcrs_minecraft_core::Registered>::REGISTRY.location(),
                         &location,
                     ))
                 })
@@ -211,7 +211,7 @@ mod tests {
         Apple = "minecraft:apple",
     }
 
-    impl crate::Registered for Fruit {
+    impl mcrs_minecraft_core::Registered for Fruit {
         const REGISTRY: mcrs_minecraft_core::RegistryKey<Self> =
             mcrs_minecraft_core::RegistryKey::new(mcrs_minecraft_core::rl!("minecraft:fruit"));
     }
@@ -233,7 +233,7 @@ mod tests {
         assert_eq!(Fruit::find("minecraft:zebra"), Some(Fruit::Zebra));
         assert_eq!(Fruit::find("minecraft:mango"), None);
         let wider = crate::Registry::<Fruit>::new(
-            <Fruit as crate::Registered>::REGISTRY,
+            <Fruit as mcrs_minecraft_core::Registered>::REGISTRY,
             ["zebra", "apple", "mango"].map(|name| {
                 mcrs_minecraft_core::ResourceLocation::read(&format!("minecraft:{name}")).unwrap()
             }),

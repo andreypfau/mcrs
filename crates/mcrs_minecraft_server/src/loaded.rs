@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::{Entries, Registered, Registry, RegistrySet, Tags};
+use mcrs_minecraft_core::{Registered, ResourceLocation};
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use std::collections::BTreeMap;
 
 /// The registries the server cannot run without: the data pack loader builds each of them

@@ -8,20 +8,22 @@ pub use custom_stat::CustomStat;
 pub use entity_sub_predicate_type::EntitySubPredicateType;
 pub use stat_type::StatType;
 
-use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
-use mcrs_minecraft_registry::Registered;
+use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
 
-pub const CUSTOM_STAT: RegistryKey<crate::keys::CustomStat> = RegistryKey::new(rl!("minecraft:custom_stat"));
+pub const CUSTOM_STAT: RegistryKey<crate::keys::CustomStat> =
+    RegistryKey::new(rl!("minecraft:custom_stat"));
 impl Registered for crate::keys::CustomStat {
     const REGISTRY: RegistryKey<Self> = CUSTOM_STAT;
 }
 
-pub const ENTITY_SUB_PREDICATE_TYPE: RegistryKey<crate::keys::EntitySubPredicateType> = RegistryKey::new(rl!("minecraft:entity_sub_predicate_type"));
+pub const ENTITY_SUB_PREDICATE_TYPE: RegistryKey<crate::keys::EntitySubPredicateType> =
+    RegistryKey::new(rl!("minecraft:entity_sub_predicate_type"));
 impl Registered for crate::keys::EntitySubPredicateType {
     const REGISTRY: RegistryKey<Self> = ENTITY_SUB_PREDICATE_TYPE;
 }
 
-pub const STAT_TYPE: RegistryKey<crate::keys::StatType> = RegistryKey::new(rl!("minecraft:stat_type"));
+pub const STAT_TYPE: RegistryKey<crate::keys::StatType> =
+    RegistryKey::new(rl!("minecraft:stat_type"));
 impl Registered for crate::keys::StatType {
     const REGISTRY: RegistryKey<Self> = STAT_TYPE;
 }

@@ -1,6 +1,6 @@
 use crate::VarInt;
 use crate::packets::configuration::clientbound::{RegistryTags, TagGroup};
-use mcrs_minecraft_registry::Registered;
+use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_registry::{Registry, TagTable, Tags};
 
 pub fn tags_payload<R: Registered>(tags: &Tags<R>) -> RegistryTags<'static> {

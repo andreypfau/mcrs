@@ -4565,7 +4565,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_registry",
  "serde",
  "serde_json",
 ]

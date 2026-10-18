@@ -89,7 +89,7 @@ macro_rules! registry_table {
         {
             $(
                 declare::<$key, $value>(world, report, $declaration);
-                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
+                let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
                     $(world.split::<$value, $parts>(registry, $split, $join);)?
                     $($(
@@ -310,7 +310,7 @@ fn declare<K, V>(
     report: &mut LoadReport,
     declaration: DataDeclaration<RegistryOf<V>>,
 ) where
-    K: mcrs_minecraft_registry::Registered,
+    K: mcrs_minecraft_core::Registered,
     V: Serialize + Send + Sync + 'static,
 {
     let registry = K::REGISTRY.location();

@@ -6,20 +6,22 @@ pub mod noise_settings;
 
 pub use density_function_type::DensityFunctionType;
 
-use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
-use mcrs_minecraft_registry::Registered;
+use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
 
-pub const DENSITY_FUNCTION: RegistryKey<crate::proto::DensityFunctionHolder> = RegistryKey::new(rl!("minecraft:worldgen/density_function"));
+pub const DENSITY_FUNCTION: RegistryKey<crate::proto::DensityFunctionHolder> =
+    RegistryKey::new(rl!("minecraft:worldgen/density_function"));
 impl Registered for crate::proto::DensityFunctionHolder {
     const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION;
 }
 
-pub const DENSITY_FUNCTION_TYPE: RegistryKey<crate::keys::DensityFunctionType> = RegistryKey::new(rl!("minecraft:worldgen/density_function_type"));
+pub const DENSITY_FUNCTION_TYPE: RegistryKey<crate::keys::DensityFunctionType> =
+    RegistryKey::new(rl!("minecraft:worldgen/density_function_type"));
 impl Registered for crate::keys::DensityFunctionType {
     const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
 }
 
-pub const NOISE_SETTINGS: RegistryKey<crate::router::NoiseGeneratorSettings> = RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
+pub const NOISE_SETTINGS: RegistryKey<crate::router::NoiseGeneratorSettings> =
+    RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
 impl Registered for crate::router::NoiseGeneratorSettings {
     const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
 }

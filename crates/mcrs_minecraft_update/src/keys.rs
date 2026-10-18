@@ -631,8 +631,7 @@ fn owner_file(target: &Target) -> String {
         out.push('\n');
     }
     out.push_str(&format!(
-        "use mcrs_minecraft_core::{{RegistryKey, TypeBinding, rl}};\n\
-         use mcrs_minecraft_registry::Registered;\n\
+        "use mcrs_minecraft_core::{{Registered, RegistryKey, TypeBinding, rl}};\n\
          \n\
          {definitions}\n\
          {bindings}",
@@ -1383,8 +1382,7 @@ mod tests {
              \n\
              pub mod biome;\n\
              \n\
-             use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};\n\
-             use mcrs_minecraft_registry::Registered;\n\
+             use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};\n\
              \n\
              pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
              impl Registered for crate::Biome {\n\

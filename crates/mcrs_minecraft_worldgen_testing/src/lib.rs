@@ -204,7 +204,7 @@ pub fn corpus_set() -> &'static RegistrySet {
     &SET
 }
 
-fn shipped_names<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Registry<R> {
+fn shipped_names<R: mcrs_minecraft_core::Registered>(folder: &str) -> Registry<R> {
     numbered(folder, shipped_name_list(folder))
 }
 
@@ -227,7 +227,7 @@ fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
     names
 }
 
-fn numbered<R: mcrs_minecraft_registry::Registered>(
+fn numbered<R: mcrs_minecraft_core::Registered>(
     folder: &str,
     mut names: Vec<ResourceLocation<Arc<str>>>,
 ) -> Registry<R> {
@@ -280,7 +280,7 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
 
 /// The names `set` holds, as `corpus_set` numbers them. A set that names a tag
 /// is refused.
-pub fn names_of<R: mcrs_minecraft_registry::Registered>(set: &HolderSet<R>) -> Vec<String> {
+pub fn names_of<R: mcrs_minecraft_core::Registered>(set: &HolderSet<R>) -> Vec<String> {
     let registry = corpus_set()
         .registry::<R>()
         .unwrap_or_else(|| panic!("the corpus set holds no {}", R::REGISTRY));
@@ -392,7 +392,7 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// A registry set holding the one registry `R`, numbered by the files the game
 /// ships under `<folder>`, for reading a value that names an entry of it inside
 /// `RegistrySet::scope`.
-pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str) -> RegistrySet {
+pub fn shipped_registry_set<R: mcrs_minecraft_core::Registered>(folder: &str) -> RegistrySet {
     RegistrySet::new()
         .with(shipped_registry::<R>(folder))
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
@@ -400,7 +400,7 @@ pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str
 
 /// `set` with the registry `R` numbered by the files the game ships under
 /// `<folder>`, and the tags it ships for it.
-pub fn with_shipped<R: mcrs_minecraft_registry::Registered>(
+pub fn with_shipped<R: mcrs_minecraft_core::Registered>(
     set: RegistrySet,
     folder: &str,
 ) -> RegistrySet {
@@ -411,7 +411,7 @@ pub fn with_shipped<R: mcrs_minecraft_registry::Registered>(
         .with_tags(tags)
 }
 
-fn shipped_registry<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Registry<R> {
+fn shipped_registry<R: mcrs_minecraft_core::Registered>(folder: &str) -> Registry<R> {
     Registry::<R>::new(R::REGISTRY, shipped_ids(folder))
         .unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }

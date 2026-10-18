@@ -124,7 +124,7 @@ impl BiomeGeneration {
     }
 }
 
-fn ids<R: mcrs_minecraft_registry::Registered>(
+fn ids<R: mcrs_minecraft_core::Registered>(
     set: &RegistrySet,
     names: &[StaticResourceLocation],
     failures: &mut Vec<String>,
