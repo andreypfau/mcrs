@@ -208,6 +208,10 @@ pub enum Action {
         target: BlockPos,
         source: ProbeBlock,
     },
+    UpdateNeighbours {
+        source: BlockPos,
+        block: ProbeBlock,
+    },
     UpdateNeighbourWithState {
         target: BlockPos,
         state: BlockStateId,
@@ -357,6 +361,7 @@ impl ProbeBehaviour {
                 self.push(Entry::Read { now, pos, result });
             }
             Action::UpdateNeighbour { target, source } => cx.update_neighbour(target, source),
+            Action::UpdateNeighbours { source, block } => cx.update_neighbours(source, block, None),
             Action::UpdateNeighbourWithState {
                 target,
                 state,

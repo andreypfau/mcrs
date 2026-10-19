@@ -199,11 +199,17 @@ where
     }
 
     fn admit(&mut self, request: UpdateRequest<K>) {
-        match self.volume.access(SectionPos::from(request.pos())) {
-            Access::Write => self.shard.chain.added.push(request),
-            Access::Read | Access::Foreign => self.send_update(request),
-            Access::Unloaded => bump(&mut self.out.report.unloaded_drops),
-            Access::Outside => {}
+        let access = self.volume.access(SectionPos::from(request.pos()));
+        match (access, request) {
+            // An around request's position is its source, not a block it updates; with no
+            // owner to send it to, run it here and let each neighbour route by its own access.
+            (Access::Write, _)
+            | (Access::Unloaded | Access::Outside, UpdateRequest::Around { .. }) => {
+                self.shard.chain.added.push(request);
+            }
+            (Access::Read | Access::Foreign, _) => self.send_update(request),
+            (Access::Unloaded, _) => bump(&mut self.out.report.unloaded_drops),
+            (Access::Outside, _) => {}
         }
     }
 

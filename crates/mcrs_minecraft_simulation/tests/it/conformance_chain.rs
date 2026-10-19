@@ -70,6 +70,70 @@ fn sim_nbr_001_a_set_updates_its_six_neighbours_in_neighbour_order() {
     assert!(check_sim_nbr_001(&in_shape_order, p).is_err());
 }
 
+fn check_sim_nbr_001_ownerless_source(
+    hits: &[BlockPos],
+    report: &StepReport,
+    expected: &[BlockPos],
+    drops: u32,
+) -> Result<(), String> {
+    if hits != expected {
+        return Err(format!(
+            "neighbour updates ran at {hits:?}, expected {expected:?}"
+        ));
+    }
+    if report.unloaded_drops != drops {
+        return Err(format!(
+            "{} updates dropped as unloaded, expected {drops}",
+            report.unloaded_drops
+        ));
+    }
+    Ok(())
+}
+
+fn run_around(source: BlockPos) -> (Vec<BlockPos>, StepReport) {
+    let driver = at(0, 0, 0);
+    let rules = vec![
+        Rule::on(
+            Hook::BlockTick,
+            driver,
+            vec![Action::UpdateNeighbours {
+                source,
+                block: BLOCK_A,
+            }],
+        )
+        .once(),
+    ];
+    let mut runner = Runner::new(filled(&[(0, 0, 0), (0, -4, 0)]), rules);
+    let out = runner
+        .step(
+            100,
+            Phase::BlockTicks,
+            &[block_tick_message(0, driver, BLOCK_A, 100)],
+        )
+        .expect("owned message");
+    (neighbour_hits(&runner.behaviour.log()), out.report)
+}
+
+#[test]
+fn sim_nbr_001_a_source_with_no_owner_still_updates_its_loaded_neighbours() {
+    let bottom = at(8, -64, 8);
+    let (hits, report) = run_around(offset(bottom, Direction::Down));
+    assert_eq!(
+        check_sim_nbr_001_ownerless_source(&hits, &report, &[bottom], 0),
+        Ok(())
+    );
+
+    let top = at(8, 15, 8);
+    let (hits, report) = run_around(offset(top, Direction::Up));
+    assert_eq!(
+        check_sim_nbr_001_ownerless_source(&hits, &report, &[top], 5),
+        Ok(())
+    );
+
+    assert!(check_sim_nbr_001_ownerless_source(&[], &report, &[top], 5).is_err());
+    assert!(check_sim_nbr_001_ownerless_source(&[top], &report, &[top], 0).is_err());
+}
+
 fn check_sim_nbr_002(
     entries: &[(BlockPos, BlockStateId, ProbeBlock)],
     q: BlockPos,
