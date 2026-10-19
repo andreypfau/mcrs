@@ -10,6 +10,7 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
+use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{debug, error, warn};
@@ -95,7 +96,6 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
@@ -225,11 +225,7 @@ pub fn spawn_dim_subapp(
         });
 
     let mut sub_app = SubApp::new();
-    if let Some(shared) = app.world().get_resource::<SharedRegistries>() {
-        shared
-            .copy_into(app.world(), sub_app.world_mut())
-            .unwrap_or_else(|missing| panic!("{missing}"));
-    }
+    mcrs_minecraft_world::registry_snapshot::extract_registries(app.world(), sub_app.world_mut());
 
     sub_app.insert_resource(ToDimReceiver::<ToDim> {
         serverbound: to_dim_srv_rx,
@@ -589,6 +585,7 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
+        mcrs_minecraft_world::registry_snapshot::extract_registries(main_world, sub_world);
         if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
             sub_world.insert_resource(ops.clone());
         }

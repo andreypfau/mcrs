@@ -48,8 +48,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
-
-        registries::share_registries(app.world_mut());
+        app.add_message::<mcrs_minecraft_registries::RegistriesReloaded>();
 
         app.add_systems(PostStartup, start_loading_data_pack)
             .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
@@ -78,7 +77,7 @@ impl Plugin for MinecraftWorldPlugin {
             mcrs_minecraft_core::check_corpus_version(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-        let (block_registry, registries) = {
+        let (block_registry, registries, registries_arc, resolved) = {
             let started = bevy_platform::time::Instant::now();
             let loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
                 .unwrap_or_else(|error| registries::refuse(&error));
@@ -92,13 +91,13 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded registries"
             );
             app.insert_resource(loaded.known_packs);
-            resolvers::run_resolvers(app.world_mut(), &registries)
+            let resolved = resolvers::run_resolvers(app.world_mut(), &registries)
                 .unwrap_or_else(|report| registries::refuse(&report));
             let block_registry = registries
                 .registry::<Block>()
                 .expect("the static registries hold minecraft:block");
             registries::insert_registry_resources(app.world_mut(), &registries);
-            (block_registry, registries)
+            (block_registry, registries, loaded.registries, resolved)
         };
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
@@ -136,6 +135,7 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
             app.insert_resource(sound_sets);
         }
+        crate::registry_snapshot::install_registries(app.world_mut(), registries_arc, resolved);
     }
 }
 

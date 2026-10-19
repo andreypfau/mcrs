@@ -113,13 +113,6 @@ impl<R> Clone for Registry<R> {
     }
 }
 
-#[cfg(feature = "bevy")]
-impl<R: Send + Sync + 'static> crate::shared::SharedResource for Registry<R> {
-    fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.table, &other.table)
-    }
-}
-
 impl<R> fmt::Debug for Registry<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")

@@ -8,7 +8,6 @@ use mcrs_minecraft_biome::parameter_list::{
 };
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{Id, NarrowError};
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Entries, LoadReport, Registry, RegistrySet, UnknownEntry};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
@@ -177,7 +176,7 @@ impl PresetBiomeTables {
         }
     }
 
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
+    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
         let lists = report.registry(set, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
         let biomes = report.registry(set, BIOME);
         let (lists, biomes) = (lists?, biomes?);
@@ -187,7 +186,7 @@ impl PresetBiomeTables {
             ));
             return None;
         };
-        Self::build(&lists, &entries, &biomes, report).map(Resolved::new)
+        Self::build(&lists, &entries, &biomes, report)
     }
 
     pub fn get(

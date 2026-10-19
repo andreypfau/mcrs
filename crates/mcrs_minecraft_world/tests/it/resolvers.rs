@@ -2,9 +2,8 @@ use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
 use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
-use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
+use mcrs_minecraft_world::resolvers::{AddRegistryResolver, Resolved, run_resolvers};
 
 fn biomes_named(names: &[&str]) -> RegistrySet {
     let biomes = Registry::<Biome>::new(
@@ -21,28 +20,25 @@ struct Needs<const N: usize>(Vec<Id<Biome>>);
 
 fn needs<const N: usize>(
     wanted: [ResourceKey<Biome, &'static str>; N],
-) -> impl Fn(&RegistrySet, &mut LoadReport) -> Option<Resolved<Needs<N>>> {
+) -> impl Fn(&RegistrySet, &mut LoadReport) -> Option<Needs<N>> {
     move |set, report| {
         let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME)?;
         let found: Vec<_> = wanted
             .iter()
             .map(|key| report.require(&biomes, key))
             .collect();
-        found
-            .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .map(|ids| Resolved::new(Needs(ids)))
+        found.into_iter().collect::<Option<Vec<_>>>().map(Needs)
     }
 }
 
-fn first_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Needs<2>>> {
+fn first_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Needs<2>> {
     needs([
         mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS,
         mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN,
     ])(set, report)
 }
 
-fn second_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Needs<3>>> {
+fn second_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Needs<3>> {
     needs([
         mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS,
         mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN,
@@ -125,6 +121,4 @@ fn no_resolver_and_no_miss_lets_the_app_start() {
         app.world().resource::<Resolved<Needs<1>>>().0,
         [plains.unwrap()]
     );
-    let shared = app.world().resource::<SharedRegistries>();
-    assert_eq!(shared.shared_in(app.world(), app.world()).len(), 1);
 }

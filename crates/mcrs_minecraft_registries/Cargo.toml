@@ -7,7 +7,11 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[features]
+bevy = ["dep:bevy_ecs"]
+
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 fancy-regex.workspace = true
 fixedbitset.workspace = true
 mcrs_minecraft_core.workspace = true

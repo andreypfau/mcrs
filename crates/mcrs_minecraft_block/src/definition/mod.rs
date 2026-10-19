@@ -396,13 +396,6 @@ impl BlockSoundSets {
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct Blocks(pub Arc<BlockDefinitions>);
 
-#[cfg(feature = "bevy")]
-impl mcrs_minecraft_registry::shared::SharedResource for Blocks {
-    fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
-
 impl std::ops::Deref for Blocks {
     type Target = BlockDefinitions;
 

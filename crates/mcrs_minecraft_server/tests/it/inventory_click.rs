@@ -33,6 +33,7 @@ use mcrs_minecraft_server::world::item::click::{
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::resolvers::Resolved;
 
 fn opened() -> (World, Entity) {
     let (mut world, player, _anchor) = world();
@@ -1259,9 +1260,9 @@ fn opened_over(block: &str) -> (World, Entity, Entity) {
     let (mut world, player) = opened();
     let (blocks, _) = standalone_corpus();
     let mut report = mcrs_minecraft_registry::LoadReport::new();
-    world.insert_resource(
+    world.insert_resource(Resolved::new(
         ShulkerBoxes::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}")),
-    );
+    ));
     let mut palette = ChunkBlocks::default();
     palette
         .make_mut()

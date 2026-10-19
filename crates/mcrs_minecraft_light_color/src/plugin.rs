@@ -6,8 +6,8 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_world::resolvers::AddRegistryResolver;
+use mcrs_minecraft_world::resolvers::Resolved;
 
 use crate::colors::{LightColors, LightType};
 use crate::item::{ItemLights, LightColorIds};

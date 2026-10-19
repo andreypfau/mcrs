@@ -1,7 +1,8 @@
 //! Integration tests for the host→SubApp player-connection handoff on initial
 //! join: the host-side emit, the per-dim consumer and the full round-trip.
 
-use bevy_app::{App, Update};
+use bevy_app::{App, InternedAppLabel, Update};
+use bevy_ecs::change_detection::Tick;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
@@ -413,12 +414,14 @@ fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list(
     rows_hold(failed);
 }
 
-fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc(app: &App) {
+fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     use mcrs_minecraft_block::definition::Blocks;
+    use mcrs_minecraft_core::Versioned;
     use mcrs_minecraft_inventory::ShulkerBoxes;
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
-    use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
+    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
+    use mcrs_minecraft_world::resolvers::Resolved;
     use mcrs_minecraft_worldgen_generator::SurfaceIds;
     use mcrs_minecraft_worldgen_generator::ids::FillIds;
     use std::any::type_name;
@@ -432,13 +435,17 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc(app: &App) {
         type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),
-        type_name::<ShulkerBoxes>(),
+        type_name::<Resolved<ShulkerBoxes>>(),
     ];
 
-    let candidates: Vec<String> = app
-        .world()
-        .iter_resources()
-        .map(|(info, _)| info.name().to_string())
+    let resource_names = |world: &World| -> Vec<String> {
+        world
+            .iter_resources()
+            .map(|(info, _)| info.name().to_string())
+            .collect()
+    };
+    let candidates: Vec<String> = resource_names(app.world())
+        .into_iter()
         .filter(|name| is_registry_type(name))
         .collect();
     assert!(
@@ -446,28 +453,33 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc(app: &App) {
         "the host holds no registry resource to check: {candidates:?}"
     );
 
-    let shared = app.world().resource::<SharedRegistries>();
+    let host_snapshot = app.world().resource::<Versioned<RegistrySnapshot>>();
+    let host_surface = app.world().resource::<Resolved<SurfaceIds>>();
     let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
     assert_eq!(dimensions.len(), 2);
     for dimension in dimensions {
-        let seen = shared.shared_in(app.world(), dimension.world());
+        let held = resource_names(dimension.world());
         for name in expected {
-            assert!(
-                seen.iter().any(|(seen, _)| *seen == name),
-                "{name}: {seen:?}"
-            );
+            assert!(held.iter().any(|held| held == name), "{name}: {held:?}");
         }
-        let unshared: Vec<&String> = candidates
+        let missing: Vec<&String> = candidates
             .iter()
-            .filter(|candidate| !seen.iter().any(|(name, _)| name == candidate))
+            .filter(|candidate| !held.contains(candidate))
             .collect();
         assert!(
-            unshared.is_empty(),
-            "host resources of a registry type that are not shared: {unshared:#?}"
+            missing.is_empty(),
+            "host resources of a registry type that no dimension received: {missing:#?}"
         );
-        for (name, state) in seen {
-            assert_eq!(state, Some(true), "{name}");
-        }
+        let snapshot = dimension.world().resource::<Versioned<RegistrySnapshot>>();
+        assert!(
+            Arc::ptr_eq(host_snapshot.value(), snapshot.value()),
+            "a dimension holds its own snapshot, not the host's"
+        );
+        let surface = dimension.world().resource::<Resolved<SurfaceIds>>();
+        assert!(
+            std::ptr::eq(&**host_surface, &**surface),
+            "a dimension holds its own copy of the surface tables"
+        );
     }
 }
 
@@ -487,7 +499,7 @@ fn is_registry_type(name: &str) -> bool {
 }
 
 #[test]
-fn every_shared_registry_reaches_every_dimension_and_stays_unchanged_on_the_second_tick() {
+fn every_registry_resource_of_the_host_reaches_every_dimension_through_one_snapshot() {
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
@@ -495,13 +507,13 @@ fn every_shared_registry_reaches_every_dimension_and_stays_unchanged_on_the_seco
     let mut failed = Vec::new();
     row(
         &mut failed,
-        "every shared registry reaches every dimension as the host's Arc",
-        || every_shared_registry_reaches_every_dimension_as_the_hosts_arc(&app),
+        "every registry resource of the host reaches every dimension",
+        || every_registry_resource_of_the_host_reaches_every_dimension(&app),
     );
     row(
         &mut failed,
-        "a shared registry is not changed on the second tick",
-        || a_shared_registry_is_not_changed_on_the_second_tick(&mut app),
+        "a registry resource is not changed on the second tick",
+        || a_registry_resource_is_not_changed_on_the_second_tick(&mut app),
     );
     rows_hold(failed);
 }
@@ -519,9 +531,8 @@ fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<Dimension>)> {
         .collect()
 }
 
-fn a_shared_registry_is_not_changed_on_the_second_tick(app: &mut App) {
+fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
     use mcrs_minecraft_level::world::sub_app::DimAppLabel;
-    use mcrs_minecraft_registry::shared::SharedRegistries;
 
     let labels = dimension_labels(app);
     assert_eq!(labels.len(), 2);
@@ -572,12 +583,133 @@ fn a_shared_registry_is_not_changed_on_the_second_tick(app: &mut App) {
         .collect();
     app.update();
 
-    let shared = app.world().resource::<SharedRegistries>();
     for (label, since) in since {
-        let seen = shared.changed_since(app.sub_app(DimAppLabel(label)).world(), since);
-        assert!(!seen.is_empty());
-        for (name, changed) in seen {
-            assert_eq!(changed, Some(false), "{name}");
-        }
+        let world = app.sub_app(DimAppLabel(label)).world();
+        assert!(
+            !registry_resources_changed_since(world, since),
+            "a registry resource changed on a tick without a swap"
+        );
     }
+}
+
+fn registry_resources_changed_since(world: &World, since: Tick) -> bool {
+    use mcrs_minecraft_core::Versioned;
+    use mcrs_minecraft_registries::CurrentRegistries;
+    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
+
+    let now = world.read_change_tick();
+    let snapshot = world
+        .get_resource_change_ticks::<Versioned<RegistrySnapshot>>()
+        .expect("the dimension holds the snapshot");
+    let current = world
+        .get_resource_change_ticks::<CurrentRegistries>()
+        .expect("the dimension holds the registries");
+    snapshot.is_changed(since, now) || current.is_changed(since, now)
+}
+
+fn assert_every_dimension_holds_the_hosts_registries(app: &App) {
+    use mcrs_minecraft_registries::CurrentRegistries;
+
+    let host = app.world().resource::<CurrentRegistries>();
+    let dimensions = &app.sub_apps().sub_apps;
+    assert!(!dimensions.is_empty(), "the host has no dimensions");
+    for dimension in dimensions.values() {
+        let held = dimension.world().resource::<CurrentRegistries>();
+        assert!(
+            Arc::ptr_eq(host.arc(), held.arc()),
+            "dimension holds its own copy of the registries, not the host's Arc"
+        );
+    }
+}
+
+#[test]
+fn every_dimension_holds_the_hosts_registries_arc() {
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+
+    assert_every_dimension_holds_the_hosts_registries(&app);
+}
+
+#[test]
+#[should_panic(expected = "dimension holds its own copy of the registries, not the host's Arc")]
+fn a_dimension_holding_a_cloned_registries_fails_the_pointer_check() {
+    use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+
+    let cloned = Registries::clone(app.world().resource::<CurrentRegistries>().arc());
+    app.sub_apps_mut()
+        .sub_apps
+        .values_mut()
+        .next()
+        .expect("a dimension is live")
+        .world_mut()
+        .insert_resource(CurrentRegistries::new(Arc::new(cloned)));
+
+    assert_every_dimension_holds_the_hosts_registries(&app);
+}
+
+fn snapshot_ticks(app: &mut App) -> Vec<(InternedAppLabel, Tick)> {
+    app.sub_apps_mut()
+        .sub_apps
+        .iter_mut()
+        .map(|(label, dimension)| (*label, dimension.world_mut().increment_change_tick()))
+        .collect()
+}
+
+fn dimensions_that_replaced_their_snapshot(app: &App, since: &[(InternedAppLabel, Tick)]) -> usize {
+    use mcrs_minecraft_core::Versioned;
+    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
+
+    since
+        .iter()
+        .filter(|(label, since)| {
+            let world = app.sub_apps().sub_apps[label].world();
+            world
+                .get_resource_change_ticks::<Versioned<RegistrySnapshot>>()
+                .is_some_and(|ticks| ticks.is_changed(*since, world.read_change_tick()))
+        })
+        .count()
+}
+
+#[test]
+fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_replaces_nothing() {
+    use bevy_ecs::message::Messages;
+    use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistriesReloaded};
+    use mcrs_minecraft_world::registry_snapshot::replace_registries;
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+    let dimensions = app.sub_apps().sub_apps.len();
+
+    let old = Arc::clone(app.world().resource::<CurrentRegistries>().arc());
+    replace_registries(app.world_mut(), Registries::clone(&old));
+    assert_eq!(
+        app.world().resource::<Messages<RegistriesReloaded>>().len(),
+        1
+    );
+
+    let since = snapshot_ticks(&mut app);
+    app.update();
+
+    assert_every_dimension_holds_the_hosts_registries(&app);
+    for dimension in app.sub_apps().sub_apps.values() {
+        let held = dimension.world().resource::<CurrentRegistries>();
+        assert!(
+            !Arc::ptr_eq(&old, held.arc()),
+            "a dimension still holds the replaced registries"
+        );
+    }
+    assert_eq!(
+        dimensions_that_replaced_their_snapshot(&app, &since),
+        dimensions
+    );
+
+    let since = snapshot_ticks(&mut app);
+    app.update();
+    assert_eq!(dimensions_that_replaced_their_snapshot(&app, &since), 0);
 }

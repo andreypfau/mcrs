@@ -163,6 +163,7 @@ impl From<AssemblyError> for RegistryLoadError {
 
 pub struct LoadedRegistries {
     pub set: RegistrySet,
+    pub registries: Arc<Registries>,
     pub known_packs: KnownPacks,
     pub diagnostics: Diagnostics,
 }
@@ -439,6 +440,7 @@ fn load_stack(
     )?;
     Ok(LoadedRegistries {
         set,
+        registries: Arc::new(registries),
         known_packs: KnownPacks::of(&stack),
         diagnostics,
     })
@@ -492,6 +494,11 @@ static TEST_REGISTRIES: std::sync::LazyLock<LoadedRegistries> = std::sync::LazyL
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_registries() -> &'static RegistrySet {
     &TEST_REGISTRIES.set
+}
+
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn test_registries_arc() -> &'static Arc<Registries> {
+    &TEST_REGISTRIES.registries
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]

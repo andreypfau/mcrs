@@ -25,6 +25,7 @@ use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
+use mcrs_minecraft_world::resolvers::Resolved;
 
 const CHEST_ROWS: usize = 3;
 
@@ -94,7 +95,7 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
         return false;
     };
     let block = blocks.block_index(state);
-    world.resource::<ShulkerBoxes>().has_block(block)
+    world.resource::<Resolved<ShulkerBoxes>>().has_block(block)
 }
 
 pub fn open_containers(world: &mut World) {

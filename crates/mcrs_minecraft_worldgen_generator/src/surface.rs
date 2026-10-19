@@ -8,7 +8,6 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -25,7 +24,7 @@ pub struct SurfaceIds {
 }
 
 impl SurfaceIds {
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
+    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
         let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME)?;
         let eroded_badlands =
             report.require(&biomes, &mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
@@ -35,11 +34,11 @@ impl SurfaceIds {
             &biomes,
             &mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN,
         );
-        Some(Resolved::new(Self {
+        Some(Self {
             eroded_badlands: eroded_badlands?,
             frozen_ocean: frozen_ocean?,
             deep_frozen_ocean: deep_frozen_ocean?,
-        }))
+        })
     }
 }
 

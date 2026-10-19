@@ -14,6 +14,8 @@ mod plugin;
 pub mod registries;
 pub mod registry_load;
 #[cfg(feature = "bevy")]
+pub mod registry_snapshot;
+#[cfg(feature = "bevy")]
 pub mod resolvers;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]

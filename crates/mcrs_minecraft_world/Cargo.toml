@@ -32,6 +32,7 @@ bevy = [
     "mcrs_minecraft_dimension_environment/bevy",
     "mcrs_minecraft_environment/bevy",
     "mcrs_minecraft_item/bevy",
+    "mcrs_minecraft_registries/bevy",
     "mcrs_minecraft_registry/bevy",
     "mcrs_minecraft_worldgen_carver/bevy",
 ]

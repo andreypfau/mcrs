@@ -27,21 +27,8 @@ impl<R, T> Entries<R, T> {
         }
     }
 
-    pub fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.values, &other.values)
-    }
-
     pub fn as_slice(&self) -> &[T] {
         &self.values
-    }
-}
-
-#[cfg(feature = "bevy")]
-impl<R: Send + Sync + 'static, T: Send + Sync + 'static> crate::shared::SharedResource
-    for Entries<R, T>
-{
-    fn shares_with(&self, other: &Self) -> bool {
-        Entries::shares_with(self, other)
     }
 }
 

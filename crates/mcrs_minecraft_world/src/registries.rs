@@ -19,8 +19,6 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
@@ -37,8 +35,6 @@ use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern;
@@ -54,10 +50,6 @@ use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
 use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::shared::share;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -458,21 +450,6 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
             .expect("the registries report holds minecraft:entity_type"),
     );
     world.insert_resource(registries.clone());
-}
-
-#[cfg(feature = "bevy")]
-pub fn share_registries(world: &mut World) {
-    share::<RegistrySet>(world);
-    share::<Blocks>(world);
-    share::<Items>(world);
-    share::<Registry<EnchantmentData>>(world);
-    share::<Entries<EnchantmentData, EnchantmentData>>(world);
-    share::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(world);
-    share::<Registry<Biome>>(world);
-    share::<Registry<Structure>>(world);
-    share::<Registry<Timeline>>(world);
-    share::<Registry<mcrs_minecraft_entity::keys::EntityType>>(world);
-    share::<ClockTimeMarkers>(world);
 }
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {

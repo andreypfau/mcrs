@@ -14,6 +14,7 @@ use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_world::item::{test_enchantment_effects, test_enchantment_registry};
 use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::resolvers::Resolved;
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);
@@ -94,7 +95,7 @@ fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
 
 fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
     let mut world = world();
-    world.insert_resource(crate::common::item_tags());
+    world.insert_resource(Resolved::new(crate::common::item_tags()));
     let player = holder(&mut world, slots::COUNT);
     let container = holder(&mut world, 27);
     let nested = crate::common::spawn(&mut world, "shulker_box", 1);

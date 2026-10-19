@@ -10,9 +10,9 @@ use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, LightColorIds, WATER_SENSITIVE,
 };
 use mcrs_minecraft_registry::LoadReport;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
 use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
@@ -36,7 +36,10 @@ fn ids() -> &'static Resolved<LightColorIds> {
     static IDS: OnceLock<Resolved<LightColorIds>> = OnceLock::new();
     IDS.get_or_init(|| {
         let mut report = LoadReport::new();
-        LightColorIds::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
+        Resolved::new(
+            LightColorIds::resolve(test_registries(), &mut report)
+                .unwrap_or_else(|| panic!("{report}")),
+        )
     })
 }
 

@@ -18,8 +18,8 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
+use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -134,7 +134,7 @@ fn surface_ids(biomes: &Registry<Biome>) -> Ids {
     let surface = SurfaceIds::resolve(&set, &mut report)
         .unwrap_or_else(|| panic!("the corpus holds the surface biomes: {report}"));
     Ids {
-        surface,
+        surface: Resolved::new(surface),
         states: SurfaceStates::new(corpus()),
     }
 }

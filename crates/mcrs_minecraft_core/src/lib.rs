@@ -16,6 +16,8 @@ pub mod rotation;
 pub mod section_pos;
 pub mod tag_key;
 pub mod version;
+#[cfg(feature = "bevy")]
+pub mod versioned;
 pub mod voxel_shape;
 
 mod block_state_id;
@@ -39,3 +41,5 @@ pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::TagKey;
 pub use version::{PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version};
+#[cfg(feature = "bevy")]
+pub use versioned::Versioned;

@@ -16,7 +16,6 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
@@ -33,7 +32,7 @@ pub struct LightColorIds {
 }
 
 impl LightColorIds {
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
+    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
         let items = report.tags(set, mcrs_minecraft_item::keys::ITEM);
         let fluids = report.tags(set, mcrs_minecraft_block::keys::FLUID);
         let water_sensitive = items
@@ -42,10 +41,10 @@ impl LightColorIds {
         let water = fluids
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &WATER));
-        Some(Resolved::new(Self {
+        Some(Self {
             water_sensitive: water_sensitive?,
             water: water?,
-        }))
+        })
     }
 }
 

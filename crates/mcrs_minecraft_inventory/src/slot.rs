@@ -13,6 +13,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
+use mcrs_minecraft_world::resolvers::Resolved;
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -77,7 +78,7 @@ impl StackView {
             offhand: equippable.is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand),
             binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
             fits_inside_container_items: !world
-                .get_resource::<ShulkerBoxes>()
+                .get_resource::<Resolved<ShulkerBoxes>>()
                 .is_some_and(|boxes| boxes.has_item(item.item)),
             wearable: equippable.is_none_or(|equippable| admits_player(world, equippable)),
         })

@@ -15,9 +15,9 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::Tags;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{Access, ColumnLayout, Volume, VoxelStore, VoxelStoreMut};
+use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{

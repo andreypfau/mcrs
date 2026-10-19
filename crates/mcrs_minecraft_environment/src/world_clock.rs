@@ -9,8 +9,6 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
 
@@ -167,13 +165,6 @@ pub struct DuplicateTimeMarker {
 pub struct ClockTimeMarkers(Arc<BTreeMap<Id<WorldClock>, MarkersOfClock>>);
 
 type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
-
-#[cfg(feature = "bevy")]
-impl SharedResource for ClockTimeMarkers {
-    fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
 
 impl ClockTimeMarkers {
     pub fn get(&self, clock: Id<WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {

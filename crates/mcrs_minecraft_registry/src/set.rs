@@ -36,13 +36,6 @@ pub struct RegistrySet {
     values: Arc<Values>,
 }
 
-#[cfg(feature = "bevy")]
-impl crate::shared::SharedResource for RegistrySet {
-    fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.tables, &other.tables)
-    }
-}
-
 thread_local! {
     static CURRENT: RefCell<Option<RegistrySet>> = const { RefCell::new(None) };
 }

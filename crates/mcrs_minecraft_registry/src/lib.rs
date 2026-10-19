@@ -17,8 +17,6 @@ pub mod network;
 pub mod registry;
 pub mod report;
 pub mod set;
-#[cfg(feature = "bevy")]
-pub mod shared;
 pub mod static_report;
 pub mod tags;
 

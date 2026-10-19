@@ -1,15 +1,12 @@
 use bevy_app::{App, Plugin};
-use bevy_ecs::resource::Resource;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::item_tags;
-use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet, Tags};
 use mcrs_minecraft_world::resolvers::AddRegistryResolver;
-use std::sync::Arc;
 
 pub struct InventoryIdsPlugin;
 
@@ -19,7 +16,7 @@ impl Plugin for InventoryIdsPlugin {
     }
 }
 
-#[derive(Resource, Clone, Debug)]
+#[derive(Debug)]
 pub struct ShulkerBoxes {
     items: Tags<Item>,
     item_tag: TagId<Item>,
@@ -51,12 +48,5 @@ impl ShulkerBoxes {
 
     pub fn has_block(&self, block: Id<Block>) -> bool {
         self.blocks.contains(self.block_tag, block)
-    }
-}
-
-impl SharedResource for ShulkerBoxes {
-    fn shares_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(self.items.table(), other.items.table())
-            && Arc::ptr_eq(self.blocks.table(), other.blocks.table())
     }
 }

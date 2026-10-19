@@ -218,13 +218,14 @@ pub fn try_build_program(
 
 pub fn surface_ids_over(
     biomes: &Registry<Biome>,
-) -> mcrs_minecraft_registry::shared::Resolved<crate::SurfaceIds> {
+) -> mcrs_minecraft_world::resolvers::Resolved<crate::SurfaceIds> {
     let set = mcrs_minecraft_registry::RegistrySet::new()
         .with(biomes.clone())
         .expect("one biome registry");
     let mut report = mcrs_minecraft_registry::LoadReport::new();
-    crate::SurfaceIds::resolve(&set, &mut report)
-        .unwrap_or_else(|| panic!("the registry holds the surface biomes: {report}"))
+    let ids = crate::SurfaceIds::resolve(&set, &mut report)
+        .unwrap_or_else(|| panic!("the registry holds the surface biomes: {report}"));
+    mcrs_minecraft_world::resolvers::Resolved::new(ids)
 }
 
 /// A fill context over one router and the corpus, with nothing else wired in.
