@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_block::keys::{BLOCK, Block, FLUID, Fluid};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::keys::{ITEM, Item};
 use mcrs_minecraft_registries::{
     DataDeclaration, Declaration, LoadCtx, PackStack, ReadValue, Registries, RegistryOf,
     RegistryType, Stage, StageView,
@@ -77,7 +79,8 @@ fn attach<V: Send + Sync + 'static>(
 }
 
 // chisle: each static or names-only registry needs its own type to be declared, so their count is
-// capped by this list; a key-addressed declaration in the loader lifts the cap.
+// capped by this list; a key-addressed declaration in the loader lifts the cap. A static registry
+// is typed when something reads it.
 macro_rules! numbered {
     ($($n:literal)*) => {
         fn fixed(at: usize, key: ResourceLocation, names: Vec<ResourceLocation>) -> Option<Declaration> {
@@ -338,8 +341,18 @@ pub(crate) fn plan(
     let mut declarations = Vec::new();
     for (at, table) in stage.get().statics().enumerate() {
         let key = table.registry().clone();
-        let declaration = fixed(at, key.clone(), table.names().to_vec())
-            .ok_or_else(|| format!("{key} is beyond the number of static registries declared"))?;
+        let names = table.names().to_vec();
+        let declaration = if key.as_str() == BLOCK.location().as_static_str() {
+            Declaration::fixed::<Block>(key, names)
+        } else if key.as_str() == ITEM.location().as_static_str() {
+            Declaration::fixed::<Item>(key, names)
+        } else if key.as_str() == FLUID.location().as_static_str() {
+            Declaration::fixed::<Fluid>(key, names)
+        } else {
+            fixed(at, key.clone(), names).ok_or_else(|| {
+                format!("{key} is beyond the number of static registries declared")
+            })?
+        };
         declarations.push(declaration);
     }
 

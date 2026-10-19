@@ -186,7 +186,7 @@ fn derive_clock_markers(registries: Res<RegistrySet>, mut commands: Commands) {
         commands.remove_resource::<ClockTimeMarkers>();
         return;
     };
-    match ClockTimeMarkers::derive(timelines, &clocks) {
+    match ClockTimeMarkers::derive(timelines, |clock| clocks.name(clock)) {
         Ok(markers) => commands.insert_resource(markers),
         Err(duplicates) => {
             for (timeline, duplicate) in duplicates {

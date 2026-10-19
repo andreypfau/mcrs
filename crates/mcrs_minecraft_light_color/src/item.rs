@@ -16,7 +16,9 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_registries::{Diagnostics, Registries, Tags};
+use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_world::resolvers::{require_tag, require_tags};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -28,22 +30,31 @@ pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
 
 pub struct LightColorIds {
     pub water_sensitive: TagId<Item>,
+    pub item_tags: Tags<Item>,
+    pub fluid_tags: Tags<Fluid>,
     pub water: TagId<Fluid>,
 }
 
 impl LightColorIds {
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let items = report.tags(set, mcrs_minecraft_item::keys::ITEM);
-        let fluids = report.tags(set, mcrs_minecraft_block::keys::FLUID);
-        let water_sensitive = items
-            .as_ref()
-            .and_then(|tags| report.require_tag(tags, &WATER_SENSITIVE));
-        let water = fluids
-            .as_ref()
-            .and_then(|tags| report.require_tag(tags, &WATER));
+    pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
+        let items = require_tags(registries, mcrs_minecraft_item::keys::ITEM, diagnostics);
+        let fluids = require_tags(registries, mcrs_minecraft_block::keys::FLUID, diagnostics);
+        let water_sensitive = items.as_ref().and_then(|tags| {
+            require_tag(
+                tags,
+                mcrs_minecraft_item::keys::ITEM,
+                &WATER_SENSITIVE,
+                diagnostics,
+            )
+        });
+        let water = fluids.as_ref().and_then(|tags| {
+            require_tag(tags, mcrs_minecraft_block::keys::FLUID, &WATER, diagnostics)
+        });
         Some(Self {
             water_sensitive: water_sensitive?,
             water: water?,
+            item_tags: items?,
+            fluid_tags: fluids?,
         })
     }
 }
@@ -203,12 +214,6 @@ impl ItemLights {
         if !missing.is_empty() {
             return Err(ItemLightError::Missing { items: missing });
         }
-        let item_tags = registries
-            .tags::<Item>()
-            .expect("the loaded registries hold the item tags");
-        let fluid_tags = registries
-            .tags::<Fluid>()
-            .expect("the loaded registries hold the fluid tags");
         let fluids = registries
             .registry::<Fluid>()
             .expect("the loaded registries hold the fluid registry");
@@ -217,11 +222,11 @@ impl ItemLights {
             mapped: mapped.into(),
             water_sensitive: items
                 .iter()
-                .map(|entry| item_tags.contains(water_sensitive, entry.id))
+                .map(|entry| ids.item_tags.contains(water_sensitive, entry.id))
                 .collect(),
             water: fluids
                 .ids()
-                .map(|fluid| fluid_tags.contains(water, fluid))
+                .map(|fluid| ids.fluid_tags.contains(water, fluid))
                 .collect(),
         })
     }

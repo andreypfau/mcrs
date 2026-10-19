@@ -5,8 +5,8 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::item_tags;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet, Tags};
-use mcrs_minecraft_world::resolvers::AddRegistryResolver;
+use mcrs_minecraft_registries::{Diagnostics, Registries, Tags};
+use mcrs_minecraft_world::resolvers::{AddRegistryResolver, require_tag, require_tags};
 
 pub struct InventoryIdsPlugin;
 
@@ -25,15 +25,25 @@ pub struct ShulkerBoxes {
 }
 
 impl ShulkerBoxes {
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let items = report.tags(set, mcrs_minecraft_item::keys::ITEM);
-        let blocks = report.tags(set, mcrs_minecraft_block::keys::BLOCK);
-        let item_tag = items
-            .as_ref()
-            .and_then(|tags| report.require_tag(tags, &item_tags::SHULKER_BOXES));
-        let block_tag = blocks
-            .as_ref()
-            .and_then(|tags| report.require_tag(tags, &block_tags::SHULKER_BOXES));
+    pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
+        let items = require_tags(registries, mcrs_minecraft_item::keys::ITEM, diagnostics);
+        let blocks = require_tags(registries, mcrs_minecraft_block::keys::BLOCK, diagnostics);
+        let item_tag = items.as_ref().and_then(|tags| {
+            require_tag(
+                tags,
+                mcrs_minecraft_item::keys::ITEM,
+                &item_tags::SHULKER_BOXES,
+                diagnostics,
+            )
+        });
+        let block_tag = blocks.as_ref().and_then(|tags| {
+            require_tag(
+                tags,
+                mcrs_minecraft_block::keys::BLOCK,
+                &block_tags::SHULKER_BOXES,
+                diagnostics,
+            )
+        });
         Some(ShulkerBoxes {
             item_tag: item_tag?,
             block_tag: block_tag?,

@@ -9,9 +9,11 @@ use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, LightColorIds, WATER_SENSITIVE,
 };
-use mcrs_minecraft_registry::LoadReport;
-use mcrs_minecraft_registry::tags::{TagRules, build_tags};
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_registries::{Declaration, Diagnostics};
+
+use mcrs_minecraft_world::registry_load::{
+    registries_declaring, test_registries, test_registries_arc,
+};
 use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
@@ -35,10 +37,10 @@ fn colours() -> &'static LightColors {
 fn ids() -> &'static Resolved<LightColorIds> {
     static IDS: OnceLock<Resolved<LightColorIds>> = OnceLock::new();
     IDS.get_or_init(|| {
-        let mut report = LoadReport::new();
+        let mut diagnostics = Diagnostics::default();
         Resolved::new(
-            LightColorIds::resolve(test_registries(), &mut report)
-                .unwrap_or_else(|| panic!("{report}")),
+            LightColorIds::resolve(test_registries_arc(), &mut diagnostics)
+                .unwrap_or_else(|| panic!("{diagnostics}")),
         )
     })
 }
@@ -285,22 +287,26 @@ fn the_shipped_item_map_round_trips_unchanged() {
 }
 
 fn a_missing_water_tag_fails() {
-    let item_names = test_registries()
-        .table("minecraft:item")
-        .expect("the item registry is loaded");
-    let (no_tags, problems) = build_tags(item_names, TagRules::World, &[], None);
-    assert!(problems.is_empty(), "{problems:?}");
-    let without = test_registries()
-        .clone()
-        .with_tags(std::sync::Arc::new(no_tags));
-    let mut report = LoadReport::new();
-    assert!(LightColorIds::resolve(&without, &mut report).is_none());
-    let text = report.to_string();
-    assert!(
-        text.lines()
-            .any(|line| { line.starts_with("minecraft:item/#mcrs:water_sensitive_light: ") }),
-        "{text}"
-    );
+    let name = |text| mcrs_minecraft_core::ResourceLocation::read(text).expect("a valid name");
+    let without = registries_declaring(&[
+        Declaration::fixed::<Item>(
+            mcrs_minecraft_item::keys::ITEM.location().into(),
+            vec![name("minecraft:stick")],
+        ),
+        Declaration::fixed::<mcrs_minecraft_block::keys::Fluid>(
+            mcrs_minecraft_block::keys::FLUID.location().into(),
+            vec![name("minecraft:water")],
+        ),
+    ]);
+    let mut diagnostics = Diagnostics::default();
+    assert!(LightColorIds::resolve(&without, &mut diagnostics).is_none());
+    let text = diagnostics.to_string();
+    for tag in [
+        "minecraft:item/#mcrs:water_sensitive_light: ",
+        "minecraft:fluid/#minecraft:water: ",
+    ] {
+        assert!(text.lines().any(|line| line.starts_with(tag)), "{text}");
+    }
 }
 
 fn an_unknown_block_property_or_value_fails() {

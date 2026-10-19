@@ -17,6 +17,7 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::resolvers::Resolved;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -157,7 +158,7 @@ fn weather_follows_the_dimension_key_on_the_loaded_set() {
 }
 
 pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
-    let markers = app.world().resource::<ClockTimeMarkers>();
+    let markers = app.world().resource::<Resolved<ClockTimeMarkers>>();
     let overworld = overworld_clock(app);
 
     assert!(

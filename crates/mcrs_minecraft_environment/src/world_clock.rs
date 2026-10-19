@@ -180,14 +180,14 @@ impl ClockTimeMarkers {
 
     /// A marker id may be reused on another clock but not on the same one; every
     /// repeat is returned with the index of the timeline that repeated it.
-    pub fn derive(
+    pub fn derive<'a>(
         timelines: &[Timeline],
-        clocks: &Registry<WorldClock>,
+        clock_name: impl Fn(Id<WorldClock>) -> Option<&'a ResourceLocation>,
     ) -> Result<Self, Vec<(usize, DuplicateTimeMarker)>> {
         let mut table: BTreeMap<Id<WorldClock>, MarkersOfClock> = BTreeMap::new();
         let mut duplicates = Vec::new();
         for (index, timeline) in timelines.iter().enumerate() {
-            let Some(clock) = clocks.name(timeline.clock) else {
+            let Some(clock) = clock_name(timeline.clock) else {
                 continue;
             };
             for (id, marker) in &timeline.time_markers {
@@ -222,7 +222,7 @@ pub fn check_time_markers(timelines: &[Timeline], set: &RegistrySet) -> Vec<(usi
     let Some(clocks) = set.registry::<WorldClock>() else {
         return Vec::new();
     };
-    match ClockTimeMarkers::derive(timelines, &clocks) {
+    match ClockTimeMarkers::derive(timelines, |clock| clocks.name(clock)) {
         Ok(_) => Vec::new(),
         Err(duplicates) => duplicates
             .into_iter()
@@ -524,7 +524,8 @@ mod tests {
     fn markers_of(
         timelines: &[Timeline],
     ) -> Result<ClockTimeMarkers, Vec<(usize, DuplicateTimeMarker)>> {
-        ClockTimeMarkers::derive(timelines, &TEST_CLOCKS.registry::<WorldClock>().unwrap())
+        let clocks = TEST_CLOCKS.registry::<WorldClock>().unwrap();
+        ClockTimeMarkers::derive(timelines, |clock| clocks.name(clock))
     }
 
     #[test]

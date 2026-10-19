@@ -119,6 +119,10 @@ pub enum Diagnostic {
         registry: ResourceLocation,
         message: String,
     },
+    MissingTag {
+        registry: ResourceLocation,
+        tag: ResourceLocation,
+    },
 }
 
 impl Diagnostic {
@@ -276,8 +280,20 @@ impl fmt::Display for Diagnostic {
             Diagnostic::Validation { message, .. } | Diagnostic::Declaration { message, .. } => {
                 f.write_str(message)
             }
+            Diagnostic::MissingTag { registry, tag } => missing_tag(f, registry, tag),
         }
     }
+}
+
+fn missing_tag(
+    f: &mut fmt::Formatter<'_>,
+    registry: &ResourceLocation,
+    tag: &ResourceLocation,
+) -> fmt::Result {
+    write!(
+        f,
+        "{registry}/#{tag}: registry {registry} holds no tag named {tag}"
+    )
 }
 
 fn over_range(f: &mut fmt::Formatter<'_>, count: usize, what: &str) -> fmt::Result {
@@ -292,6 +308,18 @@ impl Deref for Diagnostics {
 
     fn deref(&self) -> &[Diagnostic] {
         &self.0
+    }
+}
+
+impl fmt::Display for Diagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (n, diagnostic) in self.0.iter().enumerate() {
+            if n > 0 {
+                f.write_str("\n")?;
+            }
+            write!(f, "{diagnostic}")?;
+        }
+        Ok(())
     }
 }
 

@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::corpus::{asset_server, blocks};
@@ -74,7 +74,8 @@ fn the_plugin_holds_the_colour_table_and_item_lights_after_the_first_update() {
     app.insert_resource(crate::corpus::items().clone());
     app.insert_resource(test_registries().clone());
     app.add_plugins(LightColorPlugin);
-    run_resolvers(app.world_mut(), test_registries()).unwrap_or_else(|report| panic!("{report}"));
+    run_resolvers(app.world_mut(), test_registries_arc())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
     app.update();
     let colors = app
         .world()

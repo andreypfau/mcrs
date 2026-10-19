@@ -5,6 +5,8 @@ use crate::declarations::{
 };
 use crate::dimension::DimensionEntry;
 use crate::enchantment_provider::EnchantmentProvider;
+#[cfg(feature = "bevy")]
+use crate::resolvers::require_registry;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant::{
@@ -20,6 +22,8 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeEnvironment, DimensionTypeFile,
@@ -50,6 +54,8 @@ use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
 use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -425,20 +431,6 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
             .entries::<EnchantmentData, Option<EnchantmentEffects>>()
             .expect("the data pack loader splits minecraft:enchantment"),
     );
-    let clocks = registries
-        .registry::<WorldClock>()
-        .expect("the data pack loader parses minecraft:world_clock");
-    let timelines = registries
-        .column::<Timeline>(
-            mcrs_minecraft_environment::keys::TIMELINE
-                .location()
-                .as_static_str(),
-        )
-        .expect("the data pack loader parses minecraft:timeline");
-    world.insert_resource(
-        ClockTimeMarkers::derive(timelines, &clocks)
-            .expect("the load refused a time marker defined twice for one clock"),
-    );
     world.insert_resource(
         registries
             .registry::<Timeline>()
@@ -465,4 +457,44 @@ pub fn static_registries() -> Result<RegistrySet, LoadReport> {
 pub fn refuse<E: std::fmt::Display>(error: &E) -> ! {
     tracing::error!("the registries are unusable:\n{error}");
     std::process::exit(1)
+}
+
+#[cfg(feature = "bevy")]
+pub fn clock_time_markers(
+    registries: &Registries,
+    diagnostics: &mut Diagnostics,
+) -> Option<ClockTimeMarkers> {
+    let timelines = require_registry::<_, RegistryOf<Timeline>>(
+        registries,
+        mcrs_minecraft_environment::keys::TIMELINE,
+        diagnostics,
+    );
+    let clocks = require_registry::<_, RegistryOf<WorldClock>>(
+        registries,
+        mcrs_minecraft_environment::keys::WORLD_CLOCK,
+        diagnostics,
+    );
+    let (timelines, clocks) = (timelines?, clocks?);
+    let found = ClockTimeMarkers::derive(timelines.values(), |clock| {
+        clocks.name(Id::checked(clock.number(), clocks.len())?)
+    });
+    match found {
+        Ok(markers) => Some(markers),
+        Err(duplicates) => {
+            for (index, duplicate) in duplicates {
+                let Some((_, name, _)) = timelines.iter().nth(index) else {
+                    continue;
+                };
+                diagnostics.extend([Diagnostic::Entry {
+                    registry: timelines.key().clone(),
+                    entry: name.clone(),
+                    pack: None,
+                    file: None,
+                    field: None,
+                    message: duplicate.to_string(),
+                }]);
+            }
+            None
+        }
+    }
 }

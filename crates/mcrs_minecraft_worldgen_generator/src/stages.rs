@@ -8,13 +8,11 @@ use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{Access, ColumnLayout, Volume, VoxelStore, VoxelStoreMut};
 use mcrs_minecraft_world::resolvers::Resolved;
@@ -126,7 +124,6 @@ impl FillContext {
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
-        block_tags: &Tags<Block>,
         surface_ids: &Resolved<SurfaceIds>,
         fill_ids: &Resolved<FillIds>,
         features: Option<Arc<FeatureProgram>>,
@@ -187,7 +184,7 @@ impl FillContext {
                     .map(|_| (surface_ids.clone(), SurfaceStates::new(&blocks))),
                 carver_blocks: Arc::new(ModernCarverBlockIds::resolve(
                     &blocks,
-                    block_tags.members(fill_ids.uncarvable),
+                    fill_ids.block_tags.members(fill_ids.uncarvable),
                 )),
             },
         };

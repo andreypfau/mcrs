@@ -1,7 +1,11 @@
 use bevy_app::App;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_core::{Id, RegistryKey, ResourceKey, ResourceLocation, TagId, TagKey, rl};
+use mcrs_minecraft_registries::{
+    Diagnostic, Diagnostics, Level, Registries, Registry, RegistryType, Tags,
+};
+use std::any::type_name;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -29,7 +33,7 @@ impl<T: Send + Sync + 'static> Deref for Resolved<T> {
 }
 
 type Insert = Arc<dyn Fn(&mut World) + Send + Sync>;
-type Resolver = Box<dyn Fn(&RegistrySet, &mut LoadReport) -> Option<Insert> + Send + Sync>;
+type Resolver = Box<dyn Fn(&Registries, &mut Diagnostics) -> Option<Insert> + Send + Sync>;
 
 #[derive(Resource, Default)]
 pub(crate) struct RegistryResolvers(Vec<Resolver>);
@@ -56,20 +60,32 @@ impl ResolvedTables {
 pub trait AddRegistryResolver {
     fn add_registry_resolver<T: Send + Sync + 'static>(
         &mut self,
-        resolve: fn(&RegistrySet, &mut LoadReport) -> Option<T>,
+        resolve: fn(&Registries, &mut Diagnostics) -> Option<T>,
     ) -> &mut Self;
+}
+
+fn is_error(diagnostic: &Diagnostic) -> bool {
+    diagnostic.level() == Level::Error
 }
 
 impl AddRegistryResolver for App {
     fn add_registry_resolver<T: Send + Sync + 'static>(
         &mut self,
-        resolve: fn(&RegistrySet, &mut LoadReport) -> Option<T>,
+        resolve: fn(&Registries, &mut Diagnostics) -> Option<T>,
     ) -> &mut Self {
         self.world_mut()
             .get_resource_or_init::<RegistryResolvers>()
             .0
-            .push(Box::new(move |set, report| {
-                resolve(set, report).map(|value| {
+            .push(Box::new(move |registries, diagnostics| {
+                let before = diagnostics.len();
+                let value = resolve(registries, diagnostics);
+                if value.is_none() && !diagnostics[before..].iter().any(is_error) {
+                    diagnostics.extend([Diagnostic::Validation {
+                        registry: rl!("mcrs:resolvers").into(),
+                        message: format!("{} did not resolve", type_name::<T>()),
+                    }]);
+                }
+                value.map(|value| {
                     let table = Arc::new(value);
                     Arc::new(move |world: &mut World| {
                         world.insert_resource(Resolved(Arc::clone(&table)));
@@ -80,20 +96,100 @@ impl AddRegistryResolver for App {
     }
 }
 
-/// Every resolver runs even after a miss, so the report names all of them; nothing is inserted
-/// unless all resolved.
-pub fn run_resolvers(world: &mut World, set: &RegistrySet) -> Result<ResolvedTables, LoadReport> {
-    let mut report = LoadReport::new();
-    let inserts: Vec<Insert> = world
+/// Every resolver runs even after a miss, so the diagnostics name all of them; nothing is inserted
+/// unless all resolved. The diagnostics are sorted and deduplicated by their rendered line, so they
+/// do not depend on registration order.
+pub fn run_resolvers(
+    world: &mut World,
+    registries: &Registries,
+) -> Result<ResolvedTables, Diagnostics> {
+    let mut collected = Diagnostics::default();
+    let inserts: Vec<Option<Insert>> = world
         .get_resource::<RegistryResolvers>()
         .into_iter()
         .flat_map(|resolvers| &resolvers.0)
-        .filter_map(|resolve| resolve(set, &mut report))
+        .map(|resolve| resolve(registries, &mut collected))
         .collect();
-    if !report.is_empty() {
-        return Err(report);
+    if collected.iter().any(is_error) || inserts.iter().any(Option::is_none) {
+        let mut lines: Vec<(String, Diagnostic)> = collected
+            .iter()
+            .map(|diagnostic| (diagnostic.to_string(), diagnostic.clone()))
+            .collect();
+        lines.sort_by(|a, b| a.0.cmp(&b.0));
+        lines.dedup_by(|a, b| a.0 == b.0);
+        let mut sorted = Diagnostics::default();
+        sorted.extend(lines.into_iter().map(|(_, diagnostic)| diagnostic));
+        return Err(sorted);
     }
-    let tables = ResolvedTables(inserts);
+    let tables = ResolvedTables(inserts.into_iter().flatten().collect());
     tables.insert_into(world);
     Ok(tables)
+}
+
+pub fn require_registry<'a, K, R: RegistryType>(
+    registries: &'a Registries,
+    key: RegistryKey<K>,
+    diagnostics: &mut Diagnostics,
+) -> Option<&'a Registry<R>> {
+    let registry = registries.registry::<R>();
+    if registry.is_none() {
+        diagnostics.extend([Diagnostic::Declaration {
+            registry: key.location().into(),
+            message: format!("registry {key} is absent from the loaded set"),
+        }]);
+    }
+    registry
+}
+
+pub fn require_tags<R: RegistryType>(
+    registries: &Registries,
+    key: RegistryKey<R>,
+    diagnostics: &mut Diagnostics,
+) -> Option<Tags<R>> {
+    let tags = registries.tags::<R>();
+    if tags.is_none() {
+        diagnostics.extend([Diagnostic::Declaration {
+            registry: key.location().into(),
+            message: format!("tags of registry {key} are absent from the loaded set"),
+        }]);
+    }
+    tags
+}
+
+pub fn require_id<K, R: RegistryType>(
+    registry: &Registry<R>,
+    name: ResourceKey<K, &'static str>,
+    diagnostics: &mut Diagnostics,
+) -> Option<Id<K>> {
+    let entry: ResourceLocation = (*name.location()).into();
+    let found = registry.by_name(&entry);
+    if found.is_none() {
+        diagnostics.extend([Diagnostic::Entry {
+            registry: registry.key().clone(),
+            message: format!("registry {} holds no entry named {entry}", registry.key()),
+            entry,
+            pack: None,
+            file: None,
+            field: None,
+        }]);
+    }
+    // The numbering of an entry in the registry is the numbering the key type uses.
+    found.and_then(|id| Id::checked(id.number(), registry.len()))
+}
+
+pub fn require_tag<R: RegistryType>(
+    tags: &Tags<R>,
+    registry: RegistryKey<R>,
+    tag: &TagKey<R, &'static str>,
+    diagnostics: &mut Diagnostics,
+) -> Option<TagId<R>> {
+    let name: ResourceLocation = (*tag.location()).into();
+    let found = tags.by_name(&name);
+    if found.is_none() {
+        diagnostics.extend([Diagnostic::MissingTag {
+            registry: registry.location().into(),
+            tag: name,
+        }]);
+    }
+    found
 }

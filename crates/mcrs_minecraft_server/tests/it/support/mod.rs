@@ -18,7 +18,7 @@ use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::{insert_registry_resources, static_registries};
 use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use mcrs_minecraft_world::registry_snapshot::install_registries;
-use mcrs_minecraft_world::resolvers::run_resolvers;
+use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
@@ -40,12 +40,13 @@ pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
     app.add_message::<mcrs_minecraft_registries::RegistriesReloaded>();
     insert_registry_resources(app.world_mut(), test_registries());
+    app.add_registry_resolver(mcrs_minecraft_world::registries::clock_time_markers);
     app.add_plugins((
         mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin,
         mcrs_minecraft_inventory::InventoryIdsPlugin,
     ));
-    let resolved = run_resolvers(app.world_mut(), test_registries())
-        .unwrap_or_else(|report| panic!("{report}"));
+    let resolved = run_resolvers(app.world_mut(), test_registries_arc())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
     install_registries(app.world_mut(), Arc::clone(test_registries_arc()), resolved);
 }
 

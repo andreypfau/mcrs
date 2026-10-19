@@ -2,6 +2,7 @@ use crate::data_pack::{
     check_registry_assets_ready, request_data_pack_assets, start_loading_data_pack,
 };
 use crate::registry_load::{self, AssetReaderPacks, RegistryLoadError};
+use crate::resolvers::AddRegistryResolver;
 use crate::{registries, resolvers};
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetServer, UntypedHandle};
@@ -49,6 +50,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
         app.add_message::<mcrs_minecraft_registries::RegistriesReloaded>();
+        app.add_registry_resolver(registries::clock_time_markers);
 
         app.add_systems(PostStartup, start_loading_data_pack)
             .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
@@ -79,8 +81,13 @@ impl Plugin for MinecraftWorldPlugin {
         }
         let (block_registry, registries, registries_arc, resolved) = {
             let started = bevy_platform::time::Instant::now();
-            let loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
+            let mut loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
                 .unwrap_or_else(|error| registries::refuse(&error));
+            let resolved = resolvers::run_resolvers(app.world_mut(), &loaded.registries)
+                .unwrap_or_else(|diagnostics| {
+                    loaded.diagnostics.extend(diagnostics.iter().cloned());
+                    registries::refuse(&RegistryLoadError::Load(loaded.diagnostics.clone()))
+                });
             registry_load::log_diagnostics(&loaded.diagnostics);
             let registries = loaded.set;
             tracing::info!(
@@ -91,8 +98,6 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded registries"
             );
             app.insert_resource(loaded.known_packs);
-            let resolved = resolvers::run_resolvers(app.world_mut(), &registries)
-                .unwrap_or_else(|report| registries::refuse(&report));
             let block_registry = registries
                 .registry::<Block>()
                 .expect("the static registries hold minecraft:block");

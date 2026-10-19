@@ -9,7 +9,7 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 pub fn items() -> &'static Items {
     &test_corpus().1
@@ -22,8 +22,9 @@ pub fn world() -> World {
 }
 
 pub fn item_tags() -> ShulkerBoxes {
-    let mut report = mcrs_minecraft_registry::LoadReport::new();
-    ShulkerBoxes::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
+    let mut diagnostics = mcrs_minecraft_registries::Diagnostics::default();
+    ShulkerBoxes::resolve(test_registries_arc(), &mut diagnostics)
+        .unwrap_or_else(|| panic!("{diagnostics}"))
 }
 
 pub fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {

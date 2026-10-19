@@ -168,6 +168,10 @@ macro_rules! static_registry {
             }
         }
 
+        impl $crate::RegistryType for $name {
+            type Value = ();
+        }
+
         impl From<$name> for ::mcrs_minecraft_core::Id<$name> {
             fn from(entry: $name) -> Self {
                 entry.id()

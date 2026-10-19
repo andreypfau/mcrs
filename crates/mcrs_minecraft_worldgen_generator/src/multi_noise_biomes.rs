@@ -3,12 +3,13 @@ use std::sync::Arc;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::keys::{BIOME, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST};
-use mcrs_minecraft_biome::parameter_list::{
-    MultiNoiseBiomeSourceParameterList, ParameterLists, Preset,
-};
+use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::{Id, NarrowError};
-use mcrs_minecraft_registry::{Entries, LoadReport, Registry, RegistrySet, UnknownEntry};
+use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
+use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, RegistryOf};
+use mcrs_minecraft_registry::UnknownEntry;
+use mcrs_minecraft_world::resolvers::require_registry;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// Why a biome source has no climate table: a biome the registry does not hold,
@@ -21,6 +22,37 @@ pub enum BiomeTableError {
     Narrow(#[from] NarrowError),
     #[error("{0}")]
     NoTable(String),
+}
+
+/// The biome registry as a table builder reads it: a name in, the id out.
+pub trait BiomeNames {
+    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry>;
+}
+
+impl BiomeNames for mcrs_minecraft_registry::Registry<Biome> {
+    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
+        self.require_by_name(name)
+    }
+}
+
+impl BiomeNames for mcrs_minecraft_registries::Registry<RegistryOf<BiomeFile>> {
+    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
+        ResourceLocation::read(name)
+            .ok()
+            .and_then(|name| self.by_name(&name))
+            .and_then(|id| Id::checked(id.number(), self.len()))
+            .ok_or_else(|| UnknownEntry {
+                registry: self.key().clone(),
+                name: name.to_owned(),
+            })
+    }
+}
+
+fn narrow_biome(id: Id<Biome>) -> Result<u8, NarrowError> {
+    id.narrow().map_err(|error| NarrowError {
+        registry: BIOME.location().to_string(),
+        ..error
+    })
 }
 
 /// Biome ids over the column's quart cells, widened by one cell in every
@@ -56,14 +88,14 @@ impl MultiNoiseBiomeTable {
     /// palette the client is sent.
     pub fn of_preset(
         preset: Preset,
-        biomes: &Registry<Biome>,
+        biomes: &impl BiomeNames,
     ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
         let mut failure = None;
         let table = preset.parameter_list().try_map_values(|name| {
             match biomes
-                .require_by_name(name)
+                .biome_named(name)
                 .map_err(BiomeTableError::from)
-                .and_then(|id| biomes.narrow::<u8>(id).map_err(BiomeTableError::from))
+                .and_then(|id| narrow_biome(id).map_err(BiomeTableError::from))
             {
                 Ok(id) => Some(id),
                 Err(error) => {
@@ -78,7 +110,6 @@ impl MultiNoiseBiomeTable {
     }
 
     pub(crate) fn from_entries(
-        biomes: &Registry<Biome>,
         entries: &[MultiNoiseBiomeEntry],
     ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
         let values: Vec<(ParameterPoint, u8)> = entries
@@ -86,7 +117,7 @@ impl MultiNoiseBiomeTable {
             .map(|entry| {
                 Ok((
                     ParameterPoint::from(&entry.parameters),
-                    biomes.narrow::<u8>(entry.biome)?,
+                    narrow_biome(entry.biome)?,
                 ))
             })
             .collect::<Result<_, NarrowError>>()?;
@@ -121,23 +152,21 @@ impl MultiNoiseBiomeTable {
 }
 
 pub struct PresetBiomeTables {
-    tables: Entries<MultiNoiseBiomeSourceParameterList, Arc<MultiNoiseBiomeTable>>,
-    biomes: Registry<Biome>,
+    tables: Vec<Arc<MultiNoiseBiomeTable>>,
 }
 
 impl PresetBiomeTables {
-    pub fn build(
-        lists: &Registry<MultiNoiseBiomeSourceParameterList>,
-        entries: &ParameterLists,
-        biomes: &Registry<Biome>,
-        report: &mut LoadReport,
+    /// `lists` holds the name and preset of each parameter list in id order.
+    pub fn build<'a>(
+        lists: impl IntoIterator<Item = (&'a ResourceLocation, Preset)>,
+        biomes: &impl BiomeNames,
+        diagnostics: &mut Diagnostics,
     ) -> Option<Self> {
         let mut built: Vec<(Preset, Result<Arc<MultiNoiseBiomeTable>, BiomeTableError>)> =
             Vec::new();
-        let mut tables = Vec::with_capacity(lists.len());
+        let mut tables = Vec::new();
         let mut refused = false;
-        for id in lists.ids() {
-            let preset = entries[id].preset;
+        for (name, preset) in lists {
             let slot = match built.iter().position(|(built, _)| *built == preset) {
                 Some(slot) => slot,
                 None => {
@@ -152,48 +181,40 @@ impl PresetBiomeTables {
                 Ok(table) => tables.push(Arc::clone(table)),
                 Err(error) => {
                     refused = true;
-                    let name = lists.name(id).map_or("", |name| name.as_str());
-                    report.missing(
-                        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-                        name,
-                        format!("the preset {}: {error}", preset.name()),
-                    );
+                    diagnostics.extend([Diagnostic::Entry {
+                        registry: MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location().into(),
+                        entry: name.clone(),
+                        pack: None,
+                        file: None,
+                        field: None,
+                        message: format!("the preset {}: {error}", preset.name()),
+                    }]);
                 }
             }
         }
-        if refused {
-            return None;
-        }
-        match Entries::new(lists, tables) {
-            Ok(tables) => Some(PresetBiomeTables {
-                tables,
-                biomes: biomes.clone(),
-            }),
-            Err(error) => {
-                report.invalid_report(error);
-                None
-            }
-        }
+        (!refused).then_some(PresetBiomeTables { tables })
     }
 
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let lists = report.registry(set, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
-        let biomes = report.registry(set, BIOME);
+    pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
+        let lists = require_registry::<_, RegistryOf<MultiNoiseBiomeSourceParameterList>>(
+            registries,
+            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+            diagnostics,
+        );
+        let biomes = require_registry::<_, RegistryOf<BiomeFile>>(registries, BIOME, diagnostics);
         let (lists, biomes) = (lists?, biomes?);
-        let Some(entries) = set.entries() else {
-            report.invalid_report(format_args!(
-                "the entries of {MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST} are absent from the loaded set"
-            ));
-            return None;
-        };
-        Self::build(&lists, &entries, &biomes, report)
+        Self::build(
+            lists.iter().map(|(_, name, list)| (name, list.preset)),
+            biomes,
+            diagnostics,
+        )
     }
 
     pub fn get(
         &self,
         list: Id<MultiNoiseBiomeSourceParameterList>,
     ) -> Option<&Arc<MultiNoiseBiomeTable>> {
-        self.tables.get(list)
+        self.tables.get(list.index())
     }
 
     pub fn table_of(
@@ -205,7 +226,7 @@ impl PresetBiomeTables {
                 BiomeTableError::NoTable(format!("no parameter list is numbered {}", list.index()))
             }),
             MultiNoiseBiomeSource::Biomes(entries) => {
-                MultiNoiseBiomeTable::from_entries(&self.biomes, entries).map(Arc::new)
+                MultiNoiseBiomeTable::from_entries(entries).map(Arc::new)
             }
         }
     }

@@ -7,7 +7,6 @@ use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
@@ -29,7 +28,6 @@ pub struct RegistrySnapshot {
     structures: Registry<Structure>,
     timelines: Registry<Timeline>,
     entity_types: Registry<EntityType>,
-    clock_time_markers: ClockTimeMarkers,
     resolved: ResolvedTables,
 }
 
@@ -46,7 +44,6 @@ impl RegistrySnapshot {
         world.insert_resource(self.structures.clone());
         world.insert_resource(self.timelines.clone());
         world.insert_resource(self.entity_types.clone());
-        world.insert_resource(self.clock_time_markers.clone());
         self.resolved.insert_into(world);
     }
 }
@@ -74,7 +71,6 @@ pub fn install_registries(
         structures: held(world),
         timelines: held(world),
         entity_types: held(world),
-        clock_time_markers: held(world),
         registries,
         resolved,
     };
@@ -88,18 +84,24 @@ pub fn extract_registries(main: &World, sub: &mut World) {
     }
 }
 
-/// Swaps only the `Registries`. The old `RegistrySet`, `Blocks`, `Items`, `Registry` and
-/// `Entries` resources stay from the previous snapshot, so a dimension would see the new
-/// `Registries` beside the old `RegistrySet`: tests only.
+/// Swaps only the `Registries` and the resolver outputs. The old `RegistrySet`, `Blocks`,
+/// `Items`, `Registry` and `Entries` resources stay from the previous snapshot, so a dimension
+/// would see the new `Registries` beside the old `RegistrySet`: tests only.
 #[cfg(feature = "test-support")]
-pub fn replace_registries(world: &mut World, registries: Registries) {
+pub fn replace_registries(
+    world: &mut World,
+    registries: Registries,
+) -> Result<(), mcrs_minecraft_registries::Diagnostics> {
+    let resolved = crate::resolvers::run_resolvers(world, &registries)?;
     let registries = Arc::new(registries);
     let mut snapshot =
         RegistrySnapshot::clone(world.resource::<Versioned<RegistrySnapshot>>().value());
     snapshot.registries = Arc::clone(&registries);
+    snapshot.resolved = resolved;
     world.insert_resource(CurrentRegistries::new(registries));
     world
         .resource_mut::<Versioned<RegistrySnapshot>>()
         .replace(Arc::new(snapshot));
     world.write_message(mcrs_minecraft_registries::RegistriesReloaded);
+    Ok(())
 }

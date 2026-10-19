@@ -1,6 +1,5 @@
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
-use mcrs_minecraft_registry::{LoadReport, Registry};
+use mcrs_minecraft_core::{Id, ResourceKey};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -59,8 +58,10 @@ pub struct EndBiomes {
 }
 
 impl EndBiomes {
-    pub fn resolve(biomes: &Registry<Biome>, report: &mut LoadReport) -> Option<Self> {
-        let mut id_of = |key| report.require(biomes, &key).map(Id::number);
+    pub fn from_lookup(
+        mut biome: impl FnMut(ResourceKey<Biome, &'static str>) -> Option<Id<Biome>>,
+    ) -> Option<Self> {
+        let mut id_of = |key| biome(key).map(Id::number);
         let end = id_of(mcrs_minecraft_biome::keys::biome::THE_END);
         let highlands = id_of(mcrs_minecraft_biome::keys::biome::END_HIGHLANDS);
         let midlands = id_of(mcrs_minecraft_biome::keys::biome::END_MIDLANDS);

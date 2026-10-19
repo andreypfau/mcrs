@@ -32,7 +32,7 @@ use mcrs_minecraft_server::world::item::click::{
 };
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use mcrs_minecraft_world::resolvers::Resolved;
 
 fn opened() -> (World, Entity) {
@@ -1259,9 +1259,10 @@ fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
 fn opened_over(block: &str) -> (World, Entity, Entity) {
     let (mut world, player) = opened();
     let (blocks, _) = standalone_corpus();
-    let mut report = mcrs_minecraft_registry::LoadReport::new();
+    let mut diagnostics = mcrs_minecraft_registries::Diagnostics::default();
     world.insert_resource(Resolved::new(
-        ShulkerBoxes::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}")),
+        ShulkerBoxes::resolve(test_registries_arc(), &mut diagnostics)
+            .unwrap_or_else(|| panic!("{diagnostics}")),
     ));
     let mut palette = ChunkBlocks::default();
     palette

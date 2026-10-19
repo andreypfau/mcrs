@@ -22,6 +22,7 @@ bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 mcrs_minecraft_block = { workspace = true, optional = true }
 mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_registries = { workspace = true, optional = true }
 mcrs_minecraft_registry = { workspace = true, optional = true }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"], optional = true }
 mcrs_minecraft_world = { workspace = true, optional = true }
@@ -35,6 +36,7 @@ bevy = [
     "dep:bevy_asset",
     "dep:mcrs_minecraft_block",
     "dep:mcrs_minecraft_assets",
+    "dep:mcrs_minecraft_registries",
     "dep:mcrs_minecraft_registry",
     "dep:mcrs_minecraft_item",
     "dep:mcrs_minecraft_world",

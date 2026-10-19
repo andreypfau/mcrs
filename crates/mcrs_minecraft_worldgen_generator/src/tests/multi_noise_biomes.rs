@@ -11,8 +11,9 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_registries::Diagnostics;
+use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -156,8 +157,7 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
         .by_name("minecraft:desert")
         .expect("a registry biome");
     let entries = [entry(flat(-1.0), plains), entry(flat(1.0), desert)];
-    let table =
-        MultiNoiseBiomeTable::from_entries(&registry, &entries).expect("an explicit list resolves");
+    let table = MultiNoiseBiomeTable::from_entries(&entries).expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
@@ -221,7 +221,7 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
         },
         last,
     )];
-    let error = MultiNoiseBiomeTable::from_entries(&registry, &entries)
+    let error = MultiNoiseBiomeTable::from_entries(&entries)
         .err()
         .expect("an id of 256 does not fit a byte");
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
@@ -305,7 +305,8 @@ fn the_shipped_parameter_lists_resolve_once_at_load() {
     let set = test_registries();
     let mut app = App::new();
     app.add_plugins(GeneratorIdsPlugin);
-    run_resolvers(app.world_mut(), set).unwrap_or_else(|report| panic!("{report}"));
+    run_resolvers(app.world_mut(), test_registries_arc())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
 
     let tables = app.world().resource::<Resolved<PresetBiomeTables>>();
     let names = set
@@ -345,9 +346,13 @@ fn entries_naming_one_preset_share_one_table() {
         ],
     )
     .expect("one entry per name");
-    let mut report = LoadReport::new();
-    let shared = PresetBiomeTables::build(&pair, &same_preset, super::corpus_biomes(), &mut report)
-        .unwrap_or_else(|| panic!("{report}"));
+    let mut diagnostics = Diagnostics::default();
+    let shared = PresetBiomeTables::build(
+        pair.iter().map(|(id, name)| (name, same_preset[id].preset)),
+        super::corpus_biomes(),
+        &mut diagnostics,
+    )
+    .unwrap_or_else(|| panic!("{diagnostics}"));
     let (one, two) = (
         pair.require_by_name("test:one").unwrap(),
         pair.require_by_name("test:two").unwrap(),
@@ -360,7 +365,7 @@ fn entries_naming_one_preset_share_one_table() {
 
 #[test]
 fn a_preset_naming_a_missing_biome_fails_the_load() {
-    use mcrs_minecraft_biome::keys::{BIOME, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST};
+    use mcrs_minecraft_biome::keys::BIOME;
     use mcrs_minecraft_biome::overworld_preset::nether_parameter_list;
 
     let missing = overworld_parameter_list().values()[0].1;
@@ -378,30 +383,12 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
             .map(|biome| ResourceLocation::read(biome).expect("a vanilla biome")),
     )
     .expect("distinct biome names");
-    let lists = Registry::<MultiNoiseBiomeSourceParameterList>::new(
-        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-        [ResourceLocation::read("minecraft:overworld").expect("a vanilla name")],
-    )
-    .expect("one parameter list");
-    let set = RegistrySet::new()
-        .with(biomes)
-        .and_then(|set| set.with(lists))
-        .expect("two distinct registries")
-        .with_column(
-            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
-                .location()
-                .as_static_str(),
-            Arc::from([MultiNoiseBiomeSourceParameterList {
-                preset: Preset::Overworld,
-            }]),
-        )
-        .expect("one value per name");
+    let name = ResourceLocation::read("minecraft:overworld").expect("a vanilla name");
 
-    let mut app = App::new();
-    app.add_plugins(GeneratorIdsPlugin);
-    let refused = run_resolvers(app.world_mut(), &set)
-        .expect_err("a preset over a registry lacking one of its biomes is refused");
-    let text = refused.to_string();
+    let mut diagnostics = Diagnostics::default();
+    let built = PresetBiomeTables::build([(&name, Preset::Overworld)], &biomes, &mut diagnostics);
+    assert!(built.is_none());
+    let text = diagnostics.to_string();
     let line = text
         .lines()
         .find(|line| line.contains("overworld") && line.contains(missing))
@@ -409,11 +396,6 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
     assert!(
         line.contains("minecraft:worldgen/multi_noise_biome_source_parameter_list"),
         "{line}"
-    );
-    assert!(
-        app.world()
-            .get_resource::<Resolved<PresetBiomeTables>>()
-            .is_none()
     );
 }
 

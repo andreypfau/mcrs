@@ -501,6 +501,26 @@ pub fn test_registries_arc() -> &'static Arc<Registries> {
     &TEST_REGISTRIES.registries
 }
 
+/// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn registries_declaring(declarations: &[mcrs_minecraft_registries::Declaration]) -> Registries {
+    let vanilla = ResourceLocation::read(VANILLA_FEATURE).expect("a valid feature name");
+    let features = Features {
+        known: vec![vanilla.clone()],
+        vanilla: vec![vanilla],
+        world: None,
+    };
+    let (stack, _) = pack_stack(
+        &PackSelection::default(),
+        &[AvailablePack::vanilla()],
+        &features,
+        false,
+    );
+    mcrs_minecraft_registries::load(declarations, Arc::new(stack), &PackFiles::default(), None)
+        .map(|(registries, _)| registries)
+        .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
+}
+
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_known_packs() -> &'static KnownPacks {
     &TEST_REGISTRIES.known_packs

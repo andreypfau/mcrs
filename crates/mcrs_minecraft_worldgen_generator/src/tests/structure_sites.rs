@@ -194,13 +194,9 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         BiomeSource::MultiNoise(multi) => {
             BiomeLookup::MultiNoise(super::preset_tables().table_of(multi).unwrap())
         }
-        BiomeSource::TheEnd => BiomeLookup::TheEnd(
-            EndBiomes::resolve(
-                corpus_biomes(),
-                &mut mcrs_minecraft_registry::LoadReport::new(),
-            )
-            .unwrap(),
-        ),
+        BiomeSource::TheEnd => {
+            BiomeLookup::TheEnd(EndBiomes::from_lookup(|key| corpus_biomes().get(&key)).unwrap())
+        }
         _ => unreachable!(),
     };
     StructureIndex::new(

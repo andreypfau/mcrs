@@ -542,7 +542,7 @@ pub fn fill_context(
                     MultiNoiseBiomeTable::of_preset(preset, &registry)
                 }
                 MultiNoiseBiomeSource::Biomes(entries) => {
-                    MultiNoiseBiomeTable::from_entries(&registry, entries)
+                    MultiNoiseBiomeTable::from_entries(entries)
                 }
             };
             Some(std::sync::Arc::new(

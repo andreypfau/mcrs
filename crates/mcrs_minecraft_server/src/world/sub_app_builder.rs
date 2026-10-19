@@ -1,4 +1,3 @@
-use crate::loaded::Loaded;
 use bevy_app::{
     App, First, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last,
     PluginsState, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, SubApp, Update,
@@ -83,7 +82,6 @@ use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
@@ -434,10 +432,6 @@ pub fn spawn_dim_subapp(
         Some(dimension_router) => {
             let router = &dimension_router.router;
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
-            let block_tags = sub_app
-                .world()
-                .resource::<RegistrySet>()
-                .loaded_tags::<Block>();
             let surface_ids = sub_app.world().resource::<Resolved<SurfaceIds>>().clone();
             let fill_ids = sub_app.world().resource::<Resolved<FillIds>>().clone();
             let preset_tables = sub_app
@@ -471,7 +465,6 @@ pub fn spawn_dim_subapp(
                     .0
                     .get(dimension)
                     .map(std::sync::Arc::clone),
-                &block_tags,
                 &surface_ids,
                 &fill_ids,
                 features,

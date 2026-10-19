@@ -219,12 +219,8 @@ pub fn try_build_program(
 pub fn surface_ids_over(
     biomes: &Registry<Biome>,
 ) -> mcrs_minecraft_world::resolvers::Resolved<crate::SurfaceIds> {
-    let set = mcrs_minecraft_registry::RegistrySet::new()
-        .with(biomes.clone())
-        .expect("one biome registry");
-    let mut report = mcrs_minecraft_registry::LoadReport::new();
-    let ids = crate::SurfaceIds::resolve(&set, &mut report)
-        .unwrap_or_else(|| panic!("the registry holds the surface biomes: {report}"));
+    let ids = crate::SurfaceIds::from_lookup(|key| biomes.get(&key))
+        .expect("the registry holds the surface biomes");
     mcrs_minecraft_world::resolvers::Resolved::new(ids)
 }
 
@@ -294,14 +290,13 @@ pub fn parameter_lists() -> &'static (
 pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables {
     static TABLES: LazyLock<crate::multi_noise_biomes::PresetBiomeTables> = LazyLock::new(|| {
         let (names, lists) = parameter_lists();
-        let mut report = mcrs_minecraft_registry::LoadReport::new();
+        let mut diagnostics = mcrs_minecraft_registries::Diagnostics::default();
         crate::multi_noise_biomes::PresetBiomeTables::build(
-            names,
-            lists,
+            names.iter().map(|(id, name)| (name, lists[id].preset)),
             corpus_biomes(),
-            &mut report,
+            &mut diagnostics,
         )
-        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {report}"))
+        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {diagnostics}"))
     });
     &TABLES
 }

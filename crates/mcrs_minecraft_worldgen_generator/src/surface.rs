@@ -3,12 +3,14 @@ use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_registries::{Diagnostics, Registries, RegistryOf};
+use mcrs_minecraft_world::resolvers::{require_id, require_registry};
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
@@ -24,16 +26,21 @@ pub struct SurfaceIds {
 }
 
 impl SurfaceIds {
-    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME)?;
-        let eroded_badlands =
-            report.require(&biomes, &mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
-        let frozen_ocean =
-            report.require(&biomes, &mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN);
-        let deep_frozen_ocean = report.require(
-            &biomes,
-            &mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN,
-        );
+    pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
+        let biomes = require_registry::<_, RegistryOf<BiomeFile>>(
+            registries,
+            mcrs_minecraft_biome::keys::BIOME,
+            diagnostics,
+        )?;
+        Self::from_lookup(|key| require_id(biomes, key, diagnostics))
+    }
+
+    pub fn from_lookup(
+        mut biome: impl FnMut(ResourceKey<Biome, &'static str>) -> Option<Id<Biome>>,
+    ) -> Option<Self> {
+        let eroded_badlands = biome(mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
+        let frozen_ocean = biome(mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN);
+        let deep_frozen_ocean = biome(mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN);
         Some(Self {
             eroded_badlands: eroded_badlands?,
             frozen_ocean: frozen_ocean?,
