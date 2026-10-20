@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
-    EnvironmentAttributes, EnvironmentContext,
+    EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
 use mcrs_minecraft_environment::keys::EnvironmentAttribute;
@@ -171,11 +171,13 @@ impl SkyLayout {
         &self,
         attributes: &EnvironmentAttributes,
         ctx: &EnvironmentContext,
+        camera: Vec3,
+        weather: Weather,
         frame: &mut SkyFrame,
     ) {
-        frame.camera = ctx.position.as_vec3().to_array();
-        frame.rain = ctx.weather.rain;
-        frame.thunder = ctx.weather.thunder;
+        frame.camera = camera.to_array();
+        frame.rain = weather.rain;
+        frame.thunder = weather.thunder;
         frame.values.clear();
         frame.values.extend(
             self.frame
@@ -184,8 +186,7 @@ impl SkyLayout {
         );
     }
 
-    /// The dimension-constant block, rebuilt only when the dimension — or
-    /// the biome weights the positional layer reads — changes.
+    /// The dimension-constant block, rebuilt only when the dimension changes.
     pub fn constants(
         &self,
         attributes: &EnvironmentAttributes,
@@ -276,14 +277,12 @@ pub(crate) static TEST_CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::Regi
 
 #[cfg(test)]
 mod tests {
-    use bevy::math::DVec3;
     use serde_json::json;
 
     use mcrs_minecraft_dimension_environment::environment::{
         DimensionEnvironment, EnvironmentAttributes, EnvironmentContext, Weather,
     };
     use mcrs_minecraft_environment::attribute::{AttributeValue, EnvironmentAttributeMap};
-    use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
     use mcrs_minecraft_environment::timeline::Timeline;
     use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
@@ -396,17 +395,8 @@ mod tests {
         ticks
     }
 
-    fn context<'a>(
-        ticks: &'a [f64],
-        biomes: &'a SpatialAttributeInterpolator,
-        weather: Weather,
-    ) -> EnvironmentContext<'a> {
-        EnvironmentContext {
-            position: DVec3::ZERO,
-            ticks,
-            biomes,
-            weather,
-        }
+    fn context(ticks: &[f64]) -> EnvironmentContext<'_> {
+        EnvironmentContext { ticks }
     }
 
     fn color(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> u32 {
@@ -491,7 +481,6 @@ mod tests {
     fn one_pass_fills_the_frame_block_in_layout_order() {
         let (attributes, _timelines) = overworld();
         let layout = SkyLayout::derive(&attributes);
-        let empty = SpatialAttributeInterpolator::default();
         let ticks = ticks_at(&attributes, NOON, 0.0);
         let weather = Weather {
             rain: 0.5,
@@ -499,13 +488,9 @@ mod tests {
         };
 
         let mut frame = SkyFrame::default();
-        let ctx = EnvironmentContext {
-            position: DVec3::new(8.0, 64.0, -8.0),
-            ticks: &ticks,
-            biomes: &empty,
-            weather,
-        };
-        layout.evaluate(&attributes, &ctx, &mut frame);
+        let ctx = EnvironmentContext { ticks: &ticks };
+        let camera = Vec3::new(8.0, 64.0, -8.0);
+        layout.evaluate(&attributes, &ctx, camera, weather, &mut frame);
 
         assert_eq!(frame.values.len(), layout.frame_fields().count());
         assert_eq!(frame.camera, [8.0, 64.0, -8.0]);
@@ -518,7 +503,7 @@ mod tests {
         // a second pass over the same context reuses the buffer and lands on the
         // same values: nothing is carried between frames
         let before = frame.values.clone();
-        layout.evaluate(&attributes, &ctx, &mut frame);
+        layout.evaluate(&attributes, &ctx, camera, weather, &mut frame);
         assert_eq!(frame.values, before);
     }
 
@@ -526,10 +511,9 @@ mod tests {
     fn the_overworld_draws_the_whole_sky() {
         let (attributes, _timelines) = overworld();
         let layout = SkyLayout::derive(&attributes);
-        let empty = SpatialAttributeInterpolator::default();
         let ticks = ticks_at(&attributes, NOON, 0.0);
 
-        let constants = layout.constants(&attributes, &context(&ticks, &empty, Weather::default()));
+        let constants = layout.constants(&attributes, &context(&ticks));
         assert_eq!(constants.key.skybox, Skybox::Overworld);
         assert_eq!(constants.key.effects, SkyEffects::all());
         assert_eq!(constants.key.draws(), 5);
@@ -548,9 +532,8 @@ mod tests {
             EnvironmentAttributes::build(&shape(&proto), &borrowed, &clock_registry()).unwrap();
 
         let layout = SkyLayout::derive(&attributes);
-        let empty = SpatialAttributeInterpolator::default();
         let ticks = ticks_at(&attributes, NOON, 0.0);
-        let ctx = context(&ticks, &empty, Weather::default());
+        let ctx = context(&ticks);
         let constants = layout.constants(&attributes, &ctx);
 
         assert_eq!(constants.key.skybox, Skybox::None);
@@ -560,10 +543,7 @@ mod tests {
         let overworld_draws = {
             let (overworld, _timelines) = overworld();
             SkyLayout::derive(&overworld)
-                .constants(
-                    &overworld,
-                    &context(&ticks_at(&overworld, NOON, 0.0), &empty, Weather::default()),
-                )
+                .constants(&overworld, &context(&ticks_at(&overworld, NOON, 0.0)))
                 .key
                 .draws()
         };

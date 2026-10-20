@@ -179,8 +179,6 @@ pub struct AttributeSpec {
     pub default: AttributeValue,
     pub range: AttributeRange,
     pub syncable: bool,
-    pub positional: bool,
-    pub spatially_interpolated: bool,
 }
 
 impl AttributeSpec {
@@ -203,17 +201,6 @@ impl AttributeSpec {
             ));
         }
         Ok(value)
-    }
-
-    /// `AttributeRange.sanitize`: clamp a composed value into the attribute's
-    /// range. Layers compose freely and only the result has to be legal.
-    pub fn sanitize(&self, value: AttributeValue) -> AttributeValue {
-        match (self.range, &value) {
-            (AttributeRange::Bounded { min, max }, AttributeValue::Float(v)) => {
-                AttributeValue::Float(v.clamp(min, max))
-            }
-            _ => value,
-        }
     }
 
     /// The codec the argument of `op` is read and written with.
@@ -667,8 +654,6 @@ pub fn is_syncable(id: &str) -> bool {
 // ── The table ────────────────────────────────────────────────────────────────
 
 const SYNC: u8 = 1;
-const INTERP: u8 = 2;
-const NOT_POSITIONAL: u8 = 4;
 
 fn row(
     id: &'static str,
@@ -683,8 +668,6 @@ fn row(
         default,
         range,
         syncable: flags & SYNC != 0,
-        positional: flags & NOT_POSITIONAL == 0,
-        spatially_interpolated: flags & INTERP != 0,
     }
 }
 
@@ -726,43 +709,43 @@ fn table() -> Vec<AttributeSpec> {
 }
 
 table! {
-        row(VisualFogColor, T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row(VisualFogStartDistance, T::Float, V::Float(0.0), R::Any, SYNC | INTERP),
-        row(VisualFogEndDistance, T::Float, V::Float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row(VisualSkyFogEndDistance, T::Float, V::Float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row(VisualCloudFogEndDistance, T::Float, V::Float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row(VisualWaterFogColor, T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
-        row(VisualWaterFogStartDistance, T::Float, V::Float(-8.0), R::Any, SYNC | INTERP),
-        row(VisualWaterFogEndDistance, T::Float, V::Float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row(VisualSkyColor, T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row(VisualSunriseSunsetColor, T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row(VisualCloudColor, T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row(VisualCloudHeight, T::Float, V::Float(192.33), R::Any, SYNC | INTERP),
-        row(VisualSunAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC | INTERP),
-        row(VisualMoonAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC | INTERP),
-        row(VisualStarAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC | INTERP),
+        row(VisualFogColor, T::RgbColor, color(0), R::Any, SYNC),
+        row(VisualFogStartDistance, T::Float, V::Float(0.0), R::Any, SYNC),
+        row(VisualFogEndDistance, T::Float, V::Float(1024.0), R::NON_NEGATIVE, SYNC),
+        row(VisualSkyFogEndDistance, T::Float, V::Float(512.0), R::NON_NEGATIVE, SYNC),
+        row(VisualCloudFogEndDistance, T::Float, V::Float(2048.0), R::NON_NEGATIVE, SYNC),
+        row(VisualWaterFogColor, T::RgbColor, color(-16448205), R::Any, SYNC),
+        row(VisualWaterFogStartDistance, T::Float, V::Float(-8.0), R::Any, SYNC),
+        row(VisualWaterFogEndDistance, T::Float, V::Float(96.0), R::NON_NEGATIVE, SYNC),
+        row(VisualSkyColor, T::RgbColor, color(0), R::Any, SYNC),
+        row(VisualSunriseSunsetColor, T::ArgbColor, color(0), R::Any, SYNC),
+        row(VisualCloudColor, T::ArgbColor, color(0), R::Any, SYNC),
+        row(VisualCloudHeight, T::Float, V::Float(192.33), R::Any, SYNC),
+        row(VisualSunAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC),
+        row(VisualMoonAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC),
+        row(VisualStarAngle, T::AngleDegrees, V::Float(0.0), R::Any, SYNC),
         row(VisualMoonPhase, T::MoonPhase, V::MoonPhase(MoonPhase::FullMoon), R::Any, SYNC),
-        row(VisualStarBrightness, T::Float, V::Float(0.0), R::UNIT, SYNC | INTERP),
+        row(VisualStarBrightness, T::Float, V::Float(0.0), R::UNIT, SYNC),
         row(VisualHasSkyOccluder, T::Boolean, V::Bool(false), R::Any, SYNC),
-        row(VisualBlockLightTint, T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
-        row(VisualSkyLightColor, T::RgbColor, color(-1), R::Any, SYNC | INTERP),
-        row(VisualSkyLightFactor, T::Float, V::Float(1.0), R::UNIT, SYNC | INTERP),
-        row(VisualNightVisionColor, T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
-        row(VisualAmbientLightColor, T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
+        row(VisualBlockLightTint, T::RgbColor, color(-10100), R::Any, SYNC),
+        row(VisualSkyLightColor, T::RgbColor, color(-1), R::Any, SYNC),
+        row(VisualSkyLightFactor, T::Float, V::Float(1.0), R::UNIT, SYNC),
+        row(VisualNightVisionColor, T::RgbColor, color(-6710887), R::Any, SYNC),
+        row(VisualAmbientLightColor, T::RgbColor, color(-16777216), R::Any, SYNC),
         row(VisualDefaultDripstoneParticle, T::Particle, V::Particle(Box::new(ParticleOptions::DrippingDripstoneWater)), R::Any, SYNC),
         row(VisualAmbientParticles, T::AmbientParticles, V::AmbientParticles(Vec::new()), R::Any, SYNC),
         row(AudioBackgroundMusic, T::BackgroundMusic, V::BackgroundMusic(Box::default()), R::Any, SYNC),
         row(AudioMusicVolume, T::Float, V::Float(1.0), R::UNIT, SYNC),
         row(AudioAmbientSounds, T::AmbientSounds, V::AmbientSounds(Box::default()), R::Any, SYNC),
         row(AudioFireflyBushSounds, T::Boolean, V::Bool(false), R::Any, SYNC),
-        row(GameplaySkyLightLevel, T::Float, V::Float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
+        row(GameplaySkyLightLevel, T::Float, V::Float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC),
         row(GameplayCanStartRaid, T::Boolean, V::Bool(true), R::Any, 0),
         row(GameplayWaterEvaporates, T::Boolean, V::Bool(false), R::Any, SYNC),
         row(GameplayBedRule, T::BedRule, bed_rule(BedRuleCondition::Always, false), R::Any, 0),
         row(GameplayStrawBedRule, T::BedRule, bed_rule(BedRuleCondition::Never, true), R::Any, 0),
         row(GameplayRespawnAnchorWorks, T::Boolean, V::Bool(false), R::Any, 0),
         row(GameplayNetherPortalSpawnsPiglin, T::Boolean, V::Bool(false), R::Any, 0),
-        row(GameplayFastLava, T::Boolean, V::Bool(false), R::Any, SYNC | NOT_POSITIONAL),
+        row(GameplayFastLava, T::Boolean, V::Bool(false), R::Any, SYNC),
         row(GameplayIncreasedFireBurnout, T::Boolean, V::Bool(false), R::Any, 0),
         row(GameplayEyeblossomOpen, T::TriState, V::TriState(TriState::Default), R::Any, 0),
         row(GameplayTurtleEggHatchChance, T::Float, V::Float(0.002), R::UNIT, 0),

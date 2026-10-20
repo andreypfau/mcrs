@@ -10,8 +10,6 @@ use mcrs_minecraft_core::codec::NonNegativeInt;
 use crate::attribute::spec::{Draft, DraftSeed};
 use crate::attribute::{ArgumentRef, AttributeSpec, AttributeValue, Operation, attribute};
 
-use super::Easing;
-
 /// `Timeline.TRACKS_CODEC`, a `Codec.dispatchedMap`: the attribute a key names
 /// chooses the type its track's keyframe values are read and written in.
 #[derive(Debug, Clone, Default)]
@@ -292,12 +290,6 @@ impl Serialize for KeyframeEntry<'_> {
 pub enum TrackError {
     #[error("`{0}` is not an environment attribute; the registry is behind the game version")]
     UnknownAttribute(String),
-    #[error(
-        "`{0}` is not a supported easing; only `linear`, `constant` and `cubic_bezier` are implemented"
-    )]
-    UnsupportedEasing(String),
-    #[error("cubic_bezier control `{name}` is {value}, which is not in range [0; 1]")]
-    BezierControl { name: &'static str, value: f32 },
     #[error("keyframes must not be empty")]
     NoKeyframes,
     #[error("keyframes must be ordered by ticks; {0} follows a later tick")]
@@ -348,4 +340,63 @@ fn validate_keyframes(keyframes: &[Keyframe]) -> Result<(), TrackError> {
         previous = keyframe.ticks;
     }
     Ok(())
+}
+
+/// The curve a track names between two keyframes. It is read and written back
+/// unchanged; sampling interpolates linearly whatever it names.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Easing {
+    Named(String),
+    CubicBezier([f32; 4]),
+}
+
+impl<'de> Deserialize<'de> for Easing {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(EasingVisitor)
+    }
+}
+
+struct EasingVisitor;
+
+impl<'de> Visitor<'de> for EasingVisitor {
+    type Value = Easing;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an easing name or {\"cubic_bezier\": [x1, y1, x2, y2]}")
+    }
+
+    fn visit_str<E: serde::de::Error>(self, name: &str) -> Result<Easing, E> {
+        Ok(Easing::Named(name.to_owned()))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Easing, A::Error> {
+        let Some(name) = map.next_key::<String>()? else {
+            return Err(A::Error::custom("`ease` object names no curve"));
+        };
+        if name != "cubic_bezier" {
+            return Err(A::Error::custom(format!(
+                "`{name}` is not an easing object"
+            )));
+        }
+        let controls = map.next_value::<[f32; 4]>()?;
+        if let Some(extra) = map.next_key::<String>()? {
+            return Err(A::Error::custom(format!(
+                "`ease` object names more than one curve, including `{extra}`"
+            )));
+        }
+        Ok(Easing::CubicBezier(controls))
+    }
+}
+
+impl Serialize for Easing {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Easing::Named(name) => s.serialize_str(name),
+            Easing::CubicBezier(controls) => {
+                let mut map = s.serialize_map(Some(1))?;
+                map.serialize_entry("cubic_bezier", controls)?;
+                map.end()
+            }
+        }
+    }
 }

@@ -9,15 +9,13 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-mod easing;
 mod marker;
 mod sampler;
 mod track;
 
-pub use easing::{CubicBezier, Easing};
 pub use marker::TimeMarker;
 pub use sampler::{AttributeTrackSampler, TrackSampler};
-pub use track::{Keyframe, Track, TrackError, Tracks};
+pub use track::{Easing, Keyframe, Track, TrackError, Tracks};
 
 pub type TimeMarkers = BTreeMap<ResourceLocation<Arc<str>>, TimeMarker>;
 
@@ -156,7 +154,7 @@ impl Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::{AttributeValue, MoonPhase, Operation};
+    use crate::attribute::{AttributeValue, MoonPhase};
     use crate::world_clock::TEST_CLOCKS;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_worldgen_testing::{reencode, vanilla_dir};
@@ -299,13 +297,11 @@ mod tests {
 
         assert_eq!(
             day.tracks["minecraft:visual/sun_angle"].ease,
-            Some(Easing::CubicBezier(
-                CubicBezier::new(0.362, 0.241, 0.638, 0.759).unwrap()
-            ))
+            Some(Easing::CubicBezier([0.362, 0.241, 0.638, 0.759]))
         );
         assert_eq!(
             day.tracks["minecraft:gameplay/cat_waking_up_gift_chance"].ease,
-            Some(Easing::Constant)
+            Some(Easing::Named("constant".to_owned()))
         );
         assert_eq!(day.tracks["minecraft:visual/sky_color"].ease, None);
         assert_eq!(
@@ -450,68 +446,11 @@ mod tests {
 
     // ── Baking and sampling ──────────────────────────────────────────────────
 
-    const DAY: f32 = 24000.0;
-
     fn float(value: &AttributeValue) -> f32 {
         match value {
             AttributeValue::Float(v) => *v,
             other => panic!("expected a float, got {other:?}"),
         }
-    }
-
-    fn channels(color: u32) -> [f32; 4] {
-        [24, 16, 8, 0].map(|shift| (color >> shift & 0xFF) as f32)
-    }
-
-    /// Whatever an argument parses to, as four channels: a colour's bytes, or a
-    /// float in the first slot. Lets one oracle cover both kinds of track.
-    fn as_channels(value: &AttributeValue) -> [f32; 4] {
-        match value {
-            AttributeValue::Float(v) => [*v, 0.0, 0.0, 0.0],
-            AttributeValue::Color(c) => channels(*c),
-            other => panic!("expected a float or a colour, got {other:?}"),
-        }
-    }
-
-    /// The keyframes of one track, as the sampler reads them.
-    fn keys(timeline: &Timeline, id: &str) -> Vec<(f32, [f32; 4])> {
-        timeline.tracks[id]
-            .keyframes
-            .iter()
-            .map(|keyframe| (keyframe.ticks as f32, as_channels(&keyframe.value)))
-            .collect()
-    }
-
-    /// The wrap-and-lerp of the hand-extracted reference tracks, in float space,
-    /// as an oracle independent of the baked segment list.
-    fn daylight_track(keys: &[(f32, [f32; 4])], ticks: f32) -> [f32; 4] {
-        let mut at = ticks.rem_euclid(DAY);
-        if at < keys[0].0 {
-            at += DAY;
-        }
-        for (index, &(start, value)) in keys.iter().enumerate() {
-            let (mut end, next) = keys[(index + 1) % keys.len()];
-            if index + 1 == keys.len() {
-                end += DAY;
-            }
-            if at <= end {
-                let fraction = (at - start) / (end - start);
-                let mut blended = [0.0; 4];
-                for channel in 0..4 {
-                    blended[channel] = value[channel] * (1.0 - fraction) + next[channel] * fraction;
-                }
-                return blended;
-            }
-        }
-        keys[0].1
-    }
-
-    /// `daylight.rs::sun_angle`, in degrees: vanilla's old closed-form
-    /// approximation of the cubic bezier the track now names.
-    fn daylight_sun_angle(ticks: f32) -> f32 {
-        let day = (ticks / DAY - 0.25).rem_euclid(1.0);
-        let eased = 0.5 - (day * std::f32::consts::PI).cos() * 0.5;
-        (day * 2.0 + eased) / 3.0 * 360.0
     }
 
     #[test]
@@ -539,177 +478,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn only_the_easings_the_assets_use_are_implemented() {
-        let bake = |ease: Value| {
-            bake_one(
-                "minecraft:visual/sky_light_factor",
-                Some(24000),
-                json!({
-                    "keyframes": [
-                        {"ticks": 0, "value": 0.0},
-                        {"ticks": 100, "value": 1.0},
-                    ],
-                    "modifier": "multiply",
-                    "ease": ease,
-                }),
-            )
-        };
-
-        assert_eq!(
-            bake(json!("linear")).unwrap().argument.easing(),
-            Easing::Linear
-        );
-        assert_eq!(
-            bake(json!("constant")).unwrap().argument.easing(),
-            Easing::Constant
-        );
-        assert!(matches!(
-            bake(json!({"cubic_bezier": [0.362, 0.241, 0.638, 0.759]}))
-                .unwrap()
-                .argument
-                .easing(),
-            Easing::CubicBezier(_)
-        ));
-
-        // a curve the reference registers but we do not implement must not
-        // quietly behave as linear
-        let err = bake(json!("in_out_bounce")).unwrap_err();
-        assert!(
-            err.contains("in_out_bounce") && err.contains("not a supported easing"),
-            "{err}"
-        );
-        assert!(bake(json!("nonsense")).is_err());
-        assert!(
-            bake(json!({"cubic_bezier": [0.5, 0.5, 0.5]})).is_err(),
-            "needs four"
-        );
-        assert!(
-            bake(json!({"cubic_bezier": [1.5, 0.0, 0.5, 1.0]})).is_err(),
-            "x1 must be in [0; 1]"
-        );
-        assert!(
-            bake(json!({"in_out_bounce": []})).is_err(),
-            "not a curve we have"
-        );
-        assert!(bake(json!(7)).is_err(), "not a curve at all");
-    }
-
-    #[test]
-    fn the_daylight_tables_are_the_day_json_tracks() {
-        // hand-extracted from `timeline/day.json`
-        const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
-            (730.0, 1.0),
-            (11270.0, 1.0),
-            (13140.0, 0.24),
-            (22860.0, 0.24),
-        ];
-        const STAR_BRIGHTNESS: [(f32, f32); 12] = [
-            (92.0, 0.037),
-            (627.0, 0.0),
-            (11373.0, 0.0),
-            (11732.0, 0.016),
-            (11959.0, 0.044),
-            (12399.0, 0.143),
-            (12729.0, 0.258),
-            (13228.0, 0.5),
-            (22772.0, 0.5),
-            (23032.0, 0.364),
-            (23356.0, 0.225),
-            (23758.0, 0.101),
-        ];
-        // the multiply factor daylight.rs writes as a scalar where day.json
-        // writes #ffffff and #000000
-        const SKY_COLOR: [(f32, f32); 4] =
-            [(133.0, 1.0), (11867.0, 1.0), (13670.0, 0.0), (22330.0, 0.0)];
-
-        let day = timeline("day.json");
-        for (id, table) in [
-            ("minecraft:visual/sky_light_factor", &SKY_LIGHT_FACTOR[..]),
-            ("minecraft:visual/star_brightness", &STAR_BRIGHTNESS[..]),
-        ] {
-            let baked: Vec<_> = keys(&day, id).iter().map(|&(t, v)| (t, v[0])).collect();
-            assert_eq!(baked, table, "{id} does not match its daylight.rs table");
-        }
-
-        let sky_color: Vec<_> = keys(&day, "minecraft:visual/sky_color")
-            .iter()
-            .map(|&(t, v)| (t, v[1] / 255.0))
-            .collect();
-        assert_eq!(sky_color, SKY_COLOR);
-    }
-
-    #[test]
-    fn sampling_matches_the_daylight_tables_at_and_between_their_keys() {
-        let day = timeline("day.json");
-        let interpolated = [
-            "minecraft:gameplay/sky_light_level",
-            "minecraft:visual/cloud_color",
-            "minecraft:visual/fog_color",
-            "minecraft:visual/sky_color",
-            "minecraft:visual/sky_light_color",
-            "minecraft:visual/sky_light_factor",
-            "minecraft:visual/star_brightness",
-            "minecraft:visual/sunrise_sunset_color",
-        ];
-
-        for id in interpolated {
-            let table = keys(&day, id);
-            let sampler = day.tracks[id].bake(day.period_ticks);
-            let is_color = matches!(sampler.sample_argument(0), AttributeValue::Color(_));
-
-            let ticks = table
-                .iter()
-                .map(|&(tick, _)| tick as i64)
-                .chain((-24000..48000).step_by(37))
-                .collect::<Vec<_>>();
-
-            for tick in ticks {
-                let sampled = as_channels(&sampler.sample_argument(tick));
-                let expected = daylight_track(&table, tick as f32);
-                for channel in 0..if is_color { 4 } else { 1 } {
-                    let (got, want) = (sampled[channel], expected[channel]);
-                    // an integer channel lerp floors, so a byte channel may sit
-                    // one below the float oracle
-                    let tolerance = if is_color { 1.0 } else { 1e-5 };
-                    assert!(
-                        (got - want).abs() <= tolerance,
-                        "{id} channel {channel} at {tick}: got {got}, daylight.rs says {want}"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn sun_angle_agrees_with_the_daylight_closed_form_across_a_day() {
-        let day = timeline("day.json");
-        let sun = day.tracks["minecraft:visual/sun_angle"].bake(day.period_ticks);
-        let moon = day.tracks["minecraft:visual/moon_angle"].bake(day.period_ticks);
-
-        let mut worst: f32 = 0.0;
-        for tick in 0..24000 {
-            let sampled = float(&sun.sample_argument(tick));
-            worst = worst.max((sampled - daylight_sun_angle(tick as f32)).abs());
-            assert_eq!(
-                float(&moon.sample_argument(tick)),
-                sampled + 180.0,
-                "the moon trails the sun by half a revolution at {tick}"
-            );
-        }
-        assert!(
-            worst < 0.1,
-            "the bezier drifts {worst} degrees from the closed form"
-        );
-
-        // the anchors daylight.rs pins: noon starts the revolution, dusk is a
-        // quarter of the way round, midnight is halfway
-        assert_eq!(float(&sun.sample_argument(6000)), 0.0);
-        assert!((float(&sun.sample_argument(18000)) - 180.0).abs() < 0.1);
-        assert!(float(&sun.sample_argument(12000)) > 60.0);
-        assert!(float(&sun.sample_argument(12000)) < 90.0);
     }
 
     #[test]
@@ -765,27 +533,6 @@ mod tests {
     }
 
     #[test]
-    fn a_track_without_a_period_neither_wraps_nor_reduces_its_ticks() {
-        let early = timeline("early_game.json");
-        assert_eq!(early.period_ticks, None);
-        let id = "minecraft:gameplay/can_pillager_patrol_spawn";
-        let sampler = early.bake().remove(id).unwrap();
-        let at = |tick| sampler.sample_argument(tick);
-
-        let (no, yes) = (AttributeValue::Bool(false), AttributeValue::Bool(true));
-        assert_eq!(at(-50_000), no, "before the first keyframe the track holds");
-        assert_eq!(at(0), no);
-        // boolean arguments step, so the switch happens at the far keyframe
-        assert_eq!(at(119_999), no);
-        assert_eq!(at(120_000), yes);
-        assert_eq!(at(1_000_000), yes, "and never wraps back round");
-
-        assert_eq!(sampler.modifier, Operation::And);
-        assert_eq!(sampler.apply(&yes, 0).unwrap(), no);
-        assert_eq!(sampler.apply(&yes, 120_000).unwrap(), yes);
-    }
-
-    #[test]
     fn a_not_interpolated_track_holds_each_value_for_a_whole_segment() {
         let moon = timeline("moon.json");
         let id = "minecraft:visual/moon_phase";
@@ -809,20 +556,6 @@ mod tests {
             phase(MoonPhase::WaxingGibbous),
             "and the tick before it is the last phase"
         );
-    }
-
-    #[test]
-    fn a_constant_easing_holds_until_the_next_keyframe() {
-        let day = timeline("day.json");
-        let id = "minecraft:gameplay/cat_waking_up_gift_chance";
-        let sampler = day.tracks[id].bake(day.period_ticks);
-        assert_eq!(sampler.argument.easing(), Easing::Constant);
-
-        // keyframes are 362 → 0.0 and 23667 → 0.7
-        assert_eq!(float(&sampler.sample_argument(362)), 0.0);
-        assert_eq!(float(&sampler.sample_argument(12_000)), 0.0);
-        assert_eq!(float(&sampler.sample_argument(23_666)), 0.0);
-        assert_eq!(float(&sampler.sample_argument(23_667)), 0.7);
     }
 
     #[test]

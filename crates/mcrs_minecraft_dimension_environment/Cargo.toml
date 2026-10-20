@@ -15,7 +15,6 @@ mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_dimension.workspace = true
 bevy_ecs = { workspace = true, optional = true }
-bevy_math.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_environment.workspace = true

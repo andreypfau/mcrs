@@ -16,7 +16,6 @@ use mcrs_minecraft_dimension_environment::environment::{
     EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
-use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
@@ -203,7 +202,6 @@ fn build_sky_environment(
     current: Single<&CurrentDimension, Changed<CurrentDimension>>,
     registries: Res<RegistrySet>,
     clocks: Res<WorldClocks>,
-    weather: Res<Weather>,
     mut commands: Commands,
 ) {
     let (Some(types), Some(dimension_types), Some(world_clocks)) = (
@@ -231,8 +229,7 @@ fn build_sky_environment(
 
     let mut ticks = Vec::new();
     attributes.clock_ticks(&clocks, &mut ticks);
-    let biomes = SpatialAttributeInterpolator::default();
-    let statics = layout.constants(&attributes, &context(Vec3::ZERO, &ticks, &biomes, *weather));
+    let statics = layout.constants(&attributes, &EnvironmentContext { ticks: &ticks });
 
     let clock = dimension_types[type_id].default_clock;
 
@@ -253,22 +250,6 @@ fn build_sky_environment(
     });
 }
 
-/// No chunk is loaded, so no biome speaks and every attribute falls through to
-/// what the dimension itself declares.
-fn context<'a>(
-    camera: Vec3,
-    ticks: &'a [f64],
-    biomes: &'a SpatialAttributeInterpolator,
-    weather: Weather,
-) -> EnvironmentContext<'a> {
-    EnvironmentContext {
-        position: camera.as_dvec3(),
-        ticks,
-        biomes,
-        weather,
-    }
-}
-
 fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     clocks: Res<WorldClocks>,
@@ -279,11 +260,13 @@ fn evaluate_sky(
     mut ticks: Local<Vec<f64>>,
 ) {
     environment.attributes.clock_ticks(&clocks, &mut ticks);
-    let biomes = SpatialAttributeInterpolator::default();
-    let ctx = context(camera.translation(), &ticks, &biomes, *weather);
-    environment
-        .layout
-        .evaluate(&environment.attributes, &ctx, &mut frame);
+    environment.layout.evaluate(
+        &environment.attributes,
+        &EnvironmentContext { ticks: &ticks },
+        camera.translation(),
+        *weather,
+        &mut frame,
+    );
     clear.0 = environment.fog_color(&frame);
 }
 
@@ -515,148 +498,6 @@ mod tests {
     }
 }
 
-/// The tracks and constants read out of `timeline/day.json` by hand, kept as
-/// the reference the attribute system has to reproduce: a drift between the two
-/// means the attribute path stopped agreeing with the asset.
-#[cfg(test)]
-mod reference {
-    use bevy::prelude::*;
-
-    use super::rgb;
-
-    pub const DAY: f32 = 24000.0;
-
-    pub const BASE_SKY: Vec3 = rgb(0x78a7ff);
-    pub const BASE_FOG: Vec3 = rgb(0xc0d8ff);
-    pub const CLOUD_COLOR: Vec4 = argb(0xccffffff);
-    pub const CLOUD_HEIGHT: f32 = 192.33;
-    pub const CLOUD_FADE: f32 = 2048.0;
-    pub const SKY_FOG_END: f32 = 512.0;
-    pub const RAIN_BRIGHTNESS: f32 = 1.0;
-    pub const AMBIENT: Vec3 = rgb(0x0a0a0a);
-    pub const BLOCK_LIGHT_TINT: Vec3 = rgb(0xffd88c);
-    pub const MOON_PHASE_COUNT: f32 = 8.0;
-
-    pub const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
-        (730.0, 1.0),
-        (11270.0, 1.0),
-        (13140.0, 0.24),
-        (22860.0, 0.24),
-    ];
-
-    pub const SKY_LIGHT_COLOR: [(f32, Vec3); 4] = [
-        (730.0, Vec3::ONE),
-        (11270.0, Vec3::ONE),
-        (13140.0, rgb(0x7a7aff)),
-        (22860.0, rgb(0x7a7aff)),
-    ];
-
-    pub const SKY_COLOR: [(f32, f32); 4] =
-        [(133.0, 1.0), (11867.0, 1.0), (13670.0, 0.0), (22330.0, 0.0)];
-
-    pub const FOG_COLOR: [(f32, Vec3); 4] = [
-        (133.0, Vec3::ONE),
-        (11867.0, Vec3::ONE),
-        (13670.0, rgb(0x0c0c16)),
-        (22330.0, rgb(0x161616)),
-    ];
-
-    pub const CLOUD_TINT: [(f32, Vec3); 4] = [
-        (133.0, Vec3::ONE),
-        (11867.0, Vec3::ONE),
-        (13670.0, rgb(0x191926)),
-        (22330.0, rgb(0x191926)),
-    ];
-
-    pub const STAR_BRIGHTNESS: [(f32, f32); 12] = [
-        (92.0, 0.037),
-        (627.0, 0.0),
-        (11373.0, 0.0),
-        (11732.0, 0.016),
-        (11959.0, 0.044),
-        (12399.0, 0.143),
-        (12729.0, 0.258),
-        (13228.0, 0.5),
-        (22772.0, 0.5),
-        (23032.0, 0.364),
-        (23356.0, 0.225),
-        (23758.0, 0.101),
-    ];
-
-    pub const SUNRISE: [(f32, Vec4); 32] = [
-        (71.0, argb(0x5fefa333)),
-        (310.0, argb(0x29f5ba33)),
-        (565.0, argb(0x06fbd433)),
-        (730.0, argb(0x00ffe533)),
-        (11270.0, argb(0x00ffe533)),
-        (11397.0, argb(0x04fcd833)),
-        (11522.0, argb(0x0ff9cb33)),
-        (11690.0, argb(0x29f5ba33)),
-        (11929.0, argb(0x5fefa333)),
-        (12243.0, argb(0xb1e78733)),
-        (12358.0, argb(0xcce47e33)),
-        (12512.0, argb(0xe9e07233)),
-        (12613.0, argb(0xf6dd6b33)),
-        (12732.0, argb(0xfeda6333)),
-        (12841.0, argb(0xfed75c33)),
-        (13035.0, argb(0xecd25133)),
-        (13252.0, argb(0xc1cc4733)),
-        (13775.0, argb(0x36be3733)),
-        (13888.0, argb(0x1fbb3533)),
-        (14039.0, argb(0x09b73333)),
-        (14192.0, argb(0x00b33333)),
-        (21807.0, argb(0x00b23333)),
-        (21961.0, argb(0x09b73333)),
-        (22112.0, argb(0x1fbb3533)),
-        (22225.0, argb(0x36be3733)),
-        (22748.0, argb(0xc1cc4733)),
-        (22965.0, argb(0xecd25133)),
-        (23159.0, argb(0xfed75c33)),
-        (23272.0, argb(0xfeda6333)),
-        (23488.0, argb(0xe9e07233)),
-        (23642.0, argb(0xcce47e33)),
-        (23757.0, argb(0xb1e78733)),
-    ];
-
-    pub const fn argb(hex: u32) -> Vec4 {
-        let color = rgb(hex);
-        Vec4::new(
-            color.x,
-            color.y,
-            color.z,
-            ((hex >> 24) & 0xff) as f32 / 255.0,
-        )
-    }
-
-    pub fn track<T>(keys: &[(f32, T)], ticks: f32) -> T
-    where
-        T: Copy + std::ops::Add<T, Output = T> + std::ops::Mul<f32, Output = T>,
-    {
-        let mut at = ticks.rem_euclid(DAY);
-        if at < keys[0].0 {
-            at += DAY;
-        }
-        for (index, &(start, value)) in keys.iter().enumerate() {
-            let (mut end, next) = keys[(index + 1) % keys.len()];
-            if index + 1 == keys.len() {
-                end += DAY;
-            }
-            if at <= end {
-                let fraction = (at - start) / (end - start);
-                return value * (1.0 - fraction) + next * fraction;
-            }
-        }
-        keys[0].1
-    }
-
-    pub fn sun_angle(ticks: f32) -> f32 {
-        use std::f32::consts::{PI, TAU};
-        let day = (ticks / DAY - 0.25).rem_euclid(1.0);
-        let eased = 0.5 - (day * PI).cos() * 0.5;
-        (day * 2.0 + eased) / 3.0 * TAU
-    }
-}
-
 #[cfg(test)]
 mod sky_regression {
     use mcrs_minecraft_dimension::Skybox;
@@ -667,7 +508,6 @@ mod sky_regression {
     use mcrs_minecraft_environment::timeline::Timeline;
     use mcrs_minecraft_environment::world_clock::ClockState;
 
-    use super::reference::*;
     use super::*;
     use crate::sky_state::TEST_CLOCKS as CLOCKS;
 
@@ -723,11 +563,7 @@ mod sky_regression {
         )
         .unwrap();
         let layout = SkyLayout::derive(&attributes);
-        let biomes = SpatialAttributeInterpolator::default();
-        let statics = layout.constants(
-            &attributes,
-            &context(Vec3::ZERO, &[], &biomes, Weather::default()),
-        );
+        let statics = layout.constants(&attributes, &EnvironmentContext { ticks: &[] });
         SkyEnvironment {
             attributes,
             layout,
@@ -757,105 +593,15 @@ mod sky_regression {
     fn packed(ticks: i64, camera: Vec3) -> SkyUniform {
         let environment = overworld();
         let resolved = ticks_at(&environment.attributes, ticks);
-        let biomes = SpatialAttributeInterpolator::default();
         let mut frame = SkyFrame::default();
         environment.layout.evaluate(
             &environment.attributes,
-            &context(camera, &resolved, &biomes, Weather::default()),
+            &EnvironmentContext { ticks: &resolved },
+            camera,
+            Weather::default(),
             &mut frame,
         );
         environment.uniform(&frame, cloud_drift(ticks as f64))
-    }
-
-    #[track_caller]
-    fn close(label: &str, got: [f32; 4], want: [f32; 4], epsilon: f32) {
-        let apart = (0..4)
-            .map(|i| (got[i] - want[i]).abs())
-            .fold(0.0f32, f32::max);
-        assert!(
-            apart <= epsilon,
-            "{label}: {got:?} is {apart} away from {want:?}"
-        );
-    }
-
-    fn expected(ticks: i64, camera: Vec3) -> SkyUniform {
-        let at = ticks as f32;
-        let sunrise = track(&SUNRISE, at);
-        let sun = sun_angle(at);
-        let linear3 = |color: Vec3, w: f32| color.map(Srgba::gamma_function).extend(w).to_array();
-        let raw3 = |color: Vec3, w: f32| color.extend(w).to_array();
-        SkyUniform {
-            disc: linear3(
-                BASE_SKY * track(&SKY_COLOR, at),
-                f32::from(camera.y < HORIZON),
-            ),
-            sunrise: linear3(sunrise.truncate(), sunrise.w),
-            angles: [
-                sun,
-                sun + std::f32::consts::PI,
-                sun,
-                Srgba::gamma_function(track(&STAR_BRIGHTNESS, at)),
-            ],
-            moon: [
-                1.0 + (at / DAY).floor().rem_euclid(MOON_PHASE_COUNT),
-                RAIN_BRIGHTNESS,
-                0.0,
-                0.0,
-            ],
-            fog: linear3(BASE_FOG * track(&FOG_COLOR, at), SKY_FOG_END),
-            cloud_color: linear3(
-                CLOUD_COLOR.truncate() * track(&CLOUD_TINT, at),
-                CLOUD_COLOR.w,
-            ),
-            cloud: [CLOUD_HEIGHT, cloud_drift(ticks as f64), CLOUD_FADE, 0.0],
-            sky_light: raw3(track(&SKY_LIGHT_COLOR, at), track(&SKY_LIGHT_FACTOR, at)),
-            block_light: raw3(BLOCK_LIGHT_TINT, BLOCK_LIGHT_FACTOR),
-            ambient: raw3(AMBIENT, 0.0),
-        }
-    }
-
-    /// The reference multiplies floats where the attribute system multiplies
-    /// packed channels, so the two differ by 8-bit rounding. Measured in linear
-    /// space this bound is one sRGB code at the bright end and tighter below.
-    const CHANNEL: f32 = 2.5 / 255.0;
-
-    #[test]
-    fn the_attribute_system_reproduces_the_hardcoded_tracks_across_the_day() {
-        let camera = Vec3::new(0.0, 80.0, 0.0);
-        for ticks in [0, 6000, 12000, 12800, 13000, 18000, 23000] {
-            let got = packed(ticks, camera);
-            let want = expected(ticks, camera);
-            let label = |field: &str| format!("{field} at {ticks}");
-            close(&label("disc"), got.disc, want.disc, CHANNEL);
-            close(&label("sunrise"), got.sunrise, want.sunrise, CHANNEL);
-            close(&label("fog"), got.fog, want.fog, CHANNEL);
-            close(
-                &label("cloud_color"),
-                got.cloud_color,
-                want.cloud_color,
-                CHANNEL,
-            );
-            close(&label("cloud"), got.cloud, want.cloud, 0.0);
-            close(&label("sky_light"), got.sky_light, want.sky_light, CHANNEL);
-            assert!(
-                (got.sky_light[3] - want.sky_light[3]).abs() <= 1e-3,
-                "{}: {} is not {}",
-                label("sky_light factor"),
-                got.sky_light[3],
-                want.sky_light[3]
-            );
-            close(
-                &label("block_light"),
-                got.block_light,
-                want.block_light,
-                CHANNEL,
-            );
-            close(&label("ambient"), got.ambient, want.ambient, CHANNEL);
-            close(&label("moon"), got.moon, want.moon, 0.0);
-            // the keyframe easing is a cubic bezier where the reference solved
-            // the same curve in closed form
-            close(&label("angles"), got.angles, want.angles, 0.002);
-        }
     }
 
     #[test]
@@ -880,16 +626,6 @@ mod sky_regression {
         );
         assert_eq!(layer(3), 4.0);
         assert_eq!(layer(8), 1.0);
-    }
-
-    /// The reference hands `star_brightness` to the shader as a plain colour,
-    /// so it gets the one sRGB-to-linear conversion every other colour gets and
-    /// no further curve.
-    #[test]
-    fn star_brightness_carries_no_curve_beyond_the_colour_conversion() {
-        let brightest = packed(18000, Vec3::ZERO).angles[3];
-        assert_eq!(brightest, Srgba::gamma_function(0.5));
-        assert_eq!(packed(6000, Vec3::ZERO).angles[3], 0.0);
     }
 
     #[test]

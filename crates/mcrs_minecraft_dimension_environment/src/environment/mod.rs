@@ -1,16 +1,12 @@
 //! Composing the environment attribute layers of one dimension.
 //!
-//! Five layers stack in the order the reference applies them: the registered
-//! default, the dimension's constants, the biome at the position, the timeline
-//! tracks, and weather. Nothing here memoizes an effective value — a layer
+//! Three layers stack: the registered default, the dimension's constants and
+//! the timeline tracks. Nothing here memoizes an effective value — a layer
 //! stack is derived once from immutable assets and every read composes it
 //! afresh.
 
-use std::sync::LazyLock;
-
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
-use bevy_math::DVec3;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
@@ -18,14 +14,12 @@ use mcrs_minecraft_registry::{Registry, RegistrySet};
 use crate::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
-    AttributeEntry, AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES,
-    EnvironmentAttributeMap, ModifierError, Operation, apply,
+    AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap,
+    apply,
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
-
-pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
 /// How much it is raining and thundering, in `[0; 1]`.
 ///
@@ -41,8 +35,6 @@ pub struct Weather {
 pub enum EnvironmentError {
     #[error(transparent)]
     Attribute(#[from] AttributeError),
-    #[error(transparent)]
-    Modifier(#[from] ModifierError),
     #[error("unknown environment attribute `{0}`; the registry is behind the game version")]
     UnknownAttribute(String),
     #[error("a timeline runs on a clock the world clock registry does not hold")]
@@ -52,16 +44,9 @@ pub enum EnvironmentError {
 }
 
 #[derive(Debug, Clone)]
-enum Layer {
-    Biome,
-    Track {
-        clock: usize,
-        sampler: AttributeTrackSampler,
-    },
-    Weather {
-        rain: WeatherEntry,
-        thunder: WeatherEntry,
-    },
+struct TrackLayer {
+    clock: usize,
+    sampler: AttributeTrackSampler,
 }
 
 /// One attribute's layers, with everything constant for the dimension already
@@ -69,57 +54,24 @@ enum Layer {
 #[derive(Debug, Clone)]
 pub struct AttributeStack {
     pub spec: &'static AttributeSpec,
-    index: usize,
     base: AttributeValue,
-    layers: Vec<Layer>,
+    layers: Vec<TrackLayer>,
 }
 
 impl AttributeStack {
-    /// Whether anything below the biome layer can still move this value.
+    /// Whether a timeline track can still move this value.
     pub fn is_dynamic(&self) -> bool {
-        self.layers
-            .iter()
-            .any(|layer| matches!(layer, Layer::Track { .. } | Layer::Weather { .. }))
+        !self.layers.is_empty()
     }
 
     pub fn evaluate(&self, ctx: &EnvironmentContext) -> AttributeValue {
-        let mut value = self.base.clone();
-        for layer in &self.layers {
-            value = match layer {
-                Layer::Biome if !self.spec.positional => value,
-                Layer::Biome => ctx.biomes.apply(self.index, self.spec, &value),
-                Layer::Track { clock, sampler } => sampler
+        self.layers
+            .iter()
+            .fold(self.base.clone(), |value, TrackLayer { clock, sampler }| {
+                sampler
                     .apply_at(&value, ctx.ticks.get(*clock).copied().unwrap_or(0.0))
-                    .unwrap_or(value),
-                Layer::Weather { rain, thunder } => self.apply_weather(rain, thunder, value, ctx),
-            };
-        }
-        self.spec.sanitize(value)
-    }
-
-    /// Each level blends the layer beneath it towards the modified value, and
-    /// thunder is measured out of the rain level rather than on top of it.
-    fn apply_weather(
-        &self,
-        rain: &WeatherEntry,
-        thunder: &WeatherEntry,
-        value: AttributeValue,
-        ctx: &EnvironmentContext,
-    ) -> AttributeValue {
-        let thunder_level = ctx.weather.thunder;
-        let rain_level = ctx.weather.rain - thunder_level;
-        let lerp = self.spec.ty.state_change_lerp();
-        let mut value = value;
-        for ((op, argument), level) in [(rain, rain_level), (thunder, thunder_level)] {
-            if level <= 0.0 {
-                continue;
-            }
-            let Ok(modified) = apply(self.spec.ty, *op, &value, argument) else {
-                continue;
-            };
-            value = lerp.apply(level, &value, &modified);
-        }
-        value
+                    .unwrap_or(value)
+            })
     }
 }
 
@@ -171,10 +123,8 @@ impl EnvironmentAttributes {
     ) -> Result<Self, EnvironmentError> {
         let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
             .values()
-            .enumerate()
-            .map(|(index, spec)| AttributeStack {
+            .map(|spec| AttributeStack {
                 spec,
-                index,
                 base: spec.default.clone(),
                 layers: Vec::new(),
             })
@@ -182,11 +132,11 @@ impl EnvironmentAttributes {
 
         for (id, entry) in &dimension.attributes.0 {
             let stack = &mut stacks[index_of(id.as_str())?];
-            stack.base = apply(stack.spec.ty, entry.modifier, &stack.base, &entry.argument)?;
-        }
-
-        for stack in &mut stacks {
-            stack.layers.push(Layer::Biome);
+            // A modifier other than `override` has no specification yet, so the
+            // entry is skipped rather than failing the whole dimension.
+            if let Ok(value) = apply(entry.modifier, &stack.base, &entry.argument) {
+                stack.base = value;
+            }
         }
 
         let mut clocks: Vec<Id<WorldClock>> = Vec::new();
@@ -204,15 +154,7 @@ impl EnvironmentAttributes {
             for (id, sampler) in timeline.bake() {
                 stacks[index_of(id)?]
                     .layers
-                    .push(Layer::Track { clock, sampler });
-            }
-        }
-
-        if dimension.can_have_weather {
-            for (id, rain, thunder) in weather_layers() {
-                stacks[index_of(id)?]
-                    .layers
-                    .push(Layer::Weather { rain, thunder });
+                    .push(TrackLayer { clock, sampler });
             }
         }
 
@@ -281,7 +223,7 @@ impl EnvironmentAttributes {
     }
 
     /// The fractional tick of every clock this dimension's timelines run on,
-    /// in the order [`Layer::Track`] indexes them.
+    /// in the order a track layer indexes them.
     pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<f64>) {
         out.clear();
         out.extend(self.clocks.iter().map(|id| {
@@ -300,85 +242,13 @@ impl EnvironmentAttributes {
 
 /// Everything a layer stack needs that is not fixed for the dimension.
 pub struct EnvironmentContext<'a> {
-    pub position: DVec3,
     pub ticks: &'a [f64],
-    pub biomes: &'a SpatialAttributeInterpolator,
-    pub weather: Weather,
 }
 
 fn index_of(id: &str) -> Result<usize, EnvironmentError> {
     EnvironmentAttributes::index(id)
         .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))
 }
-
-/// `WeatherAttributes.RAIN` and `THUNDER`.
-///
-/// The colours are the reference's float literals pushed through
-/// `ARGB.as8BitChannel`, which floors: 0.6 is `0x99`, not `0x9a`.
-static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
-    use mcrs_minecraft_environment::keys::EnvironmentAttribute as A;
-    let level = |sky_gray: (f32, f32), cloud_gray: (f32, f32), tint: u32, alpha: f32| {
-        let blend_to_gray = |(brightness, factor)| AttributeEntry {
-            argument: AttributeValue::BlendToGray { brightness, factor },
-            modifier: Operation::BlendToGray,
-        };
-        let alpha_blend = |value| AttributeEntry {
-            argument: AttributeValue::FloatWithAlpha { value, alpha },
-            modifier: Operation::AlphaBlend,
-        };
-        let multiply = |packed| AttributeEntry {
-            argument: AttributeValue::Color(packed),
-            modifier: Operation::Multiply,
-        };
-        let sky_light_alpha = (alpha * 255.0) as u32;
-        EnvironmentAttributeMap(
-            [
-                (A::VisualSkyColor.location(), blend_to_gray(sky_gray)),
-                (A::VisualFogColor.location(), multiply(0xFF00_0000 | tint)),
-                (A::VisualCloudColor.location(), blend_to_gray(cloud_gray)),
-                (A::GameplaySkyLightLevel.location(), alpha_blend(4.0)),
-                (
-                    A::VisualSkyLightColor.location(),
-                    AttributeEntry {
-                        argument: AttributeValue::Color(sky_light_alpha << 24 | 0x7a_7aff),
-                        modifier: Operation::AlphaBlend,
-                    },
-                ),
-                (A::VisualSkyLightFactor.location(), alpha_blend(0.24)),
-                (
-                    A::VisualStarBrightness.location(),
-                    AttributeEntry::override_value(AttributeValue::Float(0.0)),
-                ),
-                (
-                    A::VisualSunriseSunsetColor.location(),
-                    multiply(0xFF00_0000 | tint),
-                ),
-                (
-                    A::GameplayBeesStayInHive.location(),
-                    AttributeEntry::override_value(AttributeValue::Bool(true)),
-                ),
-            ]
-            .into_iter()
-            .map(|(id, entry)| (id.into(), entry))
-            .collect(),
-        )
-    };
-    [
-        level((0.6, 0.75), (0.24, 0.5), 0x7f_7f99, 0.3125),
-        level((0.24, 0.94), (0.095, 0.94), 0x3f_3f4c, 0.52734375),
-    ]
-});
-
-fn weather_layers() -> impl Iterator<Item = (&'static str, WeatherEntry, WeatherEntry)> {
-    let [rain, thunder] = &*WEATHER;
-    let entry = |entry: &AttributeEntry| (entry.modifier, entry.argument.clone());
-    rain.0
-        .iter()
-        .zip(thunder.0.values())
-        .map(move |((id, rain), thunder)| (id.as_str(), entry(rain), entry(thunder)))
-}
-
-type WeatherEntry = (Operation, AttributeValue);
 
 #[cfg(test)]
 mod tests;

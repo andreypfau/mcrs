@@ -1,5 +1,4 @@
 pub mod id;
-pub mod lerp;
 pub mod mob_spawns;
 pub mod modifier;
 pub mod spec;
@@ -19,7 +18,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_core::ResourceLocation;
 
-pub use lerp::Lerp;
 pub use mob_spawns::{MobSpawnSettings, SpawnCost};
 pub use modifier::{ModifierError, Operation, apply};
 pub use spec::{
