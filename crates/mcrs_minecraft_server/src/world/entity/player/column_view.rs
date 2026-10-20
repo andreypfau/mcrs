@@ -41,14 +41,14 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelC
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::client_heightmaps;
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap,
 };
@@ -627,7 +627,7 @@ pub(crate) fn send_column_queue(
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
     lighting: Res<crate::Lighting>,
-    (block_definitions, registries): (Res<Blocks>, Res<RegistrySet>),
+    (block_definitions, registries): (Res<Blocks>, Res<CurrentRegistries>),
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -637,7 +637,7 @@ pub(crate) fn send_column_queue(
     let block_direct_bits = block_direct_bits(block_definitions.state_count());
     let biome_direct_bits = biome_direct_bits(
         registries
-            .registry::<Biome>()
+            .registry::<RegistryOf<BiomeFile>>()
             .map_or(0, |biomes| biomes.len()),
     );
     players
@@ -932,7 +932,9 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
-        world.insert_resource(RegistrySet::new());
+        world.insert_resource(CurrentRegistries::new(std::sync::Arc::new(
+            mcrs_minecraft_world::registry_load::registries_declaring(&[]),
+        )));
         world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 
         Fixture {
