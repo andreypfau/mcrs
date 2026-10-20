@@ -417,7 +417,6 @@ fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list(
 fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     use mcrs_minecraft_block::definition::Blocks;
     use mcrs_minecraft_core::Versioned;
-    use mcrs_minecraft_inventory::ShulkerBoxes;
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
@@ -435,7 +434,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),
-        type_name::<Resolved<ShulkerBoxes>>(),
     ];
 
     let resource_names = |world: &World| -> Vec<String> {

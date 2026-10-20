@@ -19,7 +19,6 @@ use crate::world::bus::{
     InboundRollbackMove, OutboundPlayerPacket,
 };
 use crate::world::channel_types::{FromDim, ToDim};
-use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -256,7 +255,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundEntitySpawn>();
     sub_app.add_message::<InboundConfirmMove>();
     sub_app.add_message::<InboundRollbackMove>();
-    sub_app.add_message::<PlayerWillDestroyBlock>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -470,7 +468,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);
-    sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);

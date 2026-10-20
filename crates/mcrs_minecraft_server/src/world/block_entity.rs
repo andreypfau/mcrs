@@ -1,11 +1,5 @@
 use bevy_ecs::prelude::{Commands, Component};
-use bevy_ecs::system::Command;
-use bevy_ecs::world::EntityWorldMut;
-use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_nbt::to_nbt_compound;
@@ -28,53 +22,12 @@ pub fn spawn_block_entities(
 ) {
     for entry in entries {
         let pos = entry.position();
-        commands
-            .spawn((
-                BlockEntityPos(BlockPos::new(pos.x, pos.y, pos.z)),
-                dim,
-                BlockEntity(entry),
-            ))
-            .queue(fill_container);
+        commands.spawn((
+            BlockEntityPos(BlockPos::new(pos.x, pos.y, pos.z)),
+            dim,
+            BlockEntity(entry),
+        ));
     }
-}
-
-/// The saved `Items` list becomes the stack subtree and nothing else keeps
-/// it; a slot outside the container is dropped as vanilla drops it.
-fn fill_container(mut entity: EntityWorldMut) {
-    let (block, items) = {
-        let mut block_entity = entity.get_mut::<BlockEntity>().unwrap();
-        match &mut block_entity.0 {
-            GeneratedBlockEntity::Chest(data) => (Block::Chest, std::mem::take(&mut data.items)),
-            GeneratedBlockEntity::TrappedChest(data) => {
-                (Block::TrappedChest, std::mem::take(&mut data.items))
-            }
-            _ => return,
-        }
-    };
-    let holder = entity.id();
-    entity.world_scope(|world| {
-        let Some(slot_count) = world
-            .get_resource::<Blocks>()
-            .and_then(|blocks| blocks[block.id()].container_slots)
-        else {
-            return;
-        };
-        world
-            .entity_mut(holder)
-            .insert(SlotTable::fixed(usize::from(slot_count)));
-        if world.get_resource::<Items>().is_none() {
-            return;
-        }
-        // One transaction per slot: a stack the corpus cannot spawn must not
-        // take the rest of the container with it.
-        for entry in items.into_iter().filter(|entry| entry.slot < slot_count) {
-            Transaction(vec![Op::Spawn {
-                value: entry.stack,
-                to: Slot::new(holder, u16::from(entry.slot)),
-            }])
-            .apply(world);
-        }
-    });
 }
 
 /// The chunk packet's entry, carrying the same compound the save holds.

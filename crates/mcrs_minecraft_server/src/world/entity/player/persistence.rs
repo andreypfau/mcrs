@@ -1,19 +1,16 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
-use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
-use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::inventory::slots;
-use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::item::ItemStackWithSlot;
+use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
-use tracing::{error, warn};
+use std::collections::BTreeMap;
+use tracing::error;
 
 use crate::WorldSave;
 use crate::login::GameProfile;
@@ -22,24 +19,19 @@ use mcrs_minecraft_dimension::Dimension;
 /// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;
 
-/// Root keys of the loaded file mcrs does not model, written back unchanged.
+/// The parts of the loaded file mcrs does not simulate, written back unchanged.
 #[derive(Component, Default, Debug, Clone)]
-pub struct LoadedPlayerDat(pub NbtCompound);
+pub struct LoadedPlayerDat {
+    pub inventory: Vec<ItemStackWithSlot>,
+    pub selected_item_slot: i32,
+    pub equipment: BTreeMap<String, ItemStackValue>,
+    pub rest: NbtCompound,
+}
 
 /// The file on disk could not be parsed; saving would replace it with the
-/// empty inventory the player joined with.
+/// empty player the session joined with.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UnreadablePlayerDat;
-
-const EQUIPMENT: [(&str, u16); 5] = [
-    ("feet", slots::ARMOR_FEET),
-    ("legs", slots::ARMOR_LEGS),
-    ("chest", slots::ARMOR_CHEST),
-    ("head", slots::ARMOR_HEAD),
-    ("offhand", slots::OFFHAND),
-];
-
-const VANILLA_INVENTORY_SIZE: u8 = 36;
 
 pub fn load_player(world: &mut World, player: Entity) {
     let Some(save) = world.get_resource::<WorldSave>() else {
@@ -60,63 +52,15 @@ pub fn load_player(world: &mut World, player: Entity) {
             return;
         }
     };
-    for entry in dat
-        .inventory
-        .iter()
-        .filter(|entry| entry.slot < VANILLA_INVENTORY_SIZE)
-    {
-        let Some(cell) = slots::from_inventory_index(entry.slot) else {
-            continue;
-        };
-        place(world, player, cell, &entry.stack);
-    }
-    for (key, stack) in &dat.equipment {
-        match EQUIPMENT.iter().find(|(name, _)| name == key) {
-            Some((_, cell)) => place(world, player, *cell, stack),
-            None => warn!(%uuid, "equipment slot {key} is not a player slot; dropped"),
-        }
-    }
-    let selected = match u8::try_from(dat.selected_item_slot) {
-        Ok(slot) if slot <= 8 => slot,
-        _ => {
-            warn!(%uuid, "SelectedItemSlot {} out of range; using 0", dat.selected_item_slot);
-            0
-        }
-    };
-    world
-        .entity_mut(player)
-        .insert((SelectedHotbarSlot(selected), LoadedPlayerDat(dat.rest)));
-}
-
-fn place(
-    world: &mut World,
-    player: Entity,
-    cell: u16,
-    stack: &mcrs_minecraft_protocol::item::ItemStackValue,
-) {
-    Transaction(vec![Op::Spawn {
-        value: stack.clone(),
-        to: Slot::new(player, cell),
-    }])
-    .apply(world);
+    world.entity_mut(player).insert(LoadedPlayerDat {
+        inventory: dat.inventory,
+        selected_item_slot: dat.selected_item_slot,
+        equipment: dat.equipment,
+        rest: dat.rest,
+    });
 }
 
 pub fn save_player(world: &World, player: Entity) -> PlayerDat {
-    let items = world.resource::<Items>();
-    let table = world.get::<SlotTable>(player);
-    let mut inventory = Vec::new();
-    let mut equipment = std::collections::BTreeMap::new();
-    if let Some(table) = table {
-        for (cell, stack) in table.iter() {
-            let stack = stack_to_value(world, stack, items);
-            if let Some((name, _)) = EQUIPMENT.iter().find(|(_, c)| *c == cell) {
-                equipment.insert((*name).to_owned(), stack);
-            } else if let Some(slot) = slots::inventory_index(cell) {
-                inventory.push(ItemStackWithSlot { slot, stack });
-            }
-        }
-        inventory.sort_by_key(|entry| entry.slot);
-    }
     let transform = world
         .get::<Transform>(player)
         .copied()
@@ -126,20 +70,19 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .and_then(|dim| world.get::<ResourceKey<Dimension>>(dim.0))
         .cloned()
         .unwrap_or_else(|| mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into());
+    let loaded = world
+        .get::<LoadedPlayerDat>(player)
+        .cloned()
+        .unwrap_or_default();
     PlayerDat {
         data_version: VERSION.world_version,
         pos: transform.translation.to_array(),
         rotation: [transform.rotation.yaw(), transform.rotation.pitch()],
         dimension,
-        inventory,
-        selected_item_slot: world
-            .get::<SelectedHotbarSlot>(player)
-            .map_or(0, |selected| i32::from(selected.0)),
-        equipment,
-        rest: world
-            .get::<LoadedPlayerDat>(player)
-            .map(|loaded| loaded.0.clone())
-            .unwrap_or_default(),
+        inventory: loaded.inventory,
+        selected_item_slot: loaded.selected_item_slot,
+        equipment: loaded.equipment,
+        rest: loaded.rest,
     }
 }
 

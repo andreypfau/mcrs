@@ -1,21 +1,18 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, TagKey, rl};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_protocol::item::{Tool, ToolRule};
-use mcrs_minecraft_registry::{HolderSet, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registries::{insert_registry_resources, static_registries};
+use mcrs_minecraft_world::registries::insert_registry_resources;
 use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use mcrs_minecraft_world::registry_snapshot::install_registries;
 use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
@@ -41,10 +38,7 @@ pub fn insert_registries(app: &mut App) {
     app.add_message::<mcrs_minecraft_registries::RegistriesReloaded>();
     insert_registry_resources(app.world_mut(), test_registries());
     app.add_registry_resolver(mcrs_minecraft_world::registries::clock_time_markers);
-    app.add_plugins((
-        mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin,
-        mcrs_minecraft_inventory::InventoryIdsPlugin,
-    ));
+    app.add_plugins(mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin);
     let resolved = run_resolvers(app.world_mut(), test_registries_arc())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
     install_registries(app.world_mut(), Arc::clone(test_registries_arc()), resolved);
@@ -55,12 +49,6 @@ pub fn dimension_type(name: &str) -> Id<DimensionType> {
         .registry::<DimensionType>()
         .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
-}
-
-pub fn registry_set() -> &'static RegistrySet {
-    static REGISTRIES: LazyLock<RegistrySet> =
-        LazyLock::new(|| static_registries().unwrap_or_else(|report| panic!("{report}")));
-    &REGISTRIES
 }
 
 pub fn preset(name: &str) -> Dimensions {
@@ -103,27 +91,6 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
         },
     );
     mcrs_minecraft_server::world_options::DimensionList::new(baked(&dimensions, set))
-}
-
-/// A tool whose one rule names `#minecraft:mineable/pickaxe`, so the component carries a tag.
-pub fn pickaxe_tagged_tool(registries: &RegistrySet) -> Tool {
-    let pickaxe = registries
-        .tags::<Block>()
-        .unwrap()
-        .get(&TagKey::<Block, _>::from_location(
-            rl!("minecraft:mineable/pickaxe").to_arc(),
-        ))
-        .unwrap();
-    Tool {
-        rules: vec![ToolRule {
-            blocks: HolderSet::Named(pickaxe),
-            speed: Some(2.0),
-            correct_for_drops: None,
-        }],
-        default_mining_speed: 1.0,
-        damage_per_block: Bounded(1),
-        can_destroy_blocks_in_creative: true,
-    }
 }
 
 pub fn update_until_playing(app: &mut App) {

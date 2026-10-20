@@ -10,13 +10,8 @@ use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
 use crate::world::entity::player::game_mode::GameModePlugin;
-use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
-use crate::world::entity::player::placing::PlacingPlugin;
-use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, EntityUuid};
-use crate::world::inventory::PlayerInventoryBundle;
-use crate::world::item::StackSet;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
@@ -28,8 +23,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_inventory::{Op, Slot};
-use mcrs_minecraft_item::{SlotTable, slots};
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -60,11 +53,8 @@ pub mod ability;
 mod chat;
 pub mod column_view;
 mod game_mode;
-mod inventory;
 pub mod movement;
 pub mod persistence;
-mod placing;
-pub mod player_action;
 
 /// Game mode given to players joining for the first time.
 #[derive(Resource, Clone, Copy, Debug)]
@@ -91,11 +81,8 @@ pub struct DimPlayerPlugin;
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.init_resource::<DefaultGameMode>();
-        app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
-        app.add_plugins(PlayerInventoryPlugin);
-        app.add_plugins(PlacingPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
         app.add_systems(
@@ -117,7 +104,6 @@ impl Plugin for DimPlayerPlugin {
             FixedUpdate,
             persistence::autosave_players
                 .in_set(TickSet::Output)
-                .after(StackSet::Sync)
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
         app.add_observer(network_add);
@@ -133,7 +119,6 @@ pub struct PlayerBundle {
     pub teleport_state: TeleportState,
     pub view_distance: PlayerViewDistance,
     pub abilities: ability::PlayerAbilitiesBundle,
-    pub inventory: PlayerInventoryBundle,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
     pub tracked_by: crate::world::aoi::TrackedBy,
@@ -358,21 +343,6 @@ pub fn despawn_inbound_player(
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
                 commands.queue(move |world: &mut World| {
-                    let unsaved: Vec<Op> = world
-                        .get::<SlotTable>(entity)
-                        .map(|table| {
-                            std::iter::once(slots::CARRIED)
-                                .chain(slots::CRAFT)
-                                .filter(|index| table.get(*index).is_some())
-                                .map(|index| Op::Drop {
-                                    from: Slot::new(entity, index),
-                                    count: u8::MAX,
-                                    thrower: entity,
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    crate::world::item::click::commit(world, unsaved);
                     persistence::write_player(world, entity);
                     world.despawn(entity);
                 });

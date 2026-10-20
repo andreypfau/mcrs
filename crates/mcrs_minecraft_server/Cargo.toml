@@ -23,7 +23,6 @@ mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
@@ -64,7 +63,6 @@ tracing = { workspace = true }
 [dev-dependencies]
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }

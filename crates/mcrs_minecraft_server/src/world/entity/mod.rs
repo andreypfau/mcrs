@@ -20,7 +20,6 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
 
-pub mod item;
 pub mod player;
 
 pub use mcrs_minecraft_level::entity::EntityUuid;
@@ -31,7 +30,6 @@ impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
         app.add_plugins(DimPlayerPlugin);
-        app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);
         app.add_systems(
             FixedPreUpdate,

@@ -22,8 +22,6 @@ pub mod generate;
 #[cfg(test)]
 mod generation_tests;
 pub mod heightmap;
-pub mod inventory;
-pub mod item;
 pub mod light;
 pub mod light_codec;
 pub mod session;
