@@ -11,7 +11,7 @@ use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
-    ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks, seed_world_clocks,
+    ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
 };
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
@@ -72,7 +72,7 @@ impl Plugin for ClientRegistriesPlugin {
                     clear_derived_tables
                         .in_set(SessionSet::Clear)
                         .run_if(entered_configuration),
-                    (derive_items, derive_clock_markers, seed_world_clocks)
+                    (derive_items, derive_clock_markers, seed_session_clocks)
                         .in_set(SessionSet::Derive)
                         .run_if(resource_exists_and_changed::<RegistrySet>),
                 ),
@@ -195,4 +195,11 @@ fn derive_clock_markers(registries: Res<RegistrySet>, mut commands: Commands) {
             commands.remove_resource::<ClockTimeMarkers>();
         }
     }
+}
+
+fn seed_session_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
+    clocks.reconcile(
+        set.registry::<WorldClock>()
+            .map_or(0, |registry| registry.len()),
+    );
 }

@@ -34,6 +34,7 @@ bevy = [
     "dep:bevy_ecs",
     "mcrs_minecraft_core/bevy",
     "mcrs_minecraft_registry/bevy",
+    "mcrs_minecraft_registries/bevy",
 ]
 
 [dev-dependencies]

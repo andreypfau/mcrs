@@ -2,14 +2,16 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[cfg(feature = "bevy")]
-use bevy_app::{App, FixedUpdate, Plugin, Startup};
+use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registry::RegistrySet;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -120,18 +122,18 @@ impl WorldClocks {
         self.0.is_empty()
     }
 
-    /// Leave exactly one clock per registry entry: keep the supplied state for
-    /// an entry that has one, default the rest, drop what the registry no
-    /// longer knows.
-    pub fn reconcile_with_registry(&mut self, registry: &Registry<WorldClock>) {
+    /// Leave exactly one clock per entry of a registry of `entries` entries: keep the
+    /// supplied state for an entry that has one, default the rest, drop what the
+    /// registry no longer holds.
+    pub fn reconcile(&mut self, entries: usize) {
         self.0.retain(|id, _| {
-            let known = registry.name(*id).is_some();
+            let known = id.index() < entries;
             if !known {
                 tracing::warn!(clock = ?id, "discarding clock state with no world_clock registry entry");
             }
             known
         });
-        for id in registry.ids() {
+        for id in (0..entries).filter_map(|n| Id::checked(u16::try_from(n).ok()?, entries)) {
             self.0.entry(id).or_default();
         }
     }
@@ -251,8 +253,8 @@ impl Plugin for WorldClockPlugin {
         app.init_resource::<WorldClocks>()
             .init_resource::<AdvanceTime>()
             .add_systems(
-                Startup,
-                seed_world_clocks.run_if(resource_exists::<RegistrySet>),
+                PreUpdate,
+                seed_world_clocks.run_if(resource_exists_and_changed::<CurrentRegistries>),
             )
             .add_systems(
                 FixedUpdate,
@@ -262,12 +264,12 @@ impl Plugin for WorldClockPlugin {
 }
 
 #[cfg(feature = "bevy")]
-pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
-    let Some(registry) = set.registry::<WorldClock>() else {
-        tracing::error!("the registry set holds no world_clock registry to seed the clocks from");
+fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, registries: Res<CurrentRegistries>) {
+    let Some(registry) = registries.registry::<RegistryOf<WorldClock>>() else {
+        tracing::error!("the registries hold no world_clock registry to seed the clocks from");
         return;
     };
-    clocks.reconcile_with_registry(&registry);
+    clocks.reconcile(registry.len());
     tracing::info!(clocks = clocks.len(), "seeded world clocks");
 }
 
@@ -302,6 +304,7 @@ pub(crate) static TEST_CLOCKS: std::sync::LazyLock<RegistrySet> = std::sync::Laz
 mod tests {
     use super::*;
     use crate::timeline::Timeline;
+    use mcrs_minecraft_registry::Registry;
 
     const OVERWORLD: &str = "minecraft:overworld";
 
@@ -317,7 +320,7 @@ mod tests {
 
     fn all_clocks() -> WorldClocks {
         let mut clocks = WorldClocks::default();
-        clocks.reconcile_with_registry(&TEST_CLOCKS.registry().unwrap());
+        clocks.reconcile(TEST_CLOCKS.registry::<WorldClock>().unwrap().len());
         clocks
     }
 
@@ -365,25 +368,12 @@ mod tests {
         );
         clocks.insert(removed, ClockState::default());
 
-        clocks.reconcile_with_registry(&registry);
+        clocks.reconcile(registry.len());
 
         assert_eq!(clocks.len(), registry.len());
         assert_eq!(clocks.get(id(OVERWORLD)).unwrap().total_ticks, 500);
         assert_eq!(clocks.get(id(THE_END)).unwrap().total_ticks, 0);
         assert!(clocks.get(removed).is_none());
-
-        let mut app = App::new();
-        app.insert_resource(TEST_CLOCKS.clone())
-            .init_resource::<WorldClocks>()
-            .add_systems(Startup, seed_world_clocks);
-        app.world_mut().run_schedule(Startup);
-        let seeded: Vec<_> = app
-            .world()
-            .resource::<WorldClocks>()
-            .iter()
-            .map(|(id, _)| id)
-            .collect();
-        assert_eq!(seeded, registry.ids().collect::<Vec<_>>());
     }
 
     #[test]

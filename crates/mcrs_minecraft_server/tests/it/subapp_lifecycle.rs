@@ -159,7 +159,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     app.add_message::<InboundPlayerSpawn>();
     app.add_plugins(WorldClockPlugin);
     let mut clocks = WorldClocks::default();
-    clocks.reconcile_with_registry(&world_clocks(&app));
+    clocks.reconcile(world_clocks(&app).len());
     app.insert_resource(clocks);
     host_app::drive_to_playing(&mut app);
     host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
