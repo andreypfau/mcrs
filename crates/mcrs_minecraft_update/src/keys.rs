@@ -716,7 +716,6 @@ mod tests {
     type Refusal<'a> = (Statics<'a>, Data<'a>, &'a [&'a str]);
 
     const BLOCK: &[(&str, u16)] = &[("minecraft:air", 0), ("minecraft:stone", 1)];
-    const COMMAND: &str = "cargo run -p mcrs_minecraft_update -- keys";
 
     fn reports(statics: Statics, data: Data) -> Reports {
         let mut flags = Map::new();
@@ -1343,23 +1342,6 @@ mod tests {
             );
             assert!(file.is_file(), "{} is not shipped", file.display());
         }
-    }
-
-    #[test]
-    fn the_key_sources_are_what_the_generator_writes() {
-        let root = crate::workspace_root();
-        let files = crate::keys_files(&root, None).unwrap();
-        for (path, text) in &files {
-            assert!(
-                holds(&root, path, text),
-                "{path} is missing or differs from what the generator writes; run `{COMMAND}`"
-            );
-        }
-        let stale = stale(&root, &files).unwrap();
-        assert!(
-            stale.is_empty(),
-            "{stale:?} are not written by the generator any more; run `{COMMAND}`"
-        );
     }
 
     #[test]

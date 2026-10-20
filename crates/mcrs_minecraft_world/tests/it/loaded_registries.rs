@@ -105,6 +105,39 @@ fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
     load_text(&[(&format!("minecraft/{registry}/{name}.json"), json)])
 }
 
+/// One load for many refused files: each case is written as its own entry, and its text is
+/// what the diagnostics say about that entry.
+fn refused_each(cases: &[(&str, String)]) -> Vec<(String, String)> {
+    let names: Vec<String> = (0..cases.len()).map(|at| format!("odd{at:03}")).collect();
+    let paths: Vec<String> = cases
+        .iter()
+        .zip(&names)
+        .map(|((registry, _), name)| format!("minecraft/{registry}/{name}.json"))
+        .collect();
+    let files: Vec<(&str, &str)> = paths
+        .iter()
+        .zip(cases)
+        .map(|(path, (_, json))| (path.as_str(), json.as_str()))
+        .collect();
+    let diagnostics: Vec<String> = errors_of(WithFiles::test_pack(&files).load())
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    names
+        .into_iter()
+        .map(|name| {
+            let entry = format!("minecraft:{name}");
+            let text = diagnostics
+                .iter()
+                .filter(|text| text.contains(&entry))
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n");
+            (name, text)
+        })
+        .collect()
+}
+
 fn instrument(sound: &str) -> String {
     format!(
         r#"{{"sound_event":"{sound}","use_duration":7.0,"range":256.0,
@@ -1042,12 +1075,16 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
             &["minecraft:item", "minecraft:no_such_item"],
         ),
     ];
-    for (registry, json, parts) in cases {
-        let text = refused_by_the_loader(registry, "odd", &json);
+    let refused = refused_each(
+        &cases
+            .iter()
+            .map(|(registry, json, _)| (*registry, json.clone()))
+            .collect::<Vec<_>>(),
+    );
+    for ((registry, json, parts), (name, text)) in cases.iter().zip(refused) {
         let entry = [
             format!("minecraft:{registry}"),
-            "minecraft:odd".to_owned(),
-            format!("minecraft/{registry}/odd.json"),
+            format!("minecraft/{registry}/{name}.json"),
         ];
         for part in entry
             .iter()
@@ -1339,39 +1376,41 @@ fn a_test_instance_naming_a_function_outside_the_report_loads() {
 
 #[test]
 fn test_values_the_game_refuses_fail_to_parse() {
-    let refused = |registry: &str, json: &str, part: &str| {
-        let text = refused_by_the_loader(registry, "odd", json);
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    };
     let environment =
         |body: &str| format!(r#"{{"type":"minecraft:game_rules","rules":{{{body}}}}}"#);
-    refused(
-        "test_environment",
-        &environment(r#""minecraft:pvp":1"#),
-        "minecraft:pvp",
+    let cases: [(String, &[&str]); 6] = [
+        (environment(r#""minecraft:pvp":1"#), &["minecraft:pvp"]),
+        (
+            environment(r#""minecraft:random_tick_speed":true"#),
+            &["minecraft:random_tick_speed"],
+        ),
+        (
+            environment(r#""minecraft:max_minecart_speed":1001"#),
+            &["[1:1000]"],
+        ),
+        (
+            environment(r#""minecraft:no_such_rule":true"#),
+            &["minecraft:no_such_rule"],
+        ),
+        (
+            r#"{"type":"minecraft:clock_time","clock":"minecraft:nowhere","time":0}"#.to_owned(),
+            &["minecraft:world_clock", "minecraft:nowhere"],
+        ),
+        (
+            r#"{"type":"minecraft:lightning"}"#.to_owned(),
+            &["minecraft:lightning"],
+        ),
+    ];
+    let refused = refused_each(
+        &cases
+            .iter()
+            .map(|(json, _)| ("test_environment", json.clone()))
+            .collect::<Vec<_>>(),
     );
-    refused(
-        "test_environment",
-        &environment(r#""minecraft:random_tick_speed":true"#),
-        "minecraft:random_tick_speed",
-    );
-    refused(
-        "test_environment",
-        &environment(r#""minecraft:max_minecart_speed":1001"#),
-        "[1:1000]",
-    );
-    refused(
-        "test_environment",
-        &environment(r#""minecraft:no_such_rule":true"#),
-        "minecraft:no_such_rule",
-    );
-    let text = refused_by_the_loader(
-        "test_environment",
-        "odd",
-        r#"{"type":"minecraft:clock_time","clock":"minecraft:nowhere","time":0}"#,
-    );
-    for part in ["minecraft:world_clock", "minecraft:nowhere"] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
+    for ((json, parts), (_, text)) in cases.iter().zip(refused) {
+        for part in *parts {
+            assert!(text.contains(part), "{part} missing for {json}:\n{text}");
+        }
     }
     let text = load_text(&[
         ("minecraft/world_clock/overworld.json", "{}"),
@@ -1383,11 +1422,6 @@ fn test_values_the_game_refuses_fail_to_parse() {
     assert!(
         text.contains("non-negative"),
         "non-negative missing from:\n{text}"
-    );
-    refused(
-        "test_environment",
-        r#"{"type":"minecraft:lightning"}"#,
-        "minecraft:lightning",
     );
 
     let instance = |fields: &str| {
@@ -1652,7 +1686,7 @@ fn a_dialog_value_outside_its_range_fails() {
     };
     let action = |action: &str| notice(&format!(r#""action":{{"label":"x","action":{action}}}"#));
 
-    for (json, part) in [
+    let cases = [
         (notice(r#""action":{"label":"x","width":0}"#), "[1;1024]"),
         (notice(r#""action":{"label":"x","width":1025}"#), "[1;1024]"),
         (
@@ -1743,11 +1777,18 @@ fn a_dialog_value_outside_its_range_fails() {
             action(r#"{"type":"minecraft:dynamic/custom","id":"minecraft:x","bogus":1}"#),
             "bogus",
         ),
-    ] {
-        let text = refused_by_the_loader("dialog", "odd", &json);
-        for part in [part, "minecraft:odd"] {
-            assert!(text.contains(part), "{part} missing for {json}:\n{text}");
-        }
+    ];
+    let refused = refused_each(
+        &cases
+            .iter()
+            .map(|(json, _)| ("dialog", json.clone()))
+            .collect::<Vec<_>>(),
+    );
+    for ((json, part), (name, text)) in cases.iter().zip(refused) {
+        assert!(
+            text.contains(part),
+            "{part} missing for {name} {json}:\n{text}"
+        );
     }
 }
 
