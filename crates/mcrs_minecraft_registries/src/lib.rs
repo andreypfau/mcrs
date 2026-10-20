@@ -18,6 +18,7 @@ mod load;
 mod order;
 mod pack;
 mod registry;
+mod require;
 pub mod static_key;
 mod tags;
 
@@ -34,6 +35,7 @@ pub use pack::{
     StackedPack, pack_stack,
 };
 pub use registry::{ReadValue, Registry, RegistryOf, RegistryType};
+pub use require::{require_id, require_registry, require_tag, require_tags};
 pub use static_key::StaticKey;
 pub use tags::{IdSet, Ref, Tags};
 

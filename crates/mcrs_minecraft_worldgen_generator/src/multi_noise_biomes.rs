@@ -7,9 +7,9 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
+use mcrs_minecraft_registries::require_registry;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, RegistryOf};
 use mcrs_minecraft_registry::UnknownEntry;
-use mcrs_minecraft_world::resolvers::require_registry;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// Why a biome source has no climate table: a biome the registry does not hold,

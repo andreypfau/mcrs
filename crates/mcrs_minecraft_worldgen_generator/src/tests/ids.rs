@@ -1,9 +1,9 @@
 use super::corpus_biomes;
 use crate::SurfaceIds;
 use crate::ids::FillIds;
+use mcrs_minecraft_registries::require_id;
 use mcrs_minecraft_registries::{Declaration, Diagnostics, Registries, RegistryType};
 use mcrs_minecraft_world::registry_load::{registries_declaring, test_registries_arc};
-use mcrs_minecraft_world::resolvers::require_id;
 
 struct TestBiome;
 

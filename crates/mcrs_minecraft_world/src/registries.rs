@@ -5,8 +5,6 @@ use crate::declarations::{
 };
 use crate::dimension::DimensionEntry;
 use crate::enchantment_provider::EnchantmentProvider;
-#[cfg(feature = "bevy")]
-use crate::resolvers::require_registry;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant::{
@@ -53,6 +51,8 @@ use mcrs_minecraft_loot::number::{FloatExpression, IntExpression};
 use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_registries::require_registry;
 use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};

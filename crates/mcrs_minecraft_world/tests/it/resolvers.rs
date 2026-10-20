@@ -2,9 +2,10 @@ use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_registries::require_id;
 use mcrs_minecraft_registries::{Declaration, Diagnostics, Registries, RegistryType};
 use mcrs_minecraft_world::registry_load::registries_declaring;
-use mcrs_minecraft_world::resolvers::{AddRegistryResolver, Resolved, require_id, run_resolvers};
+use mcrs_minecraft_world::resolvers::{AddRegistryResolver, Resolved, run_resolvers};
 
 struct TestBiome;
 

@@ -7,9 +7,8 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_registries::{Diagnostics, Registries, RegistryOf, Tags};
-use mcrs_minecraft_world::resolvers::{
-    AddRegistryResolver, require_id, require_registry, require_tag, require_tags,
-};
+use mcrs_minecraft_registries::{require_id, require_registry, require_tag, require_tags};
+use mcrs_minecraft_world::resolvers::AddRegistryResolver;
 
 pub struct GeneratorIdsPlugin;
 
