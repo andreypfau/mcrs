@@ -30,7 +30,6 @@ pub mod dev;
 pub mod game_mode;
 pub mod gui;
 pub mod input;
-pub mod inventory;
 pub mod item_model;
 pub mod light_volume;
 pub mod local_player;
@@ -38,6 +37,7 @@ pub mod model;
 pub mod player;
 pub mod registries;
 pub mod render;
+pub mod screen;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;

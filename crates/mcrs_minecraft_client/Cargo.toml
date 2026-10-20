@@ -21,7 +21,6 @@ mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_light.workspace = true
@@ -95,7 +94,6 @@ telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/te
 
 [dev-dependencies]
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

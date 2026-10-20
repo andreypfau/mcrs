@@ -19,10 +19,10 @@ use super::inventory_screen::inventory_screen;
 use super::item_decorations::{Decorated, WHITE, decorations};
 use super::language::Language;
 use crate::atlas::{decode_png, rgba};
-use crate::inventory::Screen;
 use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
 use crate::model::Pack;
 use crate::player::Player;
+use crate::screen::Screen;
 use crate::stream::BlockCatalog;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

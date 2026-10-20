@@ -13,8 +13,8 @@ use mcrs_minecraft_level::entity::physics::{
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
-use crate::inventory::{ContainerSeqno, Screen};
 use crate::local_player::{LastSentMovement, Sprint};
+use crate::screen::Screen;
 
 pub(crate) const EYE_HEIGHT: f32 = 1.62;
 
@@ -69,7 +69,6 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             LastSentMovement::default(),
             SlotTable::fixed(slots::COUNT),
             SelectedHotbarSlot::default(),
-            ContainerSeqno::default(),
             Transform::from_translation(position.as_vec3()),
             // The camera hangs off the player, and visibility only reaches a child through a
             // parent that takes part in it.

@@ -15,8 +15,8 @@ one of the values in it:
 
 - A test of the core crate fails when a Rust, TOML or Gradle source file
   contains one of its values.
-- `tools/vanilla-oracle` and `tools/inventory-uat` read the game version from
-  the file when Gradle configures them.
+- `tools/vanilla-oracle` reads the game version from the file when Gradle
+  configures it.
 - The world plugin refuses to start on a data pack whose `version.json`
   differs from the one the binary embeds.
 - Chunks, save files and templates written at another `DataVersion` fail to

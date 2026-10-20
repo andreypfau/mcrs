@@ -292,22 +292,21 @@ mod tests {
     use std::sync::OnceLock;
 
     use bevy::app::App;
-    use bevy::ecs::system::Command;
     use bevy::ecs::world::World;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-    use mcrs_minecraft_inventory::{Op, Slot, Transaction};
     use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_item::keys::DataComponentType;
+    use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
     use mcrs_minecraft_protocol::item::{
-        BundleContents, ChargedProjectiles, ComponentPatch, Damage, DyedColor, Enchantments,
-        FireworkExplosion, FireworkShape, ItemStackValue, RgbInt, Template,
+        ComponentPatch, Damage, DyedColor, Enchantments, FireworkExplosion, FireworkShape,
+        ItemStackValue, RgbInt,
     };
     use mcrs_minecraft_world::item::test_corpus;
 
     use super::*;
     use crate::atlas::SpriteRegistry;
-    use crate::item_model::asset::{ChargeType, ConditionProperty, RangeProperty, TintSource};
+    use crate::item_model::asset::{ConditionProperty, RangeProperty, TintSource};
     use crate::item_model::bake::bake_all;
     use crate::model::Pack;
 
@@ -335,12 +334,23 @@ mod tests {
     }
 
     fn spawn(world: &mut World, path: &str, count: i32, components: ComponentPatch) -> Entity {
-        mcrs_minecraft_inventory::value::spawn_stack(
-            world,
-            &value(path, count, components),
-            items(),
-        )
-        .unwrap()
+        let entry = named_entry(items(), &value(path, count, components.clone())).unwrap();
+        let effective = entry.prototype.apply(&components);
+        let mut stack = world.spawn((
+            ItemStack {
+                item: entry.id,
+                count: count as u8,
+            },
+            StackRevision::default(),
+        ));
+        for kind in DataComponentType::ALL.iter().copied() {
+            if let Some(given) = effective.get_value(kind)
+                && !is_child_kind(kind)
+            {
+                (ops(kind).insert)(&mut stack, given);
+            }
+        }
+        stack.id()
     }
 
     fn set<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
@@ -348,11 +358,9 @@ mod tests {
         stack: Entity,
         value: K,
     ) {
-        Transaction(vec![Op::Insert {
-            stack,
-            component: value.into(),
-        }])
-        .apply(world);
+        let value: mcrs_minecraft_protocol::item::ItemComponentValue = value.into();
+        (ops(value.kind()).insert)(&mut world.entity_mut(stack), &value);
+        world.get_mut::<StackRevision>(stack).unwrap().0 += 1;
     }
 
     fn grass(temperature: f32, downfall: f32) -> Option<[f32; 4]> {
@@ -386,10 +394,6 @@ mod tests {
         patch
     }
 
-    fn template(path: &str, count: i32) -> Template {
-        Template(value(path, count, ComponentPatch::EMPTY))
-    }
-
     fn near(a: Vec3, b: [f32; 3]) -> bool {
         a.abs_diff_eq(Vec3::from(b), 1e-4)
     }
@@ -400,8 +404,6 @@ mod tests {
         #[test]
         fn item_stacks_evaluate_and_resolve_against_the_corpus() {
             damage_and_count_ranges_follow_the_stack();
-            bundle_fullness_weighs_children_and_nested_bundles();
-            charge_type_reads_the_loaded_projectiles();
             has_component_distinguishes_prototype_and_patch();
             tints_follow_vanilla_colour_rules();
             a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side();
@@ -432,60 +434,6 @@ mod tests {
         assert!(!e.condition(&ConditionProperty::Damaged));
     }
 
-    fn bundle_fullness_weighs_children_and_nested_bundles() {
-        let mut world = world();
-        let inner = value(
-            "bundle",
-            1,
-            patch(|p| p.set(BundleContents(vec![template("arrow", 16)]))),
-        );
-        let bundle = spawn(
-            &mut world,
-            "bundle",
-            1,
-            patch(|p| {
-                p.set(BundleContents(vec![
-                    template("stone", 3),
-                    Template(inner),
-                    template("beehive", 1),
-                ]))
-            }),
-        );
-        let e = eval(&world, bundle);
-        assert_eq!(e.range(&RangeProperty::BundleFullness), 0.375);
-        let empty = spawn(&mut world, "bundle", 1, ComponentPatch::EMPTY);
-        let e = eval(&world, empty);
-        assert_eq!(e.range(&RangeProperty::BundleFullness), 0.0);
-    }
-
-    fn charge_type_reads_the_loaded_projectiles() {
-        let mut world = world();
-        let charged = |projectile: Option<&str>| {
-            patch(|p| {
-                p.set(
-                    ChargedProjectiles::new(
-                        projectile.map(|p| template(p, 1)).into_iter().collect(),
-                    )
-                    .unwrap(),
-                )
-            })
-        };
-        let empty = spawn(&mut world, "crossbow", 1, charged(None));
-        let arrow = spawn(&mut world, "crossbow", 1, charged(Some("arrow")));
-        let rocket = spawn(&mut world, "crossbow", 1, charged(Some("firework_rocket")));
-        let e = eval(&world, empty);
-        assert_eq!(e.charge_type(), ChargeType::None);
-        let e = eval(&world, arrow);
-        assert_eq!(e.charge_type(), ChargeType::Arrow);
-        let e = eval(&world, rocket);
-        assert_eq!(e.charge_type(), ChargeType::Rocket);
-        let BakedNode::Select { switch, .. } = models().get("minecraft:crossbow") else {
-            panic!("the crossbow selects on charge type");
-        };
-        let e = eval(&world, rocket);
-        assert!(e.select(switch).is_some());
-    }
-
     fn has_component_distinguishes_prototype_and_patch() {
         let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
@@ -502,11 +450,7 @@ mod tests {
         assert!(!e.condition(&max_stack(true)));
         assert!(!e.condition(&dyed(false)));
         set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
-        Transaction(vec![Op::Remove {
-            stack: stone,
-            kind: DataComponentType::MaxStackSize,
-        }])
-        .apply(&mut world);
+        (ops(DataComponentType::MaxStackSize).remove)(&mut world.entity_mut(stone));
         let e = eval(&world, stone);
         assert!(e.condition(&dyed(false)));
         assert!(e.condition(&dyed(true)));
@@ -671,12 +615,9 @@ mod tests {
         app.add_systems(Update, resolve_item_layers);
         let world = app.world_mut();
         let holder = world.spawn(SlotTable::fixed(9)).id();
-        Transaction(vec![Op::Spawn {
-            value: value("stick", 1, ComponentPatch::EMPTY),
-            to: Slot::new(holder, 0),
-        }])
-        .apply(world);
-        let held = world.get::<SlotTable>(holder).unwrap().get(0).unwrap();
+        let held = spawn(world, "stick", 1, ComponentPatch::EMPTY);
+        world.entity_mut(held).insert(Held { holder, index: 0 });
+        assert_eq!(world.get::<SlotTable>(holder).unwrap().get(0), Some(held));
         let loose = spawn(world, "stick", 1, ComponentPatch::EMPTY);
         app.update();
         assert_eq!(

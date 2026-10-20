@@ -7,7 +7,6 @@ use mcrs_minecraft_client::blocks::BiomeTints;
 use mcrs_minecraft_client::columns::{
     BlockSource, Column, ColumnCachePlugin, ColumnStore, Dimension, Extent,
 };
-use mcrs_minecraft_client::inventory::{InventoryPlugin, OpenMenu, Screen};
 use mcrs_minecraft_client::player::{Player, PlayerCamera};
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_core::Id;
@@ -15,8 +14,7 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
-use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_item::{Held, ItemStack, Items, JukeboxPlayable, JukeboxSong, SlotTable, slots};
+use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
@@ -29,7 +27,7 @@ use crate::boot::{boot, session_registries};
 
 fn play_app() -> App {
     boot(|app| {
-        app.add_plugins((ColumnCachePlugin, InventoryPlugin, SkyPlugin))
+        app.add_plugins((ColumnCachePlugin, SkyPlugin))
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ClearColor>()
             .insert_resource(Weather::default());
@@ -151,8 +149,6 @@ fn overworld() -> Dimension {
 struct Play {
     app: App,
     connection: Entity,
-    menu: Entity,
-    stacks: [Entity; 2],
 }
 
 fn join(app: &mut App, connection: Entity) {
@@ -169,23 +165,9 @@ fn in_play() -> Play {
     let mut app = play_app();
     app.world_mut()
         .spawn((PlayerCamera, GlobalTransform::from_xyz(0.0, 80.0, 0.0)));
-    let player = app
-        .world_mut()
-        .spawn((Player, SlotTable::fixed(slots::COUNT)))
-        .id();
+    app.world_mut().spawn(Player);
     let connection = app.world_mut().spawn(ConnectionState::Game).id();
     join(&mut app, connection);
-
-    let menu = app
-        .world_mut()
-        .spawn((OpenMenu { container_id: 1 }, SlotTable::fixed(3)))
-        .id();
-    *app.world_mut().resource_mut::<Screen>() = Screen::Container(menu);
-    let stack = |holder| (ItemStack::new(Item::Air.id(), 1), Held { holder, index: 0 });
-    let stacks = [
-        app.world_mut().spawn(stack(menu)).id(),
-        app.world_mut().spawn(stack(player)).id(),
-    ];
 
     let mut store = app.world_mut().resource_mut::<ColumnStore>();
     store.enter(overworld());
@@ -193,12 +175,7 @@ fn in_play() -> Play {
     store.insert(ColumnPos::new(1, 0), column(OVERWORLD_EXTENT));
     app.world_mut().insert_resource(BiomeTints::default());
     app.update();
-    Play {
-        app,
-        connection,
-        menu,
-        stacks,
-    }
+    Play { app, connection }
 }
 
 use mcrs_minecraft_protocol::ColumnPos;
@@ -208,8 +185,6 @@ fn entering_configuration_clears_the_play_world() {
     let Play {
         mut app,
         connection,
-        menu,
-        stacks,
     } = in_play();
     let before = (
         app.world().resource::<Items>().len(),
@@ -227,11 +202,6 @@ fn entering_configuration_clears_the_play_world() {
     let store = world.resource::<ColumnStore>();
     assert!(store.is_empty(), "the stored columns are gone");
     assert!(store.extent().is_none(), "and the dimension they sat in");
-    assert_eq!(*world.resource::<Screen>(), Screen::None);
-    assert!(world.get_entity(menu).is_err(), "the open menu is closed");
-    for stack in stacks {
-        assert!(world.get_entity(stack).is_err(), "{stack:?} is despawned");
-    }
     assert!(world.get_resource::<SkyEnvironment>().is_none());
     assert!(world.get_resource::<Items>().is_none());
     assert!(world.get_resource::<ClockTimeMarkers>().is_none());

@@ -34,7 +34,6 @@ mcrs_minecraft_sound = { layer = 3, kind = "data" }
 mcrs_minecraft_value_provider = { layer = 3, kind = "data" }
 mcrs_minecraft_volume = { layer = 3, kind = "data" }
 
-mcrs_minecraft_inventory = { layer = 3, kind = "rules" }
 mcrs_minecraft_light = { layer = 3, kind = "rules" }
 mcrs_minecraft_light_color = { layer = 3, kind = "rules" }
 mcrs_minecraft_simulation = { layer = 3, kind = "rules" }
@@ -122,11 +121,6 @@ dependency = "mcrs_minecraft_registry"
 issue = "#488"
 
 [[exception]]
-crate = "mcrs_minecraft_inventory"
-dependency = "mcrs_minecraft_world"
-issue = "#322"
-
-[[exception]]
 crate = "mcrs_minecraft_light_color"
 dependency = "mcrs_minecraft_world"
 issue = "#513"
@@ -200,11 +194,6 @@ issue = "#514"
 crate = "mcrs_minecraft_assets"
 reaches = "bevy"
 issue = "#55"
-
-[[exception]]
-crate = "mcrs_minecraft_inventory"
-reaches = "bevy"
-issue = "#322"
 
 [[exception]]
 crate = "mcrs_minecraft_light"

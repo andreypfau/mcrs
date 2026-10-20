@@ -1,9 +1,0 @@
-{
-	"required": true,
-	"package": "mcrs.uat.mixin",
-	"compatibilityLevel": "JAVA_25",
-	"client": ["ClientConfigurationPacketListenerMixin", "ClientPacketListenerMixin", "ConnectionMixin", "MinecraftMixin", "PacketDecoderMixin"],
-	"injectors": {
-		"defaultRequire": 1
-	}
-}

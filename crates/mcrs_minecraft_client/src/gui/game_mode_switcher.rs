@@ -2,14 +2,9 @@ use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
-use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::WritePacket;
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 
 use super::debug_chat::DebugChat;
@@ -18,10 +13,8 @@ use super::font::{Span, draw_centered_text};
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
-use crate::inventory::{Screen, grab};
 use crate::player::Player;
-use crate::registries::{SessionSet, entered_configuration};
-use mcrs_minecraft_item::keys::Item;
+use crate::screen::{Screen, grab};
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;
@@ -45,15 +38,6 @@ fn name_key(mode: GameMode) -> &'static str {
         GameMode::Survival => "gameMode.survival",
         GameMode::Adventure => "gameMode.adventure",
         GameMode::Spectator => "gameMode.spectator",
-    }
-}
-
-fn icon_item(mode: GameMode) -> StaticResourceLocation {
-    match mode {
-        GameMode::Creative => Item::GrassBlock.location(),
-        GameMode::Survival => Item::IronSword.location(),
-        GameMode::Adventure => Item::BuriedTreasureMap.location(),
-        GameMode::Spectator => Item::EnderEye.location(),
     }
 }
 
@@ -90,16 +74,10 @@ pub fn mode_to_send(
     (selected != mode.current && *permission? >= PermissionLevel::GAMEMASTERS).then_some(selected)
 }
 
-/// The stacks the four slots draw, held by an entity of their own so the item
-/// renderer resolves them like any other held stack.
-#[derive(Component)]
-pub struct GameModeIcons;
-
 pub struct GameModeSwitcherPlugin;
 
 impl Plugin for GameModeSwitcherPlugin {
     fn build(&self, app: &mut App) {
-        add_icon_spawning(app);
         app.init_resource::<DebugChat>().add_systems(
             Update,
             switch_game_mode
@@ -107,58 +85,6 @@ impl Plugin for GameModeSwitcherPlugin {
                 .before(ClientNetworkSystems::Flush)
                 .before(toggle_overlay),
         );
-    }
-}
-
-/// The item corpus is only known once the client has baked its item models after joining.
-fn add_icon_spawning(app: &mut App) {
-    app.add_systems(
-        Update,
-        (
-            clear_icons
-                .in_set(SessionSet::Clear)
-                .run_if(entered_configuration),
-            spawn_icons.run_if(
-                resource_exists::<Items>.and_then(not(any_with_component::<GameModeIcons>)),
-            ),
-        ),
-    );
-}
-
-fn clear_icons(icons: Query<Entity, With<GameModeIcons>>, mut commands: Commands) {
-    for holder in &icons {
-        commands.entity(holder).try_despawn();
-    }
-}
-
-fn spawn_icons(world: &mut World) {
-    let holder = world
-        .spawn((GameModeIcons, SlotTable::fixed(ICONS.len())))
-        .id();
-    let items = world.resource::<Items>();
-    let known = ICONS.iter().all(|&mode| {
-        items
-            .iter()
-            .any(|entry| entry.identifier == icon_item(mode))
-    });
-    if !known {
-        warn!("an item the game mode switcher shows is missing from the item corpus");
-        return;
-    }
-    let spawns = ICONS
-        .iter()
-        .enumerate()
-        .map(|(index, &mode)| Op::Spawn {
-            value: ItemStackValue {
-                item: ResourceKey::from_location(icon_item(mode).to_arc()),
-                count: Bounded(1),
-                components: ComponentPatch::EMPTY,
-            },
-            to: Slot::new(holder, index as u16),
-        })
-        .collect();
-    if let Err(error) = Transaction(spawns).try_apply(world) {
-        warn!("cannot spawn the game mode switcher icons: {error}");
     }
 }
 
@@ -219,7 +145,6 @@ pub fn draw(
     screen: Res<Screen>,
     atlas: Option<Res<GuiAtlas>>,
     language: Option<Res<Language>>,
-    icons: Query<&SlotTable, With<GameModeIcons>>,
     mut scene: ResMut<GuiScene>,
 ) {
     let Screen::GameModeSwitcher(selected) = *screen else {
@@ -235,7 +160,6 @@ pub fn draw(
         selected,
         &atlas,
         &language,
-        icons.single().ok(),
         &mut scene.quads,
     );
 }
@@ -246,7 +170,6 @@ fn switcher(
     selected: GameMode,
     atlas: &GuiAtlas,
     language: &Language,
-    icons: Option<&SlotTable>,
     out: &mut Vec<GuiQuad>,
 ) {
     let font = &atlas.0.font;
@@ -277,12 +200,6 @@ fn switcher(
                 IVec2::splat(SLOT_SIZE),
                 "gamemode_switcher/selection",
             ));
-        }
-        if let Some(stack) = icons.and_then(|icons| icons.get(index as u16)) {
-            out.push(GuiQuad::Item {
-                origin: at + 5,
-                stack,
-            });
         }
     }
 }
@@ -392,43 +309,6 @@ mod tests {
 
     fn mode(current: GameMode, previous: Option<GameMode>) -> LocalGameMode {
         LocalGameMode { current, previous }
-    }
-
-    #[test]
-    fn the_icons_are_spawned_from_each_session_item_table_once_it_arrives() {
-        let mut app = App::new();
-        add_icon_spawning(&mut app);
-        app.update();
-        let mut holders = app
-            .world_mut()
-            .query_filtered::<&SlotTable, With<GameModeIcons>>();
-        assert_eq!(holders.iter(app.world()).count(), 0);
-
-        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
-        app.update();
-        app.update();
-        let icons: Vec<_> = holders.iter(app.world()).collect();
-        assert_eq!(icons.len(), 1);
-        assert!((0..4).all(|index| icons[0].get(index).is_some()));
-        let mut stacks = app
-            .world_mut()
-            .query_filtered::<Entity, With<mcrs_minecraft_item::ItemStack>>();
-        let before: Vec<_> = stacks.iter(app.world()).collect();
-        assert_eq!(before.len(), ICONS.len());
-
-        app.world_mut().remove_resource::<Items>();
-        app.world_mut()
-            .spawn(mcrs_minecraft_network::ConnectionState::Configuration);
-        app.update();
-        app.update();
-        assert_eq!(stacks.iter(app.world()).count(), 0);
-
-        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
-        app.update();
-        app.update();
-        let after: Vec<_> = stacks.iter(app.world()).collect();
-        assert_eq!(after.len(), ICONS.len());
-        assert!(after.iter().all(|stack| !before.contains(stack)));
     }
 
     #[test]

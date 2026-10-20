@@ -1,27 +1,14 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::With;
-use bevy_input::ButtonInput;
-use bevy_input::keyboard::KeyCode;
-use bytes::Bytes;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
-use mcrs_minecraft_client::inventory::{ContainerSeqno, InventoryPlugin, inventory_index_to_cell};
 use mcrs_minecraft_client::player::Player;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots};
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::Instant as PacketInstant;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, CurrentDimension, JoinedGame, PendingTeleports,
     SessionRegistryInputs,
 };
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_protocol::item::{ComponentPatch, RawStack};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPlayerInventory;
-use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::RegistrySet;
 use std::time::{Duration, Instant};
 
@@ -41,17 +28,8 @@ pub fn insert_session_inputs(client: &mut App) {
     )));
 }
 
-pub fn insert_inventory(client: &mut App) {
-    client
-        .insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone())
-        .init_resource::<ButtonInput<KeyCode>>()
-        .add_plugins(InventoryPlugin);
-    client.world_mut().spawn((
-        Player,
-        SlotTable::fixed(slots::COUNT),
-        SelectedHotbarSlot::default(),
-        ContainerSeqno::default(),
-    ));
+pub fn insert_player(client: &mut App) {
+    client.world_mut().spawn(Player);
 }
 
 /// Returns the connection entity once every play-state packet the flow promises
@@ -161,57 +139,4 @@ pub fn assert_session_registries(client: &App, connection: Entity) {
         dimension_type.min_y,
         "the column floor is the dimension type's"
     );
-}
-
-pub fn assert_inventory_resolves_through_session(client: &mut App, connection: Entity) {
-    let session = client.world().resource::<RegistrySet>().clone();
-    let items = session
-        .registry::<Item>()
-        .expect("the session holds the item registry");
-    let ids: Vec<Id<Item>> = items.ids().collect();
-    let sent: Vec<(i32, Id<Item>, i32)> = [1, ids.len() / 2, ids.len() - 1]
-        .into_iter()
-        .enumerate()
-        .map(|(index, position)| (index as i32, ids[position], 2 + index as i32))
-        .collect();
-
-    let world = client.world_mut();
-    for &(index, item, count) in &sent {
-        let stack = ProtoStack::new(item, count, ComponentPatch::EMPTY);
-        let packet = ClientboundSetPlayerInventory {
-            slot: VarInt(index),
-            contents: RawStack::from_stack(&stack, &session).expect("the item is in the session"),
-        };
-        let mut data = Vec::new();
-        packet.encode(&mut data).expect("the packet encodes");
-        world.trigger(ReceivedPacketEvent {
-            entity: connection,
-            id: ClientboundSetPlayerInventory::ID,
-            data: Bytes::from(data),
-            timestamp: PacketInstant::now(),
-        });
-    }
-    world.flush();
-
-    let player = world
-        .query_filtered::<Entity, With<Player>>()
-        .single(world)
-        .expect("the client has one player");
-    for (index, item, count) in sent {
-        let cell = inventory_index_to_cell(index).expect("a cell of the player's inventory");
-        let entity = world
-            .get::<SlotTable>(player)
-            .unwrap()
-            .get(cell)
-            .unwrap_or_else(|| panic!("inventory slot {index} holds no stack"));
-        let stack = *world.get::<ItemStack>(entity).unwrap();
-        assert_eq!(items.name(stack.item), items.name(item), "slot {index}");
-        assert_eq!(i32::from(stack.count), count, "slot {index}");
-    }
-    for stack in world.query::<&ItemStack>().iter(world) {
-        assert!(
-            items.name(stack.item).is_some(),
-            "a stack names an item the session does not hold"
-        );
-    }
 }

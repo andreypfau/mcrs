@@ -16,8 +16,8 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::support::{
-    JOIN_TIMEOUT, assert_inventory_resolves_through_session, assert_session_registries,
-    drive_client_until_joined, insert_block_catalog, insert_inventory, insert_session_inputs,
+    JOIN_TIMEOUT, assert_session_registries, drive_client_until_joined, insert_block_catalog,
+    insert_player, insert_session_inputs,
 };
 
 #[test]
@@ -72,7 +72,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     client.add_plugins(ColumnCachePlugin);
     insert_block_catalog(&mut client);
     insert_session_inputs(&mut client);
-    insert_inventory(&mut client);
+    insert_player(&mut client);
 
     let outcome = drive_client_until_joined(&mut client);
 
@@ -166,5 +166,4 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     assert!(extent.sections > 0, "a dimension of no sections");
 
     assert_session_registries(&client, connection);
-    assert_inventory_resolves_through_session(&mut client, connection);
 }
