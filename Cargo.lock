@@ -3860,32 +3860,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_light_color_bench"
-version = "0.5.8"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_math",
- "bytemuck",
- "flate2",
- "futures-lite",
- "mcrs_minecraft_anvil",
- "mcrs_minecraft_block",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
- "mcrs_minecraft_light",
- "mcrs_minecraft_light_color",
- "mcrs_minecraft_world",
- "mcrs_minecraft_worldgen_testing",
- "png",
- "proptest",
- "serde",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
 name = "mcrs_minecraft_loot"
 version = "0.5.8"
 dependencies = [
