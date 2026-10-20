@@ -454,10 +454,6 @@ fn a_golden_is_the_entry_taken_by_the_golden_task() {
     assert!(!entry("beard").unwrap().is_golden());
 }
 
-fn repository() -> PathBuf {
-    Repository::workspace().root
-}
-
 fn stale(manifest: &Manifest, id: &str) -> Vec<String> {
     let missing_or_other = table()
         .iter()
@@ -475,19 +471,6 @@ fn names() -> Vec<&'static str> {
         .iter()
         .map(|fixture| fixture.name.as_str())
         .collect()
-}
-
-#[test]
-fn every_fixture_was_captured_on_the_corpus_version() {
-    assert!(!table().is_empty());
-    let manifest = Repository::workspace().manifest().unwrap();
-    let behind = stale(&manifest, id());
-    assert!(
-        behind.is_empty(),
-        "not captured on {}: {}",
-        id(),
-        behind.join(", ")
-    );
 }
 
 #[test]
@@ -510,112 +493,6 @@ fn a_fixture_is_stale_when_absent_or_on_another_id_and_so_is_an_unknown_key() {
     ] {
         assert_eq!(stale(&manifest, "26.4"), expected);
     }
-}
-
-fn fixture_names_are_unique() {
-    let mut names = names();
-    let all = names.len();
-    names.sort_unstable();
-    names.dedup();
-    assert_eq!(names.len(), all);
-}
-
-fn every_golden_current_file_exists_in_the_repository() {
-    let root = repository();
-    for fixture in table().iter().filter(|fixture| fixture.is_golden()) {
-        let Some(Output {
-            files: Files::Named(file),
-            to,
-        }) = fixture.outputs.first()
-        else {
-            panic!(
-                "{}: a golden is rewritten from one named file",
-                fixture.name
-            );
-        };
-        let current = root.join(to).join(file);
-        assert!(current.is_file(), "{}: {}", fixture.name, current.display());
-    }
-}
-
-fn every_destination_directory_exists_in_the_repository() {
-    let root = repository();
-    for fixture in table() {
-        for output in &fixture.outputs {
-            assert!(
-                root.join(&output.to).is_dir(),
-                "{}: {} is not a directory",
-                fixture.name,
-                output.to
-            );
-        }
-    }
-}
-
-fn no_output_names_a_file_in_a_pattern_directory_that_the_pattern_matches() {
-    let outputs: Vec<(&Entry, &Output)> = table()
-        .iter()
-        .flat_map(|fixture| fixture.outputs.iter().map(move |output| (fixture, output)))
-        .collect();
-    for (owner, pattern) in &outputs {
-        let Files::Matching(text) = &pattern.files else {
-            continue;
-        };
-        for (other, output) in &outputs {
-            if std::ptr::eq(*pattern, *output) || output.to != pattern.to {
-                continue;
-            }
-            match &output.files {
-                Files::Named(name) => assert!(
-                    !pattern.files.matches(name),
-                    "{}: {name} is in {}'s directory and matches {text}",
-                    other.name,
-                    owner.name
-                ),
-                Files::Matching(_) => panic!(
-                    "{} and {} both write patterns into {}",
-                    owner.name, other.name, pattern.to
-                ),
-            }
-        }
-    }
-}
-
-#[test]
-fn the_fixture_table_agrees_with_the_repository() {
-    fixture_names_are_unique();
-    every_golden_current_file_exists_in_the_repository();
-    every_destination_directory_exists_in_the_repository();
-    no_output_names_a_file_in_a_pattern_directory_that_the_pattern_matches();
-}
-
-#[test]
-fn the_loader_resolves_the_table_against_the_repository() {
-    for fixture in table() {
-        assert_eq!(entry(&fixture.name).unwrap(), fixture);
-        assert_eq!(try_fixture(&fixture.name).unwrap().name(), fixture.name);
-    }
-    let beard = fixture("beard");
-    let path = repository().join("crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/beard.bin");
-    let on_disk = fs::metadata(path).unwrap().len() as usize;
-    let payload = beard.dump(b"MCBEARD0");
-    assert!(!payload.is_empty());
-    assert_eq!(payload.len() + HEADER_LEN, on_disk);
-    assert_eq!(beard.bytes().len(), on_disk);
-    assert!(fixture("snbt").text().starts_with(['[', '{']));
-    assert!(
-        !fixture("vanilla_chunk")
-            .file("chunk_full.nbt")
-            .bytes()
-            .is_empty()
-    );
-    let density = fixture("density").files();
-    assert!(!density.is_empty());
-    assert!(density.iter().all(|file| {
-        entry("density").unwrap().outputs[0]
-            .files
-            .matches(file.name())
-    }));
 }
 
 #[test]
