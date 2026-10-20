@@ -67,7 +67,7 @@ serde_json.workspace = true
 
 [features]
 # The helpers the generation tests share, for the tests of the crates that drive the pipeline.
-test-support = ["dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_registry/test-support", "mcrs_minecraft_worldgen_feature/test-support"]
+test-support = ["dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_registry/test-support", "mcrs_minecraft_worldgen_feature/test-support", "mcrs_minecraft_world/test-support"]
 telemetry-tracy = []
 
 [[bench]]

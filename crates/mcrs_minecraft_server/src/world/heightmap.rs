@@ -1,5 +1,4 @@
-use crate::loaded::Loaded;
-use bevy_app::{App, Last, Plugin, Startup};
+use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
@@ -11,7 +10,7 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap,
     SurfaceHeightmap, apply_write, heightmap_predicates,
@@ -22,16 +21,24 @@ pub struct HeightmapPredicatesPlugin;
 
 impl Plugin for HeightmapPredicatesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, insert_heightmap_predicates);
+        app.add_systems(
+            PreUpdate,
+            rebuild_heightmap_predicates.run_if(resource_exists_and_changed::<CurrentRegistries>),
+        );
     }
 }
 
-fn insert_heightmap_predicates(
+fn rebuild_heightmap_predicates(
     mut commands: Commands,
     blocks: Res<Blocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
 ) {
-    let tags = registries.loaded_tags::<Block>();
+    let Some(tags) = registries.tags::<Block>() else {
+        tracing::error!(
+            "the registries declare no block registry with its tags; the heightmap predicates stay as they were"
+        );
+        return;
+    };
     commands.insert_resource(heightmap_predicates(&blocks, &tags));
 }
 

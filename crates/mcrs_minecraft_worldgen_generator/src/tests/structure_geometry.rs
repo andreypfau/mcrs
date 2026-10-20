@@ -27,7 +27,7 @@ use super::structure_pieces::{read_box, read_nbt};
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
 use super::template_parity::{canonical, fnv, program, state_named, written};
-use super::{block_tags, blocks, corpus, corpus_biomes, corpus_climate};
+use super::{blocks, corpus, corpus_biomes, corpus_climate, loaded_block_tags};
 use crate::feature_program::RunScratch;
 use crate::heightmap::{HeightmapPredicates, heightmap_predicates};
 use crate::heightmap_kind;
@@ -172,7 +172,7 @@ fn dump() -> &'static Dump {
 
 fn predicates() -> &'static HeightmapPredicates {
     static PREDICATES: LazyLock<HeightmapPredicates> =
-        LazyLock::new(|| heightmap_predicates(blocks(), block_tags()));
+        LazyLock::new(|| heightmap_predicates(blocks(), loaded_block_tags()));
     &PREDICATES
 }
 

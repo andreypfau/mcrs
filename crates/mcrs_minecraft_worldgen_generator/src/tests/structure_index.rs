@@ -7,7 +7,7 @@ use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::structures::{frozen_shared, preset};
-use super::{block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate};
+use super::{blocks, build_settings_router, corpus_biomes, corpus_climate, loaded_block_tags};
 use crate::features::possible_biomes;
 use crate::heightmap::heightmap_predicates;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -41,7 +41,7 @@ fn overworld() -> StructureIndex {
         SEED as i64,
         Arc::new(build_settings_router("overworld", SEED)),
         BiomeLookup::MultiNoise(Arc::new(biomes)),
-        Some(heightmap_predicates(blocks(), block_tags())),
+        Some(heightmap_predicates(blocks(), loaded_block_tags())),
         Default::default(),
         Arc::clone(corpus_climate()),
         -64,
@@ -164,7 +164,7 @@ mod exhaustive {
             SEED as i64,
             Arc::new(build_settings_router("overworld", SEED)),
             BiomeLookup::Fixed(plains.number()),
-            Some(heightmap_predicates(blocks(), block_tags())),
+            Some(heightmap_predicates(blocks(), loaded_block_tags())),
             Default::default(),
             Arc::clone(corpus_climate()),
             -64,

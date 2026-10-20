@@ -32,7 +32,7 @@ use mcrs_minecraft_worldgen_surface::{
 
 #[cfg(test)]
 use super::generate_region;
-use super::{block_tags, blocks, build_program, corpus_features, one_step};
+use super::{blocks, build_program, corpus_features, loaded_block_tags, one_step};
 use mcrs_minecraft_biome::Biome;
 #[cfg(test)]
 use mcrs_minecraft_block::keys::Block;
@@ -169,7 +169,7 @@ pub(super) fn dimension_with(
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(source),
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
+        predicates: Some(heightmap_predicates(blocks(), loaded_block_tags())),
         saved: None,
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
@@ -196,7 +196,7 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let key: mcrs_minecraft_core::tag_key::TagKey<Block, std::sync::Arc<str>> =
         mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::read(tag).unwrap());
-    let tags = block_tags();
+    let tags = super::block_tags();
     for id in tags.members(
         tags.get(&key)
             .unwrap_or_else(|| panic!("{tag} is not loaded")),

@@ -137,6 +137,17 @@ pub fn block_tags() -> &'static Tags<Block> {
     })
 }
 
+/// The block tags of the loaded registries, as a running server holds them.
+pub fn loaded_block_tags() -> &'static mcrs_minecraft_registries::Tags<Block> {
+    static TAGS: std::sync::OnceLock<mcrs_minecraft_registries::Tags<Block>> =
+        std::sync::OnceLock::new();
+    TAGS.get_or_init(|| {
+        mcrs_minecraft_world::registry_load::test_registries_arc()
+            .tags::<Block>()
+            .expect("the loaded registries hold the block tags")
+    })
+}
+
 /// Every biome of the corpus, numbered in text order.
 pub fn corpus_biomes() -> &'static Registry<Biome> {
     static REGISTRY: std::sync::OnceLock<Registry<Biome>> = std::sync::OnceLock::new();

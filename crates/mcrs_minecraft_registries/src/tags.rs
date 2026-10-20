@@ -1,10 +1,12 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
+use mcrs_minecraft_core::{Id, ResourceLocation, TagId, TagKey};
 
 use crate::id::MAX_ENTRIES;
 use crate::registry::RegistryType;
@@ -69,7 +71,11 @@ impl TagTable {
             .filter_map(|(tag, number)| Some((number, &tag.name, tag.members.as_deref()?)))
     }
 
-    pub(crate) fn get(&self, name: &ResourceLocation) -> Option<u16> {
+    pub(crate) fn get<Q>(&self, name: &Q) -> Option<u16>
+    where
+        ResourceLocation: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.index.get(name).copied()
     }
 
@@ -104,6 +110,13 @@ impl<R: RegistryType> Tags<R> {
     pub fn by_name(&self, name: &ResourceLocation) -> Option<TagId<R>> {
         self.table
             .get(name)
+            .and_then(|number| TagId::checked(number, self.table.len()))
+    }
+
+    /// An absent tag is `None`, and code that names it treats it as empty.
+    pub fn id<S: AsRef<str>>(&self, key: &TagKey<R, S>) -> Option<TagId<R>> {
+        self.table
+            .get(key.as_str())
             .and_then(|number| TagId::checked(number, self.table.len()))
     }
 

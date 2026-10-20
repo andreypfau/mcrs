@@ -3,12 +3,12 @@ use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen_generator::heightmap::*;
-use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
+use mcrs_minecraft_worldgen_generator::tests::{blocks as corpus, loaded_block_tags};
 use std::sync::OnceLock;
 
 fn predicates() -> &'static HeightmapPredicates {
     static TABLE: OnceLock<HeightmapPredicates> = OnceLock::new();
-    TABLE.get_or_init(|| heightmap_predicates(corpus(), block_tags()))
+    TABLE.get_or_init(|| heightmap_predicates(corpus(), loaded_block_tags()))
 }
 
 fn state_of(block: &str) -> VoxelId {

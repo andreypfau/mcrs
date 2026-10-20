@@ -1185,7 +1185,7 @@ mod tests {
         )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
             use crate::heightmap::heightmap_predicates;
-            use crate::tests::{beta_carver_table, block_tags, blocks};
+            use crate::tests::{beta_carver_table, blocks, loaded_block_tags};
 
             let router = Arc::new(build_beta_router());
             let (source, _) = crate::tests::beta_surface::build_beta_biome_source();
@@ -1194,7 +1194,7 @@ mod tests {
                 y_sections: dimension_y_sections(&router, -64, 24),
                 blocks: blocks().0.clone(),
                 biome: Some(Arc::clone(&source)),
-                predicates: Some(heightmap_predicates(blocks(), block_tags())),
+                predicates: Some(heightmap_predicates(blocks(), loaded_block_tags())),
                 saved: None,
                 program: ColumnProgram {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(

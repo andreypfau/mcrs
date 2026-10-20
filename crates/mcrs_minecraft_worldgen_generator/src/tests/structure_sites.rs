@@ -13,8 +13,8 @@ use mcrs_minecraft_worldgen_testing::dump_string;
 
 use super::structures::{frozen_shared, preset};
 use super::{
-    biome_registry, block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate,
-    registries_over,
+    biome_registry, blocks, build_settings_router, corpus_biomes, corpus_climate,
+    loaded_block_tags, registries_over,
 };
 use crate::base_height;
 use crate::feature_program::Resolver;
@@ -204,7 +204,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         seed,
         Arc::new(build_settings_router(dimension.settings, seed as u64)),
         biomes,
-        Some(heightmap_predicates(blocks(), block_tags())),
+        Some(heightmap_predicates(blocks(), loaded_block_tags())),
         Arc::clone(world_states()),
         Arc::clone(corpus_climate()),
         dimension.accessor_min_y,
@@ -241,7 +241,7 @@ const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_P
 const RING_WINDOW_CHUNKS: i32 = 15;
 
 fn assert_base_heights_match_the_oracle(dump: &[DumpSeed], dimensions: usize) {
-    let predicates = heightmap_predicates(blocks(), block_tags());
+    let predicates = heightmap_predicates(blocks(), loaded_block_tags());
     let mut ws = Workspace::new();
     for entry in dump {
         assert_eq!(entry.heights.len(), 2);
