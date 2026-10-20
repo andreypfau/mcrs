@@ -100,7 +100,7 @@ fn dispatch_inbound_to_dim(
 ///
 /// Observer system params include `MessageWriter<OutboundPlayerPacket>`,
 /// matching the precedent set by other observers on `ReceivedPacketEvent`
-/// in `entity/player/movement.rs` and `entity/player/player_action.rs`.
+/// in `entity/player/movement.rs`.
 pub fn entity_pos_sync(
     event: On<EntityNetworkSyncEvent>,
     // The `With<OldTransform>` filter encodes the gating invariant in

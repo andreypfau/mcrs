@@ -41,7 +41,7 @@ Each layer depends only on the layers below it.
 |---|---|---|
 | 1 | Data and wire | NBT, text, keys, typed packets in both directions, framing |
 | 2 | Network | connections, login, packet I/O on tokio |
-| 3 | Game data and rules | registries, blocks, items, biomes, dimensions, chunks, Anvil saves; the rules of lighting, world generation, inventory and block simulation |
+| 3 | Game data and rules | registries, blocks, items, biomes, dimensions, chunks, Anvil saves; the rules of lighting, world generation and block simulation |
 | 4 | Engine | worlds, dimensions, players, entities, the server loop and gameplay as Bevy plugins |
 | 5 | Vanilla | the world generator as a Bevy plugin |
 | 6 | Rendering | meshing, terrain, sky and light pipelines |
@@ -58,9 +58,9 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 | Client rendering (terrain, sky, clouds, light) | Working; numbers in [`PERF.md`](PERF.md) |
 | Anvil saves | Loading; the server does not save yet |
 | Protocol | Status, login, configuration and play; about half the packets typed |
-| Gameplay | Movement, digging, placing, chat, items, TNT, experience, early mobs |
+| Gameplay | Joining, chat, game modes and a plain flight stub; the rest returns from specifications |
 | Online mode, encryption, proxy forwarding | Not yet |
-| Crates usable without Bevy | Layers 1 to 3 with default features off, except `assets` and `inventory` |
+| Crates usable without Bevy | Layers 1 to 3 with default features off, except `assets` |
 | Library examples (proxy, bot, lobby server, map renderer) | Planned |
 
 ## Quick start

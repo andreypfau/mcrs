@@ -8,15 +8,11 @@ use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
-    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
-    ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
-    ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
-    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSetCursorItem, ClientboundSetEntityData, ClientboundSetEquipment,
-    ClientboundSetHeldSlot, ClientboundSetPassengers, ClientboundSystemChatPacket,
-    ClientboundTakeItemEntity, ClientboundUpdateAttributes,
+    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundEntityEvent,
+    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerPosition, ClientboundRemoveEntities,
+    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
@@ -135,10 +131,6 @@ pub enum PacketPayload {
     ChunkBatchStart(ClientboundChunkBatchStart),
     ChunkBatchFinished(ClientboundChunkBatchFinished),
     PlayerEnteredView(ClientboundAddEntity),
-    SetEntityData(ClientboundSetEntityData<'static>),
-    SetEquipment(ClientboundSetEquipment),
-    UpdateAttributes(ClientboundUpdateAttributes<'static>),
-    SetPassengers(ClientboundSetPassengers),
     PlayerLeftView(ClientboundRemoveEntities),
     EntityPosSync(ClientboundEntityPositionSync),
     PlayerLogin(ClientboundLogin),
@@ -156,15 +148,7 @@ pub enum PacketPayload {
     },
     PlayerPosition(ClientboundPlayerPosition),
     SystemChat(ClientboundSystemChatPacket),
-    BlockDestruction(ClientboundBlockDestruction),
     GameEvent(ClientboundGameEvent),
-    ContainerSetContent(ClientboundContainerSetContent),
-    ContainerSetSlot(ClientboundContainerSetSlot),
-    SetCursorItem(ClientboundSetCursorItem),
-    SetHeldSlot(ClientboundSetHeldSlot),
-    OpenScreen(ClientboundOpenScreen),
-    ContainerClose(ClientboundContainerClose),
-    TakeItemEntity(ClientboundTakeItemEntity),
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

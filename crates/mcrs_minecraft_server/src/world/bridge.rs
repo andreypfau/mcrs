@@ -234,13 +234,8 @@ pub fn dispatch_encode(
                     PacketPayload::BlockUpdate(p) => conn.raw.append(&p),
                     PacketPayload::ChunkUnload(p) => conn.raw.append(&p),
                     PacketPayload::EntityPosSync(p) => conn.raw.append(&p),
-                    PacketPayload::BlockDestruction(p) => conn.raw.append(&p),
                     PacketPayload::GameEvent(p) => conn.raw.append(&p),
                     PacketPayload::PlayerEnteredView(p) => conn.raw.append(&p),
-                    PacketPayload::SetEntityData(p) => conn.raw.append(&p),
-                    PacketPayload::SetEquipment(p) => conn.raw.append(&p),
-                    PacketPayload::UpdateAttributes(p) => conn.raw.append(&p),
-                    PacketPayload::SetPassengers(p) => conn.raw.append(&p),
                     PacketPayload::ChunkLoad {
                         column,
                         chunk_bytes,
@@ -290,13 +285,6 @@ pub fn dispatch_encode(
                     }
                     PacketPayload::PlayerPosition(p) => conn.raw.append(&p),
                     PacketPayload::SystemChat(p) => conn.raw.append(&p),
-                    PacketPayload::ContainerSetContent(p) => conn.raw.append(&p),
-                    PacketPayload::ContainerSetSlot(p) => conn.raw.append(&p),
-                    PacketPayload::SetCursorItem(p) => conn.raw.append(&p),
-                    PacketPayload::SetHeldSlot(p) => conn.raw.append(&p),
-                    PacketPayload::OpenScreen(p) => conn.raw.append(&p),
-                    PacketPayload::ContainerClose(p) => conn.raw.append(&p),
-                    PacketPayload::TakeItemEntity(p) => conn.raw.append(&p),
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
                         // test assertions on encode_unhandled_total work.
