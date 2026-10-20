@@ -9,7 +9,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
-use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{debug, error, warn};
@@ -78,6 +77,7 @@ use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
@@ -89,6 +89,7 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
@@ -418,15 +419,25 @@ pub fn spawn_dim_subapp(
     // gets none, and `dispatch_column_generation` never runs for it.
     let dimension = request.dimension.location();
     match registries.noise_routers.0.get(dimension) {
-        Some(dimension_router) => {
+        Some(dimension_router) => 'fill: {
             let router = &dimension_router.router;
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
-            let surface_ids = sub_app.world().resource::<Resolved<SurfaceIds>>().clone();
-            let fill_ids = sub_app.world().resource::<Resolved<FillIds>>().clone();
-            let preset_tables = sub_app
-                .world()
-                .resource::<Resolved<PresetBiomeTables>>()
-                .clone();
+            let current = sub_app.world().resource::<CurrentRegistries>();
+            let mut diagnostics = Diagnostics::default();
+            let surface_ids = SurfaceIds::resolve(current, &mut diagnostics);
+            let fill_ids = FillIds::resolve(current, &mut diagnostics);
+            let preset_tables = match biome_source.as_deref() {
+                Some(BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(_))) => {
+                    PresetBiomeTables::resolve(current, &mut diagnostics)
+                }
+                _ => Some(PresetBiomeTables::default()),
+            };
+            let (Some(surface_ids), Some(fill_ids), Some(preset_tables)) =
+                (surface_ids, fill_ids, preset_tables)
+            else {
+                error!(%dimension, %diagnostics, "the registries lack a name worldgen needs; it will generate nothing");
+                break 'fill;
+            };
             let features = registries
                 .features
                 .0
@@ -454,7 +465,7 @@ pub fn spawn_dim_subapp(
                     .0
                     .get(dimension)
                     .map(std::sync::Arc::clone),
-                &surface_ids,
+                std::sync::Arc::new(surface_ids),
                 &fill_ids,
                 features,
                 registries.structures.0.get(dimension).cloned(),

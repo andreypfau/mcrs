@@ -216,12 +216,10 @@ pub fn try_build_program(
     FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
 }
 
-pub fn surface_ids_over(
-    biomes: &Registry<Biome>,
-) -> mcrs_minecraft_world::resolvers::Resolved<crate::SurfaceIds> {
+pub fn surface_ids_over(biomes: &Registry<Biome>) -> std::sync::Arc<crate::SurfaceIds> {
     let ids = crate::SurfaceIds::from_lookup(|key| biomes.get(&key))
         .expect("the registry holds the surface biomes");
-    mcrs_minecraft_world::resolvers::Resolved::new(ids)
+    std::sync::Arc::new(ids)
 }
 
 /// A fill context over one router and the corpus, with nothing else wired in.

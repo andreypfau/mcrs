@@ -420,9 +420,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
-    use mcrs_minecraft_world::resolvers::Resolved;
-    use mcrs_minecraft_worldgen_generator::SurfaceIds;
-    use mcrs_minecraft_worldgen_generator::ids::FillIds;
     use std::any::type_name;
 
     let expected = [
@@ -432,8 +429,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         type_name::<Registry<EnchantmentData>>(),
         type_name::<Entries<EnchantmentData, EnchantmentData>>(),
         type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
-        type_name::<Resolved<SurfaceIds>>(),
-        type_name::<Resolved<FillIds>>(),
     ];
 
     let resource_names = |world: &World| -> Vec<String> {
@@ -452,7 +447,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     );
 
     let host_snapshot = app.world().resource::<Versioned<RegistrySnapshot>>();
-    let host_surface = app.world().resource::<Resolved<SurfaceIds>>();
     let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
     assert_eq!(dimensions.len(), 2);
     for dimension in dimensions {
@@ -472,11 +466,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         assert!(
             Arc::ptr_eq(host_snapshot.value(), snapshot.value()),
             "a dimension holds its own snapshot, not the host's"
-        );
-        let surface = dimension.world().resource::<Resolved<SurfaceIds>>();
-        assert!(
-            std::ptr::eq(&**host_surface, &**surface),
-            "a dimension holds its own copy of the surface tables"
         );
     }
 }
@@ -678,8 +667,6 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     use bevy_ecs::message::Messages;
     use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistriesReloaded};
     use mcrs_minecraft_world::registry_snapshot::replace_registries;
-    use mcrs_minecraft_world::resolvers::Resolved;
-    use mcrs_minecraft_worldgen_generator::SurfaceIds;
 
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);
@@ -687,13 +674,7 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     let dimensions = app.sub_apps().sub_apps.len();
 
     let old = Arc::clone(app.world().resource::<CurrentRegistries>().arc());
-    let surface_before = app.world().resource::<Resolved<SurfaceIds>>().clone();
     replace_registries(app.world_mut(), Registries::clone(&old)).expect("the loaded set resolves");
-    let surface_after = app.world().resource::<Resolved<SurfaceIds>>().clone();
-    assert!(
-        !std::ptr::eq(&*surface_before, &*surface_after),
-        "the swap did not rebuild the surface tables in the host"
-    );
     assert_eq!(
         app.world().resource::<Messages<RegistriesReloaded>>().len(),
         1
@@ -708,15 +689,6 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
         assert!(
             !Arc::ptr_eq(&old, held.arc()),
             "a dimension still holds the replaced registries"
-        );
-        let surface = dimension.world().resource::<Resolved<SurfaceIds>>();
-        assert!(
-            !std::ptr::eq(&*surface_before, &**surface),
-            "a dimension still holds the pre-swap surface tables"
-        );
-        assert!(
-            std::ptr::eq(&*surface_after, &**surface),
-            "a dimension holds surface tables other than the host's new ones"
         );
     }
     assert_eq!(

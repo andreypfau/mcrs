@@ -1,7 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use bevy_app::App;
 use mcrs_minecraft_biome::climate::{ClimateParameters, TargetPoint};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::parameter_list::{
@@ -14,12 +13,9 @@ use mcrs_minecraft_core::{BlockPos, ResourceLocation};
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
-use mcrs_minecraft_world::resolvers::Resolved;
-use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
-use crate::ids::GeneratorIdsPlugin;
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables};
 use crate::{multi_noise_grid, multi_noise_palettes};
@@ -301,14 +297,11 @@ fn table_of_picks_the_named_or_inline_table() {
 }
 
 #[test]
-fn the_shipped_parameter_lists_resolve_once_at_load() {
+fn the_shipped_parameter_lists_resolve_into_preset_tables() {
     let set = test_registries();
-    let mut app = App::new();
-    app.add_plugins(GeneratorIdsPlugin);
-    run_resolvers(app.world_mut(), test_registries_arc())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
-
-    let tables = app.world().resource::<Resolved<PresetBiomeTables>>();
+    let mut diagnostics = Diagnostics::default();
+    let tables = PresetBiomeTables::resolve(test_registries_arc(), &mut diagnostics)
+        .unwrap_or_else(|| panic!("{diagnostics}"));
     let names = set
         .registry::<MultiNoiseBiomeSourceParameterList>()
         .expect("the loaded set holds the parameter lists");

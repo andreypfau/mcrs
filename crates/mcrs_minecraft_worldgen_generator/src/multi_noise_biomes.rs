@@ -151,6 +151,7 @@ impl MultiNoiseBiomeTable {
     }
 }
 
+#[derive(Default)]
 pub struct PresetBiomeTables {
     tables: Vec<Arc<MultiNoiseBiomeTable>>,
 }

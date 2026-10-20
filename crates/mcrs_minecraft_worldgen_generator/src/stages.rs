@@ -15,7 +15,6 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{Access, ColumnLayout, Volume, VoxelStore, VoxelStoreMut};
-use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
@@ -87,7 +86,7 @@ pub struct ColumnProgram {
 pub enum ColumnGenerator {
     Beta(Arc<BetaCaveBlockIds>),
     Modern {
-        surface: Option<(Resolved<SurfaceIds>, SurfaceStates)>,
+        surface: Option<(Arc<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
 }
@@ -124,8 +123,8 @@ impl FillContext {
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
-        surface_ids: &Resolved<SurfaceIds>,
-        fill_ids: &Resolved<FillIds>,
+        surface_ids: Arc<SurfaceIds>,
+        fill_ids: &FillIds,
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
@@ -181,7 +180,7 @@ impl FillContext {
             _ => ColumnGenerator::Modern {
                 surface: biome
                     .as_ref()
-                    .map(|_| (surface_ids.clone(), SurfaceStates::new(&blocks))),
+                    .map(|_| (surface_ids, SurfaceStates::new(&blocks))),
                 carver_blocks: Arc::new(ModernCarverBlockIds::resolve(
                     &blocks,
                     fill_ids.block_tags.members(fill_ids.uncarvable),

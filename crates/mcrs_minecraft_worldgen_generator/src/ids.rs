@@ -1,24 +1,10 @@
-use crate::SurfaceIds;
-use crate::multi_noise_biomes::PresetBiomeTables;
 use crate::structures::index::EndBiomes;
-use bevy_app::{App, Plugin};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_registries::{Diagnostics, Registries, RegistryOf, Tags};
 use mcrs_minecraft_registries::{require_id, require_registry, require_tag, require_tags};
-use mcrs_minecraft_world::resolvers::AddRegistryResolver;
-
-pub struct GeneratorIdsPlugin;
-
-impl Plugin for GeneratorIdsPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_registry_resolver(SurfaceIds::resolve)
-            .add_registry_resolver(FillIds::resolve)
-            .add_registry_resolver(PresetBiomeTables::resolve);
-    }
-}
 
 pub struct FillIds {
     pub end: EndBiomes,

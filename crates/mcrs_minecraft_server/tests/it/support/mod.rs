@@ -38,7 +38,6 @@ pub fn insert_registries(app: &mut App) {
     app.add_message::<mcrs_minecraft_registries::RegistriesReloaded>();
     insert_registry_resources(app.world_mut(), test_registries());
     app.add_registry_resolver(mcrs_minecraft_world::registries::clock_time_markers);
-    app.add_plugins(mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin);
     let resolved = run_resolvers(app.world_mut(), test_registries_arc())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics}"));
     install_registries(app.world_mut(), Arc::clone(test_registries_arc()), resolved);

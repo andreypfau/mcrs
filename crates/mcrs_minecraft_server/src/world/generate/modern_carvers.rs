@@ -3,8 +3,8 @@ use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
-use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
@@ -59,8 +59,13 @@ fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
     registries: bevy_ecs::prelude::Res<RegistrySet>,
-    preset_tables: bevy_ecs::prelude::Res<Resolved<PresetBiomeTables>>,
+    current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {
+    let mut diagnostics = Diagnostics::default();
+    let preset_tables = PresetBiomeTables::resolve(&current, &mut diagnostics);
+    if preset_tables.is_none() {
+        tracing::error!(%diagnostics, "no multi-noise preset table; a preset dimension gets no carver table");
+    }
     let biomes = registries.loaded_registry::<Biome>();
     let values =
         registries.loaded_entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>();
@@ -93,9 +98,10 @@ fn build_modern_carver_biomes(
         // climate.
         let table = match source {
             BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => {
-                let climate = preset_tables
-                    .get(*list)
-                    .expect("the resolved tables hold every parameter list");
+                let Some(climate) = preset_tables.as_ref().and_then(|tables| tables.get(*list))
+                else {
+                    continue;
+                };
                 Some(CarverBiomeTable::from_climate(climate.climate(), |biome| {
                     carvers.as_slice()[usize::from(biome)].clone()
                 }))

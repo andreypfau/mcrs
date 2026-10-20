@@ -209,9 +209,7 @@ pub fn overworld_material_router(
 }
 
 #[cfg(test)]
-fn surface_ids(
-    ids: &HashMap<String, u16>,
-) -> mcrs_minecraft_world::resolvers::Resolved<SurfaceIds> {
+fn surface_ids(ids: &HashMap<String, u16>) -> std::sync::Arc<SurfaceIds> {
     super::surface_ids_over(&registry_of(ids))
 }
 

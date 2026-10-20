@@ -19,7 +19,6 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::Registry;
-use mcrs_minecraft_world::resolvers::Resolved;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -122,7 +121,7 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
 }
 
 struct Ids {
-    surface: Resolved<SurfaceIds>,
+    surface: std::sync::Arc<SurfaceIds>,
     states: SurfaceStates,
 }
 
@@ -130,7 +129,7 @@ fn surface_ids(biomes: &Registry<Biome>) -> Ids {
     let surface = SurfaceIds::from_lookup(|key| biomes.get(&key))
         .expect("the corpus holds the surface biomes");
     Ids {
-        surface: Resolved::new(surface),
+        surface: std::sync::Arc::new(surface),
         states: SurfaceStates::new(corpus()),
     }
 }
