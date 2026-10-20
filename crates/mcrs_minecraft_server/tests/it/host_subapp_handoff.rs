@@ -9,13 +9,10 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_server::world::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
@@ -426,9 +423,6 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         type_name::<RegistrySet>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
-        type_name::<Registry<EnchantmentData>>(),
-        type_name::<Entries<EnchantmentData, EnchantmentData>>(),
-        type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
     ];
 
     let resource_names = |world: &World| -> Vec<String> {
@@ -475,13 +469,7 @@ fn is_registry_type(name: &str) -> bool {
     let leaf = head.rsplit("::").next().unwrap_or(head);
     matches!(
         leaf,
-        "Registry"
-            | "Entries"
-            | "RegistrySet"
-            | "Blocks"
-            | "Items"
-            | "ClockTimeMarkers"
-            | "Resolved"
+        "Registry" | "Entries" | "RegistrySet" | "Blocks" | "Items"
     )
 }
 
@@ -664,8 +652,7 @@ fn dimensions_that_replaced_their_snapshot(app: &App, since: &[(InternedAppLabel
 
 #[test]
 fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_replaces_nothing() {
-    use bevy_ecs::message::Messages;
-    use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistriesReloaded};
+    use mcrs_minecraft_registries::{CurrentRegistries, Registries};
     use mcrs_minecraft_world::registry_snapshot::replace_registries;
 
     let mut app = crate::host_app::make_host_app();
@@ -674,11 +661,7 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     let dimensions = app.sub_apps().sub_apps.len();
 
     let old = Arc::clone(app.world().resource::<CurrentRegistries>().arc());
-    replace_registries(app.world_mut(), Registries::clone(&old)).expect("the loaded set resolves");
-    assert_eq!(
-        app.world().resource::<Messages<RegistriesReloaded>>().len(),
-        1
-    );
+    replace_registries(app.world_mut(), Registries::clone(&old));
 
     let since = snapshot_ticks(&mut app);
     app.update();

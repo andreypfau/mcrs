@@ -16,7 +16,6 @@ mod loaded_registries;
 mod player_dat;
 mod playing;
 mod registry_values;
-mod resolvers;
 mod sound_sets;
 mod structure_assets;
 mod tag_pipeline;

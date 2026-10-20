@@ -15,7 +15,6 @@ fn the_data_pack_reaches_playing_with_every_registry_in_place() {
     tag_pipeline::entity_type_tags_are_numbered_by_the_report(&app);
     timeline_pipeline::the_timeline_tags_resolve_through_universal(&app);
     timeline_pipeline::every_dimension_builds_its_environment_from_its_tag(&app);
-    timeline_pipeline::the_shipped_time_markers_reach_the_overworld_clock(&app);
     timeline_pipeline::the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(&app);
     world_registry_ids::the_running_app_numbers_world_registries_as_the_loader_does(&app);
     loaded_registries::worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(&app);

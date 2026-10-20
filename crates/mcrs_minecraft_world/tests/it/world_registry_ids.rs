@@ -2,13 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use bevy_app::App;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{declared_registries, loaded_names};
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 fn crate_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
@@ -17,14 +14,6 @@ fn crate_path(relative: &str) -> PathBuf {
 fn read(relative: &str) -> String {
     let path = crate_path(relative);
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-}
-
-fn names_in_registry<T: 'static + Send + Sync + 'static>(app: &App) -> Vec<String> {
-    let registry = app.world().resource::<Registry<T>>();
-    registry
-        .ids()
-        .map(|id| registry.name(id).expect("ids are dense").to_string())
-        .collect()
 }
 
 pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
@@ -54,22 +43,6 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
         snapshots += 1;
     }
     assert!(snapshots > 0, "no synced world registry was compared");
-
-    let indexes = [
-        ("minecraft:worldgen/biome", names_in_registry::<Biome>(app)),
-        (
-            "minecraft:worldgen/structure",
-            names_in_registry::<Structure>(app),
-        ),
-        ("minecraft:timeline", names_in_registry::<Timeline>(app)),
-    ];
-    for (registry, numbered) in indexes {
-        assert_eq!(
-            numbered,
-            loaded_names(set, registry),
-            "{registry}: the index numbers the entries differently from the loader"
-        );
-    }
 }
 
 fn recorded_by_registry(text: &str) -> BTreeMap<String, Vec<String>> {

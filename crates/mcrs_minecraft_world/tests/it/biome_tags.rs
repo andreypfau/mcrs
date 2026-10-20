@@ -1,6 +1,6 @@
 use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::common::tag_members;
 
@@ -26,10 +26,11 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
 }
 
 pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {
-    let biomes = app.world().resource::<Registry<Biome>>();
-    let (table, column) = app
-        .world()
-        .resource::<RegistrySet>()
+    let set = app.world().resource::<RegistrySet>();
+    let biomes = set
+        .registry::<Biome>()
+        .expect("the loaded set holds the biomes");
+    let (table, column) = set
         .synced()
         .find(|(table, _)| table.registry().as_str() == "minecraft:worldgen/biome")
         .expect("the biomes are synced");

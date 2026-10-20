@@ -11,9 +11,7 @@ use mcrs_minecraft_dimension_environment::dimension_type::{
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::resolvers::Resolved;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -109,23 +107,6 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     // no sky attribute, so the Nether sky never moves.
     let nether = environment("minecraft:the_nether").unwrap();
     assert!(!nether.stack(sky_light).is_dynamic());
-}
-
-pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
-    let markers = app.world().resource::<Resolved<ClockTimeMarkers>>();
-    let overworld = overworld_clock(app);
-
-    assert!(
-        app.world()
-            .resource::<WorldClocks>()
-            .get(overworld)
-            .is_some(),
-        "the clocks must be seeded before the markers are folded"
-    );
-
-    let noon = markers.get(overworld, "minecraft:noon").unwrap();
-    assert_eq!((noon.ticks, noon.period_ticks), (6000, Some(24000)));
-    assert!(noon.show_in_commands);
 }
 
 pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app: &App) {

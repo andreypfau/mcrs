@@ -1,5 +1,4 @@
 use crate::Registries;
-use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -24,6 +23,3 @@ impl Deref for CurrentRegistries {
         &self.0
     }
 }
-
-#[derive(Message, Clone, Copy, Debug)]
-pub struct RegistriesReloaded;

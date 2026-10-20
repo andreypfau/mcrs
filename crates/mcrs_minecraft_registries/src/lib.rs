@@ -23,7 +23,7 @@ pub mod static_key;
 mod tags;
 
 #[cfg(feature = "bevy")]
-pub use bevy::{CurrentRegistries, RegistriesReloaded};
+pub use bevy::CurrentRegistries;
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
 pub use id::Key;
 pub use load::{

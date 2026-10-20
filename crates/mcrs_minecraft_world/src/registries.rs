@@ -14,14 +14,10 @@ use crate::variant::{
 use crate::villager_trade::{TradeSet, VillagerTrade};
 use crate::worldgen::chunk_generator::ChunkGenerator;
 use crate::worldgen::world_preset::WorldPreset;
-#[cfg(feature = "bevy")]
-use bevy_ecs::world::World;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeEnvironment, DimensionTypeFile,
@@ -34,8 +30,6 @@ use mcrs_minecraft_entity::variant::{
 };
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -51,11 +45,7 @@ use mcrs_minecraft_loot::number::{FloatExpression, IntExpression};
 use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registries::require_registry;
 use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -404,46 +394,6 @@ pub fn tags_as_sent(
         .collect()
 }
 
-#[cfg(feature = "bevy")]
-pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
-    world.insert_resource(
-        registries
-            .registry::<Biome>()
-            .expect("the data pack loader parses minecraft:worldgen/biome"),
-    );
-    world.insert_resource(
-        registries
-            .registry::<Structure>()
-            .expect("the data pack declares minecraft:worldgen/structure"),
-    );
-    world.insert_resource(
-        registries
-            .registry::<EnchantmentData>()
-            .expect("the data pack loader parses minecraft:enchantment"),
-    );
-    world.insert_resource(
-        registries
-            .entries::<EnchantmentData, EnchantmentData>()
-            .expect("the data pack loader parses minecraft:enchantment"),
-    );
-    world.insert_resource(
-        registries
-            .entries::<EnchantmentData, Option<EnchantmentEffects>>()
-            .expect("the data pack loader splits minecraft:enchantment"),
-    );
-    world.insert_resource(
-        registries
-            .registry::<Timeline>()
-            .expect("the data pack loader parses minecraft:timeline"),
-    );
-    world.insert_resource(
-        registries
-            .registry::<mcrs_minecraft_entity::keys::EntityType>()
-            .expect("the registries report holds minecraft:entity_type"),
-    );
-    world.insert_resource(registries.clone());
-}
-
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {
     RegistrySet::from_locations(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES)
         .and_then(|set| {
@@ -457,44 +407,4 @@ pub fn static_registries() -> Result<RegistrySet, LoadReport> {
 pub fn refuse<E: std::fmt::Display>(error: &E) -> ! {
     tracing::error!("the registries are unusable:\n{error}");
     std::process::exit(1)
-}
-
-#[cfg(feature = "bevy")]
-pub fn clock_time_markers(
-    registries: &Registries,
-    diagnostics: &mut Diagnostics,
-) -> Option<ClockTimeMarkers> {
-    let timelines = require_registry::<_, RegistryOf<Timeline>>(
-        registries,
-        mcrs_minecraft_environment::keys::TIMELINE,
-        diagnostics,
-    );
-    let clocks = require_registry::<_, RegistryOf<WorldClock>>(
-        registries,
-        mcrs_minecraft_environment::keys::WORLD_CLOCK,
-        diagnostics,
-    );
-    let (timelines, clocks) = (timelines?, clocks?);
-    let found = ClockTimeMarkers::derive(timelines.values(), |clock| {
-        clocks.name(Id::checked(clock.number(), clocks.len())?)
-    });
-    match found {
-        Ok(markers) => Some(markers),
-        Err(duplicates) => {
-            for (index, duplicate) in duplicates {
-                let Some((_, name, _)) = timelines.iter().nth(index) else {
-                    continue;
-                };
-                diagnostics.extend([Diagnostic::Entry {
-                    registry: timelines.key().clone(),
-                    entry: name.clone(),
-                    pack: None,
-                    file: None,
-                    field: None,
-                    message: duplicate.to_string(),
-                }]);
-            }
-            None
-        }
-    }
 }
