@@ -89,12 +89,12 @@ pub fn sky_draws_only() -> Option<SkyEffects> {
 }
 
 /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
-/// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
+/// blocks per tick, so a flight can be repeated exactly.
 pub fn scripted_flight() -> Option<f64> {
     parsed(
         "FLY",
         |&speed| speed > 0.0,
-        "expected a flying speed above zero, 0.05 is vanilla",
+        "expected a flying speed above zero, in blocks per tick",
     )
 }
 

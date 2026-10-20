@@ -78,7 +78,6 @@ thiserror.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast", "bevy"] }
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
-bevy_math.workspace = true
 uuid.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -91,3 +90,4 @@ bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true
 mcrs_minecraft_fixtures.workspace = true
+bevy_math.workspace = true

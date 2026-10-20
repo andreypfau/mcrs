@@ -1,6 +1,6 @@
+use crate::input::Input;
 use bevy::prelude::*;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform as PhysicsTransform};
-use mcrs_minecraft_world::entity::player::Input;
 
 #[derive(Resource)]
 pub struct ScriptedFlight {

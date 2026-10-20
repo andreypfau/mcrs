@@ -2,10 +2,7 @@ use crate::login::GameProfile;
 use crate::world::bus::to;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PlayerInfoEntry};
 use crate::world::entity::player::HostAnchor;
-use crate::world::entity::player::ability::{
-    Flying, Invulnerable, MayBuild, MayFly, PlayerGameMode, PlayerOpLevel,
-    update_abilities_for_game_mode,
-};
+use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -30,30 +27,18 @@ fn handle_change_game_mode(
             &PlayerOpLevel,
             &GameProfile,
             &mut PlayerGameMode,
-            &mut Invulnerable,
-            &mut MayFly,
-            &mut MayBuild,
             &HostAnchor,
         ),
         With<HostAnchor>,
     >,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChangeGameMode>() else {
         return;
     };
 
     {
-        let Ok((
-            op_level,
-            _profile,
-            mut current_mode,
-            mut invulnerable,
-            mut may_fly,
-            mut may_build,
-            anchor,
-        )) = players.get_mut(event.entity)
+        let Ok((op_level, _profile, mut current_mode, anchor)) = players.get_mut(event.entity)
         else {
             return;
         };
@@ -72,17 +57,6 @@ fn handle_change_game_mode(
         }
 
         current_mode.0 = pkt.mode;
-        let flying = update_abilities_for_game_mode(
-            pkt.mode,
-            &mut invulnerable,
-            &mut may_fly,
-            &mut may_build,
-        );
-        if flying {
-            commands.entity(event.entity).insert(Flying);
-        } else {
-            commands.entity(event.entity).remove::<Flying>();
-        }
         packet_writer.write(to(
             anchor.0,
             PacketPayload::GameEvent(ClientboundGameEvent {
@@ -93,7 +67,7 @@ fn handle_change_game_mode(
 
     let entries: Vec<PlayerInfoEntry> = players
         .iter()
-        .map(|(_, profile, mode, _, _, _, _)| PlayerInfoEntry {
+        .map(|(_, profile, mode, _)| PlayerInfoEntry {
             player_uuid: profile.id,
             username: profile.username.clone(),
             game_mode: mode.0,
@@ -101,7 +75,7 @@ fn handle_change_game_mode(
         })
         .collect();
 
-    for (_, _, _, _, _, _, anchor) in players.iter() {
+    for (_, _, _, anchor) in players.iter() {
         packet_writer.write(to(
             anchor.0,
             PacketPayload::PlayerInfoUpdate {

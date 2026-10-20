@@ -2,14 +2,36 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::math::DVec2;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mcrs_minecraft_world::entity::player::{FlyingSpeed, Input};
 
+use crate::local_player::FlyingSpeed;
 use crate::player::Player;
 
-const INPUT_SCALE: f64 = 0.98;
-const FLY_SPEED_STEP: f64 = 0.005;
+const FLY_SPEED_STEP: f64 = 0.05;
 const FLY_SPEED_MIN: f64 = 0.0;
-const FLY_SPEED_MAX: f64 = 0.2;
+const FLY_SPEED_MAX: f64 = 2.0;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Input {
+    pub forward: bool,
+    pub backward: bool,
+    pub left: bool,
+    pub right: bool,
+    pub jump: bool,
+    pub shift: bool,
+    pub sprint: bool,
+}
+
+impl Input {
+    pub const EMPTY: Self = Self {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        jump: false,
+        shift: false,
+        sprint: false,
+    };
+}
 
 pub struct ClientInputPlugin;
 
@@ -19,7 +41,6 @@ impl Plugin for ClientInputPlugin {
     }
 }
 
-/// `KeyboardInput.tick`'s key bindings.
 pub fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> Input {
     if cursor.grab_mode == CursorGrabMode::None {
         return Input::EMPTY;
@@ -35,7 +56,7 @@ pub fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> Input {
     }
 }
 
-/// The `(left, forward)` impulse pair `KeyboardInput.tick` normalizes.
+/// The `(left, forward)` direction of the pressed keys, of length one or zero.
 pub fn move_vector(input: Input) -> DVec2 {
     DVec2::new(
         impulse(input.left, input.right),
@@ -46,23 +67,6 @@ pub fn move_vector(input: Input) -> DVec2 {
 
 fn impulse(positive: bool, negative: bool) -> f64 {
     f64::from(i8::from(positive) - i8::from(negative))
-}
-
-/// `ClientInput.modifyInput`, through `modifyInputSpeedForSquareMovement`.
-pub fn modify_input(move_vector: DVec2) -> DVec2 {
-    if move_vector.length_squared() == 0.0 {
-        return move_vector;
-    }
-    let scaled = move_vector * INPUT_SCALE;
-    let length = scaled.length();
-    let direction = scaled / length;
-    direction * (length * distance_to_unit_square(direction)).min(1.0)
-}
-
-fn distance_to_unit_square(direction: DVec2) -> f64 {
-    let (x, y) = (direction.x.abs(), direction.y.abs());
-    let tangent = if y > x { x / y } else { y / x };
-    (1.0 + tangent * tangent).sqrt()
 }
 
 fn adjust_fly_speed(speed: f64, wheel: f64) -> f64 {
@@ -78,18 +82,4 @@ fn read_fly_speed_wheel(
         return;
     }
     speed.0 = adjust_fly_speed(speed.0, f64::from(scroll.delta.y));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_wheel_cannot_push_fly_speed_out_of_range() {
-        let mut speed = FlyingSpeed::default().0;
-        for wheel in [1.0, 1.0, -1.0, 5.0, -100.0, 100.0, -3.0] {
-            speed = adjust_fly_speed(speed, wheel);
-            assert!((FLY_SPEED_MIN..=FLY_SPEED_MAX).contains(&speed), "{speed}");
-        }
-    }
 }

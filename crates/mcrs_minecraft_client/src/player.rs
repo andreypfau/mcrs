@@ -10,27 +10,17 @@ use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 use mcrs_minecraft_level::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
-use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
-use crate::local_player::{LastSentMovement, Sprint};
+use crate::local_player::{Flying, FlyingSpeed, LastSentMovement, Sprint};
 use crate::screen::Screen;
 
 pub(crate) const EYE_HEIGHT: f32 = 1.62;
 
-/// Vanilla's `Options` default. `invertMouseX`, `invertMouseY` and `smoothCamera` stay off,
-/// which leaves the inversions and the `SmoothDouble` branch of `MouseHandler.turnPlayer`
-/// unreachable.
-const SENSITIVITY: f32 = 0.5;
 const FAR_PLANE: f32 = 4000.0;
 
-/// `MouseHandler.turnPlayer` builds `sens = (sensitivity * 0.6 + 0.2)^3 * 8` and
-/// `Entity.turn` then scales by `0.15`; at the default `sensitivity` the chain
-/// collapses to `degrees = pixels * 0.15`.
-const LOOK_SENSITIVITY: f32 = {
-    let sens = SENSITIVITY * 0.6 + 0.2;
-    sens * sens * sens * 8.0 * 0.15
-};
+/// Degrees of turn per pixel of mouse motion.
+const LOOK_SENSITIVITY: f32 = 0.15;
 
 #[derive(Component)]
 pub struct Player;

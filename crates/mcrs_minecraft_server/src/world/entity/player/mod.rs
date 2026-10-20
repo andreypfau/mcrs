@@ -118,7 +118,6 @@ const MAX_VIEW_DISTANCE: u8 = 96;
 pub struct PlayerBundle {
     pub teleport_state: TeleportState,
     pub view_distance: PlayerViewDistance,
-    pub abilities: ability::PlayerAbilitiesBundle,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
     pub tracked_by: crate::world::aoi::TrackedBy,

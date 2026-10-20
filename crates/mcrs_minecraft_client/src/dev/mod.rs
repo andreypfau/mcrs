@@ -4,10 +4,10 @@ use bevy::prelude::*;
 use bevy::window::{Monitor, PrimaryMonitor, WindowPosition};
 use mcrs_minecraft_render::DrawMask;
 use mcrs_minecraft_render::sky::SkyDrawsOnly;
-use mcrs_minecraft_world::entity::player::FlyingSpeed;
 
 use crate::columns::ClientTerrainSet;
 use crate::gui::debug::{DebugScreenSet, collecting, entry_fps, entry_system_specs, entry_terrain};
+use crate::local_player::FlyingSpeed;
 use crate::stream;
 
 pub mod census;
