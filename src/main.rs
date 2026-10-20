@@ -10,7 +10,7 @@ use bevy_app::App;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_server::{GameMode, Lighting, MinecraftServerPlugin};
 
-const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::digging=trace,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
+const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
 #[tokio::main]
 async fn main() {

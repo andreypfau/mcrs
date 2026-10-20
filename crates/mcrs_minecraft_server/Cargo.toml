@@ -11,7 +11,6 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_predicate.workspace = true

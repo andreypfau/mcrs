@@ -7,7 +7,6 @@ mod corpus;
 pub mod definitions;
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub mod enchantments;
-pub mod tool;
 
 #[cfg(all(
     feature = "bevy",

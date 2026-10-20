@@ -79,7 +79,6 @@ use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
-use crate::world::loot::LootPlugin;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
@@ -473,8 +472,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
-    sub_app.add_plugins(LootPlugin);
-    sub_app.add_plugins(mcrs_minecraft_level::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
     let lighting = app

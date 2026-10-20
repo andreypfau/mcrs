@@ -1,7 +1,6 @@
 pub mod aoi;
 pub mod block_update;
 pub mod entity;
-pub mod experience;
 pub mod palette;
 pub mod server_loop;
 pub mod session;

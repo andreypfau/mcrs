@@ -21,5 +21,4 @@ mod sound_sets;
 mod structure_assets;
 mod tag_pipeline;
 mod timeline_pipeline;
-mod tool_rules;
 mod world_registry_ids;

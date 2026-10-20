@@ -26,7 +26,6 @@ pub mod inventory;
 pub mod item;
 pub mod light;
 pub mod light_codec;
-pub mod loot;
 pub mod session;
 pub mod sub_app_builder;
 

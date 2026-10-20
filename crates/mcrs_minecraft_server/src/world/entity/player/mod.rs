@@ -9,7 +9,6 @@ use crate::world::bus::{
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
-use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
@@ -60,7 +59,6 @@ use tracing::{debug, info};
 pub mod ability;
 mod chat;
 pub mod column_view;
-pub mod digging;
 mod game_mode;
 mod inventory;
 pub mod movement;
@@ -93,7 +91,6 @@ pub struct DimPlayerPlugin;
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.init_resource::<DefaultGameMode>();
-        app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
