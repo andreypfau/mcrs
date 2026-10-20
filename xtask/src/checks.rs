@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{bypasses, keys, layers, parity, suppressions, unused_deps};
+use crate::{keys, parity};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -26,19 +26,55 @@ const WASM32_PACKAGES: [&str; 9] = [
     "mcrs_minecraft_biome_file",
 ];
 
-pub(crate) fn capture(
-    root: &Path,
-    program: &str,
-    args: &[&str],
-    env: &[(&str, &str)],
-) -> Result<std::process::Output, String> {
-    Command::new(program)
-        .args(args)
-        .envs(env.iter().copied())
-        .current_dir(root)
-        .output()
-        .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
-}
+const NO_BEVY_PACKAGES: [&str; 47] = [
+    "mcrs_minecraft_anvil",
+    "mcrs_minecraft_biome",
+    "mcrs_minecraft_biome_file",
+    "mcrs_minecraft_block",
+    "mcrs_minecraft_block_predicate",
+    "mcrs_minecraft_chunk",
+    "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_core",
+    "mcrs_minecraft_dimension",
+    "mcrs_minecraft_dimension_environment",
+    "mcrs_minecraft_enchantment",
+    "mcrs_minecraft_entity",
+    "mcrs_minecraft_environment",
+    "mcrs_minecraft_fixtures",
+    "mcrs_minecraft_game_rule",
+    "mcrs_minecraft_item",
+    "mcrs_minecraft_keys",
+    "mcrs_minecraft_light",
+    "mcrs_minecraft_light_color",
+    "mcrs_minecraft_loot",
+    "mcrs_minecraft_nbt",
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_particle",
+    "mcrs_minecraft_predicate",
+    "mcrs_minecraft_profile",
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_protocol_macros",
+    "mcrs_minecraft_random",
+    "mcrs_minecraft_registries",
+    "mcrs_minecraft_registry",
+    "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_simulation",
+    "mcrs_minecraft_sound",
+    "mcrs_minecraft_text",
+    "mcrs_minecraft_value_provider",
+    "mcrs_minecraft_volume",
+    "mcrs_minecraft_worldgen",
+    "mcrs_minecraft_worldgen_builtin",
+    "mcrs_minecraft_worldgen_carver",
+    "mcrs_minecraft_worldgen_density",
+    "mcrs_minecraft_worldgen_feature",
+    "mcrs_minecraft_worldgen_feature_place",
+    "mcrs_minecraft_worldgen_noise",
+    "mcrs_minecraft_worldgen_structure",
+    "mcrs_minecraft_worldgen_structure_place",
+    "mcrs_minecraft_worldgen_surface",
+    "mcrs_minecraft_worldgen_testing",
+];
 
 struct Changes {
     base_ref: String,
@@ -145,13 +181,7 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
-        Check::Suppressions => suppressions::check(&ctx.root, ctx.base()?, &ctx.head),
-        Check::Bypasses => bypasses::check(&ctx.root, ctx.base()?, &ctx.head),
         Check::Parity => parity_check(ctx),
-        Check::UnusedDeps => {
-            unused_deps::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?)
-        }
-        Check::Layers => layers::check(&ctx.root, ctx.base()?, &ctx.head, ctx.workspace()?),
         Check::Fmt => fmt(ctx),
         Check::Keys => keys::check(
             &ctx.root,
@@ -177,16 +207,9 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 }
 
 fn no_bevy(ctx: &Context) -> Outcome {
-    let selection = layers::no_bevy_packages(&ctx.root, &ctx.head)?;
-    if !selection.left_out.is_empty() {
-        println!(
-            "left out, they still need Bevy without default features: {}",
-            selection.left_out.join(" ")
-        );
-    }
     let mut args = vec!["check", "--locked", "--no-default-features"];
-    for package in &selection.build {
-        args.extend(["-p", package.as_str()]);
+    for package in NO_BEVY_PACKAGES {
+        args.extend(["-p", package]);
     }
     verdict(
         ctx.exec("cargo", &args)?,

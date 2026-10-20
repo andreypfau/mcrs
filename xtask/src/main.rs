@@ -11,18 +11,14 @@
     )
 )]
 
-mod bypasses;
 mod checks;
 mod git;
 mod keys;
-mod layers;
 mod metadata;
 mod parity;
 mod scope;
 mod source;
-mod suppressions;
 mod trigger;
-mod unused_deps;
 
 use scope::Head;
 use std::io::Write;

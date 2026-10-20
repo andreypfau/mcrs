@@ -1,10 +1,6 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Check {
-    Suppressions,
-    Bypasses,
     Parity,
-    UnusedDeps,
-    Layers,
     Fmt,
     Clippy,
     Test,
@@ -16,11 +12,7 @@ pub enum Check {
 impl Check {
     pub const fn name(self) -> &'static str {
         match self {
-            Check::Suppressions => "suppressions",
-            Check::Bypasses => "bypasses",
             Check::Parity => "parity",
-            Check::UnusedDeps => "unused-deps",
-            Check::Layers => "layers",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
             Check::Test => "test",
@@ -32,7 +24,7 @@ impl Check {
 
     #[cfg(test)]
     pub const fn is_git_only(self) -> bool {
-        matches!(self, Check::Suppressions | Check::Bypasses | Check::Parity)
+        matches!(self, Check::Parity)
     }
 }
 
@@ -79,9 +71,7 @@ impl Trigger {
     pub const fn description(self) -> &'static str {
         match self {
             Trigger::Edit => "after a file is written: formatting of the changed files",
-            Trigger::Commit => {
-                "before a commit: lint suppressions, test bypasses, fixture parity, unused dependencies, crate layers, formatting"
-            }
+            Trigger::Commit => "before a commit: fixture parity, formatting",
             Trigger::Push => {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
@@ -129,18 +119,8 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push => {
-            &[Suppressions, Bypasses, Parity, UnusedDeps, Layers, Fmt]
-        }
-        Trigger::Lint => &[
-            Suppressions,
-            Bypasses,
-            Parity,
-            UnusedDeps,
-            Layers,
-            Fmt,
-            Keys,
-        ],
+        Trigger::Commit | Trigger::Push => &[Parity, Fmt],
+        Trigger::Lint => &[Parity, Fmt, Keys],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Wasm32],

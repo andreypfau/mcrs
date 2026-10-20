@@ -330,64 +330,6 @@ pub fn read_at(repo: &Path, rev: &str, path: &str) -> Result<Option<String>, Str
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
 }
 
-pub fn head_text(repo: &Path, head: &Head, path: &str) -> Result<Option<String>, String> {
-    let Head::Worktree = head else {
-        return read_at(repo, head.rev(), path);
-    };
-    let literal = format!(":(literal){path}");
-    let listed = git::run(repo, &["ls-files", "-z", "--", &literal]).map_err(|e| e.to_string())?;
-    if listed.is_empty() {
-        return Ok(None);
-    }
-    match std::fs::read(repo.join(path)) {
-        Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("could not read {path}: {e}")),
-    }
-}
-
-pub enum Found {
-    AtBase(String),
-    Restored { restored: String, last: String },
-}
-
-pub fn configuration_at(
-    repo: &Path,
-    base: &str,
-    head: &Head,
-    file: &str,
-) -> Result<Option<Found>, String> {
-    if let Some(text) = read_at(repo, base, file)? {
-        return Ok(Some(Found::AtBase(text)));
-    }
-    if is_shallow(repo)? {
-        return Err(format!(
-            "cannot tell from a shallow history whether {file} existed; fetch the full history"
-        ));
-    }
-    let removing =
-        git::text(repo, &["rev-list", "-1", base, "--", file]).map_err(|e| e.to_string())?;
-    let removing = removing.trim();
-    if removing.is_empty() {
-        return Ok(None);
-    }
-    let restored = head_text(repo, head, file)?
-        .ok_or_else(|| format!("{file} was removed from the base; restore it"))?;
-    let last = read_at(repo, &format!("{removing}~1"), file)?
-        .ok_or_else(|| format!("cannot read the last version of {file} before it was removed"))?;
-    Ok(Some(Found::Restored { restored, last }))
-}
-
-pub fn is_shallow(repo: &Path) -> Result<bool, String> {
-    git::text(repo, &["rev-parse", "--is-shallow-repository"])
-        .map(|answer| answer.trim() == "true")
-        .map_err(|e| e.to_string())
-}
-
-pub fn short(sha: &str) -> &str {
-    sha.get(..9).unwrap_or(sha)
-}
-
 fn string_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     let rest = line
         .trim()
@@ -779,63 +721,12 @@ pub(crate) mod tests {
         pub(crate) fn sha(&self) -> String {
             self.out(&["rev-parse", "HEAD"])
         }
-
-        pub(crate) fn status(&self) -> String {
-            self.out(&["status", "--porcelain"])
-        }
     }
 
     impl Drop for Repo {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
-    }
-
-    const ROW_WORKERS: usize = 8;
-
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "pulls row indices off a shared counter inside each worker and ends the worker when the rows run out, so the claim loop stays in the closure that owns the results"
-    )]
-    pub(crate) fn judge_rows_in_parallel<T: Sync>(
-        rows: &[T],
-        judge: impl Fn(&T) -> Option<String> + Sync,
-    ) {
-        let next = AtomicUsize::new(0);
-        let workers = std::thread::available_parallelism()
-            .map_or(1, usize::from)
-            .min(ROW_WORKERS)
-            .min(rows.len());
-        let mut judged: Vec<(usize, Option<String>)> = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..workers)
-                .map(|_| {
-                    scope.spawn(|| {
-                        let mut mine = Vec::new();
-                        loop {
-                            let index = next.fetch_add(1, Ordering::Relaxed);
-                            let Some(row) = rows.get(index) else {
-                                break mine;
-                            };
-                            mine.push((index, judge(row)));
-                        }
-                    })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .flat_map(|handle| {
-                    handle
-                        .join()
-                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect()
-        });
-        judged.sort_by_key(|(index, _)| *index);
-        let wrong: Vec<String> = judged
-            .into_iter()
-            .filter_map(|(_, problem)| problem)
-            .collect();
-        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     #[test]
