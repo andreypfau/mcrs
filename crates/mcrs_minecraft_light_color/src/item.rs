@@ -13,12 +13,10 @@ use mcrs_minecraft_block::keys::fluid_tags::WATER;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey, rl};
+use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registries::{Diagnostics, Registries, Tags};
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::resolvers::{require_tag, require_tags};
+use mcrs_minecraft_registries::Registries;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -27,37 +25,6 @@ use crate::colors::{LightColors, LightType};
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
 pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
     TagKey::new(rl!("mcrs:water_sensitive_light"));
-
-pub struct LightColorIds {
-    pub water_sensitive: TagId<Item>,
-    pub item_tags: Tags<Item>,
-    pub fluid_tags: Tags<Fluid>,
-    pub water: TagId<Fluid>,
-}
-
-impl LightColorIds {
-    pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
-        let items = require_tags(registries, mcrs_minecraft_item::keys::ITEM, diagnostics);
-        let fluids = require_tags(registries, mcrs_minecraft_block::keys::FLUID, diagnostics);
-        let water_sensitive = items.as_ref().and_then(|tags| {
-            require_tag(
-                tags,
-                mcrs_minecraft_item::keys::ITEM,
-                &WATER_SENSITIVE,
-                diagnostics,
-            )
-        });
-        let water = fluids.as_ref().and_then(|tags| {
-            require_tag(tags, mcrs_minecraft_block::keys::FLUID, &WATER, diagnostics)
-        });
-        Some(Self {
-            water_sensitive: water_sensitive?,
-            water: water?,
-            item_tags: items?,
-            fluid_tags: fluids?,
-        })
-    }
-}
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -118,6 +85,8 @@ pub struct ItemLights {
 pub enum ItemLightError {
     #[error("the default asset source is missing")]
     NoAssetSource,
+    #[error("the registries declare no {registry} registry with its tags")]
+    Undeclared { registry: &'static str },
     #[error(transparent)]
     Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
@@ -154,22 +123,20 @@ impl ItemLights {
         asset_server: &AssetServer,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
-        registries: &RegistrySet,
-        ids: &LightColorIds,
+        registries: &Registries,
     ) -> Result<Self, ItemLightError> {
         let source = asset_server
             .get_source(AssetSourceId::Default)
             .map_err(|_| ItemLightError::NoAssetSource)?;
         let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-        Self::from_files(files, blocks, items, registries, ids)
+        Self::from_files(files, blocks, items, registries)
     }
 
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
-        registries: &RegistrySet,
-        ids: &LightColorIds,
+        registries: &Registries,
     ) -> Result<Self, ItemLightError> {
         let mut mapped: Vec<Option<BlockStateId>> = vec![None; items.len()];
         let mut mapped_in: Vec<Option<String>> = vec![None; items.len()];
@@ -214,19 +181,27 @@ impl ItemLights {
         if !missing.is_empty() {
             return Err(ItemLightError::Missing { items: missing });
         }
+        let undeclared = |registry| ItemLightError::Undeclared { registry };
         let fluids = registries
             .registry::<Fluid>()
-            .expect("the loaded registries hold the fluid registry");
-        let (water_sensitive, water) = (ids.water_sensitive, ids.water);
+            .ok_or_else(|| undeclared("fluid"))?;
+        let item_tags = registries
+            .tags::<Item>()
+            .ok_or_else(|| undeclared("item"))?;
+        let fluid_tags = registries
+            .tags::<Fluid>()
+            .ok_or_else(|| undeclared("fluid"))?;
+        let water_sensitive = item_tags.id(&WATER_SENSITIVE);
+        let water = fluid_tags.id(&WATER);
         Ok(ItemLights {
             mapped: mapped.into(),
             water_sensitive: items
                 .iter()
-                .map(|entry| ids.item_tags.contains(water_sensitive, entry.id))
+                .map(|entry| water_sensitive.is_some_and(|tag| item_tags.contains(tag, entry.id)))
                 .collect(),
             water: fluids
-                .ids()
-                .map(|fluid| ids.fluid_tags.contains(water, fluid))
+                .iter()
+                .map(|(fluid, _, _)| water.is_some_and(|tag| fluid_tags.contains(tag, fluid)))
                 .collect(),
         })
     }

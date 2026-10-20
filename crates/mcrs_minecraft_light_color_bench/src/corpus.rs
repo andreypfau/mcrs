@@ -11,7 +11,7 @@ use mcrs_minecraft_light::block_light::block_light_registry;
 use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 use crate::fixture::FixtureState;
 
@@ -28,7 +28,7 @@ impl Corpus {
         static CORPUS: OnceLock<Corpus> = OnceLock::new();
         CORPUS.get_or_init(|| {
             let blocks = &test_corpus().0;
-            let tags = test_registries()
+            let tags = test_registries_arc()
                 .tags::<Block>()
                 .expect("the load builds the block tags");
             let colours = LightColors::load(&asset_server(), blocks, &tags)

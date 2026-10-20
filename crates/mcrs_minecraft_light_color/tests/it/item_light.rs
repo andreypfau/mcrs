@@ -7,14 +7,10 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{
-    ItemLight, ItemLightError, ItemLightFile, ItemLights, LightColorIds, WATER_SENSITIVE,
+    ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
 };
-use mcrs_minecraft_registries::{Declaration, Diagnostics};
 
-use mcrs_minecraft_world::registry_load::{
-    registries_declaring, test_registries, test_registries_arc,
-};
-use mcrs_minecraft_world::resolvers::Resolved;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
@@ -26,7 +22,7 @@ fn colours() -> &'static LightColors {
         LightColors::load(
             asset_server(),
             blocks(),
-            &test_registries()
+            &test_registries_arc()
                 .tags::<Block>()
                 .expect("the load builds the block tags"),
         )
@@ -34,21 +30,10 @@ fn colours() -> &'static LightColors {
     })
 }
 
-fn ids() -> &'static Resolved<LightColorIds> {
-    static IDS: OnceLock<Resolved<LightColorIds>> = OnceLock::new();
-    IDS.get_or_init(|| {
-        let mut diagnostics = Diagnostics::default();
-        Resolved::new(
-            LightColorIds::resolve(test_registries_arc(), &mut diagnostics)
-                .unwrap_or_else(|| panic!("{diagnostics}")),
-        )
-    })
-}
-
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), test_registries(), ids())
+        ItemLights::load(asset_server(), blocks(), items(), test_registries_arc())
             .unwrap_or_else(|e| panic!("{e}"))
     })
 }
@@ -106,7 +91,6 @@ fn item_lights_load_against_the_corpus() {
     an_unknown_stack_property_or_value_is_ignored();
     an_item_in_two_files_fails();
     an_item_mapped_twice_in_one_file_fails();
-    a_missing_water_tag_fails();
     an_unknown_block_property_or_value_fails();
 }
 
@@ -136,11 +120,11 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
 }
 
 fn water_sensitive() -> Vec<Id<Item>> {
-    let tags = test_registries()
+    let tags = test_registries_arc()
         .tags::<Item>()
         .expect("the load builds the item tags");
     let tag = tags
-        .get(&WATER_SENSITIVE)
+        .id(&WATER_SENSITIVE)
         .expect("the water-sensitive item tag");
     tags.members(tag).collect()
 }
@@ -235,7 +219,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items(), test_registries(), ids())
+    ItemLights::from_files(files, blocks(), items(), test_registries_arc())
 }
 
 fn an_item_in_two_files_fails() {
@@ -284,29 +268,6 @@ fn the_shipped_item_map_round_trips_unchanged() {
     .unwrap();
     let parsed: ItemLightFile = serde_json::from_value(text.clone()).unwrap();
     assert_eq!(serde_json::to_value(&parsed).unwrap(), text);
-}
-
-fn a_missing_water_tag_fails() {
-    let name = |text| mcrs_minecraft_core::ResourceLocation::read(text).expect("a valid name");
-    let without = registries_declaring(&[
-        Declaration::fixed::<Item>(
-            mcrs_minecraft_item::keys::ITEM.location().into(),
-            vec![name("minecraft:stick")],
-        ),
-        Declaration::fixed::<mcrs_minecraft_block::keys::Fluid>(
-            mcrs_minecraft_block::keys::FLUID.location().into(),
-            vec![name("minecraft:water")],
-        ),
-    ]);
-    let mut diagnostics = Diagnostics::default();
-    assert!(LightColorIds::resolve(&without, &mut diagnostics).is_none());
-    let text = diagnostics.to_string();
-    for tag in [
-        "minecraft:item/#mcrs:water_sensitive_light: ",
-        "minecraft:fluid/#minecraft:water: ",
-    ] {
-        assert!(text.lines().any(|line| line.starts_with(tag)), "{text}");
-    }
 }
 
 fn an_unknown_block_property_or_value_fails() {

@@ -67,7 +67,7 @@ mod load {
     use mcrs_minecraft_block::keys::Block;
     use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_core::tag_key::TagKey;
-    use mcrs_minecraft_registry::Tags;
+    use mcrs_minecraft_registries::Tags;
 
     use super::{LightColors, LightType};
     use crate::asset::{BlockStateRef, LightColorFile, StateTarget};
@@ -205,7 +205,7 @@ mod load {
                     entry: entry.to_string(),
                 }),
             StateTarget::Tag(id) => tags
-                .get(&TagKey::<Block, _>::from_location(id.clone()))
+                .id(&TagKey::<Block, _>::from_location(id.clone()))
                 .map(|tag| {
                     tags.members(tag)
                         .map(|member| &blocks.blocks()[member.index()])

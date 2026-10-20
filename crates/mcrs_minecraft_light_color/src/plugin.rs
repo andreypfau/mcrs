@@ -1,36 +1,47 @@
-use bevy_app::{App, Plugin, Startup};
+use bevy_app::{App, Plugin, PreUpdate};
 use bevy_asset::AssetServer;
-use bevy_ecs::prelude::{Commands, Res};
+use bevy_ecs::prelude::{Commands, Res, resource_exists_and_changed};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::resolvers::AddRegistryResolver;
-use mcrs_minecraft_world::resolvers::Resolved;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::colors::{LightColors, LightType};
-use crate::item::{ItemLights, LightColorIds};
+use crate::item::ItemLights;
 
 pub struct LightColorPlugin;
 
 impl Plugin for LightColorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_registry_resolver(LightColorIds::resolve);
-        app.add_systems(Startup, (insert_light_colors, insert_item_lights));
+        app.add_systems(
+            PreUpdate,
+            (rebuild_light_colors, rebuild_item_lights)
+                .run_if(resource_exists_and_changed::<CurrentRegistries>),
+        );
     }
 }
 
-fn insert_light_colors(
+fn rebuild_light_colors(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
 ) {
-    let tags = registries
-        .tags::<Block>()
-        .expect("the loaded registries hold the block tags");
-    let colors = LightColors::load(&asset_server, &blocks, &tags).unwrap_or_else(|e| panic!("{e}"));
+    let Some(tags) = registries.tags::<Block>() else {
+        tracing::error!(
+            "the registries declare no block registry with its tags; light colours stay as they were"
+        );
+        return;
+    };
+    let colors = match LightColors::load(&asset_server, &blocks, &tags) {
+        Ok(colors) => colors,
+        Err(error) => {
+            tracing::error!(%error, "the light colours do not load; they stay as they were");
+            return;
+        }
+    };
     let coloured_states = (0..blocks.state_count())
         .filter(|&id| colors.light_type(VoxelId(id as u16)) != LightType::DEFAULT)
         .count();
@@ -42,16 +53,20 @@ fn insert_light_colors(
     commands.insert_resource(colors);
 }
 
-fn insert_item_lights(
+fn rebuild_item_lights(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
     items: Res<Items>,
-    registries: Res<RegistrySet>,
-    ids: Res<Resolved<LightColorIds>>,
+    registries: Res<CurrentRegistries>,
 ) {
-    let lights = ItemLights::load(&asset_server, &blocks, &items, &registries, &ids)
-        .unwrap_or_else(|e| panic!("{e}"));
+    let lights = match ItemLights::load(&asset_server, &blocks, &items, &registries) {
+        Ok(lights) => lights,
+        Err(error) => {
+            tracing::error!(%error, "the item lights do not load; they stay as they were");
+            return;
+        }
+    };
     tracing::info!(items = lights.mapped_count(), "loaded item lights");
     commands.insert_resource(lights);
 }
