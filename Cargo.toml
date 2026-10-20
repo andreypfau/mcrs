@@ -178,8 +178,10 @@ opt-level = 0
 debug = "line-tables-only"
 debug-assertions = true
 
+# Line tables in dependencies only grow the test binaries and their link time.
 [profile.dev.package."*"]
 opt-level = 3
+debug = false
 
 # Build scripts and proc macros run at compile time, so optimizing them buys
 # build time rather than frame time. `package."*"` does not reach them.
