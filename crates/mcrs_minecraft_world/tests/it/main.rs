@@ -1,8 +1,7 @@
 #![expect(
-    clippy::disallowed_methods,
     clippy::disallowed_macros,
     clippy::disallowed_types,
-    reason = "test input is written as JSON, and the test finds the reference sources through the environment"
+    reason = "test input is written as JSON"
 )]
 
 mod biome_tags;
@@ -20,7 +19,6 @@ mod registry_values;
 mod resolvers;
 mod sound_sets;
 mod structure_assets;
-mod synced_registries;
 mod tag_pipeline;
 mod timeline_pipeline;
 mod tool_rules;
