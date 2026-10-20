@@ -18,7 +18,6 @@ use mcrs_minecraft_item::dropped::BLOCK_DROP_PICKUP_DELAY;
 use mcrs_minecraft_item::{DroppedItem, Thrower};
 use mcrs_minecraft_level::entity::mob::{EntityInSection, EntityKind, EntityUuid};
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform, Velocity};
-use mcrs_minecraft_level::explosion::tick_explode;
 use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
@@ -43,8 +42,7 @@ impl Plugin for DroppedItemPlugin {
             )
                 .chain()
                 .in_set(StackSet::Mutate)
-                .in_set(TickSet::Simulate)
-                .after(tick_explode),
+                .in_set(TickSet::Simulate),
         );
     }
 }

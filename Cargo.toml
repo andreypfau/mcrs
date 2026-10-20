@@ -30,7 +30,6 @@ bevy_app = { version = "0.19.1" }
 bevy_math = "0.19.1"
 bevy_time = "0.19.1"
 bevy_tasks = "0.19.1"
-bevy_utils = { version = "0.19.1", features = ["debug"] }
 # `file_watcher` cannot compile for wasm; the client re-enables it through
 # `bevy` for non-wasm targets, so a native build still hot-reloads.
 bevy_asset = { version = "0.19.1" }

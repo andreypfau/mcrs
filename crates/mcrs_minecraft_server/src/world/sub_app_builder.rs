@@ -74,7 +74,6 @@ pub enum ColumnDrainSet {
 }
 use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
-use crate::world::block::tnt::TntBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
@@ -85,7 +84,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
-use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
@@ -259,14 +257,8 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundEntitySpawn>();
     sub_app.add_message::<InboundConfirmMove>();
     sub_app.add_message::<InboundRollbackMove>();
-    // `PlayerWillDestroyBlock` still flows intra-dim: the per-dim TNT plugin
-    // reads it via MessageReader.
     sub_app.add_message::<PlayerWillDestroyBlock>();
-    // `ExplosionPlugin::tick_explode` writes `MessageWriter<BlockSetRequest>`
-    // and `apply_voxel_set_requests` reads the same buffer;
-    // both plugins now live in this per-dim sub-app so the explosion ->
-    // block-set chain runs as a single message hop. The sub-app builder is
-    // the single source of truth for these registrations — `BlockUpdatePlugin`
+    // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
     // loud at plugin load rather than silently exporting the buffers to the
@@ -476,24 +468,6 @@ pub fn spawn_dim_subapp(
         }
     }
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
-    // Per-dim composition of the simulation plugins. Each plugin's
-    // schedule placements (`TntBlockPlugin`, `ExplosionPlugin`,
-    // `PlayerTrackerPlugin`, `BlockUpdatePlugin`, `BlockUpdateWirePlugin`,
-    // `MinecraftEntityPlugin`, `LootPlugin`) run inside the per-dim
-    // sub-app's `World`. `ExplosionPlugin::tick_explode` writes
-    // `MessageWriter<BlockSetRequest>`; `BlockUpdatePlugin`'s
-    // `apply_voxel_set_requests` reads the same per-dim buffer in the
-    // same world, restoring the single-hop block-update path. The
-    // additional `BlockUpdateWirePlugin` (defined in
-    // `crate::world::block_update`) registers the per-dim wire-emit
-    // system that fans block updates out via `OutboundPlayerPacket`
-    // through `Column.PlayerObservers`. `TntBlockPlugin` reads
-    // `MessageReader<PlayerWillDestroyBlock>` — the host-side
-    // `digging.rs` writers route a clone of each event into
-    // `PendingInboundLifecycle.block_events`, drained per-dim by the
-    // extract closure below.
-    sub_app.add_plugins(TntBlockPlugin);
-    sub_app.add_plugins(ExplosionPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);

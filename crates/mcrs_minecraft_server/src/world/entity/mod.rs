@@ -1,6 +1,5 @@
 use crate::world::bus::to;
 use crate::world::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
-use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
 use crate::world::entity::mob::MobTrackerPlugin;
 use crate::world::entity::player::{DimPlayerPlugin, HostAnchor};
 use bevy_app::{App, FixedPreUpdate, Plugin};
@@ -22,7 +21,6 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
 
-pub mod explosive;
 pub mod item;
 pub mod mob;
 pub mod player;
@@ -45,7 +43,6 @@ impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
         app.add_plugins(DimPlayerPlugin);
-        app.add_plugins(PrimedTntPlugin);
         app.add_plugins(MobTrackerPlugin);
         app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);

@@ -10,7 +10,6 @@ use tracing::{debug, info};
 
 pub mod aoi;
 pub mod arrival;
-pub mod block;
 pub mod block_entity;
 pub mod block_update;
 pub mod bridge;
@@ -98,17 +97,6 @@ impl Plugin for WorldPlugin {
                 .chain(),
         );
 
-        // Per-dim plugins are composed inside each sub-app via
-        // `spawn_dim_subapp`: `DimensionPlugin`, `LightingPlugin`,
-        // `ChunkPlugin` (worldgen), `TntBlockPlugin`,
-        // `ExplosionPlugin`, `PlayerTrackerPlugin`, `BlockUpdatePlugin`
-        // (+ `BlockUpdateWirePlugin`), `MinecraftEntityPlugin`, and
-        // `LootPlugin`. Each is self-contained: it reads only the
-        // registries the sub-app receives in `DimRegistryBundle` and
-        // works against the sub-app World's `Dimension`/`Chunk`/`Column`
-        // entities. The per-sub-app `Messages<PlayerWillDestroyBlock>`
-        // buffer is fed by the host-side `digging.rs` writers via
-        // `PendingInboundLifecycle.block_events`.
         app.add_observer(
             |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
                 queue.0.push(trigger.event().entity);
