@@ -1,5 +1,4 @@
 use crate::world::block_entity::spawn_block_entities;
-use crate::world::entity::mob::spawn_generated_entities;
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -23,7 +22,6 @@ use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
@@ -390,7 +388,6 @@ pub(crate) fn deliver_merged_columns(
     section_dimensions: Query<&InDimension>,
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
-    registry: Option<Res<RegistrySet>>,
     mut commands: Commands,
     slow_threshold: Option<Res<SlowColumnThreshold>>,
     mut slow: Local<SlowColumns>,
@@ -444,14 +441,8 @@ pub(crate) fn deliver_merged_columns(
             .find_map(|(section, _)| section_dimensions.get(*section).ok())
         {
             Some(dim) => {
+                // No plugin spawns generated entities yet, so they are dropped here.
                 spawn_block_entities(&mut commands, *dim, block_entities);
-                spawn_generated_entities(
-                    &mut commands,
-                    *dim,
-                    &sections_data,
-                    registry.as_deref(),
-                    entities,
-                );
             }
             None => tracing::debug!(
                 dropped = block_entities.len() + entities.len(),

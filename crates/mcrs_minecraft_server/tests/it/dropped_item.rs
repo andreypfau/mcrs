@@ -12,7 +12,7 @@ use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
 use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
-use mcrs_minecraft_level::entity::mob::EntityKind;
+use mcrs_minecraft_level::entity::EntityKind;
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;

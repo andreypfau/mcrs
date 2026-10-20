@@ -15,8 +15,9 @@ use bevy_ecs::prelude::{
 use bevy_ecs::relationship::RelationshipSourceCollection;
 use bevy_platform::time::Instant;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_entity::keys::EntityType;
+use uuid::Uuid;
 
-pub mod mob;
 pub mod physics;
 pub mod player;
 
@@ -343,3 +344,25 @@ fn synced_entity_removed(
     };
     synced_entities.0.remove(event.entity);
 }
+
+#[derive(Component, Clone, Copy, Debug, Deref)]
+pub struct EntityKind(pub EntityType);
+
+#[derive(Debug, Clone, Copy, Component, Deref, PartialEq, Eq)]
+pub struct EntityUuid(pub Uuid);
+
+impl Default for EntityUuid {
+    fn default() -> Self {
+        EntityUuid(Uuid::new_v4())
+    }
+}
+
+/// Back-link from an entity to the section holding it; the section's despawn
+/// takes its entities with it.
+#[derive(Component, Clone, Copy, Debug, Deref)]
+#[relationship(relationship_target = SectionMobs)]
+pub struct EntityInSection(pub Entity);
+
+#[derive(Component, Debug, Default, Deref)]
+#[relationship_target(relationship = EntityInSection, linked_spawn)]
+pub struct SectionMobs(Vec<Entity>);

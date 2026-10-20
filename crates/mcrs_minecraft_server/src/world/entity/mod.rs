@@ -1,6 +1,5 @@
 use crate::world::bus::to;
 use crate::world::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
-use crate::world::entity::mob::MobTrackerPlugin;
 use crate::world::entity::player::{DimPlayerPlugin, HostAnchor};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
@@ -22,20 +21,9 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositi
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
 
 pub mod item;
-pub mod mob;
 pub mod player;
 
-pub use mcrs_minecraft_level::entity::mob::EntityUuid;
-
-#[cfg(test)]
-pub(crate) fn report_registries() -> &'static mcrs_minecraft_registry::RegistrySet {
-    static REGISTRIES: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
-        std::sync::LazyLock::new(|| {
-            mcrs_minecraft_world::registries::static_registries()
-                .unwrap_or_else(|report| panic!("{report}"))
-        });
-    &REGISTRIES
-}
+pub use mcrs_minecraft_level::entity::EntityUuid;
 
 pub struct MinecraftEntityPlugin;
 
@@ -43,7 +31,6 @@ impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
         app.add_plugins(DimPlayerPlugin);
-        app.add_plugins(MobTrackerPlugin);
         app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);
         app.add_systems(
