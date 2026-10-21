@@ -4,7 +4,9 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;
 
-use crate::item::harness::{TestLookup, decode, from_json, hex, in_samples, json_value, wire};
+use crate::item::harness::{
+    TestLookup, decode, from_json, hex, in_samples, json_value, named, wire,
+};
 
 #[derive(Deserialize)]
 struct Case {
@@ -36,7 +38,11 @@ fn predicates_match_the_vanilla_codecs() {
             let label = format!("{} {}", case.kind, case.input);
             let value = from_json(kind, &case.input);
             assert_eq!(json_value(&value), case.json, "{label}");
-            assert_eq!(hash_ops::hash(&value).unwrap(), case.hash, "{label}");
+            assert_eq!(
+                hash_ops::hash(&named(&value)).unwrap(),
+                case.hash,
+                "{label}"
+            );
 
             let bytes = hex(&case.wire);
             if case.ordered {
@@ -45,7 +51,7 @@ fn predicates_match_the_vanilla_codecs() {
             let decoded = decode(&lookup, kind, &bytes);
             assert_eq!(json_value(&decoded), case.json, "{label} from the wire");
             assert_eq!(
-                hash_ops::hash(&decoded).unwrap(),
+                hash_ops::hash(&named(&decoded)).unwrap(),
                 case.hash,
                 "{label} from the wire"
             );
@@ -271,7 +277,7 @@ fn a_double_range_between_the_two_zeros_is_kept() {
         json_value(&value),
         serde_json::from_str::<serde_json::Value>(input).unwrap()
     );
-    assert_eq!(hash_ops::hash(&value).unwrap(), 816994624);
+    assert_eq!(hash_ops::hash(&named(&value)).unwrap(), 816994624);
 }
 
 /// Partial predicates are a map, so two predicate lists that differ only in

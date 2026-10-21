@@ -18,7 +18,7 @@ use mcrs_minecraft_item::loot::LootTable;
 use mcrs_minecraft_item::patch::ComponentPatch;
 use mcrs_minecraft_item::{AttributeOperation, InstrumentValue, Text};
 use mcrs_minecraft_predicate::{EnchantmentKey, UniqueMap};
-use mcrs_minecraft_registry::{Holder, HolderList, HolderSet};
+use mcrs_minecraft_registry::{Checked, Holder, HolderList, HolderSet};
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
@@ -258,7 +258,7 @@ function! {
 
 function! {
     pub struct SetComponents {
-        pub components: ComponentPatch,
+        pub components: Checked<ComponentPatch>,
     }
 }
 
@@ -328,7 +328,7 @@ pub enum NameTarget {
 function! {
     pub struct SetName {
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub name: Option<Text>,
+        pub name: Option<Checked<Text>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub entity: Option<EntityTarget>,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -437,7 +437,7 @@ function! {
 
 function! {
     pub struct Filtered {
-        pub item_filter: ItemPredicate,
+        pub item_filter: Checked<ItemPredicate>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub on_pass: Option<Holder<LootItemFunction>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -574,7 +574,7 @@ function! {
 
 function! {
     pub struct SetLore {
-        pub lore: Vec<Text>,
+        pub lore: Vec<Checked<Text>>,
         #[serde(flatten)]
         pub mode: ListOperation,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -621,7 +621,7 @@ function! {
 
 function! {
     pub struct SetBannerPattern {
-        pub patterns: BannerPatterns,
+        pub patterns: Checked<BannerPatterns>,
         pub append: bool,
     }
 }
@@ -704,7 +704,7 @@ function! {
 
 function! {
     pub struct SetWrittenBookPages {
-        pub pages: Vec<Filterable<Text>>,
+        pub pages: Vec<Checked<Filterable<Text>>>,
         #[serde(flatten)]
         pub mode: ListOperation,
     }

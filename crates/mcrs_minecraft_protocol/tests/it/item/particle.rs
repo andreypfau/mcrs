@@ -20,7 +20,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::particle::RawParticle;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 
-use crate::item::harness::{TestLookup, hex};
+use crate::item::harness::{TestLookup, hex, named, read_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("particles").text());
 
@@ -86,9 +86,9 @@ fn check(label: &str) -> ParticleOptions {
     assert_eq!(to_hex(&wire(&decoded)), to_hex(&bytes), "{label}: wire");
 
     let json = golden(&format!("{label}.json"));
-    let parsed: ParticleOptions = serde_json::from_str(json).unwrap();
+    let parsed: ParticleOptions = read_json(json).unwrap();
     assert_eq!(parsed, decoded, "{label}: json {json}");
-    let back: serde_json::Value = serde_json::to_value(&decoded).unwrap();
+    let back: serde_json::Value = serde_json::to_value(named(&decoded)).unwrap();
     let vanilla: serde_json::Value = serde_json::from_str(json).unwrap();
     assert_eq!(back, vanilla, "{label}: json round trip");
 
@@ -193,11 +193,9 @@ fn golden_values_decode_to_the_expected_fields() {
         check("item_stack"),
         ParticleOptions::Item(ItemParticle {
             item: Template::new(
-                ResourceKey::from_location(
-                    mcrs_minecraft_core::rl!("minecraft:diamond_sword").to_arc()
-                ),
+                mcrs_minecraft_item::keys::Item::DiamondSword.id(),
                 3,
-                serde_json::from_str::<ComponentPatch>(r#"{"max_stack_size":16}"#).unwrap(),
+                read_json::<ComponentPatch>(r#"{"max_stack_size":16}"#).unwrap(),
             )
             .unwrap(),
         })
@@ -223,11 +221,7 @@ fn golden_values_decode_to_the_expected_fields() {
 
 #[test]
 fn data_forms_validate_like_vanilla() {
-    let error = |json: &str| {
-        serde_json::from_str::<ParticleOptions>(json)
-            .unwrap_err()
-            .to_string()
-    };
+    let error = |json: &str| read_json::<ParticleOptions>(json).unwrap_err().to_string();
     assert!(
         error(r#"{"type":"minecraft:dust","color":1,"scale":5.0}"#)
             .contains("Value must be within range [0.01;4.0]: 5.0")
@@ -246,13 +240,13 @@ fn data_forms_validate_like_vanilla() {
     )
     .contains("Entity position sources are not allowed"));
 
-    let bare: ParticleOptions = serde_json::from_str(r#"{"type":"flame"}"#).unwrap();
+    let bare: ParticleOptions = read_json(r#"{"type":"flame"}"#).unwrap();
     assert_eq!(bare, ParticleOptions::Flame);
     let rgb: ParticleOptions =
-        serde_json::from_str(r#"{"type":"dust","color":[1.0,0.0,0.0],"scale":1}"#).unwrap();
+        read_json(r#"{"type":"dust","color":[1.0,0.0,0.0],"scale":1}"#).unwrap();
     assert_eq!(to_hex(&wire(&rgb)), "15ffff00003f800000");
     let unknown: ParticleOptions =
-        serde_json::from_str(r#"{"type":"block","block_state":"minecraft:nope"}"#).unwrap();
+        read_json(r#"{"type":"block","block_state":"minecraft:nope"}"#).unwrap();
     assert!(
         unknown
             .encode_ctx(&lookup(), &mut Vec::new())
@@ -329,8 +323,7 @@ fn block_states_read_from_data_resolve_like_vanilla() {
         .collect();
     assert_eq!(labels.len(), 7, "{labels:?}");
     for label in labels {
-        let parsed: ParticleOptions =
-            serde_json::from_str(golden(&format!("{label}.input"))).unwrap();
+        let parsed: ParticleOptions = read_json(golden(&format!("{label}.input"))).unwrap();
         let bytes = wire(&parsed);
         assert_eq!(
             to_hex(&bytes),
@@ -338,7 +331,7 @@ fn block_states_read_from_data_resolve_like_vanilla() {
             "{label}: wire"
         );
         let resolved = ParticleOptions::decode_ctx(&lookup(), &mut &bytes[..]).unwrap();
-        let json: serde_json::Value = serde_json::to_value(&resolved).unwrap();
+        let json: serde_json::Value = serde_json::to_value(named(&resolved)).unwrap();
         let vanilla: serde_json::Value =
             serde_json::from_str(golden(&format!("{label}.parsed_json"))).unwrap();
         assert_eq!(json, vanilla, "{label}: json of the resolved state");

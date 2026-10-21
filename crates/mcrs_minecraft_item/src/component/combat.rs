@@ -1,11 +1,13 @@
 use crate::damage_type::DamageType;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
+use std::sync::Arc;
+
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{Ref, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::Holder;
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
@@ -17,9 +19,10 @@ float_default! {
     ninety / is_ninety = 90.0f32,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BlocksAttacks {
+pub struct BlocksAttacks<M: Refs = Resolved> {
     #[serde(
         default = "zero",
         deserialize_with = "non_negative_float",
@@ -36,22 +39,22 @@ pub struct BlocksAttacks {
         default = "default_reductions",
         skip_serializing_if = "is_default_reductions"
     )]
-    pub damage_reductions: Vec<DamageReduction>,
+    pub damage_reductions: Vec<DamageReduction<M>>,
     #[serde(default, skip_serializing_if = "ItemDamageFunction::is_default")]
     pub item_damage: ItemDamageFunction,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bypassed_by: Option<HolderSet<DamageType>>,
+    pub bypassed_by: Option<M::Set<RegistryOf<DamageType>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub block_sound: Option<Holder<SoundEvent>>,
+    pub block_sound: Option<Sound<M>>,
     #[serde(
         default,
         rename = "disabled_sound",
         skip_serializing_if = "Option::is_none"
     )]
-    pub disable_sound: Option<Holder<SoundEvent>>,
+    pub disable_sound: Option<Sound<M>>,
 }
 
-impl Default for BlocksAttacks {
+impl<M: Refs> Default for BlocksAttacks<M> {
     fn default() -> Self {
         BlocksAttacks {
             block_delay_seconds: 0.0,
@@ -65,11 +68,11 @@ impl Default for BlocksAttacks {
     }
 }
 
-fn default_reductions() -> Vec<DamageReduction> {
+fn default_reductions<M: Refs>() -> Vec<DamageReduction<M>> {
     vec![DamageReduction::default()]
 }
 
-fn is_default_reductions(reductions: &[DamageReduction]) -> bool {
+fn is_default_reductions<M: Refs>(reductions: &[DamageReduction<M>]) -> bool {
     matches!(
         reductions,
         [only] if is_ninety(&only.horizontal_blocking_angle)
@@ -79,9 +82,10 @@ fn is_default_reductions(reductions: &[DamageReduction]) -> bool {
     )
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DamageReduction {
+pub struct DamageReduction<M: Refs = Resolved> {
     #[serde(
         default = "ninety",
         deserialize_with = "positive_float",
@@ -89,12 +93,12 @@ pub struct DamageReduction {
     )]
     pub horizontal_blocking_angle: f32,
     #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
-    pub types: Option<HolderSet<DamageType>>,
+    pub types: Option<M::Set<RegistryOf<DamageType>>>,
     pub base: f32,
     pub factor: f32,
 }
 
-impl Default for DamageReduction {
+impl<M: Refs> Default for DamageReduction<M> {
     fn default() -> Self {
         DamageReduction {
             horizontal_blocking_angle: 90.0,
@@ -130,9 +134,10 @@ impl ItemDamageFunction {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PiercingWeapon {
+pub struct PiercingWeapon<M: Refs = Resolved> {
     #[serde(
         default = "default_true",
         skip_serializing_if = "std::clone::Clone::clone"
@@ -141,12 +146,12 @@ pub struct PiercingWeapon {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dismounts: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sound: Option<Holder<SoundEvent>>,
+    pub sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hit_sound: Option<Holder<SoundEvent>>,
+    pub hit_sound: Option<Sound<M>>,
 }
 
-impl Default for PiercingWeapon {
+impl<M: Refs> Default for PiercingWeapon<M> {
     fn default() -> Self {
         PiercingWeapon {
             deals_knockback: true,
@@ -157,9 +162,10 @@ impl Default for PiercingWeapon {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct KineticWeapon {
+pub struct KineticWeapon<M: Refs = Resolved> {
     #[serde(default = "ten", skip_serializing_if = "is_ten")]
     pub contact_cooldown_ticks: NonNegativeInt,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -175,9 +181,9 @@ pub struct KineticWeapon {
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub damage_multiplier: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sound: Option<Holder<SoundEvent>>,
+    pub sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hit_sound: Option<Holder<SoundEvent>>,
+    pub hit_sound: Option<Sound<M>>,
 }
 
 fn ten() -> NonNegativeInt {
@@ -188,7 +194,7 @@ fn is_ten(ticks: &NonNegativeInt) -> bool {
     ticks.0 == 10
 }
 
-impl Default for KineticWeapon {
+impl<M: Refs> Default for KineticWeapon<M> {
     fn default() -> Self {
         KineticWeapon {
             contact_cooldown_ticks: ten(),
@@ -214,8 +220,8 @@ pub struct KineticCondition {
     pub min_relative_speed: f32,
 }
 
-fn item_break() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ENTITY_ITEM_BREAK.id())
+fn item_break() -> Sound<Resolved> {
+    Ref::Id(sound_event::ENTITY_ITEM_BREAK.id())
 }
 
 impl Sample for BlocksAttacks {
@@ -271,10 +277,10 @@ impl Sample for BlocksAttacks {
                 },
                 bypassed_by: Some(one_set("in_fire")),
                 block_sound: Some(item_break()),
-                disable_sound: Some(Holder::Direct(SoundEvent {
+                disable_sound: Some(Ref::Inline(Arc::new(SoundEvent {
                     sound_id: rl!("mcrs:off").to_arc(),
                     range: None,
-                })),
+                }))),
             },
         ]
     }
@@ -296,10 +302,10 @@ impl Sample for PiercingWeapon {
                 deals_knockback: false,
                 dismounts: true,
                 sound: Some(item_break()),
-                hit_sound: Some(Holder::Direct(SoundEvent {
+                hit_sound: Some(Ref::Inline(Arc::new(SoundEvent {
                     sound_id: rl!("mcrs:hit").to_arc(),
                     range: Some(4.0),
-                })),
+                }))),
             },
         ]
     }
@@ -346,9 +352,7 @@ impl Sample for KineticWeapon {
                 forward_movement: 0.5,
                 damage_multiplier: 2.0,
                 sound: Some(item_break()),
-                hit_sound: Some(Holder::Reference(
-                    sound_event::ITEM_ARMOR_EQUIP_GENERIC.id(),
-                )),
+                hit_sound: Some(Ref::Id(sound_event::ITEM_ARMOR_EQUIP_GENERIC.id())),
             },
         ]
     }

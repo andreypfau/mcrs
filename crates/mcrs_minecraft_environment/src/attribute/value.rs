@@ -1,11 +1,14 @@
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{NonNegativeInt, int_value, is_default};
-use mcrs_minecraft_item::{Holder, Text};
+use mcrs_minecraft_item::Text;
 use mcrs_minecraft_particle::ParticleOptions;
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_registry::Checked;
+use mcrs_minecraft_sound::Sound;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+type CheckedSound = Checked<Sound<mcrs_minecraft_registries::Resolved>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -115,13 +118,13 @@ pub struct BedRule {
     #[serde(default, skip_serializing_if = "is_default")]
     pub destroy_on_leave: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<Text>,
+    pub error_message: Option<Checked<Text>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientParticle {
-    pub particle: ParticleOptions,
+    pub particle: Checked<ParticleOptions>,
     #[serde(deserialize_with = "crate::attribute::spec::unit_f32")]
     pub probability: f32,
 }
@@ -129,7 +132,7 @@ pub struct AmbientParticle {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Music {
-    pub sound: Holder<SoundEvent>,
+    pub sound: CheckedSound,
     pub min_delay: NonNegativeInt,
     pub max_delay: NonNegativeInt,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -150,7 +153,7 @@ pub struct BackgroundMusic {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientMood {
-    pub sound: Holder<SoundEvent>,
+    pub sound: CheckedSound,
     #[serde(deserialize_with = "int_value")]
     pub tick_delay: i32,
     #[serde(deserialize_with = "int_value")]
@@ -161,7 +164,7 @@ pub struct AmbientMood {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientAdditions {
-    pub sound: Holder<SoundEvent>,
+    pub sound: CheckedSound,
     pub tick_chance: f64,
 }
 
@@ -169,7 +172,7 @@ pub struct AmbientAdditions {
 #[serde(deny_unknown_fields)]
 pub struct AmbientSounds {
     #[serde(default, rename = "loop", skip_serializing_if = "Option::is_none")]
-    pub loop_sound: Option<Holder<SoundEvent>>,
+    pub loop_sound: Option<CheckedSound>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mood: Option<AmbientMood>,
     #[serde(

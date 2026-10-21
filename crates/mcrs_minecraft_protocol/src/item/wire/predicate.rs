@@ -2,13 +2,16 @@ use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_item::keys::DataComponentPredicateType;
+use mcrs_minecraft_registries::{Named, Resolve};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::DeserializeSeed;
 
 use crate::item::component::predicate::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire, read_nbt_wire};
+use crate::item::ctx::{
+    DecodeCtx, EncodeCtx, decode_named_nbt, decode_nbt_wire, encode_named_nbt, encode_nbt_wire,
+    read_nbt_wire, registries,
+};
 use crate::item::patch::ComponentMap;
-use crate::item::wire::nbt_wire::nbt_wire;
 use crate::item::wire::newtype_ctx_wire;
 use crate::registry::static_registry_wire;
 use crate::{Decode, Encode, VarInt};
@@ -21,7 +24,17 @@ newtype_ctx_wire!(
     AdventureModePredicate,
     StatePropertiesPredicate,
 );
-nbt_wire!(ItemPredicate);
+impl EncodeCtx for ItemPredicate {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        encode_named_nbt(self, ctx, w)
+    }
+}
+
+impl DecodeCtx<'_> for ItemPredicate {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        decode_named_nbt(ctx, r)
+    }
+}
 static_registry_wire!(DataComponentPredicateType, "data component predicate type");
 
 impl EncodeCtx for BlockPredicate {
@@ -64,7 +77,7 @@ impl EncodeCtx for DataComponentMatchers {
                 ComponentPredicateEntry::Typed(predicate) => {
                     true.encode(&mut *w)?;
                     predicate.kind().encode(&mut *w)?;
-                    encode_nbt_wire(predicate, &mut *w)?;
+                    encode_nbt_wire(&predicate.name(registries(ctx)?)?, &mut *w)?;
                 }
                 ComponentPredicateEntry::AnyValue(kind) => {
                     false.encode(&mut *w)?;
@@ -90,7 +103,14 @@ impl DecodeCtx<'_> for DataComponentMatchers {
             let entry = match bool::decode(r)? {
                 true => {
                     let kind = DataComponentPredicateType::decode(r)?;
-                    ComponentPredicateEntry::Typed(decode_predicate_wire(kind, r)?)
+                    let named = decode_predicate_wire(kind, r)?;
+                    if ctx.walking() {
+                        continue;
+                    }
+                    ComponentPredicateEntry::Typed(ComponentPredicate::resolve(
+                        named,
+                        registries(ctx)?,
+                    )?)
                 }
                 false => {
                     let kind = DataComponentType::decode(r)?;
@@ -116,6 +136,6 @@ impl DecodeCtx<'_> for DataComponentMatchers {
 fn decode_predicate_wire(
     kind: DataComponentPredicateType,
     r: &mut &[u8],
-) -> anyhow::Result<ComponentPredicate> {
+) -> anyhow::Result<ComponentPredicate<Named>> {
     read_nbt_wire(r, |d| Ok(kind.deserialize(&mut *d)?))
 }

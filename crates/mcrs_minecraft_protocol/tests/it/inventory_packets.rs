@@ -7,6 +7,8 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::{Item, MenuType};
+use mcrs_minecraft_protocol::item::Text as ItemText;
+use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -16,7 +18,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("inventory_packets").text());
@@ -34,6 +36,10 @@ impl RegistryLookup for Fixture {
 
     fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
         self.names.get(&(registry.into(), id))
+    }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        Some(sample_registries())
     }
 }
 
@@ -96,7 +102,7 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
 fn sword(fixture: &Fixture) -> ProtoStack {
     let mut patch = ComponentPatch::EMPTY;
     patch.set(Damage(Range(7)));
-    patch.set(CustomName(Text::text("named")));
+    patch.set(CustomName(ItemText::text("named")));
     patch.set(Unbreakable);
     ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
 }
@@ -336,7 +342,7 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
                 count: 1,
                 components: ComponentMap(vec![
                     MaxStackSize(Range(16)).into(),
-                    CustomName(Text::text("x")).into(),
+                    CustomName(ItemText::text("x")).into(),
                 ]),
             },
             result: ProtoStack::new(item(f, "diamond_sword"), 1, sell_patch),
@@ -428,10 +434,14 @@ fn container_click_carries_hashed_slots() {
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
-    assert!(changed.matches(&sword(f)));
+    assert!(changed.matches(&sword(f), f));
     assert_eq!(
         packet.carried_item,
-        HashedStack::create(&ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY)).unwrap()
+        HashedStack::create(
+            &ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY),
+            f
+        )
+        .unwrap()
     );
 }
 

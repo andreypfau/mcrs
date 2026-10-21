@@ -5,7 +5,7 @@ use mcrs_minecraft_item::component::predicate::{
     ComponentPredicates, ItemPredicate, MobEffectsPredicate,
 };
 use mcrs_minecraft_item::patch::ComponentMap;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registry::{Checked, HolderSet};
 use serde::{Deserialize, Serialize};
 
 use crate::location::LocationPredicate;
@@ -22,7 +22,7 @@ dispatched_map! {
         MovementAffectedBy => movement_affected_by: LocationPredicate,
         Distance => distance: DistancePredicate,
         Movement => movement: MovementPredicate,
-        Effects => effects: MobEffectsPredicate,
+        Effects => effects: Checked<MobEffectsPredicate>,
         Nbt => nbt: NbtPredicate,
         Flags => flags: EntityFlagsPredicate,
         Equipment => equipment: EntityEquipmentPredicate,
@@ -32,8 +32,8 @@ dispatched_map! {
         TargetedEntity => targeted_entity: Box<EntityPredicate>,
         Team => team: String,
         Slots => slots: SlotsPredicate,
-        Components => components: ComponentMap,
-        Predicates => predicates: ComponentPredicates,
+        Components => components: Checked<ComponentMap>,
+        Predicates => predicates: Checked<ComponentPredicates>,
         EntityTags => entity_tags: EntityTagPredicate,
         TypeSpecificLightning => lightning: LightningBoltPredicate,
         TypeSpecificFishingHook => fishing_hook: FishingHookPredicate,
@@ -141,19 +141,19 @@ pub struct EntityFlagsPredicate {
 #[serde(deny_unknown_fields)]
 pub struct EntityEquipmentPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub head: Option<ItemPredicate>,
+    pub head: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub chest: Option<ItemPredicate>,
+    pub chest: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub legs: Option<ItemPredicate>,
+    pub legs: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub feet: Option<ItemPredicate>,
+    pub feet: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<ItemPredicate>,
+    pub body: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mainhand: Option<ItemPredicate>,
+    pub mainhand: Option<Checked<ItemPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub offhand: Option<ItemPredicate>,
+    pub offhand: Option<Checked<ItemPredicate>>,
 }
 
 /// Scoreboard tags the entity carries, none of which name a registry.

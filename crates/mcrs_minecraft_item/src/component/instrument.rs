@@ -1,41 +1,51 @@
+use std::sync::Arc;
+
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_registries::{Ref, Refs, RegistryType, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly};
+use crate::component::common::{InlineRef, WireRef};
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::harness::Sample;
 use crate::harness::entry;
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_sound::{Sound, SoundEvent};
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct InstrumentValue {
-    pub sound_event: Holder<SoundEvent>,
+pub struct InstrumentValue<M: Refs = Resolved> {
+    pub sound_event: Sound<M>,
     #[serde(deserialize_with = "non_negative_float")]
     pub use_duration: f32,
     #[serde(deserialize_with = "positive_float")]
     pub range: f32,
     #[serde(default, skip_serializing_if = "is_default")]
     pub durability_damage: NonNegativeInt,
-    pub description: Text,
+    pub description: Text<M>,
 }
 
 impl RegistryValue for InstrumentValue {
     type Registry = Self;
 }
 
+impl RegistryType for InstrumentValue {
+    type Value = ();
+}
+
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Instrument(pub Holder<InstrumentValue>);
+pub struct Instrument<M: Refs = Resolved>(pub InlineRef<M, InstrumentValue, InstrumentValue<M>>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct JukeboxSong {
-    pub sound_event: Holder<SoundEvent>,
-    pub description: Text,
+pub struct JukeboxSong<M: Refs = Resolved> {
+    pub sound_event: Sound<M>,
+    pub description: Text<M>,
     #[serde(deserialize_with = "positive_float")]
     pub length_in_seconds: f32,
     pub comparator_output: codec::Bounded<0, 15>,
@@ -45,18 +55,23 @@ impl RegistryValue for JukeboxSong {
     type Registry = Self;
 }
 
+impl RegistryType for JukeboxSong {
+    type Value = ();
+}
+
 /// The persistent form is the registry id alone; the wire form carries the
 /// song inline.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct JukeboxPlayable(pub HolderWireOnly<JukeboxSong>);
+pub struct JukeboxPlayable<M: Refs = Resolved>(pub WireRef<M, JukeboxSong, JukeboxSong<M>>);
 
 impl Sample for Instrument {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, STRING_ID};
         match &self.0 {
-            Holder::Reference(_) | Holder::Skipped => vec![("", STRING_ID)],
-            Holder::Direct(value) => {
+            InlineRef::Id(_) => vec![("", STRING_ID)],
+            InlineRef::Inline(value) => {
                 let mut tags = vec![
                     ("", COMPOUND_ID),
                     ("use_duration", FLOAT_ID),
@@ -72,26 +87,26 @@ impl Sample for Instrument {
 
     fn samples() -> Vec<Self> {
         vec![
-            Instrument(Holder::Reference(entry("ponder_goat_horn"))),
-            Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::Reference(
+            Instrument(InlineRef::Id(entry("ponder_goat_horn"))),
+            Instrument(InlineRef::Inline(Arc::new(InstrumentValue {
+                sound_event: Ref::Id(
                     mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
                 ),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),
                 description: Text::text("Horn"),
-            })),
-            Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::Direct(SoundEvent {
+            }))),
+            Instrument(InlineRef::Inline(Arc::new(InstrumentValue {
+                sound_event: Ref::Inline(Arc::new(SoundEvent {
                     sound_id: rl!("mcrs:toot").to_arc(),
                     range: Some(16.0),
-                }),
+                })),
                 use_duration: 0.0,
                 range: 1.5,
                 durability_damage: codec::Bounded(3),
                 description: Text::translate("instrument.mcrs.toot", Vec::new()),
-            })),
+            }))),
         ]
     }
 }
@@ -102,8 +117,6 @@ impl Sample for JukeboxPlayable {
     }
 
     fn samples() -> Vec<Self> {
-        vec![JukeboxPlayable(HolderWireOnly(Holder::Reference(entry(
-            "pigstep",
-        ))))]
+        vec![JukeboxPlayable(WireRef(InlineRef::Id(entry("pigstep"))))]
     }
 }

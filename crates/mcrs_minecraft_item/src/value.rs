@@ -9,7 +9,6 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
 
 use crate::definition::{ItemEntry, Items};
@@ -138,9 +137,8 @@ pub fn named_entry<'a>(
     value: &ItemStackValue,
 ) -> Result<&'a ItemEntry, StackError> {
     items
-        .id_of(value.item.as_str())
-        .and_then(|id| items.get(id))
-        .ok_or_else(|| StackError::UnknownItem(value.item.as_str().to_owned()))
+        .get(value.item)
+        .ok_or_else(|| StackError::UnknownItem(format!("#{}", value.item.number())))
 }
 
 pub fn child_kind(entry: &ItemEntry) -> Option<DataComponentType> {
@@ -221,7 +219,7 @@ pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>>
 
 pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackValue {
     let entry = entry(world, stack, items).expect("a stack entity names a corpus item");
-    let count = world.get::<ItemStack>(stack).unwrap().count;
+    let ItemStack { item, count, .. } = *world.get::<ItemStack>(stack).unwrap();
     let entity = world.entity(stack);
     let own_child_kind = child_kind(entry);
     let mut components = ComponentPatch::EMPTY;
@@ -253,7 +251,7 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
         );
     }
     ItemStackValue {
-        item: ResourceKey::from_location(entry.identifier.clone()),
+        item,
         count: Bounded(i32::from(count)),
         components,
     }

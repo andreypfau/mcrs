@@ -933,44 +933,36 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
 
 #[test]
 fn a_bare_name_takes_the_default_namespace() {
-    test_registries().scope(|| {
-        let bare: InstrumentValue =
-            serde_json::from_str(&instrument("item.goat_horn.sound.0")).unwrap();
-        let written = serde_json::to_value(&bare).unwrap();
-        assert_eq!(written["sound_event"], "minecraft:item.goat_horn.sound.0");
+    let set = test_registries();
+    let bare: InstrumentValue = read_named(set, &instrument("item.goat_horn.sound.0")).unwrap();
+    let written = serde_json::to_value(write_named(set, &bare)).unwrap();
+    assert_eq!(written["sound_event"], "minecraft:item.goat_horn.sound.0");
 
-        let upper = serde_json::from_str::<InstrumentValue>(&instrument(
-            "minecraft:Item.goat_horn.sound.0",
-        ));
-        assert!(upper.is_err());
-    });
+    let upper = read_named::<InstrumentValue>(set, &instrument("minecraft:Item.goat_horn.sound.0"));
+    assert!(upper.is_err());
 }
 
 #[test]
 fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
-    test_registries().scope(|| {
-        let instrument = |extra: &str| {
-            format!(
-                r#"{{
-                    "sound_event": "minecraft:item.goat_horn.sound.0",
-                    "use_duration": 7.0,
-                    "range": 256.0,
-                    "description": {{"translate": "instrument.minecraft.ponder_goat_horn"}}
-                    {extra}
-                }}"#
-            )
-        };
-        assert!(serde_json::from_str::<InstrumentValue>(&instrument("")).is_ok());
-        assert!(
-            serde_json::from_str::<InstrumentValue>(&instrument(r#", "volume": 1.0"#)).is_err()
-        );
+    let set = test_registries();
+    let instrument = |extra: &str| {
+        format!(
+            r#"{{
+                "sound_event": "minecraft:item.goat_horn.sound.0",
+                "use_duration": 7.0,
+                "range": 256.0,
+                "description": {{"translate": "instrument.minecraft.ponder_goat_horn"}}
+                {extra}
+            }}"#
+        )
+    };
+    assert!(read_named::<InstrumentValue>(set, &instrument("")).is_ok());
+    assert!(read_named::<InstrumentValue>(set, &instrument(r#", "volume": 1.0"#)).is_err());
 
-        let painting = |width: u32| {
-            format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#)
-        };
-        assert!(serde_json::from_str::<PaintingVariantValue>(&painting(16)).is_ok());
-        assert!(serde_json::from_str::<PaintingVariantValue>(&painting(17)).is_err());
-    });
+    let painting =
+        |width: u32| format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#);
+    assert!(read_named::<PaintingVariantValue>(set, &painting(16)).is_ok());
+    assert!(read_named::<PaintingVariantValue>(set, &painting(17)).is_err());
 }
 
 #[test]
@@ -1228,8 +1220,9 @@ where
     serde_json::from_str(&text).unwrap()
 }
 
-fn assert_samples_round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(
+fn assert_samples_round_trip(
     type_registry: &str,
+    round_trip: fn(&str) -> serde_json::Value,
     samples: &[(&str, &str)],
 ) {
     let sampled: BTreeSet<String> = samples.iter().map(|(name, _)| (*name).to_owned()).collect();
@@ -1239,7 +1232,7 @@ fn assert_samples_round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(
         "a sample for each type {type_registry} registers, and no other"
     );
     for (name, json) in samples {
-        let written = round_trip::<T>(json);
+        let written = round_trip(json);
         let read: serde_json::Value = serde_json::from_str(json).unwrap();
         assert_eq!(written, read, "{name}");
         assert_eq!(written["type"], *name, "{json}");
@@ -1248,8 +1241,9 @@ fn assert_samples_round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(
 
 #[test]
 fn every_test_environment_type_round_trips() {
-    assert_samples_round_trip::<TestEnvironment>(
+    assert_samples_round_trip(
         "minecraft:test_environment_definition_type",
+        round_trip::<TestEnvironment>,
         &[
             (
                 "minecraft:all_of",
@@ -1307,8 +1301,9 @@ fn every_test_environment_type_round_trips() {
 
 #[test]
 fn every_test_instance_type_round_trips() {
-    assert_samples_round_trip::<TestInstance>(
+    assert_samples_round_trip(
         "minecraft:test_instance_type",
+        round_trip::<TestInstance>,
         &[
             (
                 "minecraft:block_based",
@@ -1450,6 +1445,14 @@ fn synced<T: serde::de::DeserializeOwned + serde::Serialize>(
     })
 }
 
+fn synced_named<T: Resolve>(json: &str) -> mcrs_minecraft_nbt::compound::NbtCompound
+where
+    T::Named: serde::de::DeserializeOwned + serde::Serialize,
+{
+    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries(), &value)).unwrap()
+}
+
 #[test]
 fn test_values_are_synced_with_the_tags_the_game_writes() {
     let instance = synced::<TestInstance>(
@@ -1516,15 +1519,32 @@ fn a_dialog_list_naming_an_unknown_tag_fails() {
     let text = dialog_list_in("known", "#minecraft:nowhere");
     for part in [
         "minecraft:dialog",
-        "minecraft:nowhere",
-        "minecraft:odd",
-        "minecraft/dialog/odd.json",
+        "unresolved references #minecraft:nowhere",
+        "minecraft:dialog/minecraft:odd",
     ] {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
 
     let text = dialog_list_in("known", "#minecraft:known");
     assert!(!text.contains("minecraft:dialog"), "{text}");
+}
+
+#[test]
+fn a_dialog_shown_from_nested_text_must_exist() {
+    let shown = |dialog: &str| {
+        let notice = format!(
+            r#"{{"type":"minecraft:notice","title":{{"text":"t","extra":[{{"text":"x",
+                "click_event":{{"action":"show_dialog","dialog":"{dialog}"}}}}]}}}}"#
+        );
+        load_text(&[("minecraft/dialog/odd.json", &notice)])
+    };
+    let text = shown("minecraft:nowhere");
+    for part in ["minecraft:dialog", "minecraft:nowhere", "minecraft:odd"] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+    let text = shown("minecraft:odd");
+    assert!(!text.contains("minecraft:nowhere"), "{text}");
+    assert!(!text.contains("Error"), "{text}");
 }
 
 const DIALOG_SAMPLES: &[(&str, &str)] = &[
@@ -1644,12 +1664,28 @@ const ACTION_SAMPLES: &[(&str, &str)] = &[
 
 #[test]
 fn every_dialog_type_round_trips() {
-    assert_samples_round_trip::<Dialog>("minecraft:dialog_type", DIALOG_SAMPLES);
-    assert_samples_round_trip::<DialogBody>("minecraft:dialog_body_type", BODY_SAMPLES);
-    assert_samples_round_trip::<Input>("minecraft:input_control_type", INPUT_SAMPLES);
-    assert_samples_round_trip::<Action>("minecraft:dialog_action_type", ACTION_SAMPLES);
+    assert_samples_round_trip(
+        "minecraft:dialog_type",
+        round_trip_named::<Dialog>,
+        DIALOG_SAMPLES,
+    );
+    assert_samples_round_trip(
+        "minecraft:dialog_body_type",
+        round_trip_named::<DialogBody>,
+        BODY_SAMPLES,
+    );
+    assert_samples_round_trip(
+        "minecraft:input_control_type",
+        round_trip_named::<Input>,
+        INPUT_SAMPLES,
+    );
+    assert_samples_round_trip(
+        "minecraft:dialog_action_type",
+        round_trip_named::<Action>,
+        ACTION_SAMPLES,
+    );
 
-    let read = |json: &str| round_trip::<Dialog>(json);
+    let read = |json: &str| round_trip_named::<Dialog>(json);
     assert_eq!(
         read(
             r#"{"type":"minecraft:notice","title":"t",
@@ -1795,7 +1831,7 @@ fn a_dialog_value_outside_its_range_fails() {
 
 #[test]
 fn dialog_values_are_synced_with_the_tags_the_game_writes() {
-    let dialog = synced::<Dialog>(
+    let dialog = synced_named::<Dialog>(
         r#"{"type":"minecraft:multi_action","title":"Pick",
             "actions":[{"label":"A","width":100,
                 "action":{"type":"minecraft:change_page","page":2}}],
@@ -2008,8 +2044,9 @@ fn an_archetype_the_game_refuses_fails_to_parse() {
 
 #[test]
 fn every_enchantment_provider_type_round_trips() {
-    assert_samples_round_trip::<EnchantmentProvider>(
+    assert_samples_round_trip(
         "minecraft:enchantment_provider_type",
+        round_trip::<EnchantmentProvider>,
         &[
             (
                 "minecraft:by_cost",

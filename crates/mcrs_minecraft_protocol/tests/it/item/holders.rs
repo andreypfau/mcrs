@@ -3,7 +3,7 @@ use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_sound::SoundEvent;
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::rl;
@@ -11,12 +11,12 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, DecodeCtx, Holder, HolderWireOnly, ItemComponentValue,
-    JukeboxPlayable, JukeboxSong, PaintingVariant, PaintingVariantValue, hash_ops,
+    Consumable, ConsumeEffect, DecodeCtx, InlineRef, ItemComponentValue, JukeboxPlayable,
+    JukeboxSong, PaintingVariant, PaintingVariantValue, Text, WireRef, hash_ops,
 };
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_registries::{Named, Ref};
 
-use crate::item::harness::{TestLookup, from_json, hex, in_samples, nbt_tree, persistent_json};
+use crate::item::harness::{TestLookup, from_json, hex, named, nbt_tree, persistent_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("item_holders").text());
 
@@ -55,41 +55,43 @@ fn kind_of(label: &str) -> DataComponentType {
 
 #[test]
 fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
-    in_samples(|| {
-        let Golden { lookup, samples } = golden();
-        let mut checked = 0;
-        for (label, fields) in &samples {
-            let Some(input) = fields.get("in") else {
-                continue;
-            };
-            let kind = kind_of(label);
-            let value = from_json(kind, input);
-            assert_eq!(&persistent_json(&value), &fields["json"], "{label} json");
-            assert_eq!(from_json(kind, &fields["json"]), value, "{label} reparse");
+    let Golden { lookup, samples } = golden();
+    let mut checked = 0;
+    for (label, fields) in &samples {
+        let Some(input) = fields.get("in") else {
+            continue;
+        };
+        let kind = kind_of(label);
+        let value = from_json(kind, input);
+        assert_eq!(&persistent_json(&value), &fields["json"], "{label} json");
+        assert_eq!(from_json(kind, &fields["json"]), value, "{label} reparse");
 
-            let mut nbt = Vec::new();
-            mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
-            assert_eq!(
-                nbt_tree(&nbt),
-                nbt_tree(&hex(&fields["nbt"])),
-                "{label} nbt"
-            );
+        let mut nbt = Vec::new();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
+        assert_eq!(
+            nbt_tree(&nbt),
+            nbt_tree(&hex(&fields["nbt"])),
+            "{label} nbt"
+        );
 
-            let hash: i32 = fields["hash"].parse().unwrap();
-            assert_eq!(hash_ops::hash(&value).unwrap(), hash, "{label} hash");
+        let hash: i32 = fields["hash"].parse().unwrap();
+        assert_eq!(
+            hash_ops::hash(&named(&value)).unwrap(),
+            hash,
+            "{label} hash"
+        );
 
-            let wire = hex(&fields["wire"]);
-            let mut out = Vec::new();
-            value.encode_ctx(&lookup, &mut out).unwrap();
-            assert_eq!(out, wire, "{label} wire");
-            let mut r = &wire[..];
-            let back = decode_component_value(kind, &lookup, &mut r).unwrap();
-            assert!(r.is_empty(), "{label} trailing bytes");
-            assert_eq!(back, value, "{label} wire decode");
-            checked += 1;
-        }
-        assert_eq!(checked, 39);
-    });
+        let wire = hex(&fields["wire"]);
+        let mut out = Vec::new();
+        value.encode_ctx(&lookup, &mut out).unwrap();
+        assert_eq!(out, wire, "{label} wire");
+        let mut r = &wire[..];
+        let back = decode_component_value(kind, &lookup, &mut r).unwrap();
+        assert!(r.is_empty(), "{label} trailing bytes");
+        assert_eq!(back, value, "{label} wire decode");
+        checked += 1;
+    }
+    assert_eq!(checked, 39);
 }
 
 fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
@@ -105,7 +107,7 @@ fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
     assert_eq!(back, value);
     let mut s = serde_json::Serializer::new(Vec::new());
     assert!(
-        value.serialize_value(&mut s).is_err(),
+        named(&value).serialize_value(&mut s).is_err(),
         "{label} has no persistent form"
     );
 }
@@ -114,49 +116,48 @@ fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
 fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct",
-        JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
-            sound_event: Holder::Reference(
-                mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
-            ),
+        JukeboxPlayable(WireRef(InlineRef::Inline(Arc::new(JukeboxSong {
+            sound_event: Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
             description: Text::text("Song"),
             length_in_seconds: 12.5,
             comparator_output: Bounded(7),
-        }))),
+        })))),
     );
     wire_only(
         "jukebox_playable_direct_sound",
-        JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
-            sound_event: Holder::Direct(SoundEvent {
+        JukeboxPlayable(WireRef(InlineRef::Inline(Arc::new(JukeboxSong {
+            sound_event: Ref::Inline(Arc::new(SoundEvent {
                 sound_id: rl!("mcrs:song").to_arc(),
                 range: None,
-            }),
+            })),
             description: Text::translate("song.mcrs", Vec::new()),
             length_in_seconds: 1.0,
             comparator_output: Bounded(0),
-        }))),
+        })))),
     );
     wire_only(
         "painting_variant_direct",
-        PaintingVariant(HolderWireOnly(Holder::Direct(PaintingVariantValue {
+        PaintingVariant(WireRef(InlineRef::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(2),
             height: Bounded(1),
             asset_id: rl!("mcrs:art").to_arc(),
             title: Some(Text::text("T")),
             author: None,
-        }))),
+        })))),
     );
     wire_only(
         "painting_variant_direct_both",
-        PaintingVariant(HolderWireOnly(Holder::Direct(PaintingVariantValue {
+        PaintingVariant(WireRef(InlineRef::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(16),
             height: Bounded(16),
             asset_id: rl!("mcrs:big").to_arc(),
             title: None,
             author: Some(Text::translate("author.mcrs", Vec::new())),
-        }))),
+        })))),
     );
-    let inline =
-        serde_json::from_str::<PaintingVariant>(r#"{"width":1,"height":1,"asset_id":"mcrs:a"}"#);
+    let inline = serde_json::from_str::<PaintingVariant<Named>>(
+        r#"{"width":1,"height":1,"asset_id":"mcrs:a"}"#,
+    );
     assert!(inline.is_err(), "inline painting variant is not persistent");
 }
 
@@ -185,14 +186,14 @@ fn errors_read_like_vanilla() {
             "unknown field",
         ),
     ] {
-        let error = serde_json::from_str::<ConsumeEffect>(input).unwrap_err();
+        let error = serde_json::from_str::<ConsumeEffect<Named>>(input).unwrap_err();
         assert!(error.to_string().contains(message), "{input}: {error}");
     }
-    let unit_with_extras = serde_json::from_str::<ConsumeEffect>(
+    let unit_with_extras = serde_json::from_str::<ConsumeEffect<Named>>(
         r#"{"type":"minecraft:clear_all_effects","extra":1}"#,
     );
     assert_eq!(unit_with_extras.unwrap(), ConsumeEffect::ClearAllEffects);
-    let error = serde_json::from_str::<Consumable>(r#"{"consume_seconds":-1}"#).unwrap_err();
+    let error = serde_json::from_str::<Consumable<Named>>(r#"{"consume_seconds":-1}"#).unwrap_err();
     assert!(
         error
             .to_string()
@@ -221,11 +222,9 @@ fn errors_read_like_vanilla() {
             "Value must be non-negative: -Infinity",
         ),
     ] {
-        in_samples(|| {
-            let mut d = serde_json::Deserializer::from_str(input);
-            let error = ItemComponentValue::deserialize_value(kind, &mut d).unwrap_err();
-            assert!(error.to_string().contains(message), "{input}: {error}");
-        });
+        let mut d = serde_json::Deserializer::from_str(input);
+        let error = ItemComponentValue::deserialize_value(kind, &mut d).unwrap_err();
+        assert!(error.to_string().contains(message), "{input}: {error}");
     }
     let bad_type = [5u8];
     let error = ConsumeEffect::decode_ctx(&lookup, &mut &bad_type[..]).unwrap_err();

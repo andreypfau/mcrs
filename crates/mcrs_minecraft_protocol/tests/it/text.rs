@@ -6,9 +6,9 @@ use mcrs_minecraft_nbt::{from_bytes_unnamed, to_bytes_unnamed};
 
 use std::str::FromStr;
 
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_protocol::text::*;
 use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_registries::Key;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -246,7 +246,7 @@ fn vanilla_stream_codec_bytes_decode_and_re_encode() {
 fn an_int_array_below_a_list_stays_an_int_array() {
     let mut hover = Text::text("x");
     hover.style.hover_event = Some(HoverEvent::ShowEntity {
-        id: ResourceKey::from_location(rl!("minecraft:pig").into()),
+        id: Key::new(rl!("minecraft:pig").into()),
         uuid: Uuid::from_u128(0x00000001_00000002_00000003_00000004),
         name: None,
     });

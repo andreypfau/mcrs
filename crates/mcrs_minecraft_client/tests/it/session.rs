@@ -14,6 +14,7 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
+use mcrs_minecraft_item::InlineRef;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -21,7 +22,7 @@ use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
-use mcrs_minecraft_registry::{Holder, NetworkRegistry, RegistrySet};
+use mcrs_minecraft_registry::{NetworkRegistry, RegistrySet};
 
 use crate::boot::{boot, session_registries};
 
@@ -52,7 +53,7 @@ fn disc_song(items: &Items) -> Id<JukeboxSong> {
         .get(disc)
         .and_then(|entry| entry.prototype.get::<JukeboxPlayable>())
         .expect("a music disc names its song");
-    let Holder::Reference(song) = &song.0.0 else {
+    let InlineRef::Id(song) = &song.0.0 else {
         panic!("the corpus names the song by reference");
     };
     *song

@@ -4,11 +4,11 @@ use std::marker::PhantomData;
 use anyhow::ensure;
 use bytes::Bytes;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_registries::{Named, Resolve};
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, scoped};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, registries};
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{
     HashedPatchMap, ItemStackValue, MAX_HASHED_COMPONENTS, ProtoStack, Template,
@@ -19,7 +19,7 @@ use mcrs_minecraft_item::keys::DataComponentType;
 
 impl EncodeCtx for Template {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.0.item.encode_ctx(ctx, &mut w)?;
+        self.0.item.encode(&mut w)?;
         VarInt(self.0.count.0).encode(&mut w)?;
         self.0.components.encode_ctx(ctx, w)
     }
@@ -28,7 +28,7 @@ impl EncodeCtx for Template {
 impl<'a> DecodeCtx<'a> for Template {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         nested(|| {
-            let item = ResourceKey::decode_ctx(ctx, r)?;
+            let item = Id::<Item>::decode(r)?;
             let count = VarInt::decode(r)?.0;
             let components = ComponentPatch::decode_ctx(ctx, r)?;
             Template::new(item, count, components).map_err(anyhow::Error::msg)
@@ -132,17 +132,15 @@ impl RawDelimitedStack {
     /// codec's checks sit on the read side, so the stack is read back from its
     /// persistent form instead.
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ProtoStack> {
-        scoped(ctx, || {
-            let mut r = &self.0[..];
-            let stack = decode_delimited_ctx(ctx, &mut r)?;
-            ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
-            if !stack.is_empty() {
-                let value = stack.to_value(ctx)?;
-                let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
-                mcrs_minecraft_nbt::from_tag::<ItemStackValue>(persistent.into())?;
-            }
-            Ok(stack)
-        })
+        let mut r = &self.0[..];
+        let stack = decode_delimited_ctx(ctx, &mut r)?;
+        ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
+        if !stack.is_empty() {
+            let value = stack.to_value()?.name(registries(ctx)?)?;
+            let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
+            mcrs_minecraft_nbt::from_tag::<ItemStackValue<Named>>(persistent.into())?;
+        }
+        Ok(stack)
     }
 
     pub fn from_stack(
@@ -150,7 +148,7 @@ impl RawDelimitedStack {
         ctx: &dyn RegistryLookup,
     ) -> anyhow::Result<RawDelimitedStack> {
         let mut bytes = Vec::new();
-        scoped(ctx, || encode_delimited_ctx(stack, ctx, &mut bytes))?;
+        encode_delimited_ctx(stack, ctx, &mut bytes)?;
         Ok(RawDelimitedStack(bytes.into()))
     }
 }
@@ -164,7 +162,7 @@ impl Encode for RawDelimitedStack {
 impl Decode<'_> for RawDelimitedStack {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let start = *r;
-        mcrs_minecraft_registry::skip_sets(|| decode_delimited_ctx(&Opaque, r))?;
+        decode_delimited_ctx(&Opaque, r)?;
         Ok(RawDelimitedStack(Bytes::copy_from_slice(
             &start[..start.len() - r.len()],
         )))
@@ -179,21 +177,21 @@ pub struct HashedStack {
 }
 
 impl HashedStack {
-    pub fn create(stack: &ProtoStack) -> anyhow::Result<Option<Self>> {
+    pub fn create(stack: &ProtoStack, ctx: &dyn RegistryLookup) -> anyhow::Result<Option<Self>> {
         if stack.is_empty() {
             return Ok(None);
         }
         Ok(Some(HashedStack {
             id: stack.id,
             count: stack.count,
-            components: HashedPatchMap::create(&stack.components)?,
+            components: HashedPatchMap::create(&stack.components, registries(ctx)?)?,
         }))
     }
 
-    pub fn matches(&self, stack: &ProtoStack) -> bool {
+    pub fn matches(&self, stack: &ProtoStack, ctx: &dyn RegistryLookup) -> bool {
         self.count == stack.count
             && self.id == stack.id
-            && self.components.matches(&stack.components)
+            && registries(ctx).is_ok_and(|names| self.components.matches(&stack.components, names))
     }
 }
 

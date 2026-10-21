@@ -1,5 +1,6 @@
 use std::fmt;
 
+use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver};
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -8,10 +9,38 @@ use super::Ingredient;
 
 /// The ingredient each pattern symbol stands for, in the order read.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PatternKey(pub Vec<(char, Ingredient)>);
+pub struct PatternKey<M: Refs = Resolved>(pub Vec<(char, Ingredient<M>)>);
 
-impl PatternKey {
-    pub fn get(&self, symbol: char) -> Option<&Ingredient> {
+impl Resolve for PatternKey {
+    type Named = PatternKey<Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        named
+            .0
+            .into_iter()
+            .map(|(symbol, ingredient)| {
+                Ok((
+                    symbol,
+                    Resolve::resolve(ingredient, ctx).map_err(|e| e.at(symbol))?,
+                ))
+            })
+            .collect::<Result<_, _>>()
+            .map(PatternKey)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        self.0
+            .iter()
+            .map(|(symbol, ingredient)| {
+                Ok((*symbol, ingredient.name(names).map_err(|e| e.at(symbol))?))
+            })
+            .collect::<Result<_, _>>()
+            .map(PatternKey)
+    }
+}
+
+impl<M: Refs> PatternKey<M> {
+    pub fn get(&self, symbol: char) -> Option<&Ingredient<M>> {
         self.0
             .iter()
             .find(|(key, _)| *key == symbol)
@@ -19,7 +48,7 @@ impl PatternKey {
     }
 }
 
-impl Serialize for PatternKey {
+impl Serialize for PatternKey<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(Some(self.0.len()))?;
         for (symbol, ingredient) in &self.0 {
@@ -29,19 +58,22 @@ impl Serialize for PatternKey {
     }
 }
 
-impl<'de> Deserialize<'de> for PatternKey {
+impl<'de> Deserialize<'de> for PatternKey<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct KeyVisitor;
 
         impl<'de> Visitor<'de> for KeyVisitor {
-            type Value = PatternKey;
+            type Value = PatternKey<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a map of one-character symbols to ingredients")
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<PatternKey, A::Error> {
-                let mut entries: Vec<(char, Ingredient)> = Vec::new();
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<PatternKey<Named>, A::Error> {
+                let mut entries: Vec<(char, Ingredient<Named>)> = Vec::new();
                 while let Some(symbol) = map.next_key::<String>()? {
                     let mut chars = symbol.chars();
                     let (Some(character), None) = (chars.next(), chars.next()) else {
@@ -108,7 +140,7 @@ impl<'de> Deserialize<'de> for Pattern {
 
 /// A shaped recipe's key and pattern agree: every symbol of the pattern is in
 /// the key, and every symbol of the key is used.
-pub(super) fn check_pattern(key: &PatternKey, pattern: &Pattern) -> Result<(), String> {
+pub(super) fn check_pattern<M: Refs>(key: &PatternKey<M>, pattern: &Pattern) -> Result<(), String> {
     let mut symbols = pattern
         .0
         .iter()

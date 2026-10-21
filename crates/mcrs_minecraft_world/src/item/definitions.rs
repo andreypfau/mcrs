@@ -11,7 +11,9 @@ use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::FORMAT_VERSION;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
+use mcrs_minecraft_item::patch::ComponentMap;
+use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError, Template};
+use mcrs_minecraft_registries::{Resolve, ResolveError};
 use mcrs_minecraft_registry::RegistrySet;
 
 pub fn from_files(
@@ -28,9 +30,8 @@ pub fn from_files(
         if bytes.is_empty() {
             return Err(ItemCorpusError::Empty { path });
         }
-        let file: ItemDefinitionFile = registries
-            .scope(|| serde_json::from_slice(&bytes))
-            .map_err(|source| ItemCorpusError::Parse {
+        let file: ItemDefinitionFile =
+            serde_json::from_slice(&bytes).map_err(|source| ItemCorpusError::Parse {
                 path: path.clone(),
                 source,
             })?;
@@ -65,13 +66,18 @@ pub fn from_files(
                     })
             })
             .transpose()?;
+        let resolve_error = |source| ItemCorpusError::Resolve {
+            path: path.clone(),
+            source,
+        };
         entries.push(ItemEntry {
             identifier: item.description.identifier,
             id: Item::Air.id(),
-            prototype: item.components,
+            prototype: ComponentMap::resolve(item.components, registries).map_err(resolve_error)?,
             block_placer: placed.map(|block| block.default_state_id),
             container_slots: placed.and_then(|block| block.container_slots),
-            crafting_remainder: item.crafting_remainder,
+            crafting_remainder: Option::<Template>::resolve(item.crafting_remainder, registries)
+                .map_err(resolve_error)?,
         });
         paths.push(path);
     }
@@ -101,6 +107,8 @@ pub enum ItemCorpusError {
         path: String,
         source: serde_json::Error,
     },
+    #[error("`{path}`: {source}")]
+    Resolve { path: String, source: ResolveError },
     #[error("`{path}` has format_version `{found}`, expected `{FORMAT_VERSION}`")]
     FormatVersion { path: String, found: String },
     #[error("`{file}` has protocol_id {found} where {expected} was expected")]

@@ -1,10 +1,9 @@
 use std::fmt;
 
-use anyhow::{Context, ensure};
+use anyhow::ensure;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
-use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registries::{Key, Named, Namer, Refs, Resolve, Resolved};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -14,51 +13,98 @@ use crate::keys::DataComponentType;
 use crate::keys::Item;
 use crate::patch::ComponentPatch;
 
-validated!(ItemStackValue);
-
 /// Before prototype normalisation: the patch is re-emitted as read.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
-pub struct ItemStackValue {
-    #[serde(rename = "id")]
-    pub item: ResourceKey<Item>,
-    #[serde(default)]
+#[derive(Clone, Debug, PartialEq, Resolve)]
+pub struct ItemStackValue<M: Refs = Resolved> {
+    pub item: M::Id<Item>,
     pub count: codec::Bounded<1, 99, 1>,
-    #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
-    pub components: ComponentPatch,
+    pub components: ComponentPatch<M>,
 }
 
-impl Validate for ItemStackValue {
+pub trait ItemRef {
+    fn is_air(&self) -> bool;
+}
+
+impl ItemRef for Key<Item> {
+    fn is_air(&self) -> bool {
+        self.location().as_str() == Item::Air.as_static_str()
+    }
+}
+
+impl ItemRef for Id<Item> {
+    fn is_air(&self) -> bool {
+        *self == Item::Air.id()
+    }
+}
+
+impl<M: Refs> Validate for ItemStackValue<M>
+where
+    M::Id<Item>: ItemRef,
+{
     fn validate(&self) -> Result<(), String> {
-        if self.item.as_str() == Item::Air.as_static_str() {
+        if self.item.is_air() {
             return Err("Item must not be minecraft:air".into());
         }
         Ok(())
     }
 }
 
-/// A stack written as a map, or as the bare item id when it is one plain item.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Template(pub ItemStackValue);
-
-impl mcrs_minecraft_text::TextTypes for Template {
-    type EntityKey = ResourceKey<mcrs_minecraft_entity::keys::EntityType>;
-    type Dialog = mcrs_minecraft_text::DialogRef;
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StackRepr {
+    id: Key<Item>,
+    #[serde(default)]
+    count: codec::Bounded<1, 99, 1>,
+    #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
+    components: ComponentPatch<Named>,
 }
 
-impl mcrs_minecraft_text::TextSerde for Template {}
+impl Serialize for ItemStackValue<Named> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        StackRepr {
+            id: self.item.clone(),
+            count: self.count,
+            components: self.components.clone(),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ItemStackValue<Named> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let repr = StackRepr::deserialize(d)?;
+        let stack = ItemStackValue {
+            item: repr.id,
+            count: repr.count,
+            components: repr.components,
+        };
+        stack.validate().map_err(D::Error::custom)?;
+        Ok(stack)
+    }
+}
+
+/// A stack written as a map, or as the bare item id when it is one plain item.
+#[derive(Clone, Debug, PartialEq, Resolve)]
+pub struct Template<M: Refs = Resolved>(pub ItemStackValue<M>);
+
+impl<M: Refs> mcrs_minecraft_text::TextTypes for Template<M> {
+    type EntityKey = M::Id<mcrs_minecraft_entity::keys::EntityType>;
+    type Dialog = crate::dialog::DialogRef<M>;
+}
+
+impl mcrs_minecraft_text::TextSerde for Template<Named> {}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TemplateRepr {
-    id: ResourceKey<Item>,
+    id: Key<Item>,
     #[serde(default, skip_serializing_if = "is_default")]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
-    components: ComponentPatch,
+    components: ComponentPatch<Named>,
 }
 
-impl Serialize for Template {
+impl Serialize for Template<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         TemplateRepr {
             id: self.0.item.clone(),
@@ -69,23 +115,23 @@ impl Serialize for Template {
     }
 }
 
-impl<'de> Deserialize<'de> for Template {
+impl<'de> Deserialize<'de> for Template<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct TemplateVisitor;
 
         impl<'de> Visitor<'de> for TemplateVisitor {
-            type Value = Template;
+            type Value = Template<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("an item id or an item stack")
             }
 
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<Template, E> {
-                let item = ResourceKey::deserialize(value::StrDeserializer::<E>::new(id))?;
+            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<Template<Named>, E> {
+                let item = Key::deserialize(value::StrDeserializer::<E>::new(id))?;
                 Template::new(item, 1, ComponentPatch::EMPTY).map_err(E::custom)
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Template, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Template<Named>, A::Error> {
                 let repr = TemplateRepr::deserialize(value::MapAccessDeserializer::new(map))?;
                 Template::new(repr.id, repr.count.0, repr.components).map_err(A::Error::custom)
             }
@@ -95,11 +141,14 @@ impl<'de> Deserialize<'de> for Template {
     }
 }
 
-impl Template {
+impl<M: Refs> Template<M>
+where
+    M::Id<Item>: ItemRef,
+{
     pub fn new(
-        item: ResourceKey<Item>,
+        item: M::Id<Item>,
         count: i32,
-        components: ComponentPatch,
+        components: ComponentPatch<M>,
     ) -> Result<Self, String> {
         if count == 0 {
             return Err("Item must be non-empty".into());
@@ -123,19 +172,19 @@ pub struct HashedPatchMap {
 }
 
 impl HashedPatchMap {
-    pub fn create(patch: &ComponentPatch) -> anyhow::Result<Self> {
+    pub fn create(patch: &ComponentPatch, names: &impl Namer) -> anyhow::Result<Self> {
         let added = patch
             .added
             .iter()
-            .map(|value| Ok((value.kind(), hash_ops::hash(value)?)))
-            .collect::<Result<_, hash_ops::HashError>>()?;
+            .map(|value| Ok((value.kind(), hash_ops::hash(&value.name(names)?)?)))
+            .collect::<anyhow::Result<_>>()?;
         Ok(HashedPatchMap {
             added,
             removed: patch.removed.clone(),
         })
     }
 
-    pub fn matches(&self, patch: &ComponentPatch) -> bool {
+    pub fn matches(&self, patch: &ComponentPatch, names: &impl Namer) -> bool {
         if self.removed.len() != patch.removed.len()
             || !patch.removed.iter().all(|kind| self.removed.contains(kind))
         {
@@ -149,7 +198,11 @@ impl HashedPatchMap {
             else {
                 return false;
             };
-            hash_ops::hash(value).is_ok_and(|actual| actual == *expected)
+            value
+                .name(names)
+                .ok()
+                .and_then(|value| hash_ops::hash(&value).ok())
+                .is_some_and(|actual| actual == *expected)
         })
     }
 }
@@ -188,26 +241,18 @@ impl ProtoStack {
         self.count <= 0 || self.id.number() == 0
     }
 
-    pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
-        let id = ctx
-            .id(crate::keys::ITEM.location().path(), value.item.location())
-            .with_context(|| format!("{} is not in registry item", value.item))?;
-        let id = Id::checked(id, Item::ALL.len())
-            .with_context(|| format!("{} is past the item table", value.item))?;
-        Ok(ProtoStack {
-            id,
+    pub fn from_value(value: &ItemStackValue) -> Self {
+        ProtoStack {
+            id: value.item,
             count: value.count.0,
             components: value.components.clone(),
-        })
+        }
     }
 
-    pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
+    pub fn to_value(&self) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
-        let name = ctx
-            .name(crate::keys::ITEM.location().path(), self.id.number())
-            .with_context(|| format!("registry item has no id {}", self.id.number()))?;
         let value = ItemStackValue {
-            item: ResourceKey::from_location(name.clone()),
+            item: self.id,
             count: codec::Bounded(self.count),
             components: self.components.clone(),
         };
@@ -223,13 +268,13 @@ impl ProtoStack {
 
 /// A stack in a slotted list: the player inventory, the ender chest and a
 /// chest's `Items`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ItemStackWithSlot {
+#[derive(Clone, Debug, PartialEq, Resolve)]
+pub struct ItemStackWithSlot<M: Refs = Resolved> {
     pub slot: u8,
-    pub stack: ItemStackValue,
+    pub stack: ItemStackValue<M>,
 }
 
-impl Serialize for ItemStackWithSlot {
+impl Serialize for ItemStackWithSlot<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
         let mut map = s.serialize_map(None)?;
@@ -248,14 +293,14 @@ impl Serialize for ItemStackWithSlot {
 struct SlotRepr {
     #[serde(rename = "Slot", default, deserialize_with = "codec::int_value")]
     slot: i32,
-    id: ResourceKey<Item>,
+    id: Key<Item>,
     #[serde(default)]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default)]
-    components: ComponentPatch,
+    components: ComponentPatch<Named>,
 }
 
-impl<'de> Deserialize<'de> for ItemStackWithSlot {
+impl<'de> Deserialize<'de> for ItemStackWithSlot<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let repr: SlotRepr = map_only(d)?;
         let stack = ItemStackValue {

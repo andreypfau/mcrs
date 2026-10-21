@@ -73,7 +73,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
             [0, 3, 9, 10, 20, 35]
         );
         assert_eq!(
-            dat.inventory[0].stack.item.as_str(),
+            dat.inventory[0].stack.item.location().as_str(),
             "minecraft:diamond_sword"
         );
         assert_eq!(dat.inventory[2].stack.count.0, 64);
@@ -88,7 +88,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
             ["chest", "offhand"]
         );
         assert_eq!(
-            dat.equipment["chest"].item.as_str(),
+            dat.equipment["chest"].item.location().as_str(),
             "minecraft:leather_chestplate"
         );
         let mut rest: Vec<&str> = dat

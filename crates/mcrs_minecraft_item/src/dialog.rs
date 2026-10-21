@@ -9,8 +9,10 @@ use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
-use mcrs_minecraft_registry::HolderSet;
-type ClickEvent = mcrs_minecraft_text::ClickEvent<Template>;
+use mcrs_minecraft_registries::{
+    Named, Namer, Refs, RegistryType, Resolve, ResolveError, Resolved, Resolver, registry_value,
+};
+type ClickEvent<M> = mcrs_minecraft_text::ClickEvent<Template<M>>;
 use crate::keys::DialogActionType;
 use serde::de::value::StrDeserializer;
 use serde::de::{Error as _, MapAccess, Visitor, value};
@@ -60,25 +62,27 @@ impl AfterAction {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PlainMessage {
-    pub contents: Text,
+pub struct PlainMessage<M: Refs = Resolved> {
+    pub contents: Text<M>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ControlWidth,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct Description(pub PlainMessage);
+pub struct Description<M: Refs = Resolved>(pub PlainMessage<M>);
 
-impl<'de> Deserialize<'de> for Description {
+impl<'de> Deserialize<'de> for Description<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum Repr {
-            Message(PlainMessage),
-            Contents(Text),
+            Message(PlainMessage<Named>),
+            Contents(Text<Named>),
         }
 
         Ok(Description(match Repr::deserialize(d)? {
@@ -91,12 +95,13 @@ impl<'de> Deserialize<'de> for Description {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ItemBody {
-    pub item: Template,
+pub struct ItemBody<M: Refs = Resolved> {
+    pub item: Template<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<Description>,
+    pub description: Option<Description<M>>,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_decorations: bool,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
@@ -107,15 +112,16 @@ pub struct ItemBody {
     pub height: ItemSize,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum DialogBody {
-    Item(ItemBody),
-    PlainMessage(PlainMessage),
+pub enum DialogBody<M: Refs = Resolved> {
+    Item(ItemBody<M>),
+    PlainMessage(PlainMessage<M>),
 }
 
 mcrs_minecraft_registry::dispatch! {
-    DialogBody, key = "type", registry = crate::keys::DialogBodyType,
+    DialogBody<Named>, key = "type", registry = crate::keys::DialogBodyType,
     {
         Item => Item,
         PlainMessage => PlainMessage,
@@ -138,11 +144,12 @@ impl<'de> Deserialize<'de> for InputKey {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BooleanInput {
+pub struct BooleanInput<M: Refs = Resolved> {
     pub key: InputKey,
-    pub label: Text,
+    pub label: Text<M>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub initial: bool,
     #[serde(default = "true_text", skip_serializing_if = "is_true_text")]
@@ -151,15 +158,16 @@ pub struct BooleanInput {
     pub on_false: String,
 }
 
-validated!(NumberRangeInput);
+validated!(NumberRangeInput<Named>);
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct NumberRangeInput {
+pub struct NumberRangeInput<M: Refs = Resolved> {
     pub key: InputKey,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ControlWidth,
-    pub label: Text,
+    pub label: Text<M>,
     #[serde(default = "generic_value", skip_serializing_if = "is_generic_value")]
     pub label_format: String,
     pub start: f32,
@@ -178,7 +186,7 @@ fn positive_step<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f32>, D::Erro
     positive_float(d).map(Some)
 }
 
-impl Validate for NumberRangeInput {
+impl<M: Refs> Validate for NumberRangeInput<M> {
     fn validate(&self) -> Result<(), String> {
         if let Some(initial) = self.initial {
             let low = self.start.min(self.end);
@@ -193,34 +201,35 @@ impl Validate for NumberRangeInput {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct OptionEntry {
+pub struct OptionEntry<M: Refs = Resolved> {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub display: Option<Text>,
+    pub display: Option<Text<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub initial: bool,
 }
 
-impl Serialize for OptionEntry {
+impl Serialize for OptionEntry<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         OptionEntry::serialize(self, s)
     }
 }
 
-impl<'de> Deserialize<'de> for OptionEntry {
+impl<'de> Deserialize<'de> for OptionEntry<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct EntryVisitor;
 
         impl<'de> Visitor<'de> for EntryVisitor {
-            type Value = OptionEntry;
+            type Value = OptionEntry<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("an option id or an option")
             }
 
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<OptionEntry, E> {
+            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<OptionEntry<Named>, E> {
                 Ok(OptionEntry {
                     id: id.to_owned(),
                     display: None,
@@ -228,7 +237,7 @@ impl<'de> Deserialize<'de> for OptionEntry {
                 })
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<OptionEntry, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<OptionEntry<Named>, A::Error> {
                 OptionEntry::deserialize(value::MapAccessDeserializer::new(map))
             }
         }
@@ -237,22 +246,26 @@ impl<'de> Deserialize<'de> for OptionEntry {
     }
 }
 
-validated!(SingleOptionInput);
+validated!(SingleOptionInput<Named>);
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct SingleOptionInput {
+pub struct SingleOptionInput<M: Refs = Resolved> {
     pub key: InputKey,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ControlWidth,
-    #[serde(deserialize_with = "codec::non_empty")]
-    pub options: Vec<OptionEntry>,
-    pub label: Text,
+    #[serde(
+        deserialize_with = "codec::non_empty",
+        bound(deserialize = "OptionEntry<M>: Deserialize<'de>")
+    )]
+    pub options: Vec<OptionEntry<M>>,
+    pub label: Text<M>,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub label_visible: bool,
 }
 
-impl Validate for SingleOptionInput {
+impl<M: Refs> Validate for SingleOptionInput<M> {
     fn validate(&self) -> Result<(), String> {
         if self.options.iter().filter(|option| option.initial).count() > 1 {
             return Err("Multiple initial values".into());
@@ -270,15 +283,16 @@ pub struct Multiline {
     pub height: Option<Height>,
 }
 
-validated!(TextInput);
+validated!(TextInput<Named>);
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct TextInput {
+pub struct TextInput<M: Refs = Resolved> {
     pub key: InputKey,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ControlWidth,
-    pub label: Text,
+    pub label: Text<M>,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub label_visible: bool,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -289,7 +303,7 @@ pub struct TextInput {
     pub multiline: Option<Multiline>,
 }
 
-impl Validate for TextInput {
+impl<M: Refs> Validate for TextInput<M> {
     fn validate(&self) -> Result<(), String> {
         let length = self.initial.encode_utf16().count();
         if i64::try_from(length).is_ok_and(|length| length > i64::from(self.max_length.0)) {
@@ -299,17 +313,18 @@ impl Validate for TextInput {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum Input {
-    Boolean(BooleanInput),
-    NumberRange(NumberRangeInput),
-    SingleOption(SingleOptionInput),
-    Text(TextInput),
+pub enum Input<M: Refs = Resolved> {
+    Boolean(BooleanInput<M>),
+    NumberRange(NumberRangeInput<M>),
+    SingleOption(SingleOptionInput<M>),
+    Text(TextInput<M>),
 }
 
 mcrs_minecraft_registry::dispatch! {
-    Input, key = "type", registry = crate::keys::InputControlType,
+    Input<Named>, key = "type", registry = crate::keys::InputControlType,
     {
         Boolean => Boolean,
         NumberRange => NumberRange,
@@ -381,12 +396,30 @@ mcrs_minecraft_registry::dispatch! {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Action {
-    Static(ClickEvent),
+pub enum Action<M: Refs = Resolved> {
+    Static(ClickEvent<M>),
     Dynamic(DynamicAction),
 }
 
-impl Serialize for Action {
+impl Resolve for Action {
+    type Named = Action<Named>;
+
+    fn resolve<C: Resolver>(named: Action<Named>, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(match named {
+            Action::Static(event) => Action::Static(Resolve::resolve(event, ctx)?),
+            Action::Dynamic(action) => Action::Dynamic(action),
+        })
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Action<Named>, ResolveError> {
+        Ok(match self {
+            Action::Static(event) => Action::Static(event.name(names)?),
+            Action::Dynamic(action) => Action::Dynamic(action.clone()),
+        })
+    }
+}
+
+impl Serialize for Action<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
             Action::Dynamic(action) => action.serialize(s),
@@ -414,7 +447,7 @@ impl Serialize for Action {
     }
 }
 
-impl<'de> Deserialize<'de> for Action {
+impl<'de> Deserialize<'de> for Action<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let mut compound = NbtCompound::deserialize(d)?;
         let position = compound
@@ -456,7 +489,8 @@ impl<'de> Deserialize<'de> for Action {
         compound
             .child_tags
             .push(("action".to_owned(), NbtTag::String(name.to_owned())));
-        let event: ClickEvent = from_tag(NbtTag::Compound(compound)).map_err(D::Error::custom)?;
+        let event: ClickEvent<Named> =
+            from_tag(NbtTag::Compound(compound)).map_err(D::Error::custom)?;
         let written = to_nbt_compound(&event).map_err(D::Error::custom)?;
         if let Some(unknown) = given.iter().find(|key| written.get(key).is_none()) {
             return Err(D::Error::custom(format_args!(
@@ -467,19 +501,20 @@ impl<'de> Deserialize<'de> for Action {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ActionButton {
-    pub label: Text,
+pub struct ActionButton<M: Refs = Resolved> {
+    pub label: Text<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tooltip: Option<Text>,
+    pub tooltip: Option<Text<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ButtonWidth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub action: Option<Action>,
+    pub action: Option<Action<M>>,
 }
 
-fn ok_button() -> ActionButton {
+fn ok_button<M: Refs>() -> ActionButton<M> {
     ActionButton {
         label: Text::translate("gui.ok", Vec::new()),
         tooltip: None,
@@ -488,20 +523,21 @@ fn ok_button() -> ActionButton {
     }
 }
 
-fn is_ok_button(button: &ActionButton) -> bool {
+fn is_ok_button<M: Refs>(button: &ActionButton<M>) -> bool {
     *button == ok_button()
 }
 
 macro_rules! dialog_type {
     ($name:ident { $($field:tt)* }) => {
-        validated!($name);
+        validated!($name<Named>);
 
+        #[registry_value]
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         #[serde(remote = "Self", deny_unknown_fields)]
-        pub struct $name {
-            pub title: Text,
+        pub struct $name<M: Refs = Resolved> {
+            pub title: Text<M>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
-            pub external_title: Option<Text>,
+            pub external_title: Option<Text<M>>,
             #[serde(default = "default_true", skip_serializing_if = "is_true")]
             pub can_close_with_escape: bool,
             #[serde(default = "default_true", skip_serializing_if = "is_true")]
@@ -509,13 +545,13 @@ macro_rules! dialog_type {
             #[serde(default, skip_serializing_if = "is_default")]
             pub after_action: AfterAction,
             #[serde(default, skip_serializing_if = "CompactList::is_empty")]
-            pub body: CompactList<DialogBody>,
+            pub body: CompactList<DialogBody<M>>,
             #[serde(default, skip_serializing_if = "Vec::is_empty")]
-            pub inputs: Vec<Input>,
+            pub inputs: Vec<Input<M>>,
             $($field)*
         }
 
-        impl Validate for $name {
+        impl<M: Refs> Validate for $name<M> {
             fn validate(&self) -> Result<(), String> {
                 if self.pause && !self.after_action.unpauses() {
                     return Err(
@@ -531,26 +567,29 @@ macro_rules! dialog_type {
 
 dialog_type!(Notice {
     #[serde(default = "ok_button", skip_serializing_if = "is_ok_button")]
-    pub action: ActionButton,
+    pub action: ActionButton<M>,
 });
 
 dialog_type!(Confirmation {
-    pub yes: ActionButton,
-    pub no: ActionButton,
+    pub yes: ActionButton<M>,
+    pub no: ActionButton<M>,
 });
 
 dialog_type!(MultiAction {
-    #[serde(deserialize_with = "codec::non_empty")]
-    pub actions: Vec<ActionButton>,
+    #[serde(
+        deserialize_with = "codec::non_empty",
+        bound(deserialize = "ActionButton<M>: Deserialize<'de>")
+    )]
+    pub actions: Vec<ActionButton<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit_action: Option<ActionButton>,
+    pub exit_action: Option<ActionButton<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub columns: Columns,
 });
 
 dialog_type!(ServerLinks {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit_action: Option<ActionButton>,
+    pub exit_action: Option<ActionButton<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub columns: Columns,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -561,27 +600,28 @@ dialog_type!(ServerLinks {
 // written inline in the list, which is refused here until a holder set that holds inline entries
 // exists.
 dialog_type!(DialogList {
-    pub dialogs: HolderSet<crate::dialog::Dialog>,
+    pub dialogs: M::Set<Dialog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit_action: Option<ActionButton>,
+    pub exit_action: Option<ActionButton<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub columns: Columns,
     #[serde(default, skip_serializing_if = "is_default")]
     pub button_width: ButtonWidth,
 });
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum Dialog {
-    Notice(Notice),
-    Confirmation(Confirmation),
-    MultiAction(MultiAction),
-    ServerLinks(ServerLinks),
-    DialogList(DialogList),
+pub enum Dialog<M: Refs = Resolved> {
+    Notice(Notice<M>),
+    Confirmation(Confirmation<M>),
+    MultiAction(MultiAction<M>),
+    ServerLinks(ServerLinks<M>),
+    DialogList(DialogList<M>),
 }
 
 mcrs_minecraft_registry::dispatch! {
-    Dialog, key = "type", registry = crate::keys::DialogType,
+    Dialog<Named>, key = "type", registry = crate::keys::DialogType,
     {
         Notice => Notice,
         ServerLinks => ServerLinks,
@@ -590,3 +630,9 @@ mcrs_minecraft_registry::dispatch! {
         Confirmation => Confirmation,
     }
 }
+
+impl RegistryType for Dialog {
+    type Value = ();
+}
+
+pub type DialogRef<M = Resolved> = crate::component::common::InlineRef<M, Dialog, Dialog<M>>;

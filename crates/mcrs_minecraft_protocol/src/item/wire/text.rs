@@ -4,35 +4,26 @@ use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::enums::DyeColor;
 use crate::item::component::text::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
+use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::wire::{newtype_ctx_wire, newtype_wire};
-use crate::text::Text;
-use crate::{Bounded, Decode, Encode};
+use crate::{Decode, Encode};
 
-newtype_wire!(
-    CustomName,
-    ItemName,
-    ItemModel,
-    TooltipStyle,
-    NoteBlockSound
-);
-newtype_ctx_wire!(SignTextFront, SignTextBack);
+newtype_wire!(ItemModel, TooltipStyle, NoteBlockSound);
+newtype_ctx_wire!(CustomName, ItemName, SignTextFront, SignTextBack);
 
-impl Encode for Lore {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.lines.encode(w)
+impl EncodeCtx for Lore {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        self.lines.encode_ctx(ctx, w)
     }
 }
 
-impl Decode<'_> for Lore {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+impl DecodeCtx<'_> for Lore {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Lore {
-            lines: Bounded::decode(r)?,
+            lines: DecodeCtx::decode_ctx(ctx, r)?,
         })
     }
 }
-
-ctx_free!(Lore);
 
 impl EncodeCtx for SignText {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -46,7 +37,7 @@ impl EncodeCtx for SignText {
 impl DecodeCtx<'_> for SignText {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(SignText::new(
-            <[Text; 4]>::decode_ctx(ctx, r)?,
+            DecodeCtx::decode_ctx(ctx, r)?,
             Option::decode_ctx(ctx, r)?,
             DyeColor::decode(r)?,
             bool::decode(r)?,

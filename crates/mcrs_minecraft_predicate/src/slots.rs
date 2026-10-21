@@ -1,13 +1,14 @@
 use std::sync::LazyLock;
 
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
+use mcrs_minecraft_registry::Checked;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::unique_map::UniqueMap;
 
 /// The item each slot range must hold, in the order read.
-pub type SlotsPredicate = UniqueMap<SlotRange, ItemPredicate>;
+pub type SlotsPredicate = UniqueMap<SlotRange, Checked<ItemPredicate>>;
 
 /// One of the named slot ranges of an entity: a single slot such as
 /// `weapon.mainhand`, or a group such as `container.*`.

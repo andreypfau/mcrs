@@ -67,7 +67,7 @@ macro_rules! decode_arm {
         $variant
     };
     ($variant:path, $ctx:ident, $r:ident, $payload:ty) => {
-        $variant(<$payload>::decode_ctx($ctx, $r)?)
+        $variant(DecodeCtx::decode_ctx($ctx, $r)?)
     };
 }
 

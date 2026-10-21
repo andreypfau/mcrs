@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::component::common::{BoundedString, Filterable};
 use crate::harness::Sample;
 use mcrs_minecraft_core::Bounded;
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
@@ -72,9 +73,10 @@ impl Sample for WritableBookContent {
 pub const TITLE_CHARS: usize = 32;
 pub const WRITTEN_PAGE_CHARS: usize = 32767;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct WrittenBookContent {
+pub struct WrittenBookContent<M: Refs = Resolved> {
     pub title: Filterable<BoundedString<TITLE_CHARS>>,
     pub author: String,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -82,9 +84,10 @@ pub struct WrittenBookContent {
     #[serde(
         default,
         deserialize_with = "restricted_pages",
-        skip_serializing_if = "Vec::is_empty"
+        skip_serializing_if = "Vec::is_empty",
+        bound(deserialize = "Text<M>: Serialize + DeserializeOwned")
     )]
-    pub pages: Vec<Filterable<Text>>,
+    pub pages: Vec<Filterable<Text<M>>>,
     #[serde(default, skip_serializing_if = "Not::not")]
     pub resolved: bool,
 }
@@ -92,8 +95,10 @@ pub struct WrittenBookContent {
 /// A page is measured by the length of its flat JSON text in UTF-16 units, as
 /// Gson's `JsonWriter` emits it, which also escapes U+2028 and U+2029 as six
 /// characters.
-fn restricted_pages<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Filterable<Text>>, D::Error> {
-    let pages = Vec::<Filterable<Text>>::deserialize(d)?;
+fn restricted_pages<'de, D: Deserializer<'de>, T: Serialize + DeserializeOwned>(
+    d: D,
+) -> Result<Vec<Filterable<T>>, D::Error> {
+    let pages = Vec::<Filterable<T>>::deserialize(d)?;
     for page in &pages {
         for text in std::iter::once(&page.raw).chain(page.filtered.iter()) {
             let json = serde_json::to_string(text).map_err(D::Error::custom)?;

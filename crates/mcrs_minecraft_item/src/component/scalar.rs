@@ -77,6 +77,43 @@ macro_rules! record_codec {
 }
 pub(crate) use record_codec;
 
+/// `record_codec!` for a value read and written in the named form only.
+macro_rules! named_record_codec {
+    ($($ty:ident),* $(,)?) => {$(
+        impl<'de> serde::Deserialize<'de> for $ty<mcrs_minecraft_registries::Named> {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                struct MapOnly;
+
+                impl<'de> serde::de::Visitor<'de> for MapOnly {
+                    type Value = $ty<mcrs_minecraft_registries::Named>;
+
+                    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        f.write_str("a map")
+                    }
+
+                    fn visit_map<A: serde::de::MapAccess<'de>>(
+                        self,
+                        map: A,
+                    ) -> Result<Self::Value, A::Error> {
+                        <$ty<mcrs_minecraft_registries::Named>>::deserialize(
+                            serde::de::value::MapAccessDeserializer::new(map),
+                        )
+                    }
+                }
+
+                d.deserialize_map(MapOnly)
+            }
+        }
+
+        impl serde::Serialize for $ty<mcrs_minecraft_registries::Named> {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                $ty::<mcrs_minecraft_registries::Named>::serialize(self, s)
+            }
+        }
+    )*};
+}
+pub(crate) use named_record_codec;
+
 macro_rules! var_int_record {
     ($($ty:ident { $field:ident: $inner:ty }),* $(,)?) => {$(
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -1,3 +1,6 @@
+// The `Sync` check of a loot table walks text through `Holder`, whose `V::Registry` projection
+// keeps that cycle from being coinductive, so it goes deeper than the default limit.
+#![recursion_limit = "256"]
 #[rustfmt::skip]
 pub mod keys;
 mod buffer;

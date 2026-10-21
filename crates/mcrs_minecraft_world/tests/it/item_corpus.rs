@@ -7,10 +7,11 @@ use mcrs_minecraft_item::for_each_data_component;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{
-    AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
+    AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments,
     InteractAnimation, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation, TooltipDisplay,
     UseEffects,
 };
+use mcrs_minecraft_registries::Ref;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
@@ -148,8 +149,8 @@ fn block_placers_and_remainders_resolve() {
         .unwrap();
     assert_eq!(bucket.block_placer, None);
     assert_eq!(
-        bucket.crafting_remainder.as_ref().unwrap().0.item.as_str(),
-        "minecraft:bucket"
+        bucket.crafting_remainder.as_ref().unwrap().0.item,
+        Item::Bucket.id()
     );
     assert!(items.iter().filter(|e| e.block_placer.is_some()).count() > 1000);
 }
@@ -179,7 +180,7 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(map.get::<Rarity>(), Some(&Rarity::Common));
     assert_eq!(
         map.get::<BreakSound>(),
-        Some(&BreakSound(Holder::Reference(
+        Some(&BreakSound(Ref::Id(
             mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()
         )))
     );

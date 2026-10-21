@@ -3,16 +3,17 @@ use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
 use anyhow::ensure;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Validate;
+use mcrs_minecraft_item::component::trim::TrimPatternRef;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup, skipping_sets};
-use serde::{Deserialize, Serialize};
+use mcrs_minecraft_registries::{IdSet, Resolved};
+use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
-use crate::item::{DecodeCtx, EncodeCtx, Holder, Template, TrimPattern};
+use crate::item::{DecodeCtx, EncodeCtx, Template};
 use crate::registry::static_registry_wire;
 use crate::{Decode as _, Encode as _, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
@@ -27,8 +28,8 @@ impl EncodeCtx for Ingredient {
 impl DecodeCtx<'_> for Ingredient {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let announced = VarInt::decode(&mut &r[..])?.0;
-        let ingredient = Ingredient(HolderSet::decode_ctx(ctx, r)?);
-        if skipping_sets() {
+        let ingredient = Ingredient(DecodeCtx::decode_ctx(ctx, r)?);
+        if ctx.walking() {
             ensure!(announced != 1, "Ingredients can't be empty");
             return Ok(ingredient);
         }
@@ -41,8 +42,7 @@ static_registry_wire!(SlotDisplayType, "slot display type");
 static_registry_wire!(RecipeDisplayType, "recipe display type");
 static_registry_wire!(RecipeBookCategory, "recipe book category");
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SlotDisplay {
     Empty,
     AnyFuel,
@@ -54,13 +54,13 @@ pub enum SlotDisplay {
         component: DataComponentType,
     },
     Item {
-        item: ResourceKey<Item>,
+        item: Id<Item>,
     },
     ItemStack {
         item: Template,
     },
     Tag {
-        tag: HolderSet<Item>,
+        tag: IdSet<Item>,
     },
     Dyed {
         dye: Box<SlotDisplay>,
@@ -69,7 +69,7 @@ pub enum SlotDisplay {
     SmithingTrim {
         base: Box<SlotDisplay>,
         material: Box<SlotDisplay>,
-        pattern: Holder<TrimPattern>,
+        pattern: TrimPatternRef<Resolved>,
     },
     WithRemainder {
         input: Box<SlotDisplay>,
@@ -80,20 +80,21 @@ pub enum SlotDisplay {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
-    SlotDisplay, key = "type", registry = SlotDisplayType,
-    {
-        Empty,
-        AnyFuel,
-        WithAnyPotion,
-        OnlyWithComponent,
-        Item,
-        ItemStack,
-        Tag,
-        Dyed,
-        SmithingTrim,
-        WithRemainder,
-        Composite,
+impl SlotDisplay {
+    pub fn kind(&self) -> SlotDisplayType {
+        match self {
+            Self::Empty => SlotDisplayType::Empty,
+            Self::AnyFuel => SlotDisplayType::AnyFuel,
+            Self::WithAnyPotion { .. } => SlotDisplayType::WithAnyPotion,
+            Self::OnlyWithComponent { .. } => SlotDisplayType::OnlyWithComponent,
+            Self::Item { .. } => SlotDisplayType::Item,
+            Self::ItemStack { .. } => SlotDisplayType::ItemStack,
+            Self::Tag { .. } => SlotDisplayType::Tag,
+            Self::Dyed { .. } => SlotDisplayType::Dyed,
+            Self::SmithingTrim { .. } => SlotDisplayType::SmithingTrim,
+            Self::WithRemainder { .. } => SlotDisplayType::WithRemainder,
+            Self::Composite { .. } => SlotDisplayType::Composite,
+        }
     }
 }
 
@@ -151,13 +152,13 @@ impl DecodeCtx<'_> for SlotDisplay {
                     component: DataComponentType::decode(r)?,
                 },
                 SlotDisplayType::Item => Self::Item {
-                    item: ResourceKey::decode_ctx(ctx, r)?,
+                    item: DecodeCtx::decode_ctx(ctx, r)?,
                 },
                 SlotDisplayType::ItemStack => Self::ItemStack {
                     item: Template::decode_ctx(ctx, r)?,
                 },
                 SlotDisplayType::Tag => Self::Tag {
-                    tag: HolderSet::decode_ctx(ctx, r)?,
+                    tag: DecodeCtx::decode_ctx(ctx, r)?,
                 },
                 SlotDisplayType::Dyed => Self::Dyed {
                     dye: boxed(r)?,
@@ -166,7 +167,7 @@ impl DecodeCtx<'_> for SlotDisplay {
                 SlotDisplayType::SmithingTrim => Self::SmithingTrim {
                     base: boxed(r)?,
                     material: boxed(r)?,
-                    pattern: Holder::decode_ctx(ctx, r)?,
+                    pattern: DecodeCtx::decode_ctx(ctx, r)?,
                 },
                 SlotDisplayType::WithRemainder => Self::WithRemainder {
                     input: boxed(r)?,
@@ -180,8 +181,7 @@ impl DecodeCtx<'_> for SlotDisplay {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RecipeDisplay {
     CraftingShapeless {
         ingredients: Vec<SlotDisplay>,
@@ -217,14 +217,15 @@ pub enum RecipeDisplay {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
-    validated RecipeDisplay, key = "type", registry = RecipeDisplayType,
-    {
-        CraftingShapeless,
-        CraftingShaped,
-        Furnace,
-        Stonecutter,
-        Smithing,
+impl RecipeDisplay {
+    pub fn kind(&self) -> RecipeDisplayType {
+        match self {
+            Self::CraftingShapeless { .. } => RecipeDisplayType::CraftingShapeless,
+            Self::CraftingShaped { .. } => RecipeDisplayType::CraftingShaped,
+            Self::Furnace { .. } => RecipeDisplayType::Furnace,
+            Self::Stonecutter { .. } => RecipeDisplayType::Stonecutter,
+            Self::Smithing { .. } => RecipeDisplayType::Smithing,
+        }
     }
 }
 
@@ -399,7 +400,7 @@ impl DecodeCtx<'_> for RecipeBookEntry {
 
 /// The items a `recipe_property_set` accepts, in the order vanilla's set
 /// iterates them.
-pub type RecipePropertySet = Vec<ResourceKey<Item>>;
+pub type RecipePropertySet = Vec<Id<Item>>;
 
 /// One stonecutter option: the input it accepts and what the button shows.
 #[derive(Clone, Debug, PartialEq)]

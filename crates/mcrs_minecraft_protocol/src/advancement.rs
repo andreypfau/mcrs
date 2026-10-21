@@ -2,13 +2,14 @@ use std::io::Write;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec;
+use mcrs_minecraft_item::Text;
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
 use crate::item::wire::record_ctx_wire;
-use crate::text::Text;
 use crate::{Decode, Encode};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -28,12 +29,13 @@ crate::item::wire::ordinal_enum_wire!(AdvancementType);
 
 /// The wire carries only `background`, `show_toast` and `hidden` as flag bits,
 /// so `announce_to_chat` reads back as `false`.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DisplayInfo {
-    pub icon: Template,
-    pub title: Text,
-    pub description: Text,
+pub struct DisplayInfo<M: Refs = Resolved> {
+    pub icon: Template<M>,
+    pub title: Text<M>,
+    pub description: Text<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "codec::is_default")]
@@ -52,8 +54,8 @@ const FLAG_HIDDEN: i32 = 4;
 
 impl EncodeCtx for DisplayInfo {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.title.encode(&mut w)?;
-        self.description.encode(&mut w)?;
+        self.title.encode_ctx(ctx, &mut w)?;
+        self.description.encode_ctx(ctx, &mut w)?;
         self.icon.encode_ctx(ctx, &mut w)?;
         self.frame.encode(&mut w)?;
         let mut flags = 0;
@@ -76,8 +78,8 @@ impl EncodeCtx for DisplayInfo {
 
 impl DecodeCtx<'_> for DisplayInfo {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let title = Text::decode(r)?;
-        let description = Text::decode(r)?;
+        let title = Text::decode_ctx(ctx, r)?;
+        let description = Text::decode_ctx(ctx, r)?;
         let icon = Template::decode_ctx(ctx, r)?;
         let frame = AdvancementType::decode(r)?;
         let flags = i32::decode(r)?;

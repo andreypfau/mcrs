@@ -5,15 +5,15 @@ use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::{Registered, RegistryValue, ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{Registered, ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_item::component::{InlineRef, WireRef};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::{
-    HolderSet, Registry, RegistryLookup, Tags, skip_sets, skipping_sets,
+use mcrs_minecraft_registries::{
+    IdSet, Key, Namer, Ref, RegistryType, Resolve, Resolved, Resolver,
 };
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 use uuid::Uuid;
 
-use crate::item::component::Holder;
 use crate::registry::{decode_holder_id, decode_registry_id, encode_holder_id, encode_registry_id};
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
@@ -28,11 +28,30 @@ pub trait DecodeCtx<'a>: Sized {
 
 pub const MAX_NESTING: u32 = 64;
 
-pub(crate) fn scoped<T>(ctx: &dyn RegistryLookup, run: impl FnOnce() -> T) -> T {
-    match ctx.registries() {
-        Some(registries) => registries.scope(run),
-        None => run(),
+pub(crate) fn registries(ctx: &dyn RegistryLookup) -> anyhow::Result<&RegistrySet> {
+    ctx.registries()
+        .context("a registry reference needs the local registries")
+}
+
+/// `value` in the named form, written as one network NBT tag.
+pub(crate) fn encode_named_nbt<T: Resolve<Named: serde::Serialize>>(
+    value: &T,
+    ctx: &dyn RegistryLookup,
+    w: impl Write,
+) -> anyhow::Result<()> {
+    encode_nbt_wire(&value.name(registries(ctx)?)?, w)
+}
+
+/// A network NBT tag in the named form, resolved against the local registries.
+pub(crate) fn decode_named_nbt<T: Resolve<Named: serde::de::DeserializeOwned> + Default>(
+    ctx: &dyn RegistryLookup,
+    r: &mut &[u8],
+) -> anyhow::Result<T> {
+    let named = decode_nbt_wire::<T::Named>(r)?;
+    if ctx.walking() {
+        return Ok(T::default());
     }
+    Ok(T::resolve(named, registries(ctx)?)?)
 }
 
 thread_local! {
@@ -98,7 +117,6 @@ ctx_free!(
     Text,
     NbtCompound,
     ResourceLocation<Arc<str>>,
-    Id<mcrs_minecraft_item::keys::Item>,
 );
 
 impl<T: EncodeCtx> EncodeCtx for Option<T> {
@@ -252,129 +270,169 @@ impl<'a, R: Registered> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
-fn local_registry<R: Registered>(ctx: &dyn RegistryLookup) -> anyhow::Result<Registry<R>> {
-    ctx.registries()
-        .and_then(|set| set.registry::<R>())
-        .with_context(|| format!("registry {} is not loaded", R::REGISTRY))
-}
-
-fn local_tags<R: Registered>(ctx: &dyn RegistryLookup) -> anyhow::Result<Tags<R>> {
-    ctx.registries()
-        .and_then(|set| set.tags::<R>())
-        .with_context(|| format!("registry {} has no tags", R::REGISTRY))
-}
-
-fn wire_id<R: Registered>(
-    local: &Registry<R>,
-    id: Id<R>,
-    ctx: &dyn RegistryLookup,
-) -> anyhow::Result<u16> {
-    let registry = R::REGISTRY.path();
-    let name = local
-        .name(id)
-        .with_context(|| format!("{id:?} is not in registry {registry}"))?;
-    ctx.id(registry, name)
+fn wire_number<R: RegistryType>(id: Id<R>, ctx: &dyn RegistryLookup) -> anyhow::Result<u16> {
+    let set = registries(ctx)?;
+    let registry = set
+        .registry_name::<R>()
+        .with_context(|| format!("no registry is bound to {}", std::any::type_name::<R>()))?;
+    let name =
+        Namer::name(set, id).with_context(|| format!("{id:?} is not in registry {registry}"))?;
+    ctx.id(registry.path(), name)
         .with_context(|| format!("{name} is not in registry {registry}"))
 }
 
-impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V>
-where
-    V::Registry: Registered,
-{
+fn local_id<R: RegistryType>(wire: u16, ctx: &dyn RegistryLookup) -> anyhow::Result<Id<R>> {
+    if ctx.walking() {
+        return Id::checked(0, 1).context("a placeholder id");
+    }
+    let set = registries(ctx)?;
+    let registry = set
+        .registry_name::<R>()
+        .with_context(|| format!("no registry is bound to {}", std::any::type_name::<R>()))?;
+    let name = ctx
+        .name(registry.path(), wire)
+        .with_context(|| format!("registry {} has no id {wire}", registry.path()))?;
+    Resolver::id(set, &Key::new(name.clone())).map_err(anyhow::Error::msg)
+}
+
+impl<R: RegistryType> EncodeCtx for Id<R> {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        encode_registry_id(wire_number(*self, ctx)?, w)
+    }
+}
+
+impl<'a, R: RegistryType> DecodeCtx<'a> for Id<R> {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        local_id(decode_registry_id(r)?, ctx)
+    }
+}
+
+fn encode_ref<R: RegistryType, V: EncodeCtx>(
+    reference: Result<Id<R>, &V>,
+    ctx: &dyn RegistryLookup,
+    mut w: impl Write,
+) -> anyhow::Result<()> {
+    match reference {
+        Ok(id) => encode_holder_id(Some(wire_number(id, ctx)?), w),
+        Err(value) => {
+            encode_holder_id(None, &mut w)?;
+            value.encode_ctx(ctx, w)
+        }
+    }
+}
+
+fn decode_ref<'a, R: RegistryType, V: DecodeCtx<'a>>(
+    ctx: &dyn RegistryLookup,
+    r: &mut &'a [u8],
+) -> anyhow::Result<Result<Id<R>, V>> {
+    match decode_holder_id(r)? {
+        Some(wire) => local_id(wire, ctx).map(Ok),
+        None => V::decode_ctx(ctx, r).map(Err),
+    }
+}
+
+impl<R: RegistryType, V: EncodeCtx> EncodeCtx for Ref<R, V> {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        match self {
+            Ref::Id(id) => encode_ref::<R, V>(Ok(*id), ctx, w),
+            Ref::Inline(value) => encode_ref::<R, V>(Err(value), ctx, w),
+        }
+    }
+}
+
+impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for Ref<R, V> {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Ok(match decode_ref::<R, V>(ctx, r)? {
+            Ok(id) => Ref::Id(id),
+            Err(value) => Ref::Inline(Arc::new(value)),
+        })
+    }
+}
+
+impl<R: RegistryType, V: EncodeCtx> EncodeCtx for InlineRef<Resolved, R, V> {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        match self {
+            InlineRef::Id(id) => encode_ref::<R, V>(Ok(*id), ctx, w),
+            InlineRef::Inline(value) => encode_ref::<R, V>(Err(value), ctx, w),
+        }
+    }
+}
+
+impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for InlineRef<Resolved, R, V> {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Ok(match decode_ref::<R, V>(ctx, r)? {
+            Ok(id) => InlineRef::Id(id),
+            Err(value) => InlineRef::Inline(Arc::new(value)),
+        })
+    }
+}
+
+impl<R: RegistryType, V: EncodeCtx> EncodeCtx for WireRef<Resolved, R, V> {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        self.0.encode_ctx(ctx, w)
+    }
+}
+
+impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for WireRef<Resolved, R, V> {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        InlineRef::decode_ctx(ctx, r).map(WireRef)
+    }
+}
+
+impl<R: RegistryType> EncodeCtx for IdSet<R> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
-            Holder::Reference(id) => {
-                let local = local_registry::<V::Registry>(ctx)?;
-                encode_holder_id(Some(wire_id(&local, *id, ctx)?), w)
-            }
-            Holder::Direct(value) => {
-                encode_holder_id(None, &mut w)?;
-                value.encode_ctx(ctx, w)
-            }
-            Holder::Skipped => anyhow::bail!("a skipped reference has no wire form"),
-        }
-    }
-}
-
-impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for Holder<V>
-where
-    V::Registry: Registered,
-{
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let registry = V::Registry::REGISTRY.path();
-        let Some(wire) = decode_holder_id(r)
-            .with_context(|| format!("registry {registry} has no id that wide"))?
-        else {
-            return V::decode_ctx(ctx, r).map(Holder::Direct);
-        };
-        let name = ctx
-            .name(registry, wire)
-            .with_context(|| format!("registry {registry} has no id {wire}"))?;
-        if skipping_sets() {
-            // The walk discards its value and has no registry to resolve the name against.
-            return Ok(Holder::Skipped);
-        }
-        let id = local_registry::<V::Registry>(ctx)?
-            .get(&ResourceKey::<V::Registry>::from_location(name.clone()))
-            .with_context(|| format!("{name} is not in registry {registry}"))?;
-        Ok(Holder::Reference(id))
-    }
-}
-
-impl<R: Registered> EncodeCtx for HolderSet<R> {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        let entries = match self {
-            HolderSet::Named(tag) => {
+            IdSet::Tag(tag) => {
                 VarInt(0).encode(&mut w)?;
-                return local_tags::<R>(ctx)?.name(*tag).encode(w);
+                registries(ctx)?
+                    .tag_name(*tag)
+                    .with_context(|| format!("no tag is numbered {}", tag.number()))?
+                    .encode(w)
             }
-            HolderSet::One(entry) => std::slice::from_ref(entry),
-            HolderSet::List(entries) => &entries[..],
-        };
-        let local = local_registry::<R>(ctx)?;
-        VarInt(entries.len() as i32 + 1).encode(&mut w)?;
-        for &id in entries {
-            encode_registry_id(wire_id(&local, id, ctx)?, &mut w)?;
+            IdSet::List(ids) => {
+                VarInt(ids.len() as i32 + 1).encode(&mut w)?;
+                for &id in ids.iter() {
+                    encode_registry_id(wire_number(id, ctx)?, &mut w)?;
+                }
+                Ok(())
+            }
         }
-        Ok(())
     }
 }
 
-impl<'a, R: Registered> DecodeCtx<'a> for HolderSet<R> {
+impl<'a, R: RegistryType> DecodeCtx<'a> for IdSet<R> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         ensure!(raw >= 0, "holder set with negative length");
-        if skipping_sets() {
-            if raw == 0 {
-                ResourceLocation::<Arc<str>>::decode(r)?;
-            }
-            for _ in 1..raw {
-                decode_registry_id(r)?;
-            }
-            return Ok(HolderSet::default());
-        }
         if raw == 0 {
             let name = ResourceLocation::<Arc<str>>::decode(r)?;
-            return local_tags::<R>(ctx)?
-                .get(&TagKey::<R, _>::from_location(name.clone()))
-                .map(HolderSet::Named)
-                .with_context(|| format!("Missing tag: '{name}' in '{}'", R::REGISTRY));
+            if ctx.walking() {
+                return Ok(IdSet::List(Box::new([])));
+            }
+            return registries(ctx)?
+                .tag(&Key::new(name))
+                .map(IdSet::Tag)
+                .map_err(anyhow::Error::msg);
         }
-        let registry = local_registry::<R>(ctx)?;
         let len = raw as usize - 1;
-        let mut entries = Vec::with_capacity(len.min(r.len()));
+        let mut ids = Vec::with_capacity(len.min(r.len()));
         for _ in 0..len {
-            let key = ResourceKey::<R>::decode_ctx(ctx, r)?;
-            entries.push(
-                registry
-                    .require(&key)
-                    .with_context(|| format!("{key} is not in registry {}", R::REGISTRY))?,
-            );
+            ids.push(Id::<R>::decode_ctx(ctx, r)?);
         }
-        if let [only] = &entries[..] {
-            return Ok(HolderSet::One(*only));
-        }
-        Ok(HolderSet::List(entries.into()))
+        Ok(IdSet::List(ids.into()))
+    }
+}
+
+/// A text a stack component holds: one network NBT tag of its named form.
+impl EncodeCtx for mcrs_minecraft_item::Text {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        encode_named_nbt(self, ctx, w)
+    }
+}
+
+impl<'a> DecodeCtx<'a> for mcrs_minecraft_item::Text {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        decode_named_nbt(ctx, r)
     }
 }
 
@@ -388,6 +446,10 @@ pub(crate) struct Opaque;
 impl RegistryLookup for Opaque {
     fn id(&self, _: &str, _: &ResourceLocation) -> Option<u16> {
         Some(0)
+    }
+
+    fn walking(&self) -> bool {
+        true
     }
 
     fn name(&self, _: &str, _: u16) -> Option<&ResourceLocation> {
@@ -431,14 +493,14 @@ impl<T> std::fmt::Debug for Raw<T> {
 impl<T: EncodeCtx + for<'a> DecodeCtx<'a>> Raw<T> {
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<T> {
         let mut r = &self.0[..];
-        let value = scoped(ctx, || T::decode_ctx(ctx, &mut r))?;
+        let value = T::decode_ctx(ctx, &mut r)?;
         ensure!(r.is_empty(), "{} trailing bytes after a raw value", r.len());
         Ok(value)
     }
 
     pub fn from_value(value: &T, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let mut bytes = Vec::new();
-        scoped(ctx, || value.encode_ctx(ctx, &mut bytes))?;
+        value.encode_ctx(ctx, &mut bytes)?;
         Ok(Raw(bytes.into(), PhantomData))
     }
 }
@@ -452,7 +514,7 @@ impl<T> Encode for Raw<T> {
 impl<T: for<'a> DecodeCtx<'a>> Decode<'_> for Raw<T> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let start = *r;
-        skip_sets(|| T::decode_ctx(&Opaque, r))?;
+        T::decode_ctx(&Opaque, r)?;
         Ok(Raw(
             bytes::Bytes::copy_from_slice(&start[..start.len() - r.len()]),
             PhantomData,
@@ -563,13 +625,13 @@ mod tests {
             .local
             .registry::<mcrs_minecraft_sound::SoundEvent>()
             .unwrap();
-        let holder = Holder::<SoundEvent>::Reference(local.by_name("minecraft:b").unwrap());
+        let holder = Ref::<SoundEvent, SoundEvent>::Id(local.by_name("minecraft:b").unwrap());
         assert_eq!(local.by_name("minecraft:b").unwrap().number(), 2);
 
         let mut bytes = Vec::new();
         holder.encode_ctx(&lookup, &mut bytes).unwrap();
         assert_eq!(decode_holder_id(&mut &bytes[..]).unwrap(), Some(1));
-        let decoded = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
+        let decoded = Ref::<SoundEvent, SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
         assert_eq!(decoded, holder);
     }
 
@@ -581,11 +643,12 @@ mod tests {
         );
         let mut bytes = Vec::new();
         encode_holder_id(Some(2), &mut bytes).unwrap();
-        let error = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap_err();
+        let error =
+            Ref::<SoundEvent, SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap_err();
         assert!(
             error
                 .to_string()
-                .contains("minecraft:c is not in registry sound_event"),
+                .contains("unknown entry minecraft:c of minecraft:sound_event"),
             "{error}"
         );
     }
@@ -598,7 +661,9 @@ mod tests {
             "{error}"
         );
 
-        let error = Holder::<SoundEvent>::decode_ctx(&NoRegistries, &mut &[6u8][..]).unwrap_err();
+        let sounds = with_local::<SoundEvent>(lookup("sound_event", &["a"]), &["a"]);
+        let error =
+            Ref::<SoundEvent, SoundEvent>::decode_ctx(&sounds, &mut &[6u8][..]).unwrap_err();
         assert!(
             error
                 .to_string()

@@ -61,11 +61,12 @@ pub mod section;
 pub mod setting;
 pub mod tags;
 mod teleport_flags;
-/// Text components with the item stack template as the hover item.
+/// Text components with the item stack template as the hover item, in the named form a packet
+/// carries.
 pub mod text {
     pub use mcrs_minecraft_text::*;
 
-    pub use crate::item::Text;
+    pub type Text = mcrs_minecraft_item::Text<mcrs_minecraft_registries::Named>;
 }
 pub mod var_int;
 mod var_long;

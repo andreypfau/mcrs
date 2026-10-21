@@ -118,6 +118,19 @@ macro_rules! declare_row {
             $($world.split_named::<$value, $parts>(registry, $split, $join);)?
         }
     };
+    (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr,
+        split $parts:ty, $split:expr, $join:expr) => {
+        let declaration = $declaration;
+        if declared::<$key, $value>($world, $report, &declaration) {
+            let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
+            $world.parse_named::<$value>(registry);
+            if declaration.is_non_empty() {
+                $world.non_empty(registry);
+            }
+            $world.split_named::<$value, $parts>(registry, $split, $join);
+            $world.sync_split_named::<$value, $parts>(registry, $split, $join);
+        }
+    };
     (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
         let declaration = $declaration;
         if declared::<$key, $value>($world, $report, &declaration) {
@@ -165,12 +178,12 @@ registry_table! {
         declared by NoiseGeneratorSettings::declaration(), built in built_noise_settings;
     MaterialRule => MaterialRuleHolder, declared by MaterialRuleHolder::declaration();
     MaterialConditionHolder => MaterialConditionHolder, declared by MaterialConditionHolder::declaration();
-    crate::chat_type::ChatType => ChatType, synced as Clone::clone, received as ChatType => bare,
+    @synced crate::chat_type::ChatType => ChatType,
         declared by ChatType::declaration();
-    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone, received as TrimPattern => bare,
-        declared by TrimPattern::declaration();
-    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare,
-        declared by TrimMaterial::declaration();
+    @synced mcrs_minecraft_item::TrimPattern => TrimPattern,
+        declared by TrimPattern::declaration().named_by::<TrimPattern>();
+    @synced mcrs_minecraft_item::TrimMaterial => TrimMaterial,
+        declared by TrimMaterial::declaration().named_by::<TrimMaterial>();
     @named WolfVariant => WolfVariantFile
         as (WolfVariant, Vec<SpawnSelector>),
         WolfVariantFile::split, WolfVariantFile::join,
@@ -223,9 +236,8 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as ZombieNautilusVariant => bare,
         declared by ZombieNautilusVariantFile::declaration();
-    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue, synced as Clone::clone,
-        received as PaintingVariantValue => bare,
-        declared by PaintingVariantValue::declaration();
+    @synced mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue,
+        declared by PaintingVariantValue::declaration().named_by::<PaintingVariantValue>();
     @synced crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype,
         declared by SulfurCubeArchetype::declaration();
     DimensionType => DimensionTypeFile
@@ -238,22 +250,20 @@ registry_table! {
         declared by DamageType::declaration();
     mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone, received as BannerPattern => bare,
         declared by BannerPattern::declaration();
-    mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile
+    @synced mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile
         as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join,
-        synced from parts as EnchantmentFile::join,
-        received as EnchantmentFile => |file| file.split(),
-        declared by EnchantmentFile::declaration();
-    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone, received as JukeboxSong => bare,
-        declared by JukeboxSong::declaration();
-    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone, received as InstrumentValue => bare,
-        declared by InstrumentValue::declaration();
+        declared by EnchantmentFile::declaration().named_by::<EnchantmentData>();
+    @synced mcrs_minecraft_item::JukeboxSong => JukeboxSong,
+        declared by JukeboxSong::declaration().named_by::<JukeboxSong>();
+    @synced mcrs_minecraft_item::InstrumentValue => InstrumentValue,
+        declared by InstrumentValue::declaration().named_by::<InstrumentValue>();
     crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone, received as TestEnvironment => bare,
         declared by TestEnvironment::declaration();
     crate::test_types::TestInstance => TestInstance, synced as Clone::clone, received as TestInstance => bare,
         declared by TestInstance::declaration();
-    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone, received as Dialog => bare,
-        declared by Dialog::declaration();
+    @synced mcrs_minecraft_item::dialog::Dialog => Dialog,
+        declared by Dialog::declaration().named_by::<Dialog>();
     WorldClock => WorldClock, synced as Clone::clone, received as WorldClock => bare,
         declared by WorldClock::declaration();
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline),
@@ -283,7 +293,7 @@ registry_table! {
 
 registry_table! {
     fn declare_reloadable_registries, fn reloadable_declarations, |_scope, stage|
-    Recipe => Recipe, declared by Recipe::declaration();
+    @named Recipe => Recipe, declared by Recipe::declaration();
     LootCondition => LootCondition, declared by LootCondition::declaration();
     LootItemFunction => LootItemFunction, declared by LootItemFunction::declaration();
     SlotSource => SlotSource, declared by SlotSource::declaration();

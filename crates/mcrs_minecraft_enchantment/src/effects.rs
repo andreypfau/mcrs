@@ -16,7 +16,7 @@ use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::dispatched_map;
-use mcrs_minecraft_registry::{Holder, HolderSet};
+use mcrs_minecraft_registry::{Checked, Holder, HolderSet};
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_value_provider::FloatProvider;
 
@@ -313,7 +313,7 @@ impl<'de> Deserialize<'de> for BlockState {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct WeightedExplosionParticle {
-    pub particle: ParticleOptions,
+    pub particle: Checked<ParticleOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scaling: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -376,8 +376,8 @@ macro_rules! effect_enum {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             create_fire: Option<bool>,
             block_interaction: ExplosionInteraction,
-            small_particle: ParticleOptions,
-            large_particle: ParticleOptions,
+            small_particle: Checked<ParticleOptions>,
+            large_particle: Checked<ParticleOptions>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             block_particles: Option<Vec<WeightedExplosionParticle>>,
             sound: Holder<SoundEvent>,
@@ -406,7 +406,7 @@ macro_rules! effect_enum {
             trigger_game_event: Option<String>,
         },
         SpawnParticles {
-            particle: ParticleOptions,
+            particle: Checked<ParticleOptions>,
             horizontal_position: PositionSource,
             vertical_position: PositionSource,
             horizontal_velocity: VelocitySource,

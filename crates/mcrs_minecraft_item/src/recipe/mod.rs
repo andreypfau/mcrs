@@ -4,16 +4,16 @@ mod pattern;
 use std::fmt;
 use std::ops::RangeInclusive;
 
+use crate::Template;
 use crate::component::common::MinMaxBounds;
 use crate::component::predicate::PotionsPredicate;
+use crate::component::trim::TrimPatternRef;
 use crate::keys::Item;
 use crate::patch::ComponentPatch;
-use crate::{Template, TrimPattern};
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::{self, Validate, default_true, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::validated;
-use mcrs_minecraft_registry::Holder;
+use mcrs_minecraft_registries::{Key, Named, Refs, Resolved, registry_value};
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -22,35 +22,36 @@ use pattern::check_pattern;
 pub use pattern::{Pattern, PatternKey};
 
 /// A recipe as its data pack file states it, dispatched on its serializer.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum Recipe {
-    CraftingShaped(ShapedRecipe),
-    CraftingShapeless(ShapelessRecipe),
-    CraftingDye(DyeRecipe),
-    CraftingImbue(ImbueRecipe),
-    CraftingTransmute(TransmuteRecipe),
-    CraftingDecoratedPot(DecoratedPotRecipe),
-    BookCloning(BookCloningRecipe),
-    MapExtending(MapExtendingRecipe),
-    FireworkRocket(FireworkRocketRecipe),
-    FireworkStar(FireworkStarRecipe),
-    FireworkStarFade(FireworkStarFadeRecipe),
-    BannerDuplicate(BannerDuplicateRecipe),
-    ShieldDecoration(ShieldDecorationRecipe),
+pub enum Recipe<M: Refs = Resolved> {
+    CraftingShaped(ShapedRecipe<M>),
+    CraftingShapeless(ShapelessRecipe<M>),
+    CraftingDye(DyeRecipe<M>),
+    CraftingImbue(ImbueRecipe<M>),
+    CraftingTransmute(TransmuteRecipe<M>),
+    CraftingDecoratedPot(DecoratedPotRecipe<M>),
+    BookCloning(BookCloningRecipe<M>),
+    MapExtending(MapExtendingRecipe<M>),
+    FireworkRocket(FireworkRocketRecipe<M>),
+    FireworkStar(FireworkStarRecipe<M>),
+    FireworkStarFade(FireworkStarFadeRecipe<M>),
+    BannerDuplicate(BannerDuplicateRecipe<M>),
+    ShieldDecoration(ShieldDecorationRecipe<M>),
     RepairItem,
-    Smelting(CookingRecipe),
-    Blasting(CookingRecipe),
-    Smoking(CookingRecipe),
-    CampfireCooking(CookingRecipe),
-    Stonecutting(StonecutterRecipe),
-    SmithingTransform(SmithingTransformRecipe),
-    SmithingTrim(SmithingTrimRecipe),
-    Brewing(BrewingRecipe),
+    Smelting(CookingRecipe<M>),
+    Blasting(CookingRecipe<M>),
+    Smoking(CookingRecipe<M>),
+    CampfireCooking(CookingRecipe<M>),
+    Stonecutting(StonecutterRecipe<M>),
+    SmithingTransform(SmithingTransformRecipe<M>),
+    SmithingTrim(SmithingTrimRecipe<M>),
+    Brewing(BrewingRecipe<M>),
 }
 
 mcrs_minecraft_registry::dispatch! {
-    Recipe, key = "type", registry = crate::keys::RecipeSerializer,
+    Recipe<Named>, key = "type", registry = crate::keys::RecipeSerializer,
     {
         CraftingShaped => CraftingShaped,
         CraftingShapeless => CraftingShapeless,
@@ -100,153 +101,173 @@ pub enum CookingBookCategory {
     Misc,
 }
 
-validated!(ShapedRecipe);
+validated!(ShapedRecipe<Named>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct ShapedRecipe {
+pub struct ShapedRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CraftingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub key: PatternKey,
+    pub key: PatternKey<M>,
     pub pattern: Pattern,
-    pub result: Template,
+    pub result: Template<M>,
 }
 
-impl Validate for ShapedRecipe {
+impl<M: Refs> Validate for ShapedRecipe<M> {
     fn validate(&self) -> Result<(), String> {
         check_pattern(&self.key, &self.pattern)
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ShapelessRecipe {
+pub struct ShapelessRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CraftingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub result: Template,
-    #[serde(deserialize_with = "codec::sized_list::<1, 9, _, _>")]
-    pub ingredients: Vec<Ingredient>,
+    pub result: Template<M>,
+    #[serde(
+        deserialize_with = "codec::sized_list::<1, 9, _, _>",
+        bound(deserialize = "Ingredient<M>: Deserialize<'de>")
+    )]
+    pub ingredients: Vec<Ingredient<M>>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DyeRecipe {
+pub struct DyeRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CraftingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub target: Ingredient,
-    pub dye: Ingredient,
-    pub result: Template,
+    pub target: Ingredient<M>,
+    pub dye: Ingredient<M>,
+    pub result: Template<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ImbueRecipe {
+pub struct ImbueRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CraftingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub source: Ingredient,
-    pub material: Ingredient,
-    pub result: Template,
+    pub source: Ingredient<M>,
+    pub material: Ingredient<M>,
+    pub result: Template<M>,
 }
 
-validated!(TransmuteRecipe);
+validated!(TransmuteRecipe<Named>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct TransmuteRecipe {
+pub struct TransmuteRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CraftingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub input: Ingredient,
-    pub material: Ingredient,
+    pub input: Ingredient<M>,
+    pub material: Ingredient<M>,
     #[serde(
-        default = "TransmuteRecipe::default_material_count",
-        skip_serializing_if = "TransmuteRecipe::is_default_material_count"
+        default = "default_material_count",
+        skip_serializing_if = "is_default_material_count"
     )]
     pub material_count: MinMaxBounds<i32>,
-    pub result: TransmuteResult,
+    pub result: TransmuteResult<M>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub add_material_count_to_result: bool,
 }
 
-impl TransmuteRecipe {
-    const MATERIAL_COUNT: RangeInclusive<i32> = 1..=8;
+const MATERIAL_COUNT: RangeInclusive<i32> = 1..=8;
 
-    fn default_material_count() -> MinMaxBounds<i32> {
-        MinMaxBounds {
-            min: Some(1),
-            max: Some(1),
-        }
-    }
-
-    fn is_default_material_count(count: &MinMaxBounds<i32>) -> bool {
-        *count == Self::default_material_count()
+fn default_material_count() -> MinMaxBounds<i32> {
+    MinMaxBounds {
+        min: Some(1),
+        max: Some(1),
     }
 }
 
-impl Validate for TransmuteRecipe {
+fn is_default_material_count(count: &MinMaxBounds<i32>) -> bool {
+    *count == default_material_count()
+}
+
+impl<M: Refs> Validate for TransmuteRecipe<M> {
     fn validate(&self) -> Result<(), String> {
-        contained_in(&self.material_count, Self::MATERIAL_COUNT)
+        contained_in(&self.material_count, MATERIAL_COUNT)
     }
 }
 
 /// The item a transmutation makes, its count and the components it adds; a
 /// bare item id reads as that item alone.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct TransmuteResult {
+pub struct TransmuteResult<M: Refs = Resolved> {
     #[serde(rename = "id", default, skip_serializing_if = "Option::is_none")]
-    pub item: Option<ResourceKey<Item>>,
+    pub item: Option<M::Id<Item>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
-    pub components: ComponentPatch,
+    pub components: ComponentPatch<M>,
 }
 
-impl Serialize for TransmuteResult {
+impl<M: Refs> Default for TransmuteResult<M> {
+    fn default() -> Self {
+        TransmuteResult {
+            item: None,
+            count: codec::Bounded::default(),
+            components: ComponentPatch::EMPTY,
+        }
+    }
+}
+
+impl Serialize for TransmuteResult<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         TransmuteResult::serialize(self, s)
     }
 }
 
-impl<'de> Deserialize<'de> for TransmuteResult {
+impl<'de> Deserialize<'de> for TransmuteResult<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct ResultVisitor;
 
         impl<'de> Visitor<'de> for ResultVisitor {
-            type Value = TransmuteResult;
+            type Value = TransmuteResult<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("an item id or a transmute result")
             }
 
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<TransmuteResult, E> {
-                let item = ResourceKey::deserialize(value::StrDeserializer::<E>::new(id))?;
+            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<TransmuteResult<Named>, E> {
+                let item = Key::deserialize(value::StrDeserializer::<E>::new(id))?;
                 Ok(TransmuteResult {
                     item: Some(item),
                     ..TransmuteResult::default()
                 })
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<TransmuteResult, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                map: A,
+            ) -> Result<TransmuteResult<Named>, A::Error> {
                 TransmuteResult::deserialize(value::MapAccessDeserializer::new(map))
             }
         }
@@ -255,184 +276,209 @@ impl<'de> Deserialize<'de> for TransmuteResult {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DecoratedPotRecipe {
-    pub back: Ingredient,
-    pub left: Ingredient,
-    pub right: Ingredient,
-    pub front: Ingredient,
-    pub result: Template,
+pub struct DecoratedPotRecipe<M: Refs = Resolved> {
+    pub back: Ingredient<M>,
+    pub left: Ingredient<M>,
+    pub right: Ingredient<M>,
+    pub front: Ingredient<M>,
+    pub result: Template<M>,
 }
 
-validated!(BookCloningRecipe);
+validated!(BookCloningRecipe<Named>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct BookCloningRecipe {
-    pub source: Ingredient,
-    pub material: Ingredient,
+pub struct BookCloningRecipe<M: Refs = Resolved> {
+    pub source: Ingredient<M>,
+    pub material: Ingredient<M>,
     #[serde(
-        default = "BookCloningRecipe::default_generations",
-        skip_serializing_if = "BookCloningRecipe::is_default_generations"
+        default = "default_generations",
+        skip_serializing_if = "is_default_generations"
     )]
     pub allowed_generations: MinMaxBounds<i32>,
-    pub result: Template,
+    pub result: Template<M>,
 }
 
-impl BookCloningRecipe {
-    const GENERATIONS: RangeInclusive<i32> = 0..=2;
+const GENERATIONS: RangeInclusive<i32> = 0..=2;
 
-    fn default_generations() -> MinMaxBounds<i32> {
-        MinMaxBounds {
-            min: Some(0),
-            max: Some(1),
-        }
-    }
-
-    fn is_default_generations(generations: &MinMaxBounds<i32>) -> bool {
-        *generations == Self::default_generations()
+fn default_generations() -> MinMaxBounds<i32> {
+    MinMaxBounds {
+        min: Some(0),
+        max: Some(1),
     }
 }
 
-impl Validate for BookCloningRecipe {
+fn is_default_generations(generations: &MinMaxBounds<i32>) -> bool {
+    *generations == default_generations()
+}
+
+impl<M: Refs> Validate for BookCloningRecipe<M> {
     fn validate(&self) -> Result<(), String> {
-        contained_in(&self.allowed_generations, Self::GENERATIONS)
+        contained_in(&self.allowed_generations, GENERATIONS)
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MapExtendingRecipe {
-    pub map: Ingredient,
-    pub material: Ingredient,
-    pub result: TransmuteResult,
+pub struct MapExtendingRecipe<M: Refs = Resolved> {
+    pub map: Ingredient<M>,
+    pub material: Ingredient<M>,
+    pub result: TransmuteResult<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct FireworkRocketRecipe {
-    pub shell: Ingredient,
-    pub fuel: Ingredient,
-    pub star: Ingredient,
-    pub result: Template,
+pub struct FireworkRocketRecipe<M: Refs = Resolved> {
+    pub shell: Ingredient<M>,
+    pub fuel: Ingredient<M>,
+    pub star: Ingredient<M>,
+    pub result: Template<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct FireworkStarRecipe {
-    pub shapes: FireworkShapes,
-    pub trail: Ingredient,
-    pub twinkle: Ingredient,
-    pub fuel: Ingredient,
-    pub dye: Ingredient,
-    pub result: Template,
+pub struct FireworkStarRecipe<M: Refs = Resolved> {
+    pub shapes: FireworkShapes<M>,
+    pub trail: Ingredient<M>,
+    pub twinkle: Ingredient<M>,
+    pub fuel: Ingredient<M>,
+    pub dye: Ingredient<M>,
+    pub result: Template<M>,
 }
 
 /// The ingredient that gives a star each explosion shape it can take.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct FireworkShapes {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub small_ball: Option<Ingredient>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub large_ball: Option<Ingredient>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub star: Option<Ingredient>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub creeper: Option<Ingredient>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub burst: Option<Ingredient>,
-}
-
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct FireworkStarFadeRecipe {
-    pub target: Ingredient,
-    pub dye: Ingredient,
-    pub result: Template,
+pub struct FireworkShapes<M: Refs = Resolved> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub small_ball: Option<Ingredient<M>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub large_ball: Option<Ingredient<M>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub star: Option<Ingredient<M>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creeper: Option<Ingredient<M>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub burst: Option<Ingredient<M>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BannerDuplicateRecipe {
-    pub banner: Ingredient,
-    pub result: Template,
+impl<M: Refs> Default for FireworkShapes<M> {
+    fn default() -> Self {
+        FireworkShapes {
+            small_ball: None,
+            large_ball: None,
+            star: None,
+            creeper: None,
+            burst: None,
+        }
+    }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ShieldDecorationRecipe {
-    pub banner: Ingredient,
-    pub target: Ingredient,
-    pub result: Template,
+pub struct FireworkStarFadeRecipe<M: Refs = Resolved> {
+    pub target: Ingredient<M>,
+    pub dye: Ingredient<M>,
+    pub result: Template<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CookingRecipe {
+pub struct BannerDuplicateRecipe<M: Refs = Resolved> {
+    pub banner: Ingredient<M>,
+    pub result: Template<M>,
+}
+
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShieldDecorationRecipe<M: Refs = Resolved> {
+    pub banner: Ingredient<M>,
+    pub target: Ingredient<M>,
+    pub result: Template<M>,
+}
+
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CookingRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub category: CookingBookCategory,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
-    pub ingredient: Ingredient,
-    pub result: Template,
+    pub ingredient: Ingredient<M>,
+    pub result: Template<M>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub experience: f32,
     #[serde(rename = "cookingtime")]
     pub cooking_time: i32,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct StonecutterRecipe {
+pub struct StonecutterRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
-    pub ingredient: Ingredient,
-    pub result: Template,
+    pub ingredient: Ingredient<M>,
+    pub result: Template<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SmithingTransformRecipe {
+pub struct SmithingTransformRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template: Option<Ingredient>,
-    pub base: Ingredient,
+    pub template: Option<Ingredient<M>>,
+    pub base: Ingredient<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub addition: Option<Ingredient>,
-    pub result: Template,
+    pub addition: Option<Ingredient<M>>,
+    pub result: Template<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SmithingTrimRecipe {
+pub struct SmithingTrimRecipe<M: Refs = Resolved> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
-    pub template: Ingredient,
-    pub base: Ingredient,
-    pub addition: Ingredient,
-    pub pattern: Holder<TrimPattern>,
+    pub template: Ingredient<M>,
+    pub base: Ingredient<M>,
+    pub addition: Ingredient<M>,
+    pub pattern: TrimPatternRef<M>,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BrewingRecipe {
-    pub input: PotionIngredient,
-    pub reagent: PotionIngredient,
-    pub output: Template,
+pub struct BrewingRecipe<M: Refs = Resolved> {
+    pub input: PotionIngredient<M>,
+    pub reagent: PotionIngredient<M>,
+    pub output: Template<M>,
 }
 
 /// An ingredient that must also hold one of the potions or effects stated.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PotionIngredient {
-    pub item: Ingredient,
+pub struct PotionIngredient<M: Refs = Resolved> {
+    pub item: Ingredient<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub potion_contents: Option<PotionsPredicate>,
+    pub potion_contents: Option<PotionsPredicate<M>>,
 }
 
 fn contained_in(bounds: &MinMaxBounds<i32>, allowed: RangeInclusive<i32>) -> Result<(), String> {

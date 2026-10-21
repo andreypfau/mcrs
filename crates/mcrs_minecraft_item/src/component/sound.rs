@@ -1,19 +1,22 @@
+use std::sync::Arc;
+
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_sound::{Sound, SoundEvent};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::Holder;
 use crate::harness::Sample;
-use mcrs_minecraft_sound::SoundEvent;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BreakSound(pub Holder<SoundEvent>);
+pub struct BreakSound<M: Refs = Resolved>(pub Sound<M>);
 
-pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> {
+pub fn sound_holder_tags(sound: &Sound<Resolved>) -> Vec<(&'static str, u8)> {
     use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, STRING_ID};
     match sound {
-        Holder::Reference(_) | Holder::Skipped => vec![("", STRING_ID)],
-        Holder::Direct(event) => {
+        Ref::Id(_) => vec![("", STRING_ID)],
+        Ref::Inline(event) => {
             let mut tags = vec![("", COMPOUND_ID), ("sound_id", STRING_ID)];
             if event.range.is_some() {
                 tags.push(("range", FLOAT_ID));
@@ -23,17 +26,17 @@ pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> 
     }
 }
 
-pub fn sound_holder_samples() -> Vec<Holder<SoundEvent>> {
+pub fn sound_holder_samples() -> Vec<Sound<Resolved>> {
     vec![
-        Holder::Reference(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
-        Holder::Direct(SoundEvent {
+        Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
+        Ref::Inline(Arc::new(SoundEvent {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: None,
-        }),
-        Holder::Direct(SoundEvent {
+        })),
+        Ref::Inline(Arc::new(SoundEvent {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: Some(12.5),
-        }),
+        })),
     ]
 }
 

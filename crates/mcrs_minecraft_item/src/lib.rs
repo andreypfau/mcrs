@@ -52,7 +52,7 @@ pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, T
 pub use value::{StackError, item_of, same_item_same_components, stack_to_slot, stack_to_value};
 
 /// Text whose `show_item` hover carries an item stack template.
-pub type Text = mcrs_minecraft_text::Text<Template>;
+pub type Text<M = mcrs_minecraft_registries::Resolved> = mcrs_minecraft_text::Text<Template<M>>;
 
 #[cfg(feature = "bevy")]
 mod bevy {
@@ -77,16 +77,8 @@ mod bevy {
 }
 
 mcrs_minecraft_registries::read_with_serde!(
-    crate::TrimPattern,
-    crate::TrimMaterial,
-    crate::PaintingVariantValue,
     crate::damage_type::DamageType,
-    crate::BannerPattern,
-    crate::JukeboxSong,
-    crate::InstrumentValue,
-    crate::dialog::Dialog,
-    crate::decorated_pot_pattern::DecoratedPotPattern,
-    crate::recipe::Recipe
+    crate::decorated_pot_pattern::DecoratedPotPattern
 );
 
 mcrs_minecraft_registries::declare_registries!(

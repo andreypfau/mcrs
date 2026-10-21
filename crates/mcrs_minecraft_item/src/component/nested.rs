@@ -3,41 +3,45 @@ use std::fmt;
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, int_value};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
 use serde::de::{Error as _, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::Text;
 use crate::component::book::size_limited;
-use crate::component::common::key;
 use crate::component::{CustomName, Damage, MaxStackSize, Unbreakable};
-use crate::harness::Sample;
+use crate::harness::{Sample, entry};
 use crate::keys::DataComponentType;
 use crate::patch::ComponentPatch;
 use crate::stack::Template;
 use mcrs_minecraft_core::Bounded;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UseRemainder(pub Template);
+pub struct UseRemainder<M: Refs = Resolved>(pub Template<M>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct SulfurCubeContent(pub Template);
+pub struct SulfurCubeContent<M: Refs = Resolved>(pub Template<M>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BundleContents(pub Vec<Template>);
+pub struct BundleContents<M: Refs = Resolved>(pub Vec<Template<M>>);
 
 pub const MAX_CHARGED_PROJECTILES: usize = 1024;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
 #[serde(transparent)]
-pub struct ChargedProjectiles {
-    pub items: Bounded<Vec<Template>, MAX_CHARGED_PROJECTILES>,
+pub struct ChargedProjectiles<M: Refs = Resolved> {
+    pub items: Bounded<Vec<Template<M>>, MAX_CHARGED_PROJECTILES>,
 }
 
-impl ChargedProjectiles {
-    pub fn new(items: Vec<Template>) -> anyhow::Result<Self> {
+impl<M: Refs> ChargedProjectiles<M> {
+    pub fn new(items: Vec<Template<M>>) -> anyhow::Result<Self> {
         ensure!(
             items.len() <= MAX_CHARGED_PROJECTILES,
             "Got {} items, but maximum is {MAX_CHARGED_PROJECTILES}",
@@ -49,7 +53,7 @@ impl ChargedProjectiles {
     }
 }
 
-impl<'de> Deserialize<'de> for ChargedProjectiles {
+impl<'de> Deserialize<'de> for ChargedProjectiles<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         size_limited(d).map(|items| Self { items })
     }
@@ -57,21 +61,22 @@ impl<'de> Deserialize<'de> for ChargedProjectiles {
 
 /// Sides are boxed so a rare four-template value does not size every
 /// `ItemComponentValue`.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PotDecorations {
+pub struct PotDecorations<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub back: Option<Box<Template>>,
+    pub back: Option<Box<Template<M>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub left: Option<Box<Template>>,
+    pub left: Option<Box<Template<M>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub right: Option<Box<Template>>,
+    pub right: Option<Box<Template<M>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub front: Option<Box<Template>>,
+    pub front: Option<Box<Template<M>>>,
 }
 
-impl PotDecorations {
-    pub fn sides(&self) -> [Option<&Template>; 4] {
+impl<M: Refs> PotDecorations<M> {
+    pub fn sides(&self) -> [Option<&Template<M>>; 4] {
         [&self.back, &self.left, &self.right, &self.front].map(|side| side.as_deref())
     }
 }
@@ -80,13 +85,13 @@ pub const MAX_CONTAINER_SLOTS: usize = 256;
 
 /// Dense by slot index; the persistent form lists only the occupied slots, so
 /// trailing empty slots do not survive a save.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct Container {
-    pub slots: Bounded<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>,
+#[derive(Clone, Debug, PartialEq, Default, mcrs_minecraft_registries::Resolve)]
+pub struct Container<M: Refs = Resolved> {
+    pub slots: Bounded<Vec<Option<Template<M>>>, MAX_CONTAINER_SLOTS>,
 }
 
-impl Container {
-    pub fn new(slots: Vec<Option<Template>>) -> anyhow::Result<Self> {
+impl<M: Refs> Container<M> {
+    pub fn new(slots: Vec<Option<Template<M>>>) -> anyhow::Result<Self> {
         ensure!(
             slots.len() <= MAX_CONTAINER_SLOTS,
             "Got {} items, but maximum is {MAX_CONTAINER_SLOTS}",
@@ -101,7 +106,7 @@ impl Container {
 #[derive(Serialize)]
 struct SlotEntryRef<'a> {
     slot: i32,
-    item: &'a Template,
+    item: &'a Template<Named>,
 }
 
 #[derive(Deserialize)]
@@ -109,12 +114,12 @@ struct SlotEntryRef<'a> {
 struct SlotEntry {
     #[serde(deserialize_with = "int_value")]
     slot: i32,
-    item: Template,
+    item: Template<Named>,
 }
 
 /// The NBT writer needs the length first, so the occupied slots are counted
 /// before they are written.
-impl Serialize for Container {
+impl Serialize for Container<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let occupied: Vec<SlotEntryRef> = self
             .slots
@@ -132,18 +137,18 @@ impl Serialize for Container {
     }
 }
 
-impl<'de> Deserialize<'de> for Container {
+impl<'de> Deserialize<'de> for Container<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct SlotsVisitor;
 
         impl<'de> Visitor<'de> for SlotsVisitor {
-            type Value = Container;
+            type Value = Container<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a list of {slot, item} entries")
             }
 
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Container, A::Error> {
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Container<Named>, A::Error> {
                 let Bounded(entries) = size_limited::<_, SlotEntry, MAX_CONTAINER_SLOTS>(
                     value::SeqAccessDeserializer::new(seq),
                 )?;
@@ -173,7 +178,7 @@ impl<'de> Deserialize<'de> for Container {
 }
 
 fn plain(path: &str, count: i32) -> Template {
-    Template::new(key(path), count, ComponentPatch::EMPTY).unwrap()
+    Template::new(entry(path), count, ComponentPatch::EMPTY).unwrap()
 }
 
 fn patched_sword() -> Template {
@@ -183,7 +188,7 @@ fn patched_sword() -> Template {
     patch.set(CustomName(Text::text("named")));
     patch.set(Unbreakable);
     patch.remove(DataComponentType::RepairCost);
-    Template::new(key("diamond_sword"), 3, patch).unwrap()
+    Template::new(entry("diamond_sword"), 3, patch).unwrap()
 }
 
 fn template_tags(template: &Template) -> Vec<(&'static str, u8)> {
@@ -243,7 +248,7 @@ impl Sample for BundleContents {
     fn samples() -> Vec<Self> {
         let mut inner = ComponentPatch::EMPTY;
         inner.set(BundleContents(vec![plain("stone", 1)]));
-        let nested = Template::new(key("bundle"), 1, inner).unwrap();
+        let nested = Template::new(entry("bundle"), 1, inner).unwrap();
         vec![
             BundleContents::default(),
             BundleContents(vec![plain("stone", 64), nested, plain("apple", 99)]),

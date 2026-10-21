@@ -1,4 +1,6 @@
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::book::size_limited;
@@ -12,9 +14,10 @@ use crate::Text;
 
 macro_rules! text_newtype {
     ($($ty:ident),* $(,)?) => {$(
+        #[registry_value]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $ty(pub Text);
+        pub struct $ty<M: Refs = Resolved>(pub Text<M>);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -47,21 +50,22 @@ macro_rules! text_newtype {
 text_newtype!(CustomName, ItemName);
 pub const MAX_LORE_LINES: usize = 256;
 
+#[registry_value]
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct Lore {
-    pub lines: Bounded<Vec<Text>, MAX_LORE_LINES>,
+pub struct Lore<M: Refs = Resolved> {
+    pub lines: Bounded<Vec<Text<M>>, MAX_LORE_LINES>,
 }
 
-impl Lore {
-    pub const fn new(lines: Vec<Text>) -> Self {
+impl<M: Refs> Lore<M> {
+    pub const fn new(lines: Vec<Text<M>>) -> Self {
         Self {
             lines: Bounded(lines),
         }
     }
 }
 
-impl<'de> Deserialize<'de> for Lore {
+impl<'de> Deserialize<'de> for Lore<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         size_limited(d).map(|lines| Self { lines })
     }
@@ -109,30 +113,36 @@ fn black() -> DyeColor {
 
 /// `filtered_messages` is absent whenever it equals `messages`, on read and
 /// on write alike, so two texts that render the same compare equal.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(from = "SignTextRepr")]
-pub struct SignText {
-    pub messages: [Text; 4],
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SignText<M: Refs = Resolved> {
+    pub messages: [Text<M>; 4],
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filtered_messages: Option<[Text; 4]>,
+    pub filtered_messages: Option<[Text<M>; 4]>,
     pub color: DyeColor,
     pub has_glowing_text: bool,
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SignTextRepr {
-    messages: [Text; 4],
+#[serde(deny_unknown_fields, bound = "Text<M>: DeserializeOwned")]
+struct SignTextRepr<M: Refs> {
+    messages: [Text<M>; 4],
     #[serde(default, deserialize_with = "lenient")]
-    filtered_messages: Option<[Text; 4]>,
+    filtered_messages: Option<[Text<M>; 4]>,
     #[serde(default = "black")]
     color: DyeColor,
     #[serde(default)]
     has_glowing_text: bool,
 }
 
-impl From<SignTextRepr> for SignText {
-    fn from(repr: SignTextRepr) -> Self {
+impl<'de> Deserialize<'de> for SignText<Named> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        SignTextRepr::deserialize(d).map(SignText::from)
+    }
+}
+
+impl<M: Refs> From<SignTextRepr<M>> for SignText<M> {
+    fn from(repr: SignTextRepr<M>) -> Self {
         SignText::new(
             repr.messages,
             repr.filtered_messages,
@@ -142,10 +152,10 @@ impl From<SignTextRepr> for SignText {
     }
 }
 
-impl SignText {
+impl<M: Refs> SignText<M> {
     pub fn new(
-        messages: [Text; 4],
-        filtered_messages: Option<[Text; 4]>,
+        messages: [Text<M>; 4],
+        filtered_messages: Option<[Text<M>; 4]>,
         color: DyeColor,
         has_glowing_text: bool,
     ) -> Self {
@@ -158,7 +168,7 @@ impl SignText {
     }
 }
 
-impl Default for SignText {
+impl<M: Refs> Default for SignText<M> {
     fn default() -> Self {
         SignText::new(Default::default(), None, DyeColor::Black, false)
     }
@@ -196,9 +206,10 @@ impl Sample for SignText {
 
 macro_rules! sign_newtype {
     ($($ty:ident),* $(,)?) => {$(
+        #[registry_value]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $ty(pub SignText);
+        pub struct $ty<M: Refs = Resolved>(pub SignText<M>);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

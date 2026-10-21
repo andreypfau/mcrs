@@ -1,20 +1,23 @@
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use std::sync::Arc;
+
+use mcrs_minecraft_core::{Id, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::{Sample, sample_registries};
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
-    EncodeCtx, Holder, ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, RawStack,
+    EncodeCtx, ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, RawStack,
     SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_registries::{Named, Ref, RegistryOf};
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 
 use crate::item::harness::{
-    TestLookup, decode, from_json, from_nbt, in_samples, persistent_json, wire,
+    TestLookup, decode, from_json, from_nbt, in_samples, json_of, named, persistent_json,
+    read_json, resolved, wire,
 };
 use mcrs_minecraft_item::keys::Item;
 
@@ -53,20 +56,16 @@ impl Gen {
         }
     }
 
-    fn item(&mut self) -> (ResourceKey<Item>, Id<Item>) {
+    fn item(&mut self) -> Id<Item> {
         let name = *ITEMS.choose(&mut self.rng).unwrap();
-        let id = sample_registries()
+        sample_registries()
             .registry::<Item>()
             .and_then(|items| items.by_name(&format!("minecraft:{name}")))
-            .unwrap();
-        (
-            ResourceKey::from_location(ResourceLocation::minecraft(name).unwrap()),
-            id,
-        )
+            .unwrap()
     }
 
     fn template(&mut self, depth: u8) -> Template {
-        let (item, _) = self.item();
+        let item = self.item();
         let count = self.rng.random_range(1..=99);
         Template::new(item, count, self.patch(depth, true)).unwrap()
     }
@@ -147,7 +146,7 @@ impl Gen {
     }
 
     fn slot(&mut self, depth: u8) -> ProtoStack {
-        let (_, id) = self.item();
+        let id = self.item();
         ProtoStack::new(id, self.rng.random_range(1..=99), self.patch(depth, false))
     }
 }
@@ -162,7 +161,7 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     );
 
     let mut nbt = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut nbt)
+    mcrs_minecraft_nbt::to_bytes_unnamed(&named(value), &mut nbt)
         .unwrap_or_else(|e| panic!("{kind:?}: to NBT {value:?}: {e}"));
     assert_eq!(&from_nbt(kind, &nbt), value, "{kind:?}: NBT round trip");
 }
@@ -227,22 +226,22 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
             raw_stack_round_trip(&lookup, &slot);
 
             let template = generator.template(2);
-            let json = serde_json::to_string(&template).unwrap();
-            let back: Template = serde_json::from_str(&json)
-                .unwrap_or_else(|e| panic!("template from JSON {json}: {e}"));
+            let json = json_of(&template);
+            let back: Template =
+                read_json(&json).unwrap_or_else(|e| panic!("template from JSON {json}: {e}"));
             assert_eq!(back, template, "template JSON round trip of {json}");
-            assert_eq!(
-                serde_json::to_string(&back).unwrap(),
-                json,
-                "template JSON is stable"
-            );
+            assert_eq!(json_of(&back), json, "template JSON is stable");
 
             let mut nbt = Vec::new();
-            mcrs_minecraft_nbt::to_bytes_unnamed(&template.0, &mut nbt).unwrap();
-            let back: ItemStackValue =
+            mcrs_minecraft_nbt::to_bytes_unnamed(&named(&template.0), &mut nbt).unwrap();
+            let back: ItemStackValue<Named> =
                 mcrs_minecraft_nbt::from_bytes_unnamed(std::io::Cursor::new(&nbt))
                     .unwrap_or_else(|e| panic!("stack from NBT {nbt:02x?} of {template:?}: {e}"));
-            assert_eq!(back, template.0, "stack NBT round trip");
+            assert_eq!(
+                resolved::<ItemStackValue>(back).unwrap(),
+                template.0,
+                "stack NBT round trip"
+            );
 
             let mut wire = Vec::new();
             template.encode_ctx(&lookup, &mut wire).unwrap();
@@ -257,26 +256,24 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
 
 #[test]
 fn inline_holders_are_a_zero_prefix_and_a_bare_prefix_fails() {
+    type Pattern = Ref<RegistryOf<BannerPattern>, BannerPattern>;
     let lookup = TestLookup::new();
-    let direct = Holder::Direct(BannerPattern {
+    let direct = Pattern::Inline(Arc::new(BannerPattern {
         asset_id: rl!("minecraft:globe").to_arc(),
         translation_key: "block.minecraft.banner.globe".into(),
-    });
+    }));
     let mut wire = Vec::new();
     direct.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 0);
     let mut r = &wire[..];
-    assert_eq!(
-        Holder::<BannerPattern>::decode_ctx(&lookup, &mut r).unwrap(),
-        direct
-    );
+    assert_eq!(Pattern::decode_ctx(&lookup, &mut r).unwrap(), direct);
     assert!(r.is_empty());
 
-    assert!(Holder::<BannerPattern>::decode_ctx(&lookup, &mut &[0u8][..]).is_err());
+    assert!(Pattern::decode_ctx(&lookup, &mut &[0u8][..]).is_err());
 
     let mut unknown = Vec::new();
     VarInt(ITEMS.len() as i32 + 100)
         .encode(&mut unknown)
         .unwrap();
-    assert!(Holder::<BannerPattern>::decode_ctx(&lookup, &mut &unknown[..]).is_err());
+    assert!(Pattern::decode_ctx(&lookup, &mut &unknown[..]).is_err());
 }

@@ -1,34 +1,43 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_registries::{Refs, RegistryType, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly};
+use crate::component::common::{InlineRef, WireRef};
 use crate::harness::Sample;
 use crate::harness::entry;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PaintingVariantValue {
+pub struct PaintingVariantValue<M: Refs = Resolved> {
     pub width: Bounded<1, 16, 1>,
     pub height: Bounded<1, 16, 1>,
     pub asset_id: ResourceLocation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<Text>,
+    pub title: Option<Text<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub author: Option<Text>,
+    pub author: Option<Text<M>>,
 }
 
 impl RegistryValue for PaintingVariantValue {
     type Registry = Self;
 }
 
+impl RegistryType for PaintingVariantValue {
+    type Value = ();
+}
+
 /// The persistent form is the registry id alone; the wire form carries the
 /// variant inline.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct PaintingVariant(pub HolderWireOnly<PaintingVariantValue>);
+pub struct PaintingVariant<M: Refs = Resolved>(
+    pub WireRef<M, PaintingVariantValue, PaintingVariantValue<M>>,
+);
 
 impl Sample for PaintingVariant {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -36,8 +45,6 @@ impl Sample for PaintingVariant {
     }
 
     fn samples() -> Vec<Self> {
-        vec![PaintingVariant(HolderWireOnly(Holder::Reference(entry(
-            "kebab",
-        ))))]
+        vec![PaintingVariant(WireRef(InlineRef::Id(entry("kebab"))))]
     }
 }

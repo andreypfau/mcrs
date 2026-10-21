@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -11,14 +12,20 @@ use crate::kind::{ItemComponentValue, ItemDataComponent};
 
 /// Values set on top of an item's prototype and kinds removed from it; a kind
 /// appears at most once across both lists.
-#[derive(Clone, Debug, Default)]
-pub struct ComponentPatch {
-    pub added: Vec<ItemComponentValue>,
+#[derive(Clone, Debug)]
+pub struct ComponentPatch<M: Refs = Resolved> {
+    pub added: Vec<ItemComponentValue<M>>,
     pub removed: Vec<DataComponentType>,
 }
 
+impl<M: Refs> Default for ComponentPatch<M> {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
 /// Order is not part of the value.
-impl PartialEq for ComponentPatch {
+impl<M: Refs> PartialEq for ComponentPatch<M> {
     fn eq(&self, other: &Self) -> bool {
         self.added.len() == other.added.len()
             && self.removed.len() == other.removed.len()
@@ -30,7 +37,7 @@ impl PartialEq for ComponentPatch {
     }
 }
 
-impl ComponentPatch {
+impl<M: Refs> ComponentPatch<M> {
     pub const EMPTY: Self = Self {
         added: Vec::new(),
         removed: Vec::new(),
@@ -40,11 +47,7 @@ impl ComponentPatch {
         self.added.is_empty() && self.removed.is_empty()
     }
 
-    pub fn get<T: ItemDataComponent>(&self) -> Option<&T> {
-        self.added.iter().find_map(T::from_value)
-    }
-
-    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue> {
+    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue<M>> {
         self.added.iter().find(|value| value.kind() == kind)
     }
 
@@ -52,11 +55,7 @@ impl ComponentPatch {
         self.removed.contains(&kind)
     }
 
-    pub fn set<T: ItemDataComponent>(&mut self, value: T) {
-        self.set_value(value.into());
-    }
-
-    pub fn set_value(&mut self, value: ItemComponentValue) {
+    pub fn set_value(&mut self, value: ItemComponentValue<M>) {
         let kind = value.kind();
         self.removed.retain(|removed| *removed != kind);
         match self.added.iter_mut().find(|added| added.kind() == kind) {
@@ -70,6 +69,42 @@ impl ComponentPatch {
         if !self.removed.contains(&kind) {
             self.removed.push(kind);
         }
+    }
+}
+
+impl ComponentPatch {
+    pub fn get<T: ItemDataComponent>(&self) -> Option<&T> {
+        self.added.iter().find_map(T::from_value)
+    }
+
+    pub fn set<T: ItemDataComponent>(&mut self, value: T) {
+        self.set_value(value.into());
+    }
+}
+
+impl Resolve for ComponentPatch {
+    type Named = ComponentPatch<Named>;
+
+    fn resolve<C: Resolver>(named: ComponentPatch<Named>, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(ComponentPatch {
+            added: named
+                .added
+                .into_iter()
+                .map(|value| ItemComponentValue::resolve(value, ctx))
+                .collect::<Result<_, _>>()?,
+            removed: named.removed,
+        })
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<ComponentPatch<Named>, ResolveError> {
+        Ok(ComponentPatch {
+            added: self
+                .added
+                .iter()
+                .map(|value| value.name(names))
+                .collect::<Result<_, _>>()?,
+            removed: self.removed.clone(),
+        })
     }
 }
 
@@ -94,7 +129,7 @@ fn persistent_kind<E: serde::de::Error>(id: &str) -> Result<DataComponentType, E
     Ok(kind)
 }
 
-impl Serialize for ComponentPatch {
+impl Serialize for ComponentPatch<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         for added in &self.added {
@@ -114,12 +149,12 @@ impl Serialize for ComponentPatch {
     }
 }
 
-impl<'de> Deserialize<'de> for ComponentPatch {
+impl<'de> Deserialize<'de> for ComponentPatch<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct PatchVisitor;
 
         impl<'de> Visitor<'de> for PatchVisitor {
-            type Value = ComponentPatch;
+            type Value = ComponentPatch<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a map of component ids to values")
@@ -155,26 +190,55 @@ impl<'de> Deserialize<'de> for ComponentPatch {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct ComponentMap(pub Vec<ItemComponentValue>);
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComponentMap<M: Refs = Resolved>(pub Vec<ItemComponentValue<M>>);
+
+impl<M: Refs> Default for ComponentMap<M> {
+    fn default() -> Self {
+        ComponentMap(Vec::new())
+    }
+}
 
 impl ComponentMap {
     pub fn get<T: ItemDataComponent>(&self) -> Option<&T> {
         self.0.iter().find_map(T::from_value)
     }
+}
 
-    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue> {
+impl Resolve for ComponentMap {
+    type Named = ComponentMap<Named>;
+
+    fn resolve<C: Resolver>(named: ComponentMap<Named>, ctx: &C) -> Result<Self, ResolveError> {
+        named
+            .0
+            .into_iter()
+            .map(|value| ItemComponentValue::resolve(value, ctx))
+            .collect::<Result<_, _>>()
+            .map(ComponentMap)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<ComponentMap<Named>, ResolveError> {
+        self.0
+            .iter()
+            .map(|value| value.name(names))
+            .collect::<Result<_, _>>()
+            .map(ComponentMap)
+    }
+}
+
+impl<M: Refs> ComponentMap<M> {
+    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue<M>> {
         self.0.iter().find(|value| value.kind() == kind)
     }
 
-    pub fn set_value(&mut self, value: ItemComponentValue) {
+    pub fn set_value(&mut self, value: ItemComponentValue<M>) {
         match self.0.iter_mut().find(|v| v.kind() == value.kind()) {
             Some(slot) => *slot = value,
             None => self.0.push(value),
         }
     }
 
-    pub fn apply(&self, patch: &ComponentPatch) -> ComponentMap {
+    pub fn apply(&self, patch: &ComponentPatch<M>) -> ComponentMap<M> {
         let mut map = self.clone();
         for added in &patch.added {
             map.set_value(added.clone());
@@ -185,7 +249,7 @@ impl ComponentMap {
 
     /// The patch that turns this prototype into `other`, normalised: no addition
     /// equal to the prototype value, no removal of a kind the prototype lacks.
-    pub fn diff(&self, other: &ComponentMap) -> ComponentPatch {
+    pub fn diff(&self, other: &ComponentMap<M>) -> ComponentPatch<M> {
         let mut patch = ComponentPatch::EMPTY;
         for value in &other.0 {
             if self.get_value(value.kind()) != Some(value) {
@@ -201,7 +265,7 @@ impl ComponentMap {
     }
 }
 
-impl Serialize for ComponentMap {
+impl Serialize for ComponentMap<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         for value in &self.0 {
@@ -213,12 +277,12 @@ impl Serialize for ComponentMap {
     }
 }
 
-impl<'de> Deserialize<'de> for ComponentMap {
+impl<'de> Deserialize<'de> for ComponentMap<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct MapVisitor;
 
         impl<'de> Visitor<'de> for MapVisitor {
-            type Value = ComponentMap;
+            type Value = ComponentMap<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a map of component ids to values")

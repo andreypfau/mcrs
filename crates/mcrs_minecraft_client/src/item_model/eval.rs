@@ -5,13 +5,13 @@ use mcrs_minecraft_item::TrimMaterial;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
-    FireworkExplosion, Holder, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
+    FireworkExplosion, InlineRef, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
     PotionContents, Trim,
 };
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Registry, name_in_scope};
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
@@ -199,7 +199,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
         }
         match switch {
             SelectSwitch::TrimMaterial { cases } => match &self.stack.get::<Trim>()?.material {
-                Holder::Reference(id) => {
+                InlineRef::Id(id) => {
                     let name =
                         Registry::<TrimMaterial>::in_scope("a trim material select", |registry| {
                             registry.name(*id).cloned()
@@ -207,7 +207,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                         .ok()??;
                     find(cases, &ResourceKey::from_location(name))
                 }
-                Holder::Direct(_) | Holder::Skipped => None,
+                InlineRef::Inline(_) => None,
             },
             SelectSwitch::DisplayContext { cases } => find(cases, &DisplayContext::Gui),
             SelectSwitch::BlockState {
@@ -226,7 +226,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 self.custom_model_data()?.strings.get(*index as usize)?,
             ),
             SelectSwitch::Component(switch) => {
-                let value = self.stack.value(switch.component)?;
+                let value = name_in_scope(&self.stack.value(switch.component)?)?;
                 switch
                     .cases
                     .iter()

@@ -1,3 +1,6 @@
+// The `Sync` check of a villager trade walks text through loot `Holder`s, whose `V::Registry`
+// projection keeps that cycle from being coinductive, so it goes deeper than the default limit.
+#![recursion_limit = "256"]
 pub mod chat_type;
 mod declarations;
 #[rustfmt::skip]

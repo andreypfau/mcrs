@@ -1492,7 +1492,7 @@ impl<A: TextTypes> Style<A> {
 }
 
 impl<A: TextTypes> ClickEvent<A> {
-    fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<ClickEvent<B>, T::Error> {
+    pub fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<ClickEvent<B>, T::Error> {
         Ok(match self {
             ClickEvent::OpenUrl { url } => ClickEvent::OpenUrl { url: url.clone() },
             ClickEvent::OpenFile { path } => ClickEvent::OpenFile { path: path.clone() },
@@ -1518,7 +1518,7 @@ impl<A: TextTypes> ClickEvent<A> {
 }
 
 impl<A: TextTypes> HoverEvent<A> {
-    fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<HoverEvent<B>, T::Error> {
+    pub fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<HoverEvent<B>, T::Error> {
         Ok(match self {
             HoverEvent::ShowText { value } => HoverEvent::ShowText {
                 value: value.map(map).map_err(|e| T::at(e, "value"))?,

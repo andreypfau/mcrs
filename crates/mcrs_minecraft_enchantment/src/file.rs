@@ -2,28 +2,29 @@ use mcrs_minecraft_item::Text;
 use mcrs_minecraft_item::component::EquipmentSlotGroup;
 use mcrs_minecraft_item::enchantment::{EnchantmentCost, EnchantmentData};
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::effects::EnchantmentEffects;
 
 /// An enchantment file as a data pack writes it, stored as its registry value
 /// and its effects column.
+#[registry_value]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct EnchantmentFile {
-    pub description: Text,
+pub struct EnchantmentFile<M: Refs = Resolved> {
+    pub description: Text<M>,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,
     pub anvil_cost: u32,
     pub slots: Vec<EquipmentSlotGroup>,
-    pub supported_items: HolderSet<Item>,
+    pub supported_items: M::Set<Item>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub primary_items: Option<HolderSet<Item>>,
+    pub primary_items: Option<M::Set<Item>>,
     pub weight: u32,
     pub max_level: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclusive_set: Option<HolderSet<EnchantmentData>>,
+    pub exclusive_set: Option<M::Set<EnchantmentData>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<EnchantmentEffects>,
 }

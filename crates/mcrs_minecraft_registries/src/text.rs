@@ -1,4 +1,4 @@
-use mcrs_minecraft_text::{Style, Text, TextMap, TextTypes};
+use mcrs_minecraft_text::{ClickEvent, Style, Text, TextMap, TextTypes};
 
 use crate::{Namer, Resolve, ResolveError, Resolver};
 
@@ -118,6 +118,27 @@ where
     }
 
     fn name<C: Namer>(&self, names: &C) -> Result<Style<I::Named>, ResolveError> {
+        self.map(&Naming(names))
+    }
+}
+
+impl<I> Resolve for ClickEvent<I>
+where
+    I: TextTypes + Resolve<Named: Clone>,
+    I::Named: TextTypes<
+            EntityKey = <I::EntityKey as Resolve>::Named,
+            Dialog = <I::Dialog as Resolve>::Named,
+        >,
+    I::EntityKey: Resolve<Named: Clone>,
+    I::Dialog: Resolve<Named: Clone>,
+{
+    type Named = ClickEvent<I::Named>;
+
+    fn resolve<C: Resolver>(named: ClickEvent<I::Named>, ctx: &C) -> Result<Self, ResolveError> {
+        named.map(&Resolving(ctx))
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<ClickEvent<I::Named>, ResolveError> {
         self.map(&Naming(names))
     }
 }

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{ComponentMap, Template};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::Named;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -16,11 +17,11 @@ pub struct ItemDefinitionFile {
 #[serde(deny_unknown_fields)]
 pub struct ItemDefinition {
     pub description: Description,
-    pub components: ComponentMap,
+    pub components: ComponentMap<Named>,
     #[serde(default)]
     pub block_placer: Option<ResourceLocation<Arc<str>>>,
     #[serde(default)]
-    pub crafting_remainder: Option<Template>,
+    pub crafting_remainder: Option<Template<Named>>,
 }
 
 #[derive(Debug, Deserialize)]

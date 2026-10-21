@@ -13,7 +13,7 @@ use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_predicate::{
     DamageSourcePredicate, EntityPredicate, LocationPredicate, UniqueMap,
 };
-use mcrs_minecraft_registry::{Holder, HolderList};
+use mcrs_minecraft_registry::{Checked, Holder, HolderList};
 use serde::de::{DeserializeSeed, Error as _, IntoDeserializer, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -33,7 +33,7 @@ pub enum LootCondition {
     EntityProperties(Box<EntityProperties>),
     KilledByPlayer,
     EntityScores(EntityScores),
-    MatchBlock(BlockPredicate),
+    MatchBlock(Checked<BlockPredicate>),
     MatchTool(MatchTool),
     TableBonus(TableBonus),
     SurvivesExplosion,
@@ -153,7 +153,7 @@ pub type Scores = UniqueMap<String, IntRangePredicate>;
 #[serde(deny_unknown_fields)]
 pub struct MatchTool {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub predicate: Option<ItemPredicate>,
+    pub predicate: Option<Checked<ItemPredicate>>,
 }
 
 mcrs_minecraft_core::validated!(TableBonus);

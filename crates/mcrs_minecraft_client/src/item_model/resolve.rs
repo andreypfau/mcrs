@@ -294,7 +294,7 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::world::World;
     use mcrs_minecraft_core::codec::Bounded;
-    use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
@@ -321,7 +321,9 @@ mod tests {
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
         ItemStackValue {
-            item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
+            item: mcrs_minecraft_item::keys::Item::read(&format!("minecraft:{path}"))
+                .unwrap()
+                .id(),
             count: Bounded(count),
             components,
         }
@@ -591,7 +593,7 @@ mod tests {
             1,
             patch(|p| {
                 p.set(Enchantments(vec![(
-                    ResourceKey::from_location(rl!("minecraft:sharpness").to_arc()),
+                    mcrs_minecraft_item::harness::entry("sharpness"),
                     1,
                 )]))
             }),

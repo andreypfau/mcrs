@@ -4,7 +4,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_item::component::predicate::{BlockPredicate, StatePropertiesPredicate};
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registry::{Checked, HolderSet};
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ pub struct LocationPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<LightPredicate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub block: Option<BlockPredicate>,
+    pub block: Option<Checked<BlockPredicate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fluid: Option<FluidPredicate>,
     #[serde(

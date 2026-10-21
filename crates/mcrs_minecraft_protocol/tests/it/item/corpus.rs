@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use super::harness::in_data_pack;
 use mcrs_minecraft_protocol::item::{ComponentMap, ComponentPatch, ItemPredicate, Template};
+use mcrs_minecraft_registries::Resolve;
+use mcrs_minecraft_world::registry_load::test_registries;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -14,13 +15,23 @@ struct Family {
 }
 
 impl Family {
-    fn check<T: Serialize + DeserializeOwned>(&mut self, file: &Path, at: &str, source: &Value) {
+    fn check<T: Resolve<Named: Serialize + DeserializeOwned>>(
+        &mut self,
+        file: &Path,
+        at: &str,
+        source: &Value,
+    ) {
         self.values += 1;
         let file = file
             .strip_prefix(mcrs_minecraft_fixtures::vanilla_dir())
             .unwrap_or(file)
             .display();
-        let value = match serde_json::from_str::<T>(&source.to_string()) {
+        let registries = test_registries();
+        let value = match serde_json::from_str::<T::Named>(&source.to_string())
+            .map_err(|error| error.to_string())
+            .and_then(|named| T::resolve(named, registries).map_err(|error| error.to_string()))
+            .and_then(|value| value.name(registries).map_err(|error| error.to_string()))
+        {
             Ok(value) => value,
             Err(error) => return self.failures.push(format!("{file} {at}: {error}")),
         };
@@ -72,15 +83,13 @@ fn json_files(dir: &Path) -> Vec<PathBuf> {
 
 fn run(name: &str, visit: impl Fn(&mut Family, &Path, &Value)) {
     let mut family = Family::default();
-    in_data_pack(|| {
-        for file in json_files(&mcrs_minecraft_fixtures::vanilla_dir().join(name)) {
-            let text = std::fs::read_to_string(&file).unwrap();
-            let root: Value =
-                serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-            family.files += 1;
-            visit(&mut family, &file, &root);
-        }
-    });
+    for file in json_files(&mcrs_minecraft_fixtures::vanilla_dir().join(name)) {
+        let text = std::fs::read_to_string(&file).unwrap();
+        let root: Value =
+            serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        family.files += 1;
+        visit(&mut family, &file, &root);
+    }
     family.finish(name);
 }
 

@@ -12,23 +12,23 @@ use crate::{Decode, Encode, VarInt};
 newtype_ctx_wire!(PaintingVariant);
 
 impl EncodeCtx for PaintingVariantValue {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.width.0).encode(&mut w)?;
         VarInt(self.height.0).encode(&mut w)?;
         self.asset_id.encode(&mut w)?;
-        self.title.encode(&mut w)?;
-        self.author.encode(w)
+        self.title.encode_ctx(ctx, &mut w)?;
+        self.author.encode_ctx(ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for PaintingVariantValue {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(PaintingVariantValue {
             width: Bounded(VarInt::decode(r)?.0),
             height: Bounded(VarInt::decode(r)?.0),
             asset_id: ResourceLocation::decode(r)?,
-            title: Option::decode(r)?,
-            author: Option::decode(r)?,
+            title: Option::decode_ctx(ctx, r)?,
+            author: Option::decode_ctx(ctx, r)?,
         })
     }
 }

@@ -1,15 +1,15 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
-    ItemComponentValue, Lore, MaxStackSize, Template, Unbreakable, decode_delimited_patch,
+    ItemComponentValue, Lore, MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch,
     encode_delimited_patch, hash_ops,
 };
-use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_registries::Named;
 
-use crate::item::harness::{TestLookup, custom_data, hex};
+use crate::item::harness::{TestLookup, custom_data, hex, json_of, named, read_json};
 use mcrs_minecraft_item::keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
@@ -66,12 +66,12 @@ fn a_patch_matches_the_vanilla_stream_codec() {
 
 #[test]
 fn a_parsed_patch_matches_vanilla_in_json_and_on_the_wire() {
-    let parsed: ComponentPatch = serde_json::from_str(
+    let parsed: ComponentPatch = read_json(
         r#"{"max_stack_size":16,"custom_data":"{x:100000,name:\"mcrs\"}","!minecraft:damage":{}}"#,
     )
     .unwrap();
     assert_eq!(
-        serde_json::to_string(&parsed).unwrap(),
+        json_of(&parsed),
         r#"{"minecraft:max_stack_size":16,"minecraft:custom_data":{"x":100000,"name":"mcrs"},"!minecraft:damage":{}}"#
     );
     assert_eq!(wire(&parsed), hex(PARSED_PATCH_WIRE));
@@ -79,7 +79,7 @@ fn a_parsed_patch_matches_vanilla_in_json_and_on_the_wire() {
 
 fn hash(value: impl Into<ItemComponentValue>) -> i32 {
     let value = value.into();
-    hash_ops::hash(&value).unwrap()
+    hash_ops::hash(&named(&value)).unwrap()
 }
 
 #[test]
@@ -94,18 +94,14 @@ fn text_free_kinds_hash_like_vanilla() {
 fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     assert_eq!(hash(Lore::new(vec![Text::text("line")])), -476441620);
     assert_eq!(hash(CustomName(Text::text("named"))), -756126370);
-    let hashed = HashedPatchMap::create(&patch(false)).unwrap();
+    let hashed = HashedPatchMap::create(&patch(false), sample_registries()).unwrap();
     let vanilla = HashedPatchMap::decode(&mut &hex(HASHED_WIRE)[..]).unwrap();
     assert_eq!(sorted(&hashed), sorted(&vanilla));
-    assert!(vanilla.matches(&patch(false)));
+    assert!(vanilla.matches(&patch(false), sample_registries()));
     assert_eq!(
-        serde_json::to_string(&Template::new(diamond_sword(), 3, patch(false)).unwrap()).unwrap(),
+        json_of(&Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap()),
         r#"{"id":"minecraft:diamond_sword","count":3,"components":{"minecraft:max_stack_size":16,"minecraft:custom_data":{"x":100000,"name":"mcrs"},"minecraft:lore":["line"],"minecraft:custom_name":"named","minecraft:damage":7,"minecraft:unbreakable":{},"!minecraft:repair_cost":{},"!minecraft:enchantments":{}}}"#
     );
-}
-
-fn diamond_sword() -> ResourceKey<Item> {
-    ResourceKey::from_location(rl!("minecraft:diamond_sword").to_arc())
 }
 
 /// Vanilla emits its hash maps in hash-iteration order, so the entries are
@@ -143,14 +139,19 @@ fn the_hashed_map_wire_is_the_vanilla_layout() {
 
 #[test]
 fn a_template_matches_the_vanilla_stream_codec_and_json() {
-    let mut lookup_items = TestLookup::new();
-    lookup_items.registry_with_ids("item", &[("diamond_sword", 1050)]);
-    let template = Template::new(diamond_sword(), 3, patch(false)).unwrap();
+    let lookup = TestLookup::new();
+    let template = Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap();
     let mut out = Vec::new();
-    template.encode_ctx(&lookup_items, &mut out).unwrap();
-    assert_eq!(out, hex(TEMPLATE_WIRE));
+    template.encode_ctx(&lookup, &mut out).unwrap();
+    // The capture numbered the sword 1050; a stack carries the item's number in this version.
+    let mut expected = Vec::new();
+    VarInt(i32::from(Item::DiamondSword.id().number()))
+        .encode(&mut expected)
+        .unwrap();
+    expected.extend_from_slice(&hex(TEMPLATE_WIRE)[2..]);
+    assert_eq!(out, expected);
     assert_eq!(
-        Template::decode_ctx(&lookup_items, &mut &out[..]).unwrap(),
+        Template::decode_ctx(&lookup, &mut &out[..]).unwrap(),
         template
     );
 }
@@ -174,9 +175,9 @@ fn a_mob_effect_instance_matches_vanilla_with_show_icon_resolved() {
             112340837,
         ),
     ] {
-        let effect: MobEffectInstance = serde_json::from_str(input).unwrap();
+        let effect: MobEffectInstance<Named> = serde_json::from_str(input).unwrap();
         assert_eq!(serde_json::to_string(&effect).unwrap(), json);
-        let explicit: MobEffectInstance = serde_json::from_str(json).unwrap();
+        let explicit: MobEffectInstance<Named> = serde_json::from_str(json).unwrap();
         assert_eq!(effect, explicit);
         let mut nbt = mcrs_minecraft_nbt::to_nbt_compound(&effect).unwrap();
         nbt.child_tags.sort_by(|a, b| a.0.cmp(&b.0));

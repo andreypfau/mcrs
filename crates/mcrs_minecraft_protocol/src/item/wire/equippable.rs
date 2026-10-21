@@ -2,7 +2,6 @@ use std::io::Write;
 
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::component::common::Holder;
 use crate::item::component::equippable::EquipmentSlot;
 use crate::item::component::equippable::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -29,7 +28,7 @@ impl DecodeCtx<'_> for Equippable {
         Ok(Equippable {
             slot: u8::try_from(VarInt::decode(r)?.0)
                 .map_or(EquipmentSlot::MainHand, EquipmentSlot::from_equippable_id),
-            equip_sound: Holder::decode_ctx(ctx, r)?,
+            equip_sound: DecodeCtx::decode_ctx(ctx, r)?,
             asset_id: Option::decode(r)?,
             camera_overlay: Option::decode(r)?,
             allowed_entities: Option::decode_ctx(ctx, r)?,
@@ -38,7 +37,7 @@ impl DecodeCtx<'_> for Equippable {
             damage_on_hurt: bool::decode(r)?,
             equip_on_interact: bool::decode(r)?,
             can_be_sheared: bool::decode(r)?,
-            shearing_sound: Holder::decode_ctx(ctx, r)?,
+            shearing_sound: DecodeCtx::decode_ctx(ctx, r)?,
         })
     }
 }

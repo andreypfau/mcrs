@@ -7,9 +7,14 @@ use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use std::sync::Arc;
+
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
+use mcrs_minecraft_registries::{
+    Key, KeyOr, Named, Namer, Refs, RegistryType, Resolve, ResolveError, Resolved, Resolver,
+};
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -24,7 +29,6 @@ pub use mcrs_minecraft_core::codec::{
 };
 
 pub use mcrs_minecraft_block_predicate::state_properties::ValueMatcher;
-pub use mcrs_minecraft_registry::holder::*;
 
 /// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -41,6 +45,24 @@ impl<T> Filterable<T> {
             raw,
             filtered: None,
         }
+    }
+}
+
+impl<T: Resolve> Resolve for Filterable<T> {
+    type Named = Filterable<T::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(Filterable {
+            raw: T::resolve(named.raw, ctx).map_err(|e| e.at("raw"))?,
+            filtered: Option::resolve(named.filtered, ctx).map_err(|e| e.at("filtered"))?,
+        })
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        Ok(Filterable {
+            raw: self.raw.name(names).map_err(|e| e.at("raw"))?,
+            filtered: self.filtered.name(names).map_err(|e| e.at("filtered"))?,
+        })
     }
 }
 
@@ -89,6 +111,131 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for Filterable<T> {
         }
 
         d.deserialize_any(FilterableVisitor(PhantomData))
+    }
+}
+
+/// A registered entry by its key, or the value written inline. Unlike the generic
+/// reference it bounds nothing on the inline value: a value holding text can hold an
+/// item that holds the value again, and a bound there sends the trait solver round
+/// that loop.
+pub enum InlineRef<M: Refs, R: RegistryType, V> {
+    Id(M::Id<R>),
+    Inline(Arc<V>),
+}
+
+impl<M: Refs, R: RegistryType, V> Clone for InlineRef<M, R, V> {
+    fn clone(&self) -> Self {
+        match self {
+            InlineRef::Id(id) => InlineRef::Id(id.clone()),
+            InlineRef::Inline(value) => InlineRef::Inline(Arc::clone(value)),
+        }
+    }
+}
+
+impl<M: Refs, R: RegistryType, V: PartialEq> PartialEq for InlineRef<M, R, V> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (InlineRef::Id(a), InlineRef::Id(b)) => a == b,
+            (InlineRef::Inline(a), InlineRef::Inline(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl<M: Refs, R: RegistryType, V: fmt::Debug> fmt::Debug for InlineRef<M, R, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            InlineRef::Id(id) => f.debug_tuple("Id").field(id).finish(),
+            InlineRef::Inline(value) => f.debug_tuple("Inline").field(value).finish(),
+        }
+    }
+}
+
+impl<R: RegistryType, V: Serialize> Serialize for InlineRef<Named, R, V> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            InlineRef::Id(key) => key.serialize(s),
+            InlineRef::Inline(value) => value.serialize(s),
+        }
+    }
+}
+
+impl<'de, R: RegistryType, V: Deserialize<'de>> Deserialize<'de> for InlineRef<Named, R, V> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match KeyOr::<R, V>::deserialize(d)? {
+            KeyOr::Key(key) => InlineRef::Id(key),
+            KeyOr::Inline(value) => InlineRef::Inline(Arc::new(*value)),
+        })
+    }
+}
+
+impl<R: RegistryType, V: Resolve<Named: Clone>> Resolve for InlineRef<Resolved, R, V> {
+    type Named = InlineRef<Named, R, V::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(match named {
+            InlineRef::Id(key) => InlineRef::Id(Resolve::resolve(key, ctx)?),
+            InlineRef::Inline(value) => {
+                InlineRef::Inline(Arc::new(V::resolve(V::Named::clone(&value), ctx)?))
+            }
+        })
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        Ok(match self {
+            InlineRef::Id(id) => InlineRef::Id(id.name(names)?),
+            InlineRef::Inline(value) => InlineRef::Inline(Arc::new(value.name(names)?)),
+        })
+    }
+}
+
+/// Written as its key alone; only the wire form carries the value inline.
+pub struct WireRef<M: Refs, R: RegistryType, V>(pub InlineRef<M, R, V>);
+
+impl<M: Refs, R: RegistryType, V> Clone for WireRef<M, R, V> {
+    fn clone(&self) -> Self {
+        WireRef(self.0.clone())
+    }
+}
+
+impl<M: Refs, R: RegistryType, V: PartialEq> PartialEq for WireRef<M, R, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<M: Refs, R: RegistryType, V: fmt::Debug> fmt::Debug for WireRef<M, R, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<R: RegistryType, V> Serialize for WireRef<Named, R, V> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match &self.0 {
+            InlineRef::Id(key) => key.serialize(s),
+            InlineRef::Inline(_) => Err(serde::ser::Error::custom(
+                "an inline value has no persistent form",
+            )),
+        }
+    }
+}
+
+impl<'de, R: RegistryType, V> Deserialize<'de> for WireRef<Named, R, V> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Key::deserialize(d).map(|key| WireRef(InlineRef::Id(key)))
+    }
+}
+
+impl<R: RegistryType, V: Resolve<Named: Clone>> Resolve for WireRef<Resolved, R, V> {
+    type Named = WireRef<Named, R, V::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        InlineRef::resolve(named.0, ctx).map(WireRef)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        self.0.name(names).map(WireRef)
     }
 }
 
@@ -167,10 +314,11 @@ resolvable!(
     float_value
 );
 
+#[mcrs_minecraft_registries::registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MobEffectInstance {
-    pub id: ResourceKey<MobEffect>,
+pub struct MobEffectInstance<M: Refs = Resolved> {
+    pub id: M::Id<MobEffect>,
     #[serde(flatten)]
     pub details: MobEffectDetails,
 }
@@ -247,10 +395,6 @@ pub(crate) fn one() -> NonNegativeInt {
 
 pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
     value.0 == 1
-}
-
-pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
 /// A map kept in the order read, refusing a repeated key.

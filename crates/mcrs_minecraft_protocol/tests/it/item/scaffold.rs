@@ -3,17 +3,18 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::{DataComponentType, Item};
+use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
-    ProtoStack, RawDelimitedStack, RawStack, Template, Unbreakable, hash_ops,
+    ProtoStack, RawDelimitedStack, RawStack, Template, Text, Unbreakable, hash_ops,
 };
-use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::{HolderSet, NoRegistries};
+use mcrs_minecraft_registries::{IdSet, Key, Named, Ref};
+use mcrs_minecraft_registry::NoRegistries;
 
-use crate::item::harness::{TestLookup, custom_data, in_samples};
+use crate::item::harness::{TestLookup, custom_data, json_of, named, read_json, resolved};
 
 fn stack_size(n: i32) -> MaxStackSize {
     MaxStackSize(Bounded(n))
@@ -32,56 +33,42 @@ fn patch() -> ComponentPatch {
 fn a_patch_reads_and_writes_the_vanilla_map() {
     let json = r#"{"minecraft:max_stack_size":16,"minecraft:custom_data":{"x":100000,"name":"mcrs"},"minecraft:lore":["line"],"!minecraft:damage":{}}"#;
     let patch = patch();
-    assert_eq!(serde_json::to_string(&patch).unwrap(), json);
-    assert_eq!(serde_json::from_str::<ComponentPatch>(json).unwrap(), patch);
+    assert_eq!(json_of(&patch), json);
+    assert_eq!(read_json::<ComponentPatch>(json).unwrap(), patch);
 
-    let bare = serde_json::from_str::<ComponentPatch>(r#"{"max_stack_size":3}"#).unwrap();
+    let bare = read_json::<ComponentPatch>(r#"{"max_stack_size":3}"#).unwrap();
     assert_eq!(bare.get::<MaxStackSize>(), Some(&stack_size(3)));
 
     let snbt =
-        serde_json::from_str::<ComponentPatch>(r#"{"custom_data":"{x:100000,name:\"mcrs\"}"}"#)
-            .unwrap();
+        read_json::<ComponentPatch>(r#"{"custom_data":"{x:100000,name:\"mcrs\"}"}"#).unwrap();
     assert_eq!(snbt.get::<CustomData>(), Some(&custom_data()));
 
-    let unknown = serde_json::from_str::<ComponentPatch>(r#"{"minecraft:nope":1}"#).unwrap_err();
+    let unknown = read_json::<ComponentPatch>(r#"{"minecraft:nope":1}"#).unwrap_err();
     assert!(
         unknown
             .to_string()
             .contains("No component with type: 'minecraft:nope'"),
         "{unknown}"
     );
-    let transient =
-        serde_json::from_str::<ComponentPatch>(r#"{"creative_slot_lock":{}}"#).unwrap_err();
+    let transient = read_json::<ComponentPatch>(r#"{"creative_slot_lock":{}}"#).unwrap_err();
     assert!(
         transient
             .to_string()
             .contains("'minecraft:creative_slot_lock' is not a persistent component"),
         "{transient}"
     );
-    let duplicate =
-        serde_json::from_str::<ComponentPatch>(r#"{"damage":1,"damage":2}"#).unwrap_err();
+    let duplicate = read_json::<ComponentPatch>(r#"{"damage":1,"damage":2}"#).unwrap_err();
     assert!(
         duplicate.to_string().contains("Duplicate key"),
         "{duplicate}"
     );
-    let removed_last =
-        serde_json::from_str::<ComponentPatch>(r#"{"damage":1,"!damage":{}}"#).unwrap();
-    assert_eq!(
-        serde_json::to_string(&removed_last).unwrap(),
-        r#"{"!minecraft:damage":{}}"#
-    );
-    let set_last = serde_json::from_str::<ComponentPatch>(r#"{"!damage":{},"damage":1}"#).unwrap();
-    assert_eq!(
-        serde_json::to_string(&set_last).unwrap(),
-        r#"{"minecraft:damage":1}"#
-    );
-    let fraction = serde_json::from_str::<ComponentPatch>(r#"{"damage":1.5}"#).unwrap();
-    assert_eq!(
-        serde_json::to_string(&fraction).unwrap(),
-        r#"{"minecraft:damage":1}"#
-    );
-    let out_of_range =
-        serde_json::from_str::<ComponentPatch>(r#"{"max_stack_size":100}"#).unwrap_err();
+    let removed_last = read_json::<ComponentPatch>(r#"{"damage":1,"!damage":{}}"#).unwrap();
+    assert_eq!(json_of(&removed_last), r#"{"!minecraft:damage":{}}"#);
+    let set_last = read_json::<ComponentPatch>(r#"{"!damage":{},"damage":1}"#).unwrap();
+    assert_eq!(json_of(&set_last), r#"{"minecraft:damage":1}"#);
+    let fraction = read_json::<ComponentPatch>(r#"{"damage":1.5}"#).unwrap();
+    assert_eq!(json_of(&fraction), r#"{"minecraft:damage":1}"#);
+    let out_of_range = read_json::<ComponentPatch>(r#"{"max_stack_size":100}"#).unwrap_err();
     assert!(
         out_of_range
             .to_string()
@@ -94,11 +81,11 @@ fn a_patch_reads_and_writes_the_vanilla_map() {
 fn a_patch_survives_nbt() {
     let patch = patch();
     let mut bytes = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(&patch, &mut bytes).unwrap();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&named(&patch), &mut bytes).unwrap();
     assert_eq!(bytes[0], mcrs_minecraft_nbt::COMPOUND_ID);
-    let back: ComponentPatch =
+    let back: ComponentPatch<Named> =
         mcrs_minecraft_nbt::from_bytes_unnamed(std::io::Cursor::new(&bytes)).unwrap();
-    assert_eq!(back, patch);
+    assert_eq!(resolved::<ComponentPatch>(back).unwrap(), patch);
 }
 
 #[test]
@@ -106,10 +93,7 @@ fn transient_kinds_travel_on_the_wire_but_not_in_the_map() {
     let mut patch = ComponentPatch::EMPTY;
     patch.set(CreativeSlotLock);
     patch.set(Unbreakable);
-    assert_eq!(
-        serde_json::to_string(&patch).unwrap(),
-        r#"{"minecraft:unbreakable":{}}"#
-    );
+    assert_eq!(json_of(&patch), r#"{"minecraft:unbreakable":{}}"#);
     let mut wire = Vec::new();
     patch.encode_ctx(&NoRegistries, &mut wire).unwrap();
     assert_eq!(wire, [2, 0, 20, 4]);
@@ -252,70 +236,79 @@ fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
 #[test]
 fn a_hashed_patch_matches_through_hash_ops() {
     let patch = patch();
-    let hashed = HashedPatchMap::create(&patch).unwrap();
+    let names = sample_registries();
+    let hashed = HashedPatchMap::create(&patch, names).unwrap();
     assert_eq!(hashed.removed, vec![DataComponentType::Damage]);
     let (kind, hash) = hashed.added[0];
     assert_eq!(kind, DataComponentType::MaxStackSize);
     assert_eq!(hash, hash_ops::hash(&16i32).unwrap());
-    assert!(hashed.matches(&patch));
+    assert!(hashed.matches(&patch, names));
 
     let mut other = patch.clone();
     other.set(stack_size(17));
-    assert!(!hashed.matches(&other));
+    assert!(!hashed.matches(&other, names));
     other.set(stack_size(16));
     other.remove(DataComponentType::RepairCost);
-    assert!(!hashed.matches(&other));
+    assert!(!hashed.matches(&other, names));
     let mut fewer = patch.clone();
     fewer.added.pop();
-    assert!(!hashed.matches(&fewer));
+    assert!(!hashed.matches(&fewer, names));
 
     let mut transient = ComponentPatch::EMPTY;
     transient.set(CreativeSlotLock);
-    assert!(HashedPatchMap::create(&transient).is_err());
-    assert!(!HashedPatchMap::default().matches(&transient));
-    assert_eq!(HashedStack::create(&ProtoStack::EMPTY).unwrap(), None);
+    assert!(HashedPatchMap::create(&transient, names).is_err());
+    assert!(!HashedPatchMap::default().matches(&transient, names));
+    assert_eq!(
+        HashedStack::create(&ProtoStack::EMPTY, &TestLookup::new()).unwrap(),
+        None
+    );
 }
 
-fn stone() -> ResourceKey<mcrs_minecraft_item::keys::Item> {
-    ResourceKey::from_location(rl!("minecraft:stone").to_arc())
+fn stone() -> Key<Item> {
+    Key::new(rl!("minecraft:stone").to_arc())
 }
 
 #[test]
 fn a_stack_value_always_writes_its_count_and_rejects_air() {
-    let value = ItemStackValue {
+    let value = ItemStackValue::<Named> {
         item: stone(),
         count: Bounded(1),
         components: ComponentPatch::EMPTY,
     };
     let json = r#"{"id":"minecraft:stone","count":1}"#;
     assert_eq!(serde_json::to_string(&value).unwrap(), json);
-    assert_eq!(serde_json::from_str::<ItemStackValue>(json).unwrap(), value);
     assert_eq!(
-        serde_json::from_str::<ItemStackValue>(r#"{"id":"minecraft:stone"}"#).unwrap(),
+        serde_json::from_str::<ItemStackValue<Named>>(json).unwrap(),
         value
     );
-    let air = serde_json::from_str::<ItemStackValue>(r#"{"id":"minecraft:air"}"#).unwrap_err();
+    assert_eq!(
+        serde_json::from_str::<ItemStackValue<Named>>(r#"{"id":"minecraft:stone"}"#).unwrap(),
+        value
+    );
+    let air =
+        serde_json::from_str::<ItemStackValue<Named>>(r#"{"id":"minecraft:air"}"#).unwrap_err();
     assert_eq!(air.to_string(), "Item must not be minecraft:air");
     assert!(
-        serde_json::from_str::<ItemStackValue>(r#"{"id":"minecraft:stone","extra":1}"#).is_err()
+        serde_json::from_str::<ItemStackValue<Named>>(r#"{"id":"minecraft:stone","extra":1}"#)
+            .is_err()
     );
 
-    let lookup = TestLookup::new();
-    let slot = ProtoStack::from_value(&value, &lookup).unwrap();
+    let value: ItemStackValue = resolved(value).unwrap();
+    let slot = ProtoStack::from_value(&value);
     assert_eq!(
         slot,
         ProtoStack::new(Item::Stone.id(), 1, ComponentPatch::EMPTY)
     );
-    assert_eq!(slot.to_value(&lookup).unwrap(), value);
-    assert!(ProtoStack::EMPTY.to_value(&lookup).is_err());
+    assert_eq!(slot.to_value().unwrap(), value);
+    assert!(ProtoStack::EMPTY.to_value().is_err());
 }
 
 #[test]
 fn a_template_reads_a_bare_id_and_omits_defaults() {
-    let bare = serde_json::from_str::<Template>(r#""minecraft:stone""#).unwrap();
+    let bare = serde_json::from_str::<Template<Named>>(r#""minecraft:stone""#).unwrap();
     assert_eq!(
         bare,
-        Template::new(stone(), 1, ComponentPatch::EMPTY).unwrap()
+        Template::<Named>::new(stone(), 1, ComponentPatch::EMPTY).unwrap()
     );
     assert_eq!(
         serde_json::to_string(&bare).unwrap(),
@@ -324,13 +317,15 @@ fn a_template_reads_a_bare_id_and_omits_defaults() {
 
     let mut components = ComponentPatch::EMPTY;
     components.set(CustomName(Text::text("named")));
-    let full = Template::new(stone(), 3, components).unwrap();
+    let full = Template::new(Item::Stone.id(), 3, components).unwrap();
     let json =
         r#"{"id":"minecraft:stone","count":3,"components":{"minecraft:custom_name":"named"}}"#;
-    assert_eq!(serde_json::to_string(&full).unwrap(), json);
-    assert_eq!(serde_json::from_str::<Template>(json).unwrap(), full);
-    assert!(serde_json::from_str::<Template>(r#""minecraft:air""#).is_err());
-    assert!(serde_json::from_str::<Template>(r#"{"id":"minecraft:stone","count":0}"#).is_err());
+    assert_eq!(json_of(&full), json);
+    assert_eq!(read_json::<Template>(json).unwrap(), full);
+    assert!(serde_json::from_str::<Template<Named>>(r#""minecraft:air""#).is_err());
+    assert!(
+        serde_json::from_str::<Template<Named>>(r#"{"id":"minecraft:stone","count":0}"#).is_err()
+    );
 
     let lookup = TestLookup::new();
     let mut wire = Vec::new();
@@ -359,57 +354,40 @@ fn a_component_map_applies_and_diffs_against_its_prototype() {
     assert_eq!(prototype.diff(&prototype), ComponentPatch::EMPTY);
 
     let json = r#"{"minecraft:max_stack_size":64,"minecraft:lore":[]}"#;
-    assert_eq!(serde_json::to_string(&prototype).unwrap(), json);
-    assert_eq!(
-        serde_json::from_str::<ComponentMap>(json).unwrap(),
-        prototype
-    );
-    assert!(serde_json::from_str::<ComponentMap>(r#"{"!lore":{}}"#).is_err());
+    assert_eq!(json_of(&prototype), json);
+    assert_eq!(read_json::<ComponentMap>(json).unwrap(), prototype);
+    assert!(read_json::<ComponentMap>(r#"{"!lore":{}}"#).is_err());
 }
 
 #[test]
 fn a_one_entry_holder_set_is_the_bare_entry() {
-    in_samples(|| {
-        let one: HolderSet<Block> = list_set(&["stone"]);
-        assert_eq!(one, one_set::<Block>("stone"));
-        assert_eq!(serde_json::to_string(&one).unwrap(), r#""minecraft:stone""#);
-        let two: HolderSet<Block> = list_set(&["stone", "dirt"]);
-        assert_eq!(
-            serde_json::to_string(&two).unwrap(),
-            r#"["minecraft:stone","minecraft:dirt"]"#
-        );
+    let one: IdSet<Block> = list_set(&["stone"]);
+    assert_eq!(one, one_set::<Block>("stone"));
+    assert_eq!(json_of(&one), r#""minecraft:stone""#);
+    let two: IdSet<Block> = list_set(&["stone", "dirt"]);
+    assert_eq!(json_of(&two), r#"["minecraft:stone","minecraft:dirt"]"#);
 
-        let lookup = TestLookup::new();
-        type Blocks = HolderSet<Block>;
-        let dirt: Id<Block> = entry("dirt");
-        let cases: [(Blocks, &[u8]); 4] = [
-            (
-                tag_set("logs"),
-                &[
-                    0, 14, b'm', b'i', b'n', b'e', b'c', b'r', b'a', b'f', b't', b':', b'l', b'o',
-                    b'g', b's',
-                ],
-            ),
-            (HolderSet::One(dirt), &[2, 1]),
-            (HolderSet::List(Box::new([dirt, dirt])), &[3, 1, 1]),
-            (HolderSet::List(Box::new([])), &[1]),
-        ];
-        for (set, bytes) in cases {
-            let mut wire = Vec::new();
-            set.encode_ctx(&lookup, &mut wire).unwrap();
-            assert_eq!(wire, bytes, "{set:?}");
-            assert_eq!(Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(), set);
-        }
+    let lookup = TestLookup::new();
+    type Blocks = IdSet<Block>;
+    let dirt: Id<Block> = entry("dirt");
+    let cases: [(Blocks, &[u8]); 4] = [
+        (
+            tag_set("logs"),
+            &[
+                0, 14, b'm', b'i', b'n', b'e', b'c', b'r', b'a', b'f', b't', b':', b'l', b'o',
+                b'g', b's',
+            ],
+        ),
+        (IdSet::List(Box::new([dirt])), &[2, 1]),
+        (IdSet::List(Box::new([dirt, dirt])), &[3, 1, 1]),
+        (IdSet::List(Box::new([])), &[1]),
+    ];
+    for (set, bytes) in cases {
         let mut wire = Vec::new();
-        Blocks::List(Box::new([dirt]))
-            .encode_ctx(&lookup, &mut wire)
-            .unwrap();
-        assert_eq!(wire, [2, 1]);
-        assert_eq!(
-            Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(),
-            HolderSet::One(dirt)
-        );
-    });
+        set.encode_ctx(&lookup, &mut wire).unwrap();
+        assert_eq!(wire, bytes, "{set:?}");
+        assert_eq!(Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(), set);
+    }
 }
 
 #[test]
@@ -423,16 +401,14 @@ fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
             .is_none()
     );
     let lookup = TestLookup::new();
-    let (first, fourth) = in_samples(|| {
-        let id = |n: usize| {
-            let name = ENTRIES[n].as_static_str();
-            entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
-        };
-        (id(1), id(4))
-    });
+    let id = |n: usize| {
+        let name = ENTRIES[n].as_static_str();
+        entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
+    };
+    let (first, fourth) = (id(1), id(4));
     for (set, bytes) in [
-        (HolderSet::One(first), &[2, 1][..]),
-        (HolderSet::List(Box::new([fourth, first])), &[3, 4, 1][..]),
+        (IdSet::List(Box::new([first])), &[2, 1][..]),
+        (IdSet::List(Box::new([fourth, first])), &[3, 4, 1][..]),
     ] {
         let mut wire = Vec::new();
         set.encode_ctx(&lookup, &mut wire).unwrap();
@@ -452,22 +428,22 @@ fn a_holder_set_naming_what_the_receiver_lacks_fails_the_packet() {
         ("a block only the sender has", vec![2, 7]),
     ] {
         assert!(
-            HolderSet::<Block>::decode_ctx(&lookup, &mut &wire[..]).is_err(),
+            IdSet::<Block>::decode_ctx(&lookup, &mut &wire[..]).is_err(),
             "{what}"
         );
     }
     assert_eq!(
-        HolderSet::<Block>::decode_ctx(&lookup, &mut &[2u8, 0][..]).unwrap(),
-        in_samples(|| one_set("stone"))
+        IdSet::<Block>::decode_ctx(&lookup, &mut &[2u8, 0][..]).unwrap(),
+        one_set("stone")
     );
 }
 
 #[test]
 fn a_holder_set_decoded_without_registries_fails_the_packet() {
-    let one: HolderSet<Block> = in_samples(|| one_set("dirt"));
+    let one: IdSet<Block> = one_set("dirt");
     let mut wire = Vec::new();
     assert!(one.encode_ctx(&NoRegistries, &mut wire).is_err());
-    assert!(HolderSet::<Block>::decode_ctx(&NoRegistries, &mut &[2u8, 1][..]).is_err());
+    assert!(IdSet::<Block>::decode_ctx(&NoRegistries, &mut &[2u8, 1][..]).is_err());
 }
 
 #[test]
@@ -487,14 +463,14 @@ fn a_kind_is_a_var_int_on_the_wire() {
 
 #[test]
 fn a_holder_id_below_zero_is_an_error_not_a_panic() {
-    use mcrs_minecraft_protocol::item::Holder;
     use mcrs_minecraft_sound::SoundEvent;
+    type Sound = Ref<SoundEvent, SoundEvent>;
     let lookup = TestLookup::new();
     let min_var_int = [0x80, 0x80, 0x80, 0x80, 0x08];
-    let error = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
-    assert!(error.to_string().contains("has no id"), "{error}");
+    let error = Sound::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
+    assert!(error.to_string().contains("is outside"), "{error}");
     let too_big = [0xFF, 0xFF, 0xFF, 0xFF, 0x07];
-    assert!(Holder::<SoundEvent>::decode_ctx(&lookup, &mut &too_big[..]).is_err());
+    assert!(Sound::decode_ctx(&lookup, &mut &too_big[..]).is_err());
 }
 
 #[test]
@@ -521,7 +497,7 @@ fn an_air_stack_is_empty_whatever_its_count() {
     let mut wire = Vec::new();
     air.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire, [0]);
-    assert_eq!(HashedStack::create(&air).unwrap(), None);
+    assert_eq!(HashedStack::create(&air, &lookup).unwrap(), None);
     let mut r: &[u8] = &[1, 0, 0, 0];
     assert_eq!(
         ProtoStack::decode_ctx(&lookup, &mut r).unwrap(),
@@ -553,17 +529,15 @@ fn a_patch_compares_as_a_map() {
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
     use mcrs_minecraft_entity::keys::EntityType;
-    use mcrs_minecraft_protocol::item::{Holder, ResolvableFloat, ResolvableInt, TypedEntityData};
+    use mcrs_minecraft_protocol::item::{ResolvableFloat, ResolvableInt, TypedEntityData};
     use mcrs_minecraft_sound::SoundEvent;
-    in_samples(|| {
-        let sound: Holder<SoundEvent> = serde_json::from_str(r#""entity.item.break""#).unwrap();
-        assert_eq!(
-            sound,
-            Holder::Reference(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id())
-        );
-        let logs: HolderSet<Block> = serde_json::from_str("\"#logs\"").unwrap();
-        assert_eq!(logs, tag_set("logs"));
-    });
+    let sound: Ref<SoundEvent, SoundEvent> = read_json(r#""entity.item.break""#).unwrap();
+    assert_eq!(
+        sound,
+        Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id())
+    );
+    let logs: IdSet<Block> = read_json("\"#logs\"").unwrap();
+    assert_eq!(logs, tag_set("logs"));
     let zombie: TypedEntityData<EntityType> = serde_json::from_str(r#"{"id":"zombie"}"#).unwrap();
     assert_eq!(zombie.id.location().as_str(), "minecraft:zombie");
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();

@@ -1,9 +1,10 @@
 use std::io::Write;
 
-use anyhow::ensure;
-use mcrs_minecraft_core::ResourceKey;
+use anyhow::{bail, ensure};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_registries::Namer;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::registry_ref::*;
@@ -40,15 +41,18 @@ impl DecodeCtx<'_> for Enchantments {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "attempt to decode a map with negative length");
-        let mut entries: Vec<(ResourceKey<EnchantmentData>, i32)> =
+        let mut entries: Vec<(Id<EnchantmentData>, i32)> =
             Vec::with_capacity((len as usize).min(r.len()));
         for _ in 0..len {
-            let enchantment = ResourceKey::decode_ctx(ctx, r)?;
+            let enchantment = Id::decode_ctx(ctx, r)?;
             let level = VarInt::decode(r)?.0;
-            ensure!(
-                (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
-                "Enchantment {enchantment} has invalid level {level}"
-            );
+            if !(0..=MAX_ENCHANTMENT_LEVEL).contains(&level) {
+                let name = ctx
+                    .registries()
+                    .and_then(|set| Namer::name(set, enchantment))
+                    .map_or_else(|| format!("{enchantment:?}"), ToString::to_string);
+                bail!("Enchantment {name} has invalid level {level}");
+            }
             match entries.iter_mut().find(|(k, _)| *k == enchantment) {
                 Some(entry) => entry.1 = level,
                 None => entries.push((enchantment, level)),
@@ -88,7 +92,7 @@ impl EncodeCtx for StewEntry {
 impl DecodeCtx<'_> for StewEntry {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(StewEntry {
-            id: ResourceKey::decode_ctx(ctx, r)?,
+            id: DecodeCtx::decode_ctx(ctx, r)?,
             duration: VarInt::decode(r)?.0,
         })
     }

@@ -10,10 +10,13 @@ use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentValue, PotDecorations,
     Template, hash_ops,
 };
+use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
-use crate::item::harness::{TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json};
+use crate::item::harness::{
+    TestLookup, from_json, from_nbt, hex, json_of, named, nbt_tree, persistent_json,
+};
 
 #[derive(Deserialize)]
 struct Golden {
@@ -48,7 +51,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
         let from_vanilla_nbt = from_nbt(kind, &vanilla_nbt);
         assert_eq!(from_vanilla_nbt, value, "{} from vanilla nbt", case.name);
         let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
         assert_eq!(
             nbt_tree(&nbt),
             nbt_tree(&vanilla_nbt),
@@ -65,7 +68,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
         assert_eq!(decoded, value, "{} wire round trip", case.name);
 
         assert_eq!(
-            hash_ops::hash(&value).unwrap(),
+            hash_ops::hash(&named(&value)).unwrap(),
             case.hash,
             "{} hash",
             case.name
@@ -77,14 +80,16 @@ fn nested_kinds_match_vanilla_in_every_form() {
 fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let golden = golden();
     let lookup = TestLookup::from_ids(&golden.lookup);
-    let sparse: Container = serde_json::from_str(
+    let sparse: Container<Named> = serde_json::from_str(
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )
     .unwrap();
     assert_eq!(sparse.slots.0.len(), 4);
     assert!(sparse.slots.0[1].is_none() && sparse.slots.0[2].is_none());
     assert_eq!(
-        sparse.slots.0[3].as_ref().map(|t| t.0.item.as_str()),
+        sparse.slots.0[3]
+            .as_ref()
+            .map(|t| t.0.item.location().as_str()),
         Some("minecraft:diamond_sword")
     );
     let case = golden
@@ -92,7 +97,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
         .iter()
         .find(|case| case.name == "container_sparse")
         .unwrap();
-    assert_eq!(persistent_json(&sparse.clone().into()), case.json);
+    assert_eq!(serde_json::to_string(&sparse).unwrap(), case.json);
 
     let mut r = &hex("02010101000000")[..];
     let trailing = decode_component_value(DataComponentType::Container, &lookup, &mut r).unwrap();
@@ -102,7 +107,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     assert_eq!(trailing.slots.0.len(), 2);
     assert!(trailing.slots.0[1].is_none());
     assert_eq!(
-        serde_json::to_string(&trailing).unwrap(),
+        json_of(&trailing),
         r#"[{"slot":0,"item":{"id":"minecraft:stone"}}]"#
     );
     let mut wire = Vec::new();
@@ -134,20 +139,21 @@ fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
 
 #[test]
 fn errors_read_like_vanilla() {
-    let slot = serde_json::from_str::<Container>(r#"[{"slot":256,"item":"minecraft:stone"}]"#)
-        .unwrap_err();
+    let slot =
+        serde_json::from_str::<Container<Named>>(r#"[{"slot":256,"item":"minecraft:stone"}]"#)
+            .unwrap_err();
     assert!(
         slot.to_string()
             .starts_with("Value 256 outside of range [0:255]"),
         "{slot}"
     );
-    let air =
-        serde_json::from_str::<Container>(r#"[{"slot":1,"item":"minecraft:air"}]"#).unwrap_err();
+    let air = serde_json::from_str::<Container<Named>>(r#"[{"slot":1,"item":"minecraft:air"}]"#)
+        .unwrap_err();
     assert!(
         air.to_string().contains("Item must not be minecraft:air"),
         "{air}"
     );
-    let missing = serde_json::from_str::<Container>(r#"[{"slot":1}]"#).unwrap_err();
+    let missing = serde_json::from_str::<Container<Named>>(r#"[{"slot":1}]"#).unwrap_err();
     assert!(
         missing.to_string().contains("missing field `item`"),
         "{missing}"
@@ -157,7 +163,7 @@ fn errors_read_like_vanilla() {
         .map(|i| format!(r#"{{"slot":{},"item":"minecraft:stone"}}"#, i % 256))
         .collect();
     let too_long =
-        serde_json::from_str::<Container>(&format!("[{}]", entries.join(","))).unwrap_err();
+        serde_json::from_str::<Container<Named>>(&format!("[{}]", entries.join(","))).unwrap_err();
     assert!(
         too_long
             .to_string()
@@ -167,21 +173,22 @@ fn errors_read_like_vanilla() {
     let mut entries = entries;
     entries[5] = r#"{"slot":300,"item":"minecraft:stone"}"#.into();
     let too_long_with_bad_entry =
-        serde_json::from_str::<Container>(&format!("[{}]", entries.join(","))).unwrap_err();
+        serde_json::from_str::<Container<Named>>(&format!("[{}]", entries.join(","))).unwrap_err();
     assert!(
         too_long_with_bad_entry
             .to_string()
             .starts_with("List is too long: 257, expected range [0-256]"),
         "{too_long_with_bad_entry}"
     );
-    let too_many_slots = Container::new(vec![None; 257]).unwrap_err();
+    let too_many_slots = Container::<Named>::new(vec![None; 257]).unwrap_err();
     assert_eq!(
         too_many_slots.to_string(),
         "Got 257 items, but maximum is 256"
     );
 
     let arrows = vec![r#""minecraft:arrow""#; 1025].join(",");
-    let too_many = serde_json::from_str::<ChargedProjectiles>(&format!("[{arrows}]")).unwrap_err();
+    let too_many =
+        serde_json::from_str::<ChargedProjectiles<Named>>(&format!("[{arrows}]")).unwrap_err();
     assert!(
         too_many
             .to_string()
@@ -189,20 +196,21 @@ fn errors_read_like_vanilla() {
         "{too_many}"
     );
 
-    let zero = serde_json::from_str::<BundleContents>(r#"[{"id":"minecraft:stone","count":0}]"#)
-        .unwrap_err();
+    let zero =
+        serde_json::from_str::<BundleContents<Named>>(r#"[{"id":"minecraft:stone","count":0}]"#)
+            .unwrap_err();
     assert!(
         zero.to_string()
             .starts_with("Value must be within range [1;99]: 0"),
         "{zero}"
     );
     let unknown =
-        serde_json::from_str::<PotDecorations>(r#"{"top":"minecraft:stone"}"#).unwrap_err();
+        serde_json::from_str::<PotDecorations<Named>>(r#"{"top":"minecraft:stone"}"#).unwrap_err();
     assert!(
         unknown.to_string().contains("unknown field `top`"),
         "{unknown}"
     );
-    let _: Template = serde_json::from_str(r#""minecraft:stone""#).unwrap();
+    let _: Template<Named> = serde_json::from_str(r#""minecraft:stone""#).unwrap();
 }
 
 #[test]
@@ -214,7 +222,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
     };
     let json = |value: &ItemComponentValue| {
         let mut out = Vec::new();
-        value
+        named(value)
             .serialize_value(&mut serde_json::Serializer::new(&mut out))
             .map(|()| String::from_utf8(out).unwrap())
             .map_err(|e| e.to_string())

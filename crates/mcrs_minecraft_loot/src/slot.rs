@@ -5,7 +5,7 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_predicate::slots::SlotRange;
-use mcrs_minecraft_registry::{Holder, HolderList};
+use mcrs_minecraft_registry::{Checked, Holder, HolderList};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -53,7 +53,7 @@ pub struct Group {
 #[serde(deny_unknown_fields)]
 pub struct Filtered {
     pub slot_source: Holder<SlotSource>,
-    pub item_filter: ItemPredicate,
+    pub item_filter: Checked<ItemPredicate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

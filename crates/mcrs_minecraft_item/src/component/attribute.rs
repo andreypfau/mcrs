@@ -1,25 +1,28 @@
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::LIST_ID;
-use serde::{Deserialize, Serialize};
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
+use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::{EquipmentSlotGroup, key, ordinal_enum};
+use crate::component::common::{EquipmentSlotGroup, ordinal_enum};
 use crate::component::registry_ref::null_as_default;
-use crate::harness::Sample;
+use crate::harness::{Sample, entry};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct AttributeModifiers(pub Vec<AttributeEntry>);
+pub struct AttributeModifiers<M: Refs = Resolved>(pub Vec<AttributeEntry<M>>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AttributeEntry {
+pub struct AttributeEntry<M: Refs = Resolved> {
     #[serde(rename = "type")]
-    pub attribute: ResourceKey<Attribute>,
+    pub attribute: M::Id<Attribute>,
     #[serde(flatten)]
     pub modifier: AttributeModifierValue,
     #[serde(
@@ -31,14 +34,20 @@ pub struct AttributeEntry {
     #[serde(
         default,
         deserialize_with = "display_or_default",
-        skip_serializing_if = "is_default"
+        skip_serializing_if = "is_default",
+        bound(deserialize = "AttributeDisplay<M>: Deserialize<'de>")
     )]
-    pub display: AttributeDisplay,
+    pub display: AttributeDisplay<M>,
 }
 
 null_as_default! {
     slot_or_default: EquipmentSlotGroup = any_slot();
-    display_or_default: AttributeDisplay = AttributeDisplay::Default;
+}
+
+fn display_or_default<'de, D: Deserializer<'de>, T: Deserialize<'de> + Default>(
+    d: D,
+) -> Result<T, D::Error> {
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
 }
 
 fn any_slot() -> EquipmentSlotGroup {
@@ -61,18 +70,19 @@ ordinal_enum! {
     AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum AttributeDisplay {
+pub enum AttributeDisplay<M: Refs = Resolved> {
     #[default]
     Default,
     Hidden,
     Override {
-        value: Text,
+        value: Text<M>,
     },
 }
 
-impl AttributeDisplay {
+impl<M: Refs> AttributeDisplay<M> {
     pub fn type_id(&self) -> i32 {
         match self {
             AttributeDisplay::Default => 0,
@@ -89,7 +99,7 @@ impl Sample for AttributeModifiers {
 
     fn samples() -> Vec<Self> {
         let entry = |path: &str, id: &str, amount: f64, operation, slot, display| AttributeEntry {
-            attribute: key(path),
+            attribute: entry(path),
             modifier: AttributeModifierValue {
                 id: ResourceLocation::new("mcrs", id).unwrap(),
                 amount,

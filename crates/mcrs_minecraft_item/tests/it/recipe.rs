@@ -1,44 +1,22 @@
-use std::sync::LazyLock;
-
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::TrimPattern;
-use mcrs_minecraft_item::keys::TRIM_PATTERN;
 use mcrs_minecraft_item::recipe::Recipe;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
-use mcrs_minecraft_worldgen_testing::{json_files, reencode, tagged_report, vanilla_dir};
-
-fn recipe_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let base = vanilla_dir().join("trim_pattern");
-        let names = json_files(&base).into_iter().map(|path| {
-            let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap();
-            ResourceLocation::minecraft(name).unwrap()
-        });
-        tagged_report()
-            .clone()
-            .with(Registry::<TrimPattern>::new(TRIM_PATTERN, names).unwrap())
-            .unwrap()
-    });
-    &SET
-}
+use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_worldgen_testing::{json_files, reencode, vanilla_dir};
 
 #[test]
 fn every_shipped_recipe_round_trips() {
     let files = json_files(&vanilla_dir().join("recipe"));
-    recipe_set().scope(|| {
-        for path in &files {
-            let bytes = std::fs::read(path).unwrap();
-            let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            let recipe: Recipe = serde_json::from_slice(&bytes)
-                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-            assert_eq!(
-                reencode(&recipe),
-                raw,
-                "{} does not round-trip",
-                path.display()
-            );
-        }
-    });
+    for path in &files {
+        let bytes = std::fs::read(path).unwrap();
+        let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let recipe: Recipe<Named> = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        assert_eq!(
+            reencode(&recipe),
+            raw,
+            "{} does not round-trip",
+            path.display()
+        );
+    }
     assert_eq!(files.len(), 2055);
 }
 
@@ -79,8 +57,7 @@ fn a_malformed_recipe_is_refused_naming_the_fault() {
         ),
     ];
     for (json, expected) in cases {
-        let error = recipe_set()
-            .scope(|| serde_json::from_str::<Recipe>(json))
+        let error = serde_json::from_str::<Recipe<Named>>(json)
             .expect_err(json)
             .to_string();
         assert!(

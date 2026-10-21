@@ -12,6 +12,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 
 use crate::id::Key;
 use crate::registry::RegistryType;
+use crate::static_key::StaticKey;
 use crate::tags::IdSet;
 
 pub trait Inline: Clone + fmt::Debug + PartialEq + Send + Sync + 'static {}
@@ -24,24 +25,44 @@ pub trait Refs: Inline + Copy + Eq {
     type Id<R: RegistryType>: Inline;
     type Set<R: RegistryType>: Inline;
     type Ref<R: RegistryType, V: Inline>: Inline;
+
+    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Self::Id<R>;
+
+    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> Self::Ref<R, V>;
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Named {}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Named;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Resolved {}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Resolved;
 
 impl Refs for Named {
     type Id<R: RegistryType> = Key<R>;
     type Set<R: RegistryType> = KeySet<R>;
     type Ref<R: RegistryType, V: Inline> = KeyOr<R, V>;
+
+    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Key<R> {
+        Key::new(key.location().to_arc())
+    }
+
+    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> KeyOr<R, V> {
+        KeyOr::Key(Self::id_of(key))
+    }
 }
 
 impl Refs for Resolved {
     type Id<R: RegistryType> = Id<R>;
     type Set<R: RegistryType> = IdSet<R>;
     type Ref<R: RegistryType, V: Inline> = Ref<R, V>;
+
+    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Id<R> {
+        key.id()
+    }
+
+    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> Ref<R, V> {
+        Ref::Id(key.id())
+    }
 }
 
 pub enum KeySet<R> {
@@ -426,6 +447,54 @@ impl<T: Resolve> Resolve for Vec<T> {
             .enumerate()
             .map(|(at, value)| value.name(names).map_err(|e| e.at_index(at)))
             .collect()
+    }
+}
+
+impl<T: Resolve, const N: usize> Resolve for [T; N] {
+    type Named = [T::Named; N];
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        let values: Vec<T> = Vec::resolve(named.into(), ctx)?;
+        values
+            .try_into()
+            .map_err(|_| ResolveError::new(format!("expected {N} values")))
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        let values: Vec<T::Named> = self
+            .iter()
+            .enumerate()
+            .map(|(at, value)| value.name(names).map_err(|e| e.at_index(at)))
+            .collect::<Result<_, _>>()?;
+        values
+            .try_into()
+            .map_err(|_| ResolveError::new(format!("expected {N} values")))
+    }
+}
+
+impl<T: Resolve, const MAX: usize> Resolve for mcrs_minecraft_core::Bounded<T, MAX> {
+    type Named = mcrs_minecraft_core::Bounded<T::Named, MAX>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        T::resolve(named.0, ctx).map(mcrs_minecraft_core::Bounded)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        self.0.name(names).map(mcrs_minecraft_core::Bounded)
+    }
+}
+
+impl<T: Resolve> Resolve for mcrs_minecraft_core::codec::CompactList<T> {
+    type Named = mcrs_minecraft_core::codec::CompactList<T::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        Vec::resolve(named.0, ctx).map(mcrs_minecraft_core::codec::CompactList)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        self.0
+            .name(names)
+            .map(mcrs_minecraft_core::codec::CompactList)
     }
 }
 

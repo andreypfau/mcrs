@@ -9,7 +9,8 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 
 use crate::item::harness::{
-    TestLookup, from_nbt, hex, in_samples, json_value, nbt_tree, persistent_json, try_from_json,
+    TestLookup, from_nbt, hex, in_samples, json_value, named, nbt_tree, persistent_json, resolved,
+    try_from_json,
 };
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("item_registry_refs").text());
@@ -120,7 +121,7 @@ fn every_golden_sample_matches_vanilla() {
                     );
 
                     let mut our_nbt = Vec::new();
-                    mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut our_nbt).unwrap();
+                    mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut our_nbt).unwrap();
                     assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind:?} {input}: NBT");
 
                     let mut our_wire = Vec::new();
@@ -136,7 +137,7 @@ fn every_golden_sample_matches_vanilla() {
                     );
 
                     assert_eq!(
-                        hash_ops::hash(&value).unwrap(),
+                        hash_ops::hash(&named(&value)).unwrap(),
                         *hash,
                         "{kind:?} {input}: hash"
                     );
@@ -269,7 +270,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     };
     let reversed = Enchantments(expected.0.iter().rev().cloned().collect());
     assert_eq!(&reversed, expected);
-    assert_ne!(Enchantments(vec![expected.0[0].clone()]), *expected);
+    assert_ne!(Enchantments(vec![expected.0[0]]), *expected);
 }
 
 #[test]
@@ -314,9 +315,9 @@ fn nbt_floats_keep_vanillas_number_semantics() {
             mcrs_minecraft_nbt::to_bytes_unnamed(&tag, &mut bytes).unwrap();
             let mut cursor = std::io::Cursor::new(&bytes[..]);
             let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-            ItemComponentValue::deserialize_value(kind, &mut d)
-                .map(|value| persistent_json(&value))
-                .map_err(|e| e.to_string())
+            let value =
+                ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?;
+            resolved(value).map(|value| persistent_json(&value))
         }
         fn compound(entries: Vec<(&str, NbtTag)>) -> NbtTag {
             NbtTag::Compound(NbtCompound {
@@ -434,7 +435,7 @@ fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
                 .unwrap();
         assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
         let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
         assert!(nbt.ends_with(&[0x00, 0x00, 0x00, 0x00, 0x00]));
         let reloaded = from_nbt(DataComponentType::MobVisibility, &nbt);
         assert!(persistent_json(&reloaded).ends_with(r#""visibility":0.0}"#));
@@ -466,11 +467,13 @@ fn non_finite_floats_cross_the_wire() {
     }
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(
-        &try_from_json(
-            DataComponentType::Tool,
-            r#"{"rules":[],"default_mining_speed":1e40}"#,
-        )
-        .unwrap(),
+        &named(
+            &try_from_json(
+                DataComponentType::Tool,
+                r#"{"rules":[],"default_mining_speed":1e40}"#,
+            )
+            .unwrap(),
+        ),
         &mut nbt,
     )
     .unwrap();
@@ -508,7 +511,7 @@ fn two_spellings_of_one_enchantment_are_still_a_duplicate() {
 fn a_one_entry_list_is_the_bare_entry() {
     in_samples(|| {
         use mcrs_minecraft_protocol::item::DamageResistant;
-        use mcrs_minecraft_registry::HolderSet;
+        use mcrs_minecraft_registries::IdSet;
 
         let lookup = TestLookup::new();
         let bare = try_from_json(
@@ -531,6 +534,6 @@ fn a_one_entry_list_is_the_bare_entry() {
         let ItemComponentValue::DamageResistant(DamageResistant { types }) = decoded else {
             unreachable!()
         };
-        assert!(matches!(types, HolderSet::One(_)));
+        assert!(matches!(types, IdSet::List(ref ids) if ids.len() == 1));
     });
 }

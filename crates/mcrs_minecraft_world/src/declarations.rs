@@ -5,8 +5,10 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::{BLOCK, Block, FLUID, Fluid};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::resource_location::StaticResourceLocation;
-use mcrs_minecraft_entity::keys::{ATTRIBUTE, Attribute};
-use mcrs_minecraft_item::keys::{ITEM, Item};
+use mcrs_minecraft_entity::keys::{
+    ATTRIBUTE, Attribute, ENTITY_TYPE, EntityType, VILLAGER_TYPE, VillagerType,
+};
+use mcrs_minecraft_item::keys::{ITEM, Item, MOB_EFFECT, MobEffect, POTION, Potion};
 use mcrs_minecraft_registries::{
     DataDeclaration, Declaration, LoadCtx, PackStack, ReadValue, Registries, RegistryOf,
     RegistryType, Stage, StageView,
@@ -110,12 +112,16 @@ numbered!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
 
 type DeclareStatic = fn(ResourceLocation, Vec<ResourceLocation>) -> Declaration;
 
-const TYPED_STATICS: [(StaticResourceLocation, DeclareStatic); 5] = [
+const TYPED_STATICS: [(StaticResourceLocation, DeclareStatic); 9] = [
     (BLOCK.location(), Declaration::fixed::<Block>),
     (ITEM.location(), Declaration::fixed::<Item>),
     (FLUID.location(), Declaration::fixed::<Fluid>),
     (SOUND_EVENT.location(), Declaration::fixed::<SoundEvent>),
     (ATTRIBUTE.location(), Declaration::fixed::<Attribute>),
+    (MOB_EFFECT.location(), Declaration::fixed::<MobEffect>),
+    (POTION.location(), Declaration::fixed::<Potion>),
+    (ENTITY_TYPE.location(), Declaration::fixed::<EntityType>),
+    (VILLAGER_TYPE.location(), Declaration::fixed::<VillagerType>),
 ];
 
 struct Grown {

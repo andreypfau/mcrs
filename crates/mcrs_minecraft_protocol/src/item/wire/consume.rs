@@ -1,9 +1,8 @@
 use std::io::Write;
 
 use anyhow::bail;
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
+use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::component::common::Holder;
 use crate::item::component::consume::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::keys::ConsumeEffectType;
@@ -48,7 +47,7 @@ impl DecodeCtx<'_> for ConsumeEffect {
                 probability: f32::decode(r)?,
             },
             ConsumeEffectType::RemoveEffects => Self::RemoveEffects {
-                effects: HolderSet::decode_ctx(ctx, r)?,
+                effects: DecodeCtx::decode_ctx(ctx, r)?,
             },
             ConsumeEffectType::ClearAllEffects => Self::ClearAllEffects,
             ConsumeEffectType::TeleportRandomly => Self::TeleportRandomly {
@@ -56,7 +55,7 @@ impl DecodeCtx<'_> for ConsumeEffect {
                 directional_particles: bool::decode(r)?,
             },
             ConsumeEffectType::PlaySound => Self::PlaySound {
-                sound: Holder::decode_ctx(ctx, r)?,
+                sound: DecodeCtx::decode_ctx(ctx, r)?,
             },
         })
     }

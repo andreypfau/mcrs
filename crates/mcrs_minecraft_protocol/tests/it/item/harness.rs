@@ -1,6 +1,10 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::keys::DataComponentType;
@@ -11,14 +15,11 @@ use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemDataComponent};
+use mcrs_minecraft_registries::{Named, Resolve};
 use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
     sample_registries().scope(run)
-}
-
-pub fn in_data_pack<T>(run: impl FnOnce() -> T) -> T {
-    mcrs_minecraft_world::registry_load::test_registries().scope(run)
 }
 
 pub use crate::common::{hex, nbt_tree};
@@ -181,13 +182,31 @@ impl RegistryLookup for TestLookup {
     }
 }
 
+pub fn named<T: Resolve + fmt::Debug>(value: &T) -> T::Named {
+    value
+        .name(sample_registries())
+        .unwrap_or_else(|e| panic!("{value:?}: name: {e}"))
+}
+
+pub fn resolved<T: Resolve>(value: T::Named) -> Result<T, String> {
+    T::resolve(value, sample_registries()).map_err(|e| e.to_string())
+}
+
+pub fn json_of<T: Resolve<Named: Serialize> + fmt::Debug>(value: &T) -> String {
+    serde_json::to_string(&named(value)).unwrap()
+}
+
+pub fn read_json<T: Resolve<Named: DeserializeOwned>>(json: &str) -> Result<T, String> {
+    resolved(serde_json::from_str::<T::Named>(json).map_err(|e| e.to_string())?)
+}
+
 pub fn persistent_json(value: &ItemComponentValue) -> String {
-    in_samples(|| {
-        let mut out = Vec::new();
-        let mut s = serde_json::Serializer::new(&mut out);
-        value.serialize_value(&mut s).expect("serialize_value");
-        String::from_utf8(out).unwrap()
-    })
+    let mut out = Vec::new();
+    let mut s = serde_json::Serializer::new(&mut out);
+    named(value)
+        .serialize_value(&mut s)
+        .expect("serialize_value");
+    String::from_utf8(out).unwrap()
 }
 
 pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
@@ -199,10 +218,8 @@ pub fn from_json(kind: DataComponentType, json: &str) -> ItemComponentValue {
 }
 
 pub fn try_from_json(kind: DataComponentType, json: &str) -> Result<ItemComponentValue, String> {
-    in_samples(|| {
-        let mut d = serde_json::Deserializer::from_str(json);
-        ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())
-    })
+    let mut d = serde_json::Deserializer::from_str(json);
+    resolved(ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?)
 }
 
 pub fn wire(lookup: &TestLookup, value: &ItemComponentValue) -> Vec<u8> {
@@ -251,7 +268,7 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
             assert_eq!(persistent_json(&back), json, "JSON is stable for {kind:?}");
 
             let mut nbt = Vec::new();
-            mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).expect("to nbt");
+            mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).expect("to nbt");
             let back = from_nbt(kind, &nbt);
             assert_eq!(back, value, "NBT round trip of {kind:?}");
             check_tag_widths(kind, &nbt, &sample.nbt_tags());
@@ -262,17 +279,18 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
         } else {
             let mut out = Vec::new();
             let mut s = serde_json::Serializer::new(&mut out);
+            let value_named = named(&value);
             assert!(
-                value.serialize_value(&mut s).is_err(),
+                value_named.serialize_value(&mut s).is_err(),
                 "{kind:?} is transient"
             );
-            let patch = ComponentPatch {
-                added: vec![value.clone()],
+            let patch = ComponentPatch::<Named> {
+                added: vec![value_named],
                 removed: vec![],
             };
             assert_eq!(serde_json::to_string(&patch).unwrap(), "{}");
             let named = format!("{{\"{}\":{{}}}}", kind.location());
-            let error = serde_json::from_str::<ComponentPatch>(&named).unwrap_err();
+            let error = serde_json::from_str::<ComponentPatch<Named>>(&named).unwrap_err();
             assert!(
                 error.to_string().contains("is not a persistent component"),
                 "{error}"
@@ -312,17 +330,15 @@ fn check_tag_widths(kind: DataComponentType, bytes: &[u8], expected: &[(&str, u8
 }
 
 pub fn from_nbt(kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
-    in_samples(|| {
-        let mut cursor = std::io::Cursor::new(bytes);
-        let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-        let value = ItemComponentValue::deserialize_value(kind, &mut d).expect("from nbt");
-        assert_eq!(
-            cursor.position() as usize,
-            bytes.len(),
-            "NBT fully read for {kind:?}"
-        );
-        value
-    })
+    let mut cursor = std::io::Cursor::new(bytes);
+    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+    let value = ItemComponentValue::deserialize_value(kind, &mut d).expect("from nbt");
+    assert_eq!(
+        cursor.position() as usize,
+        bytes.len(),
+        "NBT fully read for {kind:?}"
+    );
+    resolved(value).expect("resolve from nbt")
 }
 
 macro_rules! samples_round_trip {

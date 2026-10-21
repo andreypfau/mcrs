@@ -11,6 +11,7 @@ use mcrs_minecraft_item::keys::DataComponentPredicateType;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::Named;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -225,7 +226,7 @@ pub enum ConditionProperty {
 /// `{ predicate: <type>, value: <predicate of that type> }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComponentMatches {
-    pub predicate: ComponentPredicate,
+    pub predicate: ComponentPredicate<Named>,
 }
 
 impl Serialize for ComponentMatches {
@@ -541,7 +542,7 @@ impl Validate for SelectSwitch {
 #[derive(Debug, Clone)]
 pub struct ComponentSwitch {
     pub component: DataComponentType,
-    pub cases: Vec<Case<ItemComponentValue>>,
+    pub cases: Vec<Case<ItemComponentValue<Named>>>,
 }
 
 impl Serialize for ComponentSwitch {
@@ -575,13 +576,13 @@ impl<'de> Deserialize<'de> for ComponentSwitch {
 struct CasesSeed(DataComponentType);
 
 impl<'de> DeserializeSeed<'de> for CasesSeed {
-    type Value = (DataComponentType, Vec<Case<ItemComponentValue>>);
+    type Value = (DataComponentType, Vec<Case<ItemComponentValue<Named>>>);
 
     fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
         struct Cases(DataComponentType);
 
         impl<'de> Visitor<'de> for Cases {
-            type Value = Vec<Case<ItemComponentValue>>;
+            type Value = Vec<Case<ItemComponentValue<Named>>>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a list of cases")

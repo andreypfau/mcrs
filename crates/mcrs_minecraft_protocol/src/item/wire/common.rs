@@ -1,9 +1,9 @@
 use std::io::Write;
 
 use anyhow::ensure;
-use mcrs_minecraft_core::{Registered, RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{Registered, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::{Holder, HolderWireOnly, RegistryLookup};
+use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::common::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -12,24 +12,6 @@ use crate::{Bounded, Decode, Encode, VarInt};
 
 newtype_wire!(RgbInt, ArgbInt, NbtPredicate);
 ordinal_enum_wire!(EquipmentSlotGroup, ItemUseAnimation);
-
-impl<V: RegistryValue + EncodeCtx> EncodeCtx for HolderWireOnly<V>
-where
-    V::Registry: Registered,
-{
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for HolderWireOnly<V>
-where
-    V::Registry: Registered,
-{
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Holder::decode_ctx(ctx, r).map(HolderWireOnly)
-    }
-}
 
 impl<T: EncodeCtx> EncodeCtx for Filterable<T> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {

@@ -3,10 +3,10 @@
 
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{Id, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
@@ -15,8 +15,8 @@ use mcrs_minecraft_item::recipe::Ingredient;
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentValue, Raw, Template,
-    TrimPattern,
+    ComponentPatch, Damage, DecodeCtx, EncodeCtx, InlineRef, ItemComponentValue, Raw, Template,
+    Text, TrimPattern, TrimPatternRef,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,
@@ -29,11 +29,11 @@ use mcrs_minecraft_protocol::recipe::{
     RecipeBookEntry, RecipeBookSettings, RecipeBookType, RecipeBookTypeSettings, RecipeDisplay,
     SelectableRecipe, SlotDisplay,
 };
-use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
+use mcrs_minecraft_registries::{IdSet, Resolved};
+use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::harness::{TestLookup, hex, in_samples};
+use crate::item::harness::{TestLookup, hex, read_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("recipe_packets").text());
 
@@ -55,28 +55,28 @@ fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
     (TestLookup::with_id_lines(&GOLDEN), wires)
 }
 
-fn key(path: &str) -> ResourceKey<Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
+fn key(path: &str) -> Id<Item> {
+    Item::read(&format!("minecraft:{path}")).unwrap().id()
 }
 
 fn item(path: &str) -> SlotDisplay {
     SlotDisplay::Item { item: key(path) }
 }
 
-fn planks() -> HolderSet<Item> {
-    in_samples(|| tag_set("planks"))
+fn planks() -> IdSet<Item> {
+    tag_set("planks")
 }
 
-fn coast() -> Holder<TrimPattern> {
-    in_samples(|| Holder::Reference(entry("coast")))
+fn coast() -> TrimPatternRef<Resolved> {
+    InlineRef::Id(entry("coast"))
 }
 
-fn one(path: &str) -> HolderSet<Item> {
-    in_samples(|| one_set(path))
+fn one(path: &str) -> IdSet<Item> {
+    one_set(path)
 }
 
-fn list(paths: &[&str]) -> HolderSet<Item> {
-    in_samples(|| list_set(paths))
+fn list(paths: &[&str]) -> IdSet<Item> {
+    list_set(paths)
 }
 
 #[expect(
@@ -179,11 +179,11 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 result: SlotDisplay::SmithingTrim {
                     base: Box::new(item("iron_chestplate")),
                     material: Box::new(item("netherite_ingot")),
-                    pattern: Holder::Direct(TrimPattern {
+                    pattern: InlineRef::Inline(Arc::new(TrimPattern {
                         asset_id: rl!("mcrs:wave").to_arc(),
                         description: Text::text("Wave"),
                         decal: true,
-                    }),
+                    })),
                 },
                 crafting_station: item("smithing_table"),
             },
@@ -243,7 +243,7 @@ fn recipe_book_add_matches_vanilla_and_resolves_every_display() {
 #[test]
 fn update_recipes_matches_vanilla() {
     let (lookup, wires) = golden();
-    let smithing_base: Vec<ResourceKey<Item>> = vec![key("iron_chestplate")];
+    let smithing_base: Vec<Id<Item>> = vec![key("iron_chestplate")];
     let stonecutter = [
         SelectableRecipe {
             input: Ingredient(one("stone")),
@@ -335,14 +335,6 @@ fn shaped_display_rejects_mismatched_dimensions() {
     };
     let error = Raw::from_value(&bad, &lookup).unwrap_err();
     assert_eq!(error.to_string(), "Invalid shaped recipe display contents");
-    let json = r#"{"type":"minecraft:crafting_shaped","width":2,"height":2,"ingredients":[{"type":"empty"}],"result":{"type":"empty"},"crafting_station":{"type":"empty"}}"#;
-    let error = serde_json::from_str::<RecipeDisplay>(json).unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("Invalid shaped recipe display contents"),
-        "{error}"
-    );
     let wire = [1u8, 2, 2, 1, 0, 0, 0];
     let error = Raw::<RecipeDisplay>::decode(&mut &wire[..]).unwrap_err();
     assert_eq!(error.to_string(), "Invalid shaped recipe display contents");
@@ -360,19 +352,16 @@ fn ingredient_rejects_what_vanilla_refuses_to_construct() {
     let raw = Raw::<SelectableRecipe>::decode(&mut &air_stonecutter[..]).unwrap();
     let error = raw.resolve(&lookup).unwrap_err();
     assert_eq!(error.to_string(), "Ingredient can't contain air");
-    let error = Ingredient(HolderSet::default()).validate().unwrap_err();
+    let error = Ingredient::<Resolved>(IdSet::List(Box::new([])))
+        .validate()
+        .unwrap_err();
     assert_eq!(error, "Ingredients can't be empty");
-    in_samples(|| {
-        let error = serde_json::from_str::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
-        assert!(
-            error.to_string().contains("Ingredient can't contain air"),
-            "{error}"
-        );
-        assert_eq!(
-            serde_json::from_str::<Ingredient>("\"#planks\"").unwrap(),
-            Ingredient(planks())
-        );
-    });
+    let error = read_json::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
+    assert!(error.contains("Ingredient can't contain air"), "{error}");
+    assert_eq!(
+        read_json::<Ingredient>("\"#planks\"").unwrap(),
+        Ingredient(planks())
+    );
 }
 
 #[test]
@@ -394,15 +383,4 @@ fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
     assert_eq!(error.to_string(), "value nested deeper than 64 levels");
     let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING - 1)[..]);
     assert!(error.is_ok(), "the bound is reset after a failed decode");
-}
-
-#[test]
-fn displays_round_trip_through_json() {
-    in_samples(|| {
-        for entry in expected_entries() {
-            let json = serde_json::to_string(&entry.display).unwrap();
-            let back: RecipeDisplay = serde_json::from_str(&json).unwrap();
-            assert_eq!(back, entry.display, "{json}");
-        }
-    });
 }

@@ -10,6 +10,7 @@ use std::sync::LazyLock;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_particle::ParticleOptions;
+use mcrs_minecraft_registries::Named;
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -33,7 +34,7 @@ pub enum AttributeValue {
     MoonPhase(MoonPhase),
     Activity(crate::keys::Activity),
     BedRule(BedRule),
-    Particle(Box<ParticleOptions>),
+    Particle(Box<ParticleOptions<Named>>),
     AmbientParticles(Vec<AmbientParticle>),
     BackgroundMusic(Box<BackgroundMusic>),
     AmbientSounds(Box<AmbientSounds>),
@@ -470,7 +471,9 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
         T::MoonPhase => V::MoonPhase(MoonPhase::deserialize(d)?),
         T::Activity => V::Activity(crate::keys::Activity::deserialize(d)?),
         T::BedRule => V::BedRule(BedRule::deserialize(d)?),
-        T::Particle => V::Particle(Box::new(<ParticleOptions as Deserialize>::deserialize(d)?)),
+        T::Particle => V::Particle(Box::new(
+            mcrs_minecraft_registry::Checked::<ParticleOptions>::deserialize(d)?.0,
+        )),
         T::AmbientParticles => V::AmbientParticles(Vec::deserialize(d)?),
         T::BackgroundMusic => V::BackgroundMusic(Box::new(BackgroundMusic::deserialize(d)?)),
         T::AmbientSounds => V::AmbientSounds(Box::new(AmbientSounds::deserialize(d)?)),
@@ -681,7 +684,9 @@ fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> Attribut
         can_set_spawn,
         destroy_on_use: false,
         destroy_on_leave,
-        error_message: Some(Text::translate("block.minecraft.bed.no_sleep", Vec::new())),
+        error_message: Some(mcrs_minecraft_registry::Checked::unchecked(
+            Text::translate("block.minecraft.bed.no_sleep", Vec::new()),
+        )),
     })
 }
 

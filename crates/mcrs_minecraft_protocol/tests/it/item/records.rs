@@ -17,7 +17,9 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::profile::Property;
 
-use crate::item::harness::{TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json};
+use crate::item::harness::{
+    TestLookup, from_json, from_nbt, hex, named, nbt_tree, persistent_json,
+};
 
 type Row = HashMap<&'static str, &'static str>;
 
@@ -35,7 +37,7 @@ static GOLDEN: LazyLock<HashMap<&'static str, Row>> = LazyLock::new(|| {
 
 fn our_nbt(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut out).unwrap();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&named(value), &mut out).unwrap();
     out
 }
 
@@ -75,7 +77,7 @@ fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValu
     assert_eq!(back, value, "{label}: from wire");
 
     assert_eq!(
-        hash_ops::hash(&value).unwrap(),
+        hash_ops::hash(&named(&value)).unwrap(),
         row["hash"].parse::<i32>().unwrap(),
         "{label}: hash"
     );
@@ -99,8 +101,7 @@ fn error<T: ItemDataComponent>(json: &str) -> String {
 
 fn json_error(value: impl Into<ItemComponentValue>) -> String {
     let mut out = Vec::new();
-    value
-        .into()
+    named(&value.into())
         .serialize_value(&mut serde_json::Serializer::new(&mut out))
         .unwrap_err()
         .to_string()

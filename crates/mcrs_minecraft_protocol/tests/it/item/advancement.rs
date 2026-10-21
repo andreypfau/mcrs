@@ -1,17 +1,17 @@
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::advancement::{
     Advancement, AdvancementProgress, AdvancementType, CriterionProgress, DisplayInfo,
     PositionedAdvancement, RawAdvancement,
 };
-use mcrs_minecraft_protocol::item::{ComponentPatch, DecodeCtx, EncodeCtx, Template};
+use mcrs_minecraft_protocol::item::{ComponentPatch, DecodeCtx, EncodeCtx, Template, Text};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAdvancements;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     SeenAdvancementsAction, ServerboundSeenAdvancements,
 };
-use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};
 
-use crate::item::harness::hex;
+use crate::item::harness::{hex, json_of, read_json};
 use crate::item::particle::{golden, lookup, to_hex};
 
 fn id(text: &str) -> ResourceLocation {
@@ -20,9 +20,9 @@ fn id(text: &str) -> ResourceLocation {
 
 fn item(path: &str, count: i32, components: &str) -> Template {
     Template::new(
-        ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
+        Item::read(&format!("minecraft:{path}")).unwrap().id(),
         count,
-        serde_json::from_str::<ComponentPatch>(components).unwrap(),
+        read_json::<ComponentPatch>(components).unwrap(),
     )
     .unwrap()
 }
@@ -95,27 +95,28 @@ fn an_advancement_matches_the_vanilla_stream_codec() {
 
 #[test]
 fn display_info_matches_the_vanilla_codec() {
-    let parsed: DisplayInfo = serde_json::from_str(golden("root_display.json")).unwrap();
+    let parsed: DisplayInfo = read_json(golden("root_display.json")).unwrap();
     let mut expected = root().display.unwrap();
     expected.announce_to_chat = true;
     assert_eq!(parsed, expected);
-    let back: serde_json::Value = serde_json::to_value(&parsed).unwrap();
+    let back: serde_json::Value =
+        serde_json::from_str::<serde_json::Value>(&json_of(&parsed)).unwrap();
     let vanilla: serde_json::Value = serde_json::from_str(golden("root_display.json")).unwrap();
     assert_eq!(back, vanilla);
 
-    let parsed: DisplayInfo = serde_json::from_str(golden("child_display.json")).unwrap();
+    let parsed: DisplayInfo = read_json(golden("child_display.json")).unwrap();
     assert_eq!(parsed, child().display.unwrap());
-    let back: serde_json::Value = serde_json::to_value(&parsed).unwrap();
+    let back: serde_json::Value =
+        serde_json::from_str::<serde_json::Value>(&json_of(&parsed)).unwrap();
     let vanilla: serde_json::Value = serde_json::from_str(golden("child_display.json")).unwrap();
     assert_eq!(back, vanilla);
 
     let defaults: DisplayInfo =
-        serde_json::from_str(r#"{"icon":"minecraft:apple","title":"t","description":"d"}"#)
-            .unwrap();
+        read_json(r#"{"icon":"minecraft:apple","title":"t","description":"d"}"#).unwrap();
     assert_eq!(defaults.frame, AdvancementType::Task);
     assert!(defaults.show_toast && defaults.announce_to_chat && !defaults.hidden);
     assert_eq!(
-        serde_json::to_string(&defaults).unwrap(),
+        json_of(&defaults),
         r#"{"icon":{"id":"minecraft:apple"},"title":"t","description":"d"}"#
     );
 }

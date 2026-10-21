@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_registries::{Ref, Refs, RegistryOf, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::Holder;
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
 use crate::harness::entry;
@@ -18,16 +20,20 @@ impl RegistryValue for BannerPattern {
     type Registry = Self;
 }
 
+mcrs_minecraft_registries::resolve_as_is!(BannerPattern);
+
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BannerLayer {
-    pub pattern: Holder<BannerPattern>,
+pub struct BannerLayer<M: Refs = Resolved> {
+    pub pattern: M::Ref<RegistryOf<BannerPattern>, BannerPattern>,
     pub color: DyeColor,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BannerPatterns(pub Vec<BannerLayer>);
+pub struct BannerPatterns<M: Refs = Resolved>(pub Vec<BannerLayer<M>>);
 
 impl Sample for BannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -39,14 +45,14 @@ impl Sample for BannerPatterns {
             BannerPatterns::default(),
             BannerPatterns(vec![
                 BannerLayer {
-                    pattern: Holder::Reference(entry("creeper")),
+                    pattern: Ref::Id(entry("creeper")),
                     color: DyeColor::Red,
                 },
                 BannerLayer {
-                    pattern: Holder::Direct(BannerPattern {
+                    pattern: Ref::Inline(Arc::new(BannerPattern {
                         asset_id: rl!("mcrs:x").to_arc(),
                         translation_key: "block.mcrs.banner.x".into(),
-                    }),
+                    })),
                     color: DyeColor::LightBlue,
                 },
             ]),

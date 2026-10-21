@@ -13,13 +13,14 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::IntArray;
-use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation, TagKey, rl};
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
-use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registries::{IdSet, Key, RegistryType, Resolver};
+use mcrs_minecraft_registry::{Registry, RegistrySet, Tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -105,11 +106,11 @@ impl Sample for Profile {
 fn registry_with_tags<R: 'static>(
     set: RegistrySet,
     key: RegistryKey<R>,
-    names: &[&str],
+    names: Vec<ResourceLocation>,
     tags: &[(&str, &[&str])],
 ) -> RegistrySet {
     let name = |path: &str| -> ResourceLocation { ResourceLocation::minecraft(path).unwrap() };
-    let registry = Registry::new(key, names.iter().map(|path| name(path)))
+    let registry = Registry::new(key, names)
         .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"));
     let members = tags
         .iter()
@@ -131,14 +132,26 @@ fn registry_with_tags<R: 'static>(
         .with_tags(tags.table().clone())
 }
 
+/// A static registry numbers its entries as the generated constants do, so a constant names the
+/// same entry in the samples as in the game; the listed names are what a peer numbers on the wire.
+macro_rules! sample_numbering {
+    ($entries:path; $($name:literal),+) => {
+        $entries.iter().map(|&name| name.into()).collect::<Vec<ResourceLocation>>()
+    };
+    (; $($name:literal),+) => {
+        vec![$(ResourceLocation::minecraft($name).unwrap()),+]
+    };
+}
+
 macro_rules! sample_registries_table {
-    ($($key:expr => $path:literal [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
+    ($($key:expr => $path:literal $(numbered $entries:path)? [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
         pub const SAMPLE_NAMES: &[(&str, &[&str])] = &[$(($path, &[$($name),+])),*];
 
         fn build_listed_registries(set: RegistrySet) -> RegistrySet {
             $(
                 let tags: &[(&str, &[&str])] = &[$(($tag, &[$($member),*])),*];
-                let set = registry_with_tags(set, $key, &[$($name),+], tags);
+                let names = sample_numbering!($($entries)?; $($name),+);
+                let set = registry_with_tags(set, $key, names, tags);
             )*
             set
         }
@@ -146,9 +159,9 @@ macro_rules! sample_registries_table {
 }
 
 sample_registries_table! {
-    crate::keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
+    crate::keys::ITEM => "item" numbered crate::keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    crate::keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
+    crate::keys::MOB_EFFECT => "mob_effect" numbered crate::keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
     crate::keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
     crate::keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
@@ -157,8 +170,9 @@ sample_registries_table! {
     mcrs_minecraft_entity::keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
     mcrs_minecraft_block::keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
-    crate::keys::POTION => "potion" ["water", "swiftness", "healing"] [];
-    mcrs_minecraft_entity::keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
+    crate::keys::POTION => "potion" numbered crate::keys::Potion::ENTRIES ["water", "swiftness", "healing"] [];
+    mcrs_minecraft_entity::keys::ATTRIBUTE => "attribute"
+        numbered mcrs_minecraft_entity::keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
     crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
     crate::keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
@@ -183,8 +197,6 @@ sample_registries_table! {
     crate::keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
 }
 
-/// A static registry numbers its entries as the generated constants do, so a
-/// constant names the same entry in the samples as in the game.
 fn build_sample_registries() -> RegistrySet {
     let sounds = Registry::<mcrs_minecraft_sound::SoundEvent>::new(
         mcrs_minecraft_sound::keys::SOUND_EVENT,
@@ -203,25 +215,30 @@ pub fn sample_registries() -> &'static RegistrySet {
     &SET
 }
 
-pub fn entry<R: 'static>(path: &str) -> Id<R> {
-    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path).unwrap());
-    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&key))
-        .unwrap_or_else(|error| panic!("{error}"))
+fn sample_key<R>(path: &str) -> Key<R> {
+    Key::new(
+        ResourceLocation::minecraft(path)
+            .unwrap_or_else(|error| panic!("the sample name {path}: {error}")),
+    )
+}
+
+pub fn entry<R: RegistryType>(path: &str) -> Id<R> {
+    sample_registries()
+        .id(&sample_key(path))
         .unwrap_or_else(|error| panic!("{error}"))
 }
 
-pub fn tag_set<R: 'static>(path: &str) -> HolderSet<R> {
-    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path).unwrap());
-    let tag = Tags::<R>::in_scope("a sample tag", |tags| tags.get(&key))
+pub fn tag_set<R: RegistryType>(path: &str) -> IdSet<R> {
+    sample_registries()
+        .tag(&sample_key(path))
+        .map(IdSet::Tag)
         .unwrap_or_else(|error| panic!("{error}"))
-        .unwrap_or_else(|| panic!("the sample registries hold no tag {path}"));
-    HolderSet::Named(tag)
 }
 
-pub fn one_set<R: 'static>(path: &str) -> HolderSet<R> {
-    HolderSet::One(entry(path))
+pub fn one_set<R: RegistryType>(path: &str) -> IdSet<R> {
+    list_set(&[path])
 }
 
-pub fn list_set<R: 'static>(paths: &[&str]) -> HolderSet<R> {
-    HolderSet::List(paths.iter().map(|path| entry(path)).collect())
+pub fn list_set<R: RegistryType>(paths: &[&str]) -> IdSet<R> {
+    IdSet::List(paths.iter().map(|path| entry(path)).collect())
 }

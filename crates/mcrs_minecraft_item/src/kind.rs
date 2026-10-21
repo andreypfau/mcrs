@@ -1,5 +1,6 @@
 use std::fmt;
 
+use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver};
 use serde::de::DeserializeSeed;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,7 +11,8 @@ use crate::keys::DataComponentType;
 /// Every data component: its `DataComponentType` variant, its value type and
 /// its flags. Exactly one of `persistent` / `transient`; `unit` for a value
 /// with no fields; `ignore_swap_animation`; `nested` when the value embeds a
-/// component patch or map; `nbt_wire` when the wire form is one network NBT tag.
+/// component patch or map; `nbt_wire` when the wire form is one network NBT tag;
+/// `refs` when the value type takes the reference mode `M: Refs`.
 #[macro_export]
 macro_rules! for_each_data_component {
     ($callback:ident) => {
@@ -21,17 +23,17 @@ macro_rules! for_each_data_component {
         Damage                       : Damage                   [persistent, ignore_swap_animation],
         Unbreakable                  : Unbreakable              [persistent, unit],
         UseEffects                   : UseEffects               [persistent],
-        CustomName                   : CustomName               [persistent],
+        CustomName                   : CustomName               [persistent, refs],
         MinimumAttackCharge          : MinimumAttackCharge      [persistent],
-        DamageType                   : DamageTypeRef            [persistent],
-        ItemName                     : ItemName                 [persistent],
+        DamageType                   : DamageTypeRef            [persistent, refs],
+        ItemName                     : ItemName                 [persistent, refs],
         ItemModel                    : ItemModel                [persistent],
-        Lore                         : Lore                     [persistent],
+        Lore                         : Lore                     [persistent, refs],
         Rarity                       : Rarity                   [persistent],
-        Enchantments                 : Enchantments             [persistent],
-        CanPlaceOn                   : CanPlaceOn               [persistent, nested],
-        CanBreak                     : CanBreak                 [persistent, nested],
-        AttributeModifiers           : AttributeModifiers       [persistent],
+        Enchantments                 : Enchantments             [persistent, refs],
+        CanPlaceOn                   : CanPlaceOn               [persistent, nested, refs],
+        CanBreak                     : CanBreak                 [persistent, nested, refs],
+        AttributeModifiers           : AttributeModifiers       [persistent, refs],
         CustomModelData              : CustomModelData          [persistent],
         TooltipDisplay               : TooltipDisplay           [persistent],
         RepairCost                   : RepairCost               [persistent],
@@ -39,73 +41,73 @@ macro_rules! for_each_data_component {
         EnchantmentGlintOverride     : EnchantmentGlintOverride [persistent],
         IntangibleProjectile         : IntangibleProjectile     [persistent, unit, nbt_wire],
         Food                         : Food                     [persistent],
-        Consumable                   : Consumable               [persistent],
-        UseRemainder                 : UseRemainder             [persistent, nested],
+        Consumable                   : Consumable               [persistent, refs],
+        UseRemainder                 : UseRemainder             [persistent, nested, refs],
         UseCooldown                  : UseCooldown              [persistent],
-        DamageResistant              : DamageResistant          [persistent],
-        Tool                         : Tool                     [persistent],
+        DamageResistant              : DamageResistant          [persistent, refs],
+        Tool                         : Tool                     [persistent, refs],
         Weapon                       : Weapon                   [persistent],
         AttackRange                  : AttackRange              [persistent],
         Enchantable                  : Enchantable              [persistent],
-        Equippable                   : Equippable               [persistent],
-        Repairable                   : Repairable               [persistent],
+        Equippable                   : Equippable               [persistent, refs],
+        Repairable                   : Repairable               [persistent, refs],
         Glider                       : Glider                   [persistent, unit],
         TooltipStyle                 : TooltipStyle             [persistent],
-        DeathProtection              : DeathProtection          [persistent],
-        BlocksAttacks                : BlocksAttacks            [persistent],
-        PiercingWeapon               : PiercingWeapon           [persistent],
-        KineticWeapon                : KineticWeapon            [persistent],
+        DeathProtection              : DeathProtection          [persistent, refs],
+        BlocksAttacks                : BlocksAttacks            [persistent, refs],
+        PiercingWeapon               : PiercingWeapon           [persistent, refs],
+        KineticWeapon                : KineticWeapon            [persistent, refs],
         AttackAnimation              : AttackAnimation          [persistent],
         InteractAnimation            : InteractAnimation        [persistent],
         AdditionalTradeCost          : AdditionalTradeCost      [transient],
-        BlockTransformer             : BlockTransformerRef      [persistent],
+        BlockTransformer             : BlockTransformerRef      [persistent, refs],
         VillagerFood                 : VillagerFood             [persistent],
-        StoredEnchantments           : StoredEnchantments       [persistent],
+        StoredEnchantments           : StoredEnchantments       [persistent, refs],
         Dye                          : Dye                      [persistent],
         DyedColor                    : DyedColor                [persistent],
         MapId                        : MapId                    [persistent],
         MapDecorations               : MapDecorations           [persistent, nbt_wire],
         MapPostProcessing            : MapPostProcessing        [transient],
-        ChargedProjectiles           : ChargedProjectiles       [persistent, nested],
-        BundleContents               : BundleContents           [persistent, nested],
-        PotionContents               : PotionContents           [persistent],
+        ChargedProjectiles           : ChargedProjectiles       [persistent, nested, refs],
+        BundleContents               : BundleContents           [persistent, nested, refs],
+        PotionContents               : PotionContents           [persistent, refs],
         PotionDurationScale          : PotionDurationScale      [persistent],
-        SuspiciousStewEffects        : SuspiciousStewEffects    [persistent],
+        SuspiciousStewEffects        : SuspiciousStewEffects    [persistent, refs],
         WritableBookContent          : WritableBookContent      [persistent],
-        WrittenBookContent           : WrittenBookContent       [persistent],
-        Trim                         : Trim                     [persistent],
+        WrittenBookContent           : WrittenBookContent       [persistent, refs],
+        Trim                         : Trim                     [persistent, refs],
         DebugStickState              : DebugStickState          [persistent, nbt_wire],
         EntityData                   : EntityData               [persistent],
         BucketEntityData             : BucketEntityData         [persistent],
         BlockEntityData              : BlockEntityData          [persistent],
-        Instrument                   : Instrument               [persistent],
-        ProvidesTrimMaterial         : ProvidesTrimMaterial     [persistent],
+        Instrument                   : Instrument               [persistent, refs],
+        ProvidesTrimMaterial         : ProvidesTrimMaterial     [persistent, refs],
         OminousBottleAmplifier       : OminousBottleAmplifier   [persistent],
-        JukeboxPlayable              : JukeboxPlayable          [persistent],
-        ProvidesBannerPatterns       : ProvidesBannerPatterns   [persistent],
+        JukeboxPlayable              : JukeboxPlayable          [persistent, refs],
+        ProvidesBannerPatterns       : ProvidesBannerPatterns   [persistent, refs],
         Recipes                      : Recipes                  [persistent, nbt_wire],
         LodestoneTracker             : LodestoneTracker         [persistent],
         FireworkExplosion            : FireworkExplosion        [persistent],
         Fireworks                    : Fireworks                [persistent],
         Profile                      : Profile                  [persistent],
         NoteBlockSound               : NoteBlockSound           [persistent],
-        BannerPatterns               : BannerPatterns           [persistent],
+        BannerPatterns               : BannerPatterns           [persistent, refs],
         BaseColor                    : BaseColor                [persistent],
-        PotDecorations               : PotDecorations           [persistent, nested],
-        Container                    : Container                [persistent, nested],
+        PotDecorations               : PotDecorations           [persistent, nested, refs],
+        Container                    : Container                [persistent, nested, refs],
         BlockState                   : BlockState               [persistent],
         Bees                         : Bees                     [persistent],
-        SulfurCubeContent            : SulfurCubeContent        [persistent, nested],
-        Lock                         : Lock                     [persistent, nested, nbt_wire],
+        SulfurCubeContent            : SulfurCubeContent        [persistent, nested, refs],
+        Lock                         : Lock                     [persistent, nested, nbt_wire, refs],
         ContainerLoot                : ContainerLoot            [persistent, nbt_wire],
-        BreakSound                   : BreakSound               [persistent],
+        BreakSound                   : BreakSound               [persistent, refs],
         Compostable                  : Compostable              [persistent],
         CookingFuel                  : CookingFuel              [persistent],
         BrewingFuel                  : BrewingFuel              [persistent],
-        MobVisibility                : MobVisibility            [persistent],
-        VillagerVariant              : VillagerVariant          [persistent],
-        WolfVariant                  : WolfVariant              [persistent],
-        WolfSoundVariant             : WolfSoundVariant         [persistent],
+        MobVisibility                : MobVisibility            [persistent, refs],
+        VillagerVariant              : VillagerVariant          [persistent, refs],
+        WolfVariant                  : WolfVariant              [persistent, refs],
+        WolfSoundVariant             : WolfSoundVariant         [persistent, refs],
         WolfCollar                   : WolfCollar               [persistent],
         FoxVariant                   : FoxVariant               [persistent],
         SalmonSize                   : SalmonSize               [persistent],
@@ -115,26 +117,26 @@ macro_rules! for_each_data_component {
         TropicalFishPatternColor     : TropicalFishPatternColor [persistent],
         MooshroomVariant             : MooshroomVariant         [persistent],
         RabbitVariant                : RabbitVariant            [persistent],
-        PigVariant                   : PigVariant               [persistent],
-        PigSoundVariant              : PigSoundVariant          [persistent],
-        CowVariant                   : CowVariant               [persistent],
-        CowSoundVariant              : CowSoundVariant          [persistent],
-        ChickenVariant               : ChickenVariant           [persistent],
-        ChickenSoundVariant          : ChickenSoundVariant      [persistent],
-        ZombieNautilusVariant        : ZombieNautilusVariant    [persistent],
-        FrogVariant                  : FrogVariant              [persistent],
+        PigVariant                   : PigVariant               [persistent, refs],
+        PigSoundVariant              : PigSoundVariant          [persistent, refs],
+        CowVariant                   : CowVariant               [persistent, refs],
+        CowSoundVariant              : CowSoundVariant          [persistent, refs],
+        ChickenVariant               : ChickenVariant           [persistent, refs],
+        ChickenSoundVariant          : ChickenSoundVariant      [persistent, refs],
+        ZombieNautilusVariant        : ZombieNautilusVariant    [persistent, refs],
+        FrogVariant                  : FrogVariant              [persistent, refs],
         HorseVariant                 : HorseVariant             [persistent],
-        PaintingVariant              : PaintingVariant          [persistent],
+        PaintingVariant              : PaintingVariant          [persistent, refs],
         LlamaVariant                 : LlamaVariant             [persistent],
         AxolotlVariant               : AxolotlVariant           [persistent],
-        CatVariant                   : CatVariant               [persistent],
-        CatSoundVariant              : CatSoundVariant          [persistent],
+        CatVariant                   : CatVariant               [persistent, refs],
+        CatSoundVariant              : CatSoundVariant          [persistent, refs],
         CatCollar                    : CatCollar                [persistent],
         SheepColor                   : SheepColor               [persistent],
         ShulkerColor                 : ShulkerColor             [persistent],
-        ProvidesPotteryPattern       : ProvidesPotteryPattern   [persistent],
-        SignTextFront                : SignTextFront            [persistent],
-        SignTextBack                 : SignTextBack             [persistent],
+        ProvidesPotteryPattern       : ProvidesPotteryPattern   [persistent, refs],
+        SignTextFront                : SignTextFront            [persistent, refs],
+        SignTextBack                 : SignTextBack             [persistent, refs],
         Waxed                        : Waxed                    [persistent, unit],
         CushionColor                 : CushionColor             [persistent],
         }
@@ -152,6 +154,18 @@ mod flag {
     pub(super) const ignore_swap_animation: u8 = 8;
     pub(super) const nested: u8 = 16;
     pub(super) const nbt_wire: u8 = 32;
+    pub(super) const refs: u8 = 64;
+}
+
+/// Expands to the first group when the flag list holds `refs`, else to the second.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! if_refs {
+    ([] $then:tt {$($else:tt)*}) => { $($else)* };
+    ([refs $(, $rest:ident)*] {$($then:tt)*} $else:tt) => { $($then)* };
+    ([$first:ident $(, $rest:ident)*] $then:tt $else:tt) => {
+        $crate::if_refs!([$($rest),*] $then $else)
+    };
 }
 
 macro_rules! data_components {
@@ -175,18 +189,26 @@ macro_rules! data_components {
             )*
         };
 
+        $(
+            impl Moded for $ty {
+                type In<M: Refs> = $crate::if_refs!([$($flag),*] {$ty<M>} {$ty});
+            }
+        )*
+
         #[derive(Clone, Debug, PartialEq)]
-        pub enum ItemComponentValue {
-            $($ty($ty)),*
+        pub enum ItemComponentValue<M: Refs = Resolved> {
+            $($ty(<$ty as Moded>::In<M>)),*
         }
 
-        impl ItemComponentValue {
+        impl<M: Refs> ItemComponentValue<M> {
             pub fn kind(&self) -> DataComponentType {
                 match self {
                     $(Self::$ty(_) => DataComponentType::$kind),*
                 }
             }
+        }
 
+        impl ItemComponentValue<Named> {
             pub fn serialize_value<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
                 if !self.kind().is_persistent() {
                     return Err(S::Error::custom(format_args!(
@@ -204,22 +226,51 @@ macro_rules! data_components {
                 d: D,
             ) -> Result<Self, D::Error> {
                 match kind {
-                    $(DataComponentType::$kind => <$ty as Deserialize<'de>>::deserialize(d).map(Self::$ty)),*
+                    $(DataComponentType::$kind => Deserialize::deserialize(d).map(Self::$ty)),*
                 }
             }
         }
 
-        impl Serialize for ItemComponentValue {
+        impl Serialize for ItemComponentValue<Named> {
             fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
                 self.serialize_value(s)
             }
         }
 
         impl<'de> DeserializeSeed<'de> for DataComponentType {
-            type Value = ItemComponentValue;
+            type Value = ItemComponentValue<Named>;
 
             fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
                 ItemComponentValue::deserialize_value(self, d)
+            }
+        }
+
+        impl Resolve for ItemComponentValue {
+            type Named = ItemComponentValue<Named>;
+
+            fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+                let _ = ctx;
+                Ok(match named {
+                    $(ItemComponentValue::<Named>::$ty(value) => Self::$ty($crate::if_refs!(
+                        [$($flag),*]
+                        {Resolve::resolve(value, ctx)
+                            .map_err(|e| e.at(DataComponentType::$kind.as_static_str()))?}
+                        {value}
+                    ))),*
+                })
+            }
+
+            fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+                let _ = names;
+                Ok(match self {
+                    $(Self::$ty(value) => ItemComponentValue::<Named>::$ty($crate::if_refs!(
+                        [$($flag),*]
+                        {value
+                            .name(names)
+                            .map_err(|e| e.at(DataComponentType::$kind.as_static_str()))?}
+                        {value.clone()}
+                    ))),*
+                })
             }
         }
 
@@ -245,6 +296,11 @@ macro_rules! data_components {
 }
 
 for_each_data_component!(data_components);
+
+/// A component value type in each reference mode: itself when it names no registry entry.
+pub trait Moded {
+    type In<M: Refs>: Clone + PartialEq + fmt::Debug + Send + Sync + 'static;
+}
 
 pub trait ItemDataComponent:
     Clone + PartialEq + fmt::Debug + Into<ItemComponentValue> + Send + Sync + 'static

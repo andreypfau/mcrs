@@ -1,24 +1,24 @@
 use std::fmt;
 
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registries::{Key, Named, Refs, Resolved, registry_value};
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{MobEffectDetails, MobEffectInstance, key};
-use crate::component::registry_ref::null_as_default;
-use crate::harness::Sample;
+use crate::component::common::{MobEffectDetails, MobEffectInstance};
+use crate::harness::{Sample, entry};
 use crate::keys::Potion;
 
 /// The full map, or on read a bare potion id. Custom effects never carry a
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder
 /// ever sees one.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct PotionContents {
+pub struct PotionContents<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub potion: Option<ResourceKey<Potion>>,
+    pub potion: Option<M::Id<Potion>>,
     #[serde(
         default,
         deserialize_with = "optional_int",
@@ -29,72 +29,90 @@ pub struct PotionContents {
         default,
         deserialize_with = "effects_or_default",
         skip_serializing_if = "Vec::is_empty",
-        serialize_with = "serialize_without_hidden"
+        serialize_with = "serialize_without_hidden",
+        bound(
+            serialize = "MobEffectInstance<M>: Serialize",
+            deserialize = "MobEffectInstance<M>: Deserialize<'de>"
+        )
     )]
-    pub custom_effects: Vec<MobEffectInstance>,
+    pub custom_effects: Vec<MobEffectInstance<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_name: Option<String>,
 }
 
-null_as_default! {
-    effects_or_default: Vec<MobEffectInstance> = Vec::new();
+impl<M: Refs> Default for PotionContents<M> {
+    fn default() -> Self {
+        PotionContents {
+            potion: None,
+            custom_color: None,
+            custom_effects: Vec::new(),
+            custom_name: None,
+        }
+    }
+}
+
+fn effects_or_default<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    d: D,
+) -> Result<Vec<T>, D::Error> {
+    Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
 }
 
 fn optional_int<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i32>, D::Error> {
     Ok(Option::<Bounded<{ i32::MIN }, { i32::MAX }>>::deserialize(d)?.map(|b| b.0))
 }
 
-impl PotionContents {
-    pub fn potion(potion: ResourceKey<Potion>) -> Self {
+impl<M: Refs> PotionContents<M> {
+    pub fn potion(potion: M::Id<Potion>) -> Self {
         PotionContents {
             potion: Some(potion),
             ..PotionContents::default()
         }
     }
 
-    pub fn visible_effects(&self) -> Vec<MobEffectInstance> {
+    pub fn visible_effects(&self) -> Vec<MobEffectInstance<M>> {
         let mut effects = self.custom_effects.clone();
         strip_hidden(&mut effects);
         effects
     }
 }
 
-pub fn strip_hidden(effects: &mut [MobEffectInstance]) {
+pub fn strip_hidden<M: Refs>(effects: &mut [MobEffectInstance<M>]) {
     for effect in effects {
         effect.details.hidden_effect = None;
     }
 }
 
-fn serialize_without_hidden<S: Serializer>(
-    effects: &[MobEffectInstance],
+fn serialize_without_hidden<M: Refs, S: Serializer>(
+    effects: &[MobEffectInstance<M>],
     s: S,
-) -> Result<S::Ok, S::Error> {
+) -> Result<S::Ok, S::Error>
+where
+    MobEffectInstance<M>: Serialize,
+{
     let mut effects = effects.to_vec();
     strip_hidden(&mut effects);
     effects.serialize(s)
 }
 
-impl Serialize for PotionContents {
+impl Serialize for PotionContents<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         PotionContents::serialize(self, s)
     }
 }
 
-impl<'de> Deserialize<'de> for PotionContents {
+impl<'de> Deserialize<'de> for PotionContents<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct ContentsVisitor;
 
         impl<'de> Visitor<'de> for ContentsVisitor {
-            type Value = PotionContents;
+            type Value = PotionContents<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("potion contents or a potion id")
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                ResourceLocation::read(text)
-                    .map(|location| PotionContents::potion(ResourceKey::from_location(location)))
-                    .map_err(E::custom)
+                Key::deserialize(value::StrDeserializer::new(text)).map(PotionContents::potion)
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -129,18 +147,18 @@ impl Sample for PotionContents {
 
     fn samples() -> Vec<Self> {
         let effect = |path: &str, details: MobEffectDetails| MobEffectInstance {
-            id: key(path),
+            id: entry(path),
             details,
         };
         vec![
             PotionContents::default(),
-            PotionContents::potion(key("swiftness")),
+            PotionContents::potion(entry("swiftness")),
             PotionContents {
                 custom_color: Some(-13083194),
                 ..PotionContents::default()
             },
             PotionContents {
-                potion: Some(key("water")),
+                potion: Some(entry("water")),
                 custom_color: Some(0xFF0000),
                 custom_effects: vec![
                     effect(

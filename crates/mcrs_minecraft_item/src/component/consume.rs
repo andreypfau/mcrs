@@ -1,16 +1,18 @@
+use std::sync::Arc;
+
 use crate::keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::nbt_flag;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{Named, Ref, Refs, Resolved, registry_value};
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance};
+use crate::component::common::{ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::harness::Sample;
-use crate::harness::{list_set, one_set};
-use mcrs_minecraft_sound::SoundEvent;
+use crate::harness::{entry, list_set, one_set};
+use mcrs_minecraft_sound::{Sound, SoundEvent};
 
 /// A ranged float field with vanilla's error wording; the bounds order `-0.0`
 /// below `0.0` and NaN outside every range.
@@ -58,16 +60,17 @@ float_default! {
 
 /// The map buffers on read, so the bools inside go through `nbt_flag`;
 /// vanilla writes the dispatch key last, so `Serialize` is by hand.
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub enum ConsumeEffect {
+pub enum ConsumeEffect<M: Refs = Resolved> {
     ApplyEffects {
-        effects: Vec<MobEffectInstance>,
+        effects: Vec<MobEffectInstance<M>>,
         #[serde(default = "one", deserialize_with = "unit_float")]
         probability: f32,
     },
     RemoveEffects {
-        effects: HolderSet<MobEffect>,
+        effects: M::Set<MobEffect>,
     },
     ClearAllEffects,
     TeleportRandomly {
@@ -77,12 +80,12 @@ pub enum ConsumeEffect {
         directional_particles: bool,
     },
     PlaySound {
-        sound: Holder<SoundEvent>,
+        sound: Sound<M>,
     },
 }
 
 mcrs_minecraft_registry::dispatch! {
-    reads_only ConsumeEffect, key = "type", registry = crate::keys::ConsumeEffectType,
+    reads_only ConsumeEffect<Named>, key = "type", registry = crate::keys::ConsumeEffectType,
     {
         ApplyEffects => ApplyEffects,
         RemoveEffects => RemoveEffects,
@@ -92,7 +95,20 @@ mcrs_minecraft_registry::dispatch! {
     }
 }
 
-impl Serialize for ConsumeEffect {
+impl ConsumeEffect {
+    pub fn kind(&self) -> crate::keys::ConsumeEffectType {
+        use crate::keys::ConsumeEffectType as Kind;
+        match self {
+            Self::ApplyEffects { .. } => Kind::ApplyEffects,
+            Self::RemoveEffects { .. } => Kind::RemoveEffects,
+            Self::ClearAllEffects => Kind::ClearAllEffects,
+            Self::TeleportRandomly { .. } => Kind::TeleportRandomly,
+            Self::PlaySound { .. } => Kind::PlaySound,
+        }
+    }
+}
+
+impl Serialize for ConsumeEffect<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         match self {
@@ -125,9 +141,10 @@ impl Serialize for ConsumeEffect {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Consumable {
+pub struct Consumable<M: Refs = Resolved> {
     #[serde(
         default = "consume_seconds_default",
         deserialize_with = "non_negative_float",
@@ -136,15 +153,18 @@ pub struct Consumable {
     pub consume_seconds: f32,
     #[serde(default = "eat", skip_serializing_if = "is_eat")]
     pub animation: ItemUseAnimation,
-    #[serde(default = "generic_eat", skip_serializing_if = "is_generic_eat")]
-    pub sound: Holder<SoundEvent>,
+    #[serde(
+        default = "generic_eat::<M>",
+        skip_serializing_if = "is_generic_eat::<M>"
+    )]
+    pub sound: Sound<M>,
     #[serde(
         default = "default_true",
         skip_serializing_if = "std::clone::Clone::clone"
     )]
     pub has_consume_particles: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub on_consume_effects: Vec<ConsumeEffect>,
+    pub on_consume_effects: Vec<ConsumeEffect<M>>,
 }
 
 fn eat() -> ItemUseAnimation {
@@ -155,36 +175,37 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
     *animation == ItemUseAnimation::Eat
 }
 
-fn generic_eat() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ENTITY_GENERIC_EAT.id())
+fn generic_eat<M: Refs>() -> Sound<M> {
+    M::ref_of(sound_event::ENTITY_GENERIC_EAT)
 }
 
-fn is_generic_eat(sound: &Holder<SoundEvent>) -> bool {
-    *sound == generic_eat()
+fn is_generic_eat<M: Refs>(sound: &Sound<M>) -> bool {
+    *sound == generic_eat::<M>()
 }
 
-impl Default for Consumable {
+impl<M: Refs> Default for Consumable<M> {
     fn default() -> Self {
         Consumable {
             consume_seconds: consume_seconds_default(),
             animation: eat(),
-            sound: generic_eat(),
+            sound: generic_eat::<M>(),
             has_consume_particles: true,
             on_consume_effects: Vec::new(),
         }
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DeathProtection {
+pub struct DeathProtection<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub death_effects: Vec<ConsumeEffect>,
+    pub death_effects: Vec<ConsumeEffect<M>>,
 }
 
 pub fn every_consume_effect() -> Vec<ConsumeEffect> {
     let effect = |path: &str, details: MobEffectDetails| MobEffectInstance {
-        id: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
+        id: entry(path),
         details,
     };
     vec![
@@ -227,13 +248,13 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
             directional_particles: false,
         },
         ConsumeEffect::PlaySound {
-            sound: Holder::Reference(sound_event::ENTITY_ITEM_BREAK.id()),
+            sound: Ref::Id(sound_event::ENTITY_ITEM_BREAK.id()),
         },
         ConsumeEffect::PlaySound {
-            sound: Holder::Direct(SoundEvent {
+            sound: Ref::Inline(Arc::new(SoundEvent {
                 sound_id: rl!("mcrs:ding").to_arc(),
                 range: None,
-            }),
+            })),
         },
     ]
 }
@@ -263,10 +284,10 @@ impl Sample for Consumable {
             Consumable {
                 consume_seconds: 2.5,
                 animation: ItemUseAnimation::Drink,
-                sound: Holder::Direct(SoundEvent {
+                sound: Ref::Inline(Arc::new(SoundEvent {
                     sound_id: rl!("mcrs:sip").to_arc(),
                     range: Some(8.0),
-                }),
+                })),
                 has_consume_particles: false,
                 on_consume_effects: every_consume_effect(),
             },

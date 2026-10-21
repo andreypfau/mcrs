@@ -52,6 +52,12 @@ impl<R> fmt::Debug for Key<R> {
     }
 }
 
+impl<R> fmt::Display for Key<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.location.fmt(f)
+    }
+}
+
 impl<'de, R> Deserialize<'de> for Key<R> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         ResourceLocation::deserialize(deserializer).map(Self::new)

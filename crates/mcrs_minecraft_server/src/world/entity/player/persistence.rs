@@ -7,6 +7,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
+use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
@@ -22,9 +23,9 @@ pub const AUTOSAVE_INTERVAL: u32 = 6000;
 /// The parts of the loaded file mcrs does not simulate, written back unchanged.
 #[derive(Component, Default, Debug, Clone)]
 pub struct LoadedPlayerDat {
-    pub inventory: Vec<ItemStackWithSlot>,
+    pub inventory: Vec<ItemStackWithSlot<Named>>,
     pub selected_item_slot: i32,
-    pub equipment: BTreeMap<String, ItemStackValue>,
+    pub equipment: BTreeMap<String, ItemStackValue<Named>>,
     pub rest: NbtCompound,
 }
 

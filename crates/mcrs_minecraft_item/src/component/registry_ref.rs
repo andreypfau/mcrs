@@ -8,25 +8,30 @@ use crate::enchantment::EnchantmentData;
 use crate::keys::Item;
 use crate::keys::MobEffect;
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, validated};
+use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{
+    IdSet, Key, Named, Namer, Refs, RegistryOf, Resolve, ResolveError, Resolved, Resolver,
+    registry_value,
+};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{is_one, key, one, serialize_entries, transparent_newtype};
+use crate::component::common::{is_one, one, serialize_entries};
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
-use crate::harness::{list_set, one_set, tag_set};
+use crate::harness::{entry, list_set, one_set, tag_set};
 
 /// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
     ($($ty:ident($registry:ty) [$($sample:literal),+]),* $(,)?) => {$(
-        #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+        #[registry_value]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]
-        pub struct $ty(pub mcrs_minecraft_core::ResourceKey<$registry>);
+        pub struct $ty<M: Refs = Resolved>(pub M::Id<$registry>);
 
         impl $crate::harness::Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -34,18 +39,17 @@ macro_rules! registry_key_component {
             }
 
             fn samples() -> Vec<Self> {
-                vec![$($ty(mcrs_minecraft_core::ResourceKey::from_location(
-                    mcrs_minecraft_core::ResourceLocation::minecraft($sample).unwrap(),
-                ))),+]
+                vec![$($ty($crate::harness::entry($sample))),+]
             }
         }
     )*};
 }
+
 pub(crate) use registry_key_component;
 
 registry_key_component! {
-    DamageTypeRef(DamageType) ["in_fire", "lava"],
-    BlockTransformerRef(BlockTransformer) ["axe", "shovel"],
+    DamageTypeRef(RegistryOf<DamageType>) ["in_fire", "lava"],
+    BlockTransformerRef(RegistryOf<BlockTransformer>) ["axe", "shovel"],
 }
 
 /// JSON's `null` reads as an absent field.
@@ -58,22 +62,56 @@ macro_rules! null_as_default {
 }
 pub(crate) use null_as_default;
 
+pub type EnchantmentId<M> = <M as Refs>::Id<EnchantmentData>;
+
 /// Enchantment id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
-#[derive(Clone, Debug, Eq, Default)]
-pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentData>, i32)>);
+#[derive(Clone, Debug)]
+pub struct Enchantments<M: Refs = Resolved>(pub Vec<(EnchantmentId<M>, i32)>);
+
+impl<M: Refs> Default for Enchantments<M> {
+    fn default() -> Self {
+        Enchantments(Vec::new())
+    }
+}
 
 impl Enchantments {
     /// Zero when absent.
-    pub fn level(&self, enchantment: &ResourceLocation) -> i32 {
+    pub fn level(&self, enchantment: Id<EnchantmentData>) -> i32 {
         self.0
             .iter()
-            .find(|(key, _)| key.location() == enchantment)
+            .find(|(id, _)| *id == enchantment)
             .map_or(0, |(_, level)| *level)
     }
 }
 
-impl PartialEq for Enchantments {
+impl Resolve for Enchantments {
+    type Named = Enchantments<Named>;
+
+    fn resolve<C: Resolver>(named: Enchantments<Named>, ctx: &C) -> Result<Self, ResolveError> {
+        named
+            .0
+            .into_iter()
+            .map(|(key, level)| {
+                Ok((
+                    Id::resolve(key.clone(), ctx).map_err(|e| e.at(key.location()))?,
+                    level,
+                ))
+            })
+            .collect::<Result<_, _>>()
+            .map(Enchantments)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Enchantments<Named>, ResolveError> {
+        self.0
+            .iter()
+            .map(|(id, level)| Ok((id.name(names)?, *level)))
+            .collect::<Result<_, _>>()
+            .map(Enchantments)
+    }
+}
+
+impl<M: Refs> PartialEq for Enchantments<M> {
     fn eq(&self, other: &Self) -> bool {
         self.0.len() == other.0.len() && self.0.iter().all(|entry| other.0.contains(entry))
     }
@@ -92,13 +130,13 @@ fn check_level(level: i32) -> Result<i32, String> {
     }
 }
 
-impl Serialize for Enchantments {
+impl Serialize for Enchantments<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         serialize_entries(&self.0, s)
     }
 }
 
-impl<'de> Deserialize<'de> for Enchantments {
+impl<'de> Deserialize<'de> for Enchantments<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct Level(i32);
 
@@ -113,26 +151,25 @@ impl<'de> Deserialize<'de> for Enchantments {
         struct EnchantmentsVisitor;
 
         impl<'de> Visitor<'de> for EnchantmentsVisitor {
-            type Value = Enchantments;
+            type Value = Enchantments<Named>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a map of enchantment ids to levels")
             }
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut entries: Vec<(Cow<'de, str>, ResourceKey<EnchantmentData>, i32)> =
+                let mut entries: Vec<(Cow<'de, str>, EnchantmentId<Named>, i32)> =
                     Vec::with_capacity(map.size_hint().unwrap_or(0));
                 while let Some((raw, Level(level))) = map.next_entry::<Cow<'de, str>, Level>()? {
                     if let Some(entry) = entries.iter_mut().find(|(r, _, _)| *r == raw) {
                         entry.2 = level;
                         continue;
                     }
-                    let key = ResourceKey::from_location(
-                        ResourceLocation::read(&raw).map_err(A::Error::custom)?,
-                    );
+                    let key = Key::new(ResourceLocation::read(&raw).map_err(A::Error::custom)?);
                     if entries.iter().any(|(_, k, _)| *k == key) {
                         return Err(A::Error::custom(format_args!(
-                            "Duplicate entry for key: {key}"
+                            "Duplicate entry for key: {}",
+                            key.location()
                         )));
                     }
                     entries.push((raw, key, level));
@@ -162,18 +199,35 @@ impl Sample for Enchantments {
     fn samples() -> Vec<Self> {
         vec![
             Enchantments::default(),
-            Enchantments(vec![(key("sharpness"), 5)]),
-            Enchantments(vec![(key("sharpness"), 1), (key("unbreaking"), 255)]),
+            Enchantments(vec![(entry("sharpness"), 5)]),
+            Enchantments(vec![(entry("sharpness"), 1), (entry("unbreaking"), 255)]),
         ]
     }
 }
 
-transparent_newtype!(StoredEnchantments(Enchantments) => [Clone, Debug, PartialEq, Eq, Default]);
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct StoredEnchantments<M: Refs = Resolved>(pub Enchantments<M>);
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+impl Sample for StoredEnchantments {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        self.0.nbt_tags()
+    }
+
+    fn samples() -> Vec<Self> {
+        Enchantments::samples()
+            .into_iter()
+            .map(StoredEnchantments)
+            .collect()
+    }
+}
+
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DamageResistant {
-    pub types: HolderSet<DamageType>,
+pub struct DamageResistant<M: Refs = Resolved> {
+    pub types: M::Set<RegistryOf<DamageType>>,
 }
 
 impl Sample for DamageResistant {
@@ -196,10 +250,11 @@ impl Sample for DamageResistant {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Tool {
-    pub rules: Vec<ToolRule>,
+pub struct Tool<M: Refs = Resolved> {
+    pub rules: Vec<ToolRule<M>>,
     #[serde(
         default = "default_mining_speed",
         deserialize_with = "mining_speed_or_default",
@@ -234,7 +289,7 @@ fn is_default_mining_speed(speed: &f32) -> bool {
     speed.to_bits() == 1.0f32.to_bits()
 }
 
-impl Default for Tool {
+impl<M: Refs> Default for Tool<M> {
     fn default() -> Self {
         Tool {
             rules: Vec::new(),
@@ -245,19 +300,20 @@ impl Default for Tool {
     }
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
-pub struct ToolRule {
-    pub blocks: HolderSet<Block>,
+pub struct ToolRule<M: Refs = Resolved> {
+    pub blocks: M::Set<Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speed: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub correct_for_drops: Option<bool>,
 }
 
-validated!(ToolRule);
+validated!(ToolRule<Named>);
 
-impl Validate for ToolRule {
+impl<M: Refs> Validate for ToolRule<M> {
     fn validate(&self) -> Result<(), String> {
         match self.speed {
             Some(speed) if !(speed > 0.0 && speed <= f32::MAX) => {
@@ -315,10 +371,11 @@ impl Sample for Tool {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Repairable {
-    pub items: HolderSet<Item>,
+pub struct Repairable<M: Refs = Resolved> {
+    pub items: M::Set<Item>,
 }
 
 impl Sample for Repairable {
@@ -343,10 +400,11 @@ impl Sample for Repairable {
 
 pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MobVisibility {
-    pub targeting_entity_types: HolderSet<EntityType>,
+pub struct MobVisibility<M: Refs = Resolved> {
+    pub targeting_entity_types: M::Set<EntityType>,
     #[serde(deserialize_with = "visibility")]
     pub visibility: f32,
 }
@@ -385,9 +443,10 @@ impl Sample for MobVisibility {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ProvidesBannerPatterns(pub HolderSet<BannerPattern>);
+pub struct ProvidesBannerPatterns<M: Refs = Resolved>(pub M::Set<RegistryOf<BannerPattern>>);
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -403,16 +462,18 @@ impl Sample for ProvidesBannerPatterns {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct SuspiciousStewEffects(pub Vec<StewEntry>);
+pub struct SuspiciousStewEffects<M: Refs = Resolved>(pub Vec<StewEntry<M>>);
 
 pub const DEFAULT_STEW_DURATION: i32 = 160;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct StewEntry {
-    pub id: ResourceKey<MobEffect>,
+pub struct StewEntry<M: Refs = Resolved> {
+    pub id: M::Id<MobEffect>,
     #[serde(
         default = "default_stew_duration",
         deserialize_with = "lenient_duration",
@@ -495,16 +556,16 @@ impl Sample for SuspiciousStewEffects {
         vec![
             SuspiciousStewEffects::default(),
             SuspiciousStewEffects(vec![StewEntry {
-                id: key("speed"),
+                id: entry("speed"),
                 duration: DEFAULT_STEW_DURATION,
             }]),
             SuspiciousStewEffects(vec![
                 StewEntry {
-                    id: key("speed"),
+                    id: entry("speed"),
                     duration: 1,
                 },
                 StewEntry {
-                    id: key("slowness"),
+                    id: entry("slowness"),
                     duration: 200,
                 },
             ]),
@@ -512,9 +573,9 @@ impl Sample for SuspiciousStewEffects {
     }
 }
 
-fn holder_set_tag<T>(set: &HolderSet<T>) -> u8 {
+pub(crate) fn holder_set_tag<T>(set: &IdSet<T>) -> u8 {
     match set {
-        HolderSet::List(entries) if entries.len() != 1 => LIST_ID,
+        IdSet::List(entries) if entries.len() != 1 => LIST_ID,
         _ => STRING_ID,
     }
 }

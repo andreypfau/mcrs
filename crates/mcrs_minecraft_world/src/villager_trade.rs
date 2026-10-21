@@ -8,7 +8,7 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_loot::number::{FloatExpression, IntExpression, is_zero_holder, zero_holder};
 use mcrs_minecraft_loot::{LootCondition, LootItemFunction};
-use mcrs_minecraft_registry::{Holder, HolderSet};
+use mcrs_minecraft_registry::{Checked, Holder, HolderSet};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -55,7 +55,7 @@ pub struct TradeCost {
     #[serde(default = "constant::<1>", skip_serializing_if = "is_constant::<1>")]
     pub count: Holder<IntExpression>,
     #[serde(default, skip_serializing_if = "is_default")]
-    pub components: ComponentMap,
+    pub components: Checked<ComponentMap>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,8 +68,8 @@ pub struct GivenStack {
     pub id: Id<Item>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub count: Bounded<1, 99, 1>,
-    #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
-    pub components: ComponentPatch,
+    #[serde(default, skip_serializing_if = "is_empty_patch")]
+    pub components: Checked<ComponentPatch>,
 }
 
 impl Serialize for GivenStack {
@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for GivenStack {
                 Ok(GivenStack {
                     id: item_id(value::StrDeserializer::<E>::new(id))?,
                     count: Bounded::default(),
-                    components: ComponentPatch::EMPTY,
+                    components: Checked::default(),
                 })
             }
 
@@ -112,6 +112,10 @@ fn item_id<'de, D: Deserializer<'de>>(d: D) -> Result<Id<Item>, D::Error> {
         return Err(D::Error::custom("Item must not be minecraft:air"));
     }
     Ok(id)
+}
+
+fn is_empty_patch(patch: &Checked<ComponentPatch>) -> bool {
+    patch.0.is_empty()
 }
 
 fn constant<const N: i32>() -> Holder<IntExpression> {

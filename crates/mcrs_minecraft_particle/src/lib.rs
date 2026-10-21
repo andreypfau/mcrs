@@ -8,21 +8,31 @@ use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! particle_types {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
+        #[registry_value]
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(remote = "Self")]
-        pub enum ParticleOptions {
+        pub enum ParticleOptions<M: Refs = Resolved> {
             $($variant $(($payload))?),*
         }
 
         mcrs_minecraft_registry::dispatch! {
-            ParticleOptions, key = "type", registry = crate::keys::ParticleType,
+            ParticleOptions<Named>, key = "type", registry = crate::keys::ParticleType,
             {
                 $($variant),*
+            }
+        }
+
+        impl ParticleOptions {
+            pub fn kind(&self) -> crate::keys::ParticleType {
+                match self {
+                    $(Self::$variant { .. } => crate::keys::ParticleType::$variant,)*
+                }
             }
         }
     };
@@ -92,7 +102,7 @@ macro_rules! for_each_particle_type {
         Composter,
         Heart,
         InstantEffect(SpellParticle),
-        Item(ItemParticle),
+        Item(ItemParticle<M>),
         Vibration(VibrationParticle),
         Trail(TrailParticle),
         PauseMobGrowth,
@@ -336,10 +346,11 @@ pub struct ShriekParticle {
     pub delay: i32,
 }
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ItemParticle {
-    pub item: Template,
+pub struct ItemParticle<M: Refs = Resolved> {
+    pub item: Template<M>,
 }
 
 /// `PositionSource`, dispatched on the `position_source_type` registry. An
