@@ -25,6 +25,11 @@ pub trait RegistryLookup: Sync {
     fn registries(&self) -> Option<&RegistrySet> {
         None
     }
+
+    /// Reads a value only for its length: every reference reads as a placeholder.
+    fn walking(&self) -> bool {
+        false
+    }
 }
 
 pub struct ChainLookup<'a>(pub &'a [&'a dyn RegistryLookup]);
@@ -50,6 +55,10 @@ impl RegistryLookup for ChainLookup<'_> {
 
     fn registries(&self) -> Option<&RegistrySet> {
         self.0.iter().find_map(|l| l.registries())
+    }
+
+    fn walking(&self) -> bool {
+        self.0.iter().any(|l| l.walking())
     }
 }
 

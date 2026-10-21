@@ -34,6 +34,6 @@ pub use names::NameTable;
 pub use network::{KnownPackEntries, NetworkEntry, NetworkRegistry, NetworkTags};
 pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
-pub use resolver::check_in_scope;
+pub use resolver::{Checked, check_in_scope, name_in_scope};
 pub use set::{RegistrySet, ScopeError};
 pub use tags::{TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};

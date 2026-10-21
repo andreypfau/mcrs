@@ -92,6 +92,16 @@ struct Flags {
     tags: bool,
 }
 
+fn named_tag<T: Resolve<Named: Serialize>>(
+    set: &RegistrySet,
+    value: &T,
+) -> Result<NbtTag, mcrs_minecraft_nbt::Error> {
+    match value.name(set) {
+        Ok(named) => mcrs_minecraft_nbt::to_nbt_tag(&named),
+        Err(error) => Err(serde::ser::Error::custom(error)),
+    }
+}
+
 type ToJson<T> = fn(&RegistrySet, &T) -> Result<String, serde_json::Error>;
 
 fn value_json<T: Serialize>(_: &RegistrySet, value: &T) -> Result<String, serde_json::Error> {
@@ -371,28 +381,63 @@ impl WorldRegistries {
             registry,
             Box::new(move |set, registry, index| {
                 let value = set.column::<T>(registry)?.get(index)?;
-                Some(match value.name(set) {
-                    Ok(named) => mcrs_minecraft_nbt::to_nbt_tag(&named),
-                    Err(error) => Err(serde::ser::Error::custom(error)),
-                })
+                Some(named_tag(set, value))
             }),
         );
-        let declaration = self.declaration(registry);
-        declaration.receive = Some(Receive {
+        self.receive_named::<T, (T,)>(registry, |value| (value,))
+    }
+
+    /// `sync_named` for a split registry: `join` rebuilds `T` to send it, and a
+    /// received `T` is stored as the parts `split` returns.
+    pub fn sync_split_named<T, P>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        split: fn(&T) -> P,
+        join: for<'a> fn(P::Refs<'a>) -> T,
+    ) -> &mut Self
+    where
+        T: Resolve + Send + Sync + 'static,
+        T::Named: Serialize + DeserializeOwned + 'static,
+        P: Parts,
+    {
+        assert!(
+            self.codec(registry, "sync").split.is_some(),
+            "registry {registry} is not split: sync its value"
+        );
+        self.sync_with(
+            registry,
+            Box::new(move |set, registry, index| {
+                Some(named_tag(set, &join(P::refs(set, registry, index)?)))
+            }),
+        );
+        self.receive_named::<T, P>(registry, move |value| split(&value))
+    }
+
+    fn receive_named<T, P>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        store: impl Fn(T) -> P + Send + Sync + 'static,
+    ) -> &mut Self
+    where
+        T: Resolve + 'static,
+        T::Named: Serialize + DeserializeOwned + 'static,
+        P: Parts,
+    {
+        self.declaration(registry).receive = Some(Receive {
             columns: Box::new(move |set, tags| {
-                let mut values = Vec::with_capacity(tags.len());
+                let mut parts = Vec::with_capacity(tags.len());
                 let mut failures = Vec::new();
                 for (index, tag) in tags.into_iter().enumerate() {
                     let value = mcrs_minecraft_nbt::from_tag::<T::Named>(tag)
                         .map_err(|error| error.to_string())
                         .and_then(|named| T::resolve(named, set).map_err(|e| e.to_string()));
                     match value {
-                        Ok(value) => values.push((value,)),
+                        Ok(value) => parts.push(store(value)),
                         Err(message) => failures.push((index, message)),
                     }
                 }
                 if failures.is_empty() {
-                    Ok(<(T,)>::columns(values))
+                    Ok(P::columns(parts))
                 } else {
                     Err(failures)
                 }

@@ -1,7 +1,11 @@
 use std::any::{TypeId, type_name};
+use std::fmt;
+use std::marker::PhantomData;
 
 use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
 use mcrs_minecraft_registries::{Key, Namer, RegistryOf, RegistryType, Resolve, Resolver};
+
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::set::RegistrySet;
 
@@ -15,6 +19,11 @@ impl RegistrySet {
                 .then(|| self.bound_name(TypeId::of::<R::Value>()))
                 .flatten()
         })
+    }
+
+    /// The name of the registry `R` names entries of.
+    pub fn registry_name<R: RegistryType>(&self) -> Option<&ResourceLocation> {
+        self.bound::<R>()
     }
 
     fn bound_or_err<R: RegistryType>(&self) -> Result<&ResourceLocation, String> {
@@ -68,5 +77,60 @@ pub fn check_in_scope<T: Resolve>(named: T::Named) -> Result<(), String> {
     match crate::set::current() {
         Some(set) => T::resolve(named, &set).map(drop).map_err(|e| e.to_string()),
         None => Ok(()),
+    }
+}
+
+/// Names a resolved value against the registry set in scope; `None` outside a scope or when the
+/// set does not hold a referenced entry.
+// chisle: readers whose named data is compared against resolved values name them here; this goes
+// with the scope once those readers resolve their data through the new loader.
+pub fn name_in_scope<T: Resolve>(value: &T) -> Option<T::Named> {
+    value.name(&crate::set::current()?).ok()
+}
+
+/// The named form of `T`, checked against the registries in scope when read.
+// chisle: values that load through the scope hold names until they load through the registry
+// loader, which resolves them; the check goes with the scope.
+// The named type is a parameter, not a projection, so that a recursive value holding one stays
+// `Sync` without the solver normalising through `Resolve`.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct Checked<T, N = <T as Resolve>::Named>(pub N, #[serde(skip)] PhantomData<fn() -> T>);
+
+impl<T, N> Checked<T, N> {
+    pub fn unchecked(named: N) -> Self {
+        Checked(named, PhantomData)
+    }
+}
+
+impl<T, N: Default> Default for Checked<T, N> {
+    fn default() -> Self {
+        Checked(N::default(), PhantomData)
+    }
+}
+
+impl<T, N: Clone> Clone for Checked<T, N> {
+    fn clone(&self) -> Self {
+        Checked(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T, N: PartialEq> PartialEq for Checked<T, N> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T, N: fmt::Debug> fmt::Debug for Checked<T, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<'de, T: Resolve<Named = N>, N: Deserialize<'de> + Clone> Deserialize<'de> for Checked<T, N> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let named = N::deserialize(d)?;
+        check_in_scope::<T>(named.clone()).map_err(serde::de::Error::custom)?;
+        Ok(Checked(named, PhantomData))
     }
 }
