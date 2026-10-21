@@ -86,7 +86,6 @@ mcrs_minecraft_registries::read_with_serde!(
     crate::InstrumentValue,
     crate::dialog::Dialog,
     crate::decorated_pot_pattern::DecoratedPotPattern,
-    crate::block_transformer::BlockTransformer,
     crate::recipe::Recipe
 );
 

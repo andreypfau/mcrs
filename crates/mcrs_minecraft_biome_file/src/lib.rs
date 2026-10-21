@@ -313,25 +313,27 @@ impl BiomeFile {
         S: Fn() -> RegistrySet + Send + Sync + 'static,
     {
         let key = mcrs_minecraft_biome::keys::BIOME.location().into();
-        Declaration::data::<RegistryOf<Self>>(key, Stage::World).validate(move |registry, ctx| {
-            let placed = ctx
-                .registry::<RegistryOf<PlacedFeature>>()
-                .ok_or_else(|| "the placed features are not loaded".to_owned())?;
-            let set = scope()
-                .with_column(
-                    PLACED_FEATURE.location().as_static_str(),
-                    Arc::clone(placed.values()),
-                )
-                .map_err(|error| error.to_string())?;
-            let settings: Vec<BiomeGenerationSettings> = registry
-                .values()
-                .iter()
-                .map(|biome| BiomeGenerationSettings {
-                    carvers: biome.carvers.clone(),
-                    features: biome.features.clone(),
-                })
-                .collect();
-            registry.entry_failures(check_feature_domains(&settings, &set))
-        })
+        Declaration::data::<RegistryOf<Self>>(key, Stage::World)
+            .named_by::<mcrs_minecraft_biome::Biome>()
+            .validate(move |registry, ctx| {
+                let placed = ctx
+                    .registry::<RegistryOf<PlacedFeature>>()
+                    .ok_or_else(|| "the placed features are not loaded".to_owned())?;
+                let set = scope()
+                    .with_column(
+                        PLACED_FEATURE.location().as_static_str(),
+                        Arc::clone(placed.values()),
+                    )
+                    .map_err(|error| error.to_string())?;
+                let settings: Vec<BiomeGenerationSettings> = registry
+                    .values()
+                    .iter()
+                    .map(|biome| BiomeGenerationSettings {
+                        carvers: biome.carvers.clone(),
+                        features: biome.features.clone(),
+                    })
+                    .collect();
+                registry.entry_failures(check_feature_domains(&settings, &set))
+            })
     }
 }

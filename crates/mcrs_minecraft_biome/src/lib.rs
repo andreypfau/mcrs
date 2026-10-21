@@ -29,6 +29,10 @@ pub struct Biome {
     pub effects: BiomeEffects,
 }
 
+impl mcrs_minecraft_registries::RegistryType for Biome {
+    type Value = ();
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrassColorModifier {

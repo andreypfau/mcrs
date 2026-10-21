@@ -1,3 +1,4 @@
+use mcrs_minecraft_registries::{KeySet, Named};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -75,7 +76,7 @@ pub struct LoadedFeatures {
     pub placed_features: BTreeMap<ResourceLocation, PlacedFeature>,
     pub templates: BTreeMap<ResourceLocation, Template>,
     pub processor_lists: BTreeMap<ResourceLocation, StructureProcessorList>,
-    pub block_state_providers: BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+    pub block_state_providers: BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
 }
 
 /// One vertex of the sorted order: a placed feature and, unless it was written
@@ -243,7 +244,14 @@ pub trait BlockResolver {
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask>;
 
-    fn biomes(&self, set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask>;
+    fn block_set(
+        &self,
+        keys: &KeySet<mcrs_minecraft_block::keys::Block>,
+    ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>>;
+
+    fn fluid_set(&self, keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>>;
+
+    fn biomes(&self, set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask>;
 }
 
 pub fn state_named(state: &BlockState) -> String {
@@ -304,7 +312,7 @@ pub fn state_of(
 }
 
 pub fn compile_predicate(
-    predicate: &BlockPredicate,
+    predicate: &BlockPredicate<Named>,
     blocks: &dyn BlockResolver,
 ) -> Result<Predicate, FeatureCompileError> {
     let matching = |offset: &Offset, query| {
@@ -318,7 +326,12 @@ pub fn compile_predicate(
         BlockPredicate::MatchingBlocks {
             offset,
             blocks: set,
-        } => matching(offset, StateQuery::Blocks(set))?,
+        } => {
+            let set = blocks
+                .block_set(set)
+                .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{set:?}")))?;
+            matching(offset, StateQuery::Blocks(&set))?
+        }
         BlockPredicate::MatchingBlockTag { offset, tag } => {
             matching(offset, StateQuery::BlockTag(tag))?
         }
@@ -326,7 +339,12 @@ pub fn compile_predicate(
             offset,
             fluids,
             state,
-        } => matching(offset, StateQuery::Fluids(fluids, state))?,
+        } => {
+            let fluids = blocks
+                .fluid_set(fluids)
+                .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{fluids:?}")))?;
+            matching(offset, StateQuery::Fluids(&fluids, state))?
+        }
         BlockPredicate::HasSturdyFace { offset, direction } => {
             matching(offset, StateQuery::SturdyFace(*direction))?
         }
@@ -377,7 +395,7 @@ pub fn compile_predicate(
 }
 
 fn compile_predicates(
-    predicates: &[BlockPredicate],
+    predicates: &[BlockPredicate<Named>],
     blocks: &dyn BlockResolver,
 ) -> Result<Vec<Predicate>, FeatureCompileError> {
     predicates
@@ -574,7 +592,18 @@ mod tests {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
 
-        fn biomes(&self, _set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
+        fn block_set(
+            &self,
+            _keys: &KeySet<mcrs_minecraft_block::keys::Block>,
+        ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>> {
+            Some(HolderSet::List(Box::new([])))
+        }
+
+        fn fluid_set(&self, _keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
+            Some(HolderSet::List(Box::new([])))
+        }
+
+        fn biomes(&self, _set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
     }
@@ -618,12 +647,21 @@ mod tests {
             fn states(&self, _query: StateQuery<'_>) -> Option<StateMask> {
                 None
             }
-            fn biomes(&self, _set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
+            fn block_set(
+                &self,
+                _keys: &KeySet<mcrs_minecraft_block::keys::Block>,
+            ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>> {
+                None
+            }
+            fn fluid_set(&self, _keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
+                None
+            }
+            fn biomes(&self, _set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
                 None
             }
         }
 
-        let predicate: BlockPredicate = serde_json::from_str(
+        let predicate: BlockPredicate<Named> = serde_json::from_str(
             r#"{"type":"minecraft:would_survive","state":{"id":"test:absent","properties":{"stage":"1"}}}"#,
         )
         .unwrap();
@@ -633,7 +671,7 @@ mod tests {
             "unknown block state: test:absent[stage=1]"
         );
 
-        let predicate: BlockPredicate = serde_json::from_str(
+        let predicate: BlockPredicate<Named> = serde_json::from_str(
             r##"{"type":"minecraft:matching_block_tag","tag":"test:absent"}"##,
         )
         .unwrap();
@@ -647,7 +685,7 @@ mod tests {
 
     #[test]
     fn a_predicate_with_no_compiled_form_names_the_type() {
-        let predicate: BlockPredicate =
+        let predicate: BlockPredicate<Named> =
             serde_json::from_str(r#"{"type":"minecraft:unobstructed"}"#).unwrap();
         assert_eq!(
             compile_predicate(&predicate, &Everything).unwrap_err(),

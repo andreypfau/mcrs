@@ -15,10 +15,11 @@
 use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_block_predicate::provider::Holder;
+
 use mcrs_minecraft_block_predicate::provider::{
     BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
 };
+use mcrs_minecraft_registries::{KeyOr, Named};
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
@@ -295,8 +296,8 @@ pub(crate) fn compiled(
     let Some((_, Feature::Tree(config))) = corpus.iter().find(|(id, _)| id == feature) else {
         panic!("{feature} is not a tree of the corpus");
     };
-    let simple = |provider: &BlockStateProvider| match provider {
-        Holder::Inline(direct) => match &**direct {
+    let simple = |provider: &BlockStateProvider<Named>| match provider {
+        KeyOr::Inline(direct) => match &**direct {
             DirectBlockStateProvider::State(state) => state.name.to_string(),
             DirectBlockStateProvider::Typed(TypedBlockStateProvider::Simple { state }) => {
                 state.name.to_string()

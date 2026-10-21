@@ -1,5 +1,6 @@
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_block_predicate::state_properties::{StatePropertiesPredicate, ValueMatcher};
+use mcrs_minecraft_registries::{KeyOr, Named};
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
@@ -10,7 +11,6 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_block::keys::fluid_tags;
-use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::provider::{
     BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
 };
@@ -22,7 +22,7 @@ use mcrs_minecraft_core::voxel_shape::{
 };
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
-    FeatureCompileError, StateQuery, compile_predicate,
+    BlockResolver, FeatureCompileError, StateQuery, compile_predicate,
 };
 use mcrs_minecraft_worldgen_feature::placer::StateMask;
 use mcrs_minecraft_worldgen_feature::tree::{
@@ -504,17 +504,16 @@ pub fn compile_tree(
     reason = "one arm per block state provider type, each compiled the way the reference's provider of that type is"
 )]
 pub(super) fn compile_provider(
-    provider: &BlockStateProvider,
+    provider: &BlockStateProvider<Named>,
     r: &Resolver<'_>,
 ) -> Compiled<StateProvider> {
-    let direct: &DirectBlockStateProvider = match provider {
-        Holder::Reference(id) => r
-            .block_state_providers
-            .get(id)
-            .ok_or_else(|| FeatureCompileError::UnknownBlockStateProvider(id.clone()))?,
-        Holder::Inline(direct) => direct,
+    let direct: &DirectBlockStateProvider<Named> = match provider {
+        KeyOr::Key(key) => r.block_state_providers.get(key.location()).ok_or_else(|| {
+            FeatureCompileError::UnknownBlockStateProvider(key.location().clone())
+        })?,
+        KeyOr::Inline(direct) => direct,
     };
-    let typed: &TypedBlockStateProvider = match direct {
+    let typed: &TypedBlockStateProvider<Named> = match direct {
         DirectBlockStateProvider::State(state) => {
             return Ok(StateProvider::Simple(r.resolve(state)?));
         }
@@ -558,7 +557,10 @@ pub(super) fn compile_provider(
             rotations: Arc::new(rotation_table(&r.world.layouts)),
         },
         TypedBlockStateProvider::RandomBlock { blocks } => {
-            StateProvider::RandomBlock(r.block_set_defaults(blocks))
+            let set = r
+                .block_set(blocks)
+                .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{blocks:?}")))?;
+            StateProvider::RandomBlock(r.block_set_defaults(&set))
         }
         TypedBlockStateProvider::CopyProperties { source } => {
             StateProvider::CopyProperties(Box::new(compile_provider(source, r)?))

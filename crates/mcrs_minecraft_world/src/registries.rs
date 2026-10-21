@@ -246,11 +246,9 @@ registry_table! {
     mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone,
         received as DecoratedPotPattern => bare,
         declared by DecoratedPotPattern::declaration();
-    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone,
-        received as BlockTransformer => bare,
+    @synced mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer,
         declared by BlockTransformer::declaration();
-    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider,
-        synced as Clone::clone, received as DirectBlockStateProvider => bare,
+    @synced mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider,
         declared by DirectBlockStateProvider::declaration();
     @synced BlockSoundSet => BlockSoundSet,
         declared by BlockSoundSet::declaration();

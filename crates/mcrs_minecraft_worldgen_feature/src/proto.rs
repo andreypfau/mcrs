@@ -1,4 +1,5 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_registries::Named;
 use std::fmt;
 
 use serde::de::Error as _;
@@ -265,16 +266,16 @@ pub enum Feature {
     BetaPopulate,
     BlockBlob {
         state: BlockState,
-        can_place_on: BlockPredicate,
+        can_place_on: BlockPredicate<Named>,
     },
     BlockColumn {
         layers: Vec<BlockColumnLayer>,
         direction: Direction,
-        allowed_placement: BlockPredicate,
+        allowed_placement: BlockPredicate<Named>,
         prioritize_tip: bool,
     },
     BlockPile {
-        state_provider: BlockStateProvider,
+        state_provider: BlockStateProvider<Named>,
     },
     BlueIce,
     BonusChest,
@@ -293,10 +294,10 @@ pub enum Feature {
         turn_factor: UnitFloat,
         carve_depth: BoundedIntProvider<1, { i32::MAX }>,
         fill_depth: BoundedIntProvider<1, { i32::MAX }>,
-        surface_block: BlockStateProvider,
-        fill_block: BlockStateProvider,
-        carvable_blocks: BlockPredicate,
-        acceptable_barrier: BlockPredicate,
+        surface_block: BlockStateProvider<Named>,
+        fill_block: BlockStateProvider<Named>,
+        carvable_blocks: BlockPredicate<Named>,
+        acceptable_barrier: BlockPredicate<Named>,
     },
     CoralTree {
         feature: Holder<PlacedFeature>,
@@ -308,8 +309,8 @@ pub enum Feature {
         rim_size: BoundedIntProvider<0, 16>,
     },
     Disk {
-        state_provider: BlockStateProvider,
-        target: BlockPredicate,
+        state_provider: BlockStateProvider<Named>,
+        target: BlockPredicate<Named>,
         radius: BoundedIntProvider<0, 8>,
         half_height: Bounded<0, 4>,
     },
@@ -332,7 +333,7 @@ pub enum Feature {
         crystal_beam_target: Option<[i32; 3]>,
     },
     FallenTree {
-        trunk_provider: BlockStateProvider,
+        trunk_provider: BlockStateProvider<Named>,
         log_length: IntProvider,
         stump_decorators: Vec<super::tree::TreeDecorator>,
         log_decorators: Vec<super::tree::TreeDecorator>,
@@ -376,37 +377,37 @@ pub enum Feature {
         invalid_blocks_threshold: i32,
     },
     HugeBrownMushroom {
-        cap_provider: BlockStateProvider,
-        stem_provider: BlockStateProvider,
+        cap_provider: BlockStateProvider<Named>,
+        stem_provider: BlockStateProvider<Named>,
         #[serde(default, skip_serializing_if = "is_default")]
         foliage_radius: IntOr<2>,
-        can_place_on: BlockPredicate,
+        can_place_on: BlockPredicate<Named>,
     },
     HugeFungus {
         valid_base_block: BlockState,
         stem_state: BlockState,
         hat_state: BlockState,
         decor_state: BlockState,
-        replaceable_blocks: BlockPredicate,
+        replaceable_blocks: BlockPredicate<Named>,
         #[serde(default, skip_serializing_if = "is_default")]
         planted: bool,
     },
     HugeRedMushroom {
-        cap_provider: BlockStateProvider,
-        stem_provider: BlockStateProvider,
+        cap_provider: BlockStateProvider<Named>,
+        stem_provider: BlockStateProvider<Named>,
         #[serde(default, skip_serializing_if = "is_default")]
         foliage_radius: IntOr<2>,
-        can_place_on: BlockPredicate,
+        can_place_on: BlockPredicate<Named>,
     },
     Iceberg {
         state: BlockState,
     },
     Lake {
-        fluid: BlockStateProvider,
-        barrier: BlockStateProvider,
-        can_place_feature: BlockPredicate,
-        can_replace_with_air_or_fluid: BlockPredicate,
-        can_replace_with_barrier: BlockPredicate,
+        fluid: BlockStateProvider<Named>,
+        barrier: BlockStateProvider<Named>,
+        can_place_feature: BlockPredicate<Named>,
+        can_replace_with_air_or_fluid: BlockPredicate<Named>,
+        can_replace_with_barrier: BlockPredicate<Named>,
     },
     LargeSpeleothem {
         base_block: BlockState,
@@ -453,8 +454,8 @@ pub enum Feature {
         features: PlacedFeatureSet,
     },
     ProjectedRandomPatchySquare {
-        block: BlockStateProvider,
-        project_through: BlockPredicate,
+        block: BlockStateProvider<Named>,
+        project_through: BlockPredicate<Named>,
         size: BoundedIntProvider<1, 16>,
         max_projection_height: NonNegativeInt,
     },
@@ -463,9 +464,9 @@ pub enum Feature {
         feature_false: Holder<PlacedFeature>,
     },
     RandomNeighborSpread {
-        block: BlockStateProvider,
+        block: BlockStateProvider<Named>,
         accepted_neighbors: BlockSet,
-        can_replace: BlockPredicate,
+        can_replace: BlockPredicate<Named>,
         attempts: BoundedIntProvider<1, 3000>,
         xz_offset: BoundedIntProvider<-16, 16>,
         y_offset: BoundedIntProvider<-16, 16>,
@@ -484,15 +485,15 @@ pub enum Feature {
         max_level_deviation: Bounded<0, 64>,
         root_radius: Bounded<1, 64>,
         root_replaceable: BlockSet,
-        root_state_provider: BlockStateProvider,
+        root_state_provider: BlockStateProvider<Named>,
         root_placement_attempts: Bounded<1, 256>,
         root_column_max_height: Bounded<1, 4096>,
         hanging_root_radius: Bounded<1, 64>,
         hanging_roots_vertical_span: Bounded<1, 16>,
-        hanging_root_state_provider: BlockStateProvider,
+        hanging_root_state_provider: BlockStateProvider<Named>,
         hanging_root_placement_attempts: Bounded<1, 256>,
         allowed_vertical_water_for_tree: Bounded<1, 64>,
-        allowed_tree_position: BlockPredicate,
+        allowed_tree_position: BlockPredicate<Named>,
     },
     ScatteredOre {
         targets: Vec<BlockReplacement>,
@@ -511,7 +512,7 @@ pub enum Feature {
         features: PlacedFeatureSet,
     },
     SimpleBlock {
-        to_place: BlockStateProvider,
+        to_place: BlockStateProvider<Named>,
         #[serde(default, skip_serializing_if = "is_default")]
         schedule_tick: bool,
     },
@@ -520,9 +521,9 @@ pub enum Feature {
         features: PlacedFeatureSet,
     },
     SingleBlockPillar {
-        block: BlockStateProvider,
+        block: BlockStateProvider<Named>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        can_replace: Option<BlockPredicate>,
+        can_replace: Option<BlockPredicate<Named>>,
         direction: VerticalDirection,
         #[serde(default = "d_unit_1_0", skip_serializing_if = "is_unit_1_0")]
         chance_to_continue: UnitFloat,
@@ -562,8 +563,8 @@ pub enum Feature {
     },
     Spike {
         state: BlockState,
-        can_place_on: BlockPredicate,
-        can_replace: BlockPredicate,
+        can_place_on: BlockPredicate<Named>,
+        can_replace: BlockPredicate<Named>,
     },
     Spring {
         state: FluidState,
@@ -576,9 +577,9 @@ pub enum Feature {
         valid_blocks: BlockSet,
     },
     SteppedColumnCluster {
-        block: BlockStateProvider,
-        continue_through: BlockPredicate,
-        can_replace: BlockPredicate,
+        block: BlockStateProvider<Named>,
+        continue_through: BlockPredicate<Named>,
+        can_replace: BlockPredicate<Named>,
         cannot_place_on: BlockSet,
         cluster_reach: IntProvider,
         column_count: IntProvider,
@@ -725,7 +726,7 @@ pub struct WeightedPlacedFeature {
 #[serde(deny_unknown_fields)]
 pub struct BlockColumnLayer {
     pub height: IntProvider,
-    pub provider: BlockStateProvider,
+    pub provider: BlockStateProvider<Named>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -747,7 +748,7 @@ pub struct EndSpike {
 #[serde(deny_unknown_fields)]
 pub struct VegetationPatchConfig {
     pub replaceable: BlockSet,
-    pub ground_state: BlockStateProvider,
+    pub ground_state: BlockStateProvider<Named>,
     pub vegetation_feature: Holder<PlacedFeature>,
     pub surface: CaveSurface,
     pub depth: BoundedIntProvider<1, 128>,
@@ -769,11 +770,11 @@ pub struct TemplateEntry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GeodeBlockSettings {
-    pub filling_provider: BlockStateProvider,
-    pub inner_layer_provider: BlockStateProvider,
-    pub alternate_inner_layer_provider: BlockStateProvider,
-    pub middle_layer_provider: BlockStateProvider,
-    pub outer_layer_provider: BlockStateProvider,
+    pub filling_provider: BlockStateProvider<Named>,
+    pub inner_layer_provider: BlockStateProvider<Named>,
+    pub alternate_inner_layer_provider: BlockStateProvider<Named>,
+    pub middle_layer_provider: BlockStateProvider<Named>,
+    pub outer_layer_provider: BlockStateProvider<Named>,
     #[serde(deserialize_with = "non_empty")]
     pub inner_placements: Vec<BlockState>,
     pub cannot_replace: BlockSet,

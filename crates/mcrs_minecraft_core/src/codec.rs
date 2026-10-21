@@ -285,18 +285,22 @@ where
     T: Deserialize<'de>,
 {
     let values = Vec::<T>::deserialize(deserializer)?;
-    let size = values.len();
+    list_size::<MIN, MAX>(values.len()).map_err(D::Error::custom)?;
+    Ok(values)
+}
+
+pub fn list_size<const MIN: usize, const MAX: usize>(size: usize) -> Result<(), String> {
     if size < MIN {
-        return Err(D::Error::custom(format_args!(
+        return Err(format!(
             "List is too short: {size}, expected range [{MIN}-{MAX}]"
-        )));
+        ));
     }
     if size > MAX {
-        return Err(D::Error::custom(format_args!(
+        return Err(format!(
             "List is too long: {size}, expected range [{MIN}-{MAX}]"
-        )));
+        ));
     }
-    Ok(values)
+    Ok(())
 }
 
 /// A codec bound the field list alone does not express. The shape is derived as

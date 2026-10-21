@@ -19,6 +19,7 @@ mod tests {
     use crate::tree::{FeatureSize, TrunkPlacer};
     use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
     use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
+    use mcrs_minecraft_registries::Named;
     use mcrs_minecraft_worldgen_testing::corpus_set;
     use serde::Serialize;
     use serde::de::DeserializeOwned;
@@ -81,16 +82,19 @@ mod tests {
                 r#"{"type":"minecraft:straight_trunk_placer","base_height":5,"height_rand_a":2,"height_rand_b":0,"trunk_width":{"type":"minecraft:uniform","min_inclusive":1,"max_inclusive":2}}"#,
             ),
             (
-                codec::<BlockStateProvider>,
+                codec::<BlockStateProvider<Named>>,
                 r#"{"type":"minecraft:copy_properties","source":{"type":"minecraft:simple","state":"minecraft:oak_log"}}"#,
             ),
             (
-                codec::<BlockStateProvider>,
+                codec::<BlockStateProvider<Named>>,
                 r#""minecraft:soil_beneath_tree""#,
             ),
-            (codec::<BlockStateProvider>, r#"{"id":"minecraft:clay"}"#),
             (
-                codec::<BlockStateProvider>,
+                codec::<BlockStateProvider<Named>>,
+                r#"{"id":"minecraft:clay"}"#,
+            ),
+            (
+                codec::<BlockStateProvider<Named>>,
                 r#"{"id":"minecraft:acacia_log","properties":{"axis":"y"}}"#,
             ),
             (
@@ -113,7 +117,7 @@ mod tests {
     fn a_malformed_shape_is_a_load_error() {
         let cases: &[(Codec, &str, &str)] = &[
             (
-                codec::<BlockPredicate>,
+                codec::<BlockPredicate<Named>>,
                 r#"{"type":"minecraft:volume_match","min":[0,0,0],"max":[0,-1,0],"match":{"type":"minecraft:true"}}"#,
                 "min bound cannot be larger",
             ),

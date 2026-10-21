@@ -1,7 +1,7 @@
 use std::any::{TypeId, type_name};
 
 use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
-use mcrs_minecraft_registries::{Key, Namer, RegistryOf, RegistryType, Resolver};
+use mcrs_minecraft_registries::{Key, Namer, RegistryOf, RegistryType, Resolve, Resolver};
 
 use crate::set::RegistrySet;
 
@@ -57,5 +57,16 @@ impl Namer for RegistrySet {
         self.tag_table(self.bound::<R>()?.as_str())?
             .names()
             .get(tag.index())
+    }
+}
+
+/// Resolves a named value against the registry set in scope, if one is, so that a value read
+/// through that scope fails on a name the set does not hold. Outside a scope it accepts any name.
+// chisle: values that still load through this scope check their named references here; the check
+// goes with the scope once those values load through the new loader.
+pub fn check_in_scope<T: Resolve>(named: T::Named) -> Result<(), String> {
+    match crate::set::current() {
+        Some(set) => T::resolve(named, &set).map(drop).map_err(|e| e.to_string()),
+        None => Ok(()),
     }
 }

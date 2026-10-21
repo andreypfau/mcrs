@@ -1,3 +1,4 @@
+use mcrs_minecraft_registries::Named;
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -399,7 +400,7 @@ macro_rules! effect_enum {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             offset: Option<[i32; 3]>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
-            predicate: Option<BlockPredicate>,
+            predicate: Option<BlockPredicate<Named>>,
             block_state: BlockStateProvider,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             trigger_game_event: Option<String>,

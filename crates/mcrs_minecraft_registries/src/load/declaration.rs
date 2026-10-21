@@ -45,6 +45,9 @@ impl Kind<'_> {
 pub(crate) trait Erased: Send + Sync {
     fn key(&self) -> &ResourceLocation;
     fn registry_type(&self) -> TypeId;
+    fn aliases(&self) -> &[TypeId] {
+        &[]
+    }
     fn kind(&self) -> Kind<'_>;
 }
 
@@ -79,6 +82,7 @@ pub struct DataDeclaration<R: RegistryType> {
     non_empty: bool,
     validator: Option<Validator<R>>,
     built_in: Vec<BuiltInSet<R>>,
+    aliases: Vec<TypeId>,
 }
 
 struct BuiltInSet<R: RegistryType> {
@@ -115,6 +119,12 @@ where
         validator: impl Fn(&Registry<R>, &LoadCtx<'_>) -> Result<(), String> + Send + Sync + 'static,
     ) -> Self {
         self.validator = Some(Box::new(validator));
+        self
+    }
+
+    /// Lets a crate below the one that holds the values name this registry by the marker `K`.
+    pub fn named_by<K: RegistryType>(mut self) -> Self {
+        self.aliases.push(TypeId::of::<K>());
         self
     }
 
@@ -166,6 +176,7 @@ impl Declaration {
             non_empty: false,
             validator: None,
             built_in: Vec::new(),
+            aliases: Vec::new(),
         }
     }
 
@@ -204,6 +215,10 @@ where
 
     fn registry_type(&self) -> TypeId {
         TypeId::of::<R>()
+    }
+
+    fn aliases(&self) -> &[TypeId] {
+        &self.aliases
     }
 
     fn kind(&self) -> Kind<'_> {

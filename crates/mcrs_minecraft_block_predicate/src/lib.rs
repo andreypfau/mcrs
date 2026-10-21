@@ -6,8 +6,6 @@ pub mod predicate;
 pub mod provider;
 pub mod state_properties;
 
-mcrs_minecraft_registries::read_with_serde!(crate::provider::DirectBlockStateProvider);
-
 mcrs_minecraft_registries::declare_registries!(
     crate::provider::DirectBlockStateProvider => crate::keys::BLOCK_STATE_PROVIDER, World;
 );

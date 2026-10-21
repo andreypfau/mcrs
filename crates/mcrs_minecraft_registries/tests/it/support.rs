@@ -117,6 +117,10 @@ impl Resolve for Enchant {
 }
 
 pub fn declarations() -> Vec<Declaration> {
+    declarations_with(Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into())
+}
+
+pub fn declarations_with(damage_type: Declaration) -> Vec<Declaration> {
     vec![
         Declaration::fixed::<Block>(
             rl("block"),
@@ -125,7 +129,7 @@ pub fn declarations() -> Vec<Declaration> {
                 .to_vec(),
         ),
         Declaration::fixed::<Item>(rl("item"), vec![rl("stone"), rl("dirt")]),
-        Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
+        damage_type,
         Declaration::data::<Enchantment>(rl("enchantment"), Stage::World).into(),
         Declaration::data::<LootTable>(rl("loot_table"), Stage::Reloadable).into(),
         Declaration::data::<Predicate>(rl("predicate"), Stage::Reloadable).into(),

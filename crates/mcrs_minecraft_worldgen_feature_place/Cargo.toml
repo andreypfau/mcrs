@@ -37,6 +37,7 @@ bytes.workspace = true
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature_place = { path = ".", default-features = false, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 serde_json.workspace = true
 

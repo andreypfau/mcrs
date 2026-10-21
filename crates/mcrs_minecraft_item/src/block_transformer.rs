@@ -1,22 +1,32 @@
 use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
-use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default, is_true};
+use mcrs_minecraft_core::codec::{
+    self, NonNegativeInt, Validate, default_true, is_default, is_true,
+};
 use mcrs_minecraft_core::{Direction, ResourceLocation};
-use mcrs_minecraft_registry::Holder;
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct BlockTransformer(
-    #[serde(deserialize_with = "codec::sized_list::<1, 200, _, _>")] pub Vec<BlockTransformData>,
-);
+#[serde(remote = "Self", transparent)]
+pub struct BlockTransformer<M: Refs = Resolved>(pub Vec<BlockTransformData<M>>);
 
+mcrs_minecraft_core::validated!(BlockTransformer<Named>);
+
+impl<M: Refs> Validate for BlockTransformer<M> {
+    fn validate(&self) -> Result<(), String> {
+        codec::list_size::<1, 200>(self.0.len())
+    }
+}
+
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BlockTransformData {
-    pub block_state_provider: BlockStateProvider,
+pub struct BlockTransformData<M: Refs = Resolved> {
+    pub block_state_provider: BlockStateProvider<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sound: Option<Holder<SoundEvent>>,
+    pub sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub particle: TransformParticle,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

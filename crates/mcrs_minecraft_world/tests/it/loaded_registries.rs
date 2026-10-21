@@ -2841,3 +2841,35 @@ mod exhaustive {
         super::built_in_files_read_through_the_layered_file_source(usize::MAX);
     }
 }
+
+#[test]
+fn a_block_state_provider_names_only_providers_that_exist() {
+    let rotated = |state: &str| format!(r#"{{"type":"minecraft:rotated","state":"{state}"}}"#);
+    let path = "minecraft/worldgen/block_state_provider/odd.json";
+    let missing = load_text(&[(path, &rotated("minecraft:no_such_provider"))]);
+    assert!(missing.contains("minecraft:no_such_provider"), "{missing}");
+    let present = load_text(&[(path, &rotated("minecraft:soil_beneath_tree"))]);
+    assert!(present.is_empty(), "{present}");
+}
+
+#[test]
+fn a_block_predicate_inside_an_enchantment_names_only_blocks_that_exist() {
+    let enchantment = |block: &str| {
+        format!(
+            r#"{{"description":"x","supported_items":"minecraft:stone","weight":1,"max_level":1,
+            "min_cost":{{"base":1,"per_level_above_first":1}},"max_cost":{{"base":1,"per_level_above_first":1}},
+            "anvil_cost":1,"slots":["feet"],"effects":{{"minecraft:location_changed":[{{"effect":{{
+            "type":"minecraft:replace_disk","block_state":{{"type":"minecraft:simple",
+            "state":{{"id":"minecraft:stone"}}}},"radius":1,"height":1,
+            "predicate":{{"type":"minecraft:matching_blocks","blocks":"{block}"}}}}}}]}}}}"#
+        )
+    };
+    let missing = refused_by_the_loader(
+        "enchantment",
+        "odd",
+        &enchantment("minecraft:no_such_block"),
+    );
+    assert!(missing.contains("minecraft:no_such_block"), "{missing}");
+    let present = refused_by_the_loader("enchantment", "odd", &enchantment("minecraft:dirt"));
+    assert!(present.is_empty(), "{present}");
+}

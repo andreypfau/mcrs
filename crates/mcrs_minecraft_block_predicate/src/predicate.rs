@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{codec::Validate, validated};
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
 /// `Vec3i.offsetCodec(16)`.
@@ -41,13 +41,14 @@ impl<'de> Deserialize<'de> for Offset {
 
 use mcrs_minecraft_core::Direction;
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum BlockPredicate {
+pub enum BlockPredicate<M: Refs = Resolved> {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        blocks: HolderSet<mcrs_minecraft_block::keys::Block>,
+        blocks: M::Set<mcrs_minecraft_block::keys::Block>,
     },
     MatchingBlockTag {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -57,12 +58,12 @@ pub enum BlockPredicate {
     MatchingFluids {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        fluids: HolderSet<Fluid>,
+        fluids: M::Set<Fluid>,
         #[serde(default, skip_serializing_if = "StatePropertiesPredicate::is_any")]
         state: StatePropertiesPredicate,
     },
     MatchingBiomes {
-        biomes: HolderSet<Biome>,
+        biomes: M::Set<Biome>,
     },
     HasSturdyFace {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -87,13 +88,13 @@ pub enum BlockPredicate {
         offset: Offset,
     },
     AnyOf {
-        predicates: Vec<BlockPredicate>,
+        predicates: Vec<BlockPredicate<M>>,
     },
     AllOf {
-        predicates: Vec<BlockPredicate>,
+        predicates: Vec<BlockPredicate<M>>,
     },
     Not {
-        predicate: Box<BlockPredicate>,
+        predicate: Box<BlockPredicate<M>>,
     },
     True,
     /// The one offset the reference does not bound to sixteen blocks per axis.
@@ -105,14 +106,20 @@ pub enum BlockPredicate {
         min_inclusive: VerticalAnchor,
         max_inclusive: VerticalAnchor,
     },
-    VolumeMatch(VolumeMatch),
+    VolumeMatch(VolumeMatch<M>),
     BelowHeightmap {
         heightmap: HeightmapName,
     },
 }
 
+impl Validate for BlockPredicate<Named> {
+    fn validate(&self) -> Result<(), String> {
+        mcrs_minecraft_registry::check_in_scope::<BlockPredicate>(self.clone())
+    }
+}
+
 mcrs_minecraft_registry::dispatch! {
-    BlockPredicate, key = "type", registry = crate::keys::BlockPredicateType,
+    validated BlockPredicate<Named>, key = "type", registry = crate::keys::BlockPredicateType,
     {
         MatchingBlocks => MatchingBlocks,
         MatchingBlockTag => MatchingBlockTag,
@@ -134,15 +141,16 @@ mcrs_minecraft_registry::dispatch! {
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub struct VolumeMatch {
+pub struct VolumeMatch<M: Refs = Resolved> {
     pub min: Offset,
     pub max: Offset,
-    pub r#match: Box<BlockPredicate>,
+    pub r#match: Box<BlockPredicate<M>>,
 }
 
-impl Validate for VolumeMatch {
+impl<M: Refs> Validate for VolumeMatch<M> {
     fn validate(&self) -> Result<(), String> {
         if (0..3).any(|axis| self.min.0[axis] > self.max.0[axis]) {
             return Err("min bound cannot be larger than max bound".to_owned());
@@ -151,7 +159,7 @@ impl Validate for VolumeMatch {
     }
 }
 
-validated!(VolumeMatch);
+validated!(VolumeMatch<Named>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -169,6 +177,7 @@ mod tests {
     use super::*;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_nbt::{from_tag, to_nbt_tag};
+    use mcrs_minecraft_registries::{IdSet, Resolve};
     use mcrs_minecraft_worldgen_testing::corpus_set;
 
     #[test]
@@ -195,16 +204,16 @@ mod tests {
             r#"{"type":"minecraft:matching_fluids","fluids":"minecraft:water"}"#,
             r#"{"type":"minecraft:matching_fluids","offset":[0,1,0],"fluids":"minecraft:water","state":{"source":"true"}}"#,
         ] {
-            set.scope(|| {
-                let predicate: BlockPredicate = serde_json::from_str(text).unwrap();
-                assert_eq!(serde_json::to_string(&predicate).unwrap(), text, "{text}");
-                let nbt = to_nbt_tag(&predicate).unwrap();
-                assert_eq!(
-                    from_tag::<BlockPredicate>(nbt).unwrap(),
-                    predicate,
-                    "{text}"
-                );
-            });
+            let named: BlockPredicate<Named> = serde_json::from_str(text).unwrap();
+            let predicate = BlockPredicate::resolve(named, set).unwrap();
+            let written = predicate.name(set).unwrap();
+            assert_eq!(serde_json::to_string(&written).unwrap(), text, "{text}");
+            let nbt = to_nbt_tag(&written).unwrap();
+            assert_eq!(
+                from_tag::<BlockPredicate<Named>>(nbt).unwrap(),
+                written,
+                "{text}"
+            );
         }
     }
 
@@ -212,18 +221,18 @@ mod tests {
     fn a_block_predicate_tag_resolves_in_the_loaded_scope() {
         let text =
             r##"{"type":"minecraft:matching_blocks","blocks":"#minecraft:base_stone_overworld"}"##;
-        assert!(serde_json::from_str::<BlockPredicate>(text).is_err());
-
         let set = corpus_set();
         let tags = set.tags::<mcrs_minecraft_block::keys::Block>().unwrap();
+        let named: BlockPredicate<Named> = serde_json::from_str(text).unwrap();
         let BlockPredicate::MatchingBlocks {
-            blocks: matching, ..
-        } = set.scope(|| serde_json::from_str(text).unwrap())
+            blocks: IdSet::Tag(tag),
+            ..
+        } = BlockPredicate::resolve(named, set).unwrap()
         else {
-            panic!("a matching_blocks predicate parses to its own variant");
+            panic!("a matching_blocks predicate resolves its tag");
         };
-        assert!(matching.contains(mcrs_minecraft_block::keys::Block::Stone.id(), &tags));
-        assert!(!matching.contains(mcrs_minecraft_block::keys::Block::Dirt.id(), &tags));
+        assert!(tags.contains(tag, mcrs_minecraft_block::keys::Block::Stone.id()));
+        assert!(!tags.contains(tag, mcrs_minecraft_block::keys::Block::Dirt.id()));
     }
 
     #[test]
@@ -235,7 +244,7 @@ mod tests {
         assert!(!names.is_empty());
         for name in names {
             let json = format!(r#"{{"type":"{name}"}}"#);
-            if let Err(error) = serde_json::from_str::<BlockPredicate>(&json) {
+            if let Err(error) = serde_json::from_str::<BlockPredicate<Named>>(&json) {
                 let error = error.to_string();
                 assert!(!error.contains("unknown variant"), "{name}: {error}");
             }

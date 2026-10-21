@@ -1,4 +1,5 @@
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_registries::Named;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
@@ -33,7 +34,7 @@ impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
 #[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "P: Deserialize<'de>", serialize = "P: Serialize"))]
-pub enum PlacementModifier<P = BlockPredicate> {
+pub enum PlacementModifier<P = BlockPredicate<Named>> {
     BlockPredicateFilter {
         predicate: P,
     },

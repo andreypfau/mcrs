@@ -31,6 +31,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registries::{KeySet, Named};
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -2664,7 +2665,7 @@ pub struct Resolver<'a> {
     pub world_seed: i64,
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
-    pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+    pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
     shape_masks: ShapeMasks,
 }
 
@@ -2720,7 +2721,7 @@ impl<'a> Resolver<'a> {
         registries: &RegistrySet,
         world_seed: i64,
         climate: &'a [BiomeClimate],
-        block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+        block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
     ) -> Compiled<Self> {
         let mut resolver = Resolver {
             block_state_providers,
@@ -2934,6 +2935,24 @@ impl<'a> Resolver<'a> {
             Self::add_entry(mask, &self.blocks[id]);
         }
     }
+
+    fn fluid_mask(
+        &self,
+        set: &HolderSet<Fluid>,
+        properties: &StatePropertiesPredicate,
+    ) -> StateMask {
+        // No block definition interns `minecraft:empty`, but the
+        // reference's fluid-less states all carry it, so it matches
+        // everything that holds no fluid rather than nothing at all.
+        let empty =
+            set.contains(Fluid::Empty.id(), &self.fluid_tags) && properties.matches_fluid(None);
+        self.state_mask(|state| match &state.fluid {
+            None => empty,
+            Some(fluid) => {
+                set.contains(fluid.fluid, &self.fluid_tags) && properties.matches_fluid(Some(fluid))
+            }
+        })
+    }
 }
 
 impl BlockResolver for Resolver<'_> {
@@ -2951,20 +2970,7 @@ impl BlockResolver for Resolver<'_> {
                 .try_for_each(|name| self.add_block(&mut mask, name))?,
             StateQuery::Block(id) => self.add_block(&mut mask, id)?,
             StateQuery::BlockTag(tag) => self.add_tag(&mut mask, tag)?,
-            StateQuery::Fluids(set, properties) => {
-                // No block definition interns `minecraft:empty`, but the
-                // reference's fluid-less states all carry it, so it matches
-                // everything that holds no fluid rather than nothing at all.
-                let empty = set.contains(Fluid::Empty.id(), &self.fluid_tags)
-                    && properties.matches_fluid(None);
-                return Some(self.state_mask(|state| match &state.fluid {
-                    None => empty,
-                    Some(fluid) => {
-                        set.contains(fluid.fluid, &self.fluid_tags)
-                            && properties.matches_fluid(Some(fluid))
-                    }
-                }));
-            }
+            StateQuery::Fluids(set, properties) => return Some(self.fluid_mask(set, properties)),
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
             StateQuery::FullOutline => return Some(self.shape_masks.full_outline.clone()),
@@ -2978,9 +2984,37 @@ impl BlockResolver for Resolver<'_> {
         Some(Arc::new(mask))
     }
 
-    fn biomes(&self, set: &HolderSet<Biome>) -> Option<BiomeMask> {
+    fn block_set(&self, keys: &KeySet<Block>) -> Option<HolderSet<Block>> {
+        holder_set(keys, &self.tags, |name| Block::find(name).map(Block::id))
+    }
+
+    fn fluid_set(&self, keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
+        holder_set(keys, &self.fluid_tags, |name| {
+            Fluid::find(name).map(Fluid::id)
+        })
+    }
+
+    fn biomes(&self, set: &KeySet<Biome>) -> Option<BiomeMask> {
+        let set = holder_set(set, &self.biome_tags, |name| self.biomes.by_name(name))?;
         let mut mask = FixedBitSet::with_capacity(self.biomes.len());
         mask.extend(set.ids(&self.biome_tags).map(Id::index));
         Some(Arc::new(mask))
     }
+}
+
+fn holder_set<R: 'static>(
+    keys: &KeySet<R>,
+    tags: &Tags<R>,
+    entry: impl Fn(&str) -> Option<Id<R>>,
+) -> Option<HolderSet<R>> {
+    Some(match keys {
+        KeySet::Tag(tag) => {
+            HolderSet::Named(tags.get(&TagKey::from_location(tag.location().clone()))?)
+        }
+        KeySet::List(keys) => HolderSet::List(
+            keys.iter()
+                .map(|key| entry(key.location().as_str()))
+                .collect::<Option<_>>()?,
+        ),
+    })
 }

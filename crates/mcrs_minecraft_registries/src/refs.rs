@@ -131,7 +131,7 @@ impl<'de, R> Deserialize<'de> for KeySet<R> {
 
 pub enum KeyOr<R, V> {
     Key(Key<R>),
-    Inline(V),
+    Inline(Box<V>),
 }
 
 impl<R, V: Clone> Clone for KeyOr<R, V> {
@@ -179,7 +179,7 @@ impl<'de, R, V: Deserialize<'de>> Deserialize<'de> for KeyOr<R, V> {
 
         impl<'de, R, V: Deserialize<'de>> OrVisitor<R, V> {
             fn inline<D: Deserializer<'de>>(deserializer: D) -> Result<KeyOr<R, V>, D::Error> {
-                V::deserialize(deserializer).map(KeyOr::Inline)
+                V::deserialize(deserializer).map(|value| KeyOr::Inline(Box::new(value)))
             }
         }
 
@@ -383,7 +383,7 @@ impl<R: RegistryType, V: Resolve> Resolve for Ref<R, V> {
         match named {
             KeyOr::Key(key) => Id::resolve(key, ctx).map(Ref::Id),
             KeyOr::Inline(value) => {
-                V::resolve(value, ctx).map(|value| Ref::Inline(Arc::new(value)))
+                V::resolve(*value, ctx).map(|value| Ref::Inline(Arc::new(value)))
             }
         }
     }
@@ -391,7 +391,9 @@ impl<R: RegistryType, V: Resolve> Resolve for Ref<R, V> {
     fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
         match self {
             Ref::Id(id) => id.name(names).map(KeyOr::Key),
-            Ref::Inline(value) => value.name(names).map(KeyOr::Inline),
+            Ref::Inline(value) => value
+                .name(names)
+                .map(|value| KeyOr::Inline(Box::new(value))),
         }
     }
 }
@@ -424,6 +426,18 @@ impl<T: Resolve> Resolve for Vec<T> {
             .enumerate()
             .map(|(at, value)| value.name(names).map_err(|e| e.at_index(at)))
             .collect()
+    }
+}
+
+impl<T: Resolve> Resolve for Box<T> {
+    type Named = Box<T::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        T::resolve(*named, ctx).map(Box::new)
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        (**self).name(names).map(Box::new)
     }
 }
 

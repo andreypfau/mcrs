@@ -13,6 +13,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::{Named, Resolve};
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
@@ -80,6 +81,24 @@ fn decoration_steps(
 /// from the block definitions and tags, so a datapack that changes any of them
 /// is picked up here. A name that resolves to nothing stops the server naming
 /// the entry.
+fn named_providers(
+    registries: &RegistrySet,
+) -> BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>> {
+    let names = registries.loaded_registry::<DirectBlockStateProvider>();
+    let providers =
+        registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
+    names
+        .iter()
+        .filter_map(|(id, name)| match providers[id].name(registries) {
+            Ok(provider) => Some((name.clone(), provider)),
+            Err(error) => {
+                tracing::error!(%name, %error, "a block state provider cannot be named");
+                None
+            }
+        })
+        .collect()
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -94,10 +113,6 @@ fn build_dimension_features(
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
 ) {
-    let provider_registry = registries.loaded_registry::<DirectBlockStateProvider>();
-    let providers =
-        registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
-
     // chisle: every named template is cloned, though only the templates a
     // template feature places are read from here; upgrade = collect those alone.
     let template_values = named_templates(&registries)
@@ -115,10 +130,7 @@ fn build_dimension_features(
         placed_features: registries.loaded_by_name::<PlacedFeature>(),
         templates: template_values,
         processor_lists: registries.loaded_by_name::<StructureProcessorList>(),
-        block_state_providers: provider_registry
-            .iter()
-            .map(|(id, name)| (name.clone(), providers[id].clone()))
-            .collect(),
+        block_state_providers: named_providers(&registries),
     };
 
     let placed_names = registries.loaded_registry::<PlacedFeature>();

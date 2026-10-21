@@ -1,10 +1,12 @@
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registries::{
-    Diagnostic, Diagnostics, IdSet, Missing, Ref, Referrer, Registries,
+    Declaration, Diagnostic, Diagnostics, IdSet, Key, Missing, Namer, Ref, Referrer, Registries,
+    RegistryType, Resolver, Stage,
 };
 
 use crate::support::{
-    DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, get, report_errors, rl,
-    value,
+    DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, declarations_with, get,
+    report_errors, rl, value,
 };
 
 fn load_enchantment(body: &str, extra: &[(&str, &str)]) -> Result<Registries, Diagnostics> {
@@ -210,4 +212,26 @@ fn an_unknown_key_of_an_earlier_stage_names_the_field_that_holds_it() {
         ),
         "{errors:?}"
     );
+}
+
+#[test]
+fn a_registry_named_by_a_marker_resolves_through_it() {
+    struct Hurt;
+    impl RegistryType for Hurt {
+        type Value = ();
+    }
+
+    let declarations = declarations_with(
+        Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
+            .named_by::<Hurt>()
+            .validate(|_, ctx| ctx.id(&Key::<Hurt>::new(rl("t:a"))).map(|_| ()))
+            .into(),
+    );
+    let (registries, _) = Packs::new()
+        .world("a", &[("data/t/damage_type/a.json", &damage("a"))])
+        .load(&declarations)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    let id = get::<DamageType>(&registries, "t:a");
+    let as_hurt = Id::<Hurt>::checked(id.number(), 1).unwrap();
+    assert_eq!(registries.name(as_hurt), Some(&rl("t:a")));
 }

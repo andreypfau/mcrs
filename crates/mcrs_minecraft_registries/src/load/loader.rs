@@ -34,7 +34,13 @@ fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic> {
     for declaration in declarations {
         let declaration = &declaration.inner;
         let registry = declaration.key().clone();
-        if !keys.insert(registry.clone()) || !types.insert(declaration.registry_type()) {
+        let mut fresh = keys.insert(registry.clone());
+        for registry_type in std::iter::once(declaration.registry_type())
+            .chain(declaration.aliases().iter().copied())
+        {
+            fresh &= types.insert(registry_type);
+        }
+        if !fresh {
             errors.push(Diagnostic::Declaration {
                 registry,
                 message: "the registry or its type is declared twice".to_owned(),
@@ -340,16 +346,20 @@ fn assemble(
     let mut errors = Vec::new();
     for slot in slots {
         let stage = slot.stage();
-        let registry_type = slot.declaration.registry_type();
         let (Some(table), Some(tag_table)) = (slot.table, slot.tags) else {
             errors.push(not_built(slot.declaration.key()));
             continue;
         };
-        match stage {
-            Some(Stage::Reloadable) => reloadable.insert(registry_type, table),
-            _ => world.insert(registry_type, table),
-        };
-        tags.insert(registry_type, tag_table);
+        let declaration = slot.declaration;
+        let types = std::iter::once(declaration.registry_type())
+            .chain(declaration.aliases().iter().copied());
+        for registry_type in types {
+            match stage {
+                Some(Stage::Reloadable) => reloadable.insert(registry_type, table.clone()),
+                _ => world.insert(registry_type, table.clone()),
+            };
+            tags.insert(registry_type, Arc::clone(&tag_table));
+        }
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -447,7 +457,12 @@ pub fn load_with(
     let by_type: HashMap<TypeId, usize> = slots
         .iter()
         .enumerate()
-        .map(|(at, slot)| (slot.declaration.registry_type(), at))
+        .flat_map(|(at, slot)| {
+            let declaration = slot.declaration;
+            std::iter::once(declaration.registry_type())
+                .chain(declaration.aliases().iter().copied())
+                .map(move |registry_type| (registry_type, at))
+        })
         .collect();
 
     let built_in_paths = built_in_paths(&slots, &stack);

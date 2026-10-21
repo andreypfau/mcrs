@@ -1,4 +1,5 @@
 use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
+use mcrs_minecraft_registries::Named;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -239,7 +240,7 @@ mcrs_minecraft_registry::dispatch! {
 /// [`BlockStateProvider`] as loaded, or whatever a freeze resolves it into.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub enum TreeDecorator<P = BlockStateProvider> {
+pub enum TreeDecorator<P = BlockStateProvider<Named>> {
     TrunkVine {},
     LeaveVine {
         probability: UnitFloat,
@@ -425,7 +426,7 @@ mcrs_minecraft_registry::dispatch! {
 pub enum RootPlacer {
     Mangrove {
         trunk_offset_y: IntProvider,
-        root_provider: BlockStateProvider,
+        root_provider: BlockStateProvider<Named>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         above_root_placement: Option<AboveRootPlacement>,
         mangrove_root_placement: MangroveRootPlacement,
@@ -442,7 +443,7 @@ mcrs_minecraft_registry::dispatch! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AboveRootPlacement {
-    pub above_root_provider: BlockStateProvider,
+    pub above_root_provider: BlockStateProvider<Named>,
     pub above_root_placement_chance: UnitFloat,
 }
 
@@ -451,7 +452,7 @@ pub struct AboveRootPlacement {
 pub struct MangroveRootPlacement {
     pub can_grow_through: BlockSet,
     pub muddy_roots_in: BlockSet,
-    pub muddy_roots_provider: BlockStateProvider,
+    pub muddy_roots_provider: BlockStateProvider<Named>,
     pub max_root_width: Bounded<1, 12>,
     pub max_root_length: Bounded<1, 64>,
     pub random_skew_chance: UnitFloat,
@@ -460,9 +461,9 @@ pub struct MangroveRootPlacement {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TreeConfig {
-    pub trunk_provider: BlockStateProvider,
+    pub trunk_provider: BlockStateProvider<Named>,
     pub trunk_placer: TrunkPlacer,
-    pub foliage_provider: BlockStateProvider,
+    pub foliage_provider: BlockStateProvider<Named>,
     pub foliage_placer: FoliagePlacer,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_placer: Option<RootPlacer>,
@@ -472,5 +473,5 @@ pub struct TreeConfig {
     /// back even when it holds the default.
     #[serde(default)]
     pub ignore_vines: bool,
-    pub below_trunk_provider: BlockStateProvider,
+    pub below_trunk_provider: BlockStateProvider<Named>,
 }

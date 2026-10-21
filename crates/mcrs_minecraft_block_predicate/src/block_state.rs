@@ -119,7 +119,8 @@ mod tests {
     #[test]
     fn a_provider_state_named_alone_keeps_its_object_form() {
         let json = r#"{"id":"minecraft:stone"}"#;
-        let provider: crate::provider::BlockStateProvider = serde_json::from_str(json).unwrap();
+        let provider: crate::provider::BlockStateProvider<mcrs_minecraft_registries::Named> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(serde_json::to_string(&provider).unwrap(), json);
     }
 }
