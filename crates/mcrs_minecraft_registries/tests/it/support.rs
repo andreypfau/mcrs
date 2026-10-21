@@ -1,16 +1,14 @@
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_registries::{
-    AvailablePack, Declaration, Diagnostic, Diagnostics, Features, IdSet, LoadCtx, PackFiles,
-    PackSelection, PackStack, ReadValue, Ref, Registries, RegistryType, Stage, StageScope,
-    load_with, pack_stack,
+    AvailablePack, Declaration, Diagnostic, Diagnostics, Features, IdSet, Key, KeyOr, KeySet,
+    Namer, PackFiles, PackSelection, PackStack, Ref, Registries, RegistryType, Resolve,
+    ResolveError, Resolver, Stage, StageScope, load_with, pack_stack,
 };
-use serde::de::value::StrDeserializer;
-use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::de::IgnoredAny;
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub fn rl(text: &str) -> ResourceLocation {
     ResourceLocation::read(text).unwrap()
@@ -37,26 +35,22 @@ impl RegistryType for DamageType {
     type Value = Damage;
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Damage {
     pub message_id: String,
     pub exhaustion: f32,
 }
 
-impl ReadValue for Damage {
-    fn read<'de, D: Deserializer<'de>>(_: &LoadCtx<'_>, d: D) -> Result<Self, D::Error> {
-        Damage::deserialize(d)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Opaque;
 
-impl ReadValue for Opaque {
-    fn read<'de, D: Deserializer<'de>>(_: &LoadCtx<'_>, d: D) -> Result<Self, D::Error> {
+impl<'de> Deserialize<'de> for Opaque {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         IgnoredAny::deserialize(d).map(|_| Opaque)
     }
 }
+
+mcrs_minecraft_registries::resolve_as_is!(Damage, Opaque);
 
 pub struct LootTable;
 impl RegistryType for LootTable {
@@ -88,58 +82,37 @@ pub struct Enchant {
     pub preferred: Option<Id<Enchantment>>,
 }
 
-impl ReadValue for Enchant {
-    fn read<'de, D: Deserializer<'de>>(ctx: &LoadCtx<'_>, d: D) -> Result<Self, D::Error> {
-        struct Fields<'c, 'a>(&'c LoadCtx<'a>);
+#[derive(Deserialize)]
+pub struct NamedEnchant {
+    supported_items: Option<KeySet<Item>>,
+    exclusive_set: Option<KeySet<Enchantment>>,
+    damage_types: Option<KeySet<DamageType>>,
+    merchant_predicate: Option<KeyOr<Predicate, Opaque>>,
+    damage: Option<KeyOr<DamageType, Damage>>,
+    preferred: Option<Key<Enchantment>>,
+}
 
-        impl<'de> Visitor<'de> for Fields<'_, '_> {
-            type Value = Enchant;
+// `preferred` drops a name it cannot resolve, so a miss the value recovers from can be observed.
+impl Resolve for Enchant {
+    type Named = NamedEnchant;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("an enchantment")
-            }
+    fn resolve<C: Resolver>(named: NamedEnchant, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(Enchant {
+            supported_items: Resolve::resolve(named.supported_items, ctx)
+                .map_err(|e| e.at("supported_items"))?,
+            exclusive_set: Resolve::resolve(named.exclusive_set, ctx)
+                .map_err(|e| e.at("exclusive_set"))?,
+            damage_types: Resolve::resolve(named.damage_types, ctx)
+                .map_err(|e| e.at("damage_types"))?,
+            merchant_predicate: Resolve::resolve(named.merchant_predicate, ctx)
+                .map_err(|e| e.at("merchant_predicate"))?,
+            damage: Resolve::resolve(named.damage, ctx).map_err(|e| e.at("damage"))?,
+            preferred: named.preferred.and_then(|key| ctx.id(&key).ok()),
+        })
+    }
 
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Enchant, A::Error> {
-                let mut out = Enchant {
-                    supported_items: None,
-                    exclusive_set: None,
-                    damage_types: None,
-                    merchant_predicate: None,
-                    damage: None,
-                    preferred: None,
-                };
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "supported_items" => {
-                            out.supported_items = Some(map.next_value_seed(self.0.id_set())?)
-                        }
-                        "exclusive_set" => {
-                            out.exclusive_set = Some(map.next_value_seed(self.0.id_set())?)
-                        }
-                        "damage_types" => {
-                            out.damage_types = Some(map.next_value_seed(self.0.id_set())?)
-                        }
-                        "merchant_predicate" => {
-                            out.merchant_predicate = Some(map.next_value_seed(self.0.reference())?)
-                        }
-                        "damage" => out.damage = Some(map.next_value_seed(self.0.reference())?),
-                        "preferred" => {
-                            let text = map.next_value::<String>()?;
-                            let seed = self.0.id::<Enchantment>();
-                            out.preferred = seed
-                                .deserialize(StrDeserializer::<A::Error>::new(&text))
-                                .ok();
-                        }
-                        _ => {
-                            map.next_value::<IgnoredAny>()?;
-                        }
-                    }
-                }
-                Ok(out)
-            }
-        }
-
-        d.deserialize_map(Fields(ctx))
+    fn name<C: Namer>(&self, _: &C) -> Result<NamedEnchant, ResolveError> {
+        Err(ResolveError::new("a test enchantment is never written"))
     }
 }
 

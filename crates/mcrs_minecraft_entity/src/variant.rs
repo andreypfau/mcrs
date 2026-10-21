@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_registry::Holder;
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
+use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -100,106 +100,113 @@ pub enum ZombieNautilusModel {
     Warm,
 }
 
-type Sound = Holder<SoundEvent>;
-
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WolfSounds {
+pub struct WolfSounds<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ambient_sound: Option<Sound>,
+    pub ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub death_sound: Option<Sound>,
+    pub death_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub growl_sound: Option<Sound>,
+    pub growl_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hurt_sound: Option<Sound>,
+    pub hurt_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pant_sound: Option<Sound>,
+    pub pant_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub whine_sound: Option<Sound>,
+    pub whine_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step_sound: Option<Sound>,
+    pub step_sound: Option<Sound<M>>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WolfSoundVariant {
-    pub adult_sounds: WolfSounds,
-    pub baby_sounds: WolfSounds,
+pub struct WolfSoundVariant<M: Refs = Resolved> {
+    pub adult_sounds: WolfSounds<M>,
+    pub baby_sounds: WolfSounds<M>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PigSounds {
+pub struct PigSounds<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ambient_sound: Option<Sound>,
+    pub ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hurt_sound: Option<Sound>,
+    pub hurt_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub death_sound: Option<Sound>,
+    pub death_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step_sound: Option<Sound>,
+    pub step_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eat_sound: Option<Sound>,
+    pub eat_sound: Option<Sound<M>>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PigSoundVariant {
-    pub adult_sounds: PigSounds,
-    pub baby_sounds: PigSounds,
+pub struct PigSoundVariant<M: Refs = Resolved> {
+    pub adult_sounds: PigSounds<M>,
+    pub baby_sounds: PigSounds<M>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CatSounds {
+pub struct CatSounds<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ambient_sound: Option<Sound>,
+    pub ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stray_ambient_sound: Option<Sound>,
+    pub stray_ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hiss_sound: Option<Sound>,
+    pub hiss_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hurt_sound: Option<Sound>,
+    pub hurt_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub death_sound: Option<Sound>,
+    pub death_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eat_sound: Option<Sound>,
+    pub eat_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub beg_for_food_sound: Option<Sound>,
+    pub beg_for_food_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub purr_sound: Option<Sound>,
+    pub purr_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub purreow_sound: Option<Sound>,
+    pub purreow_sound: Option<Sound<M>>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CatSoundVariant {
-    pub adult_sounds: CatSounds,
-    pub baby_sounds: CatSounds,
+pub struct CatSoundVariant<M: Refs = Resolved> {
+    pub adult_sounds: CatSounds<M>,
+    pub baby_sounds: CatSounds<M>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CowSoundVariant {
+pub struct CowSoundVariant<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ambient_sound: Option<Sound>,
+    pub ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hurt_sound: Option<Sound>,
+    pub hurt_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub death_sound: Option<Sound>,
+    pub death_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step_sound: Option<Sound>,
+    pub step_sound: Option<Sound<M>>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChickenSounds {
+pub struct ChickenSounds<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ambient_sound: Option<Sound>,
+    pub ambient_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hurt_sound: Option<Sound>,
+    pub hurt_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub death_sound: Option<Sound>,
+    pub death_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step_sound: Option<Sound>,
+    pub step_sound: Option<Sound<M>>,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChickenSoundVariant {
-    pub adult_sounds: ChickenSounds,
-    pub baby_sounds: ChickenSounds,
+pub struct ChickenSoundVariant<M: Refs = Resolved> {
+    pub adult_sounds: ChickenSounds<M>,
+    pub baby_sounds: ChickenSounds<M>,
 }

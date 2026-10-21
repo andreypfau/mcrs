@@ -5,10 +5,13 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::{Id, ResourceLocation};
 use serde::Deserializer;
+use serde::de::{DeserializeOwned, Error as _};
 
 use crate::id::MAX_ENTRIES;
+use crate::json;
 use crate::load::LoadCtx;
 use crate::pack::PackIndex;
+use crate::refs::Resolve;
 
 pub trait RegistryType: 'static {
     type Value: Send + Sync + 'static;
@@ -25,6 +28,33 @@ pub trait ReadValue: Sized {
         ctx: &LoadCtx<'_>,
         deserializer: D,
     ) -> Result<Self, D::Error>;
+
+    /// Reads a whole file, returning the failing field apart from the message.
+    #[doc(hidden)]
+    fn read_file(ctx: &LoadCtx<'_>, bytes: &[u8]) -> Result<Self, (Option<String>, String)> {
+        json::read_seed(bytes, ctx.value::<Self>()).map_err(|e| (e.field, e.message))
+    }
+}
+
+impl<T: Resolve> ReadValue for T
+where
+    T::Named: DeserializeOwned,
+{
+    fn read<'de, D: Deserializer<'de>>(
+        ctx: &LoadCtx<'_>,
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        let named = <T::Named as serde::Deserialize>::deserialize(deserializer)?;
+        T::resolve(named, ctx).map_err(D::Error::custom)
+    }
+
+    fn read_file(ctx: &LoadCtx<'_>, bytes: &[u8]) -> Result<Self, (Option<String>, String)> {
+        let named = json::read::<T::Named>(bytes).map_err(|e| (e.field, e.message))?;
+        T::resolve(named, ctx).map_err(|e| {
+            let field = (!e.path().is_empty()).then(|| e.path().to_owned());
+            (field, e.message().to_owned())
+        })
+    }
 }
 
 #[derive(Debug)]

@@ -7,7 +7,11 @@ pub use block_sound_set::BlockSoundSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::lenient_float;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_registries::{Refs, RegistryType};
 use serde::{Deserialize, Serialize};
+
+/// A sound event named by its key, or written out in place.
+pub type Sound<M> = <M as Refs>::Ref<SoundEvent, SoundEvent>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundEvent {
@@ -24,7 +28,11 @@ impl RegistryValue for SoundEvent {
     type Registry = Self;
 }
 
-mcrs_minecraft_registries::read_with_serde!(crate::BlockSoundSet);
+impl RegistryType for SoundEvent {
+    type Value = ();
+}
+
+mcrs_minecraft_registries::resolve_as_is!(SoundEvent);
 
 mcrs_minecraft_registries::declare_registries!(
     crate::BlockSoundSet => crate::keys::BLOCK_SOUND_SET, World;

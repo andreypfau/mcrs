@@ -3,6 +3,7 @@ use crate::report::LoadReport;
 use crate::set::{Column, RegistrySet};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::Resolve;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
@@ -12,7 +13,7 @@ use std::sync::Arc;
 pub(crate) type Name = ResourceLocation<Arc<str>>;
 pub(crate) type Failures = Vec<(usize, String)>;
 type EncodeResult = Result<String, serde_json::Error>;
-type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
+type Encode = fn(&RegistrySet, &(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
 type Project = Box<
     dyn Fn(&RegistrySet, &str, usize) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>>
         + Send
@@ -42,7 +43,9 @@ struct Codec {
 type SplitColumns = Box<dyn Fn(&(dyn Any + Send + Sync)) -> Vec<(TypeId, Column)> + Send + Sync>;
 type SplitEncode = Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>;
 type ReceiveColumns =
-    Box<dyn Fn(Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>;
+    Box<dyn Fn(&RegistrySet, Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>;
+type Reencode =
+    Box<dyn Fn(&RegistrySet, NbtTag) -> Result<NbtTag, mcrs_minecraft_nbt::Error> + Send + Sync>;
 
 struct Split {
     columns: SplitColumns,
@@ -51,7 +54,7 @@ struct Split {
 
 pub(crate) struct Receive {
     pub(crate) columns: ReceiveColumns,
-    reencode: Box<dyn Fn(NbtTag) -> Result<NbtTag, mcrs_minecraft_nbt::Error> + Send + Sync>,
+    reencode: Reencode,
 }
 
 pub(crate) struct Declaration {
@@ -90,11 +93,28 @@ struct Flags {
 }
 
 fn encode_value<T: Serialize + 'static>(
+    _: &RegistrySet,
     column: &(dyn Any + Send + Sync),
     index: usize,
 ) -> Option<Result<String, serde_json::Error>> {
     let values = column.downcast_ref::<Arc<[T]>>()?;
     Some(serde_json::to_string(values.get(index)?))
+}
+
+fn encode_named<T>(
+    set: &RegistrySet,
+    column: &(dyn Any + Send + Sync),
+    index: usize,
+) -> Option<Result<String, serde_json::Error>>
+where
+    T: Resolve + 'static,
+    T::Named: Serialize,
+{
+    let values = column.downcast_ref::<Arc<[T]>>()?;
+    Some(match values.get(index)?.name(set) {
+        Ok(named) => serde_json::to_string(&named),
+        Err(error) => Err(serde::ser::Error::custom(error)),
+    })
 }
 
 /// The parts a split registry stores, one column each.
@@ -208,6 +228,20 @@ impl WorldRegistries {
         self
     }
 
+    pub fn parse_named<T>(&mut self, registry: ResourceLocation<&'static str>) -> &mut Self
+    where
+        T: Resolve + Send + Sync + 'static,
+        T::Named: Serialize,
+    {
+        self.declaration(registry).codec = Some(Codec {
+            value_type: TypeId::of::<T>(),
+            value_name: std::any::type_name::<T>(),
+            encode: encode_named::<T>,
+            split: None,
+        });
+        self
+    }
+
     /// Stores what `parse::<T>` read as the columns of the parts `split`
     /// returns, in place of `T`. Validators read the parts; `join` rebuilds `T`
     /// from the parts to encode an entry.
@@ -278,6 +312,54 @@ impl WorldRegistries {
         )
     }
 
+    pub fn sync_named<T>(&mut self, registry: ResourceLocation<&'static str>) -> &mut Self
+    where
+        T: Resolve + Send + Sync + 'static,
+        T::Named: Serialize + DeserializeOwned + 'static,
+    {
+        let codec = self.codec(registry, "sync");
+        assert_eq!(
+            codec.value_type,
+            TypeId::of::<T>(),
+            "registry {registry} does not parse the synced type"
+        );
+        self.sync_with(
+            registry,
+            Box::new(move |set, registry, index| {
+                let value = set.column::<T>(registry)?.get(index)?;
+                Some(match value.name(set) {
+                    Ok(named) => mcrs_minecraft_nbt::to_nbt_tag(&named),
+                    Err(error) => Err(serde::ser::Error::custom(error)),
+                })
+            }),
+        );
+        let declaration = self.declaration(registry);
+        declaration.receive = Some(Receive {
+            columns: Box::new(move |set, tags| {
+                let mut values = Vec::with_capacity(tags.len());
+                let mut failures = Vec::new();
+                for (index, tag) in tags.into_iter().enumerate() {
+                    let value = mcrs_minecraft_nbt::from_tag::<T::Named>(tag)
+                        .map_err(|error| error.to_string())
+                        .and_then(|named| T::resolve(named, set).map_err(|e| e.to_string()));
+                    match value {
+                        Ok(value) => values.push((value,)),
+                        Err(message) => failures.push((index, message)),
+                    }
+                }
+                if failures.is_empty() {
+                    Ok(<(T,)>::columns(values))
+                } else {
+                    Err(failures)
+                }
+            }),
+            reencode: Box::new(|_, tag| {
+                mcrs_minecraft_nbt::to_nbt_tag(&mcrs_minecraft_nbt::from_tag::<T::Named>(tag)?)
+            }),
+        });
+        self
+    }
+
     pub fn sync_parts<P, N>(
         &mut self,
         registry: ResourceLocation<&'static str>,
@@ -322,7 +404,7 @@ impl WorldRegistries {
             "registry {registry} is received twice"
         );
         declaration.receive = Some(Receive {
-            columns: Box::new(move |tags| {
+            columns: Box::new(move |_, tags| {
                 let mut parts = Vec::with_capacity(tags.len());
                 let mut failures = Vec::new();
                 for (index, tag) in tags.into_iter().enumerate() {
@@ -337,7 +419,7 @@ impl WorldRegistries {
                     Err(failures)
                 }
             }),
-            reencode: Box::new(|tag| {
+            reencode: Box::new(|_, tag| {
                 mcrs_minecraft_nbt::to_nbt_tag(&mcrs_minecraft_nbt::from_tag::<N>(tag)?)
             }),
         });
@@ -354,7 +436,7 @@ impl WorldRegistries {
         tag: NbtTag,
     ) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>> {
         let receive = self.declared.get(registry)?.receive.as_ref()?;
-        Some(set.scope(|| (receive.reencode)(tag)))
+        Some(set.scope(|| (receive.reencode)(set, tag)))
     }
 
     fn codec(&mut self, registry: ResourceLocation<&'static str>, to: &str) -> &Codec {
@@ -390,7 +472,7 @@ impl WorldRegistries {
             return set.scope(|| (split.encode)(set, registry, index));
         }
         let column = set.column_any(registry, codec.value_type)?;
-        set.scope(|| (codec.encode)(&**column, index))
+        set.scope(|| (codec.encode)(set, &**column, index))
     }
 
     fn synced_columns<F>(&self, set: &RegistrySet, mut fail: F) -> Vec<(&Name, Vec<SyncedNbt>)>

@@ -11,6 +11,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::{Registered, TagKey};
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_registries::Resolve;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
@@ -18,6 +19,19 @@ use mcrs_minecraft_world::registry_load::{
     DirectoryPacks, LoadedRegistries, PackEntry, PackSource, RegistryLoadError, load_registries,
 };
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
+
+pub fn read_named<T: Resolve>(set: &RegistrySet, json: &str) -> Result<T, String>
+where
+    T::Named: DeserializeOwned,
+{
+    let named = serde_json::from_str::<T::Named>(json).map_err(|e| e.to_string())?;
+    T::resolve(named, set).map_err(|e| e.to_string())
+}
+
+pub fn write_named<T: Resolve>(set: &RegistrySet, value: &T) -> T::Named {
+    value.name(set).unwrap_or_else(|e| panic!("{e}"))
+}
 
 pub fn items() -> &'static Items {
     &test_corpus().1

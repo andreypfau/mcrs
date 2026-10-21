@@ -311,12 +311,12 @@ pub trait Validate: Sized {
 /// trait impls, checking [`Validate`] on the way in.
 #[macro_export]
 macro_rules! validated {
-    ($($name:ident),* $(,)?) => {$(
+    ($($name:ty),* $(,)?) => {$(
         impl<'de> serde::Deserialize<'de> for $name {
             fn deserialize<D: serde::Deserializer<'de>>(
                 deserializer: D,
             ) -> Result<Self, D::Error> {
-                let value = $name::deserialize(deserializer)?;
+                let value = <$name>::deserialize(deserializer)?;
                 value.validate().map_err(serde::de::Error::custom)?;
                 Ok(value)
             }
@@ -327,7 +327,7 @@ macro_rules! validated {
                 &self,
                 serializer: S,
             ) -> Result<S::Ok, S::Error> {
-                $name::serialize(self, serializer)
+                <$name>::serialize(self, serializer)
             }
         }
     )*};

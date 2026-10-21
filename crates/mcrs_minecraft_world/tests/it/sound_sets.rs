@@ -4,23 +4,23 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_testing::{json_files, tagged_report, vanilla_dir};
 
+use crate::common::{read_named, write_named};
+
 #[test]
 fn every_shipped_sound_set_loads_and_writes_back_byte_for_byte() {
     let files = json_files(&vanilla_dir().join("block_sound_set"));
     assert_eq!(files.len(), 137);
-    tagged_report().scope(|| {
-        for path in &files {
-            let text = std::fs::read_to_string(path).unwrap();
-            let set: BlockSoundSet = serde_json::from_str(&text)
-                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-            assert_eq!(
-                serde_json::to_string_pretty(&set).unwrap(),
-                text,
-                "{}",
-                path.display()
-            );
-        }
-    });
+    for path in &files {
+        let text = std::fs::read_to_string(path).unwrap();
+        let set: BlockSoundSet = read_named(tagged_report(), &text)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        assert_eq!(
+            serde_json::to_string_pretty(&write_named(tagged_report(), &set)).unwrap(),
+            text,
+            "{}",
+            path.display()
+        );
+    }
 }
 
 #[test]
@@ -41,14 +41,13 @@ fn a_sound_set_is_written_as_the_game_writes_it() {
             r#"{hit_sound:{range:4.0f,sound_id:"test:clack"}}"#,
         ),
     ];
-    tagged_report().scope(|| {
-        for (json, snbt) in cases {
-            let set: BlockSoundSet =
-                serde_json::from_str(json).unwrap_or_else(|error| panic!("{json}: {error}"));
-            let ours = sorted(mcrs_minecraft_nbt::to_nbt_tag(&set).unwrap());
-            assert_eq!(ours, sorted(parse_tag(snbt).unwrap()), "{json}");
-        }
-    });
+    for (json, snbt) in cases {
+        let set: BlockSoundSet =
+            read_named(tagged_report(), json).unwrap_or_else(|error| panic!("{json}: {error}"));
+        let named = write_named(tagged_report(), &set);
+        let ours = sorted(mcrs_minecraft_nbt::to_nbt_tag(&named).unwrap());
+        assert_eq!(ours, sorted(parse_tag(snbt).unwrap()), "{json}");
+    }
 }
 
 #[test]
@@ -61,15 +60,13 @@ fn a_malformed_sound_set_fails_to_load() {
         r#"{"place_sound": "minecraft:does.not.exist"}"#,
         r#"{"place_sound": {"range": 4}}"#,
     ];
-    tagged_report().scope(|| {
-        for json in cases {
-            assert!(
-                serde_json::from_str::<BlockSoundSet>(json).is_err(),
-                "{json} loaded"
-            );
-        }
-    });
-    let error = serde_json::from_str::<BlockSoundSet>(r#"{"volume": 0}"#).unwrap_err();
+    for json in cases {
+        assert!(
+            read_named::<BlockSoundSet>(tagged_report(), json).is_err(),
+            "{json} loaded"
+        );
+    }
+    let error = read_named::<BlockSoundSet>(tagged_report(), r#"{"volume": 0}"#).unwrap_err();
     assert!(
         error
             .to_string()
@@ -80,16 +77,16 @@ fn a_malformed_sound_set_fails_to_load() {
 
 #[test]
 fn an_entity_sound_variant_may_leave_out_any_sound() {
-    tagged_report().scope(|| {
-        let silent: ChickenSoundVariant =
-            serde_json::from_str(r#"{"adult_sounds": {}, "baby_sounds": {}, "unknown": 1}"#)
-                .unwrap();
-        assert_eq!(
-            serde_json::to_string(&silent).unwrap(),
-            r#"{"adult_sounds":{},"baby_sounds":{}}"#
-        );
-        assert!(serde_json::from_str::<ChickenSoundVariant>(r#"{"adult_sounds": {}}"#).is_err());
-    });
+    let silent: ChickenSoundVariant = read_named(
+        tagged_report(),
+        r#"{"adult_sounds": {}, "baby_sounds": {}, "unknown": 1}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_string(&write_named(tagged_report(), &silent)).unwrap(),
+        r#"{"adult_sounds":{},"baby_sounds":{}}"#
+    );
+    assert!(read_named::<ChickenSoundVariant>(tagged_report(), r#"{"adult_sounds": {}}"#).is_err());
 }
 
 fn sorted(tag: NbtTag) -> NbtTag {

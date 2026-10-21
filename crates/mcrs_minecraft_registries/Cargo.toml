@@ -15,6 +15,7 @@ bevy_ecs = { workspace = true, optional = true }
 fancy-regex.workspace = true
 fixedbitset.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_registries_derive.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_path_to_error = "0.1.20"

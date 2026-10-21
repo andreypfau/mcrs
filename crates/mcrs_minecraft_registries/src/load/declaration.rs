@@ -6,7 +6,6 @@ use mcrs_minecraft_core::ResourceLocation;
 
 use super::ctx::LoadCtx;
 use super::{Stage, Table};
-use crate::json;
 use crate::pack::PackIndex;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
 
@@ -143,9 +142,7 @@ where
         source: &Source<'_>,
     ) -> Result<R::Value, (Option<String>, String)> {
         match source {
-            Source::File { bytes, .. } => {
-                json::read_seed(bytes, ctx.value::<R::Value>()).map_err(|e| (e.field, e.message))
-            }
+            Source::File { bytes, .. } => R::Value::read_file(ctx, bytes),
             Source::BuiltIn { set } => match self.built_in.get(*set) {
                 Some(set) => (set.value)(name, ctx).map_err(|message| (None, message)),
                 None => Err((None, "no built-in value is declared".to_owned())),

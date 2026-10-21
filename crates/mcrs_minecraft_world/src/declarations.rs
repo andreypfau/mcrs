@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::{BLOCK, Block, FLUID, Fluid};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::resource_location::StaticResourceLocation;
+use mcrs_minecraft_entity::keys::{ATTRIBUTE, Attribute};
 use mcrs_minecraft_item::keys::{ITEM, Item};
 use mcrs_minecraft_registries::{
     DataDeclaration, Declaration, LoadCtx, PackStack, ReadValue, Registries, RegistryOf,
@@ -12,6 +14,8 @@ use mcrs_minecraft_registries::{
 use mcrs_minecraft_registry::{
     AssemblyError, NameTable, RegistrySet, TagTable, VANILLA_PACK, WorldRegistries,
 };
+use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_sound::keys::SOUND_EVENT;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -103,6 +107,16 @@ macro_rules! numbered {
 }
 
 numbered!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127);
+
+type DeclareStatic = fn(ResourceLocation, Vec<ResourceLocation>) -> Declaration;
+
+const TYPED_STATICS: [(StaticResourceLocation, DeclareStatic); 5] = [
+    (BLOCK.location(), Declaration::fixed::<Block>),
+    (ITEM.location(), Declaration::fixed::<Item>),
+    (FLUID.location(), Declaration::fixed::<Fluid>),
+    (SOUND_EVENT.location(), Declaration::fixed::<SoundEvent>),
+    (ATTRIBUTE.location(), Declaration::fixed::<Attribute>),
+];
 
 struct Grown {
     set: RegistrySet,
@@ -342,16 +356,14 @@ pub(crate) fn plan(
     for (at, table) in stage.get().statics().enumerate() {
         let key = table.registry().clone();
         let names = table.names().to_vec();
-        let declaration = if key.as_str() == BLOCK.location().as_static_str() {
-            Declaration::fixed::<Block>(key, names)
-        } else if key.as_str() == ITEM.location().as_static_str() {
-            Declaration::fixed::<Item>(key, names)
-        } else if key.as_str() == FLUID.location().as_static_str() {
-            Declaration::fixed::<Fluid>(key, names)
-        } else {
-            fixed(at, key.clone(), names).ok_or_else(|| {
+        let typed = TYPED_STATICS
+            .iter()
+            .find(|(location, _)| key.as_str() == location.as_static_str());
+        let declaration = match typed {
+            Some((_, declare)) => declare(key, names),
+            None => fixed(at, key.clone(), names).ok_or_else(|| {
                 format!("{key} is beyond the number of static registries declared")
-            })?
+            })?,
         };
         declarations.push(declaration);
     }

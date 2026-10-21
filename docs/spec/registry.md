@@ -674,8 +674,25 @@ Provenance: `source_suggested_black_box_confirmed`. Confidence: high.
 | `villager_trade` | `max_uses`, `xp`, `wants.count`, `additional_wants.count` | `context_int_provider` | reference or inline |
 | `villager_trade` | `reputation_discount` | `context_float_provider` | reference or inline |
 | `trade_set` | `amount` | `context_int_provider` | reference or inline |
+| `enchantment` | `requirements` of each conditional effect in `effects`, including `post_attack` and `equipment_drops` | `predicate` | reference or inline |
+| `worldgen/template_pool` | `processors` of a `single_pool_element` or `legacy_single_pool_element`, when it is an inline processor list with an `append_loot` block entity modifier | `loot_table` | key only |
+| `worldgen/configured_feature` | `processors` of a `template` feature, when it is an inline processor list with an `append_loot` block entity modifier | `loot_table` | key only |
+| `worldgen/configured_feature` | `fossil_processors` and `overlay_processors` of a `fossil` feature, when it is an inline processor list with an `append_loot` block entity modifier | `loot_table` | key only |
+| any registry whose values carry item components | `recipes` component, each list item | `recipe` | key only |
+| any registry whose values carry item components | `layers` of a `compostable` component | `context_int_provider` | key only; a number is also accepted |
+| any registry whose values carry item components | `burn_time` of a `cooking_fuel` component | `context_int_provider` | key only; a number is also accepted |
+| any registry whose values carry item components | `speed_multiplier` of a `cooking_fuel` component | `context_float_provider` | key only; a number is also accepted |
+| any registry whose values carry item components | `uses` of a `brewing_fuel` component | `context_int_provider` | key only; a number is also accepted |
+| any registry whose values carry item components | `speed_multiplier` of a `brewing_fuel` component | `context_float_provider` | key only; a number is also accepted |
 
   - A key-only field naming a loot table that does not exist behaves, when used, as an empty loot table.
+  - The rule continues inside an inline value. An inline loot condition can hold more loot conditions, for example `terms` of `all_of` and `any_of`, and `term` of `inverted`. Each nested condition is also reference or inline, so a key in it also fails the load.
+  - An inline `set_loot_table` function in an inline item modifier accepts only a reference. In a stage 1 entry, the key fails and an inline table is rejected. Thus such a function never loads in stage 1.
+  - The processor list rows apply wherever a processor list is inline: in a template pool, in a feature, and in an inline feature or pool inside a biome, a placed feature or a structure.
+  - The `block_transformer` item component can hold an inline block transformer. Thus the `loot` row of `block_transformer` also applies inside item components.
+  - Fields that hold raw NBT are not references. Examples are the `custom_data`, `entity_data`, `block_entity_data` and `bucket_entity_data` components, and `spawn_potentials[].data.entity`. The load does not check them, even when they contain a loot table id. The game reads such an id only at use time.
+  - No stage 1 field references `advancement` or `slot_source`.
+  - The table comes from a search across all fields, not from a check of each feature type by hand. A rare feature type with an inline processor list can be missing from it. The field names `fossil_processors` and `overlay_processors` are not confirmed by a second check.
 - **Ordering constraints:** same-stage references are checked only after every entry and tag of the stage has loaded. The order of files does not matter. Reordering them never changes success or failure.
 - **Postconditions:** after a successful load, every same-stage or earlier-stage reference names an existing entry or tag.
 - **Edge cases:**
@@ -691,6 +708,10 @@ Provenance: `source_suggested_black_box_confirmed`. Confidence: high.
   - **Expected:** the server starts.
   - **Input:** a pack that adds a `villager_trade` entry whose `merchant_predicate` is a key string such as `"t:p"`, whether or not a predicate file `t:p` exists.
   - **Expected:** startup fails, naming that entry; the same predicate written inline loads.
+  - **Input:** a pack that adds `enchantment/t.json` with `"requirements": "t:p"` in one conditional effect.
+  - **Expected:** startup fails, naming that entry. The same condition written inline loads.
+  - **Input:** a pack that adds a dialog with an item body whose item has `"minecraft:recipes": ["t:no_such_recipe"]`.
+  - **Expected:** the server starts.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: as in the
 conformance tests. Compare the server log for each case. For the trial spawner,

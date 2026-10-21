@@ -1,28 +1,29 @@
 use std::ops::RangeInclusive;
 
 use mcrs_minecraft_core::codec::Validate;
-use mcrs_minecraft_registry::Holder;
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
-use crate::SoundEvent;
+use crate::Sound;
 
-mcrs_minecraft_core::validated!(BlockSoundSet);
+mcrs_minecraft_core::validated!(BlockSoundSet<Named>);
 
+#[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub struct BlockSoundSet {
+pub struct BlockSoundSet<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub break_sound: Option<Holder<SoundEvent>>,
+    pub break_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fall_sound: Option<Holder<SoundEvent>>,
+    pub fall_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hit_sound: Option<Holder<SoundEvent>>,
+    pub hit_sound: Option<Sound<M>>,
     #[serde(default = "unit", skip_serializing_if = "is_unit")]
     pub pitch: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub place_sound: Option<Holder<SoundEvent>>,
+    pub place_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step_sound: Option<Holder<SoundEvent>>,
+    pub step_sound: Option<Sound<M>>,
     #[serde(default = "unit", skip_serializing_if = "is_unit")]
     pub volume: f32,
 }
@@ -47,10 +48,10 @@ impl Default for BlockSoundSet {
     }
 }
 
-impl Validate for BlockSoundSet {
+impl<M: Refs> Validate for BlockSoundSet<M> {
     fn validate(&self) -> Result<(), String> {
-        within(&Self::VOLUME, "[1.0E-5;10.0]", self.volume)?;
-        within(&Self::PITCH, "[1.0E-5;2.0]", self.pitch)
+        within(&BlockSoundSet::VOLUME, "[1.0E-5;10.0]", self.volume)?;
+        within(&BlockSoundSet::PITCH, "[1.0E-5;2.0]", self.pitch)
     }
 }
 

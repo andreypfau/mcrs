@@ -264,8 +264,12 @@ impl RegistrySet {
         Ok(self)
     }
 
+    pub(crate) fn bound_name(&self, type_id: TypeId) -> Option<&ResourceLocation<Arc<str>>> {
+        self.types.get(&type_id)
+    }
+
     fn name_of<R: 'static>(&self) -> Option<&ResourceLocation<Arc<str>>> {
-        self.types.get(&TypeId::of::<R>())
+        self.bound_name(TypeId::of::<R>())
     }
 
     pub fn registry<R: 'static>(&self) -> Option<Registry<R>> {

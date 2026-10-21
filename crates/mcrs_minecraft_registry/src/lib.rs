@@ -16,6 +16,7 @@ pub mod names;
 pub mod network;
 pub mod registry;
 pub mod report;
+mod resolver;
 pub mod set;
 pub mod static_report;
 pub mod tags;

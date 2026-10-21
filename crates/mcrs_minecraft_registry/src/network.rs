@@ -222,7 +222,7 @@ impl WorldRegistries {
                 if decodable.len() != table.len() {
                     continue;
                 }
-                match (receive.columns)(decodable) {
+                match (receive.columns)(&set, decodable) {
                     Ok(columns) => {
                         values
                             .columns

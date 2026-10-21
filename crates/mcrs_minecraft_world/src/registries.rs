@@ -64,7 +64,7 @@ macro_rules! registry_table {
     (
         fn $declare:ident, fn $declarations:ident, |$scope:ident, $stage:ident|
         $(
-            $key:ty => $value:ty
+            $(@$mode:ident)? $key:ty => $value:ty
                 $(as $parts:ty, $split:expr, $join:expr
                     $(, synced from parts as $part_project:expr, received as $part_net:ty => $part_receive:expr)?)?
                 $(, synced as $project:expr, received as $net:ty => $receive:expr)?
@@ -76,7 +76,7 @@ macro_rules! registry_table {
             S: Fn() -> RegistrySet + Clone + Send + Sync + 'static,
         {
             $(
-                declare::<$key, $value>(world, report, $declaration);
+                declare_row!($($mode)?; $key, $value, world, report, $declaration);
                 let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
                     $(world.split::<$value, $parts>(registry, $split, $join);)?
@@ -103,6 +103,23 @@ macro_rules! registry_table {
                 planner.add(declaration)?
             }),*])
         }
+    };
+}
+
+macro_rules! declare_row {
+    (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
+        let declaration = $declaration;
+        if declared::<$key, $value>($world, $report, &declaration) {
+            let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
+            $world.parse_named::<$value>(registry);
+            if declaration.is_non_empty() {
+                $world.non_empty(registry);
+            }
+            $world.sync_named::<$value>(registry);
+        }
+    };
+    (; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
+        declare::<$key, $value>($world, $report, $declaration);
     };
 }
 
@@ -144,7 +161,7 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as WolfVariant => bare,
         declared by WolfVariantFile::declaration();
-    WolfSoundVariant => WolfSoundVariant, synced as Clone::clone, received as WolfSoundVariant => bare,
+    @synced WolfSoundVariant => WolfSoundVariant,
         declared by WolfSoundVariant::declaration();
     PigVariant => PigVariantFile
         as (PigVariant, Vec<SpawnSelector>),
@@ -152,7 +169,7 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as PigVariant => bare,
         declared by PigVariantFile::declaration();
-    PigSoundVariant => PigSoundVariant, synced as Clone::clone, received as PigSoundVariant => bare,
+    @synced PigSoundVariant => PigSoundVariant,
         declared by PigSoundVariant::declaration();
     FrogVariant => FrogVariantFile
         as (FrogVariant, Vec<SpawnSelector>),
@@ -166,7 +183,7 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as CatVariant => bare,
         declared by CatVariantFile::declaration();
-    CatSoundVariant => CatSoundVariant, synced as Clone::clone, received as CatSoundVariant => bare,
+    @synced CatSoundVariant => CatSoundVariant,
         declared by CatSoundVariant::declaration();
     CowVariant => CowVariantFile
         as (CowVariant, Vec<SpawnSelector>),
@@ -174,7 +191,7 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as CowVariant => bare,
         declared by CowVariantFile::declaration();
-    CowSoundVariant => CowSoundVariant, synced as Clone::clone, received as CowSoundVariant => bare,
+    @synced CowSoundVariant => CowSoundVariant,
         declared by CowSoundVariant::declaration();
     ChickenVariant => ChickenVariantFile
         as (ChickenVariant, Vec<SpawnSelector>),
@@ -182,7 +199,7 @@ registry_table! {
         synced from parts as |(variant, _)| variant.clone(),
         received as ChickenVariant => bare,
         declared by ChickenVariantFile::declaration();
-    ChickenSoundVariant => ChickenSoundVariant, synced as Clone::clone, received as ChickenSoundVariant => bare,
+    @synced ChickenSoundVariant => ChickenSoundVariant,
         declared by ChickenSoundVariant::declaration();
     ZombieNautilusVariant => ZombieNautilusVariantFile
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
@@ -193,8 +210,7 @@ registry_table! {
     mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue, synced as Clone::clone,
         received as PaintingVariantValue => bare,
         declared by PaintingVariantValue::declaration();
-    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone,
-        received as SulfurCubeArchetype => bare,
+    @synced crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype,
         declared by SulfurCubeArchetype::declaration();
     DimensionType => DimensionTypeFile
         as (DimensionType, DimensionTypeEnvironment),
@@ -236,7 +252,7 @@ registry_table! {
     mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider,
         synced as Clone::clone, received as DirectBlockStateProvider => bare,
         declared by DirectBlockStateProvider::declaration();
-    BlockSoundSet => BlockSoundSet, synced as Clone::clone, received as BlockSoundSet => bare,
+    @synced BlockSoundSet => BlockSoundSet,
         declared by BlockSoundSet::declaration();
     Dimension => DimensionEntry
         as (Dimension, ChunkGenerator),
@@ -293,6 +309,36 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     }
 }
 
+fn declared<K, V>(
+    world: &WorldRegistries,
+    report: &mut LoadReport,
+    declaration: &DataDeclaration<RegistryOf<V>>,
+) -> bool
+where
+    K: mcrs_minecraft_core::Registered,
+    V: Send + Sync + 'static,
+{
+    let registry = K::REGISTRY.location();
+    if declaration.key().as_str() != registry.as_str() {
+        report.invalid_report(format_args!(
+            "{registry} is declared under the key {}",
+            declaration.key()
+        ));
+        false
+    } else if world
+        .declared()
+        .any(|declared| declared.as_str() == registry.as_str())
+    {
+        true
+    } else {
+        report.invalid_report(format_args!(
+            "{registry} is not a {:?} registry of the data pack report",
+            declaration.stage()
+        ));
+        false
+    }
+}
+
 fn declare<K, V>(
     world: &mut WorldRegistries,
     report: &mut LoadReport,
@@ -301,25 +347,12 @@ fn declare<K, V>(
     K: mcrs_minecraft_core::Registered,
     V: Serialize + Send + Sync + 'static,
 {
-    let registry = K::REGISTRY.location();
-    if declaration.key().as_str() != registry.as_str() {
-        report.invalid_report(format_args!(
-            "{registry} is declared under the key {}",
-            declaration.key()
-        ));
-    } else if world
-        .declared()
-        .any(|declared| declared.as_str() == registry.as_str())
-    {
+    if declared::<K, V>(world, report, &declaration) {
+        let registry = K::REGISTRY.location();
         world.parse::<V>(registry);
         if declaration.is_non_empty() {
             world.non_empty(registry);
         }
-    } else {
-        report.invalid_report(format_args!(
-            "{registry} is not a {:?} registry of the data pack report",
-            declaration.stage()
-        ));
     }
 }
 

@@ -1,22 +1,19 @@
 use std::any::TypeId;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
-use serde::de::value::{
-    BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
-    SeqAccessDeserializer, U64Deserializer,
-};
-use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::de::{DeserializeSeed, Deserializer};
 
 use super::declaration::Erased;
 use super::{Stage, Table};
 use crate::diagnostics::{Missing, Referrer};
+use crate::id::Key;
+use crate::refs::Resolver;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
-use crate::tags::{IdSet, Ref, TagTable};
+use crate::tags::TagTable;
 
 pub(crate) struct Slot<'d> {
     pub(crate) declaration: &'d dyn Erased,
@@ -92,30 +89,6 @@ impl<'a> LoadCtx<'a> {
         self.unresolved.into_inner()
     }
 
-    pub fn id<R: RegistryType>(&self) -> IdSeed<'_, 'a, R> {
-        IdSeed {
-            ctx: self,
-            registry: PhantomData,
-        }
-    }
-
-    pub fn id_set<R: RegistryType>(&self) -> IdSetSeed<'_, 'a, R> {
-        IdSetSeed {
-            ctx: self,
-            registry: PhantomData,
-        }
-    }
-
-    pub fn reference<R: RegistryType>(&self) -> RefSeed<'_, 'a, R>
-    where
-        R::Value: ReadValue,
-    {
-        RefSeed {
-            ctx: self,
-            registry: PhantomData,
-        }
-    }
-
     pub fn value<T: ReadValue>(&self) -> ValueSeed<'_, 'a, T> {
         ValueSeed {
             ctx: self,
@@ -185,150 +158,18 @@ impl<'a> LoadCtx<'a> {
     }
 }
 
+impl Resolver for LoadCtx<'_> {
+    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String> {
+        self.attempt(|| self.resolve_id(key.location()))
+    }
+
+    fn tag<R: RegistryType>(&self, tag: &Key<R>) -> Result<TagId<R>, String> {
+        self.attempt(|| self.resolve_tag(tag.location()))
+    }
+}
+
 fn not_loaded(slot: &Slot<'_>) -> String {
     format!("{} is not loaded yet", slot.key())
-}
-
-fn identifier<E: de::Error>(text: &str) -> Result<ResourceLocation, E> {
-    ResourceLocation::read(text).map_err(E::custom)
-}
-
-pub struct IdSeed<'c, 'a, R> {
-    ctx: &'c LoadCtx<'a>,
-    registry: PhantomData<fn() -> R>,
-}
-
-impl<'de, R: RegistryType> DeserializeSeed<'de> for IdSeed<'_, '_, R> {
-    type Value = Id<R>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Id<R>, D::Error> {
-        self.ctx.attempt(|| deserializer.deserialize_str(self))
-    }
-}
-
-impl<'de, R: RegistryType> Visitor<'de> for IdSeed<'_, '_, R> {
-    type Value = Id<R>;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("an identifier")
-    }
-
-    fn visit_str<E: de::Error>(self, text: &str) -> Result<Id<R>, E> {
-        self.ctx
-            .resolve_id(&identifier::<E>(text)?)
-            .map_err(E::custom)
-    }
-}
-
-pub struct IdSetSeed<'c, 'a, R> {
-    ctx: &'c LoadCtx<'a>,
-    registry: PhantomData<fn() -> R>,
-}
-
-impl<'de, R: RegistryType> DeserializeSeed<'de> for IdSetSeed<'_, '_, R> {
-    type Value = IdSet<R>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<IdSet<R>, D::Error> {
-        self.ctx.attempt(|| deserializer.deserialize_any(self))
-    }
-}
-
-impl<'de, R: RegistryType> Visitor<'de> for IdSetSeed<'_, '_, R> {
-    type Value = IdSet<R>;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("a #tag, an identifier or a list of identifiers")
-    }
-
-    fn visit_str<E: de::Error>(self, text: &str) -> Result<IdSet<R>, E> {
-        match text.strip_prefix('#') {
-            Some(tag) => self
-                .ctx
-                .resolve_tag(&identifier::<E>(tag)?)
-                .map(IdSet::Tag)
-                .map_err(E::custom),
-            None => self
-                .ctx
-                .resolve_id(&identifier::<E>(text)?)
-                .map(|id| IdSet::List(Box::new([id])))
-                .map_err(E::custom),
-        }
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<IdSet<R>, A::Error> {
-        let mut ids = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-        while let Some(id) = seq.next_element_seed(self.ctx.id::<R>())? {
-            ids.push(id);
-        }
-        Ok(IdSet::List(ids.into_boxed_slice()))
-    }
-}
-
-pub struct RefSeed<'c, 'a, R> {
-    ctx: &'c LoadCtx<'a>,
-    registry: PhantomData<fn() -> R>,
-}
-
-impl<'de, R: RegistryType> DeserializeSeed<'de> for RefSeed<'_, '_, R>
-where
-    R::Value: ReadValue,
-{
-    type Value = Ref<R>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Ref<R>, D::Error> {
-        self.ctx.attempt(|| deserializer.deserialize_any(self))
-    }
-}
-
-impl<R: RegistryType> RefSeed<'_, '_, R>
-where
-    R::Value: ReadValue,
-{
-    fn inline<'de, D: Deserializer<'de>>(self, deserializer: D) -> Result<Ref<R>, D::Error> {
-        R::Value::read(self.ctx, deserializer).map(|value| Ref::Inline(Arc::new(value)))
-    }
-}
-
-impl<'de, R: RegistryType> Visitor<'de> for RefSeed<'_, '_, R>
-where
-    R::Value: ReadValue,
-{
-    type Value = Ref<R>;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("an identifier or an inline value")
-    }
-
-    fn visit_str<E: de::Error>(self, text: &str) -> Result<Ref<R>, E> {
-        self.ctx
-            .resolve_id(&identifier::<E>(text)?)
-            .map(Ref::Id)
-            .map_err(E::custom)
-    }
-
-    fn visit_bool<E: de::Error>(self, v: bool) -> Result<Ref<R>, E> {
-        self.inline(BoolDeserializer::new(v))
-    }
-
-    fn visit_u64<E: de::Error>(self, v: u64) -> Result<Ref<R>, E> {
-        self.inline(U64Deserializer::new(v))
-    }
-
-    fn visit_i64<E: de::Error>(self, v: i64) -> Result<Ref<R>, E> {
-        self.inline(I64Deserializer::new(v))
-    }
-
-    fn visit_f64<E: de::Error>(self, v: f64) -> Result<Ref<R>, E> {
-        self.inline(F64Deserializer::new(v))
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Ref<R>, A::Error> {
-        self.inline(SeqAccessDeserializer::new(seq))
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Ref<R>, A::Error> {
-        self.inline(MapAccessDeserializer::new(map))
-    }
 }
 
 pub struct ValueSeed<'c, 'a, T> {

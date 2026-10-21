@@ -79,6 +79,10 @@ impl TagTable {
         self.index.get(name).copied()
     }
 
+    pub(crate) fn name(&self, number: usize) -> Option<&ResourceLocation> {
+        self.tag(number).map(|tag| &tag.name)
+    }
+
     fn tag(&self, number: usize) -> Option<&Tag> {
         self.tags.get(number)
     }
@@ -198,32 +202,6 @@ impl<R> fmt::Debug for IdSet<R> {
         match self {
             IdSet::Tag(tag) => f.debug_tuple("Tag").field(tag).finish(),
             IdSet::List(ids) => f.debug_tuple("List").field(ids).finish(),
-        }
-    }
-}
-
-pub enum Ref<R: RegistryType> {
-    Id(Id<R>),
-    Inline(Arc<R::Value>),
-}
-
-impl<R: RegistryType> Clone for Ref<R> {
-    fn clone(&self) -> Self {
-        match self {
-            Ref::Id(id) => Ref::Id(*id),
-            Ref::Inline(value) => Ref::Inline(Arc::clone(value)),
-        }
-    }
-}
-
-impl<R: RegistryType> fmt::Debug for Ref<R>
-where
-    R::Value: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ref::Id(id) => f.debug_tuple("Id").field(id).finish(),
-            Ref::Inline(value) => f.debug_tuple("Inline").field(value).finish(),
         }
     }
 }

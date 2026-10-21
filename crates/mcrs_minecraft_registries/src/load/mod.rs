@@ -10,15 +10,16 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-pub use ctx::{IdSeed, IdSetSeed, LoadCtx, RefSeed, ValueSeed};
+pub use ctx::{LoadCtx, ValueSeed};
 pub use declaration::{DataDeclaration, Declaration};
 pub use loader::{StageScope, load, load_with};
 pub use view::{RegistryView, StageView};
 
 use crate::pack::{KnownPack, PackStack, StackedPack};
+use crate::refs::Namer;
 use crate::registry::{Names, Registry, RegistryType};
 use crate::tags::{TagTable, Tags};
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Stage {
@@ -85,6 +86,16 @@ impl Registries {
 
     pub(crate) fn tag_table(&self, type_id: TypeId) -> Option<&Arc<TagTable>> {
         self.tags.get(&type_id)
+    }
+}
+
+impl Namer for Registries {
+    fn name<R: RegistryType>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+        self.table(TypeId::of::<R>())?.names.name(id.number())
+    }
+
+    fn tag_name<R: RegistryType>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+        self.tag_table(TypeId::of::<R>())?.name(tag.index())
     }
 }
 

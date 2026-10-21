@@ -9,6 +9,8 @@
     clippy::arithmetic_side_effects
 )]
 
+extern crate self as mcrs_minecraft_registries;
+
 #[cfg(feature = "bevy")]
 mod bevy;
 mod diagnostics;
@@ -17,6 +19,7 @@ mod json;
 mod load;
 mod order;
 mod pack;
+mod refs;
 mod registry;
 mod require;
 pub mod static_key;
@@ -27,17 +30,21 @@ pub use bevy::CurrentRegistries;
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
 pub use id::Key;
 pub use load::{
-    DataDeclaration, Declaration, IdSeed, IdSetSeed, LoadCtx, RefSeed, Registries, RegistryView,
-    Stage, StageScope, StageView, ValueSeed, load, load_with,
+    DataDeclaration, Declaration, LoadCtx, Registries, RegistryView, Stage, StageScope, StageView,
+    ValueSeed, load, load_with,
 };
+pub use mcrs_minecraft_registries_derive::{Resolve, registry_value};
 pub use pack::{
     AvailablePack, Features, KnownPack, PackFiles, PackIndex, PackSelection, PackStack,
     StackedPack, pack_stack,
 };
+pub use refs::{
+    Inline, KeyOr, KeySet, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
+};
 pub use registry::{ReadValue, Registry, RegistryOf, RegistryType};
 pub use require::{require_id, require_registry, require_tag, require_tags};
 pub use static_key::StaticKey;
-pub use tags::{IdSet, Ref, Tags};
+pub use tags::{IdSet, Tags};
 
 #[doc(hidden)]
 pub use serde as __serde;

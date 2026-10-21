@@ -195,3 +195,19 @@ fn a_reference_miss_the_value_recovers_from_is_not_an_error() {
         }]
     );
 }
+
+#[test]
+fn an_unknown_key_of_an_earlier_stage_names_the_field_that_holds_it() {
+    let errors = report_errors(&load_enchantment(
+        r#"{"supported_items":["stone","t:nope"]}"#,
+        &[],
+    ));
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [Diagnostic::Entry { entry, field, .. }]
+                if *entry == rl("t:e") && field.as_deref() == Some("supported_items[1]")
+        ),
+        "{errors:?}"
+    );
+}

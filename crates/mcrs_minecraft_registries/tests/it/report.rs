@@ -1,6 +1,4 @@
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Stage};
-use serde::de::DeserializeSeed;
-use serde::de::value::{self, StrDeserializer};
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Key, Missing, Referrer, Resolver, Stage};
 
 use crate::support::{
     Block, DamageType, LootTable, Packs, damage, declarations, report, report_errors, rl,
@@ -79,12 +77,7 @@ fn validated() -> Declaration {
 
 fn resolving() -> Declaration {
     Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
-        .validate(|_, ctx| {
-            let seed = ctx.id::<DamageType>();
-            seed.deserialize(StrDeserializer::<value::Error>::new("t:missing"))
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        })
+        .validate(|_, ctx| ctx.id(&Key::<DamageType>::new(rl("t:missing"))).map(|_| ()))
         .into()
 }
 

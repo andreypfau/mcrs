@@ -20,7 +20,7 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{Diagnostic, Level};
+use mcrs_minecraft_registries::{Diagnostic, Level, Resolve};
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
@@ -28,7 +28,7 @@ use mcrs_minecraft_world::registries::{
     reloadable_registries, static_registries as build_static_registries, world_registries,
 };
 use mcrs_minecraft_world::registry_load::{
-    KnownPacks, RegistryLoadError, test_known_packs, test_registries,
+    KnownPacks, RegistryLoadError, test_known_packs, test_registries, test_registries_arc,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -39,7 +39,8 @@ use mcrs_minecraft_worldgen_testing::{corpus_path, packs, vanilla_dir};
 use std::sync::LazyLock;
 
 use crate::common::{
-    WithFiles, assets, datapack_report, declared_registries, loaded_names, plugin_app,
+    WithFiles, assets, datapack_report, declared_registries, loaded_names, plugin_app, read_named,
+    write_named,
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
@@ -856,7 +857,7 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
         .column::<SulfurCubeArchetype>(registry)
         .expect("the archetypes are parsed by the loader");
     let items = set.registry::<Item>().unwrap();
-    let tags = set.tags::<Item>().unwrap();
+    let tags = test_registries_arc().tags::<Item>().unwrap();
 
     let mut checked = 0;
     for (name, archetype) in names.names().iter().zip(archetypes) {
@@ -888,7 +889,7 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
         }
         for (id, item) in items.iter() {
             assert_eq!(
-                archetype.items.contains(id, &tags),
+                archetype.items.contains(&tags, id),
                 listed.contains(&item.as_str()),
                 "{item} in the items of {name}"
             );
@@ -1225,6 +1226,15 @@ fn round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> 
         let text = serde_json::to_string(&value).unwrap();
         serde_json::from_str(&text).unwrap()
     })
+}
+
+fn round_trip_named<T: Resolve>(json: &str) -> serde_json::Value
+where
+    T::Named: serde::de::DeserializeOwned + serde::Serialize,
+{
+    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    let text = serde_json::to_string(&write_named(test_registries(), &value)).unwrap();
+    serde_json::from_str(&text).unwrap()
 }
 
 fn assert_samples_round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(
@@ -1938,7 +1948,10 @@ fn archetype_json(attribute: &str) -> String {
 fn an_archetype_the_game_refuses_fails_to_parse() {
     let valid: serde_json::Value =
         serde_json::from_str(&archetype_json("minecraft:knockback_resistance")).unwrap();
-    assert_eq!(round_trip::<SulfurCubeArchetype>(&valid.to_string()), valid);
+    assert_eq!(
+        round_trip_named::<SulfurCubeArchetype>(&valid.to_string()),
+        valid
+    );
 
     let mut full = valid.clone();
     full["buoyant"] = serde_json::json!(true);
@@ -1948,7 +1961,10 @@ fn an_archetype_the_game_refuses_fails_to_parse() {
         "amount": {"type": "minecraft:uniform", "min_inclusive": 0.5, "max_exclusive": 1.5},
         "attribute_to_source": true,
     });
-    assert_eq!(round_trip::<SulfurCubeArchetype>(&full.to_string()), full);
+    assert_eq!(
+        round_trip_named::<SulfurCubeArchetype>(&full.to_string()),
+        full
+    );
 
     let refused = [
         (
@@ -1993,11 +2009,8 @@ fn an_archetype_the_game_refuses_fails_to_parse() {
             .as_object_mut()
             .unwrap()
             .insert(key.to_owned(), value);
-        let message = test_registries().scope(|| {
-            serde_json::from_value::<SulfurCubeArchetype>(json)
-                .expect_err(pointer)
-                .to_string()
-        });
+        let message = read_named::<SulfurCubeArchetype>(test_registries(), &json.to_string())
+            .expect_err(pointer);
         assert!(message.contains(expected), "{pointer}: {message}");
     }
 }
