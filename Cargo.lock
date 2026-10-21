@@ -4029,6 +4029,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_registries_derive",
+ "mcrs_minecraft_text",
  "serde",
  "serde_json",
  "serde_path_to_error",

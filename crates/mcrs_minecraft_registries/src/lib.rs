@@ -24,6 +24,7 @@ mod registry;
 mod require;
 pub mod static_key;
 mod tags;
+mod text;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;

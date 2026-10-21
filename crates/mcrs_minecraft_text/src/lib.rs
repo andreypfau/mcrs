@@ -30,29 +30,42 @@ use mcrs_minecraft_profile::Profile;
 /// the dialog a `show_dialog` click name. `()` names them by location alone.
 pub trait TextTypes: Value {
     type EntityKey: Value;
-    type DialogKey: Value;
+    type Dialog: Value;
 }
 
-pub trait Value:
-    Clone + PartialEq + fmt::Debug + Serialize + serde::de::DeserializeOwned + Send + Sync + 'static
-{
-}
+pub trait Value: Clone + PartialEq + fmt::Debug + Send + Sync + 'static {}
 
-impl<T> Value for T where
-    T: Clone
-        + PartialEq
-        + fmt::Debug
-        + Serialize
-        + serde::de::DeserializeOwned
-        + Send
-        + Sync
-        + 'static
-{
-}
+impl<T> Value for T where T: Clone + PartialEq + fmt::Debug + Send + Sync + 'static {}
+
+pub trait Serde: Serialize + serde::de::DeserializeOwned {}
+
+impl<T> Serde for T where T: Serialize + serde::de::DeserializeOwned {}
+
+/// The text types that read and write themselves. Each implementation is
+/// written out rather than blanket: an inline dialog holds text of the same
+/// types, so a bound derived from the fields would prove itself in a cycle.
+pub trait TextSerde: TextTypes<EntityKey: Serde, Dialog: Serde> + Serde {}
 
 impl TextTypes for () {
     type EntityKey = ResourceLocation;
-    type DialogKey = ResourceLocation;
+    type Dialog = DialogRef;
+}
+
+impl TextSerde for () {}
+
+/// Maps the types a text names from `A` to `B`, field by field.
+pub trait TextMap<A: TextTypes, B: TextTypes> {
+    type Error;
+
+    fn item(&self, item: &A) -> Result<B, Self::Error>;
+
+    fn entity(&self, entity: &A::EntityKey) -> Result<B::EntityKey, Self::Error>;
+
+    fn dialog(&self, dialog: &A::Dialog) -> Result<B::Dialog, Self::Error>;
+
+    fn at(error: Self::Error, field: &'static str) -> Self::Error;
+
+    fn at_index(error: Self::Error, index: usize) -> Self::Error;
 }
 
 pub mod color;
@@ -101,7 +114,7 @@ impl<I: TextTypes> Default for Text<I> {
 }
 
 /// A plain literal with no style and no siblings is written as a bare string.
-impl<I: TextTypes> Serialize for Text<I> {
+impl<I: TextSerde> Serialize for Text<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.0.collapse_to_string() {
             Some(text) => s.serialize_str(text),
@@ -112,6 +125,7 @@ impl<I: TextTypes> Serialize for Text<I> {
 
 /// Text data and formatting.
 #[derive(Clone, PartialEq, Debug, Serialize)]
+#[serde(bound(serialize = "I: TextSerde"))]
 pub struct TextInner<I: TextTypes> {
     #[serde(flatten)]
     pub content: TextContent<I>,
@@ -124,7 +138,10 @@ pub struct TextInner<I: TextTypes> {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, bound = "")]
+#[serde(
+    deny_unknown_fields,
+    bound(serialize = "I: TextSerde", deserialize = "I: TextSerde")
+)]
 pub struct Style<I: TextTypes = ()> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<Color>,
@@ -220,7 +237,7 @@ impl<I: TextTypes> Default for TextInner<I> {
     }
 }
 
-impl<'de, I: TextTypes> Deserialize<'de> for TextInner<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for TextInner<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct Flag(Option<bool>);
 
@@ -232,7 +249,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextInner<I> {
 
         struct Siblings<I: TextTypes>(Vec<Text<I>>);
 
-        impl<'de, I: TextTypes> Deserialize<'de> for Siblings<I> {
+        impl<'de, I: TextSerde> Deserialize<'de> for Siblings<I> {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 non_empty(d).map(Siblings)
             }
@@ -240,7 +257,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextInner<I> {
 
         struct InnerVisitor<I>(PhantomData<I>);
 
-        impl<'de, I: TextTypes> Visitor<'de> for InnerVisitor<I> {
+        impl<'de, I: TextSerde> Visitor<'de> for InnerVisitor<I> {
             type Value = TextInner<I>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -342,7 +359,7 @@ impl<I: TextTypes> From<Text<I>> for TranslateArg<I> {
     }
 }
 
-impl<I: TextTypes> Serialize for TranslateArg<I> {
+impl<I: TextSerde> Serialize for TranslateArg<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
             TranslateArg::Bool(v) => s.serialize_bool(*v),
@@ -352,7 +369,7 @@ impl<I: TextTypes> Serialize for TranslateArg<I> {
     }
 }
 
-impl<'de, I: TextTypes> Deserialize<'de> for TranslateArg<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for TranslateArg<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct ArgVisitor<I>(PhantomData<I>);
 
@@ -362,7 +379,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TranslateArg<I> {
             <NbtTag as Deserialize>::deserialize(d).map(TranslateArg::Number)
         }
 
-        impl<'de, I: TextTypes> Visitor<'de> for ArgVisitor<I> {
+        impl<'de, I: TextSerde> Visitor<'de> for ArgVisitor<I> {
             type Value = TranslateArg<I>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -422,7 +439,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TranslateArg<I> {
 
 /// The text content of a Text object.
 #[derive(Clone, PartialEq, Debug, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, bound(serialize = "I: TextSerde"))]
 pub enum TextContent<I: TextTypes> {
     /// Normal text
     Text { text: Cow<'static, str> },
@@ -488,7 +505,7 @@ pub enum TextContent<I: TextTypes> {
 
 /// A present `type` admits only the codec it names, otherwise the first codec
 /// that accepts the map wins.
-impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for TextContent<I> {
     #[expect(
         clippy::too_many_lines,
         reason = "the representation structs of each content shape sit beside the untagged dispatch they feed"
@@ -500,7 +517,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct TranslateRepr<I: TextTypes> {
             translate: String,
             #[serde(default, deserialize_with = "lenient")]
@@ -520,7 +537,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct SelectorRepr<I: TextTypes> {
             selector: String,
             #[serde(default)]
@@ -528,7 +545,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct NbtRepr<I: TextTypes> {
             nbt: String,
             #[serde(default, deserialize_with = "lenient")]
@@ -542,7 +559,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct ObjectRepr<I: TextTypes> {
             #[serde(flatten)]
             object: ObjectInfo,
@@ -560,7 +577,7 @@ impl<'de, I: TextTypes> Deserialize<'de> for TextContent<I> {
             "object",
         ];
 
-        fn read<I: TextTypes, E: de::Error>(
+        fn read<I: TextSerde, E: de::Error>(
             name: &str,
             compound: &NbtCompound,
         ) -> Result<TextContent<I>, E> {
@@ -738,7 +755,11 @@ pub struct ScoreboardValueContent {
 
 /// Action to take on click of the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
-#[serde(tag = "action", rename_all = "snake_case", bound = "")]
+#[serde(
+    tag = "action",
+    rename_all = "snake_case",
+    bound(serialize = "I: TextSerde")
+)]
 pub enum ClickEvent<I: TextTypes = ()> {
     OpenUrl {
         url: Cow<'static, str>,
@@ -755,7 +776,7 @@ pub enum ClickEvent<I: TextTypes = ()> {
         command: Cow<'static, str>,
     },
     ShowDialog {
-        dialog: DialogRef<I>,
+        dialog: I::Dialog,
     },
     ChangePage {
         page: i32,
@@ -771,12 +792,12 @@ pub enum ClickEvent<I: TextTypes = ()> {
 }
 
 /// A registry id, or the dialog written inline.
-// chisle: an inline dialog is carried as its compound and is not validated; validating it
-// where the dialog value is known, in the crate that owns it, lifts this.
+// chisle: an inline dialog is carried as its compound and is not validated; text types that know
+// the dialog value name it as their `Dialog` instead.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(untagged, bound = "")]
-pub enum DialogRef<I: TextTypes = ()> {
-    Reference(I::DialogKey),
+#[serde(untagged)]
+pub enum DialogRef {
+    Reference(ResourceLocation),
     Inline(NbtCompound),
 }
 
@@ -802,7 +823,7 @@ fn variant<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     from_tag(NbtTag::Compound(compound)).map_err(de::Error::custom)
 }
 
-impl<'de, I: TextTypes> Deserialize<'de> for ClickEvent<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for ClickEvent<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct Url {
@@ -817,9 +838,9 @@ impl<'de, I: TextTypes> Deserialize<'de> for ClickEvent<I> {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct Dialog<I: TextTypes> {
-            dialog: DialogRef<I>,
+            dialog: I::Dialog,
         }
 
         #[derive(Deserialize)]
@@ -1062,7 +1083,11 @@ mod java_uri {
 
 /// Action to take when mouse-hovering on the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(
+    tag = "action",
+    rename_all = "snake_case",
+    bound(serialize = "I: TextSerde")
+)]
 pub enum HoverEvent<I: TextTypes> {
     ShowText {
         value: Text<I>,
@@ -1077,16 +1102,16 @@ pub enum HoverEvent<I: TextTypes> {
     },
 }
 
-impl<'de, I: TextTypes> Deserialize<'de> for HoverEvent<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for HoverEvent<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct ShowText<I: TextTypes> {
             value: Text<I>,
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "I: TextSerde")]
         struct ShowEntity<I: TextTypes> {
             id: I::EntityKey,
             #[serde(deserialize_with = "lenient_uuid::deserialize")]
@@ -1348,6 +1373,166 @@ impl<I: TextTypes> Text<I> {
     }
 }
 
+impl<A: TextTypes> Text<A> {
+    pub fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<Text<B>, T::Error> {
+        let extra = self
+            .0
+            .extra
+            .iter()
+            .enumerate()
+            .map(|(at, text)| {
+                text.map(map)
+                    .map_err(|e| T::at(T::at_index(e, at), "extra"))
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Text(Box::new(TextInner {
+            content: self.0.content.map(map)?,
+            extra,
+            style: self.0.style.map(map)?,
+        })))
+    }
+}
+
+fn map_text<A: TextTypes, B: TextTypes, T: TextMap<A, B>>(
+    text: &Option<Text<A>>,
+    map: &T,
+    field: &'static str,
+) -> Result<Option<Text<B>>, T::Error> {
+    text.as_ref()
+        .map(|text| text.map(map).map_err(|e| T::at(e, field)))
+        .transpose()
+}
+
+impl<A: TextTypes> TextContent<A> {
+    fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<TextContent<B>, T::Error> {
+        Ok(match self {
+            TextContent::Text { text } => TextContent::Text { text: text.clone() },
+            TextContent::Translate {
+                translate,
+                fallback,
+                with,
+            } => TextContent::Translate {
+                translate: translate.clone(),
+                fallback: fallback.clone(),
+                with: with
+                    .iter()
+                    .enumerate()
+                    .map(|(at, arg)| {
+                        Ok(match arg {
+                            TranslateArg::Bool(v) => TranslateArg::Bool(*v),
+                            TranslateArg::Number(tag) => TranslateArg::Number(tag.clone()),
+                            TranslateArg::Text(text) => TranslateArg::Text(
+                                text.map(map)
+                                    .map_err(|e| T::at(T::at_index(e, at), "with"))?,
+                            ),
+                        })
+                    })
+                    .collect::<Result<_, _>>()?,
+            },
+            TextContent::Keybind { keybind } => TextContent::Keybind {
+                keybind: keybind.clone(),
+            },
+            TextContent::ScoreboardValue { score } => TextContent::ScoreboardValue {
+                score: score.clone(),
+            },
+            TextContent::EntityNames {
+                selector,
+                separator,
+            } => TextContent::EntityNames {
+                selector: selector.clone(),
+                separator: map_text(separator, map, "separator")?,
+            },
+            TextContent::Nbt {
+                nbt,
+                interpret,
+                plain,
+                separator,
+                source,
+            } => TextContent::Nbt {
+                nbt: nbt.clone(),
+                interpret: *interpret,
+                plain: *plain,
+                separator: map_text(separator, map, "separator")?,
+                source: source.clone(),
+            },
+            TextContent::Object { object, fallback } => TextContent::Object {
+                object: object.clone(),
+                fallback: map_text(fallback, map, "fallback")?,
+            },
+        })
+    }
+}
+
+impl<A: TextTypes> Style<A> {
+    pub fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<Style<B>, T::Error> {
+        let click_event = self
+            .click_event
+            .as_ref()
+            .map(|event| event.map(map).map_err(|e| T::at(e, "click_event")))
+            .transpose()?;
+        let hover_event = self
+            .hover_event
+            .as_ref()
+            .map(|event| event.map(map).map_err(|e| T::at(e, "hover_event")))
+            .transpose()?;
+        Ok(Style {
+            color: self.color,
+            shadow_color: self.shadow_color,
+            bold: self.bold,
+            italic: self.italic,
+            underlined: self.underlined,
+            strikethrough: self.strikethrough,
+            obfuscated: self.obfuscated,
+            click_event,
+            hover_event,
+            insertion: self.insertion.clone(),
+            font: self.font.clone(),
+        })
+    }
+}
+
+impl<A: TextTypes> ClickEvent<A> {
+    fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<ClickEvent<B>, T::Error> {
+        Ok(match self {
+            ClickEvent::OpenUrl { url } => ClickEvent::OpenUrl { url: url.clone() },
+            ClickEvent::OpenFile { path } => ClickEvent::OpenFile { path: path.clone() },
+            ClickEvent::RunCommand { command } => ClickEvent::RunCommand {
+                command: command.clone(),
+            },
+            ClickEvent::SuggestCommand { command } => ClickEvent::SuggestCommand {
+                command: command.clone(),
+            },
+            ClickEvent::ShowDialog { dialog } => ClickEvent::ShowDialog {
+                dialog: map.dialog(dialog).map_err(|e| T::at(e, "dialog"))?,
+            },
+            ClickEvent::ChangePage { page } => ClickEvent::ChangePage { page: *page },
+            ClickEvent::CopyToClipboard { value } => ClickEvent::CopyToClipboard {
+                value: value.clone(),
+            },
+            ClickEvent::Custom { id, payload } => ClickEvent::Custom {
+                id: id.clone(),
+                payload: payload.clone(),
+            },
+        })
+    }
+}
+
+impl<A: TextTypes> HoverEvent<A> {
+    fn map<B: TextTypes, T: TextMap<A, B>>(&self, map: &T) -> Result<HoverEvent<B>, T::Error> {
+        Ok(match self {
+            HoverEvent::ShowText { value } => HoverEvent::ShowText {
+                value: value.map(map).map_err(|e| T::at(e, "value"))?,
+            },
+            HoverEvent::ShowItem(item) => HoverEvent::ShowItem(Box::new(map.item(item)?)),
+            HoverEvent::ShowEntity { id, uuid, name } => HoverEvent::ShowEntity {
+                id: map.entity(id).map_err(|e| T::at(e, "id"))?,
+                uuid: *uuid,
+                name: map_text(name, map, "name")?,
+            },
+        })
+    }
+}
+
 impl<I: TextTypes> Deref for Text<I> {
     type Target = TextInner<I>;
 
@@ -1388,7 +1573,7 @@ impl<'a, I: TextTypes> From<&'a Text<I>> for Cow<'a, Text<I>> {
     }
 }
 
-impl<I: TextTypes> FromStr for Text<I> {
+impl<I: TextSerde> FromStr for Text<I> {
     type Err = serde_json::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -1400,7 +1585,7 @@ impl<I: TextTypes> FromStr for Text<I> {
     }
 }
 
-impl<I: TextTypes> From<Text<I>> for String {
+impl<I: TextSerde> From<Text<I>> for String {
     fn from(value: Text<I>) -> Self {
         format!("{value}")
     }
@@ -1408,11 +1593,11 @@ impl<I: TextTypes> From<Text<I>> for String {
 
 impl<I: TextTypes> fmt::Debug for Text<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        fmt::Debug::fmt(&self.0, f)
     }
 }
 
-impl<I: TextTypes> fmt::Display for Text<I> {
+impl<I: TextSerde> fmt::Display for Text<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let string = if f.alternate() {
             serde_json::to_string_pretty(self)
@@ -1431,11 +1616,11 @@ impl<I: TextTypes> Default for TextContent<I> {
     }
 }
 
-impl<'de, I: TextTypes> Deserialize<'de> for Text<I> {
+impl<'de, I: TextSerde> Deserialize<'de> for Text<I> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct TextVisitor<I>(PhantomData<I>);
 
-        impl<'de, I: TextTypes> Visitor<'de> for TextVisitor<I> {
+        impl<'de, I: TextSerde> Visitor<'de> for TextVisitor<I> {
             type Value = Text<I>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

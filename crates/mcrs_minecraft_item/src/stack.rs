@@ -43,8 +43,10 @@ pub struct Template(pub ItemStackValue);
 
 impl mcrs_minecraft_text::TextTypes for Template {
     type EntityKey = ResourceKey<mcrs_minecraft_entity::keys::EntityType>;
-    type DialogKey = ResourceKey<crate::dialog::Dialog>;
+    type Dialog = mcrs_minecraft_text::DialogRef;
 }
+
+impl mcrs_minecraft_text::TextSerde for Template {}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
