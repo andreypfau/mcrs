@@ -22,5 +22,4 @@ mod light_update_fixtures;
 mod lp_vec3;
 mod packet_tables;
 mod serverbound_game_packets;
-mod tag_payload;
 mod text;

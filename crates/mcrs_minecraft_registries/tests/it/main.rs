@@ -1,4 +1,5 @@
 mod entries;
+mod network;
 mod references;
 mod refs;
 mod reload;

@@ -148,6 +148,8 @@ pub trait Parts: Sized + Send + Sync + 'static {
     fn columns(parts: Vec<Self>) -> Vec<(TypeId, Column)>;
 
     fn refs<'a>(set: &'a RegistrySet, registry: &str, index: usize) -> Option<Self::Refs<'a>>;
+
+    fn as_refs(&self) -> Self::Refs<'_>;
 }
 
 macro_rules! parts {
@@ -165,6 +167,11 @@ macro_rules! parts {
 
             fn refs<'a>(set: &'a RegistrySet, registry: &str, index: usize) -> Option<Self::Refs<'a>> {
                 Some(($(set.column::<$part>(registry)?.get(index)?,)+))
+            }
+
+            fn as_refs(&self) -> Self::Refs<'_> {
+                let ($($value,)+) = self;
+                ($($value,)+)
             }
         }
     };

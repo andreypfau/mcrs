@@ -16,13 +16,12 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
@@ -35,13 +34,11 @@ use mcrs_minecraft_protocol::packets::configuration::{
     ClientboundCustomPayload, ClientboundFinishConfiguration, ClientboundRegistryData,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
-use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
-use mcrs_minecraft_protocol::tags::tags_payload_of;
+use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::{KnownPacks, StackedKnownPack};
 use mcrs_minecraft_world::save::read_player_dat;
-use std::borrow::Cow;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -52,7 +49,7 @@ use crate::world_options::{DimensionList, bake_dimensions};
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct AwaitingKnownPacks(Vec<StackedKnownPack>);
+pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_registries::KnownPack>);
 
 pub struct ConfigurationStatePlugin;
 
@@ -101,16 +98,34 @@ pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
 #[derive(Resource)]
 pub struct KnownPackOffer(pub bool);
 
-pub fn known_pack_offer(offer: bool, known: &KnownPacks) -> Vec<StackedKnownPack> {
-    if offer { known.0.clone() } else { Vec::new() }
+pub fn known_pack_offer(
+    offer: bool,
+    registries: &Registries,
+) -> Vec<mcrs_minecraft_registries::KnownPack> {
+    if offer {
+        registries.known_packs().cloned().collect()
+    } else {
+        Vec::new()
+    }
 }
 
-pub fn offered_pack(pack: &StackedKnownPack) -> KnownPack<'_> {
+pub fn offered_pack(pack: &mcrs_minecraft_registries::KnownPack) -> KnownPack<'_> {
     KnownPack {
-        namespace: &pack.known.namespace,
-        id: &pack.known.id,
-        version: &pack.known.version,
+        namespace: &pack.namespace,
+        id: &pack.id,
+        version: &pack.version,
     }
+}
+
+/// Whether the client may fill entries from the offered packs: only when its reply repeats the
+/// offer exactly. An empty offer negotiates nothing.
+pub fn negotiated(offered: &[mcrs_minecraft_registries::KnownPack], reply: &[KnownPack]) -> bool {
+    !offered.is_empty()
+        && offered.len() == reply.len()
+        && offered
+            .iter()
+            .zip(reply)
+            .all(|(offered, replied)| offered_pack(offered) == *replied)
 }
 
 fn on_configuration_enter(
@@ -119,7 +134,7 @@ fn on_configuration_enter(
         (Changed<ConnectionState>, Without<AwaitingKnownPacks>),
     >,
     offer: Option<Res<KnownPackOffer>>,
-    known: Res<KnownPacks>,
+    registries: Res<CurrentRegistries>,
     mut commands: Commands,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
@@ -131,7 +146,7 @@ fn on_configuration_enter(
             brand: identity::BRAND,
         })));
         let offer = offer.as_deref().is_none_or(|offer| offer.0);
-        let offered = known_pack_offer(offer, &known);
+        let offered = known_pack_offer(offer, &registries);
         con.write_packet(&ClientboundSelectKnownPacks {
             known_packs: offered.iter().map(offered_pack).collect(),
         });
@@ -139,62 +154,14 @@ fn on_configuration_enter(
     }
 }
 
-pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
-    let synced = set.synced().map(|(table, _)| table);
-    let registries = synced
-        .chain(set.statics())
-        .filter_map(|table| set.tag_table(table.registry().as_str()))
-        .filter(|table| !table.is_empty())
-        .map(|table| tags_payload_of(table))
-        .collect();
-    ClientboundUpdateTags { registries }
-}
-
-pub fn registry_data<'a>(
-    set: &'a RegistrySet,
-    offered: &[StackedKnownPack],
-    accepted: &[KnownPack],
-) -> Vec<ClientboundRegistryData<'a>> {
-    let known: Vec<&str> = offered
-        .iter()
-        .filter(|pack| accepted.contains(&offered_pack(pack)))
-        .map(|pack| pack.pack.as_str())
-        .collect();
-    set.synced()
-        .map(|(table, column)| {
-            let registry = table.registry().as_str();
-            let entries = table
-                .names()
-                .iter()
-                .zip(column)
-                .enumerate()
-                .map(|(id, (name, network))| {
-                    let client_knows = set
-                        .pack_of(registry, id)
-                        .is_some_and(|pack| known.contains(&pack));
-                    Entry {
-                        id: ResourceLocation::read_cow(name.as_str()).unwrap(),
-                        data: (!client_knows).then_some(Cow::Borrowed(&network.0)),
-                    }
-                })
-                .collect();
-            ClientboundRegistryData {
-                registry: ResourceLocation::read_cow(registry).unwrap(),
-                entries,
-            }
-        })
-        .collect()
-}
-
 /// Step 2 of the Configuration handshake: triggered by
-/// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for every
-/// synced registry, `ClientboundUpdateTags` from the set's tags, and finally
+/// `ServerboundSelectKnownPacks`. Writes the registry data and update tags the load encoded, then
 /// `ClientboundFinishConfiguration`. Removes the `AwaitingKnownPacks` marker so
 /// the connection is eligible for future reconfiguration.
 pub fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection, &AwaitingKnownPacks)>,
-    set: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con, AwaitingKnownPacks(offered))) = query.get_mut(event.entity) else {
@@ -209,18 +176,12 @@ pub fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    let registries = registry_data(&set, offered, &packs_response.known_packs);
-    for packet in &registries {
-        con.write_packet(packet);
+    let network = registries.network();
+    let known = negotiated(offered, &packs_response.known_packs);
+    for body in network.registry_data(known) {
+        con.write_packet(&EncodedBody::<ClientboundRegistryData>::new(body));
     }
-
-    let update_tags = update_tags(&set);
-    debug!(
-        registry_count = registries.len(),
-        tag_registry_count = update_tags.registries.len(),
-        "Sending Configuration data"
-    );
-    con.write_packet(&update_tags);
+    con.write_packet(&EncodedBody::<ClientboundUpdateTags>::new(network.tags()));
 
     con.write_packet(&ClientboundFinishConfiguration);
 

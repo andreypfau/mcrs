@@ -59,7 +59,6 @@ pub mod registry;
 pub mod resource_pack;
 pub mod section;
 pub mod setting;
-pub mod tags;
 mod teleport_flags;
 /// Text components with the item stack template as the hover item, in the named form a packet
 /// carries.
@@ -94,7 +93,7 @@ pub use mcrs_minecraft_protocol_macros::{Decode, Encode};
 pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;
-pub use raw::RawBytes;
+pub use raw::{EncodedBody, RawBytes};
 use serde::{Deserialize, Serialize};
 pub use teleport_flags::PositionFlag;
 pub use text::Text;

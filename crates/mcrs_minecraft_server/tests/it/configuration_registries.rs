@@ -12,24 +12,28 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::PacketDecoder;
-use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
+use mcrs_minecraft_protocol::packets::configuration::{
+    ClientboundRegistryData, ClientboundUpdateTags,
+};
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
-    KnownPackOffer, known_pack_offer, offered_pack, on_known_packs_response, registry_data,
+    KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
 };
-use mcrs_minecraft_world::registry_load::{KnownPacks, test_known_packs, test_registries};
+use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn served(root: &Path) -> (RegistrySet, KnownPacks) {
+fn served(root: &Path) -> (RegistrySet, Arc<Registries>) {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
         asset_path: Some(root.to_str().unwrap().to_owned()),
@@ -41,8 +45,29 @@ fn served(root: &Path) -> (RegistrySet, KnownPacks) {
     let world = app.world();
     (
         world.resource::<RegistrySet>().clone(),
-        world.resource::<KnownPacks>().clone(),
+        Arc::clone(world.resource::<CurrentRegistries>().arc()),
     )
+}
+
+/// The registry data packets the load encoded, decoded as a client reads them.
+pub(crate) fn sent(registries: &Registries, known: bool) -> Vec<ClientboundRegistryData<'_>> {
+    registries
+        .network()
+        .registry_data(known)
+        .map(|body| {
+            let mut r = body;
+            let packet = ClientboundRegistryData::decode(&mut r).unwrap();
+            assert!(r.is_empty(), "{} trailing bytes", r.len());
+            packet
+        })
+        .collect()
+}
+
+pub(crate) fn sent_update_tags(registries: &Registries) -> ClientboundUpdateTags<'_> {
+    let mut r = registries.network().tags();
+    let packet = ClientboundUpdateTags::decode(&mut r).unwrap();
+    assert!(r.is_empty(), "{} trailing bytes", r.len());
+    packet
 }
 
 #[cfg(unix)]
@@ -106,7 +131,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
             r#"{"exhaustion":0.75,"message_id":"arrow","scaling":"when_caused_by_living_non_player"}"#,
         )],
     );
-    let (set, known) = served(&root.0);
+    let (set, registries) = served(&root.0);
 
     let registry = "minecraft:damage_type";
     let table = set.table(registry).unwrap();
@@ -117,9 +142,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
     );
     assert_eq!(set.pack_of(registry, arrow), Some("file/zz_override"));
 
-    let offered = known_pack_offer(true, &known);
-    let accepted: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
-    let packets = registry_data(&set, &offered, &accepted);
+    let packets = sent(&registries, true);
     let sent = sent_entry(&packets, registry, "minecraft:arrow")
         .data
         .as_deref()
@@ -222,11 +245,8 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
 
 #[test]
 fn the_registry_packets_list_the_entries_the_packs_ship() {
-    let set = test_registries();
-    let core = known_pack_offer(true, test_known_packs());
-    for offered in [Vec::new(), core] {
-        let accepted: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
-        for packet in registry_data(set, &offered, &accepted) {
+    for known in [false, true] {
+        for packet in sent(test_registries_arc(), known) {
             let registry = packet.registry.as_str();
             let shipped = shipped_entries(registry);
             let sent: Vec<&str> = packet
@@ -235,12 +255,15 @@ fn the_registry_packets_list_the_entries_the_packs_ship() {
                 .map(|entry| entry.id.as_str())
                 .collect();
             let expected: Vec<&str> = shipped.iter().map(|(name, _)| name.as_str()).collect();
-            assert_eq!(sent, expected, "{registry} with offer {offered:?}");
+            assert_eq!(
+                sent, expected,
+                "{registry}, known packs negotiated: {known}"
+            );
             for (entry, (name, pack)) in packet.entries.iter().zip(&shipped) {
                 assert_eq!(
                     entry.data.is_none(),
-                    !accepted.is_empty() && pack == VANILLA_PACK,
-                    "{registry}/{name} from {pack} with offer {offered:?}"
+                    known && pack == VANILLA_PACK,
+                    "{registry}/{name} from {pack}, known packs negotiated: {known}"
                 );
             }
         }
@@ -250,7 +273,7 @@ fn the_registry_packets_list_the_entries_the_packs_ship() {
 #[test]
 fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
     let set = test_registries();
-    let packets = registry_data(set, &[], &[]);
+    let packets = sent(test_registries_arc(), false);
 
     let sent: Vec<&str> = packets
         .iter()
@@ -280,12 +303,11 @@ fn the_registry_packets_carry_the_synced_registries_in_declared_order() {
         );
     }
 
-    let mut bytes = 0;
-    for packet in &packets {
-        let mut buffer = Vec::new();
-        packet.encode(&mut buffer).unwrap();
-        bytes += buffer.len();
-    }
+    let bytes: usize = test_registries_arc()
+        .network()
+        .registry_data(false)
+        .map(<[u8]>::len)
+        .sum();
     println!(
         "the {} registry packets encode to {bytes} bytes",
         packets.len()
@@ -299,57 +321,60 @@ const OTHER_PACK: KnownPack<'static> = KnownPack {
 };
 
 #[test]
-fn an_entry_of_an_accepted_pack_is_sent_without_its_data() {
+fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
     let set = test_registries();
-    let offered = known_pack_offer(true, test_known_packs());
-    let exactly: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
-    let with_another = exactly.iter().cloned().chain([OTHER_PACK]).collect();
-
-    for accepted in [exactly, with_another] {
-        let packets = registry_data(set, &offered, &accepted);
-        let mut from_other_packs = 0;
-        for packet in &packets {
-            let registry = packet.registry.as_str();
-            for (id, entry) in packet.entries.iter().enumerate() {
-                let vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
-                assert_eq!(
-                    entry.data.is_none(),
-                    vanilla,
-                    "{registry}/{}: data is sent exactly when the entry is not from the vanilla pack, accepted {accepted:?}",
-                    entry.id
-                );
-                from_other_packs += usize::from(!vanilla);
-            }
+    let mut from_other_packs = 0;
+    for packet in sent(test_registries_arc(), true) {
+        let registry = packet.registry.as_str();
+        for (id, entry) in packet.entries.iter().enumerate() {
+            let vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
+            assert_eq!(
+                entry.data.is_none(),
+                vanilla,
+                "{registry}/{}: data is sent exactly when the entry is not from the vanilla pack",
+                entry.id
+            );
+            from_other_packs += usize::from(!vanilla);
         }
-        assert!(
-            from_other_packs > 0,
-            "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
-        );
     }
+    assert!(
+        from_other_packs > 0,
+        "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
+    );
+    assert!(
+        sent(test_registries_arc(), false)
+            .iter()
+            .flat_map(|packet| &packet.entries)
+            .all(|entry| entry.data.is_some())
+    );
 }
 
 #[test]
-fn every_entry_carries_data_unless_the_client_accepts_an_offered_pack() {
-    let set = test_registries();
+fn only_a_reply_that_repeats_the_offer_negotiates_its_packs() {
+    let offer = known_pack_offer(true, test_registries_arc());
+    let exactly: Vec<KnownPack> = offer.iter().map(offered_pack).collect();
     let core = |version| KnownPack {
         namespace: "minecraft",
         id: "core",
         version,
     };
-    let cases: [(bool, Vec<KnownPack>); 4] = [
-        (false, vec![core(VERSION.id.as_str())]),
-        (true, vec![core("0")]),
-        (true, Vec::new()),
-        (true, vec![OTHER_PACK]),
+    let cases: [(&[_], Vec<KnownPack>, bool); 6] = [
+        (&offer, exactly.clone(), true),
+        (
+            &offer,
+            exactly.iter().cloned().chain([OTHER_PACK]).collect(),
+            false,
+        ),
+        (&offer, vec![core("0")], false),
+        (&offer, Vec::new(), false),
+        (&offer, vec![OTHER_PACK], false),
+        (&[], Vec::new(), false),
     ];
-    for (offer, accepted) in cases {
-        let packets = registry_data(set, &known_pack_offer(offer, test_known_packs()), &accepted);
-        assert!(
-            packets
-                .iter()
-                .flat_map(|packet| &packet.entries)
-                .all(|entry| entry.data.is_some()),
-            "offer {offer}, accepted {accepted:?}: an entry is sent without data"
+    for (offered, reply, expected) in cases {
+        assert_eq!(
+            negotiated(offered, &reply),
+            expected,
+            "offer {offered:?}, reply {reply:?}"
         );
     }
 }
@@ -357,7 +382,7 @@ fn every_entry_carries_data_unless_the_client_accepts_an_offered_pack() {
 #[test]
 fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
     let set = test_registries();
-    let packets = registry_data(set, &[], &[]);
+    let packets = sent(test_registries_arc(), false);
     assert!(!packets.is_empty());
 
     for packet in &packets {
@@ -381,7 +406,7 @@ fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
 
 #[test]
 fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
-    let offered = known_pack_offer(true, test_known_packs());
+    let offered = known_pack_offer(true, test_registries_arc());
     let offered: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
     assert_eq!(
         offered,
@@ -391,13 +416,12 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
             version: VERSION.id.as_str(),
         }]
     );
-    assert!(known_pack_offer(false, test_known_packs()).is_empty());
+    assert!(known_pack_offer(false, test_registries_arc()).is_empty());
 
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
-        .insert_resource(test_registries().clone())
-        .insert_resource(test_known_packs().clone())
+        .insert_resource(CurrentRegistries::new(Arc::clone(test_registries_arc())))
         .insert_resource(KnownPackOffer(true))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
@@ -417,7 +441,7 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
 
     app.world_mut().insert_resource(KnownPackOffer(false));
     let mut reply = Vec::new();
-    let offered = known_pack_offer(true, test_known_packs());
+    let offered = known_pack_offer(true, test_registries_arc());
     ServerboundSelectKnownPacks {
         known_packs: offered.iter().map(offered_pack).collect(),
     }
@@ -456,4 +480,80 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
         without_data > 0,
         "the reply matched the offer the connection received, so vanilla entries go without data"
     );
+}
+
+#[test]
+fn every_join_writes_the_registry_bytes_the_load_encoded() {
+    let registries = test_registries_arc();
+    let mut app = App::new();
+    app.add_plugins(StatesPlugin)
+        .init_state::<AppState>()
+        .insert_resource(CurrentRegistries::new(Arc::clone(registries)))
+        .add_systems(Update, start_configuration())
+        .add_observer(on_known_packs_response);
+    let offer = known_pack_offer(true, registries);
+    let replies: [Vec<KnownPack>; 3] = [
+        offer.iter().map(offered_pack).collect(),
+        offer.iter().map(offered_pack).collect(),
+        Vec::new(),
+    ];
+    let connections: Vec<_> = replies
+        .iter()
+        .map(|_| {
+            let (raw, outgoing) = mock_connection::make_mock_raw_connection();
+            let connection = app
+                .world_mut()
+                .spawn((
+                    ServerSideConnection { raw: Box::new(raw) },
+                    ConnectionState::Configuration,
+                ))
+                .id();
+            (connection, outgoing)
+        })
+        .collect();
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+    app.update();
+
+    for ((connection, mut outgoing), reply) in connections.into_iter().zip(replies) {
+        let known = !reply.is_empty();
+        let mut body = Vec::new();
+        ServerboundSelectKnownPacks { known_packs: reply }
+            .encode(&mut body)
+            .unwrap();
+        app.world_mut().trigger(ReceivedPacketEvent {
+            entity: connection,
+            id: ServerboundSelectKnownPacks::ID,
+            data: body.into(),
+            timestamp: Instant::now(),
+        });
+        app.world_mut().flush();
+        app.world_mut()
+            .get_mut::<ServerSideConnection>(connection)
+            .unwrap()
+            .raw
+            .flush()
+            .unwrap();
+
+        let mut decoder = PacketDecoder::new();
+        while let Ok(blob) = outgoing.try_recv() {
+            decoder.queue_bytes(BytesMut::from(&blob[..]));
+        }
+        let frames: Vec<_> = std::iter::from_fn(|| decoder.try_next_packet().unwrap()).collect();
+        let registry_data: Vec<&[u8]> = frames
+            .iter()
+            .filter(|frame| frame.id == ClientboundRegistryData::ID)
+            .map(|frame| &frame.body[..])
+            .collect();
+        let baked: Vec<&[u8]> = registries.network().registry_data(known).collect();
+        assert_eq!(registry_data, baked, "known packs negotiated: {known}");
+        let tags: Vec<&[u8]> = frames
+            .iter()
+            .filter(|frame| frame.id == ClientboundUpdateTags::ID)
+            .map(|frame| &frame.body[..])
+            .collect();
+        assert_eq!(tags, [registries.network().tags()]);
+    }
 }

@@ -45,8 +45,9 @@ use mcrs_minecraft_loot::number::{FloatExpression, IntExpression};
 use mcrs_minecraft_loot::{
     LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
-use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf};
-use mcrs_minecraft_registry::{LoadReport, RegistrySet, WorldRegistries};
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::{DataDeclaration, Declaration, Registries, RegistryOf, Resolve};
+use mcrs_minecraft_registry::{LoadReport, Parts, RegistrySet, WorldRegistries};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -99,10 +100,49 @@ macro_rules! registry_table {
             Ok(vec![$({
                 let declaration = $declaration;
                 $(let declaration = $built_in(declaration, $stage);)?
+                let declaration = network_row!(
+                    declaration: $value;
+                    mode [$($mode)?];
+                    split [$($split)?];
+                    parts [$($($part_project)?)?];
+                    value [$($project)?]
+                );
                 planner.add(declaration)?
             }),*])
         }
     };
+}
+
+/// What a synced row sends of an entry: the named form, or the network type its row projects.
+macro_rules! network_row {
+    ($declaration:ident: $value:ty; mode [synced]; split [$($split:tt)*]; parts []; value []) => {
+        $declaration.synced(|value, registries| named_tag(value, registries))
+    };
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$split:expr]; parts [$project:expr]; value []) => {
+        $declaration.synced(|value, _| nbt_tag(&project_parts(&$split(value), $project)))
+    };
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split []; parts []; value [$project:expr]) => {{
+        let project: fn(&$value) -> _ = $project;
+        $declaration.synced(move |value, _| nbt_tag(&project(value)))
+    }};
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$($split:tt)*]; parts []; value []) => {
+        $declaration
+    };
+}
+
+fn named_tag<T: Resolve<Named: Serialize>>(
+    value: &T,
+    registries: &Registries,
+) -> Result<NbtTag, String> {
+    nbt_tag(&value.name(registries).map_err(|error| error.to_string())?)
+}
+
+fn project_parts<P: Parts, N>(parts: &P, project: impl for<'a> FnOnce(P::Refs<'a>) -> N) -> N {
+    project(parts.as_refs())
+}
+
+fn nbt_tag<T: Serialize>(value: &T) -> Result<NbtTag, String> {
+    mcrs_minecraft_nbt::to_nbt_tag(value).map_err(|error| error.to_string())
 }
 
 macro_rules! declare_row {

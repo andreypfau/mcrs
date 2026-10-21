@@ -31,8 +31,8 @@ pub use bevy::CurrentRegistries;
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
 pub use id::Key;
 pub use load::{
-    DataDeclaration, Declaration, LoadCtx, Registries, RegistryView, Stage, StageScope, StageView,
-    ValueSeed, load, load_with,
+    DataDeclaration, Declaration, LoadCtx, NetworkSnapshot, Registries, RegistryView, Stage,
+    StageScope, StageView, ValueSeed, load, load_with,
 };
 pub use mcrs_minecraft_registries_derive::{Resolve, registry_value};
 pub use pack::{

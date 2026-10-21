@@ -4030,6 +4030,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries_derive",
  "mcrs_minecraft_text",
  "serde",

@@ -89,7 +89,6 @@ impl Plugin for MinecraftWorldPlugin {
                 elapsed = ?started.elapsed(),
                 "loaded registries"
             );
-            app.insert_resource(loaded.known_packs);
             let block_registry = registries
                 .registry::<Block>()
                 .expect("the static registries hold minecraft:block");

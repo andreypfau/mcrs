@@ -3,10 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_server::configuration::update_tags;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
 
-use crate::configuration_registries::{json_files, shipped_packs};
+use crate::configuration_registries::{json_files, sent_update_tags, shipped_packs};
 
 type SentTags = Vec<(String, BTreeMap<String, Vec<String>>)>;
 
@@ -85,7 +84,7 @@ fn shipped_tags(registry: &str) -> BTreeMap<String, ShippedTag> {
 #[test]
 fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
     let set = test_registries();
-    let packet = update_tags(set);
+    let packet = sent_update_tags(test_registries_arc());
     let mut checked = 0;
     for (registry, sent) in sent_tags(set, &packet) {
         let shipped = shipped_tags(&registry);
@@ -111,7 +110,7 @@ fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
 #[test]
 fn the_server_sends_tag_members_in_tag_order() {
     let set = test_registries();
-    let packet = update_tags(set);
+    let packet = sent_update_tags(test_registries_arc());
 
     let blocks = set.tags::<Block>().expect("the block tags are loaded");
     let sent_blocks = packet
@@ -160,7 +159,7 @@ fn the_server_sends_tag_members_in_tag_order() {
 #[test]
 fn the_tags_packet_follows_the_static_registry_order() {
     let set = test_registries();
-    let packet = update_tags(set);
+    let packet = sent_update_tags(test_registries_arc());
     let synced: Vec<&str> = set
         .synced()
         .map(|(table, _)| table.registry().as_str())
@@ -201,7 +200,7 @@ fn the_tags_packet_follows_the_static_registry_order() {
 #[test]
 fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     let set = test_registries();
-    let packet = update_tags(set);
+    let packet = sent_update_tags(test_registries_arc());
     let sent: Vec<&str> = packet
         .registries
         .iter()

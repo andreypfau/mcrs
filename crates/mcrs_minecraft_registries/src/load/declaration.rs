@@ -3,9 +3,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::ctx::LoadCtx;
-use super::{Stage, Table};
+use super::network::SyncedEntry;
+use super::{Registries, Stage, Table};
+use crate::diagnostics::Diagnostic;
 use crate::pack::PackIndex;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
 
@@ -67,9 +71,17 @@ pub(crate) trait ErasedData {
         sources: Vec<EntrySource<'_>>,
     ) -> Result<Table, Vec<EntryFailure>>;
     fn validate(&self, table: &Table, ctx: &LoadCtx<'_>) -> Result<(), String>;
+    fn is_synced(&self) -> bool;
+    /// `None` for a registry that is not sent to clients.
+    fn synced_entries<'r>(
+        &self,
+        registries: &'r Registries,
+    ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>>;
 }
 
 type Validator<R> = Box<dyn Fn(&Registry<R>, &LoadCtx<'_>) -> Result<(), String> + Send + Sync>;
+type Project<R> =
+    Box<dyn Fn(&<R as RegistryType>::Value, &Registries) -> Result<NbtTag, String> + Send + Sync>;
 type BuiltIn<R> = Box<
     dyn Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<<R as RegistryType>::Value, String>
         + Send
@@ -83,6 +95,7 @@ pub struct DataDeclaration<R: RegistryType> {
     validator: Option<Validator<R>>,
     built_in: Vec<BuiltInSet<R>>,
     aliases: Vec<TypeId>,
+    synced: Option<Project<R>>,
 }
 
 struct BuiltInSet<R: RegistryType> {
@@ -125,6 +138,15 @@ where
     /// Lets a crate below the one that holds the values name this registry by the marker `K`.
     pub fn named_by<K: RegistryType>(mut self) -> Self {
         self.aliases.push(TypeId::of::<K>());
+        self
+    }
+
+    /// Sends the registry to clients, each entry as the network NBT `project` makes of it.
+    pub fn synced(
+        mut self,
+        project: impl Fn(&R::Value, &Registries) -> Result<NbtTag, String> + Send + Sync + 'static,
+    ) -> Self {
+        self.synced = Some(Box::new(project));
         self
     }
 
@@ -177,6 +199,7 @@ impl Declaration {
             validator: None,
             built_in: Vec::new(),
             aliases: Vec::new(),
+            synced: None,
         }
     }
 
@@ -297,6 +320,48 @@ where
             Some(registry) => validator(registry, ctx),
             None => Err("the registry table holds another value type".to_owned()),
         }
+    }
+
+    fn is_synced(&self) -> bool {
+        self.synced.is_some()
+    }
+
+    fn synced_entries<'r>(
+        &self,
+        registries: &'r Registries,
+    ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>> {
+        let project = self.synced.as_ref()?;
+        let Some(registry) = registries.registry::<R>() else {
+            return Some(Err(Diagnostic::Declaration {
+                registry: self.key.clone(),
+                message: "the synced registry was not loaded".to_owned(),
+            }));
+        };
+        let entries = registry.iter().map(|(id, name, value)| {
+            let tag = project(value, registries).map_err(|message| (name, message))?;
+            let mut data = Vec::new();
+            tag.serialize(&mut WriteAdaptor::new(&mut data))
+                .map_err(|error| (name, error.to_string()))?;
+            Ok(SyncedEntry {
+                name,
+                data,
+                known: registries
+                    .origin(id)
+                    .is_some_and(|pack| pack.known_pack().is_some()),
+            })
+        });
+        Some(
+            entries
+                .collect::<Result<_, (&ResourceLocation, String)>>()
+                .map_err(|(entry, message)| Diagnostic::Entry {
+                    registry: self.key.clone(),
+                    entry: entry.clone(),
+                    pack: None,
+                    file: None,
+                    field: None,
+                    message: format!("cannot be sent to a client: {message}"),
+                }),
+        )
     }
 }
 

@@ -2,6 +2,7 @@ mod ctx;
 mod declaration;
 mod index;
 mod loader;
+mod network;
 mod tag_build;
 mod view;
 
@@ -13,6 +14,7 @@ use std::sync::Arc;
 pub use ctx::{LoadCtx, ValueSeed};
 pub use declaration::{DataDeclaration, Declaration};
 pub use loader::{StageScope, load, load_with};
+pub use network::NetworkSnapshot;
 pub use view::{RegistryView, StageView};
 
 use crate::pack::{KnownPack, PackStack, StackedPack};
@@ -46,9 +48,15 @@ pub struct Registries {
     world_stack: Arc<PackStack>,
     reload_stack: Arc<PackStack>,
     generation: u64,
+    network: Arc<NetworkSnapshot>,
 }
 
 impl Registries {
+    /// What the configuration phase sends of these registries.
+    pub fn network(&self) -> &NetworkSnapshot {
+        &self.network
+    }
+
     pub fn registry<R: RegistryType>(&self) -> Option<&Registry<R>> {
         self.table(TypeId::of::<R>())?
             .registry

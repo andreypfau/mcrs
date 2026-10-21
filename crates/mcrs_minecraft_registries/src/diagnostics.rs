@@ -158,7 +158,7 @@ impl Diagnostic {
     }
 }
 
-const ROOT: StaticResourceLocation = ResourceLocation::new_static("minecraft:root");
+pub(crate) const ROOT: StaticResourceLocation = ResourceLocation::new_static("minecraft:root");
 
 fn list<T: fmt::Display>(f: &mut fmt::Formatter<'_>, items: &[T]) -> fmt::Result {
     for (n, item) in items.iter().enumerate() {

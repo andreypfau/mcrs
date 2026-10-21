@@ -5,11 +5,11 @@ use std::sync::Arc;
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::ctx::{LoadCtx, Slot};
-use super::declaration::{Declaration, EntrySource, Kind, Source};
+use super::declaration::{Declaration, EntrySource, Erased, Kind, Source};
 use super::index::{self, Directories, SlotFiles};
 use super::view::StageView;
-use super::{Registries, Stage, Table, Tables, TagTables, tag_build};
-use crate::diagnostics::{Diagnostic, Diagnostics, Missing};
+use super::{Registries, Stage, Table, Tables, TagTables, network, tag_build};
+use crate::diagnostics::{Diagnostic, Diagnostics, Missing, ROOT};
 use crate::order::{entry_file_order, identifier_order};
 use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack, VANILLA};
 use crate::registry::Names;
@@ -371,6 +371,7 @@ fn assemble(
         world_stack: previous.map_or_else(|| Arc::clone(&stack), |p| Arc::clone(&p.world_stack)),
         reload_stack: stack,
         generation: previous.map_or(0, |p| p.generation.saturating_add(1)),
+        network: Arc::default(),
     })
 }
 
@@ -528,8 +529,45 @@ pub fn load_with(
         }
     }
 
-    match assemble(slots, stack, previous) {
-        Ok(registries) => Ok((registries, diagnostics)),
+    let view = StageView::new(Stage::Reloadable, &slots);
+    let mut registries = match assemble(slots, stack, previous) {
+        Ok(registries) => registries,
+        Err(errors) => return Err(fail(diagnostics, errors)),
+    };
+    match encode_network(declarations, &view, &registries, scope) {
+        Ok(network) => {
+            registries.network = Arc::new(network);
+            Ok((registries, diagnostics))
+        }
         Err(errors) => Err(fail(diagnostics, errors)),
     }
+}
+
+fn encode_network(
+    declarations: &[Declaration],
+    view: &StageView,
+    registries: &Registries,
+    scope: &mut StageScope<'_>,
+) -> Result<network::NetworkSnapshot, Vec<Diagnostic>> {
+    let declarations: Vec<&dyn Erased> = declarations.iter().map(|d| &*d.inner).collect();
+    let mut network = None;
+    let mut encode = || network = Some(network::snapshot(&declarations, registries));
+    // Values that still name entries through the stage scope encode inside it.
+    let synced = declarations
+        .iter()
+        .any(|declaration| match declaration.kind() {
+            Kind::Data(data) => data.is_synced(),
+            Kind::Fixed(_) => false,
+        });
+    if synced {
+        scope(view, &mut encode);
+    } else {
+        encode();
+    }
+    network.unwrap_or_else(|| {
+        Err(vec![Diagnostic::Declaration {
+            registry: ROOT.into(),
+            message: "the stage scope did not run the network encoding".to_owned(),
+        }])
+    })
 }

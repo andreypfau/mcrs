@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{
-    AvailablePack, Diagnostic, Diagnostics, Features, KnownPack, Level, PackFiles, PackSelection,
-    PackStack, Registries, StackedPack, Stage, load_with, pack_stack,
+    AvailablePack, Diagnostic, Diagnostics, Features, Level, PackFiles, PackSelection, PackStack,
+    Registries, StackedPack, Stage, load_with, pack_stack,
 };
 use mcrs_minecraft_registry::{
     AssemblyError, LoadReport, PACKS_ROOT, RegistrySet, VANILLA_ROOT, WorldRegistries,
@@ -164,30 +164,7 @@ impl From<AssemblyError> for RegistryLoadError {
 pub struct LoadedRegistries {
     pub set: RegistrySet,
     pub registries: Arc<Registries>,
-    pub known_packs: KnownPacks,
     pub diagnostics: Diagnostics,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StackedKnownPack {
-    pub pack: String,
-    pub known: KnownPack,
-}
-
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct KnownPacks(pub Vec<StackedKnownPack>);
-
-impl KnownPacks {
-    fn of(stack: &PackStack) -> Self {
-        let known = stack.packs().iter().filter_map(|pack| {
-            Some(StackedKnownPack {
-                pack: pack.id().to_owned(),
-                known: pack.known_pack()?.clone(),
-            })
-        });
-        Self(known.collect())
-    }
 }
 
 fn read(source: &dyn PackSource, path: &str) -> Result<Vec<u8>, RegistryLoadError> {
@@ -441,7 +418,6 @@ fn load_stack(
     Ok(LoadedRegistries {
         set,
         registries: Arc::new(registries),
-        known_packs: KnownPacks::of(&stack),
         diagnostics,
     })
 }
@@ -519,9 +495,4 @@ pub fn registries_declaring(declarations: &[mcrs_minecraft_registries::Declarati
     mcrs_minecraft_registries::load(declarations, Arc::new(stack), &PackFiles::default(), None)
         .map(|(registries, _)| registries)
         .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
-}
-
-#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn test_known_packs() -> &'static KnownPacks {
-    &TEST_REGISTRIES.known_packs
 }

@@ -20,7 +20,7 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{Diagnostic, Level, Resolve};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostic, Level, Resolve};
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
@@ -28,7 +28,7 @@ use mcrs_minecraft_world::registries::{
     reloadable_registries, static_registries as build_static_registries, world_registries,
 };
 use mcrs_minecraft_world::registry_load::{
-    KnownPacks, RegistryLoadError, test_known_packs, test_registries, test_registries_arc,
+    RegistryLoadError, test_registries, test_registries_arc,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -656,7 +656,12 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
         tag_contents(through_plugin),
         tag_contents(through_directory)
     );
-    assert_eq!(app.world().resource::<KnownPacks>(), test_known_packs());
+    assert!(
+        app.world()
+            .resource::<CurrentRegistries>()
+            .known_packs()
+            .eq(test_registries_arc().known_packs())
+    );
 }
 
 #[test]
@@ -668,10 +673,9 @@ fn a_pack_directory_without_a_namespace_has_no_files() {
 
     assert!(
         loaded
-            .known_packs
-            .0
-            .iter()
-            .all(|known| known.pack != "file/zz_empty")
+            .registries
+            .known_packs()
+            .all(|known| known.id != "zz_empty")
     );
     let set = &loaded.set;
     for table in set.tables() {

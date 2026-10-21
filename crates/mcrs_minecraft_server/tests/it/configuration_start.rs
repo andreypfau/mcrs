@@ -14,15 +14,17 @@ use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundCustomPayload, ClientboundSelectKnownPacks,
 };
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_server::configuration::{AwaitingKnownPacks, start_configuration};
-use mcrs_minecraft_world::registry_load::test_known_packs;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
+use std::sync::Arc;
 
 #[test]
 fn a_connection_that_reaches_configuration_while_loading_waits_for_the_registries() {
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
-        .insert_resource(test_known_packs().clone())
+        .insert_resource(CurrentRegistries::new(Arc::clone(test_registries_arc())))
         .add_systems(Update, start_configuration());
     let (raw, _outgoing) = mock_connection::make_mock_raw_connection();
     let connection = app
@@ -60,7 +62,7 @@ fn the_first_configuration_frame_is_the_brand() {
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
-        .insert_resource(test_known_packs().clone())
+        .insert_resource(CurrentRegistries::new(Arc::clone(test_registries_arc())))
         .add_systems(Update, start_configuration());
     let (raw, mut outgoing) = mock_connection::make_mock_raw_connection();
     let connection = app
