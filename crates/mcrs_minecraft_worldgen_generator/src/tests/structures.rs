@@ -65,11 +65,13 @@ fn corpus_registries() -> Corpus {
 
 /// One variant registry's assets by id in registry order, which is the
 /// alphabetical order the snapshot assigns; only the spawn conditions are read.
-fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSelector>> {
+fn variant_selectors(
+    registry: &str,
+) -> BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>> {
     #[derive(serde::Deserialize)]
     struct Variant {
         #[serde(default)]
-        spawn_conditions: Vec<SpawnSelector>,
+        spawn_conditions: Vec<SpawnSelector<mcrs_minecraft_registries::Named>>,
     }
     let base = vanilla_dir().join(registry);
     json_files(&base)
@@ -89,19 +91,22 @@ fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSele
 }
 
 pub(super) fn variant_inputs() -> VariantInputs<'static> {
-    static CATS: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
-        LazyLock::new(|| variant_selectors("cat_variant"));
+    static CATS: LazyLock<
+        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+    > = LazyLock::new(|| variant_selectors("cat_variant"));
     static CAT_SOUNDS: LazyLock<Vec<ResourceLocation>> =
         LazyLock::new(|| variant_selectors("cat_sound_variant").into_keys().collect());
-    static CHICKENS: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
-        LazyLock::new(|| variant_selectors("chicken_variant"));
+    static CHICKENS: LazyLock<
+        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+    > = LazyLock::new(|| variant_selectors("chicken_variant"));
     static CHICKEN_SOUNDS: LazyLock<Vec<ResourceLocation>> = LazyLock::new(|| {
         variant_selectors("chicken_sound_variant")
             .into_keys()
             .collect()
     });
-    static ZOMBIE_NAUTILUSES: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
-        LazyLock::new(|| variant_selectors("zombie_nautilus_variant"));
+    static ZOMBIE_NAUTILUSES: LazyLock<
+        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+    > = LazyLock::new(|| variant_selectors("zombie_nautilus_variant"));
     VariantInputs {
         cats: Some(&CATS),
         cat_sounds: &CAT_SOUNDS,

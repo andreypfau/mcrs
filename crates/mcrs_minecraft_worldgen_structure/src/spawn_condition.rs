@@ -5,27 +5,29 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{KeySet, Named, Refs, RegistryOf, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
 /// condition that an absent field leaves always true.
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SpawnSelector {
+pub struct SpawnSelector<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub condition: Option<SpawnCondition>,
+    pub condition: Option<SpawnCondition<M>>,
     pub priority: i32,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub enum SpawnCondition {
+pub enum SpawnCondition<M: Refs = Resolved> {
     Structure {
-        structures: HolderSet<crate::Structure>,
+        structures: M::Set<RegistryOf<crate::Structure>>,
     },
     Biome {
-        biomes: HolderSet<mcrs_minecraft_biome::Biome>,
+        biomes: M::Set<mcrs_minecraft_biome::Biome>,
     },
     MoonBrightness {
         range: MinMaxBounds<f64>,
@@ -33,7 +35,7 @@ pub enum SpawnCondition {
 }
 
 mcrs_minecraft_registry::dispatch! {
-    SpawnCondition, key = "type", registry = crate::keys::SpawnConditionType,
+    SpawnCondition<Named>, key = "type", registry = crate::keys::SpawnConditionType,
     {
         Structure => Structure,
         MoonBrightness => MoonBrightness,
@@ -89,12 +91,12 @@ pub struct VariantTable {
 }
 
 impl VariantTable {
-    /// `entries` in registry order; `structures` and `biomes` resolve a holder
+    /// `entries` in registry order; `structures` and `biomes` resolve a key
     /// set into the id set a condition tests.
     pub fn freeze<'a>(
-        entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector])>,
-        structures: &dyn Fn(&HolderSet<crate::Structure>) -> Result<IdSet, String>,
-        biomes: &dyn Fn(&HolderSet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
+        entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector<Named>])>,
+        structures: &dyn Fn(&KeySet<RegistryOf<crate::Structure>>) -> Result<IdSet, String>,
+        biomes: &dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();
         for (id, selectors) in entries {

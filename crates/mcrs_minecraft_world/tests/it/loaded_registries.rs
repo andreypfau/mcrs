@@ -980,8 +980,7 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
 )]
 fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
     let stone = r#"{"id":"minecraft:stone"}"#;
-    let wolf_assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
-    let cases: [(&str, String, &[&str]); 17] = [
+    let cases: [(&str, String, &[&str]); 16] = [
         ("instrument", "{}".to_owned(), &["sound_event"]),
         (
             "instrument",
@@ -1026,14 +1025,6 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
                 "structure":"minecraft:empty","max_ticks":1}"#
                 .to_owned(),
             &["bogus"],
-        ),
-        (
-            "wolf_variant",
-            format!(
-                r##"{{"assets":{wolf_assets},"baby_assets":{wolf_assets},"spawn_conditions":[
-                    {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
-            ),
-            &["minecraft:worldgen/biome", "minecraft:no_such_tag"],
         ),
         (
             "enchantment",
@@ -2872,4 +2863,21 @@ fn a_block_predicate_inside_an_enchantment_names_only_blocks_that_exist() {
     assert!(missing.contains("minecraft:no_such_block"), "{missing}");
     let present = refused_by_the_loader("enchantment", "odd", &enchantment("minecraft:dirt"));
     assert!(present.is_empty(), "{present}");
+}
+
+#[test]
+fn an_unknown_tag_in_a_spawn_condition_is_an_unresolved_reference_of_its_variant() {
+    let wolf_assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
+    let json = format!(
+        r##"{{"assets":{wolf_assets},"baby_assets":{wolf_assets},"spawn_conditions":[
+            {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
+    );
+    let text = refused_by_the_loader("wolf_variant", "odd", &json);
+    for part in [
+        "minecraft:worldgen/biome",
+        "#minecraft:no_such_tag",
+        "minecraft:wolf_variant/minecraft:odd",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
 }

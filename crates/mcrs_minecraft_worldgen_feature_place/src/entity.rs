@@ -581,13 +581,12 @@ pub fn drowned(
 mod tests {
     use super::*;
     use fixedbitset::FixedBitSet;
-    use mcrs_minecraft_core::{TagKey, rl};
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_minecraft_registry::HolderSet;
+    use mcrs_minecraft_registries::{Key, KeySet, Named};
     use mcrs_minecraft_worldgen_structure::spawn_condition::{
         IdSet, SpawnCondition, SpawnSelector, VariantTable,
     };
-    use mcrs_minecraft_worldgen_testing::corpus_set;
     use std::sync::Arc;
 
     const AT: BlockPos = BlockPos::new(10, 64, -20);
@@ -624,37 +623,33 @@ mod tests {
 
     #[derive(Deserialize)]
     struct Variant {
-        spawn_conditions: Vec<SpawnSelector>,
+        spawn_conditions: Vec<SpawnSelector<Named>>,
     }
 
-    fn tag_of<R: 'static>(tag: &str) -> Option<mcrs_minecraft_core::TagId<R>> {
-        corpus_set()
-            .tags::<R>()?
-            .get(&TagKey::<R, _>::from_location(
-                ResourceLocation::minecraft(tag).unwrap(),
-            ))
+    fn tag_key<R>(tag: &str) -> KeySet<R> {
+        KeySet::Tag(Key::new(ResourceLocation::minecraft(tag).unwrap()))
     }
 
-    fn tagged<R: 'static>(
+    fn tagged<R>(
         tag: &'static str,
         ids: &'static [usize],
-    ) -> impl Fn(&HolderSet<R>) -> Result<IdSet, String> {
-        let wanted = tag_of::<R>(tag);
-        move |set| match set {
-            HolderSet::Named(t) if Some(*t) == wanted => Ok(self::set(ids)),
-            other => Err(format!("{other:?} is not #{tag}")),
+    ) -> impl Fn(&KeySet<R>) -> Result<IdSet, String> {
+        let wanted = tag_key::<R>(tag);
+        move |set| match set == &wanted {
+            true => Ok(self::set(ids)),
+            false => Err(format!("{set:?} is not #{tag}")),
         }
     }
 
     fn tables() -> VariantTables {
         let dir = mcrs_minecraft_worldgen_testing::vanilla_dir().join("cat_variant");
-        let cats: Vec<(ResourceLocation, Vec<SpawnSelector>)> =
+        let cats: Vec<(ResourceLocation, Vec<SpawnSelector<Named>>)> =
             mcrs_minecraft_worldgen_testing::json_files(&dir)
                 .into_iter()
                 .map(|path| {
                     let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let variant: Variant = corpus_set()
-                        .scope(|| serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap());
+                    let variant: Variant =
+                        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
                     (
                         ResourceLocation::minecraft(&name).unwrap(),
                         variant.spawn_conditions,
@@ -670,7 +665,7 @@ mod tests {
         .unwrap();
         let in_tag = |tag: &str| SpawnSelector {
             condition: Some(SpawnCondition::Biome {
-                biomes: HolderSet::Named(tag_of(tag).expect("a biome tag of the corpus")),
+                biomes: tag_key(tag),
             }),
             priority: 1,
         };

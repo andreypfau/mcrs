@@ -6,6 +6,7 @@ use mcrs_minecraft_entity::variant::{
     CatVariant, ChickenModel, ChickenVariant, CowModel, CowVariant, FrogVariant, PigModel,
     PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
 };
+use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, registry_value};
 use mcrs_minecraft_registry::RegistrySet;
 use serde::{Deserialize, Serialize};
 
@@ -17,11 +18,12 @@ macro_rules! spawning_variant {
             $($(#[$field_meta:meta])* $field:ident: $ty:ty),+ $(,)?
         }
     ) => {
+        #[registry_value]
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
-        pub struct $file {
+        pub struct $file<M: Refs = Resolved> {
             $($(#[$field_meta])* pub $field: $ty,)+
-            pub spawn_conditions: Vec<SpawnSelector>,
+            pub spawn_conditions: Vec<SpawnSelector<M>>,
         }
 
         impl $file {
@@ -101,31 +103,27 @@ spawning_variant! {
 pub fn spawn_selectors<R>(
     registries: &RegistrySet,
     registry: RegistryKey<R>,
-) -> BTreeMap<ResourceLocation, Vec<SpawnSelector>> {
+) -> Result<BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>, String> {
     let registry = registry.location().as_static_str();
     let table = registries
         .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
+        .ok_or_else(|| format!("{registry} is not a loaded registry"))?;
     let conditions = registries
         .column::<Vec<SpawnSelector>>(registry)
-        .unwrap_or_else(|| panic!("{registry} holds no spawn conditions"));
+        .ok_or_else(|| format!("{registry} holds no spawn conditions"))?;
     table
         .names()
         .iter()
         .cloned()
-        .zip(conditions.iter().cloned())
+        .zip(conditions.iter())
+        .map(|(name, selectors)| {
+            let selectors = selectors
+                .name(registries)
+                .map_err(|error| format!("{registry}: {error}"))?;
+            Ok((name, selectors))
+        })
         .collect()
 }
-
-mcrs_minecraft_registries::read_with_serde!(
-    WolfVariantFile,
-    PigVariantFile,
-    FrogVariantFile,
-    CatVariantFile,
-    CowVariantFile,
-    ChickenVariantFile,
-    ZombieNautilusVariantFile
-);
 
 mcrs_minecraft_registries::declare_registries!(
     WolfVariantFile => mcrs_minecraft_entity::keys::WOLF_VARIANT, World, non_empty;

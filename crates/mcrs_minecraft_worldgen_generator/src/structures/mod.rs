@@ -10,6 +10,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_registries::{KeySet, Named};
 use mcrs_minecraft_registry::{HolderSet, Registry, Tags};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
@@ -108,11 +109,11 @@ pub struct StructureInputs<'a> {
 /// as its ids in order.
 #[derive(Default)]
 pub struct VariantInputs<'a> {
-    pub cats: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
+    pub cats: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
     pub cat_sounds: &'a [ResourceLocation],
-    pub chickens: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
+    pub chickens: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
     pub chicken_sounds: &'a [ResourceLocation],
-    pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
+    pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
 }
 
 const MAX_JIGSAW_RANGE: i32 = 128;
@@ -156,7 +157,7 @@ fn freeze_variants(
     frozen: &mut FrozenStructures,
 ) -> Result<(), String> {
     let table = |registry: &str,
-                 entries: Option<&BTreeMap<ResourceLocation, Vec<SpawnSelector>>>|
+                 entries: Option<&BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>|
      -> Result<VariantTable, String> {
         let Some(entries) = entries else {
             return Ok(VariantTable::default());
@@ -165,8 +166,14 @@ fn freeze_variants(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
-            &|set| structure_id_set(inputs, frozen, set),
-            &|set| Ok(biome_mask(inputs, set)),
+            &|keys| {
+                let set = holder_set(keys, inputs.structure_registry, inputs.structure_tags)?;
+                structure_id_set(inputs, frozen, &set)
+            },
+            &|keys| {
+                let set = holder_set(keys, inputs.biomes, inputs.biome_tags)?;
+                Ok(biome_mask(inputs, &set))
+            },
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
@@ -193,6 +200,26 @@ fn freeze_variants(
         )?,
     };
     Ok(())
+}
+
+fn holder_set<R: 'static, V>(
+    keys: &KeySet<V>,
+    registry: &Registry<R>,
+    tags: &Tags<R>,
+) -> Result<HolderSet<R>, String> {
+    let unknown = || format!("names {keys:?}, which is not loaded");
+    Ok(match keys {
+        KeySet::Tag(tag) => HolderSet::Named(
+            tags.get(&TagKey::from_location(tag.location().clone()))
+                .ok_or_else(unknown)?,
+        ),
+        KeySet::List(keys) => HolderSet::List(
+            keys.iter()
+                .map(|key| registry.by_name(key.location().as_str()))
+                .collect::<Option<_>>()
+                .ok_or_else(unknown)?,
+        ),
+    })
 }
 
 fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<Biome>) -> BiomeMask {

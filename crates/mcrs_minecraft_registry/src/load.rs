@@ -92,13 +92,30 @@ struct Flags {
     tags: bool,
 }
 
+type ToJson<T> = fn(&RegistrySet, &T) -> Result<String, serde_json::Error>;
+
+fn value_json<T: Serialize>(_: &RegistrySet, value: &T) -> Result<String, serde_json::Error> {
+    serde_json::to_string(value)
+}
+
+fn named_json<T>(set: &RegistrySet, value: &T) -> Result<String, serde_json::Error>
+where
+    T: Resolve,
+    T::Named: Serialize,
+{
+    match value.name(set) {
+        Ok(named) => serde_json::to_string(&named),
+        Err(error) => Err(serde::ser::Error::custom(error)),
+    }
+}
+
 fn encode_value<T: Serialize + 'static>(
-    _: &RegistrySet,
+    set: &RegistrySet,
     column: &(dyn Any + Send + Sync),
     index: usize,
 ) -> Option<Result<String, serde_json::Error>> {
     let values = column.downcast_ref::<Arc<[T]>>()?;
-    Some(serde_json::to_string(values.get(index)?))
+    Some(value_json(set, values.get(index)?))
 }
 
 fn encode_named<T>(
@@ -111,10 +128,7 @@ where
     T::Named: Serialize,
 {
     let values = column.downcast_ref::<Arc<[T]>>()?;
-    Some(match values.get(index)?.name(set) {
-        Ok(named) => serde_json::to_string(&named),
-        Err(error) => Err(serde::ser::Error::custom(error)),
-    })
+    Some(named_json(set, values.get(index)?))
 }
 
 /// The parts a split registry stores, one column each.
@@ -255,6 +269,36 @@ impl WorldRegistries {
         T: Serialize + Send + Sync + 'static,
         P: Parts,
     {
+        self.install_split(registry, split, join, value_json::<T>)
+    }
+
+    /// `split` for a registry `parse_named` reads: `join` rebuilds `T`, which
+    /// encodes in the named form.
+    pub fn split_named<T, P>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        split: fn(&T) -> P,
+        join: for<'a> fn(P::Refs<'a>) -> T,
+    ) -> &mut Self
+    where
+        T: Resolve + Send + Sync + 'static,
+        T::Named: Serialize,
+        P: Parts,
+    {
+        self.install_split(registry, split, join, named_json::<T>)
+    }
+
+    fn install_split<T, P>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        split: fn(&T) -> P,
+        join: for<'a> fn(P::Refs<'a>) -> T,
+        to_json: ToJson<T>,
+    ) -> &mut Self
+    where
+        T: Send + Sync + 'static,
+        P: Parts,
+    {
         let codec = self
             .declaration(registry)
             .codec
@@ -273,7 +317,7 @@ impl WorldRegistries {
                 P::columns(values.iter().map(split).collect())
             }),
             encode: Box::new(move |set, registry, index| {
-                Some(serde_json::to_string(&join(P::refs(set, registry, index)?)))
+                Some(to_json(set, &join(P::refs(set, registry, index)?)))
             }),
         });
         self

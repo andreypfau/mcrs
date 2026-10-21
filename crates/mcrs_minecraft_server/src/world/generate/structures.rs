@@ -109,9 +109,16 @@ pub(crate) fn build_dimension_structures(
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let cats = spawn_selectors(&registries, CAT_VARIANT);
-    let chickens = spawn_selectors(&registries, CHICKEN_VARIANT);
-    let zombie_nautiluses = spawn_selectors(&registries, ZOMBIE_NAUTILUS_VARIANT);
+    let (cats, chickens, zombie_nautiluses) = (|| -> Result<_, String> {
+        Ok((
+            spawn_selectors(&registries, CAT_VARIANT)?,
+            spawn_selectors(&registries, CHICKEN_VARIANT)?,
+            spawn_selectors(&registries, ZOMBIE_NAUTILUS_VARIANT)?,
+        ))
+    })()
+    .unwrap_or_else(|error| {
+        panic!("the loaded registries cannot list their spawn conditions: {error}")
+    });
     let names = |registry: &str| -> Vec<ResourceLocation> {
         registries
             .table(registry)

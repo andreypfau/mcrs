@@ -76,10 +76,9 @@ macro_rules! registry_table {
             S: Fn() -> RegistrySet + Clone + Send + Sync + 'static,
         {
             $(
-                declare_row!($($mode)?; $key, $value, world, report, $declaration);
+                declare_row!($($mode)?; $key, $value, world, report, $declaration $(, split $parts, $split, $join)?);
                 let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
-                    $(world.split::<$value, $parts>(registry, $split, $join);)?
                     $($(
                         world.sync_parts::<$parts, _>(registry, $part_project);
                         world.receive::<$part_net, _>(registry, $part_receive);
@@ -107,6 +106,18 @@ macro_rules! registry_table {
 }
 
 macro_rules! declare_row {
+    (named; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr
+        $(, split $parts:ty, $split:expr, $join:expr)?) => {
+        let declaration = $declaration;
+        if declared::<$key, $value>($world, $report, &declaration) {
+            let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
+            $world.parse_named::<$value>(registry);
+            if declaration.is_non_empty() {
+                $world.non_empty(registry);
+            }
+            $($world.split_named::<$value, $parts>(registry, $split, $join);)?
+        }
+    };
     (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
         let declaration = $declaration;
         if declared::<$key, $value>($world, $report, &declaration) {
@@ -118,8 +129,13 @@ macro_rules! declare_row {
             $world.sync_named::<$value>(registry);
         }
     };
-    (; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
+    (; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr
+        $(, split $parts:ty, $split:expr, $join:expr)?) => {
         declare::<$key, $value>($world, $report, $declaration);
+        let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
+        if $world.parses(registry.as_static_str()) {
+            $($world.split::<$value, $parts>(registry, $split, $join);)?
+        }
     };
 }
 
@@ -155,7 +171,7 @@ registry_table! {
         declared by TrimPattern::declaration();
     mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare,
         declared by TrimMaterial::declaration();
-    WolfVariant => WolfVariantFile
+    @named WolfVariant => WolfVariantFile
         as (WolfVariant, Vec<SpawnSelector>),
         WolfVariantFile::split, WolfVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
@@ -163,7 +179,7 @@ registry_table! {
         declared by WolfVariantFile::declaration();
     @synced WolfSoundVariant => WolfSoundVariant,
         declared by WolfSoundVariant::declaration();
-    PigVariant => PigVariantFile
+    @named PigVariant => PigVariantFile
         as (PigVariant, Vec<SpawnSelector>),
         PigVariantFile::split, PigVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
@@ -171,13 +187,13 @@ registry_table! {
         declared by PigVariantFile::declaration();
     @synced PigSoundVariant => PigSoundVariant,
         declared by PigSoundVariant::declaration();
-    FrogVariant => FrogVariantFile
+    @named FrogVariant => FrogVariantFile
         as (FrogVariant, Vec<SpawnSelector>),
         FrogVariantFile::split, FrogVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
         received as FrogVariant => bare,
         declared by FrogVariantFile::declaration();
-    CatVariant => CatVariantFile
+    @named CatVariant => CatVariantFile
         as (CatVariant, Vec<SpawnSelector>),
         CatVariantFile::split, CatVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
@@ -185,7 +201,7 @@ registry_table! {
         declared by CatVariantFile::declaration();
     @synced CatSoundVariant => CatSoundVariant,
         declared by CatSoundVariant::declaration();
-    CowVariant => CowVariantFile
+    @named CowVariant => CowVariantFile
         as (CowVariant, Vec<SpawnSelector>),
         CowVariantFile::split, CowVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
@@ -193,7 +209,7 @@ registry_table! {
         declared by CowVariantFile::declaration();
     @synced CowSoundVariant => CowSoundVariant,
         declared by CowSoundVariant::declaration();
-    ChickenVariant => ChickenVariantFile
+    @named ChickenVariant => ChickenVariantFile
         as (ChickenVariant, Vec<SpawnSelector>),
         ChickenVariantFile::split, ChickenVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
@@ -201,7 +217,7 @@ registry_table! {
         declared by ChickenVariantFile::declaration();
     @synced ChickenSoundVariant => ChickenSoundVariant,
         declared by ChickenSoundVariant::declaration();
-    ZombieNautilusVariant => ZombieNautilusVariantFile
+    @named ZombieNautilusVariant => ZombieNautilusVariantFile
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
