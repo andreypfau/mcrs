@@ -13,6 +13,13 @@ pub fn from_tag<'de, T: Deserialize<'de>>(tag: NbtTag) -> Result<T> {
     T::deserialize(tag)
 }
 
+/// Runs `read` with `tag` as its deserializer, read as binary NBT is, for a reader that takes a
+/// deserializer rather than a type.
+pub fn read_tag<T>(tag: NbtTag, read: impl FnOnce(NbtTag) -> T) -> T {
+    let _binary = crate::BinaryReadGuard::new();
+    read(tag)
+}
+
 impl<'de> IntoDeserializer<'de, Error> for NbtTag {
     type Deserializer = Self;
 

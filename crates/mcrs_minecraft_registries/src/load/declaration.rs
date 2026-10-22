@@ -14,8 +14,15 @@ use crate::pack::PackIndex;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
 
 pub(crate) enum Source<'f> {
-    File { path: &'f str, bytes: &'f [u8] },
-    BuiltIn { set: usize },
+    File {
+        path: &'f str,
+        bytes: &'f [u8],
+    },
+    BuiltIn {
+        set: usize,
+    },
+    /// An entry a server sent with its data.
+    Network(&'f NbtTag),
 }
 
 pub(crate) struct EntrySource<'f> {
@@ -82,6 +89,8 @@ pub(crate) trait ErasedData {
 type Validator<R> = Box<dyn Fn(&Registry<R>, &LoadCtx<'_>) -> Result<(), String> + Send + Sync>;
 type Project<R> =
     Box<dyn Fn(&<R as RegistryType>::Value, &Registries) -> Result<NbtTag, String> + Send + Sync>;
+type Receive<R> =
+    Box<dyn Fn(NbtTag, &LoadCtx<'_>) -> Result<<R as RegistryType>::Value, String> + Send + Sync>;
 type BuiltIn<R> = Box<
     dyn Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<<R as RegistryType>::Value, String>
         + Send
@@ -96,6 +105,7 @@ pub struct DataDeclaration<R: RegistryType> {
     built_in: Vec<BuiltInSet<R>>,
     aliases: Vec<TypeId>,
     synced: Option<Project<R>>,
+    received: Option<Receive<R>>,
 }
 
 struct BuiltInSet<R: RegistryType> {
@@ -150,6 +160,16 @@ where
         self
     }
 
+    /// Reads an entry a server sent in a network form that differs from its file form. Without
+    /// it, the network NBT is read as the file is.
+    pub fn received(
+        mut self,
+        read: impl Fn(NbtTag, &LoadCtx<'_>) -> Result<R::Value, String> + Send + Sync + 'static,
+    ) -> Self {
+        self.received = Some(Box::new(read));
+        self
+    }
+
     pub fn built_in(
         mut self,
         pack: &str,
@@ -179,6 +199,12 @@ where
                 Some(set) => (set.value)(name, ctx).map_err(|message| (None, message)),
                 None => Err((None, "no built-in value is declared".to_owned())),
             },
+            Source::Network(tag) => match &self.received {
+                Some(read) => read((*tag).clone(), ctx).map_err(|message| (None, message)),
+                None => mcrs_minecraft_nbt::read_tag((*tag).clone(), |tag| {
+                    R::Value::read(ctx, tag).map_err(|error| (None, error.to_string()))
+                }),
+            },
         }
     }
 }
@@ -200,6 +226,7 @@ impl Declaration {
             built_in: Vec::new(),
             aliases: Vec::new(),
             synced: None,
+            received: None,
         }
     }
 
@@ -290,7 +317,7 @@ where
                     pack: entry.pack,
                     file: match entry.source {
                         Source::File { path, .. } => Some(path.to_owned()),
-                        Source::BuiltIn { .. } => None,
+                        Source::BuiltIn { .. } | Source::Network(_) => None,
                     },
                     reported_as_unresolved: ctx.settle(before, true),
                     field,

@@ -3,6 +3,7 @@ mod declaration;
 mod index;
 mod loader;
 mod network;
+mod received;
 mod tag_build;
 mod view;
 
@@ -15,6 +16,7 @@ pub use ctx::{LoadCtx, ValueSeed};
 pub use declaration::{DataDeclaration, Declaration};
 pub use loader::{StageScope, load, load_with};
 pub use network::NetworkSnapshot;
+pub use received::{Received, load_received};
 pub use view::{RegistryView, StageView};
 
 use crate::pack::{KnownPack, PackStack, StackedPack};

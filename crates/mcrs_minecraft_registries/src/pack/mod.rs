@@ -97,6 +97,9 @@ pub struct KnownPack {
 pub struct PackIndex(u16);
 
 impl PackIndex {
+    /// The origin of an entry a server sent with its data: no pack of the stack.
+    pub(crate) const RECEIVED: PackIndex = PackIndex(u16::MAX);
+
     pub(crate) fn new(number: u16) -> Self {
         Self(number)
     }
@@ -142,7 +145,7 @@ impl StackedPack {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PackStack {
     packs: Vec<StackedPack>,
     enabled_features: Vec<ResourceLocation>,

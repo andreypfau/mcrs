@@ -1,0 +1,200 @@
+use std::any::TypeId;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
+
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::tag::NbtTag;
+
+use super::ctx::Slot;
+use super::declaration::{Declaration, EntrySource, Kind, Source};
+use super::loader::{
+    assemble, check_declarations, decode, empty_slots, fail, not_built, report_unresolved, too_many,
+};
+use super::view::StageView;
+use super::{Registries, Stage, StageScope};
+use crate::diagnostics::{Diagnostic, Diagnostics};
+use crate::pack::{PackIndex, PackStack};
+use crate::registry::Names;
+use crate::tags::TagTable;
+
+/// What a server sent of its registries during one configuration, with the data of every entry:
+/// an entry the server sent without data is filled in by the client before it is loaded.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Received {
+    /// Each synced registry's entries in the order sent, a registry sent in several packets
+    /// already joined.
+    pub registries: Vec<(ResourceLocation, Vec<(ResourceLocation, NbtTag)>)>,
+    /// The tags of each registry, as numbers of the entries the registry holds.
+    pub tags: Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>,
+}
+
+/// Builds the registries a client holds from what a server sent. A synced registry holds the
+/// entries sent, numbered in their order; every tag comes from the received tags, and every other
+/// data registry is empty. Declaration validators do not run: they check what a data pack load
+/// needs, such as the features a biome places, which a server never sends.
+pub fn load_received(
+    declarations: &[Declaration],
+    received: &Received,
+    scope: &mut StageScope<'_>,
+) -> Result<(Registries, Diagnostics), Diagnostics> {
+    let diagnostics = Diagnostics::default();
+    let errors = check_declarations(declarations);
+    if !errors.is_empty() {
+        return Err(fail(diagnostics, errors));
+    }
+    let mut slots = empty_slots(declarations);
+    let by_type: HashMap<TypeId, usize> = slots
+        .iter()
+        .enumerate()
+        .flat_map(|(at, slot)| {
+            let declaration = slot.declaration;
+            std::iter::once(declaration.registry_type())
+                .chain(declaration.aliases().iter().copied())
+                .map(move |registry_type| (registry_type, at))
+        })
+        .collect();
+
+    let (sources, mut errors) = name_slots(&mut slots, received);
+    if !errors.is_empty() {
+        return Err(fail(diagnostics, errors));
+    }
+
+    let stack = Arc::new(PackStack::default());
+    let view = StageView::new(Stage::Reloadable, &slots);
+    let mut pending = Some(sources);
+    scope(&view, &mut || {
+        let Some(sources) = pending.take() else {
+            return;
+        };
+        let missing = decode(
+            Some(Stage::Reloadable),
+            &mut slots,
+            &by_type,
+            sources,
+            &stack,
+            &mut errors,
+        );
+        let mut unresolved = BTreeMap::new();
+        for (at, missing) in missing {
+            unresolved.entry(at).or_insert_with(Vec::new).push(missing);
+        }
+        report_unresolved(unresolved, &slots, &mut errors);
+    });
+    if pending.is_some() {
+        errors.extend(slots.iter().map(|slot| not_built(slot.key())));
+    }
+    for slot in &slots {
+        if let (Kind::Data(data), Some(table)) = (slot.declaration.kind(), &slot.table)
+            && data.is_synced()
+            && data.must_not_be_empty()
+            && table.names.len() == 0
+        {
+            errors.push(Diagnostic::EmptyRegistry {
+                registry: slot.key().clone(),
+            });
+        }
+    }
+    if !errors.is_empty() {
+        return Err(fail(diagnostics, errors));
+    }
+    match assemble(slots, stack, None) {
+        Ok(registries) => Ok((registries, diagnostics)),
+        Err(errors) => Err(fail(diagnostics, errors)),
+    }
+}
+
+type Sources<'f> = Vec<(usize, Vec<EntrySource<'f>>)>;
+
+/// Names every slot: a static registry from its declaration, a synced one from the entries sent,
+/// and the tags of each from the received tags.
+fn name_slots<'f>(
+    slots: &mut [Slot<'_>],
+    received: &'f Received,
+) -> (Sources<'f>, Vec<Diagnostic>) {
+    let sent: HashMap<&ResourceLocation, &[(ResourceLocation, NbtTag)]> = received
+        .registries
+        .iter()
+        .map(|(key, entries)| (key, entries.as_slice()))
+        .collect();
+    let mut errors = Vec::new();
+    let mut sources = Vec::new();
+    for (at, slot) in slots.iter_mut().enumerate() {
+        let names = match slot.declaration.kind() {
+            Kind::Fixed(fixed) => Names::new(fixed.names().to_vec()).map(|names| {
+                let names = Arc::new(names);
+                slot.table = Some(fixed.assemble(Arc::clone(&names)));
+                names
+            }),
+            Kind::Data(data) => {
+                let entries = sent
+                    .get(slot.key())
+                    .filter(|_| data.is_synced())
+                    .copied()
+                    .unwrap_or_default();
+                let mut seen = HashSet::new();
+                let mut names = Vec::with_capacity(entries.len());
+                let mut entry_sources = Vec::with_capacity(entries.len());
+                for (name, tag) in entries {
+                    if !seen.insert(name) {
+                        errors.push(Diagnostic::Entry {
+                            registry: slot.key().clone(),
+                            entry: name.clone(),
+                            pack: None,
+                            file: None,
+                            field: None,
+                            message: "the entry is sent twice".to_owned(),
+                        });
+                        continue;
+                    }
+                    names.push(name.clone());
+                    entry_sources.push(EntrySource {
+                        pack: PackIndex::RECEIVED,
+                        source: Source::Network(tag),
+                    });
+                }
+                sources.push((at, entry_sources));
+                Names::new(names).map(Arc::new)
+            }
+        };
+        let names = match names {
+            Ok(names) => names,
+            Err(count) => {
+                errors.push(too_many(slot.key(), count));
+                continue;
+            }
+        };
+        match received_tags(slot.key(), &received.tags, names.len()) {
+            Ok(tags) => slot.tags = Some(Arc::new(tags)),
+            Err(count) => errors.push(Diagnostic::TooManyTags {
+                registry: slot.key().clone(),
+                count,
+            }),
+        }
+        slot.names = Some(names);
+    }
+    (sources, errors)
+}
+
+/// Members numbered outside the registry are dropped, as the game drops them.
+fn received_tags(
+    registry: &ResourceLocation,
+    received: &[(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)],
+    entries: usize,
+) -> Result<TagTable, usize> {
+    let tags = received
+        .iter()
+        .rfind(|(key, _)| key == registry)
+        .map(|(_, tags)| tags.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .map(|(name, members)| {
+            let members = members
+                .iter()
+                .filter_map(|&member| u16::try_from(member).ok())
+                .filter(|&member| usize::from(member) < entries)
+                .collect();
+            (name.clone(), Some(members))
+        })
+        .collect();
+    TagTable::new(entries, tags)
+}

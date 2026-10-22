@@ -1,7 +1,11 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Stage};
+use mcrs_minecraft_registries::{
+    Declaration, Diagnostic, Received, Registries, Stage, load_received,
+};
 
-use crate::support::{DamageType, Packs, damage, declarations_with, report_errors, rl};
+use crate::support::{
+    DamageType, Packs, damage, declarations_with, names, report_errors, rl, tag, value,
+};
 
 fn synced_damage() -> Vec<Declaration> {
     declarations_with(
@@ -47,4 +51,52 @@ fn only_synced_registries_have_registry_data() {
         ))
         .unwrap();
     assert_eq!(unsynced.network().registry_data(false).count(), 0);
+}
+
+fn compound(message_id: &str) -> NbtTag {
+    mcrs_minecraft_nbt::to_nbt_tag(&crate::support::Damage {
+        message_id: message_id.to_owned(),
+        exhaustion: 0.5,
+    })
+    .unwrap()
+}
+
+fn receive(received: &Received) -> Result<Registries, Vec<String>> {
+    load_received(&synced_damage(), received, &mut |_, decode| decode())
+        .map(|(registries, _)| registries)
+        .map_err(|report| report.iter().map(ToString::to_string).collect())
+}
+
+#[test]
+fn a_client_numbers_received_entries_in_the_order_sent() {
+    let received = Received {
+        registries: vec![(
+            rl("damage_type"),
+            vec![(rl("t:z"), compound("t:z")), (rl("t:a"), compound("t:a"))],
+        )],
+        tags: vec![(rl("damage_type"), vec![(rl("t:hot"), vec![1, 0, 9])])],
+    };
+    let registries = receive(&received).unwrap();
+    assert_eq!(names::<DamageType>(&registries), ["t:z", "t:a"]);
+    assert_eq!(value::<DamageType>(&registries, "t:a").message_id, "t:a");
+    assert_eq!(
+        tag::<DamageType>(&registries, "t:hot"),
+        Some(vec!["t:a".into(), "t:z".into()])
+    );
+}
+
+#[test]
+fn an_entry_sent_twice_fails_the_load() {
+    let received = Received {
+        registries: vec![(
+            rl("damage_type"),
+            vec![(rl("t:a"), compound("t:a")), (rl("t:a"), compound("t:a"))],
+        )],
+        tags: Vec::new(),
+    };
+    let errors = receive(&received).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.contains("sent twice")),
+        "{errors:?}"
+    );
 }

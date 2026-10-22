@@ -14,19 +14,19 @@ use crate::order::{entry_file_order, identifier_order};
 use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack, VANILLA};
 use crate::registry::Names;
 
-fn fail(mut diagnostics: Diagnostics, errors: Vec<Diagnostic>) -> Diagnostics {
+pub(super) fn fail(mut diagnostics: Diagnostics, errors: Vec<Diagnostic>) -> Diagnostics {
     diagnostics.push_report(errors);
     diagnostics
 }
 
-fn not_built(registry: &ResourceLocation) -> Diagnostic {
+pub(super) fn not_built(registry: &ResourceLocation) -> Diagnostic {
     Diagnostic::Declaration {
         registry: registry.clone(),
         message: "the registry was not built".to_owned(),
     }
 }
 
-fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic> {
+pub(super) fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     let mut keys = HashSet::new();
     let mut types = HashSet::new();
@@ -67,22 +67,22 @@ fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic> {
     errors
 }
 
-fn too_many(registry: &ResourceLocation, count: usize) -> Diagnostic {
+pub(super) fn too_many(registry: &ResourceLocation, count: usize) -> Diagnostic {
     Diagnostic::TooManyEntries {
         registry: registry.clone(),
         count,
     }
 }
 
-struct BuiltInPath<'d> {
-    pack: PackIndex,
+pub(super) struct BuiltInPath<'d> {
+    pub(super) pack: PackIndex,
     replaces_own_file: bool,
     set: usize,
-    name: &'d ResourceLocation,
-    relative: String,
+    pub(super) name: &'d ResourceLocation,
+    pub(super) relative: String,
 }
 
-fn entry_sources<'f>(
+pub(super) fn entry_sources<'f>(
     built_in: &[BuiltInPath<'_>],
     files: &mut SlotFiles<'f>,
     visibility: &index::Visibility<'_>,
@@ -111,9 +111,9 @@ fn entry_sources<'f>(
     entries.into_iter().unzip()
 }
 
-type BuiltInPaths<'d> = Vec<Vec<BuiltInPath<'d>>>;
+pub(super) type BuiltInPaths<'d> = Vec<Vec<BuiltInPath<'d>>>;
 
-fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
+pub(super) fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
     let mut slots: Vec<Slot<'_>> = declarations
         .iter()
         .map(|d| Slot {
@@ -131,7 +131,7 @@ fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
     slots
 }
 
-fn directories(slots: &[Slot<'_>]) -> Directories {
+pub(super) fn directories(slots: &[Slot<'_>]) -> Directories {
     let mut directories = Directories::default();
     for (at, slot) in slots.iter().enumerate() {
         let has_entries = matches!(slot.declaration.kind(), Kind::Data(_));
@@ -140,7 +140,7 @@ fn directories(slots: &[Slot<'_>]) -> Directories {
     directories
 }
 
-fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> BuiltInPaths<'d> {
+pub(super) fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> BuiltInPaths<'d> {
     slots
         .iter()
         .map(|slot| {
@@ -264,7 +264,7 @@ fn build_tags(
     unresolved
 }
 
-fn decode(
+pub(super) fn decode(
     stage: Option<Stage>,
     slots: &mut [Slot<'_>],
     by_type: &HashMap<TypeId, usize>,
@@ -335,7 +335,7 @@ fn validate(
     errors
 }
 
-fn assemble(
+pub(super) fn assemble(
     slots: Vec<Slot<'_>>,
     stack: Arc<PackStack>,
     previous: Option<&Registries>,
@@ -375,7 +375,7 @@ fn assemble(
     })
 }
 
-fn report_unresolved(
+pub(super) fn report_unresolved(
     unresolved: BTreeMap<usize, Vec<Missing>>,
     slots: &[Slot<'_>],
     errors: &mut Vec<Diagnostic>,
