@@ -92,7 +92,6 @@ fn the_network_column_rebuilds_every_synced_registry() {
         water_colour(server, "minecraft:plains")
     );
     assert!(water_colour(&client, "minecraft:plains").is_some());
-    assert!(client.column::<BiomeGenerationSettings>(BIOME).is_none());
 }
 
 #[test]

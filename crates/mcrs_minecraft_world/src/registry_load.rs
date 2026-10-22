@@ -1,12 +1,15 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::Decode;
+use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
 use mcrs_minecraft_registries::{
     AvailablePack, Diagnostic, Diagnostics, Features, Level, PackFiles, PackSelection, PackStack,
-    Registries, StackedPack, Stage, load_with, pack_stack,
+    Received, Registries, StackedPack, Stage, load_with, pack_stack,
 };
 use mcrs_minecraft_registry::{
     AssemblyError, LoadReport, PACKS_ROOT, RegistrySet, VANILLA_ROOT, WorldRegistries,
@@ -414,6 +417,116 @@ fn load_stack(
         stage.get(),
         &world_tables,
         &reloadable_tables,
+        false,
+    )?;
+    Ok(LoadedRegistries {
+        set,
+        registries: Arc::new(registries),
+        diagnostics,
+    })
+}
+
+/// The network form of every synced entry of a load: what a server that holds the same pack
+/// would send. A client fills an entry the server sent without data from it.
+pub struct KnownEntries(HashMap<(ResourceLocation, ResourceLocation), NbtTag>);
+
+impl KnownEntries {
+    pub fn of(registries: &Registries) -> Result<Self, RegistryLoadError> {
+        let mut entries = HashMap::new();
+        for body in registries.network().registry_data(false) {
+            let packet = ClientboundRegistryData::decode(&mut &body[..])
+                .map_err(|error| RegistryLoadError::Declarations(error.to_string()))?;
+            let registry: ResourceLocation = packet.registry.into();
+            for entry in packet.entries {
+                if let Some(data) = entry.data {
+                    entries.insert((registry.clone(), entry.id.into()), data.into_owned());
+                }
+            }
+        }
+        Ok(Self(entries))
+    }
+}
+
+/// What a client collected of a server's registries in one configuration: each synced
+/// registry's entries in the order sent, data absent where the server left it out, and the tags.
+pub type Collected = (
+    Vec<(ResourceLocation, Vec<(ResourceLocation, Option<NbtTag>)>)>,
+    Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>,
+);
+
+/// The registries a client holds after a server's configuration. An entry sent without data is
+/// filled from `known`; without `known`, every entry must carry its data.
+pub fn load_received(
+    report: &[u8],
+    known: Option<&KnownEntries>,
+    (registries, tags): Collected,
+) -> Result<LoadedRegistries, RegistryLoadError> {
+    let mut missing = Vec::new();
+    let registries = registries
+        .into_iter()
+        .map(|(registry, entries)| {
+            let entries = entries
+                .into_iter()
+                .filter_map(|(name, data)| {
+                    let data = data.or_else(|| {
+                        known.and_then(|known| {
+                            known.0.get(&(registry.clone(), name.clone())).cloned()
+                        })
+                    });
+                    if data.is_none() {
+                        missing.push(Diagnostic::Entry {
+                            registry: registry.clone(),
+                            entry: name.clone(),
+                            pack: None,
+                            file: None,
+                            field: None,
+                            message: "the entry is sent without data and no local pack holds it"
+                                .to_owned(),
+                        });
+                    }
+                    Some((name, data?))
+                })
+                .collect();
+            (registry, entries)
+        })
+        .collect();
+    if !missing.is_empty() {
+        let mut report = Diagnostics::default();
+        report.extend(missing);
+        return Err(RegistryLoadError::Load(report));
+    }
+    let received = Received { registries, tags };
+
+    let statics = static_registries().map_err(RegistryLoadError::Report)?;
+    let world_tables = world_registries(report).map_err(RegistryLoadError::Report)?;
+    let reloadable_tables = reloadable_registries(report).map_err(RegistryLoadError::Report)?;
+    let stage = StageSet::new(statics);
+    let plan = declarations::plan(&world_tables, &reloadable_tables, &stage)
+        .map_err(RegistryLoadError::Declarations)?;
+    let mut failure = None;
+    let outcome = mcrs_minecraft_registries::load_received(
+        &plan.declarations,
+        &received,
+        &mut |view, decode| match stage.grow(view) {
+            Ok(set) => set.scope(&mut *decode),
+            Err(error) => {
+                failure.get_or_insert(error);
+            }
+        },
+    );
+    if let Some(error) = failure {
+        return Err(error.into());
+    }
+    let (registries, diagnostics) = outcome.map_err(RegistryLoadError::Load)?;
+    let stack = PackStack::default();
+    let set = assemble(
+        &plan,
+        &registries,
+        &stack,
+        stage.get(),
+        &world_tables,
+        &reloadable_tables,
+        true,
     )?;
     Ok(LoadedRegistries {
         set,
@@ -429,6 +542,7 @@ fn assemble(
     mut set: RegistrySet,
     world_tables: &WorldRegistries,
     reloadable_tables: &WorldRegistries,
+    received: bool,
 ) -> Result<RegistrySet, RegistryLoadError> {
     let mut origins = Vec::new();
     for planned in &plan.registries {
@@ -440,10 +554,16 @@ fn assemble(
         if let Some(attach) = planned.attach {
             set = attach(registries, table, set, key)?;
         }
-        let of = (planned.origins)(registries, stack).ok_or_else(|| {
-            RegistryLoadError::Declarations(format!("{key} has an entry of no stacked pack"))
-        })?;
-        origins.push((key.to_owned(), of.into_boxed_slice()));
+        match (planned.origins)(registries, stack) {
+            Some(of) => origins.push((key.to_owned(), of.into_boxed_slice())),
+            // An entry a server sent with its data comes from no pack of the client's stack.
+            None if received => {}
+            None => {
+                return Err(RegistryLoadError::Declarations(format!(
+                    "{key} has an entry of no stacked pack"
+                )));
+            }
+        }
     }
     let packs: Vec<String> = stack
         .packs()

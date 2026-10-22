@@ -104,8 +104,9 @@ macro_rules! registry_table {
                     declaration: $value;
                     mode [$($mode)?];
                     split [$($split)?];
-                    parts [$($($part_project)?)?];
-                    value [$($project)?]
+                    join [$($join)?];
+                    parts [$($($part_project, $part_net, $part_receive)?)?];
+                    value [$($project, $net, $receive)?]
                 );
                 planner.add(declaration)?
             }),*])
@@ -115,17 +116,32 @@ macro_rules! registry_table {
 
 /// What a synced row sends of an entry: the named form, or the network type its row projects.
 macro_rules! network_row {
-    ($declaration:ident: $value:ty; mode [synced]; split [$($split:tt)*]; parts []; value []) => {
+    ($declaration:ident: $value:ty; mode [synced]; split [$($split:tt)*]; join [$($join:tt)*];
+        parts []; value []) => {
         $declaration.synced(|value, registries| named_tag(value, registries))
     };
-    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$split:expr]; parts [$project:expr]; value []) => {
-        $declaration.synced(|value, _| nbt_tag(&project_parts(&$split(value), $project)))
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$split:expr]; join [$join:expr];
+        parts [$project:expr, $net:ty, $receive:expr]; value []) => {
+        $declaration
+            .synced(|value, _| nbt_tag(&project_parts(&$split(value), $project)))
+            .received(|tag, _| {
+                let net: $net = from_tag(tag)?;
+                Ok($join(Parts::as_refs(&$receive(net))))
+            })
     };
-    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split []; parts []; value [$project:expr]) => {{
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split []; join [];
+        parts []; value [$project:expr, $net:ty, $receive:expr]) => {{
         let project: fn(&$value) -> _ = $project;
-        $declaration.synced(move |value, _| nbt_tag(&project(value)))
+        $declaration
+            .synced(move |value, _| nbt_tag(&project(value)))
+            .received(|tag, _| {
+                let net: $net = from_tag(tag)?;
+                let (value,) = $receive(net);
+                Ok(value)
+            })
     }};
-    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$($split:tt)*]; parts []; value []) => {
+    ($declaration:ident: $value:ty; mode [$($mode:ident)?]; split [$($split:tt)*]; join [$($join:tt)*];
+        parts []; value []) => {
         $declaration
     };
 }
@@ -139,6 +155,10 @@ fn named_tag<T: Resolve<Named: Serialize>>(
 
 fn project_parts<P: Parts, N>(parts: &P, project: impl for<'a> FnOnce(P::Refs<'a>) -> N) -> N {
     project(parts.as_refs())
+}
+
+fn from_tag<T: serde::de::DeserializeOwned>(tag: NbtTag) -> Result<T, String> {
+    mcrs_minecraft_nbt::from_tag(tag).map_err(|error| error.to_string())
 }
 
 fn nbt_tag<T: Serialize>(value: &T) -> Result<NbtTag, String> {
@@ -202,7 +222,7 @@ registry_table! {
         as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join,
         synced from parts as |parts| NetworkBiome::from(parts),
-        received as NetworkBiome => NetworkBiome::into_parts,
+        received as NetworkBiome => NetworkBiome::into_client_parts,
         declared by BiomeFile::declaration(scope.clone()), built in built_biomes;
     Feature => Feature, declared by Feature::declaration();
     PlacedFeature => PlacedFeature, declared by PlacedFeature::declaration();
@@ -228,7 +248,7 @@ registry_table! {
         as (WolfVariant, Vec<SpawnSelector>),
         WolfVariantFile::split, WolfVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as WolfVariant => bare,
+        received as WolfVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by WolfVariantFile::declaration();
     @synced WolfSoundVariant => WolfSoundVariant,
         declared by WolfSoundVariant::declaration();
@@ -236,7 +256,7 @@ registry_table! {
         as (PigVariant, Vec<SpawnSelector>),
         PigVariantFile::split, PigVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as PigVariant => bare,
+        received as PigVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by PigVariantFile::declaration();
     @synced PigSoundVariant => PigSoundVariant,
         declared by PigSoundVariant::declaration();
@@ -244,13 +264,13 @@ registry_table! {
         as (FrogVariant, Vec<SpawnSelector>),
         FrogVariantFile::split, FrogVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as FrogVariant => bare,
+        received as FrogVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by FrogVariantFile::declaration();
     @named CatVariant => CatVariantFile
         as (CatVariant, Vec<SpawnSelector>),
         CatVariantFile::split, CatVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as CatVariant => bare,
+        received as CatVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by CatVariantFile::declaration();
     @synced CatSoundVariant => CatSoundVariant,
         declared by CatSoundVariant::declaration();
@@ -258,7 +278,7 @@ registry_table! {
         as (CowVariant, Vec<SpawnSelector>),
         CowVariantFile::split, CowVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as CowVariant => bare,
+        received as CowVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by CowVariantFile::declaration();
     @synced CowSoundVariant => CowSoundVariant,
         declared by CowSoundVariant::declaration();
@@ -266,7 +286,7 @@ registry_table! {
         as (ChickenVariant, Vec<SpawnSelector>),
         ChickenVariantFile::split, ChickenVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as ChickenVariant => bare,
+        received as ChickenVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by ChickenVariantFile::declaration();
     @synced ChickenSoundVariant => ChickenSoundVariant,
         declared by ChickenSoundVariant::declaration();
@@ -274,7 +294,7 @@ registry_table! {
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
         synced from parts as |(variant, _)| variant.clone(),
-        received as ZombieNautilusVariant => bare,
+        received as ZombieNautilusVariant => |variant| (variant, Vec::<SpawnSelector>::new()),
         declared by ZombieNautilusVariantFile::declaration();
     @synced mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue,
         declared by PaintingVariantValue::declaration().named_by::<PaintingVariantValue>();
@@ -284,7 +304,7 @@ registry_table! {
         as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
         synced from parts as |parts| DimensionTypeFile::join(parts).synced(),
-        received as DimensionTypeFile => |file| file.split(),
+        received as DimensionTypeFile => |file: DimensionTypeFile| file.split(),
         declared by DimensionTypeFile::declaration();
     mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone, received as DamageType => bare,
         declared by DamageType::declaration();

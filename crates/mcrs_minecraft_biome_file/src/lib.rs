@@ -67,6 +67,17 @@ pub struct NetworkBiome {
 
 impl NetworkBiome {
     /// The columns a client keeps of a biome: it has no generation settings.
+    /// The parts a client holds of a biome: the generation settings the network leaves out are
+    /// empty.
+    pub fn into_client_parts(self) -> (Biome, EnvironmentAttributeMap, BiomeGenerationSettings) {
+        let (biome, attributes) = self.into_parts();
+        let generation = BiomeGenerationSettings {
+            carvers: HolderSet::default(),
+            features: Vec::new(),
+        };
+        (biome, attributes, generation)
+    }
+
     pub fn into_parts(self) -> (Biome, EnvironmentAttributeMap) {
         let biome = Biome {
             temperature: self.temperature,
