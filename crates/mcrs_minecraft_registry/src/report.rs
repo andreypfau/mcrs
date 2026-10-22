@@ -44,34 +44,6 @@ impl LoadReport {
         }
     }
 
-    pub(crate) fn entry(
-        &mut self,
-        registry: &ResourceLocation<Arc<str>>,
-        entry: &str,
-        file: &str,
-        message: impl fmt::Display,
-    ) {
-        self.record(registry, Some(entry), Some(file), message.to_string());
-    }
-
-    pub(crate) fn unfiled(
-        &mut self,
-        registry: &ResourceLocation<Arc<str>>,
-        entry: Option<&str>,
-        message: String,
-    ) {
-        self.record(registry, entry, None, message);
-    }
-
-    pub(crate) fn whole_registry(
-        &mut self,
-        registry: &ResourceLocation<Arc<str>>,
-        directory: &str,
-        message: impl fmt::Display,
-    ) {
-        self.record(registry, None, Some(directory), message.to_string());
-    }
-
     pub fn require<R, S: AsRef<str>>(
         &mut self,
         registry: &Registry<R>,

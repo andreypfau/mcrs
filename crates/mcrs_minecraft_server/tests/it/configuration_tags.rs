@@ -158,12 +158,9 @@ fn the_server_sends_tag_members_in_tag_order() {
 
 #[test]
 fn the_tags_packet_follows_the_static_registry_order() {
-    let set = test_registries();
     let packet = sent_update_tags(test_registries_arc());
-    let synced: Vec<&str> = set
-        .synced()
-        .map(|(table, _)| table.registry().as_str())
-        .collect();
+    let data = crate::configuration_registries::sent(test_registries_arc(), false);
+    let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
     let statics_sent: Vec<&str> = packet
         .registries
         .iter()
@@ -216,10 +213,8 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
         "a registry is sent twice: {sent:?}"
     );
 
-    let synced: Vec<&str> = set
-        .synced()
-        .map(|(table, _)| table.registry().as_str())
-        .collect();
+    let data = crate::configuration_registries::sent(test_registries_arc(), false);
+    let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
     let has_tags = |registry: &str| {
         set.tag_table(registry)
             .is_some_and(|table| !table.is_empty())

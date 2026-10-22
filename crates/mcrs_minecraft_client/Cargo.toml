@@ -19,6 +19,7 @@ mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }

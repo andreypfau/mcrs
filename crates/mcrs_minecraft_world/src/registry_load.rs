@@ -570,8 +570,7 @@ fn assemble(
         .iter()
         .map(|pack| pack.id().to_owned())
         .collect();
-    let set = set.with_origins(packs, origins)?;
-    world_tables.sync(set).map_err(RegistryLoadError::Report)
+    Ok(set.with_origins(packs, origins)?)
 }
 
 /// The repository's assets over the pinned client jar's data pack, which must be installed.
@@ -595,6 +594,42 @@ pub fn test_registries() -> &'static RegistrySet {
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_registries_arc() -> &'static Arc<Registries> {
     &TEST_REGISTRIES.registries
+}
+
+/// What a client collects from the payloads `registries` encoded; entries of the vanilla pack go
+/// without data when the client is `known` to hold it.
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn sent_by(registries: &Registries, known: bool) -> Collected {
+    use mcrs_minecraft_protocol::packets::configuration::ClientboundUpdateTags;
+
+    let network = registries.network();
+    let registries = network
+        .registry_data(known)
+        .map(|body| {
+            let packet = ClientboundRegistryData::decode(&mut &body[..])
+                .expect("the load encodes registry data it can read");
+            let entries = packet
+                .entries
+                .into_iter()
+                .map(|entry| (entry.id.into(), entry.data.map(|data| data.into_owned())))
+                .collect();
+            (packet.registry.into(), entries)
+        })
+        .collect();
+    let tags = ClientboundUpdateTags::decode(&mut network.tags())
+        .expect("the load encodes tags it can read")
+        .registries
+        .into_iter()
+        .map(|registry| {
+            let tags = registry
+                .tags
+                .into_iter()
+                .map(|tag| (tag.name.into(), tag.entries.iter().map(|id| id.0).collect()))
+                .collect();
+            (registry.registry.into(), tags)
+        })
+        .collect();
+    (registries, tags)
 }
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.

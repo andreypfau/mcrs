@@ -17,12 +17,15 @@ use bevy::window::{
     WindowPosition, WindowResolution,
 };
 use bevy::winit::{UpdateMode, WinitSettings};
+use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_core::Id;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::registry_load::DirectoryPacks;
 #[cfg(not(target_family = "wasm"))]
@@ -219,7 +222,7 @@ fn main() -> AppExit {
         Update,
         (log_registry_counts, log_seeded_resources)
             .after(apply_saved_clocks)
-            .run_if(resource_exists_and_changed::<RegistrySet>),
+            .run_if(resource_exists_and_changed::<CurrentRegistries>),
     )
     .add_systems(
         PostStartup,
@@ -275,9 +278,9 @@ fn main() -> AppExit {
     app.insert_resource(SavedClocks(saved_clocks))
         .add_systems(
             Update,
-            apply_saved_clocks
-                .after(SessionSet::Derive)
-                .run_if(resource_exists::<SavedClocks>.and_then(resource_exists::<RegistrySet>)),
+            apply_saved_clocks.after(SessionSet::Derive).run_if(
+                resource_exists::<SavedClocks>.and_then(resource_exists::<CurrentRegistries>),
+            ),
         )
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
@@ -491,13 +494,16 @@ struct SavedClocks(save::WorldClockStates);
 
 fn apply_saved_clocks(
     saved: Res<SavedClocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     mut clocks: ResMut<WorldClocks>,
     mut commands: Commands,
 ) {
-    if let Some(registry) = registries.registry::<WorldClock>() {
+    if let Some(registry) = registries.registry::<RegistryOf<WorldClock>>() {
         for (name, state) in &saved.0 {
-            match registry.by_name(name.as_str()) {
+            match registry
+                .by_name(name)
+                .and_then(|id| Id::checked(id.number(), registry.len()))
+            {
                 Some(id) => clocks.insert(id, *state),
                 None => {
                     warn!(clock = %name, "discarding saved clock state with no world_clock registry entry")
@@ -508,15 +514,15 @@ fn apply_saved_clocks(
     commands.remove_resource::<SavedClocks>();
 }
 
-fn log_registry_counts(registries: Res<RegistrySet>) {
-    fn count<R: 'static>(registries: &RegistrySet) -> usize {
+fn log_registry_counts(registries: Res<CurrentRegistries>) {
+    fn count<V: Send + Sync + 'static>(registries: &CurrentRegistries) -> usize {
         registries
-            .registry::<R>()
+            .registry::<RegistryOf<V>>()
             .map_or(0, |registry| registry.len())
     }
     info!(
-        dimension_types = count::<mcrs_minecraft_dimension::DimensionType>(&registries),
-        biomes = count::<mcrs_minecraft_biome::Biome>(&registries),
+        dimension_types = count::<DimensionTypeFile>(&registries),
+        biomes = count::<BiomeFile>(&registries),
         timelines = count::<mcrs_minecraft_environment::timeline::Timeline>(&registries),
         world_clocks = count::<WorldClock>(&registries),
         "registry assets loaded"
@@ -539,16 +545,18 @@ fn log_spawned_transforms(
 
 fn log_seeded_resources(
     clocks: Res<WorldClocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     advance_time: Res<AdvanceTime>,
     weather: Res<Weather>,
 ) {
-    let names = registries.registry::<WorldClock>();
+    let names = registries.registry::<RegistryOf<WorldClock>>();
     info!(
         clocks = ?clocks
             .iter()
             .map(|(id, state)| {
-                let name = names.as_ref().and_then(|names| names.name(id));
+                let name = names.and_then(|names| {
+                    names.name(Id::checked(id.number(), names.len())?)
+                });
                 (name.map(ToString::to_string), state.total_ticks)
             })
             .collect::<Vec<_>>(),

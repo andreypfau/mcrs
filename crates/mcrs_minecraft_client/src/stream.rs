@@ -12,7 +12,7 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
 #[cfg(feature = "dev")]
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::atlas::SpriteArray;
 use crate::blocks::{self, BiomeTints, Catalog};
@@ -82,7 +82,7 @@ impl Plugin for StreamPlugin {
                     .in_set(SessionSet::Derive)
                     .after(bake_catalog)
                     .before(tint_columns)
-                    .run_if(resource_exists::<RegistrySet>),
+                    .run_if(resource_exists::<CurrentRegistries>),
             )
             .add_systems(
                 Update,
@@ -1397,7 +1397,7 @@ fn bake_catalog(
 /// The tint table follows the session's biomes: it is rebuilt whole when the set is replaced,
 /// and built from the first set once the pack is in, since the colormaps are read from it.
 fn derive_biome_tints(
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     catalog: Res<BlockCatalog>,
     mut due: Local<bool>,
     mut commands: Commands,
@@ -1567,27 +1567,25 @@ fn admit_meshing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_biome_file::BiomeFile;
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
-    use mcrs_minecraft_network::client::SessionRegistryInputs;
-    use mcrs_minecraft_registry::NetworkRegistry;
-    use mcrs_minecraft_world::registries::{
-        registries_as_sent_to_a_client_that_knows_vanilla, tags_as_sent,
-    };
-    use mcrs_minecraft_world::registry_load::{test_packs, test_registries};
+    use mcrs_minecraft_network::client::ServerRegistries;
+    use mcrs_minecraft_registries::RegistryOf;
+    use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_registries_arc};
 
-    static INPUTS: std::sync::LazyLock<SessionRegistryInputs> =
-        std::sync::LazyLock::new(|| crate::registries::session_inputs(Some(&test_packs())));
-
-    fn session(edit: impl FnOnce(&mut Vec<NetworkRegistry>)) -> RegistrySet {
-        let server = test_registries();
-        let mut sent = registries_as_sent_to_a_client_that_knows_vanilla(server);
+    fn session(edit: impl FnOnce(&mut Collected)) -> CurrentRegistries {
+        let mut sent = sent_by(test_registries_arc(), false);
         edit(&mut sent);
-        let tags = tags_as_sent(&INPUTS.statics, server);
-        INPUTS
-            .declarations
-            .from_network(&INPUTS.statics, sent, &tags, INPUTS.known.as_ref())
-            .unwrap_or_else(|report| panic!("{report}"))
+        let (registries, tags) = sent;
+        let received = ServerRegistries {
+            registries,
+            tags,
+            vanilla_known: false,
+        };
+        let loaded = crate::registries::load_registries(&received, None)
+            .unwrap_or_else(|error| panic!("{error}"));
+        CurrentRegistries::new(loaded.registries)
     }
 
     mod jar {
@@ -1599,7 +1597,7 @@ mod tests {
             app.insert_resource(BlockCatalog::new());
             app.add_systems(
                 Update,
-                derive_biome_tints.run_if(resource_exists::<RegistrySet>),
+                derive_biome_tints.run_if(resource_exists::<CurrentRegistries>),
             );
             app.update();
             assert!(app.world().get_resource::<BiomeTints>().is_none());
@@ -1616,14 +1614,19 @@ mod tests {
                 PackLoad::Ready(Pack::shared_corpus());
             app.update();
             let tints = app.world().resource::<BiomeTints>().clone();
-            let biomes = |set: &RegistrySet| set.registry::<mcrs_minecraft_biome::Biome>().unwrap();
+            fn biomes(
+                set: &CurrentRegistries,
+            ) -> &mcrs_minecraft_registries::Registry<RegistryOf<BiomeFile>> {
+                set.registry::<RegistryOf<BiomeFile>>().unwrap()
+            }
             assert_eq!(tints.len(), biomes(&first).len());
 
-            let second = session(|sent| {
-                sent.iter_mut()
-                    .find(|sent| sent.registry.as_str() == "minecraft:worldgen/biome")
+            let second = session(|(registries, _)| {
+                registries
+                    .iter_mut()
+                    .find(|(sent, _)| sent.as_str() == "minecraft:worldgen/biome")
                     .expect("a server syncs its biomes")
-                    .entries
+                    .1
                     .reverse();
             });
             app.insert_resource(second.clone());
@@ -1631,7 +1634,13 @@ mod tests {
             let replaced = app.world().resource::<BiomeTints>();
             assert_eq!(replaced.len(), biomes(&second).len());
 
-            let swamp = |set: &RegistrySet| biomes(set).require_by_name("minecraft:swamp").unwrap();
+            let swamp = |set: &CurrentRegistries| {
+                biomes(set)
+                    .by_name(
+                        &mcrs_minecraft_core::ResourceLocation::read("minecraft:swamp").unwrap(),
+                    )
+                    .unwrap()
+            };
             assert_ne!(swamp(&first), swamp(&second), "the swamp is numbered anew");
             assert_eq!(
                 replaced[swamp(&second).index()],

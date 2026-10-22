@@ -10,7 +10,6 @@ mod common;
 mod data_pack_stack;
 mod dimension_list;
 mod dimension_router_set;
-mod from_network;
 mod item_corpus;
 mod loaded_registries;
 mod player_dat;

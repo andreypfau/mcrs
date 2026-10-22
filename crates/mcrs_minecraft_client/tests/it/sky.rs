@@ -9,8 +9,9 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_render::sky::SkyUniform;
 
-use crate::boot::{boot, session_registries};
+use crate::boot::{boot, receive_registries, received_id};
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 
 fn sky(app: &App) -> Option<(SkyUniform, String)> {
     let environment = app.world().get_resource::<SkyEnvironment>()?;
@@ -36,29 +37,23 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
             .insert_resource(Weather::default());
     });
 
-    let session = session_registries(&app, |_| {});
-    let types = session
-        .registry::<DimensionType>()
-        .expect("the dimension type registry is received");
+    let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
+    receive_registries(&mut app, connection, |_| {});
+    let id = |name| received_id::<DimensionTypeFile, DimensionType>(&app, name);
     let (overworld, nether, beta) = (
-        types.require_by_name("minecraft:overworld").unwrap(),
-        types.require_by_name("minecraft:the_nether").unwrap(),
-        types.require_by_name("minecraft:beta").unwrap(),
+        id("minecraft:overworld"),
+        id("minecraft:the_nether"),
+        id("minecraft:beta"),
     );
 
-    app.insert_resource(session);
     app.world_mut()
         .spawn((PlayerCamera, GlobalTransform::from_xyz(0.0, 80.0, 0.0)));
-    let connection = app
-        .world_mut()
-        .spawn((
-            ConnectionState::Game,
-            CurrentDimension {
-                key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-                dimension_type: nether,
-            },
-        ))
-        .id();
+    app.world_mut()
+        .entity_mut(connection)
+        .insert(CurrentDimension {
+            key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension_type: nether,
+        });
     app.update();
     let overworld_named_nether_typed = sky(&app).expect("the login's type resolves to a sky");
 

@@ -1,31 +1,45 @@
-use bevy_app::App;
+use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::io::AssetSourceId;
+use bevy_asset::{AssetApp, AssetPlugin};
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_client::player::Player;
-use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
+use mcrs_minecraft_core::Id;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, CurrentDimension, JoinedGame, PendingTeleports,
-    SessionRegistryInputs,
 };
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// A column cannot be decoded without the number of block states: it fixes the
-/// width a section's states are packed at once the section drops its palette.
-pub fn insert_block_catalog(client: &mut App) {
-    client.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
-}
-
-/// What the client reads the server's registries with once configuration ends, the vanilla
-/// pack's entries included, as the client's registry plugin holds them.
-pub fn insert_session_inputs(client: &mut App) {
-    client.insert_resource(mcrs_minecraft_client::registries::session_inputs(Some(
-        &mcrs_minecraft_world::registry_load::test_packs(),
-    )));
+/// The client's registry plugin over the repository's assets. It loads the block states a column
+/// is decoded with, reads the server's registries at the end of configuration and holds the
+/// vanilla pack to fill the entries the server leaves out.
+pub fn add_client_registries(client: &mut App) {
+    let assets = concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_owned();
+    client
+        .add_plugins(TaskPoolPlugin::default())
+        .register_asset_source(
+            AssetSourceId::Default,
+            mcrs_minecraft_client::asset_source(&mcrs_minecraft_assets::packs::PackRoots {
+                assets: assets.clone(),
+                vanilla: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+            }),
+        )
+        .add_plugins(AssetPlugin {
+            file_path: assets,
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        })
+        .add_plugins(ClientRegistriesPlugin {
+            local_corpus: Some(mcrs_minecraft_world::registry_load::test_packs()),
+        });
 }
 
 pub fn insert_player(client: &mut App) {
@@ -74,56 +88,45 @@ pub fn drive_client_until_joined(client: &mut App) -> Option<bevy_ecs::entity::E
 
 pub fn assert_session_registries(client: &App, connection: Entity) {
     let world = client.world();
-    let session = world.resource::<RegistrySet>();
-    let inputs = world.resource::<SessionRegistryInputs>();
+    let registries = world.resource::<CurrentRegistries>();
 
-    let declared: Vec<&str> = inputs
-        .declarations
-        .synced()
-        .map(|registry| registry.as_str())
-        .collect();
-    assert!(
-        !declared.is_empty(),
-        "the client declares no synced registry"
-    );
-    for registry in declared {
-        assert!(
-            session.table(registry).is_some(),
-            "the session holds no {registry}"
-        );
-    }
-
-    let biomes = session
-        .registry::<Biome>()
+    let biomes = registries
+        .registry::<RegistryOf<BiomeFile>>()
         .expect("the session holds the biome registry");
-    let biome_values = session
-        .entries::<Biome, Biome>()
-        .expect("the session holds the biome values");
     assert!(!biomes.is_empty(), "the biome registry arrived empty");
-    assert_eq!(biome_values.as_slice().len(), biomes.len());
     assert!(
-        biome_values
-            .as_slice()
+        biomes
+            .values()
             .iter()
             .any(|biome| biome.effects.water_color.is_some()),
         "no biome carries a water colour"
     );
-
-    for registry in ["minecraft:block", "minecraft:worldgen/biome"] {
-        let tags = session
-            .tag_table(registry)
-            .unwrap_or_else(|| panic!("the session holds no tags of {registry}"));
-        assert!(!tags.is_empty(), "the tags of {registry} arrived empty");
+    for (registry, tagged) in [
+        (
+            "minecraft:block",
+            registries.tags::<Block>().map(|tags| tags.iter().count()),
+        ),
+        (
+            "minecraft:worldgen/biome",
+            registries
+                .tags::<RegistryOf<BiomeFile>>()
+                .map(|tags| tags.iter().count()),
+        ),
+    ] {
+        assert!(
+            tagged.is_some_and(|count| count > 0),
+            "the tags of {registry} arrived empty"
+        );
     }
 
     let current = world
         .get::<CurrentDimension>(connection)
         .expect("the login named the dimension the player is in");
-    let dimension_types = session
-        .entries::<DimensionType, DimensionType>()
-        .expect("the session holds the dimension type values");
-    let dimension_type = dimension_types
-        .get(current.dimension_type)
+    let dimension_types = registries
+        .registry::<RegistryOf<DimensionTypeFile>>()
+        .expect("the session holds the dimension types");
+    let dimension_type = Id::checked(current.dimension_type.number(), dimension_types.len())
+        .and_then(|id| dimension_types.get(id))
         .expect("the login names a dimension type of the session");
     let extent = world
         .resource::<ColumnStore>()

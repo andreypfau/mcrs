@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use bevy_app::App;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 use crate::common::{declared_registries, loaded_names};
 
@@ -21,21 +22,16 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     let world_registries = declared_registries(false);
 
     let mut snapshots = 0;
-    for (table, column) in set
-        .synced()
-        .filter(|(table, _)| world_registries.contains(table.registry().as_str()))
+    for (registry, entries) in sent_by(app.world().resource::<CurrentRegistries>(), false)
+        .0
+        .into_iter()
+        .filter(|(registry, _)| world_registries.contains(registry.as_str()))
     {
-        let registry = table.registry().as_str();
+        let registry = registry.as_str();
         assert_eq!(
-            column.len(),
-            table.len(),
-            "{registry}: the synced column does not hold one entry per name"
-        );
-        assert_eq!(
-            table
-                .names()
+            entries
                 .iter()
-                .map(ToString::to_string)
+                .map(|(name, _)| name.to_string())
                 .collect::<Vec<_>>(),
             loaded_names(set, registry),
             "{registry}: the synced registry numbers the entries differently from the loader"

@@ -49,10 +49,6 @@ impl TagTable {
         &self.members[tag]
     }
 
-    pub(crate) fn number(&self, tag: &str) -> Option<usize> {
-        self.numbers.get(tag).map(|&number| usize::from(number))
-    }
-
     #[doc(hidden)]
     pub fn numbered<T, M>(names: &NameTable, tags: T) -> Result<TagTable, AssemblyError>
     where

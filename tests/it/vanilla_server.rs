@@ -2,12 +2,11 @@ use bevy_app::App;
 use mcrs_minecraft_client::columns::{ColumnCachePlugin, ColumnStore};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinedGame, PendingTeleports};
-use mcrs_minecraft_registry::RegistrySet;
 use std::net::SocketAddr;
 
 use crate::support::{
-    JOIN_TIMEOUT, assert_session_registries, drive_client_until_joined, insert_block_catalog,
-    insert_player, insert_session_inputs,
+    JOIN_TIMEOUT, add_client_registries, assert_session_registries, drive_client_until_joined,
+    insert_player,
 };
 
 #[test]
@@ -25,9 +24,10 @@ fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
         view_distance: 6,
     });
     client.add_plugins(ColumnCachePlugin);
-    insert_block_catalog(&mut client);
-    insert_session_inputs(&mut client);
+    add_client_registries(&mut client);
     insert_player(&mut client);
+    client.finish();
+    client.cleanup();
 
     let Some(connection) = drive_client_until_joined(&mut client) else {
         panic!("the client never reached the play state within {JOIN_TIMEOUT:?}");
@@ -50,9 +50,8 @@ fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
 
     assert_session_registries(&client, connection);
 
-    let world = client.world();
-    let registries = world.resource::<RegistrySet>();
-    println!("registries received: {}", registries.tables().count());
-    println!("synced registries: {}", registries.synced().count());
-    println!("columns stored: {}", world.resource::<ColumnStore>().len());
+    println!(
+        "columns stored: {}",
+        client.world().resource::<ColumnStore>().len()
+    );
 }

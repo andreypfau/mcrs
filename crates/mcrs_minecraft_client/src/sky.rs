@@ -8,20 +8,19 @@ use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::{
     EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 use crate::player::PlayerCamera;
 use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::{self, VanillaAssets};
-use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
@@ -76,7 +75,7 @@ impl Plugin for SkyPlugin {
                         .run_if(entered_configuration),
                     build_sky_environment
                         .after(SessionSet::Derive)
-                        .run_if(resource_exists::<RegistrySet>),
+                        .run_if(resource_exists::<CurrentRegistries>),
                 ),
             )
             .add_systems(
@@ -200,46 +199,51 @@ fn clear_sky(mut commands: Commands) {
 
 fn build_sky_environment(
     current: Single<&CurrentDimension, Changed<CurrentDimension>>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     clocks: Res<WorldClocks>,
     mut commands: Commands,
 ) {
-    let (Some(types), Some(dimension_types), Some(world_clocks)) = (
-        registries.registry::<DimensionType>(),
-        registries.entries::<DimensionType, DimensionTypeEnvironment>(),
-        registries.registry::<mcrs_minecraft_environment::world_clock::WorldClock>(),
+    let (Some(dimension_types), Some(world_clocks)) = (
+        registries.registry::<RegistryOf<DimensionTypeFile>>(),
+        registries.registry::<RegistryOf<WorldClock>>(),
     ) else {
-        error!("the registry set holds no dimension types to draw a sky from");
+        error!("the registries hold no dimension types to draw a sky from");
         return;
     };
     let CurrentDimension {
         key: dimension,
-        dimension_type: type_id,
+        dimension_type,
     } = &**current;
-    let type_id = *type_id;
-    let attributes = match EnvironmentAttributes::of_dimension(&registries, dimension, type_id) {
-        Ok(attributes) => attributes,
-        Err(error) => {
-            error!(%dimension, %error, "no environment to draw a sky from");
-            commands.remove_resource::<SkyEnvironment>();
-            return;
-        }
-    };
+    let attributes =
+        match EnvironmentAttributes::of_dimension(&registries, dimension, *dimension_type) {
+            Ok(attributes) => attributes,
+            Err(error) => {
+                error!(%dimension, %error, "no environment to draw a sky from");
+                commands.remove_resource::<SkyEnvironment>();
+                return;
+            }
+        };
+    let type_id = Id::checked(dimension_type.number(), dimension_types.len());
     let layout = SkyLayout::derive(&attributes);
 
     let mut ticks = Vec::new();
     attributes.clock_ticks(&clocks, &mut ticks);
     let statics = layout.constants(&attributes, &EnvironmentContext { ticks: &ticks });
 
-    let clock = dimension_types[type_id].default_clock;
+    let clock = type_id
+        .and_then(|id| dimension_types.get(id))
+        .and_then(|file| file.default_clock);
 
     info!(
         %dimension,
-        dimension_type = ?types.name(type_id).map(ToString::to_string),
+        dimension_type = ?type_id.and_then(|id| dimension_types.name(id)).map(ToString::to_string),
         skybox = ?statics.key.skybox,
         effects = ?statics.key.effects,
         draws = statics.key.draws(),
-        clock = ?clock.and_then(|clock| world_clocks.name(clock)).map(ToString::to_string),
+        clock = ?clock
+            .and_then(|clock| Id::checked(clock.number(), world_clocks.len()))
+            .and_then(|clock| world_clocks.name(clock))
+            .map(ToString::to_string),
         "built the sky environment"
     );
     commands.insert_resource(SkyEnvironment {
@@ -559,7 +563,10 @@ mod sky_regression {
                 can_have_weather: dimension.has_skylight && !dimension.has_ceiling,
             },
             &timelines.iter().collect::<Vec<_>>(),
-            &CLOCKS.registry().unwrap(),
+            CLOCKS
+                .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
+                .unwrap()
+                .len(),
         )
         .unwrap();
         let layout = SkyLayout::derive(&attributes);

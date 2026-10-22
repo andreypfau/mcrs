@@ -7,6 +7,7 @@ use super::*;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
@@ -79,7 +80,7 @@ fn shape<'a>(
 fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
     let proto = dimension_type(file);
     let borrowed: Vec<&Timeline> = timelines.iter().collect();
-    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, &clock_registry()).unwrap()
+    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, clock_registry().len()).unwrap()
 }
 
 fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -306,7 +307,7 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     let attributes = EnvironmentAttributes::build(
         &shape("minecraft:overworld", &proto),
         &ordered,
-        &clock_registry(),
+        clock_registry().len(),
     )
     .unwrap();
 

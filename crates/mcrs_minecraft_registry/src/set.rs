@@ -1,6 +1,5 @@
 use crate::assembly::AssemblyError;
 use crate::entries::Entries;
-use crate::load::SyncedNbt;
 use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use crate::tags::{TagTable, Tags};
@@ -23,7 +22,6 @@ pub(crate) struct Values {
     pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, HashMap<TypeId, Column>>,
     pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
     pub(crate) packs: Box<[Box<str>]>,
-    pub(crate) synced: Vec<ResourceLocation<Arc<str>>>,
     pub(crate) statics: Vec<ResourceLocation<Arc<str>>>,
 }
 
@@ -92,10 +90,6 @@ impl RegistrySet {
             types: Arc::default(),
             values,
         }
-    }
-
-    pub(crate) fn values(&self) -> &Values {
-        &self.values
     }
 
     pub(crate) fn with_values(self, values: Values) -> Self {
@@ -196,23 +190,6 @@ impl RegistrySet {
         Ok(self.with_values(values))
     }
 
-    #[doc(hidden)]
-    pub fn with_synced(self, registry: &str, nbt: Arc<[SyncedNbt]>) -> Result<Self, AssemblyError> {
-        let name = self.sized_table(registry, nbt.len())?.registry().clone();
-        if self.values.synced.contains(&name) {
-            return Err(AssemblyError::SyncedTwice { registry: name });
-        }
-        let len = nbt.len();
-        let set = self.with_columns(
-            registry,
-            len,
-            vec![(TypeId::of::<SyncedNbt>(), Arc::new(nbt) as Column)],
-        )?;
-        let mut values = (*set.values).clone();
-        values.synced.push(name);
-        Ok(set.with_values(values))
-    }
-
     fn sized_table(&self, registry: &str, len: usize) -> Result<&Arc<NameTable>, AssemblyError> {
         let table = self
             .tables
@@ -229,13 +206,6 @@ impl RegistrySet {
             .into());
         }
         Ok(table)
-    }
-
-    pub(crate) fn with_types_of(self, other: &RegistrySet) -> Self {
-        RegistrySet {
-            types: Arc::clone(&other.types),
-            ..self
-        }
     }
 
     fn bind(
@@ -320,15 +290,6 @@ impl RegistrySet {
     pub fn entries<R: 'static, T: 'static>(&self) -> Option<Entries<R, T>> {
         self.shared_column::<T>(self.name_of::<R>()?.as_str())
             .map(|values| Entries::from_shared(Arc::clone(values)))
-    }
-
-    pub fn synced(&self) -> impl Iterator<Item = (&NameTable, &[SyncedNbt])> {
-        self.values.synced.iter().filter_map(|registry| {
-            Some((
-                &**self.tables.get(registry.as_str())?,
-                self.column::<SyncedNbt>(registry.as_str())?,
-            ))
-        })
     }
 
     pub fn statics(&self) -> impl Iterator<Item = &NameTable> {

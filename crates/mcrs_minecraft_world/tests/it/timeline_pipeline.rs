@@ -11,6 +11,7 @@ use mcrs_minecraft_dimension_environment::dimension_type::{
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registry::RegistrySet;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
@@ -75,7 +76,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let environment = |name: &str| {
         let dimension = ResourceKey::<Dimension>::from_location(name.parse().unwrap());
         EnvironmentAttributes::of_dimension(
-            set,
+            app.world().resource::<CurrentRegistries>(),
             &dimension,
             types
                 .by_name(name)

@@ -1,26 +1,15 @@
 use crate::assembly::AssemblyError;
-use crate::report::LoadReport;
 use crate::set::{Column, RegistrySet};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Resolve;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub(crate) type Name = ResourceLocation<Arc<str>>;
-pub(crate) type Failures = Vec<(usize, String)>;
 type EncodeResult = Result<String, serde_json::Error>;
 type Encode = fn(&RegistrySet, &(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
-type Project = Box<
-    dyn Fn(&RegistrySet, &str, usize) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>>
-        + Send
-        + Sync,
->;
-
-pub struct SyncedNbt(pub NbtTag);
 
 pub const PACKS_ROOT: &str = "mcrs/datapacks";
 pub const VANILLA_PACK: &str = "vanilla";
@@ -42,31 +31,19 @@ struct Codec {
 
 type SplitColumns = Box<dyn Fn(&(dyn Any + Send + Sync)) -> Vec<(TypeId, Column)> + Send + Sync>;
 type SplitEncode = Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>;
-type ReceiveColumns =
-    Box<dyn Fn(&RegistrySet, Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>;
-type Reencode =
-    Box<dyn Fn(&RegistrySet, NbtTag) -> Result<NbtTag, mcrs_minecraft_nbt::Error> + Send + Sync>;
 
 struct Split {
     columns: SplitColumns,
     encode: SplitEncode,
 }
 
-pub(crate) struct Receive {
-    pub(crate) columns: ReceiveColumns,
-    reencode: Reencode,
-}
-
 pub(crate) struct Declaration {
     codec: Option<Codec>,
     pub(crate) non_empty: bool,
-    sync: Option<Project>,
-    pub(crate) receive: Option<Receive>,
 }
 
 pub struct WorldRegistries {
     pub(crate) declared: BTreeMap<Name, Declaration>,
-    pub(crate) sync_order: Vec<Name>,
 }
 
 #[derive(Deserialize)]
@@ -90,16 +67,6 @@ struct Flags {
         reason = "listed so deny_unknown_fields accepts the report; the load decides tags from the packs"
     )]
     tags: bool,
-}
-
-fn named_tag<T: Resolve<Named: Serialize>>(
-    set: &RegistrySet,
-    value: &T,
-) -> Result<NbtTag, mcrs_minecraft_nbt::Error> {
-    match value.name(set) {
-        Ok(named) => mcrs_minecraft_nbt::to_nbt_tag(&named),
-        Err(error) => Err(serde::ser::Error::custom(error)),
-    }
 }
 
 type ToJson<T> = fn(&RegistrySet, &T) -> Result<String, serde_json::Error>;
@@ -192,13 +159,10 @@ impl WorldRegistries {
                         Declaration {
                             codec: None,
                             non_empty: false,
-                            sync: None,
-                            receive: None,
                         },
                     )
                 })
                 .collect(),
-            sync_order: Vec::new(),
         }
     }
 
@@ -228,10 +192,6 @@ impl WorldRegistries {
 
     pub fn declared(&self) -> impl Iterator<Item = &Name> {
         self.declared.keys()
-    }
-
-    pub fn synced(&self) -> impl Iterator<Item = &Name> {
-        self.sync_order.iter()
     }
 
     pub fn parses(&self, registry: &str) -> bool {
@@ -345,218 +305,6 @@ impl WorldRegistries {
         self
     }
 
-    pub fn sync_value<T, N>(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        project: fn(&T) -> N,
-    ) -> &mut Self
-    where
-        T: Send + Sync + 'static,
-        N: Serialize + 'static,
-    {
-        let codec = self.codec(registry, "sync");
-        assert_eq!(
-            codec.value_type,
-            TypeId::of::<T>(),
-            "registry {registry} does not parse the synced type"
-        );
-        assert!(
-            codec.split.is_none(),
-            "registry {registry} is split: sync its parts"
-        );
-        self.sync_with(
-            registry,
-            Box::new(move |set, registry, index| {
-                let value = set.column::<T>(registry)?.get(index)?;
-                Some(mcrs_minecraft_nbt::to_nbt_tag(&project(value)))
-            }),
-        )
-    }
-
-    pub fn sync_named<T>(&mut self, registry: ResourceLocation<&'static str>) -> &mut Self
-    where
-        T: Resolve + Send + Sync + 'static,
-        T::Named: Serialize + DeserializeOwned + 'static,
-    {
-        let codec = self.codec(registry, "sync");
-        assert_eq!(
-            codec.value_type,
-            TypeId::of::<T>(),
-            "registry {registry} does not parse the synced type"
-        );
-        self.sync_with(
-            registry,
-            Box::new(move |set, registry, index| {
-                let value = set.column::<T>(registry)?.get(index)?;
-                Some(named_tag(set, value))
-            }),
-        );
-        self.receive_named::<T, (T,)>(registry, |value| (value,))
-    }
-
-    /// `sync_named` for a split registry: `join` rebuilds `T` to send it, and a
-    /// received `T` is stored as the parts `split` returns.
-    pub fn sync_split_named<T, P>(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        split: fn(&T) -> P,
-        join: for<'a> fn(P::Refs<'a>) -> T,
-    ) -> &mut Self
-    where
-        T: Resolve + Send + Sync + 'static,
-        T::Named: Serialize + DeserializeOwned + 'static,
-        P: Parts,
-    {
-        assert!(
-            self.codec(registry, "sync").split.is_some(),
-            "registry {registry} is not split: sync its value"
-        );
-        self.sync_with(
-            registry,
-            Box::new(move |set, registry, index| {
-                Some(named_tag(set, &join(P::refs(set, registry, index)?)))
-            }),
-        );
-        self.receive_named::<T, P>(registry, move |value| split(&value))
-    }
-
-    fn receive_named<T, P>(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        store: impl Fn(T) -> P + Send + Sync + 'static,
-    ) -> &mut Self
-    where
-        T: Resolve + 'static,
-        T::Named: Serialize + DeserializeOwned + 'static,
-        P: Parts,
-    {
-        self.declaration(registry).receive = Some(Receive {
-            columns: Box::new(move |set, tags| {
-                let mut parts = Vec::with_capacity(tags.len());
-                let mut failures = Vec::new();
-                for (index, tag) in tags.into_iter().enumerate() {
-                    let value = mcrs_minecraft_nbt::from_tag::<T::Named>(tag)
-                        .map_err(|error| error.to_string())
-                        .and_then(|named| T::resolve(named, set).map_err(|e| e.to_string()));
-                    match value {
-                        Ok(value) => parts.push(store(value)),
-                        Err(message) => failures.push((index, message)),
-                    }
-                }
-                if failures.is_empty() {
-                    Ok(P::columns(parts))
-                } else {
-                    Err(failures)
-                }
-            }),
-            reencode: Box::new(|_, tag| {
-                mcrs_minecraft_nbt::to_nbt_tag(&mcrs_minecraft_nbt::from_tag::<T::Named>(tag)?)
-            }),
-        });
-        self
-    }
-
-    pub fn sync_parts<P, N>(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        project: for<'a> fn(P::Refs<'a>) -> N,
-    ) -> &mut Self
-    where
-        P: Parts,
-        N: Serialize + 'static,
-    {
-        assert!(
-            self.codec(registry, "sync").split.is_some(),
-            "registry {registry} is not split: sync its value"
-        );
-        self.sync_with(
-            registry,
-            Box::new(move |set, registry, index| {
-                let parts = P::refs(set, registry, index)?;
-                Some(mcrs_minecraft_nbt::to_nbt_tag(&project(parts)))
-            }),
-        )
-    }
-
-    /// Declares how a client reads what `sync_value` or `sync_parts` sends: the
-    /// network type `N` is decoded from the entry's NBT and becomes the columns
-    /// of `P`.
-    pub fn receive<N, P>(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        receive: fn(N) -> P,
-    ) -> &mut Self
-    where
-        N: DeserializeOwned + Serialize + 'static,
-        P: Parts,
-    {
-        let declaration = self.declaration(registry);
-        assert!(
-            declaration.sync.is_some(),
-            "registry {registry} is not synced: declare what it sends first"
-        );
-        assert!(
-            declaration.receive.is_none(),
-            "registry {registry} is received twice"
-        );
-        declaration.receive = Some(Receive {
-            columns: Box::new(move |_, tags| {
-                let mut parts = Vec::with_capacity(tags.len());
-                let mut failures = Vec::new();
-                for (index, tag) in tags.into_iter().enumerate() {
-                    match mcrs_minecraft_nbt::from_tag::<N>(tag) {
-                        Ok(network) => parts.push(receive(network)),
-                        Err(error) => failures.push((index, error.to_string())),
-                    }
-                }
-                if failures.is_empty() {
-                    Ok(P::columns(parts))
-                } else {
-                    Err(failures)
-                }
-            }),
-            reencode: Box::new(|_, tag| {
-                mcrs_minecraft_nbt::to_nbt_tag(&mcrs_minecraft_nbt::from_tag::<N>(tag)?)
-            }),
-        });
-        self
-    }
-
-    /// Decodes `tag` as the network type of `registry` and encodes it again, in
-    /// the scope of `set`. A codec that is not symmetric shows as a different
-    /// tag.
-    pub fn reencode(
-        &self,
-        set: &RegistrySet,
-        registry: &str,
-        tag: NbtTag,
-    ) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>> {
-        let receive = self.declared.get(registry)?.receive.as_ref()?;
-        Some(set.scope(|| (receive.reencode)(set, tag)))
-    }
-
-    fn codec(&mut self, registry: ResourceLocation<&'static str>, to: &str) -> &Codec {
-        self.declaration(registry)
-            .codec
-            .as_ref()
-            .unwrap_or_else(|| panic!("registry {registry} parses no values to {to}"))
-    }
-
-    fn sync_with(
-        &mut self,
-        registry: ResourceLocation<&'static str>,
-        project: Project,
-    ) -> &mut Self {
-        let declaration = self.declaration(registry);
-        assert!(
-            declaration.sync.is_none(),
-            "registry {registry} is synced twice"
-        );
-        declaration.sync = Some(project);
-        self.sync_order.push(registry.into());
-        self
-    }
-
     pub fn encode(
         &self,
         set: &RegistrySet,
@@ -569,72 +317,6 @@ impl WorldRegistries {
         }
         let column = set.column_any(registry, codec.value_type)?;
         set.scope(|| (codec.encode)(set, &**column, index))
-    }
-
-    fn synced_columns<F>(&self, set: &RegistrySet, mut fail: F) -> Vec<(&Name, Vec<SyncedNbt>)>
-    where
-        F: FnMut(&Name, Option<usize>, String),
-    {
-        set.scope(|| {
-            let mut columns = Vec::with_capacity(self.sync_order.len());
-            for registry in &self.sync_order {
-                let Some(project) = self
-                    .declared
-                    .get(registry.as_str())
-                    .and_then(|declaration| declaration.sync.as_ref())
-                else {
-                    fail(
-                        registry,
-                        None,
-                        "the registry declares no projection".to_owned(),
-                    );
-                    continue;
-                };
-                let Some(table) = set.table(registry.as_str()) else {
-                    fail(
-                        registry,
-                        None,
-                        "the registry set holds no such registry".to_owned(),
-                    );
-                    continue;
-                };
-                let mut column = Vec::with_capacity(table.len());
-                for index in 0..table.len() {
-                    match project(set, registry.as_str(), index) {
-                        Some(Ok(tag)) => column.push(SyncedNbt(tag)),
-                        Some(Err(error)) => fail(registry, Some(index), error.to_string()),
-                        None => {
-                            fail(
-                                registry,
-                                None,
-                                "the registry set holds no column the projection reads".to_owned(),
-                            );
-                            break;
-                        }
-                    }
-                }
-                columns.push((registry, column));
-            }
-            columns
-        })
-    }
-
-    #[doc(hidden)]
-    pub fn sync(&self, set: RegistrySet) -> Result<RegistrySet, LoadReport> {
-        let mut report = LoadReport::new();
-        let columns = self.synced_columns(&set, |registry, index, message| {
-            let entry = index.and_then(|index| set.table(registry.as_str())?.name(index));
-            report.unfiled(registry, entry.map(ResourceLocation::as_str), message);
-        });
-        if !report.is_empty() {
-            return Err(report);
-        }
-        columns
-            .into_iter()
-            .try_fold(set.clone(), |set, (registry, column)| {
-                set.with_synced(registry.as_str(), column.into())
-            })
-            .map_err(LoadReport::invalid)
     }
 
     /// An unsplit column shares `values`.
@@ -667,10 +349,6 @@ impl WorldRegistries {
             None => set.with_column(registry, values),
         }
     }
-}
-
-pub(crate) fn directory_of(registry: &Name) -> String {
-    format!("{}/{}/", registry.namespace(), registry.path())
 }
 
 #[cfg(test)]
@@ -802,55 +480,6 @@ mod tests {
         assert_eq!(registries.encode(&set, VARIANT, 0).unwrap().unwrap(), PLAIN);
     }
 
-    #[test]
-    fn a_synced_registry_is_encoded_in_declared_order() {
-        let mut registries = registries();
-        registries
-            .sync_value::<Variant, _>(Variant::KEY.location(), |variant| variant.asset_id.clone())
-            .sync_value::<Linked, _>(Linked::KEY.location(), |_| 7_i32);
-        let set = registries.sync(with_plain(&registries)).unwrap();
-
-        let synced: Vec<(&str, Vec<&NbtTag>)> = set
-            .synced()
-            .map(|(table, column)| {
-                (
-                    table.registry().as_str(),
-                    column.iter().map(|nbt| &nbt.0).collect(),
-                )
-            })
-            .collect();
-        assert_eq!(
-            synced,
-            [
-                (VARIANT, vec![&NbtTag::String("plain".to_owned())]),
-                (LINKED, vec![]),
-            ]
-        );
-        assert_eq!(
-            registries
-                .synced()
-                .map(|name| name.as_str())
-                .collect::<Vec<_>>(),
-            [VARIANT, LINKED]
-        );
-    }
-
-    #[test]
-    fn a_value_that_does_not_encode_fails_the_sync() {
-        let mut registries = registries();
-        registries.sync_value::<Variant, _>(Variant::KEY.location(), |_| 'x');
-        let text = registries
-            .sync(with_plain(&registries))
-            .err()
-            .expect("the sync is refused")
-            .to_string();
-        assert!(
-            text.contains("minecraft:test_variant/minecraft:plain"),
-            "{text}"
-        );
-        assert!(text.contains("char"), "{text}");
-    }
-
     const LINKED_FILES: [&str; 2] = [
         r##"{"marker":"minecraft:two","tag":"#minecraft:second"}"##,
         r#"{"tag":["minecraft:one","minecraft:two"]}"#,
@@ -893,10 +522,9 @@ mod tests {
         );
         let set = tables(&["minecraft:plain", "minecraft:other"], &[]);
         let markers = Arc::clone(set.table(MARKER).unwrap());
-        let synced: Arc<[SyncedNbt]> = [0, 1].map(|_| SyncedNbt(NbtTag::Byte(0))).into();
         let tag = |member: u16| (name("minecraft:t"), [member]);
 
-        let cases: [(&str, Result<(), AssemblyError>, &str); 8] = [
+        let cases: [(&str, Result<(), AssemblyError>, &str); 7] = [
             (
                 "a column of the wrong length",
                 set.clone().with_column(MARKER, Arc::from([1_u8])).map(drop),
@@ -942,14 +570,6 @@ mod tests {
                     .attach(set.clone(), MARKER, Arc::from([1_u8]))
                     .map(drop),
                 "declares no value type",
-            ),
-            (
-                "a registry synced twice",
-                set.clone()
-                    .with_synced(MARKER, Arc::clone(&synced))
-                    .and_then(|set| set.with_synced(MARKER, synced))
-                    .map(drop),
-                "synced twice",
             ),
         ];
         for (label, attempt, expected) in cases {

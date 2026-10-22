@@ -78,17 +78,6 @@ macro_rules! registry_table {
         {
             $(
                 declare_row!($($mode)?; $key, $value, world, report, $declaration $(, split $parts, $split, $join)?);
-                let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
-                if world.parses(registry.as_static_str()) {
-                    $($(
-                        world.sync_parts::<$parts, _>(registry, $part_project);
-                        world.receive::<$part_net, _>(registry, $part_receive);
-                    )?)?
-                    $(
-                        world.sync_value::<$value, _>(registry, $project);
-                        world.receive::<$net, _>(registry, $receive);
-                    )?
-                }
             )*
         }
 
@@ -178,29 +167,8 @@ macro_rules! declare_row {
             $($world.split_named::<$value, $parts>(registry, $split, $join);)?
         }
     };
-    (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr,
-        split $parts:ty, $split:expr, $join:expr) => {
-        let declaration = $declaration;
-        if declared::<$key, $value>($world, $report, &declaration) {
-            let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
-            $world.parse_named::<$value>(registry);
-            if declaration.is_non_empty() {
-                $world.non_empty(registry);
-            }
-            $world.split_named::<$value, $parts>(registry, $split, $join);
-            $world.sync_split_named::<$value, $parts>(registry, $split, $join);
-        }
-    };
-    (synced; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr) => {
-        let declaration = $declaration;
-        if declared::<$key, $value>($world, $report, &declaration) {
-            let registry = <$key as mcrs_minecraft_core::Registered>::REGISTRY.location();
-            $world.parse_named::<$value>(registry);
-            if declaration.is_non_empty() {
-                $world.non_empty(registry);
-            }
-            $world.sync_named::<$value>(registry);
-        }
+    (synced; $($row:tt)*) => {
+        declare_row!(named; $($row)*);
     };
     (; $key:ty, $value:ty, $world:ident, $report:ident, $declaration:expr
         $(, split $parts:ty, $split:expr, $join:expr)?) => {
@@ -438,77 +406,6 @@ fn declare<K, V>(
             world.non_empty(registry);
         }
     }
-}
-
-/// The registries a server holding `server` sends, in table order. A vanilla entry
-/// goes without data unless `sends_data` asks for it, as it does to a client that
-/// knows the vanilla pack.
-pub fn registries_as_sent(
-    server: &RegistrySet,
-    sends_data: impl Fn(&str, usize) -> bool,
-) -> Vec<mcrs_minecraft_registry::NetworkRegistry> {
-    server
-        .synced()
-        .map(|(table, column)| {
-            let registry = table.registry();
-            mcrs_minecraft_registry::NetworkRegistry {
-                registry: registry.clone(),
-                entries: table
-                    .names()
-                    .iter()
-                    .zip(column)
-                    .enumerate()
-                    .map(
-                        |(id, (name, network))| mcrs_minecraft_registry::NetworkEntry {
-                            name: name.clone(),
-                            data: sends_data(registry.as_str(), id).then(|| network.0.clone()),
-                        },
-                    )
-                    .collect(),
-            }
-        })
-        .collect()
-}
-
-/// Every vanilla entry of `server` without data and every other entry with it.
-pub fn registries_as_sent_to_a_client_that_knows_vanilla(
-    server: &RegistrySet,
-) -> Vec<mcrs_minecraft_registry::NetworkRegistry> {
-    registries_as_sent(server, |registry, id| {
-        server.pack_of(registry, id) != Some(mcrs_minecraft_registry::VANILLA_PACK)
-    })
-}
-
-/// The tags a server holding `server` sends for the static registries and the synced ones.
-pub fn tags_as_sent(
-    statics: &RegistrySet,
-    server: &RegistrySet,
-) -> Vec<mcrs_minecraft_registry::NetworkTags> {
-    let synced: Vec<_> = server
-        .synced()
-        .map(|(table, _)| table.registry().as_str())
-        .collect();
-    server
-        .tables()
-        .map(|table| table.registry())
-        .filter(|registry| {
-            statics.table(registry.as_str()).is_some() || synced.contains(&registry.as_str())
-        })
-        .filter_map(|registry| server.tag_table(registry.as_str()))
-        .filter(|table| !table.is_empty())
-        .map(|table| mcrs_minecraft_registry::NetworkTags {
-            registry: table.registry().clone(),
-            tags: table
-                .names()
-                .iter()
-                .enumerate()
-                .map(|(tag, name)| {
-                    let members = table.members(tag).iter().map(|&m| i32::from(m)).collect();
-                    (name.clone(), members)
-                })
-                .collect(),
-        })
-        .collect()
 }
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {

@@ -10,8 +10,8 @@ use bevy::prelude::{
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_item::{Held, ItemStack, Items, StackRevision};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
+use mcrs_minecraft_network::client::DecodeScope;
 use mcrs_minecraft_protocol::item::ItemModel;
-use mcrs_minecraft_registry::RegistrySet;
 
 use super::bake::{BakedItemModel, BakedNode, ItemModels};
 use super::eval::{EntityStack, Evaluator};
@@ -61,7 +61,7 @@ pub fn resolve_item_layers(
     models: Res<ItemModels>,
     stacks: Query<(Entity, Ref<StackRevision>, Has<ItemRenderLayers>), With<Held>>,
     reads: Query<EntityRef, With<ItemStack>>,
-    registries: Option<Res<RegistrySet>>,
+    scope: Option<Res<DecodeScope>>,
     mut commands: Commands,
 ) {
     let all = models.is_changed();
@@ -79,8 +79,8 @@ pub fn resolve_item_layers(
                 .insert(resolve(stack, &items, &models, &lookup));
         }
     };
-    match registries {
-        Some(set) => set.scope(resolve_stacks),
+    match scope {
+        Some(scope) => scope.0.scope(resolve_stacks),
         None => resolve_stacks(),
     }
 }

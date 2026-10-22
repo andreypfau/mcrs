@@ -20,7 +20,7 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostic, Level, Resolve};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostic, Level, Registries, Resolve};
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
@@ -28,7 +28,7 @@ use mcrs_minecraft_world::registries::{
     reloadable_registries, static_registries as build_static_registries, world_registries,
 };
 use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, test_registries, test_registries_arc,
+    RegistryLoadError, sent_by, test_registries, test_registries_arc,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -624,15 +624,6 @@ fn tag_contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Vec<u16>)>> 
         .collect()
 }
 
-fn synced_contents(set: &RegistrySet) -> Vec<(String, Vec<NbtTag>)> {
-    set.synced()
-        .map(|(table, column)| {
-            let values = column.iter().map(|value| value.0.clone()).collect();
-            (table.registry().to_string(), values)
-        })
-        .collect()
-}
-
 #[test]
 fn the_plugin_and_the_directory_reader_load_equal_sets() {
     let app = plugin_app();
@@ -648,9 +639,16 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
     for (registry, from_plugin) in &plugin {
         assert_eq!(from_plugin, &directory[registry], "{registry}");
     }
+    let sent = |registries: &Registries| -> Vec<Vec<u8>> {
+        registries
+            .network()
+            .registry_data(false)
+            .map(<[u8]>::to_vec)
+            .collect()
+    };
     assert_eq!(
-        synced_contents(through_plugin),
-        synced_contents(through_directory)
+        sent(app.world().resource::<CurrentRegistries>()),
+        sent(test_registries_arc())
     );
     assert_eq!(
         tag_contents(through_plugin),
@@ -1140,17 +1138,17 @@ fn an_empty_variant_registry_fails_the_load() {
 #[test]
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
     let set = test_registries();
-    let (table, column) = set
-        .synced()
-        .find(|(table, _)| table.registry().as_str() == "minecraft:wolf_variant")
-        .expect("the wolf variants are synced");
-    let pale = table
-        .number("minecraft:pale")
-        .expect("the pale wolf is loaded") as usize;
-    let synced = column[pale]
+    let (_, wolves) = sent_by(test_registries_arc(), false)
         .0
-        .extract_compound()
-        .expect("a variant is a compound");
+        .into_iter()
+        .find(|(registry, _)| registry.as_str() == "minecraft:wolf_variant")
+        .expect("the wolf variants are synced");
+    let synced = wolves
+        .into_iter()
+        .find(|(name, _)| name.as_str() == "minecraft:pale")
+        .and_then(|(_, data)| data)
+        .expect("the pale wolf is sent with its data");
+    let synced = synced.extract_compound().expect("a variant is a compound");
     assert!(synced.get("assets").is_some());
     assert!(synced.get("spawn_conditions").is_none());
 

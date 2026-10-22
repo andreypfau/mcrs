@@ -10,12 +10,13 @@ use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, Res, ResMut, Res
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
-use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -32,7 +33,7 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, CurrentDimension};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryOf};
 
 use crate::registries::{SessionSet, entered_configuration};
 
@@ -310,10 +311,10 @@ impl Column {
         light: &LightData<'_>,
         extent: Extent,
         block_state_count: usize,
-        biomes: &Registry<Biome>,
+        biome_count: usize,
     ) -> Result<Column> {
         let sections = data
-            .sections(extent.sections, block_state_count, biomes.len())?
+            .sections(extent.sections, block_state_count, biome_count)?
             .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -329,7 +330,7 @@ impl Column {
                 };
                 Ok(Some(Section {
                     blocks,
-                    biomes: biome_ids(&section.biomes, biomes)?,
+                    biomes: biome_ids(&section.biomes, biome_count)?,
                     states,
                 }))
             })
@@ -427,13 +428,16 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32
 
 fn biome_ids(
     sent: &PalettedContainer<u8, { Biomes::SIZE }>,
-    biomes: &Registry<Biome>,
+    biome_count: usize,
 ) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
     let local = |number: u8| -> Result<u8> {
-        let id = biomes
-            .id(u16::from(number))
-            .with_context(|| format!("biome {number} is not one the session registries hold"))?;
-        Ok(id.narrow::<u8>()?)
+        if usize::from(number) < biome_count {
+            Ok(number)
+        } else {
+            Err(anyhow!(
+                "biome {number} is not one the session registries hold"
+            ))
+        }
     };
     match sent {
         PalettedContainer::Homogeneous(number) => {
@@ -456,9 +460,12 @@ fn biome_ids(
     }
 }
 
-fn extent_of(registries: &RegistrySet, current: &CurrentDimension) -> Option<Extent> {
-    let dimension_types = registries.entries::<DimensionType, DimensionType>()?;
-    let dimension_type = dimension_types.get(current.dimension_type)?;
+fn extent_of(registries: &Registries, current: &CurrentDimension) -> Option<Extent> {
+    let dimension_types = registries.registry::<RegistryOf<DimensionTypeFile>>()?;
+    let dimension_type = dimension_types.get(Id::checked(
+        current.dimension_type.number(),
+        dimension_types.len(),
+    )?)?;
     Some(Extent {
         min_section_y: dimension_type.min_y >> SectionPos::BITS,
         sections: usize::try_from(dimension_type.height).ok()? / SECTION_SIZE,
@@ -575,7 +582,7 @@ impl Arrivals {
         self.queue.is_empty() && self.extent.is_none() && self.batch_started_at.is_none()
     }
 
-    fn enter(&mut self, registries: &RegistrySet, spawn: &PlayerSpawnInfo) {
+    fn enter(&mut self, registries: &Registries, spawn: &PlayerSpawnInfo) {
         let current = CurrentDimension::of(spawn);
         match extent_of(registries, &current) {
             Some(extent) => {
@@ -613,7 +620,7 @@ fn receive_column_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<&ConnectionState>,
     blocks: Res<Blocks>,
-    registries: Option<Res<RegistrySet>>,
+    registries: Option<Res<CurrentRegistries>>,
     mut arrivals: ResMut<Arrivals>,
 ) {
     let Ok(ConnectionState::Game) = connections.get(event.entity) else {
@@ -632,9 +639,10 @@ fn receive_column_packets(
         let Some(extent) = arrivals.extent else {
             return;
         };
-        let Some(biomes) = registries
+        let Some(biome_count) = registries
             .as_deref()
-            .and_then(RegistrySet::registry::<Biome>)
+            .and_then(|registries| registries.registry::<RegistryOf<BiomeFile>>())
+            .map(|biomes| biomes.len())
         else {
             error!("a column arrived before the server's biome registry was built");
             return;
@@ -650,7 +658,7 @@ fn receive_column_packets(
                 &packet.light_data,
                 extent,
                 block_state_count,
-                &biomes,
+                biome_count,
             )
             .with_context(|| format!("column {:?}", packet.pos))?;
             Ok((packet.pos, column))
@@ -725,16 +733,6 @@ mod tests {
     use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
-
-    fn session_biomes(len: usize) -> Registry<Biome> {
-        Registry::new(
-            mcrs_minecraft_biome::keys::BIOME,
-            (0..len).map(|n| {
-                mcrs_minecraft_core::ResourceLocation::read(&format!("minecraft:b{n}")).unwrap()
-            }),
-        )
-        .unwrap()
-    }
 
     const EXTENT: Extent = Extent {
         min_section_y: -1,
@@ -851,7 +849,7 @@ mod tests {
             &packet.light_data,
             EXTENT,
             BLOCK_STATE_COUNT,
-            &session_biomes(BIOME_REGISTRY_LEN),
+            BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");
         store.insert(packet.pos, column);
@@ -887,7 +885,7 @@ mod tests {
         }
     }
 
-    fn decoded(sections: &[ChunkSection], biomes: &Registry<Biome>) -> Result<Column> {
+    fn decoded(sections: &[ChunkSection], biomes: usize) -> Result<Column> {
         let blob = sections.iter().flat_map(written).collect::<Vec<u8>>();
         Column::decode(
             &ChunkData {
@@ -909,14 +907,14 @@ mod tests {
 
     #[test]
     fn a_decoded_column_holds_the_session_ids_of_the_biome_numbers_it_carries() {
-        let biomes = session_biomes(BIOME_REGISTRY_LEN);
+        let biomes = BIOME_REGISTRY_LEN;
 
         let column = decoded(
             &[
                 stone_with(PalettedContainer::Homogeneous(3)),
                 biomes_with_one_cell(3, (3, 2, 1), 0),
             ],
-            &biomes,
+            biomes,
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);
@@ -927,33 +925,29 @@ mod tests {
         assert_eq!(store.biome(1, -1, -2, (0, 0, 0)), 3);
         assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
         assert_eq!(store.biome(1, 0, -2, (3, 2, 1)), 0);
-        assert_eq!(
-            biomes.name(biomes.id(3).unwrap()).map(ToString::to_string),
-            Some("minecraft:b3".to_owned())
-        );
     }
 
     #[test]
     fn a_column_naming_a_biome_the_session_registries_lack_is_refused() {
-        let biomes = session_biomes(8);
+        let biomes = 8;
 
         let held = stone_with(PalettedContainer::Homogeneous(7));
-        decoded(&[held.clone(), held.clone()], &biomes).expect("every biome is held");
+        decoded(&[held.clone(), held.clone()], biomes).expect("every biome is held");
 
         let lacking = stone_with(PalettedContainer::Homogeneous(12));
-        let Err(error) = decoded(&[held.clone(), lacking], &biomes) else {
+        let Err(error) = decoded(&[held.clone(), lacking], biomes) else {
             panic!("a biome the session registries lack was accepted");
         };
         assert!(format!("{error:#}").contains("biome 12"), "{error:#}");
 
         let lacking_in_one_cell = biomes_with_one_cell(7, (0, 3, 2), 12);
-        assert!(decoded(&[held, lacking_in_one_cell], &biomes).is_err());
+        assert!(decoded(&[held, lacking_in_one_cell], biomes).is_err());
     }
 
     #[test]
     fn a_column_is_refused_when_the_session_has_no_biomes() {
         let held = stone_with(PalettedContainer::Homogeneous(0));
-        assert!(decoded(&[held.clone(), held], &session_biomes(0)).is_err());
+        assert!(decoded(&[held.clone(), held], 0).is_err());
     }
 
     /// A column with sections -1 and 0 lit at one cell: sky 6 / block 1 below,
@@ -985,7 +979,7 @@ mod tests {
             &light,
             EXTENT,
             BLOCK_STATE_COUNT,
-            &session_biomes(BIOME_REGISTRY_LEN),
+            BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);
@@ -1275,17 +1269,21 @@ mod tests {
 
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
-        use mcrs_minecraft_core::{Registered, ResourceKey};
+        use mcrs_minecraft_core::ResourceKey;
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_protocol::GameMode;
-        use mcrs_minecraft_registry::Registry;
 
-        let registries = mcrs_minecraft_world::registry_load::test_registries();
-        let types = registries.registry::<DimensionType>().unwrap();
+        let registries = mcrs_minecraft_world::registry_load::test_registries_arc();
+        let types = registries
+            .registry::<RegistryOf<DimensionTypeFile>>()
+            .unwrap();
         let named = |key: &str, dimension: ResourceKey<Dimension>| {
+            let id = types
+                .by_name(&mcrs_minecraft_core::ResourceLocation::read(key).unwrap())
+                .unwrap();
             CurrentDimension::of(&PlayerSpawnInfo::new(
-                types.by_name(key).unwrap(),
+                Id::checked(id.number(), types.len()).unwrap(),
                 dimension,
                 GameMode::Survival,
             ))
@@ -1307,16 +1305,8 @@ mod tests {
                 sections: 16,
             })
         );
-        let widened = Registry::<DimensionType>::new(
-            DimensionType::REGISTRY,
-            types
-                .iter()
-                .map(|(_, name)| name.clone())
-                .chain([mcrs_minecraft_core::rl!("mcrs:beyond").to_arc()]),
-        )
-        .unwrap();
         let past = CurrentDimension::of(&PlayerSpawnInfo::new(
-            widened.by_name("mcrs:beyond").unwrap(),
+            Id::checked(types.len() as u16, types.len() + 1).unwrap(),
             OVERWORLD.into(),
             GameMode::Survival,
         ));

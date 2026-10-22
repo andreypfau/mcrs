@@ -6,7 +6,7 @@ use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries, test_registries_arc};
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -151,17 +151,16 @@ const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are repla
 const SECTION_OTHERS: &str = "[other compared registries]";
 
 fn from_set(set: &RegistrySet, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
-    let (table, column) = set
-        .synced()
-        .find(|(table, _)| table.registry().as_str() == registry)?;
+    let (_, entries) = sent_by(test_registries_arc(), false)
+        .0
+        .into_iter()
+        .find(|(sent, _)| sent.as_str() == registry)?;
     Some(
-        table
-            .names()
-            .iter()
-            .zip(column)
+        entries
+            .into_iter()
             .enumerate()
             .filter(|(id, _)| set.pack_of(registry, *id) == Some(VANILLA_PACK))
-            .map(|(_, (name, network))| (name.to_string(), network.0.clone()))
+            .filter_map(|(_, (name, data))| Some((name.to_string(), data?)))
             .collect(),
     )
 }

@@ -12,19 +12,22 @@ use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_item::InlineRef;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
+use mcrs_minecraft_network::client::DecodeScope;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
-use mcrs_minecraft_registry::{NetworkRegistry, RegistrySet};
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_world::registry_load::Collected;
 
-use crate::boot::{boot, session_registries};
+use crate::boot::{boot, receive_registries, received_id};
 
 fn play_app() -> App {
     boot(|app| {
@@ -35,12 +38,13 @@ fn play_app() -> App {
     })
 }
 
-fn reversed(registry: &'static str) -> impl FnOnce(&mut Vec<NetworkRegistry>) {
-    move |sent| {
-        sent.iter_mut()
-            .find(|sent| sent.registry.as_str() == registry)
+fn reversed(registry: &'static str) -> impl FnOnce(&mut Collected) {
+    move |(registries, _)| {
+        registries
+            .iter_mut()
+            .find(|(sent, _)| sent.as_str() == registry)
             .unwrap_or_else(|| panic!("a server syncs {registry}"))
-            .entries
+            .1
             .reverse();
     }
 }
@@ -59,12 +63,8 @@ fn disc_song(items: &Items) -> Id<JukeboxSong> {
     *song
 }
 
-fn dimension_type(registries: &RegistrySet, name: &str) -> Id<DimensionType> {
-    registries
-        .registry::<DimensionType>()
-        .expect("the dimension types are received")
-        .require_by_name(name)
-        .unwrap_or_else(|error| panic!("{name}: {error}"))
+fn dimension_type(app: &App, name: &str) -> Id<DimensionType> {
+    received_id::<DimensionTypeFile, _>(app, name)
 }
 
 fn current(name: &str, dimension_type: Id<DimensionType>) -> CurrentDimension {
@@ -82,15 +82,15 @@ fn sky_key(app: &App) -> Option<String> {
 fn markers_by_clock(app: &App) -> BTreeMap<String, usize> {
     let clocks = app
         .world()
-        .resource::<RegistrySet>()
-        .registry::<WorldClock>()
+        .resource::<CurrentRegistries>()
+        .registry::<RegistryOf<WorldClock>>()
         .unwrap();
     let markers = app.world().resource::<ClockTimeMarkers>();
     clocks
-        .ids()
-        .map(|clock| {
-            let name = clocks.name(clock).unwrap().to_string();
-            (name, markers.of_clock(clock).count())
+        .iter()
+        .map(|(clock, name, _)| {
+            let clock = Id::checked(clock.number(), clocks.len()).unwrap();
+            (name.to_string(), markers.of_clock(clock).count())
         })
         .collect()
 }
@@ -118,7 +118,7 @@ fn receive_respawn(
     };
     let mut bytes = Vec::new();
     packet.encode(&mut bytes).unwrap();
-    let session = app.world().resource::<RegistrySet>().clone();
+    let DecodeScope(session) = app.world().resource::<DecodeScope>().clone();
     session.scope(|| {
         app.world_mut().trigger(ReceivedPacketEvent {
             entity: connection,
@@ -153,9 +153,8 @@ struct Play {
 }
 
 fn join(app: &mut App, connection: Entity) {
-    let registries = session_registries(app, |_| {});
-    let overworld_type = dimension_type(&registries, "minecraft:overworld");
-    app.insert_resource(registries);
+    receive_registries(app, connection, |_| {});
+    let overworld_type = dimension_type(app, "minecraft:overworld");
     app.world_mut()
         .entity_mut(connection)
         .insert(current("minecraft:overworld", overworld_type));
@@ -249,8 +248,7 @@ fn a_respawn_into_another_dimension_replaces_the_client_world() {
         connection,
         ..
     } = in_play();
-    let registries = app.world().resource::<RegistrySet>().clone();
-    let nether = dimension_type(&registries, "minecraft:the_nether");
+    let nether = dimension_type(&app, "minecraft:the_nether");
     let overworld_sky = sky_key(&app).unwrap();
     assert_eq!(app.world().resource::<ColumnStore>().len(), 2);
 
@@ -290,25 +288,19 @@ fn a_respawn_into_another_dimension_replaces_the_client_world() {
 #[test]
 fn the_session_registries_rebuild_the_item_table() {
     let mut app = boot(|_| {});
+    let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
     app.update();
     assert!(app.world().get_resource::<Items>().is_none());
 
-    let first = session_registries(&app, |_| {});
-    app.insert_resource(first);
+    receive_registries(&mut app, connection, |_| {});
     app.update();
-    let songs = |app: &App| {
-        app.world()
-            .resource::<RegistrySet>()
-            .registry::<JukeboxSong>()
-            .expect("the jukebox songs are received")
-    };
-    let thirteen = songs(&app).require_by_name("minecraft:13").unwrap();
+    let song = |app: &App| received_id::<JukeboxSong, JukeboxSong>(app, "minecraft:13");
+    let thirteen = song(&app);
     assert_eq!(disc_song(app.world().resource::<Items>()), thirteen);
 
-    let second = session_registries(&app, reversed("minecraft:jukebox_song"));
-    app.insert_resource(second);
+    receive_registries(&mut app, connection, reversed("minecraft:jukebox_song"));
     app.update();
-    let moved = songs(&app).require_by_name("minecraft:13").unwrap();
+    let moved = song(&app);
     assert_ne!(moved, thirteen, "the reordered set numbers the song anew");
     assert_eq!(
         disc_song(app.world().resource::<Items>()),
@@ -320,35 +312,36 @@ fn the_session_registries_rebuild_the_item_table() {
 #[test]
 fn the_clock_markers_follow_the_session_set() {
     let mut app = boot(|_| {});
+    let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
     app.update();
     assert!(app.world().get_resource::<ClockTimeMarkers>().is_none());
     assert!(app.world().resource::<WorldClocks>().is_empty());
 
-    let clock_id = |app: &App, name: &str| {
+    let clock_id = |app: &App| received_id::<WorldClock, WorldClock>(app, "minecraft:overworld");
+    let clock_count = |app: &App| {
         app.world()
-            .resource::<RegistrySet>()
-            .registry::<WorldClock>()
+            .resource::<CurrentRegistries>()
+            .registry::<RegistryOf<WorldClock>>()
             .unwrap()
-            .require_by_name(name)
-            .unwrap()
+            .len()
     };
-    let first = session_registries(&app, |_| {});
-    let clock_count = first.registry::<WorldClock>().unwrap().len();
-    app.insert_resource(first);
+    receive_registries(&mut app, connection, |_| {});
     app.update();
-    let overworld = clock_id(&app, "minecraft:overworld");
+    let overworld = clock_id(&app);
     let markers = markers_by_clock(&app);
     assert!(
         markers.values().any(|count| *count > 0),
         "the timelines declare time markers"
     );
-    assert_eq!(app.world().resource::<WorldClocks>().len(), clock_count);
+    assert_eq!(
+        app.world().resource::<WorldClocks>().len(),
+        clock_count(&app)
+    );
 
-    let second = session_registries(&app, reversed("minecraft:world_clock"));
-    app.insert_resource(second);
+    receive_registries(&mut app, connection, reversed("minecraft:world_clock"));
     app.update();
     assert_ne!(
-        clock_id(&app, "minecraft:overworld"),
+        clock_id(&app),
         overworld,
         "the reordered set numbers the clock anew"
     );
@@ -357,5 +350,8 @@ fn the_clock_markers_follow_the_session_set() {
         markers,
         "each clock keeps its markers under its new number"
     );
-    assert_eq!(app.world().resource::<WorldClocks>().len(), clock_count);
+    assert_eq!(
+        app.world().resource::<WorldClocks>().len(),
+        clock_count(&app)
+    );
 }

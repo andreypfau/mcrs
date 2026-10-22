@@ -4,21 +4,46 @@ use bevy_ecs::prelude::{Local, Res};
 use mcrs_minecraft_client::columns::{BlockSource, ColumnCachePlugin, ColumnStore};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, JoinedGame,
-    PendingTeleports, ServerProfile, SessionRegistryInputs, offline_player_uuid,
+    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, DecodeScope,
+    JoinedGame, PendingTeleports, ServerProfile, offline_player_uuid,
 };
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
-use std::collections::BTreeSet;
+use mcrs_minecraft_world::registry_load::sent_by;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::support::{
-    JOIN_TIMEOUT, assert_session_registries, drive_client_until_joined, insert_block_catalog,
-    insert_player, insert_session_inputs,
+    JOIN_TIMEOUT, add_client_registries, assert_session_registries, drive_client_until_joined,
+    insert_player,
 };
+
+type Contents = BTreeMap<String, (Vec<String>, Vec<(String, Vec<u16>)>)>;
+
+fn contents(set: &RegistrySet, registries: &[String]) -> Contents {
+    registries
+        .iter()
+        .map(|registry| {
+            let names = set
+                .table(registry)
+                .map(|table| table.names().iter().map(ToString::to_string).collect())
+                .unwrap_or_default();
+            let tags = set
+                .tag_table(registry)
+                .map(|table| {
+                    (0..table.names().len())
+                        .map(|tag| (table.names()[tag].to_string(), table.members(tag).to_vec()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            (registry.clone(), (names, tags))
+        })
+        .collect()
+}
 
 #[test]
 #[expect(
@@ -41,19 +66,25 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     let (synced_send, synced_recv) = mpsc::channel();
     server.add_systems(
         Update,
-        move |set: Option<Res<RegistrySet>>, mut sent: Local<bool>| {
-            let Some(set) = set.filter(|_| !*sent) else {
+        move |registries: Option<Res<CurrentRegistries>>,
+              set: Option<Res<RegistrySet>>,
+              mut sent: Local<bool>| {
+            let (Some(registries), Some(set)) = (registries, set) else {
                 return;
             };
-            *sent = true;
-            let synced: Vec<(String, Vec<String>)> = set
-                .synced()
-                .map(|(table, _)| {
-                    let names = table.names().iter().map(ToString::to_string);
-                    (table.registry().to_string(), names.collect())
-                })
+            if std::mem::replace(&mut *sent, true) {
+                return;
+            }
+            let (data, tags) = sent_by(&registries, false);
+            let named: Vec<String> = data
+                .iter()
+                .map(|(registry, _)| registry.to_string())
+                .chain(tags.iter().map(|(registry, _)| registry.to_string()))
                 .collect();
-            synced_send.send(synced).ok();
+            let synced = data.len();
+            synced_send
+                .send((synced, contents(&set, &named), named))
+                .ok();
         },
     );
     let (finished_send, finished_recv) = mpsc::channel();
@@ -70,9 +101,10 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         view_distance: 8,
     });
     client.add_plugins(ColumnCachePlugin);
-    insert_block_catalog(&mut client);
-    insert_session_inputs(&mut client);
+    add_client_registries(&mut client);
     insert_player(&mut client);
+    client.finish();
+    client.cleanup();
 
     let outcome = drive_client_until_joined(&mut client);
 
@@ -96,54 +128,21 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         ConnectionState::Game
     );
 
-    let synced = synced_recv
+    let (synced, server, named) = synced_recv
         .try_recv()
-        .expect("the server read its synced registries once its set existed");
-    assert!(!synced.is_empty(), "the server syncs no registry");
-    let session = world.resource::<RegistrySet>();
-    let statics = mcrs_minecraft_world::registries::static_registries().unwrap();
-    let received: BTreeSet<String> = session
-        .tables()
-        .map(|table| table.registry().to_string())
-        .filter(|registry| statics.table(registry).is_none())
-        .collect();
-    let expected: BTreeSet<String> = synced
-        .iter()
-        .map(|(registry, _)| registry.clone())
-        .collect();
-    assert_eq!(
-        received, expected,
-        "the registries the session holds beside the statics"
-    );
-    let session_order: Vec<String> = world
-        .resource::<SessionRegistryInputs>()
-        .declarations
-        .synced()
-        .map(ToString::to_string)
-        .collect();
-    let server_order: Vec<String> = synced
-        .iter()
-        .map(|(registry, _)| registry.clone())
-        .collect();
-    assert_eq!(
-        session_order, server_order,
-        "the client's declarations sync the registries in the server's order"
-    );
-    for (registry, names) in &synced {
-        let held: Vec<String> = session
-            .table(registry)
-            .unwrap()
-            .names()
+        .expect("the server read its registries once they existed");
+    assert!(synced > 0, "the server syncs no registry");
+    assert!(
+        named
             .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(&held, names, "entries of {registry}");
-    }
-    let biomes = synced
-        .iter()
-        .find(|(registry, _)| registry == "minecraft:worldgen/biome")
-        .expect("the server syncs biomes");
-    assert!(!biomes.1.is_empty(), "the biome registry arrived empty");
+            .any(|registry| registry == "minecraft:worldgen/biome"),
+        "the server syncs biomes"
+    );
+    assert_eq!(
+        contents(&world.resource::<DecodeScope>().0, &named),
+        server,
+        "the client holds the names, id order and tags the server holds"
+    );
 
     let joined = world.get::<JoinedGame>(connection).unwrap();
     assert!(!joined.dimensions.is_empty());

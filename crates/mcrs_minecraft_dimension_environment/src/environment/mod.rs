@@ -9,9 +9,10 @@
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registries::{Registries, RegistryOf};
+use mcrs_minecraft_registry::HolderSet;
 
-use crate::dimension_type::DimensionTypeEnvironment;
+use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
     AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap,
@@ -41,6 +42,8 @@ pub enum EnvironmentError {
     UnknownClock,
     #[error("the registry set holds no `{0}` registry")]
     MissingRegistry(&'static str),
+    #[error("the dimension type registry holds no entry {0}")]
+    UnknownDimensionType(u16),
 }
 
 #[derive(Debug, Clone)]
@@ -119,7 +122,7 @@ impl EnvironmentAttributes {
     pub fn build(
         dimension: &DimensionEnvironment,
         timelines: &[&Timeline],
-        world_clocks: &Registry<WorldClock>,
+        clock_count: usize,
     ) -> Result<Self, EnvironmentError> {
         let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
             .values()
@@ -141,9 +144,9 @@ impl EnvironmentAttributes {
 
         let mut clocks: Vec<Id<WorldClock>> = Vec::new();
         for timeline in timelines {
-            world_clocks
-                .name(timeline.clock)
-                .ok_or(EnvironmentError::UnknownClock)?;
+            if timeline.clock.index() >= clock_count {
+                return Err(EnvironmentError::UnknownClock);
+            }
             let clock = match clocks.iter().position(|known| *known == timeline.clock) {
                 Some(known) => known,
                 None => {
@@ -166,38 +169,48 @@ impl EnvironmentAttributes {
     }
 
     pub fn of_dimension(
-        registries: &RegistrySet,
+        registries: &Registries,
         dimension: &ResourceKey<Dimension>,
         dimension_type: Id<DimensionType>,
     ) -> Result<Self, EnvironmentError> {
-        let timeline_registry = mcrs_minecraft_environment::keys::TIMELINE.location();
         let timelines = registries
-            .column::<Timeline>(timeline_registry.as_static_str())
+            .registry::<RegistryOf<Timeline>>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let timeline_tags = registries
-            .tags::<Timeline>()
+            .tags::<RegistryOf<Timeline>>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let world_clocks = registries
-            .registry::<WorldClock>()
+            .registry::<RegistryOf<WorldClock>>()
             .ok_or(EnvironmentError::MissingRegistry("world_clock"))?;
         let dimension_types = registries
-            .entries::<DimensionType, DimensionType>()
+            .registry::<RegistryOf<DimensionTypeFile>>()
             .ok_or(EnvironmentError::MissingRegistry("dimension_type"))?;
-        let dimension_environments = registries
-            .entries::<DimensionType, DimensionTypeEnvironment>()
-            .ok_or(EnvironmentError::MissingRegistry("dimension_type"))?;
+        let (dimension_type, environment) =
+            Id::checked(dimension_type.number(), dimension_types.len())
+                .and_then(|id| dimension_types.get(id))
+                .ok_or(EnvironmentError::UnknownDimensionType(
+                    dimension_type.number(),
+                ))?
+                .split();
 
-        let environment = &dimension_environments[dimension_type];
-        let dimension_timelines: Vec<&Timeline> = environment
-            .timelines
-            .ids(&timeline_tags)
-            .filter_map(|member| timelines.get(member.index()))
+        let members: Vec<u16> = match &environment.timelines {
+            HolderSet::Named(tag) => timeline_tags
+                .iter()
+                .nth(tag.index())
+                .map(|(tag, _)| timeline_tags.members(tag).map(Id::number).collect())
+                .unwrap_or_default(),
+            HolderSet::One(entry) => vec![entry.number()],
+            HolderSet::List(entries) => entries.iter().map(|entry| entry.number()).collect(),
+        };
+        let dimension_timelines: Vec<&Timeline> = members
+            .into_iter()
+            .filter_map(|number| timelines.values().get(usize::from(number)))
             .collect();
 
         Self::build(
-            &DimensionEnvironment::of(dimension, &dimension_types[dimension_type], environment),
+            &DimensionEnvironment::of(dimension, &dimension_type, &environment),
             &dimension_timelines,
-            &world_clocks,
+            world_clocks.len(),
         )
     }
 

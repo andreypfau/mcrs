@@ -155,7 +155,6 @@ bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 [dev-dependencies]
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
-mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
@@ -164,6 +163,12 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 bevy_ecs.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+bevy_asset.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_dimension_environment.workspace = true
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_registries.workspace = true
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]

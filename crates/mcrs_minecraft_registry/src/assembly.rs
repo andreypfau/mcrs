@@ -29,9 +29,6 @@ pub enum AssemblyError {
         entry: usize,
         pack: u32,
     },
-    SyncedTwice {
-        registry: Name,
-    },
     NotParsed {
         registry: String,
     },
@@ -80,9 +77,6 @@ impl fmt::Display for AssemblyError {
                 f,
                 "entry {entry} of registry {registry} comes from pack {pack}, which the pack list lacks"
             ),
-            AssemblyError::SyncedTwice { registry } => {
-                write!(f, "registry {registry} is synced twice")
-            }
             AssemblyError::NotParsed { registry } => {
                 write!(f, "registry {registry} declares no value type")
             }

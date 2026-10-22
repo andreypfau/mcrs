@@ -10,7 +10,7 @@ use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::TerrainLimits;
 use crate::registries::SessionSet;
@@ -123,7 +123,7 @@ pub fn run() {
             Update,
             freeze_clocks
                 .after(SessionSet::Derive)
-                .run_if(resource_exists_and_changed::<RegistrySet>),
+                .run_if(resource_exists_and_changed::<CurrentRegistries>),
         );
     }
 

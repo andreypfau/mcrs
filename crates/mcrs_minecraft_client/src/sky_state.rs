@@ -365,7 +365,7 @@ mod tests {
     fn build(file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
         let proto = dimension_type(file);
         let borrowed: Vec<&Timeline> = timelines.iter().collect();
-        EnvironmentAttributes::build(&shape(&proto), &borrowed, &clock_registry()).unwrap()
+        EnvironmentAttributes::build(&shape(&proto), &borrowed, clock_registry().len()).unwrap()
     }
 
     fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -529,7 +529,8 @@ mod tests {
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
         let attributes =
-            EnvironmentAttributes::build(&shape(&proto), &borrowed, &clock_registry()).unwrap();
+            EnvironmentAttributes::build(&shape(&proto), &borrowed, clock_registry().len())
+                .unwrap();
 
         let layout = SkyLayout::derive(&attributes);
         let ticks = ticks_at(&attributes, NOON, 0.0);
