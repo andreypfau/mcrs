@@ -8,7 +8,7 @@ pub mod material_rule_type;
 pub use material_condition_type::MaterialConditionType;
 pub use material_rule_type::MaterialRuleType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const MATERIAL_CONDITION: RegistryKey<crate::proto::MaterialConditionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/material_condition"));
@@ -32,13 +32,4 @@ pub const MATERIAL_RULE_TYPE: RegistryKey<crate::keys::MaterialRuleType> =
     RegistryKey::new(rl!("minecraft:worldgen/material_rule_type"));
 impl Registered for crate::keys::MaterialRuleType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 4] {
-    [
-        MATERIAL_CONDITION.binding(),
-        MATERIAL_CONDITION_TYPE.binding(),
-        MATERIAL_RULE.binding(),
-        MATERIAL_RULE_TYPE.binding(),
-    ]
 }

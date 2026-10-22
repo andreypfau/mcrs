@@ -10,8 +10,9 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
-use mcrs_minecraft_registries::{KeySet, Named};
-use mcrs_minecraft_registry::{HolderSet, Registry, Tags};
+use mcrs_minecraft_registries::{
+    IdSet as Ids, Key, KeySet, Named, Namer, Registries, RegistryOf, RegistryType, Resolve, Tags,
+};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
@@ -96,11 +97,8 @@ pub struct StructureInputs<'a> {
     pub pools: &'a BTreeMap<ResourceLocation, TemplatePool>,
     pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
-    pub biomes: &'a Registry<Biome>,
-    pub biome_tags: &'a Tags<Biome>,
-    /// The structure ids the tags are resolved against, and those tags.
-    pub structure_registry: &'a Registry<Structure>,
-    pub structure_tags: &'a Tags<Structure>,
+    /// The biome and structure ids and tags the sets are resolved against.
+    pub registries: &'a Registries,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -135,14 +133,17 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
 fn structure_id_set(
     inputs: &StructureInputs<'_>,
     frozen: &FrozenStructures,
-    set: &HolderSet<Structure>,
+    keys: &KeySet<RegistryOf<Structure>>,
 ) -> Result<IdSet, String> {
+    let (set, tags) = resolved(inputs.registries, keys)?;
     let mut mask = FixedBitSet::with_capacity(frozen.structures.len());
-    for id in set.ids(inputs.structure_tags) {
-        let name = inputs
-            .structure_registry
-            .name(id)
-            .expect("a set member is a structure of the registry");
+    for id in set.ids(&tags) {
+        let name = Namer::name(inputs.registries, id).ok_or_else(|| {
+            format!(
+                "names the structure numbered {}, which is not loaded",
+                id.number()
+            )
+        })?;
         let loaded = frozen
             .structure_ids
             .get(name.as_str())
@@ -166,14 +167,8 @@ fn freeze_variants(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
-            &|keys| {
-                let set = holder_set(keys, inputs.structure_registry, inputs.structure_tags)?;
-                structure_id_set(inputs, frozen, &set)
-            },
-            &|keys| {
-                let set = holder_set(keys, inputs.biomes, inputs.biome_tags)?;
-                Ok(biome_mask(inputs, &set))
-            },
+            &|keys| structure_id_set(inputs, frozen, keys),
+            &|keys| biome_mask(inputs, keys),
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
@@ -202,30 +197,23 @@ fn freeze_variants(
     Ok(())
 }
 
-fn holder_set<R: 'static, V>(
-    keys: &KeySet<V>,
-    registry: &Registry<R>,
-    tags: &Tags<R>,
-) -> Result<HolderSet<R>, String> {
-    let unknown = || format!("names {keys:?}, which is not loaded");
-    Ok(match keys {
-        KeySet::Tag(tag) => HolderSet::Named(
-            tags.get(&TagKey::from_location(tag.location().clone()))
-                .ok_or_else(unknown)?,
-        ),
-        KeySet::List(keys) => HolderSet::List(
-            keys.iter()
-                .map(|key| registry.by_name(key.location().as_str()))
-                .collect::<Option<_>>()
-                .ok_or_else(unknown)?,
-        ),
-    })
+fn resolved<R: RegistryType>(
+    registries: &Registries,
+    keys: &KeySet<R>,
+) -> Result<(Ids<R>, Tags<R>), String> {
+    let set = Ids::resolve(keys.clone(), registries)
+        .map_err(|error| format!("names {keys:?}, which is not loaded: {error}"))?;
+    let tags = registries
+        .tags::<R>()
+        .ok_or_else(|| format!("names {keys:?}, which is not loaded"))?;
+    Ok((set, tags))
 }
 
-fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<Biome>) -> BiomeMask {
-    let mut mask = FixedBitSet::with_capacity(inputs.biomes.len());
-    mask.extend(set.ids(inputs.biome_tags).map(Id::index));
-    Arc::new(mask)
+fn biome_mask(inputs: &StructureInputs<'_>, keys: &KeySet<Biome>) -> Result<BiomeMask, String> {
+    let (set, tags) = resolved(inputs.registries, keys)?;
+    let mut mask = FixedBitSet::new();
+    mask.extend(set.ids(&tags).map(Id::index));
+    Ok(Arc::new(mask))
 }
 
 fn biome_tag_mask(
@@ -233,13 +221,12 @@ fn biome_tag_mask(
     owner: &dyn std::fmt::Display,
     key: TagKey<Biome, &'static str>,
 ) -> Result<BiomeMask, String> {
-    let tag = inputs.biome_tags.get(&key).ok_or_else(|| {
+    biome_mask(inputs, &KeySet::Tag(Key::new((*key.location()).into()))).map_err(|_| {
         format!(
             "{owner}: names the biome tag #{}, which is not loaded",
             key.as_str()
         )
-    })?;
-    Ok(biome_mask(inputs, &HolderSet::Named(tag)))
+    })
 }
 
 fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> Result<(), String> {
@@ -458,7 +445,8 @@ fn freeze_structures(
     for (id, structure) in ordered {
         let settings = structure.settings();
         let step_index = per_step.entry(settings.step).or_default();
-        let biomes = biome_mask(inputs, &settings.biomes);
+        let biomes =
+            biome_mask(inputs, &settings.biomes).map_err(|error| format!("{id}: {error}"))?;
         freeze_structure_templates(inputs, frozen, id, structure.templates())?;
         let templates = |names: &[&str]| {
             names
@@ -723,7 +711,7 @@ fn freeze_sets(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> R
                 spreading,
                 preferred_biomes,
                 ..
-            } => (Some(spreading), Some(biome_mask(inputs, preferred_biomes))),
+            } => (Some(spreading), Some(biome_mask(inputs, preferred_biomes)?)),
             StructurePlacement::DimensionOrigin {} => (None, None),
         };
         let exclusion = match spreading.and_then(|spreading| spreading.exclusion_zone.as_ref()) {

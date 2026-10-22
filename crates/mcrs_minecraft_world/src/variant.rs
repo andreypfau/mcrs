@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use mcrs_minecraft_entity::variant::{
     CatVariant, ChickenModel, ChickenVariant, CowModel, CowVariant, FrogVariant, PigModel,
     PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
 };
-use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, registry_value};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{
+    Named, Refs, Registries, RegistryOf, Resolve, Resolved, registry_value,
+};
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
@@ -24,6 +25,12 @@ macro_rules! spawning_variant {
         pub struct $file<M: Refs = Resolved> {
             $($(#[$field_meta])* pub $field: $ty,)+
             pub spawn_conditions: Vec<SpawnSelector<M>>,
+        }
+
+        impl SpawnConditions for $file {
+            fn spawn_conditions(&self) -> &[SpawnSelector] {
+                &self.spawn_conditions
+            }
         }
 
         impl $file {
@@ -99,28 +106,27 @@ spawning_variant! {
     }
 }
 
+pub trait SpawnConditions: Send + Sync + 'static {
+    fn spawn_conditions(&self) -> &[SpawnSelector];
+}
+
 /// A variant registry's spawn conditions by variant name.
-pub fn spawn_selectors<R>(
-    registries: &RegistrySet,
-    registry: RegistryKey<R>,
+pub fn spawn_selectors<F: SpawnConditions>(
+    registries: &Registries,
 ) -> Result<BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>, String> {
-    let registry = registry.location().as_static_str();
-    let table = registries
-        .table(registry)
-        .ok_or_else(|| format!("{registry} is not a loaded registry"))?;
-    let conditions = registries
-        .column::<Vec<SpawnSelector>>(registry)
-        .ok_or_else(|| format!("{registry} holds no spawn conditions"))?;
-    table
-        .names()
+    let registry = registries
+        .registry::<RegistryOf<F>>()
+        .ok_or_else(|| format!("{} is not loaded", std::any::type_name::<F>()))?;
+    registry
         .iter()
-        .cloned()
-        .zip(conditions.iter())
-        .map(|(name, selectors)| {
-            let selectors = selectors
-                .name(registries)
-                .map_err(|error| format!("{registry}: {error}"))?;
-            Ok((name, selectors))
+        .map(|(_, name, file)| {
+            let selectors = file
+                .spawn_conditions()
+                .iter()
+                .map(|selector| selector.name(registries))
+                .collect::<Result<_, _>>()
+                .map_err(|error| format!("{}: {name}: {error}", registry.key()))?;
+            Ok((name.clone(), selectors))
         })
         .collect()
 }

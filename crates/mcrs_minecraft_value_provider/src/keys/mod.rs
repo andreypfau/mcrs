@@ -8,7 +8,7 @@ pub use float_provider_type::FloatProviderType;
 pub use height_provider_type::HeightProviderType;
 pub use int_provider_type::IntProviderType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const FLOAT_PROVIDER_TYPE: RegistryKey<crate::keys::FloatProviderType> =
     RegistryKey::new(rl!("minecraft:float_provider_type"));
@@ -26,12 +26,4 @@ pub const INT_PROVIDER_TYPE: RegistryKey<crate::keys::IntProviderType> =
     RegistryKey::new(rl!("minecraft:int_provider_type"));
 impl Registered for crate::keys::IntProviderType {
     const REGISTRY: RegistryKey<Self> = INT_PROVIDER_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        FLOAT_PROVIDER_TYPE.binding(),
-        HEIGHT_PROVIDER_TYPE.binding(),
-        INT_PROVIDER_TYPE.binding(),
-    ]
 }

@@ -5,7 +5,6 @@ mod refs;
 mod reload;
 mod report;
 mod stack;
-mod stages;
 mod static_key;
 mod support;
 mod tags;

@@ -35,7 +35,6 @@ const CATALOG_CRATE: &str = "mcrs_minecraft_registry_catalog";
 struct Target {
     krate: String,
     definitions: String,
-    bindings: Vec<String>,
     modules: Vec<String>,
     enums: Vec<(String, String)>,
 }
@@ -45,7 +44,6 @@ impl Target {
         Target {
             krate: krate.to_owned(),
             definitions: String::new(),
-            bindings: Vec::new(),
             modules: Vec::new(),
             enums: Vec::new(),
         }
@@ -111,6 +109,7 @@ pub fn generate(
     let mut targets: BTreeMap<String, Target> = BTreeMap::new();
     targets.insert(KEYS_CRATE.to_owned(), Target::new(KEYS_CRATE));
     let mut statics: Vec<(u16, String)> = Vec::new();
+    let mut static_owners: BTreeSet<String> = BTreeSet::new();
     let mut claimed: BTreeMap<String, &str> = ["registry", "lib", "keys"]
         .into_iter()
         .map(|name| (name.to_owned(), "src"))
@@ -161,9 +160,6 @@ pub fn generate(
             .or_insert_with(|| Target::new(krate));
         let key = module.to_ascii_uppercase();
         definition_text(&mut target.definitions, registry, &key, value);
-        if target.owned() {
-            target.bindings.push(key.clone());
-        }
 
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
@@ -206,6 +202,7 @@ pub fn generate(
                 report.protocol_id,
                 format!("    ({location}, {entries}),\n"),
             ));
+            static_owners.insert(krate.to_owned());
         }
         if let Some(text) = text {
             files.insert(target.source(&format!("{module}.rs")), text);
@@ -231,20 +228,15 @@ pub fn generate(
             files.insert(target.source("lib.rs"), lib_file(&target.modules));
         }
     }
-    let owning: Vec<&str> = targets
-        .keys()
-        .map(String::as_str)
-        .filter(|krate| !above_catalog.contains(*krate))
-        .collect();
     statics.sort_by_key(|&(protocol_id, _)| protocol_id);
     let statics: Vec<String> = statics.into_iter().map(|(_, line)| line).collect();
     files.insert(
         format!("crates/{CATALOG_CRATE}/src/lib.rs"),
-        catalog_file(&statics, &owning),
+        catalog_file(&statics),
     );
     files.insert(
         format!("crates/{CATALOG_CRATE}/Cargo.toml"),
-        catalog_manifest(&owning),
+        catalog_manifest(&static_owners),
     );
     for (path, text) in &mut files {
         if path.ends_with(".rs") {
@@ -592,21 +584,6 @@ fn named_constants(
     Ok(out)
 }
 
-fn bindings_text(bindings: &[String]) -> String {
-    let mut list = String::new();
-    for key in bindings {
-        list.push_str(&format!("        {key}.binding(),\n"));
-    }
-    format!(
-        "pub fn bindings() -> [TypeBinding; {len}] {{\n    \
-             [\n\
-         {list}    \
-             ]\n\
-         }}\n",
-        len = bindings.len()
-    )
-}
-
 fn registry_file(target: &Target) -> String {
     format!(
         "{HEADER}\n\
@@ -632,12 +609,10 @@ fn owner_file(target: &Target) -> String {
         out.push('\n');
     }
     out.push_str(&format!(
-        "use mcrs_minecraft_core::{{Registered, RegistryKey, TypeBinding, rl}};\n\
+        "use mcrs_minecraft_core::{{Registered, RegistryKey, rl}};\n\
          \n\
-         {definitions}\n\
-         {bindings}",
+         {definitions}",
         definitions = target.definitions,
-        bindings = bindings_text(&target.bindings),
     ));
     out
 }
@@ -651,35 +626,26 @@ fn lib_file(modules: &[String]) -> String {
     out
 }
 
-fn catalog_file(statics: &[String], owning: &[&str]) -> String {
+fn catalog_file(statics: &[String]) -> String {
     let mut out = format!(
         "{HEADER}\n\
-         use mcrs_minecraft_core::{{StaticResourceLocation, TypeBinding}};\n\
+         use mcrs_minecraft_core::StaticResourceLocation;\n\
          \n\
          pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n"
     );
     for line in statics {
         out.push_str(line);
     }
-    out.push_str(
-        "];\n\
-         \n\
-         pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n    \
-             std::iter::empty()\n",
-    );
-    for krate in owning.iter().filter(|krate| **krate != KEYS_CRATE) {
-        out.push_str(&format!("        .chain({krate}::keys::bindings())\n"));
-    }
-    out.push_str("}\n");
+    out.push_str("];\n");
     out
 }
 
-fn catalog_manifest(owning: &[&str]) -> String {
+fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
     let mut out = format!(
         "{}\n\
          [package]\n\
          name = \"{CATALOG_CRATE}\"\n\
-         description = \"The static registries and the registry types of every crate that owns one\"\n\
+         description = \"The entries of every static registry\"\n\
          version.workspace = true\n\
          edition.workspace = true\n\
          \n\
@@ -693,7 +659,7 @@ fn catalog_manifest(owning: &[&str]) -> String {
          mcrs_minecraft_core.workspace = true\n",
         HEADER.replacen("//", "#", 1).trim_end()
     );
-    for krate in owning {
+    for krate in static_owners {
         out.push_str(&format!("{krate}.workspace = true\n"));
     }
     out.push_str("\n[dev-dependencies]\nserde.workspace = true\nserde_json.workspace = true\n");
@@ -827,16 +793,12 @@ mod tests {
             files[CATALOG_LIB],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{StaticResourceLocation, TypeBinding};\n\
+             use mcrs_minecraft_core::StaticResourceLocation;\n\
              \n\
              pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[(\n\
              \x20   mcrs_minecraft_keys::BLOCK,\n\
              \x20   mcrs_minecraft_keys::block::ENTRIES,\n\
-             )];\n\
-             \n\
-             pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n\
-             \x20   std::iter::empty()\n\
-             }\n"
+             )];\n"
         );
         assert_eq!(
             files["src/lib.rs"],
@@ -1345,7 +1307,7 @@ mod tests {
     }
 
     #[test]
-    fn an_owned_registry_is_keyed_in_its_owner_and_bound_by_the_catalog() {
+    fn an_owned_registry_is_keyed_in_its_owner() {
         let files = owned(
             &[("minecraft:block", BLOCK)],
             &[("minecraft:worldgen/biome", &["minecraft:plains"])],
@@ -1365,15 +1327,11 @@ mod tests {
              \n\
              pub mod biome;\n\
              \n\
-             use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};\n\
+             use mcrs_minecraft_core::{Registered, RegistryKey, rl};\n\
              \n\
              pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
              impl Registered for crate::Biome {\n\
              \x20   const REGISTRY: RegistryKey<Self> = BIOME;\n\
-             }\n\
-             \n\
-             pub fn bindings() -> [TypeBinding; 1] {\n\
-             \x20   [BIOME.binding()]\n\
              }\n"
         );
         assert!(
@@ -1381,8 +1339,7 @@ mod tests {
                 "pub const PLAINS: ResourceKey<crate::Biome, &'static str> =\n    ResourceKey::new(rl!(\"minecraft:plains\"));"
             )
         );
-        assert!(files[CATALOG_LIB].contains(".chain(mcrs_minecraft_biome::keys::bindings())"));
-        assert!(files[CATALOG_MANIFEST].contains("\nmcrs_minecraft_biome.workspace = true\n"));
+        assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_biome"));
     }
 
     #[test]
@@ -1422,6 +1379,7 @@ mod tests {
         assert!(files[CATALOG_LIB].contains(
             "&[(\n    mcrs_minecraft_food::keys::FRUIT.location(),\n    mcrs_minecraft_food::keys::Fruit::ENTRIES,\n)];\n"
         ));
+        assert!(files[CATALOG_MANIFEST].contains("\nmcrs_minecraft_food.workspace = true\n"));
     }
 
     #[test]

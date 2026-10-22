@@ -9,7 +9,20 @@ use mcrs_minecraft_core::ResourceLocation;
 pub(crate) use filter::Filter;
 pub use stack::pack_stack;
 
-pub(crate) const VANILLA: &str = "vanilla";
+pub(crate) const VANILLA: &str = VANILLA_PACK;
+
+/// The id of the pack the game jar's data pack is loaded as.
+pub const VANILLA_PACK: &str = "vanilla";
+/// The directory below the asset root that holds one directory per local pack.
+pub const PACKS_ROOT: &str = "mcrs/datapacks";
+/// The vanilla pack's directory below a pack root. The game jar's `data/minecraft` tree fills
+/// it, never the assets root.
+pub const VANILLA_ROOT: &str = "minecraft";
+
+/// `path`, relative to a pack root, below the [`VANILLA_ROOT`] directory, if it lies there.
+pub fn below_vanilla_root(path: &std::path::Path) -> Option<&std::path::Path> {
+    path.strip_prefix(VANILLA_ROOT).ok()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackKind {
@@ -94,7 +107,7 @@ pub struct KnownPack {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackIndex(u16);
+pub(crate) struct PackIndex(u16);
 
 impl PackIndex {
     /// The origin of an entry a server sent with its data: no pack of the stack.
@@ -104,7 +117,7 @@ impl PackIndex {
         Self(number)
     }
 
-    pub fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         usize::from(self.0)
     }
 }
@@ -156,11 +169,11 @@ impl PackStack {
         &self.packs
     }
 
-    pub fn get(&self, index: PackIndex) -> Option<&StackedPack> {
+    pub(crate) fn get(&self, index: PackIndex) -> Option<&StackedPack> {
         self.packs.get(index.index())
     }
 
-    pub fn position(&self, id: &str) -> Option<PackIndex> {
+    pub(crate) fn position(&self, id: &str) -> Option<PackIndex> {
         self.indexed()
             .find(|(_, pack)| pack.id == id)
             .map(|(index, _)| index)

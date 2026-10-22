@@ -15,7 +15,6 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_item.workspace = true
@@ -36,12 +35,12 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_world = { workspace = true, default-features = false, features = ["test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_registry_catalog.workspace = true
 
 [[bench]]
 name = "frame"

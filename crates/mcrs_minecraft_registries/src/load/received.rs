@@ -1,4 +1,3 @@
-use std::any::TypeId;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -8,10 +7,10 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use super::ctx::Slot;
 use super::declaration::{Declaration, EntrySource, Kind, Source};
 use super::loader::{
-    assemble, check_declarations, decode, empty_slots, fail, not_built, report_unresolved, too_many,
+    assemble, check_declarations, decode, empty_slots, fail, report_unresolved, slots_by_type,
+    too_many,
 };
-use super::view::StageView;
-use super::{Registries, Stage, StageScope};
+use super::{Registries, Stage};
 use crate::diagnostics::{Diagnostic, Diagnostics};
 use crate::pack::{PackIndex, PackStack};
 use crate::registry::Names;
@@ -35,7 +34,6 @@ pub struct Received {
 pub fn load_received(
     declarations: &[Declaration],
     received: &Received,
-    scope: &mut StageScope<'_>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
     let diagnostics = Diagnostics::default();
     let errors = check_declarations(declarations);
@@ -43,16 +41,7 @@ pub fn load_received(
         return Err(fail(diagnostics, errors));
     }
     let mut slots = empty_slots(declarations);
-    let by_type: HashMap<TypeId, usize> = slots
-        .iter()
-        .enumerate()
-        .flat_map(|(at, slot)| {
-            let declaration = slot.declaration;
-            std::iter::once(declaration.registry_type())
-                .chain(declaration.aliases().iter().copied())
-                .map(move |registry_type| (registry_type, at))
-        })
-        .collect();
+    let by_type = slots_by_type(&slots);
 
     let (sources, mut errors) = name_slots(&mut slots, received);
     if !errors.is_empty() {
@@ -60,29 +49,19 @@ pub fn load_received(
     }
 
     let stack = Arc::new(PackStack::default());
-    let view = StageView::new(Stage::Reloadable, &slots);
-    let mut pending = Some(sources);
-    scope(&view, &mut || {
-        let Some(sources) = pending.take() else {
-            return;
-        };
-        let missing = decode(
-            Some(Stage::Reloadable),
-            &mut slots,
-            &by_type,
-            sources,
-            &stack,
-            &mut errors,
-        );
-        let mut unresolved = BTreeMap::new();
-        for (at, missing) in missing {
-            unresolved.entry(at).or_insert_with(Vec::new).push(missing);
-        }
-        report_unresolved(unresolved, &slots, &mut errors);
-    });
-    if pending.is_some() {
-        errors.extend(slots.iter().map(|slot| not_built(slot.key())));
+    let missing = decode(
+        Some(Stage::Reloadable),
+        &mut slots,
+        &by_type,
+        sources,
+        &stack,
+        &mut errors,
+    );
+    let mut unresolved = BTreeMap::new();
+    for (at, missing) in missing {
+        unresolved.entry(at).or_insert_with(Vec::new).push(missing);
     }
+    report_unresolved(unresolved, &slots, &mut errors);
     for slot in &slots {
         if let (Kind::Data(data), Some(table)) = (slot.declaration.kind(), &slot.table)
             && data.is_synced()

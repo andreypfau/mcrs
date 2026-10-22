@@ -3,7 +3,6 @@ use std::path::Path;
 use bevy_asset::io::{AssetReaderError, ErasedAssetReader, Reader};
 use bevy_tasks::block_on;
 use bevy_tasks::futures_lite::StreamExt;
-use mcrs_minecraft_registry::RegistrySet;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CorpusReadError {
@@ -70,60 +69,4 @@ pub async fn read_whole(
     let mut bytes = Vec::new();
     reader.read(path).await?.read_to_end(&mut bytes).await?;
     Ok(bytes)
-}
-
-/// Loads any asset that is nothing but its JSON: parse the file inside the
-/// loaded registry set's scope, hand back the value. An asset that names other
-/// assets needs a loader of its own, because only that loader knows which ids
-/// to turn into handles.
-pub struct JsonLoader<A> {
-    registries: RegistrySet,
-    asset: std::marker::PhantomData<fn() -> A>,
-}
-
-impl<A> JsonLoader<A> {
-    pub fn new(registries: RegistrySet) -> Self {
-        Self {
-            registries,
-            asset: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<A: bevy_reflect::TypePath> bevy_reflect::TypePath for JsonLoader<A> {
-    fn type_path() -> &'static str {
-        "mcrs_minecraft_assets::asset::JsonLoader"
-    }
-
-    fn short_type_path() -> &'static str {
-        "JsonLoader"
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum JsonLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("JSON parse error: {0}")]
-    Json(#[from] serde_json::Error),
-}
-
-impl<A> bevy_asset::AssetLoader for JsonLoader<A>
-where
-    A: bevy_asset::Asset + serde::de::DeserializeOwned,
-{
-    type Asset = A;
-    type Settings = ();
-    type Error = JsonLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        _load_context: &mut bevy_asset::LoadContext<'_>,
-    ) -> Result<A, JsonLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-        Ok(self.registries.scope(|| serde_json::from_slice(&bytes))?)
-    }
 }

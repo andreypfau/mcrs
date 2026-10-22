@@ -23,7 +23,7 @@ pub use entity_type::EntityType;
 pub use villager_profession::VillagerProfession;
 pub use villager_type::VillagerType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const ATTRIBUTE: RegistryKey<crate::keys::Attribute> =
     RegistryKey::new(rl!("minecraft:attribute"));
@@ -119,25 +119,4 @@ pub const ZOMBIE_NAUTILUS_VARIANT: RegistryKey<crate::variant::ZombieNautilusVar
     RegistryKey::new(rl!("minecraft:zombie_nautilus_variant"));
 impl Registered for crate::variant::ZombieNautilusVariant {
     const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
-}
-
-pub fn bindings() -> [TypeBinding; 16] {
-    [
-        ATTRIBUTE.binding(),
-        CAT_SOUND_VARIANT.binding(),
-        CAT_VARIANT.binding(),
-        CHICKEN_SOUND_VARIANT.binding(),
-        CHICKEN_VARIANT.binding(),
-        COW_SOUND_VARIANT.binding(),
-        COW_VARIANT.binding(),
-        ENTITY_TYPE.binding(),
-        FROG_VARIANT.binding(),
-        PIG_SOUND_VARIANT.binding(),
-        PIG_VARIANT.binding(),
-        VILLAGER_PROFESSION.binding(),
-        VILLAGER_TYPE.binding(),
-        WOLF_SOUND_VARIANT.binding(),
-        WOLF_VARIANT.binding(),
-        ZOMBIE_NAUTILUS_VARIANT.binding(),
-    ]
 }

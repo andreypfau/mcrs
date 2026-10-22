@@ -4,12 +4,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{
+    Named, Refs, Registries, Resolve, ResolveError, Resolved, registry_value,
+};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::dimension::Dimensions;
+use crate::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::world_clock::ClockState;
@@ -45,6 +47,8 @@ pub enum SaveError {
         value: String,
         expected: &'static str,
     },
+    #[error("{path}: {source}")]
+    Resolve { path: PathBuf, source: ResolveError },
     #[error("{path}: `{field}` has {found} elements, expected {expected}")]
     WrongLength {
         path: PathBuf,
@@ -81,10 +85,11 @@ pub struct LevelDat {
     pub spawn: RespawnData,
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WorldGenSettings {
+pub struct WorldGenSettings<M: Refs = Resolved> {
     pub seed: i64,
-    pub dimensions: Dimensions,
+    pub dimensions: std::collections::BTreeMap<ResourceKey<Dimension>, DimensionEntry<M>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -125,33 +130,39 @@ pub fn read_world_clocks(world: &Path) -> Result<WorldClockStates, SaveError> {
 
 pub fn read_world_gen_settings(
     world: &Path,
-    set: &RegistrySet,
+    registries: &Registries,
 ) -> Result<WorldGenSettings, SaveError> {
     let path = saved_data_path(world, "world_gen_settings");
-    parse_world_gen_settings(&read_bytes(&path)?, &path, set)
+    parse_world_gen_settings(&read_bytes(&path)?, &path, registries)
 }
 
 // chisle: only the seed and the dimensions are written; bonus_chest and generate_structures are dropped, and the first writer that preserves a vanilla file needs them.
 pub fn write_world_gen_settings(
     world: &Path,
     settings: &WorldGenSettings,
-    set: &RegistrySet,
+    registries: &Registries,
 ) -> Result<(), SaveError> {
     let path = saved_data_path(world, "world_gen_settings");
     let io = |source| SaveError::Io {
         path: path.clone(),
         source,
     };
-    let file = SavedDataFile {
-        data: settings,
-        data_version: VERSION.world_version,
-    };
-    let bytes = set
-        .scope(|| mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&file))
-        .map_err(|source| SaveError::Nbt {
+    let data = settings
+        .name(registries)
+        .map_err(|source| SaveError::Resolve {
             path: path.clone(),
             source,
         })?;
+    let file = SavedDataFile {
+        data,
+        data_version: VERSION.world_version,
+    };
+    let bytes = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&file).map_err(|source| {
+        SaveError::Nbt {
+            path: path.clone(),
+            source,
+        }
+    })?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(io)?;
     }
@@ -314,11 +325,14 @@ fn parse_world_clocks(bytes: &[u8], path: &Path) -> Result<WorldClockStates, Sav
 fn parse_world_gen_settings(
     bytes: &[u8],
     path: &Path,
-    set: &RegistrySet,
+    registries: &Registries,
 ) -> Result<WorldGenSettings, SaveError> {
-    let file: SavedDataFile<WorldGenSettings> = set.scope(|| decode(bytes, path))?;
+    let file: SavedDataFile<WorldGenSettings<Named>> = decode(bytes, path)?;
     check_data_version(file.data_version, path)?;
-    Ok(file.data)
+    WorldGenSettings::resolve(file.data, registries).map_err(|source| SaveError::Resolve {
+        path: path.to_path_buf(),
+        source,
+    })
 }
 
 fn parse_weather(bytes: &[u8], path: &Path) -> Result<WeatherData, SaveError> {

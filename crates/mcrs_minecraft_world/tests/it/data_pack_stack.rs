@@ -1,7 +1,6 @@
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_registries::{Diagnostic, Level};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{Diagnostic, Level, Registries, RegistryOf, StackedPack};
 
 use crate::common::{TEST_PACK, WithFiles};
 
@@ -13,18 +12,19 @@ fn a_pack_that_ships_a_built_in_biome_replaces_the_built_in_entry() {
     )])
     .load()
     .unwrap_or_else(|error| panic!("{error}"));
-    let set = &loaded.set;
+    let set = &loaded.registries;
 
-    let biomes = set.registry::<Biome>().unwrap();
-    let plains = biomes.by_name("minecraft:plains").unwrap();
-    let values = set.entries::<Biome, Biome>().unwrap();
-    let biome = values.get(plains).unwrap();
+    let biomes = set.registry::<RegistryOf<BiomeFile>>().unwrap();
+    let plains = biomes
+        .by_name(&"minecraft:plains".parse().unwrap())
+        .unwrap();
+    let biome = biomes.get(plains).unwrap();
     assert_eq!(
         (biome.temperature, biome.downfall, biome.has_precipitation),
         (0.125, 0.5, false)
     );
     assert_eq!(
-        set.pack_of("minecraft:worldgen/biome", plains.index()),
+        set.origin(plains).map(StackedPack::id),
         Some("file/zz_test")
     );
 }
@@ -33,10 +33,9 @@ fn banner_pattern(name: &str) -> String {
     format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#)
 }
 
-fn has_banner_pattern(set: &RegistrySet, name: &str) -> bool {
-    set.table("minecraft:banner_pattern")
-        .and_then(|table| table.number(name))
-        .is_some()
+fn has_banner_pattern(set: &Registries, name: &str) -> bool {
+    set.names_of(&"minecraft:banner_pattern".parse().unwrap())
+        .is_some_and(|names| names.iter().any(|entry| entry.as_str() == name))
 }
 
 #[test]
@@ -64,7 +63,7 @@ fn a_pack_directory_the_loader_cannot_read_is_reported_and_not_loaded() {
             .unwrap_or_else(|error| panic!("{case}: {error}"));
 
         assert!(
-            !has_banner_pattern(&loaded.set, "minecraft:stray"),
+            !has_banner_pattern(&loaded.registries, "minecraft:stray"),
             "{case}"
         );
         let reported: Vec<&Diagnostic> = loaded
@@ -88,9 +87,9 @@ fn the_vanilla_pack_holds_only_the_minecraft_namespace_of_the_asset_root() {
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
 
-    assert!(has_banner_pattern(&loaded.set, "minecraft:kept"));
-    assert!(!has_banner_pattern(&loaded.set, "mcrs:local"));
-    assert!(!has_banner_pattern(&loaded.set, "example:other"));
+    assert!(has_banner_pattern(&loaded.registries, "minecraft:kept"));
+    assert!(!has_banner_pattern(&loaded.registries, "mcrs:local"));
+    assert!(!has_banner_pattern(&loaded.registries, "example:other"));
 }
 
 #[test]
@@ -104,7 +103,7 @@ fn a_feature_pack_is_not_read_as_part_of_the_vanilla_pack() {
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
 
-    assert!(!has_banner_pattern(&loaded.set, "minecraft:feature"));
+    assert!(!has_banner_pattern(&loaded.registries, "minecraft:feature"));
 }
 
 #[test]
@@ -125,5 +124,5 @@ fn an_active_overlay_of_a_local_pack_is_read_under_its_own_root() {
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
 
-    assert!(has_banner_pattern(&loaded.set, "minecraft:overlaid"));
+    assert!(has_banner_pattern(&loaded.registries, "minecraft:overlaid"));
 }

@@ -14,8 +14,8 @@ impl RegistryType for TestBiome {
 fn biomes_without(skipped: &str) -> Registries {
     let biomes = corpus_biomes();
     let names = biomes
-        .ids()
-        .filter_map(|id| biomes.name(id))
+        .iter()
+        .map(|(_, name, _)| name)
         .filter(|name| name.as_str() != skipped)
         .cloned()
         .collect();

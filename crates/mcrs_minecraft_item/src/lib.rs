@@ -92,5 +92,4 @@ mcrs_minecraft_registries::declare_registries!(
     crate::dialog::Dialog => crate::keys::DIALOG, World;
     crate::decorated_pot_pattern::DecoratedPotPattern => crate::keys::DECORATED_POT_PATTERN, World;
     crate::block_transformer::BlockTransformer => crate::keys::BLOCK_TRANSFORMER, World;
-    crate::recipe::Recipe => crate::keys::RECIPE, Reloadable;
 );

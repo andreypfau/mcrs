@@ -62,7 +62,7 @@ fn compound(message_id: &str) -> NbtTag {
 }
 
 fn receive(received: &Received) -> Result<Registries, Vec<String>> {
-    load_received(&synced_damage(), received, &mut |_, decode| decode())
+    load_received(&synced_damage(), received)
         .map(|(registries, _)| registries)
         .map_err(|report| report.iter().map(ToString::to_string).collect())
 }

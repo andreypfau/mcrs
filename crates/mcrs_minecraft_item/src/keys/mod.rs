@@ -64,7 +64,7 @@ pub use recipe_display::RecipeDisplayType;
 pub use recipe_serializer::RecipeSerializer;
 pub use slot_display::SlotDisplayType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const BANNER_PATTERN: RegistryKey<crate::BannerPattern> =
     RegistryKey::new(rl!("minecraft:banner_pattern"));
@@ -270,44 +270,4 @@ pub const TRIM_PATTERN: RegistryKey<crate::TrimPattern> =
     RegistryKey::new(rl!("minecraft:trim_pattern"));
 impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
-}
-
-pub fn bindings() -> [TypeBinding; 35] {
-    [
-        BANNER_PATTERN.binding(),
-        BLOCK_TRANSFORMER.binding(),
-        CONSUME_EFFECT_TYPE.binding(),
-        CONTEXT_FLOAT_PROVIDER.binding(),
-        CONTEXT_FLOAT_PROVIDER_TYPE.binding(),
-        CONTEXT_INT_PROVIDER.binding(),
-        CONTEXT_INT_PROVIDER_TYPE.binding(),
-        CONTEXT_KEY_SET.binding(),
-        DAMAGE_TYPE.binding(),
-        DATA_COMPONENT_PREDICATE_TYPE.binding(),
-        DATA_COMPONENT_TYPE.binding(),
-        DECORATED_POT_PATTERN.binding(),
-        DIALOG.binding(),
-        DIALOG_ACTION_TYPE.binding(),
-        DIALOG_BODY_TYPE.binding(),
-        DIALOG_TYPE.binding(),
-        ENCHANTMENT.binding(),
-        ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.binding(),
-        INPUT_CONTROL_TYPE.binding(),
-        INSTRUMENT.binding(),
-        ITEM.binding(),
-        JUKEBOX_SONG.binding(),
-        LOOT_TABLE.binding(),
-        MAP_DECORATION_TYPE.binding(),
-        MENU.binding(),
-        MOB_EFFECT.binding(),
-        PAINTING_VARIANT.binding(),
-        POTION.binding(),
-        RECIPE.binding(),
-        RECIPE_BOOK_CATEGORY.binding(),
-        RECIPE_DISPLAY.binding(),
-        RECIPE_SERIALIZER.binding(),
-        SLOT_DISPLAY.binding(),
-        TRIM_MATERIAL.binding(),
-        TRIM_PATTERN.binding(),
-    ]
 }

@@ -9,7 +9,7 @@ use mcrs_minecraft_protocol::item::{
 use serde::Deserialize;
 
 use crate::item::harness::{
-    TestLookup, decode, from_json, hex, json_value, named, nbt_tree, persistent_json, wire,
+    ctx, decode, from_json, hex, json_value, named, nbt_tree, persistent_json, wire,
 };
 
 #[derive(Deserialize)]
@@ -74,7 +74,7 @@ fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
 
 #[test]
 fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let mut checked = 0;
     for row in golden().values {
         let Some(input) = &row.input else { continue };
@@ -115,7 +115,7 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
 
 #[test]
 fn transient_values_match_the_vanilla_wire() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let mut checked = 0;
     for row in golden().values {
         let Some(text) = &row.value else { continue };
@@ -189,7 +189,7 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
     for row in golden().decode_errors {
         let kind = kind(&row.kind);
         let bytes = hex(&row.wire);
-        let error = decode_component_value(kind, &TestLookup::new(), &mut &bytes[..])
+        let error = decode_component_value(kind, &ctx(), &mut &bytes[..])
             .err()
             .unwrap_or_else(|| panic!("{kind:?} decoded {}", row.wire));
         assert!(
@@ -239,7 +239,7 @@ fn out_of_range_floats_are_refused_on_write_as_well() {
 
 #[test]
 fn out_of_range_wire_ids_decode_as_vanilla_does() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let mut checked = 0;
     for row in golden().decodes {
         let kind = kind(&row.kind);

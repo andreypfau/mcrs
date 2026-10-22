@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::codec::{PositiveFloat, Validate, non_empty};
+use mcrs_minecraft_core::codec::{PositiveFloat, non_empty};
 use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -6,7 +6,6 @@ use std::str::FromStr;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registries::{Named, Refs, RegistryOf, Resolved, registry_value};
-use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use serde::de::Error as _;
@@ -16,9 +15,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::block_state::{BlockState, serialize_stated};
 use crate::predicate::BlockPredicate;
 use mcrs_minecraft_block::keys::Block;
-
-/// `RegistryCodecs.holderSet(Registries.BLOCK)`.
-pub type BlockSet = HolderSet<Block>;
 
 mcrs_minecraft_worldgen_noise::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
@@ -133,7 +129,7 @@ pub type BlockStateProvider<M = Resolved> =
 /// provider, never a bare id, which the holder around it reads as a reference.
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", untagged)]
+#[serde(untagged)]
 pub enum DirectBlockStateProvider<M: Refs = Resolved> {
     State(#[serde(serialize_with = "serialize_stated")] BlockState),
     Typed(TypedBlockStateProvider<M>),
@@ -203,16 +199,7 @@ pub enum TypedBlockStateProvider<M: Refs = Resolved> {
     },
 }
 
-// Checked here rather than in the typed provider, whose failure the untagged form would reword.
-impl Validate for DirectBlockStateProvider<Named> {
-    fn validate(&self) -> Result<(), String> {
-        mcrs_minecraft_registry::check_in_scope::<DirectBlockStateProvider>(self.clone())
-    }
-}
-
-mcrs_minecraft_core::validated!(DirectBlockStateProvider<Named>);
-
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     TypedBlockStateProvider<Named>, key = "type", registry = crate::keys::BlockStateProviderType,
     {
         CopyProperties => CopyProperties,

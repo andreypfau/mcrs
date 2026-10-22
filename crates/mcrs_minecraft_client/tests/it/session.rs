@@ -18,7 +18,6 @@ use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, Worl
 use mcrs_minecraft_item::InlineRef;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_network::client::DecodeScope;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -118,14 +117,11 @@ fn receive_respawn(
     };
     let mut bytes = Vec::new();
     packet.encode(&mut bytes).unwrap();
-    let DecodeScope(session) = app.world().resource::<DecodeScope>().clone();
-    session.scope(|| {
-        app.world_mut().trigger(ReceivedPacketEvent {
-            entity: connection,
-            id: ClientboundRespawn::ID,
-            data: Bytes::from(bytes),
-            timestamp: Instant::now(),
-        });
+    app.world_mut().trigger(ReceivedPacketEvent {
+        entity: connection,
+        id: ClientboundRespawn::ID,
+        data: Bytes::from(bytes),
+        timestamp: Instant::now(),
     });
     app.world_mut().flush();
     app.update();

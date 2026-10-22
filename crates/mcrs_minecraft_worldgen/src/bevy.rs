@@ -3,8 +3,8 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetApp, AssetLoader, LoadContext};
 use bevy_reflect::TypePath;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_core::{Registered, ResourceLocation, VERSION};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_registries::{Registries, RegistryOf};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_feature::template::Template;
@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 use thiserror::Error;
 
 /// Registers the structure template asset and its loader. Every other worldgen
-/// registry is a column of the loaded registry set.
+/// registry is a registry of the loaded registries.
 pub struct WorldgenAssetsPlugin;
 
 impl Plugin for WorldgenAssetsPlugin {
@@ -24,17 +24,18 @@ impl Plugin for WorldgenAssetsPlugin {
 }
 
 #[derive(Debug, Error)]
-#[error("{registry} has no parsed column in the registry set")]
+#[error("the registries hold no {registry}")]
 pub struct MissingColumn {
     pub registry: &'static str,
 }
 
-fn column<R: Registered, T: 'static>(
-    set: &RegistrySet,
-) -> Result<mcrs_minecraft_registry::Entries<R, T>, MissingColumn> {
-    set.entries::<R, T>().ok_or(MissingColumn {
-        registry: R::REGISTRY.location().as_static_str(),
-    })
+fn column<T: Send + Sync + 'static>(registries: &Registries) -> Result<&[T], MissingColumn> {
+    registries
+        .registry::<RegistryOf<T>>()
+        .map(|registry| &registry.values()[..])
+        .ok_or(MissingColumn {
+            registry: std::any::type_name::<T>(),
+        })
 }
 
 /// The structure templates a template pool names, in its elements and in the
@@ -46,19 +47,21 @@ pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocation> {
 }
 
 /// Every structure template that a feature, a placed feature, a structure or a
-/// template pool of `set` names.
-pub fn named_templates(set: &RegistrySet) -> Result<BTreeSet<ResourceLocation>, MissingColumn> {
+/// template pool of `registries` names.
+pub fn named_templates(
+    registries: &Registries,
+) -> Result<BTreeSet<ResourceLocation>, MissingColumn> {
     let mut names = TemplateNames::default();
-    for feature in column::<Feature, Feature>(set)?.as_slice() {
+    for feature in column::<Feature>(registries)? {
         names.visit_feature(feature);
     }
-    for placed in column::<PlacedFeature, PlacedFeature>(set)?.as_slice() {
+    for placed in column::<PlacedFeature>(registries)? {
         names.visit_placed_feature(placed);
     }
-    for structure in column::<Structure, Structure>(set)?.as_slice() {
+    for structure in column::<Structure>(registries)? {
         names.visit_structure(structure);
     }
-    for pool in column::<TemplatePool, TemplatePool>(set)?.as_slice() {
+    for pool in column::<TemplatePool>(registries)? {
         names.visit_template_pool(pool);
     }
     Ok(names.0)

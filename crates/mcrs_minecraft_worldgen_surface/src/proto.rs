@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::KeySet;
 use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
@@ -53,7 +53,7 @@ pub enum MaterialRule {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     MaterialRule, key = "type", registry = crate::keys::MaterialRuleType,
     {
         Block => Block,
@@ -69,7 +69,7 @@ mcrs_minecraft_registry::dispatch! {
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
     Biome {
-        biome_is: HolderSet<mcrs_minecraft_biome::Biome>,
+        biome_is: KeySet<mcrs_minecraft_biome::Biome>,
     },
     NoiseThreshold {
         noise: ResourceLocation,
@@ -108,7 +108,7 @@ pub enum MaterialCondition {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     MaterialCondition, key = "type", registry = crate::keys::MaterialConditionType,
     {
         Biome => Biome,
@@ -135,7 +135,7 @@ pub enum CaveSurface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::{corpus_set, round_trips};
+    use mcrs_minecraft_worldgen_testing::round_trips;
 
     #[test]
     fn every_shipped_material_rule_and_condition_round_trips() {
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn the_unshipped_shapes_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;
-        corpus_set().scope(|| {
+        {
             let rule: MaterialRule = serde_json::from_str(stated).unwrap();
             assert_eq!(serde_json::to_string(&rule).unwrap(), stated);
 
@@ -161,6 +161,6 @@ mod tests {
                 let condition: MaterialCondition = serde_json::from_str(json).unwrap();
                 assert_eq!(serde_json::to_string(&condition).unwrap(), json);
             }
-        });
+        };
     }
 }

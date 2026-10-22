@@ -10,7 +10,7 @@ use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use mcrs_minecraft_core::direction::Direction;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::tags::TagEntry;
+use mcrs_minecraft_registries::TagEntry;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 

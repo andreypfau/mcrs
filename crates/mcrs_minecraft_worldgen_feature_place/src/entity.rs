@@ -113,7 +113,7 @@ pub enum GeneratedKind {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     GeneratedKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
     {
         Allay => Allay,

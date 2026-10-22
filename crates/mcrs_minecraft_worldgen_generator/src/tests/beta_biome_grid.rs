@@ -24,7 +24,7 @@ fn every_cell_is_the_biome_its_climate_answers_and_a_ring_cell_is_the_neighbour_
                 );
                 let expected = source
                     .beta_biome(temperature, humidity)
-                    .narrow::<u8>()
+                    .and_then(|biome| biome.narrow::<u8>().ok())
                     .expect("the biome is an id the grid can store");
                 assert_eq!(
                     grid.get(gx, 0, gz),

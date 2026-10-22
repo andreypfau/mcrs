@@ -2,7 +2,8 @@ use mcrs_minecraft_entity::variant::ChickenSoundVariant;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_sound::BlockSoundSet;
-use mcrs_minecraft_worldgen_testing::{json_files, tagged_report, vanilla_dir};
+use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_worldgen_testing::{json_files, vanilla_dir};
 
 use crate::common::{read_named, write_named};
 
@@ -12,10 +13,10 @@ fn every_shipped_sound_set_loads_and_writes_back_byte_for_byte() {
     assert_eq!(files.len(), 137);
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        let set: BlockSoundSet = read_named(tagged_report(), &text)
+        let set: BlockSoundSet = read_named(test_registries_arc(), &text)
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         assert_eq!(
-            serde_json::to_string_pretty(&write_named(tagged_report(), &set)).unwrap(),
+            serde_json::to_string_pretty(&write_named(test_registries_arc(), &set)).unwrap(),
             text,
             "{}",
             path.display()
@@ -42,9 +43,9 @@ fn a_sound_set_is_written_as_the_game_writes_it() {
         ),
     ];
     for (json, snbt) in cases {
-        let set: BlockSoundSet =
-            read_named(tagged_report(), json).unwrap_or_else(|error| panic!("{json}: {error}"));
-        let named = write_named(tagged_report(), &set);
+        let set: BlockSoundSet = read_named(test_registries_arc(), json)
+            .unwrap_or_else(|error| panic!("{json}: {error}"));
+        let named = write_named(test_registries_arc(), &set);
         let ours = sorted(mcrs_minecraft_nbt::to_nbt_tag(&named).unwrap());
         assert_eq!(ours, sorted(parse_tag(snbt).unwrap()), "{json}");
     }
@@ -62,11 +63,11 @@ fn a_malformed_sound_set_fails_to_load() {
     ];
     for json in cases {
         assert!(
-            read_named::<BlockSoundSet>(tagged_report(), json).is_err(),
+            read_named::<BlockSoundSet>(test_registries_arc(), json).is_err(),
             "{json} loaded"
         );
     }
-    let error = read_named::<BlockSoundSet>(tagged_report(), r#"{"volume": 0}"#).unwrap_err();
+    let error = read_named::<BlockSoundSet>(test_registries_arc(), r#"{"volume": 0}"#).unwrap_err();
     assert!(
         error
             .to_string()
@@ -78,15 +79,18 @@ fn a_malformed_sound_set_fails_to_load() {
 #[test]
 fn an_entity_sound_variant_may_leave_out_any_sound() {
     let silent: ChickenSoundVariant = read_named(
-        tagged_report(),
+        test_registries_arc(),
         r#"{"adult_sounds": {}, "baby_sounds": {}, "unknown": 1}"#,
     )
     .unwrap();
     assert_eq!(
-        serde_json::to_string(&write_named(tagged_report(), &silent)).unwrap(),
+        serde_json::to_string(&write_named(test_registries_arc(), &silent)).unwrap(),
         r#"{"adult_sounds":{},"baby_sounds":{}}"#
     );
-    assert!(read_named::<ChickenSoundVariant>(tagged_report(), r#"{"adult_sounds": {}}"#).is_err());
+    assert!(
+        read_named::<ChickenSoundVariant>(test_registries_arc(), r#"{"adult_sounds": {}}"#)
+            .is_err()
+    );
 }
 
 fn sorted(tag: NbtTag) -> NbtTag {

@@ -76,7 +76,7 @@ pub enum DispatchedLevelBasedValue {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DispatchedLevelBasedValue, key = "type", registry = crate::keys::EnchantmentLevelBasedValueType,
     {
         Clamped => Clamped,

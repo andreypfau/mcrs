@@ -84,7 +84,7 @@ pub enum ConsumeEffect<M: Refs = Resolved> {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     reads_only ConsumeEffect<Named>, key = "type", registry = crate::keys::ConsumeEffectType,
     {
         ApplyEffects => ApplyEffects,

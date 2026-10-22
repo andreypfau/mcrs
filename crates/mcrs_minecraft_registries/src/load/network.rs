@@ -55,7 +55,7 @@ pub(crate) fn snapshot(
     let mut errors = Vec::new();
     for declaration in declarations {
         let tags = registries
-            .tag_table(declaration.registry_type())
+            .tag_table(declaration.key())
             .filter(|table| table.resolved().next().is_some())
             .map(|table| (declaration.key(), &**table));
         match declaration.kind() {

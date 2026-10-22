@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::KeySet;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
 };
@@ -53,7 +53,7 @@ impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
         blocks: &dyn BlockResolver,
-        features_cannot_replace: &HolderSet<Block>,
+        features_cannot_replace: &KeySet<Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         let mut chains = Vec::with_capacity(setups.len() * 4);
@@ -124,7 +124,7 @@ impl RuinedPortalBlocks {
 fn processors(
     placement: PortalPlacement,
     p: &PortalProperties,
-    features_cannot_replace: &HolderSet<Block>,
+    features_cannot_replace: &KeySet<Block>,
 ) -> Vec<StructureProcessor> {
     let replace = |source: Block, probability: Option<f32>, target: Block| ProcessorRule {
         input_predicate: match probability {

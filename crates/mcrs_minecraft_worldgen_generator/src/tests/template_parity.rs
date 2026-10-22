@@ -37,12 +37,9 @@ use mcrs_minecraft_worldgen_testing::dump_string;
 use super::corpus_state_of;
 use super::structures::frozen_shared;
 use super::template_manifest::{freeze, parse_state, resolve};
-use super::{
-    biome_registry, blocks, build_program_with, corpus, corpus_features, one_step, registries_over,
-};
+use super::{biome_registry, blocks, build_program_with, corpus, corpus_features, one_step};
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
@@ -664,15 +661,9 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
             mossiness: f64::from(mossiness),
         },
         StructureProcessor::ProtectedBlocks {
-            value: mcrs_minecraft_registry::HolderSet::Named(
-                mcrs_minecraft_worldgen_testing::corpus_set()
-                    .tags::<Block>()
-                    .expect("the corpus holds the block tags")
-                    .get(&mcrs_minecraft_core::TagKey::from_location(
-                        rl!("minecraft:features_cannot_replace").to_arc(),
-                    ))
-                    .expect("the corpus names the features_cannot_replace tag"),
-            ),
+            value: mcrs_minecraft_registries::KeySet::Tag(mcrs_minecraft_registries::Key::new(
+                rl!("minecraft:features_cannot_replace").to_arc(),
+            )),
         },
         StructureProcessor::LavaSubmergedBlock,
     ];
@@ -930,7 +921,7 @@ mod exhaustive {
     #[test]
     fn every_ruined_portal_chain_places_as_the_reference_does() {
         let dump = dump();
-        let registries = registries_over(&biome_registry(&[BIOME]));
+        let registries = biome_registry(&[BIOME]);
         let resolver = crate::feature_program::Resolver::new(
             &blocks().0,
             &registries,

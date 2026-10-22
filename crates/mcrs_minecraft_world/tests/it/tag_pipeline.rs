@@ -7,21 +7,21 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_registries::{CurrentRegistries, IdSet};
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
-use crate::common::tag_members;
+use crate::common::{read_named, tag_members};
 
 pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     let tags = app
         .world()
-        .resource::<RegistrySet>()
+        .resource::<CurrentRegistries>()
         .tags::<Block>()
         .expect("the load builds the block tags");
     let blocks = app.world().resource::<Blocks>();
     let contains = |tag: &TagKey<Block, &'static str>, name: &str| {
         let id = blocks.id_of(name).expect("the corpus declares it");
-        tags.contains(tags.get(tag).expect("the pack ships the tag"), id)
+        tags.contains(tags.id(tag).expect("the pack ships the tag"), id)
     };
 
     assert!(contains(&block_tags::MINEABLE_PICKAXE, "minecraft:stone"));
@@ -44,9 +44,7 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
 
     // And a tag no Rust constant names is there, because the pack ships it.
     let stairs = tags
-        .get(&TagKey::<Block, _>::from_location(
-            ResourceLocation::read("minecraft:stairs").unwrap(),
-        ))
+        .by_name(&ResourceLocation::read("minecraft:stairs").unwrap())
         .expect("the pack ships the stairs tag");
     assert!(tags.contains(
         stairs,
@@ -54,7 +52,7 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     ));
     assert!(!tags.contains(stairs, blocks.id_of("minecraft:stone").unwrap()));
 
-    let resolved = tags.table().len();
+    let resolved = tags.iter().count();
     println!("block tags resolved: {resolved}");
     let shipped = count_json(&mcrs_minecraft_fixtures::vanilla_dir().join("tags/block"));
     assert!(
@@ -64,23 +62,18 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
 }
 
 pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
-    let registry = app
-        .world()
-        .resource::<RegistrySet>()
+    let set = app.world().resource::<CurrentRegistries>();
+    let registry = set
         .registry::<EntityType>()
         .expect("the report carries the entity types");
-    let tags = app
-        .world()
-        .resource::<RegistrySet>()
+    let tags = set
         .tags::<EntityType>()
         .expect("the load builds the entity type tags");
-    let skeletons = TagKey::<EntityType, _>::from_location(
-        ResourceLocation::read("minecraft:skeletons").unwrap(),
-    );
+    let skeletons = ResourceLocation::read("minecraft:skeletons").unwrap();
 
     let mut members: Vec<usize> = tags
         .members(
-            tags.get(&skeletons)
+            tags.by_name(&skeletons)
                 .expect("the pack ships the skeletons tag"),
         )
         .map(|id| id.index())
@@ -95,7 +88,12 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
         "minecraft:parched",
     ]
     .into_iter()
-    .map(|name| registry.require_by_name(name).unwrap().index())
+    .map(|name| {
+        registry
+            .by_name(&ResourceLocation::read(name).unwrap())
+            .unwrap()
+            .index()
+    })
     .collect();
     expected.sort_unstable();
     assert_eq!(members, expected);
@@ -104,7 +102,7 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
 #[test]
 fn the_loaded_set_holds_ordered_tags_of_every_registry() {
     assert_eq!(
-        tag_members::<Block>(test_registries(), "minecraft:mineable/pickaxe")[..4],
+        tag_members::<Block>(test_registries_arc(), "minecraft:mineable/pickaxe")[..4],
         [
             "minecraft:stone",
             "minecraft:granite",
@@ -113,7 +111,7 @@ fn the_loaded_set_holds_ordered_tags_of_every_registry() {
         ]
     );
     assert_eq!(
-        tag_members::<Timeline>(test_registries(), "minecraft:in_overworld"),
+        tag_members::<Timeline>(test_registries_arc(), "minecraft:in_overworld"),
         [
             "minecraft:villager_schedule",
             "minecraft:day",
@@ -122,13 +120,22 @@ fn the_loaded_set_holds_ordered_tags_of_every_registry() {
         ]
     );
     assert_eq!(
-        tag_members::<Biome>(test_registries(), "minecraft:is_savanna"),
+        tag_members::<Biome>(test_registries_arc(), "minecraft:is_savanna"),
         [
             "minecraft:savanna",
             "minecraft:savanna_plateau",
             "minecraft:windswept_savanna"
         ]
     );
+}
+
+#[test]
+fn a_block_tag_named_by_a_predicate_resolves_to_its_members() {
+    let set = test_registries_arc();
+    let stones: IdSet<Block> = read_named(set, r##""#minecraft:base_stone_overworld""##).unwrap();
+    let tags = set.tags::<Block>().unwrap();
+    assert!(stones.contains(&tags, Block::Stone.id()));
+    assert!(!stones.contains(&tags, Block::Dirt.id()));
 }
 
 fn count_json(dir: &std::path::Path) -> usize {

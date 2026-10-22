@@ -513,7 +513,8 @@ mod sky_regression {
     use mcrs_minecraft_environment::world_clock::ClockState;
 
     use super::*;
-    use crate::sky_state::TEST_CLOCKS as CLOCKS;
+    use crate::sky_state::{test_clock_count, test_resolved};
+    use mcrs_minecraft_registries::Named;
 
     #[derive(serde::Deserialize)]
     struct Dimension {
@@ -526,10 +527,6 @@ mod sky_regression {
     }
 
     fn read<T: serde::de::DeserializeOwned>(relative: &str) -> T {
-        CLOCKS.scope(|| read_unscoped(relative))
-    }
-
-    fn read_unscoped<T: serde::de::DeserializeOwned>(relative: &str) -> T {
         let path = mcrs_minecraft_fixtures::vanilla_dir().join(relative);
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
@@ -544,10 +541,10 @@ mod sky_regression {
             let entry = value.as_str().unwrap();
             match entry.strip_prefix('#') {
                 Some(nested) => tagged_timelines(nested, out),
-                None => out.push(read(&format!(
+                None => out.push(test_resolved(read::<Timeline<Named>>(&format!(
                     "timeline/{}.json",
                     entry.trim_start_matches("minecraft:")
-                ))),
+                )))),
             }
         }
     }
@@ -563,10 +560,7 @@ mod sky_regression {
                 can_have_weather: dimension.has_skylight && !dimension.has_ceiling,
             },
             &timelines.iter().collect::<Vec<_>>(),
-            CLOCKS
-                .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
-                .unwrap()
-                .len(),
+            test_clock_count(),
         )
         .unwrap();
         let layout = SkyLayout::derive(&attributes);
@@ -654,11 +648,13 @@ mod sky_regression {
 
     #[test]
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
-        let overworld_clock = CLOCKS
-            .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
-            .unwrap()
-            .require(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
-            .unwrap();
+        let overworld_clock = mcrs_minecraft_registries::Resolver::id(
+            &**mcrs_minecraft_world::registry_load::test_registries_arc(),
+            &mcrs_minecraft_registries::Key::new(
+                (*mcrs_minecraft_environment::keys::world_clock::OVERWORLD.location()).into(),
+            ),
+        )
+        .unwrap();
         let mut clocks = WorldClocks::default();
         clocks.insert(
             overworld_clock,

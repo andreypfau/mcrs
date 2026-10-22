@@ -3,12 +3,14 @@ use std::fmt;
 use mcrs_minecraft_core::codec::{NonNegativeInt, int_value, is_default};
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_particle::ParticleOptions;
-use mcrs_minecraft_registry::Checked;
+use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_sound::Sound;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-type CheckedSound = Checked<Sound<mcrs_minecraft_registries::Resolved>>;
+// chisle: the sound, text and particle attributes keep the names a pack wrote, unresolved: no
+// system reads them yet. Resolving them at load gives an unknown name its error there.
+type NamedSound = Sound<Named>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -118,13 +120,13 @@ pub struct BedRule {
     #[serde(default, skip_serializing_if = "is_default")]
     pub destroy_on_leave: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<Checked<Text>>,
+    pub error_message: Option<Text<Named>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientParticle {
-    pub particle: Checked<ParticleOptions>,
+    pub particle: ParticleOptions<Named>,
     #[serde(deserialize_with = "crate::attribute::spec::unit_f32")]
     pub probability: f32,
 }
@@ -132,7 +134,7 @@ pub struct AmbientParticle {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Music {
-    pub sound: CheckedSound,
+    pub sound: NamedSound,
     pub min_delay: NonNegativeInt,
     pub max_delay: NonNegativeInt,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -153,7 +155,7 @@ pub struct BackgroundMusic {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientMood {
-    pub sound: CheckedSound,
+    pub sound: NamedSound,
     #[serde(deserialize_with = "int_value")]
     pub tick_delay: i32,
     #[serde(deserialize_with = "int_value")]
@@ -164,7 +166,7 @@ pub struct AmbientMood {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientAdditions {
-    pub sound: CheckedSound,
+    pub sound: NamedSound,
     pub tick_chance: f64,
 }
 
@@ -172,7 +174,7 @@ pub struct AmbientAdditions {
 #[serde(deny_unknown_fields)]
 pub struct AmbientSounds {
     #[serde(default, rename = "loop", skip_serializing_if = "Option::is_none")]
-    pub loop_sound: Option<CheckedSound>,
+    pub loop_sound: Option<NamedSound>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mood: Option<AmbientMood>,
     #[serde(
@@ -211,7 +213,7 @@ mod tests {
 
     #[test]
     fn one_ambient_addition_is_written_bare_and_two_as_a_list() {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+        {
             let one = r#"{"additions":{"sound":"minecraft:ambient.cave","tick_chance":0.5}}"#;
             let two = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5},{"sound":"minecraft:ambient.cave","tick_chance":0.25}]}"#;
             let listed = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5}]}"#;
@@ -223,7 +225,7 @@ mod tests {
             }
             let none = AmbientSounds::default();
             assert_eq!(serde_json::to_string(&none).unwrap(), "{}");
-        });
+        };
     }
 
     #[test]

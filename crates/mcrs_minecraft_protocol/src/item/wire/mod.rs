@@ -131,7 +131,7 @@ macro_rules! unit_wire {
         impl $crate::item::ctx::EncodeCtx for $ty {
             fn encode_ctx(
                 &self,
-                _: &dyn mcrs_minecraft_registry::RegistryLookup,
+                _: &$crate::item::ctx::WireCtx<'_>,
                 _: impl std::io::Write,
             ) -> anyhow::Result<()> {
                 Ok(())
@@ -140,7 +140,7 @@ macro_rules! unit_wire {
 
         impl $crate::item::ctx::DecodeCtx<'_> for $ty {
             fn decode_ctx(
-                _: &dyn mcrs_minecraft_registry::RegistryLookup,
+                _: &$crate::item::ctx::WireCtx<'_>,
                 _: &mut &[u8],
             ) -> anyhow::Result<Self> {
                 Ok($ty)
@@ -156,7 +156,7 @@ macro_rules! newtype_ctx_wire {
         impl $crate::item::ctx::EncodeCtx for $ty {
             fn encode_ctx(
                 &self,
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                ctx: &$crate::item::ctx::WireCtx<'_>,
                 w: impl std::io::Write,
             ) -> anyhow::Result<()> {
                 $crate::item::ctx::EncodeCtx::encode_ctx(&self.0, ctx, w)
@@ -165,7 +165,7 @@ macro_rules! newtype_ctx_wire {
 
         impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
             fn decode_ctx(
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                ctx: &$crate::item::ctx::WireCtx<'_>,
                 r: &mut &'a [u8],
             ) -> anyhow::Result<Self> {
                 $crate::item::ctx::DecodeCtx::decode_ctx(ctx, r).map($ty)
@@ -205,7 +205,7 @@ macro_rules! record_ctx_wire {
         impl $crate::item::ctx::EncodeCtx for $ty {
             fn encode_ctx(
                 &self,
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                ctx: &$crate::item::ctx::WireCtx<'_>,
                 mut w: impl std::io::Write,
             ) -> anyhow::Result<()> {
                 $($crate::item::ctx::EncodeCtx::encode_ctx(&self.$field, ctx, &mut w)?;)+
@@ -215,7 +215,7 @@ macro_rules! record_ctx_wire {
 
         impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
             fn decode_ctx(
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                ctx: &$crate::item::ctx::WireCtx<'_>,
                 r: &mut &'a [u8],
             ) -> anyhow::Result<Self> {
                 Ok($ty {

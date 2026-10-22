@@ -8,11 +8,9 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::{Registered, TagKey};
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registries::Resolve;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{Namer, Registries, RegistryType, Resolve};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{
@@ -21,7 +19,7 @@ use mcrs_minecraft_world::registry_load::{
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
-pub fn read_named<T: Resolve>(set: &RegistrySet, json: &str) -> Result<T, String>
+pub fn read_named<T: Resolve>(set: &Registries, json: &str) -> Result<T, String>
 where
     T::Named: DeserializeOwned,
 {
@@ -29,7 +27,7 @@ where
     T::resolve(named, set).map_err(|e| e.to_string())
 }
 
-pub fn write_named<T: Resolve>(set: &RegistrySet, value: &T) -> T::Named {
+pub fn write_named<T: Resolve>(set: &Registries, value: &T) -> T::Named {
     value.name(set).unwrap_or_else(|e| panic!("{e}"))
 }
 
@@ -85,26 +83,23 @@ pub fn declared_registries(stable: bool) -> BTreeSet<String> {
         .collect()
 }
 
-pub fn loaded_names(set: &RegistrySet, registry: &str) -> Vec<String> {
-    set.table(registry)
+pub fn loaded_names(set: &Registries, registry: &str) -> Vec<String> {
+    set.names_of(&ResourceLocation::read(registry).unwrap())
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
-        .names()
         .iter()
         .map(ToString::to_string)
         .collect()
 }
 
-pub fn tag_members<R: Registered>(set: &RegistrySet, tag: &str) -> Vec<String> {
-    let registry = set.registry::<R>().expect("the registry is loaded");
+pub fn tag_members<R: RegistryType>(set: &Registries, tag: &str) -> Vec<String> {
     let tags = set
         .tags::<R>()
-        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::REGISTRY));
-    let key = TagKey::<R, _>::from_location(ResourceLocation::read(tag).unwrap());
+        .unwrap_or_else(|| panic!("the load builds the tags of {}", std::any::type_name::<R>()));
     let id = tags
-        .get(&key)
-        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::REGISTRY));
+        .by_name(&ResourceLocation::read(tag).unwrap())
+        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", std::any::type_name::<R>()));
     tags.members(id)
-        .map(|member| registry.name(member).unwrap().as_str().to_owned())
+        .map(|member| set.name(member).unwrap().as_str().to_owned())
         .collect()
 }
 

@@ -1,10 +1,10 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
 use crate::item::patch::ComponentMap;
@@ -19,7 +19,7 @@ pub struct ItemCost {
 }
 
 impl EncodeCtx for ItemCost {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.item.encode_ctx(ctx, &mut w)?;
         VarInt(self.count).encode(&mut w)?;
         self.components.encode_ctx(ctx, w)
@@ -27,7 +27,7 @@ impl EncodeCtx for ItemCost {
 }
 
 impl<'a> DecodeCtx<'a> for ItemCost {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         Ok(Self {
             item: ResourceKey::decode_ctx(ctx, r)?,
             count: VarInt::decode(r)?.0,
@@ -58,7 +58,7 @@ impl MerchantOffer {
 }
 
 impl EncodeCtx for MerchantOffer {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         ensure!(!self.result.is_empty(), "Empty ItemStack not allowed");
         self.cost_a.encode_ctx(ctx, &mut w)?;
         self.result.encode_ctx(ctx, &mut w)?;
@@ -74,7 +74,7 @@ impl EncodeCtx for MerchantOffer {
 }
 
 impl<'a> DecodeCtx<'a> for MerchantOffer {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let cost_a = ItemCost::decode_ctx(ctx, r)?;
         let result = ProtoStack::decode_ctx(ctx, r)?;
         ensure!(!result.is_empty(), "Empty ItemStack not allowed");
@@ -99,7 +99,7 @@ impl<'a> DecodeCtx<'a> for MerchantOffer {
 pub type RawMerchantOffer = Raw<MerchantOffer>;
 
 impl RawMerchantOffer {
-    pub fn from_offer(offer: &MerchantOffer, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
+    pub fn from_offer(offer: &MerchantOffer, ctx: &WireCtx<'_>) -> anyhow::Result<Self> {
         Raw::from_value(offer, ctx)
     }
 }

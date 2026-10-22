@@ -31,7 +31,7 @@ pub use structure_processor::StructureProcessorType;
 pub use tree_decorator_type::TreeDecoratorType;
 pub use trunk_placer_type::TrunkPlacerType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTestType> =
     RegistryKey::new(rl!("minecraft:pos_rule_test"));
@@ -127,25 +127,4 @@ pub const TRUNK_PLACER_TYPE: RegistryKey<crate::keys::TrunkPlacerType> =
     RegistryKey::new(rl!("minecraft:worldgen/trunk_placer_type"));
 impl Registered for crate::keys::TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 16] {
-    [
-        POS_RULE_TEST.binding(),
-        RULE_BLOCK_ENTITY_MODIFIER.binding(),
-        RULE_TEST_TYPE.binding(),
-        FEATURE.binding(),
-        FEATURE_SIZE_TYPE.binding(),
-        FEATURE_TYPE.binding(),
-        FOLIAGE_PLACER_TYPE.binding(),
-        PLACED_FEATURE.binding(),
-        PLACEMENT_MODIFIER_TYPE.binding(),
-        PROCESSOR_LIST.binding(),
-        ROOT_PLACER_TYPE.binding(),
-        STRUCTURE_POOL_ELEMENT.binding(),
-        STRUCTURE_PROCESSOR.binding(),
-        TEMPLATE_POOL.binding(),
-        TREE_DECORATOR_TYPE.binding(),
-        TRUNK_PLACER_TYPE.binding(),
-    ]
 }

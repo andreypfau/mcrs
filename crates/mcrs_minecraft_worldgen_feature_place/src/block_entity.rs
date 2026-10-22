@@ -349,7 +349,7 @@ pub enum GeneratedBlockEntity {
     EndGateway(EndGatewayData),
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     GeneratedBlockEntity, key = "id", registry = mcrs_minecraft_block::keys::BlockEntityType,
     {
         Furnace => Furnace,

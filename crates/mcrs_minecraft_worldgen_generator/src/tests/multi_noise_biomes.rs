@@ -3,21 +3,19 @@ use std::sync::Arc;
 
 use mcrs_minecraft_biome::climate::{ClimateParameters, TargetPoint};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
-use mcrs_minecraft_biome::parameter_list::{
-    MultiNoiseBiomeSourceParameterList, ParameterLists, Preset,
-};
+use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-use mcrs_minecraft_registries::Diagnostics;
-use mcrs_minecraft_registry::Registry;
-use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
+use mcrs_minecraft_registries::{Diagnostics, RegistryOf};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
 use crate::modern_carvers::climate_target_at;
-use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables};
+use crate::multi_noise_biomes::{
+    BiomeNames, BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables, UnknownEntry,
+};
 use crate::{multi_noise_grid, multi_noise_palettes};
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
@@ -33,12 +31,33 @@ pub(super) fn preset_ids() -> HashMap<String, u8> {
     ids
 }
 
+/// Biome names numbered in the order given.
+struct NameList(Vec<String>);
+
+impl NameList {
+    fn of<'a>(names: impl IntoIterator<Item = &'a str>) -> Self {
+        NameList(names.into_iter().map(str::to_owned).collect())
+    }
+}
+
+impl BiomeNames for NameList {
+    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
+        self.0
+            .iter()
+            .position(|held| held == name)
+            .and_then(|number| Id::checked(u16::try_from(number).ok()?, self.0.len()))
+            .ok_or_else(|| UnknownEntry {
+                registry: mcrs_minecraft_biome::keys::BIOME.location().into(),
+                name: name.to_owned(),
+            })
+    }
+}
+
 /// A registry numbering `ids` the way the map does.
-fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<Biome> {
+fn registry_numbered_as(ids: &HashMap<String, u8>) -> NameList {
     let mut named: Vec<(&u8, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
     named.sort();
-    let names: Vec<&str> = named.into_iter().map(|(_, name)| name.as_str()).collect();
-    super::ordered_biome_registry(&names)
+    NameList::of(named.into_iter().map(|(_, name)| name.as_str()))
 }
 
 pub(super) fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
@@ -146,12 +165,8 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
     };
     let registry =
         super::biome_registry(&["minecraft:swamp", "minecraft:plains", "minecraft:desert"]);
-    let plains = registry
-        .by_name("minecraft:plains")
-        .expect("a registry biome");
-    let desert = registry
-        .by_name("minecraft:desert")
-        .expect("a registry biome");
+    let plains = super::biome_id(&registry, "minecraft:plains");
+    let desert = super::biome_id(&registry, "minecraft:desert");
     let entries = [entry(flat(-1.0), plains), entry(flat(1.0), desert)];
     let table = MultiNoiseBiomeTable::from_entries(&entries).expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
@@ -183,8 +198,8 @@ fn entry(
 fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
     let mut names: Vec<String> = (0..256).map(|id| format!("a:filler_{id:03}")).collect();
     names.extend(preset_ids().into_keys());
-    let names: Vec<&str> = names.iter().map(String::as_str).collect();
-    let registry = super::biome_registry(&names);
+    names.sort_unstable();
+    let registry = NameList(names);
 
     let error = MultiNoiseBiomeTable::of_preset(Preset::Overworld, &registry)
         .err()
@@ -198,11 +213,7 @@ fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
 fn a_biome_id_beyond_the_narrow_width_is_refused() {
     use mcrs_minecraft_biome::climate::ParameterRange;
 
-    let names: Vec<String> = (0..=256).map(|id| format!("test:biome_{id:03}")).collect();
-    let names: Vec<&str> = names.iter().map(String::as_str).collect();
-    let registry = super::biome_registry(&names);
-    let last = registry.by_name("test:biome_256").expect("the 257th biome");
-    assert_eq!(last.number(), 256);
+    let last = Id::checked(256, 257).expect("the 257th biome");
 
     let point = ParameterRange::Point(0.0);
     let entries = [entry(
@@ -234,13 +245,7 @@ fn a_fixed_or_beta_biome_beyond_the_narrow_width_is_refused_once() {
     use crate::ColumnBiomes;
     use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 
-    let names: Vec<String> = (0..=256).map(|id| format!("test:biome_{id:03}")).collect();
-    let names: Vec<&str> = names.iter().map(String::as_str).collect();
-    let registry = super::biome_registry(&names);
-    let (first, last) = (
-        registry.by_name("test:biome_000").unwrap(),
-        registry.by_name("test:biome_256").unwrap(),
-    );
+    let (first, last) = (Id::checked(0, 257).unwrap(), Id::checked(256, 257).unwrap());
     let beta = |stray| BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| if i == 10 { stray } else { first }),
         lookup: Arc::new(build_beta_lookup_table()),
@@ -275,7 +280,6 @@ fn table_of_picks_the_named_or_inline_table() {
         tables.get(overworld).expect("the overworld list is held")
     ));
 
-    let biomes = super::corpus_biomes();
     let at = |value: f64, name: &str| {
         let parameters = ClimateParameters {
             temperature: ParameterRange::Point(value),
@@ -286,7 +290,7 @@ fn table_of_picks_the_named_or_inline_table() {
             weirdness: ParameterRange::Point(0.0),
             offset: 0.0,
         };
-        entry(parameters, biomes.by_name(name).expect("a corpus biome"))
+        entry(parameters, super::biome_id(super::test_registries(), name))
     };
     let inline = MultiNoiseBiomeSource::Biomes(vec![
         at(-1.0, "minecraft:plains"),
@@ -298,58 +302,29 @@ fn table_of_picks_the_named_or_inline_table() {
 
 #[test]
 fn the_shipped_parameter_lists_resolve_into_preset_tables() {
-    let set = test_registries();
-    let mut diagnostics = Diagnostics::default();
-    let tables = PresetBiomeTables::resolve(test_registries_arc(), &mut diagnostics)
-        .unwrap_or_else(|| panic!("{diagnostics}"));
-    let names = set
-        .registry::<MultiNoiseBiomeSourceParameterList>()
-        .expect("the loaded set holds the parameter lists");
-    let lists: ParameterLists = set
-        .entries()
-        .expect("the loaded set holds the parameter list entries");
-    assert!(!names.is_empty());
-    for id in names.ids() {
+    let tables = super::preset_tables();
+    let lists = super::test_registries()
+        .registry::<RegistryOf<MultiNoiseBiomeSourceParameterList>>()
+        .expect("the loaded registries hold the parameter lists");
+    assert!(!lists.is_empty());
+    for (id, name, list) in lists.iter() {
+        let id = Id::checked(id.number(), lists.len()).expect("an id of the registry");
         let table = tables.get(id).expect("every list has a resolved table");
-        assert_eq!(
-            table.len(),
-            lists[id].preset.parameter_list().len(),
-            "{:?}",
-            names.name(id)
-        );
+        assert_eq!(table.len(), list.preset.parameter_list().len(), "{name}");
     }
 }
 
 #[test]
 fn entries_naming_one_preset_share_one_table() {
-    let pair = Registry::<MultiNoiseBiomeSourceParameterList>::new(
-        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-        ["test:one", "test:two"]
-            .into_iter()
-            .map(|name| ResourceLocation::read(name).unwrap()),
-    )
-    .expect("a registry of distinct names");
-    let same_preset = ParameterLists::new(
-        &pair,
-        vec![
-            MultiNoiseBiomeSourceParameterList {
-                preset: Preset::Overworld,
-            };
-            2
-        ],
-    )
-    .expect("one entry per name");
+    let pair = ["test:one", "test:two"].map(|name| ResourceLocation::read(name).unwrap());
     let mut diagnostics = Diagnostics::default();
     let shared = PresetBiomeTables::build(
-        pair.iter().map(|(id, name)| (name, same_preset[id].preset)),
+        pair.iter().map(|name| (name, Preset::Overworld)),
         super::corpus_biomes(),
         &mut diagnostics,
     )
     .unwrap_or_else(|| panic!("{diagnostics}"));
-    let (one, two) = (
-        pair.require_by_name("test:one").unwrap(),
-        pair.require_by_name("test:two").unwrap(),
-    );
+    let (one, two) = (Id::checked(0, 2).unwrap(), Id::checked(1, 2).unwrap());
     assert!(Arc::ptr_eq(
         shared.get(one).unwrap(),
         shared.get(two).unwrap()
@@ -358,7 +333,6 @@ fn entries_naming_one_preset_share_one_table() {
 
 #[test]
 fn a_preset_naming_a_missing_biome_fails_the_load() {
-    use mcrs_minecraft_biome::keys::BIOME;
     use mcrs_minecraft_biome::overworld_preset::nether_parameter_list;
 
     let missing = overworld_parameter_list().values()[0].1;
@@ -369,13 +343,7 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
         .map(|(_, biome)| *biome)
         .filter(|biome| *biome != missing)
         .collect();
-    let biomes = Registry::<Biome>::new(
-        BIOME,
-        named
-            .into_iter()
-            .map(|biome| ResourceLocation::read(biome).expect("a vanilla biome")),
-    )
-    .expect("distinct biome names");
+    let biomes = NameList::of(named);
     let name = ResourceLocation::read("minecraft:overworld").expect("a vanilla name");
 
     let mut diagnostics = Diagnostics::default();
@@ -394,25 +362,9 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
 
 #[test]
 fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
-    let (names, _) = super::parameter_lists();
-    let beyond =
-        Registry::<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>::new(
-            mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-            names
-                .ids()
-                .map(|id| {
-                    names
-                        .name(id)
-                        .expect("an id of the registry has a name")
-                        .clone()
-                })
-                .chain([ResourceLocation::read("test:beyond_the_loaded_lists").unwrap()]),
-        )
-        .expect("a registry of distinct names");
+    let held = super::parameter_lists().len();
     let source = MultiNoiseBiomeSource::Preset(
-        beyond
-            .require_by_name("test:beyond_the_loaded_lists")
-            .unwrap(),
+        Id::checked(u16::try_from(held).unwrap(), held + 1).expect("an id past the held lists"),
     );
     assert!(matches!(
         super::preset_tables().table_of(&source),

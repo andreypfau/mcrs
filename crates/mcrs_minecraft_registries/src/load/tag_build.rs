@@ -14,16 +14,35 @@ use crate::tags::TagTable;
 
 #[derive(Deserialize)]
 struct TagFile {
-    values: Vec<Member>,
+    values: Vec<TagEntry>,
     #[serde(default)]
     replace: bool,
 }
 
-#[derive(Clone)]
-struct Member {
-    name: ResourceLocation,
-    tag: bool,
-    required: bool,
+/// One value of a tag file: an entry or a `#tag`, required unless the file says otherwise.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TagEntry {
+    pub id: ResourceLocation,
+    pub tag: bool,
+    pub required: bool,
+}
+
+impl serde::Serialize for TagEntry {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let reference = match self.tag {
+            true => format!("#{}", self.id),
+            false => self.id.to_string(),
+        };
+        if self.required {
+            serializer.serialize_str(&reference)
+        } else {
+            let mut map = serializer.serialize_map(Some(2))?;
+            map.serialize_entry("id", &reference)?;
+            map.serialize_entry("required", &false)?;
+            map.end()
+        }
+    }
 }
 
 fn required_by_default() -> bool {
@@ -41,7 +60,7 @@ enum RawMember {
     },
 }
 
-impl<'de> Deserialize<'de> for Member {
+impl<'de> Deserialize<'de> for TagEntry {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let (text, required) = match RawMember::deserialize(deserializer)? {
             RawMember::Plain(text) => (text, true),
@@ -51,8 +70,8 @@ impl<'de> Deserialize<'de> for Member {
             Some(id) => (true, id),
             None => (false, text.as_str()),
         };
-        Ok(Member {
-            name: ResourceLocation::read(id).map_err(D::Error::custom)?,
+        Ok(TagEntry {
+            id: ResourceLocation::read(id).map_err(D::Error::custom)?,
             tag,
             required,
         })
@@ -68,14 +87,14 @@ pub(crate) struct TagOutcome {
 
 struct Node {
     name: ResourceLocation,
-    members: Vec<(Member, PackIndex)>,
+    members: Vec<(TagEntry, PackIndex)>,
     failed: bool,
     missing: Vec<Missing>,
 }
 
-fn missing(tag: &ResourceLocation, member: &Member, pack: String) -> Missing {
+fn missing(tag: &ResourceLocation, member: &TagEntry, pack: String) -> Missing {
     Missing {
-        name: member.name.clone(),
+        name: member.id.clone(),
         tag: member.tag,
         referrer: Referrer::TagFile {
             tag: tag.clone(),
@@ -85,7 +104,7 @@ fn missing(tag: &ResourceLocation, member: &Member, pack: String) -> Missing {
 }
 
 impl Node {
-    fn fail(&mut self, member: &Member, pack: String) {
+    fn fail(&mut self, member: &TagEntry, pack: String) {
         self.failed = true;
         self.missing.push(missing(&self.name, member, pack));
     }
@@ -194,11 +213,11 @@ fn pack_id(stack: &PackStack, pack: PackIndex) -> String {
 
 type Index = HashMap<ResourceLocation, usize>;
 
-fn tag_target(index: &Index, member: &Member) -> Option<usize> {
-    index.get(&member.name).copied()
+fn tag_target(index: &Index, member: &TagEntry) -> Option<usize> {
+    index.get(&member.id).copied()
 }
 
-type RequiredEdge = (usize, Member, PackIndex);
+type RequiredEdge = (usize, TagEntry, PackIndex);
 
 fn required_tag_edges(index: &Index, node: &Node) -> Vec<RequiredEdge> {
     node.members
@@ -285,7 +304,7 @@ fn fail_absent_members(
         for (member, pack) in members.iter() {
             let resolves = match member.tag {
                 true => tag_target(index, member).is_some(),
-                false => names.get(&member.name).is_some(),
+                false => names.get(&member.id).is_some(),
             };
             if !member.required || resolves {
                 continue;
@@ -416,7 +435,7 @@ fn resolve(
         let mut out: Vec<u16> = Vec::new();
         for (member, _) in &node.members {
             if !member.tag {
-                if let Some(id) = names.get(&member.name) {
+                if let Some(id) = names.get(&member.id) {
                     push_unique(&mut seen, &mut out, id);
                 }
                 continue;

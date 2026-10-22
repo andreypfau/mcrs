@@ -140,7 +140,7 @@ pub enum EntityKind {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     EntityKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
     {
         Allay => Allay,

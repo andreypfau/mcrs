@@ -6,15 +6,16 @@ use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_biome::TemperatureModifier;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
-use mcrs_minecraft_biome::{Biome, TemperatureModifier};
-use mcrs_minecraft_biome_file::BiomeGenerationSettings;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::{Named, Resolve};
-use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registries::{
+    CurrentRegistries, IdSet, Named, Namer, Registries, RegistryOf, Resolve, Tags,
+};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
 use mcrs_minecraft_worldgen::tables::template_handle;
@@ -52,23 +53,32 @@ impl Plugin for FeaturePlugin {
 
 /// A biome's decoration steps in the form the feature compiler reads.
 fn decoration_steps(
-    steps: &[HolderSet<PlacedFeature>],
-    placed: &Registry<PlacedFeature>,
-    tags: &Tags<PlacedFeature>,
+    steps: &[IdSet<RegistryOf<PlacedFeature>>],
+    registries: &Registries,
+    tags: &Tags<RegistryOf<PlacedFeature>>,
 ) -> Vec<FeatureStepList> {
     steps
         .iter()
         .map(|step| {
             step.ids(tags)
-                .map(|id| {
-                    Holder::Reference(
-                        placed
-                            .name(id)
-                            .expect("an id of the registry has a name")
-                            .clone(),
-                    )
-                })
+                .filter_map(|id| Some(Holder::Reference(Namer::name(registries, id)?.clone())))
                 .collect()
+        })
+        .collect()
+}
+
+/// Every placed feature tag by name, with its members by name.
+fn placed_feature_tags(
+    registries: &Registries,
+) -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
+    let tags = registries.loaded_tags::<RegistryOf<PlacedFeature>>();
+    tags.iter()
+        .map(|(tag, name)| {
+            let members = tags
+                .members(tag)
+                .filter_map(|id| Namer::name(registries, id).cloned())
+                .collect();
+            (name.clone(), members)
         })
         .collect()
 }
@@ -82,14 +92,12 @@ fn decoration_steps(
 /// is picked up here. A name that resolves to nothing stops the server naming
 /// the entry.
 fn named_providers(
-    registries: &RegistrySet,
+    registries: &Registries,
 ) -> BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>> {
-    let names = registries.loaded_registry::<DirectBlockStateProvider>();
-    let providers =
-        registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
-    names
+    registries
+        .loaded::<DirectBlockStateProvider>()
         .iter()
-        .filter_map(|(id, name)| match providers[id].name(registries) {
+        .filter_map(|(_, name, provider)| match provider.name(registries) {
             Ok(provider) => Some((name.clone(), provider)),
             Err(error) => {
                 tracing::error!(%name, %error, "a block state provider cannot be named");
@@ -111,7 +119,7 @@ fn build_dimension_features(
     structures: Res<DimensionStructures>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
 ) {
     // chisle: every named template is cloned, though only the templates a
     // template feature places are read from here; upgrade = collect those alone.
@@ -131,22 +139,19 @@ fn build_dimension_features(
         templates: template_values,
         processor_lists: registries.loaded_by_name::<StructureProcessorList>(),
         block_state_providers: named_providers(&registries),
+        placed_feature_tags: placed_feature_tags(&registries),
     };
 
-    let placed_names = registries.loaded_registry::<PlacedFeature>();
-    let placed_tags = registries.loaded_tags::<PlacedFeature>();
-    let biome_registry = registries.loaded_registry::<Biome>();
-    let biome_tags = registries.loaded_tags::<Biome>();
-    let biomes = registries.loaded_entries::<Biome, Biome>();
-    let generation = registries.loaded_entries::<Biome, BiomeGenerationSettings>();
-    let by_id: BTreeMap<ResourceLocation, (&Biome, &BiomeGenerationSettings)> = biome_registry
+    let placed_tags = registries.loaded_tags::<RegistryOf<PlacedFeature>>();
+    let by_id: BTreeMap<ResourceLocation, &BiomeFile> = registries
+        .loaded::<BiomeFile>()
         .iter()
-        .map(|(id, name)| (name.clone(), (&biomes[id], &generation[id])))
+        .map(|(_, name, biome)| (name.clone(), biome))
         .collect();
 
     let climate: BTreeMap<ResourceLocation, BiomeClimate> = by_id
         .iter()
-        .map(|(id, (biome, _))| {
+        .map(|(id, biome)| {
             (
                 id.clone(),
                 BiomeClimate {
@@ -158,27 +163,20 @@ fn build_dimension_features(
         })
         .collect();
 
-    let parameter_lists = parameter_lists_of(&registries);
+    let parameter_lists = parameter_lists_of(&registries).unwrap_or_else(|| Arc::from(Vec::new()));
     let mut programs = DimensionFeaturePrograms::default();
     for (dimension, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
             continue;
         };
         let dimension = dimension.location();
-        let biome_order = possible_biomes(
-            &generator.biome_source,
-            &biome_registry,
-            &biome_tags,
-            &parameter_lists,
-        );
+        let biome_order = possible_biomes(&generator.biome_source, &registries, &parameter_lists);
         let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {
-                Some((_, generation)) => steps.push(decoration_steps(
-                    &generation.features,
-                    &placed_names,
-                    &placed_tags,
-                )),
+                Some(biome) => {
+                    steps.push(decoration_steps(&biome.features, &registries, &placed_tags))
+                }
                 // Dropping the biome would shorten the sort's input, and the
                 // sort's positions are the seeds, so a missing definition is a
                 // different world rather than one biome's worth less.

@@ -1,11 +1,11 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::{bail, ensure};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registries::Namer;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::registry_ref::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -27,7 +27,7 @@ record_ctx_wire! {
 }
 
 impl EncodeCtx for Enchantments {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.0.len() as i32).encode(&mut w)?;
         for (enchantment, level) in &self.0 {
             enchantment.encode_ctx(ctx, &mut w)?;
@@ -38,7 +38,7 @@ impl EncodeCtx for Enchantments {
 }
 
 impl DecodeCtx<'_> for Enchantments {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "attempt to decode a map with negative length");
         let mut entries: Vec<(Id<EnchantmentData>, i32)> =
@@ -49,6 +49,7 @@ impl DecodeCtx<'_> for Enchantments {
             if !(0..=MAX_ENCHANTMENT_LEVEL).contains(&level) {
                 let name = ctx
                     .registries()
+                    .ok()
                     .and_then(|set| Namer::name(set, enchantment))
                     .map_or_else(|| format!("{enchantment:?}"), ToString::to_string);
                 bail!("Enchantment {name} has invalid level {level}");
@@ -63,7 +64,7 @@ impl DecodeCtx<'_> for Enchantments {
 }
 
 impl EncodeCtx for Tool {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.rules.encode_ctx(ctx, &mut w)?;
         self.default_mining_speed.encode(&mut w)?;
         VarInt(self.damage_per_block.0).encode(&mut w)?;
@@ -72,7 +73,7 @@ impl EncodeCtx for Tool {
 }
 
 impl DecodeCtx<'_> for Tool {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Tool {
             rules: Vec::decode_ctx(ctx, r)?,
             default_mining_speed: f32::decode(r)?,
@@ -83,14 +84,14 @@ impl DecodeCtx<'_> for Tool {
 }
 
 impl EncodeCtx for StewEntry {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.id.encode_ctx(ctx, &mut w)?;
         VarInt(self.duration).encode(w)
     }
 }
 
 impl DecodeCtx<'_> for StewEntry {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(StewEntry {
             id: DecodeCtx::decode_ctx(ctx, r)?,
             duration: VarInt::decode(r)?.0,

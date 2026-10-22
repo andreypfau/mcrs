@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::ensure;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::kind::ItemComponentValue;
@@ -12,13 +12,9 @@ use mcrs_minecraft_item::keys::DataComponentType;
 
 fn encode_with(
     patch: &ComponentPatch,
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     mut w: impl Write,
-    mut value: impl FnMut(
-        &ItemComponentValue,
-        &dyn RegistryLookup,
-        &mut dyn Write,
-    ) -> anyhow::Result<()>,
+    mut value: impl FnMut(&ItemComponentValue, &WireCtx<'_>, &mut dyn Write) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     VarInt(patch.added.len() as i32).encode(&mut w)?;
     VarInt(patch.removed.len() as i32).encode(&mut w)?;
@@ -33,11 +29,11 @@ fn encode_with(
 }
 
 fn decode_with<'a>(
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     r: &mut &'a [u8],
     mut value: impl FnMut(
         DataComponentType,
-        &dyn RegistryLookup,
+        &WireCtx<'_>,
         &mut &'a [u8],
     ) -> anyhow::Result<ItemComponentValue>,
 ) -> anyhow::Result<ComponentPatch> {
@@ -58,7 +54,7 @@ fn decode_with<'a>(
 /// Every added value behind its byte length.
 pub fn encode_delimited_patch(
     patch: &ComponentPatch,
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     w: impl Write,
 ) -> anyhow::Result<()> {
     encode_with(patch, ctx, w, |value, ctx, w| {
@@ -71,10 +67,7 @@ pub fn encode_delimited_patch(
 
 /// The bytes a value leaves unread inside its length prefix are skipped:
 /// the declared size is advanced unconditionally.
-pub fn decode_delimited_patch(
-    ctx: &dyn RegistryLookup,
-    r: &mut &[u8],
-) -> anyhow::Result<ComponentPatch> {
+pub fn decode_delimited_patch(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<ComponentPatch> {
     decode_with(ctx, r, |kind, ctx, r| {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "negative component length");
@@ -93,19 +86,19 @@ pub fn decode_delimited_patch(
 }
 
 impl EncodeCtx for ComponentPatch {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         encode_with(self, ctx, w, |value, ctx, w| value.encode_ctx(ctx, w))
     }
 }
 
 impl<'a> DecodeCtx<'a> for ComponentPatch {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         decode_with(ctx, r, decode_component_value)
     }
 }
 
 impl EncodeCtx for ComponentMap {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         let w: &mut dyn Write = &mut w;
         VarInt(self.0.len() as i32).encode(&mut *w)?;
         for value in &self.0 {
@@ -117,7 +110,7 @@ impl EncodeCtx for ComponentMap {
 }
 
 impl<'a> DecodeCtx<'a> for ComponentMap {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "attempt to decode a list with negative length");
         let mut map = ComponentMap::default();

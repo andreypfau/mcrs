@@ -8,8 +8,9 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::*;
 use crate::dimension::Dimensions;
-use crate::registry_load::test_registries;
+use crate::registry_load::test_registries_arc;
 use crate::worldgen::world_preset::WorldPreset;
+use mcrs_minecraft_registries::RegistryOf;
 
 const OBSERVED_UUID_INTS: [i32; 4] = [-1495452199, -11581732, -1243709312, 65080886];
 const OBSERVED_UUID_FILE_NAME: &str = "a6dd35d9-ff4f-46dc-b5de-808003e10e36";
@@ -353,22 +354,27 @@ fn singleplayer_uuid_ints_name_the_player_file_when_a_player_has_opened_the_worl
     assert!(level.singleplayer_uuid.is_none());
 }
 
+fn registries() -> &'static Registries {
+    test_registries_arc()
+}
+
 fn normal_dimensions() -> Dimensions {
-    let set = test_registries();
-    let id = set
-        .registry::<crate::worldgen::world_preset::WorldPreset>()
-        .and_then(|registry| registry.get(&crate::keys::world_preset::NORMAL))
+    let presets = registries()
+        .registry::<RegistryOf<WorldPreset>>()
+        .expect("the presets are loaded");
+    let id = presets
+        .by_name(&crate::keys::world_preset::NORMAL.location().to_arc())
         .expect("the normal preset is loaded");
-    set.entries::<crate::worldgen::world_preset::WorldPreset, WorldPreset>()
-        .unwrap()[id]
-        .dimensions
-        .clone()
+    presets.get(id).unwrap().dimensions.clone()
 }
 
 fn world_gen_settings_payload() -> NbtCompound {
-    let dimensions = test_registries()
-        .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&normal_dimensions()))
-        .unwrap();
+    let settings = WorldGenSettings {
+        seed: 2,
+        dimensions: normal_dimensions(),
+    };
+    let named = settings.name(registries()).unwrap();
+    let dimensions = mcrs_minecraft_nbt::to_nbt_compound(&named.dimensions).unwrap();
 
     let mut payload = NbtCompound::new();
     payload.put_bool("bonus_chest", false);
@@ -390,7 +396,7 @@ fn every_file_kind_tagged(data_version: Option<NbtTag>) -> [Result<(), SaveError
         parse_world_gen_settings(
             &saved_data_tagged(tag(), world_gen_settings_payload()),
             path(),
-            test_registries(),
+            registries(),
         )
         .map(drop),
         parse_weather(&saved_data_tagged(tag(), weather_payload()), path()).map(drop),
@@ -466,7 +472,7 @@ fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
     let settings = parse_world_gen_settings(
         &saved_data(VERSION.world_version, payload),
         path(),
-        test_registries(),
+        registries(),
     )
     .unwrap();
     assert_eq!(
@@ -485,7 +491,7 @@ fn world_gen_settings_without_dimensions_are_refused() {
     let err = parse_world_gen_settings(
         &saved_data(VERSION.world_version, payload),
         path(),
-        test_registries(),
+        registries(),
     )
     .unwrap_err();
     assert!(
@@ -496,7 +502,7 @@ fn world_gen_settings_without_dimensions_are_refused() {
 
 #[test]
 fn world_gen_settings_keep_their_dimensions() {
-    let set = test_registries();
+    let set = registries();
     let world = std::env::temp_dir().join(format!("mcrs_save_gen_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&world);
     let mut dimensions = normal_dimensions();

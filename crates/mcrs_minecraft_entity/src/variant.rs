@@ -210,3 +210,26 @@ pub struct ChickenSoundVariant<M: Refs = Resolved> {
     pub adult_sounds: ChickenSounds<M>,
     pub baby_sounds: ChickenSounds<M>,
 }
+
+macro_rules! registry_markers {
+    ($($marker:ty),+ $(,)?) => {$(
+        impl mcrs_minecraft_registries::RegistryType for $marker {
+            type Value = ();
+        }
+    )+};
+}
+
+registry_markers!(
+    WolfVariant,
+    PigVariant,
+    CowVariant,
+    ChickenVariant,
+    ZombieNautilusVariant,
+    CatVariant,
+    FrogVariant,
+    WolfSoundVariant,
+    PigSoundVariant,
+    CatSoundVariant,
+    CowSoundVariant,
+    ChickenSoundVariant,
+);

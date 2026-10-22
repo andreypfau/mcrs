@@ -254,14 +254,18 @@ impl<'de, E: de::Error> MapAccess<'de> for Entries<E> {
 }
 
 fn elements(kind: ArrayKind, payload: &[u8]) -> Vec<Buffered> {
-    payload
-        .chunks_exact(kind.width())
-        .map(|chunk| match kind {
-            ArrayKind::Byte => Buffered::I8(chunk[0] as i8),
-            ArrayKind::Int => Buffered::I32(i32::from_be_bytes(chunk.try_into().unwrap())),
-            ArrayKind::Long => Buffered::I64(i64::from_be_bytes(chunk.try_into().unwrap())),
-        })
-        .collect()
+    match kind {
+        ArrayKind::Byte => payload
+            .iter()
+            .map(|&byte| Buffered::I8(i8::from_be_bytes([byte])))
+            .collect(),
+        ArrayKind::Int => (payload.as_chunks().0.iter())
+            .map(|&chunk| Buffered::I32(i32::from_be_bytes(chunk)))
+            .collect(),
+        ArrayKind::Long => (payload.as_chunks().0.iter())
+            .map(|&chunk| Buffered::I64(i64::from_be_bytes(chunk)))
+            .collect(),
+    }
 }
 
 struct ArrayVariant<E> {
@@ -731,7 +735,14 @@ fn begin<S: Serializer>(
     location: &'static str,
     length: Option<usize>,
 ) -> Result<S::SerializeMap, S::Error> {
-    let mut map = serializer.serialize_map(length.map(|length| length + 1))?;
+    let length = length
+        .map(|length| {
+            length
+                .checked_add(1)
+                .ok_or_else(|| <S::Error as ser::Error>::custom("the body has too many fields"))
+        })
+        .transpose()?;
+    let mut map = serializer.serialize_map(length)?;
     map.serialize_entry(key, location)?;
     Ok(map)
 }

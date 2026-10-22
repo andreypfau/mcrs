@@ -139,8 +139,8 @@ is deleted. Never edit a generated source by hand.
 `OWNERS` in `src/owners.rs` names, per registry, the crate that owns it and its
 value type: a type the crate defines, or, for a static registry with entries, an
 enum the generator writes. An owned registry is keyed in `src/keys` of its
-owner, which holds the `RegistryKey`, its type binding and one module per
-registry:
+owner, which holds the `RegistryKey`, its `Registered` implementation and one
+module per registry:
 
 - a static registry keyed by an enum is a `mcrs_minecraft_registries::static_registry!` enum of its
   entries, numbered by protocol id, with their locations in `ENTRIES`;
@@ -159,9 +159,9 @@ the prefix `BRIGADIER_`. Any other digit-leading name, a namespace without a
 rule and two names that make one constant stop the generator with the name.
 
 `crates/mcrs_minecraft_registry_catalog`, manifest included, is generated as
-well: `STATIC_REGISTRIES` lists every static registry with its `ENTRIES`, and
-`bindings()` chains the owners' type bindings. An owner that depends on the catalog is left out of it and binds
-its own types.
+well: `STATIC_REGISTRIES` lists every static registry with its `ENTRIES`. The
+catalog depends only on the crates that own a static registry. An owner that
+depends on the catalog cannot own a static registry.
 
 A test of this crate regenerates the sources from the stored reports and fails,
 naming the first file that differs, if a checked-in source is not what the

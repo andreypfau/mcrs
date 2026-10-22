@@ -1,5 +1,6 @@
-use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
-use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block_predicate::provider::{BlockStateProvider, UnitFloat};
+use mcrs_minecraft_registries::{KeySet, Named};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -112,7 +113,7 @@ pub enum TrunkPlacer {
         extra_branch_steps: IntProvider,
         place_branch_per_log_probability: UnitFloat,
         extra_branch_length: IntProvider,
-        can_grow_through: BlockSet,
+        can_grow_through: KeySet<Block>,
     },
     Cherry {
         base_height: BaseHeight,
@@ -133,7 +134,7 @@ pub enum TrunkPlacer {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     TrunkPlacer, key = "type", registry = crate::keys::TrunkPlacerType,
     {
         StraightTrunkPlacer => Straight,
@@ -218,7 +219,7 @@ pub enum FoliagePlacer {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     FoliagePlacer, key = "type", registry = crate::keys::FoliagePlacerType,
     {
         BlobFoliagePlacer => Blob,
@@ -291,7 +292,7 @@ pub enum TreeDecorator<P = BlockStateProvider<Named>> {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     for<P> serialize { P: Serialize } deserialize { P: Deserialize<'de> }
     TreeDecorator<P>, key = "type", registry = crate::keys::TreeDecoratorType,
     {
@@ -413,7 +414,7 @@ pub enum FeatureSize {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     FeatureSize, key = "type", registry = crate::keys::FeatureSizeType,
     {
         TwoLayersFeatureSize => TwoLayers,
@@ -433,7 +434,7 @@ pub enum RootPlacer {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     RootPlacer, key = "type", registry = crate::keys::RootPlacerType,
     {
         MangroveRootPlacer => Mangrove,
@@ -450,8 +451,8 @@ pub struct AboveRootPlacement {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MangroveRootPlacement {
-    pub can_grow_through: BlockSet,
-    pub muddy_roots_in: BlockSet,
+    pub can_grow_through: KeySet<Block>,
+    pub muddy_roots_in: KeySet<Block>,
     pub muddy_roots_provider: BlockStateProvider<Named>,
     pub max_root_width: Bounded<1, 12>,
     pub max_root_length: Bounded<1, 64>,

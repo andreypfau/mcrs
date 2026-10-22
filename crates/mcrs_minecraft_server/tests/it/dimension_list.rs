@@ -3,15 +3,14 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
@@ -24,12 +23,9 @@ fn key(name: &str) -> ResourceKey<Dimension> {
     ResourceKey::from_location(name.parse().unwrap())
 }
 
-fn debug_dimension(set: &RegistrySet, dimension_type: &str) -> DimensionEntry {
+fn debug_dimension(dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
-        dimension_type: set
-            .registry::<DimensionType>()
-            .and_then(|registry| registry.by_name(dimension_type))
-            .expect("the dimension type is loaded"),
+        dimension_type: crate::support::dimension_type(dimension_type),
         generator: ChunkGenerator::Debug,
     }
 }
@@ -42,12 +38,8 @@ fn scratch_world(tag: &str) -> std::path::PathBuf {
 
 #[test]
 fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_builds_the_tables() {
-    let set = test_registries();
     let mut dimensions = preset("minecraft:normal");
-    dimensions.insert(
-        key("test:extra"),
-        debug_dimension(set, "minecraft:overworld"),
-    );
+    dimensions.insert(key("test:extra"), debug_dimension("minecraft:overworld"));
     let world = scratch_world("save");
     write_world_gen_settings(
         &world,
@@ -55,7 +47,7 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
             seed: 3,
             dimensions,
         },
-        set,
+        test_registries_arc(),
     )
     .unwrap();
 
@@ -109,8 +101,8 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
     let clocks = app.world().resource::<WorldClocks>();
     let registered = app
         .world()
-        .resource::<RegistrySet>()
-        .registry::<WorldClock>()
+        .resource::<CurrentRegistries>()
+        .registry::<RegistryOf<WorldClock>>()
         .expect("the world clock registry is loaded");
     assert!(!registered.is_empty());
     assert_eq!(
@@ -118,7 +110,9 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
         registered.len(),
         "the clocks held after the first update differ from the registry's"
     );
-    for id in registered.ids() {
+    for (id, _, _) in registered.iter() {
+        let id =
+            mcrs_minecraft_core::Id::<WorldClock>::checked(id.number(), registered.len()).unwrap();
         assert!(clocks.get(id).is_some(), "{id:?} is not seeded");
     }
 }
@@ -138,10 +132,7 @@ mod exhaustive {
 
     #[test]
     fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
-        let lobby = Dimensions::from([(
-            key("mcrs:lobby"),
-            debug_dimension(test_registries(), "minecraft:overworld"),
-        )]);
+        let lobby = Dimensions::from([(key("mcrs:lobby"), debug_dimension("minecraft:overworld"))]);
         let spawned = spawned_dimensions(booted(MinecraftServerPlugin {
             dimensions: Some(lobby),
             ..MinecraftServerPlugin::embedded()

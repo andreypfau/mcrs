@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn round_trips_both_entry_shapes() {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+        {
             let json = json!({
                 "minecraft:visual/sky_color": "#78a7ff",
                 "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"},
@@ -377,7 +377,7 @@ mod tests {
                     .is_none()
             );
             assert_eq!(syncable.0.len(), 3);
-        });
+        };
     }
 
     fn tag_at<'a>(
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn background_music_is_typed_and_writes_ints() {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+        {
             use mcrs_minecraft_nbt::tag::NbtTag;
 
             let map: EnvironmentAttributeMap = serde_json::from_value(json!({
@@ -433,7 +433,7 @@ mod tests {
                 Some(&NbtTag::Byte(1))
             );
             assert_eq!(at(&["default", "replace_current_music"]), None);
-        });
+        };
     }
 
     #[test]
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn every_shipped_attribute_value_round_trips() {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+        {
             let mut maps: Vec<(String, serde_json::Value)> = Vec::new();
             for (path, file) in mcrs_minecraft_worldgen_testing::parse_all::<serde_json::Value>(
                 "minecraft/dimension_type",
@@ -561,7 +561,7 @@ mod tests {
                 entries += typed.0.len();
             }
             assert!(entries > 200, "{entries} attribute entries");
-        });
+        };
     }
 
     #[test]

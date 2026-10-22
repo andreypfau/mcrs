@@ -8,17 +8,13 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
 use mcrs_minecraft_registries::{
-    AvailablePack, Diagnostic, Diagnostics, Features, Level, PackFiles, PackSelection, PackStack,
-    Received, Registries, StackedPack, Stage, load_with, pack_stack,
-};
-use mcrs_minecraft_registry::{
-    AssemblyError, LoadReport, PACKS_ROOT, RegistrySet, VANILLA_ROOT, WorldRegistries,
-    below_vanilla_root,
+    AvailablePack, Diagnostic, Diagnostics, Features, Level, PACKS_ROOT, PackFiles, PackSelection,
+    PackStack, Received, Registries, StackedPack, VANILLA_ROOT, below_vanilla_root, load,
+    pack_stack,
 };
 
-use crate::declarations::{self, Plan, StageSet};
+use crate::declarations;
 use crate::packs::DATAPACK_REPORT;
-use crate::registries::{reloadable_registries, static_registries, world_registries};
 
 const FEATURE_PACKS: &str = "minecraft/datapacks";
 const METADATA: &str = "pack.mcmeta";
@@ -130,9 +126,7 @@ pub enum RegistryLoadError {
     Read(String),
     Malformed(String),
     Declarations(String),
-    Report(LoadReport),
     Load(Diagnostics),
-    Assembly(AssemblyError),
 }
 
 impl fmt::Display for RegistryLoadError {
@@ -142,7 +136,6 @@ impl fmt::Display for RegistryLoadError {
             RegistryLoadError::Malformed(message) | RegistryLoadError::Declarations(message) => {
                 f.write_str(message)
             }
-            RegistryLoadError::Report(report) => write!(f, "{report}"),
             RegistryLoadError::Load(diagnostics) => {
                 let errors = diagnostics.iter().filter(|d| d.level() == Level::Error);
                 write!(f, "registry load failed: {} errors", errors.count())?;
@@ -151,21 +144,13 @@ impl fmt::Display for RegistryLoadError {
                 }
                 Ok(())
             }
-            RegistryLoadError::Assembly(error) => write!(f, "{error}"),
         }
     }
 }
 
 impl std::error::Error for RegistryLoadError {}
 
-impl From<AssemblyError> for RegistryLoadError {
-    fn from(error: AssemblyError) -> Self {
-        RegistryLoadError::Assembly(error)
-    }
-}
-
 pub struct LoadedRegistries {
-    pub set: RegistrySet,
     pub registries: Arc<Registries>,
     pub diagnostics: Diagnostics,
 }
@@ -341,6 +326,7 @@ fn pack_files(
     Ok(files)
 }
 
+#[cfg(feature = "bevy")]
 pub(crate) fn log_diagnostics(diagnostics: &Diagnostics) {
     for diagnostic in diagnostics.iter() {
         match diagnostic.level() {
@@ -371,9 +357,7 @@ fn load_stack(
     available: Available,
 ) -> Result<LoadedRegistries, RegistryLoadError> {
     let report = read(source, DATAPACK_REPORT)?;
-    let statics = static_registries().map_err(RegistryLoadError::Report)?;
-    let world_tables = world_registries(&report).map_err(RegistryLoadError::Report)?;
-    let reloadable_tables = reloadable_registries(&report).map_err(RegistryLoadError::Report)?;
+    let declarations = declarations::plan(&report).map_err(RegistryLoadError::Declarations)?;
 
     let (stack, mut diagnostics) = pack_stack(
         &PackSelection::default(),
@@ -383,46 +367,14 @@ fn load_stack(
     );
     diagnostics.extend(available.unavailable);
     let files = pack_files(source, &stack, &available.roots)?;
-    let stack = Arc::new(stack);
 
-    let stage = StageSet::new(statics);
-    let plan = declarations::plan(&world_tables, &reloadable_tables, &stage)
-        .map_err(RegistryLoadError::Declarations)?;
-
-    let mut failure = None;
-    let outcome = load_with(
-        &plan.declarations,
-        Arc::clone(&stack),
-        &files,
-        None,
-        &mut |view, decode| match stage.grow(view) {
-            Ok(set) => set.scope(&mut *decode),
-            Err(error) => {
-                failure.get_or_insert(error);
-            }
-        },
-    );
+    let outcome = load(&declarations, Arc::new(stack), &files, None);
     drop(files);
-    if let Some(error) = failure {
-        return Err(error.into());
-    }
     let (registries, loaded) =
         outcome.map_err(|failed| RegistryLoadError::Load(merged(diagnostics.clone(), &failed)))?;
-    let diagnostics = merged(diagnostics, &loaded);
-
-    let set = assemble(
-        &plan,
-        &registries,
-        &stack,
-        stage.get(),
-        &world_tables,
-        &reloadable_tables,
-        false,
-    )?;
     Ok(LoadedRegistries {
-        set,
         registries: Arc::new(registries),
-        diagnostics,
+        diagnostics: merged(diagnostics, &loaded),
     })
 }
 
@@ -497,80 +449,14 @@ pub fn load_received(
     }
     let received = Received { registries, tags };
 
-    let statics = static_registries().map_err(RegistryLoadError::Report)?;
-    let world_tables = world_registries(report).map_err(RegistryLoadError::Report)?;
-    let reloadable_tables = reloadable_registries(report).map_err(RegistryLoadError::Report)?;
-    let stage = StageSet::new(statics);
-    let plan = declarations::plan(&world_tables, &reloadable_tables, &stage)
-        .map_err(RegistryLoadError::Declarations)?;
-    let mut failure = None;
-    let outcome = mcrs_minecraft_registries::load_received(
-        &plan.declarations,
-        &received,
-        &mut |view, decode| match stage.grow(view) {
-            Ok(set) => set.scope(&mut *decode),
-            Err(error) => {
-                failure.get_or_insert(error);
-            }
-        },
-    );
-    if let Some(error) = failure {
-        return Err(error.into());
-    }
-    let (registries, diagnostics) = outcome.map_err(RegistryLoadError::Load)?;
-    let stack = PackStack::default();
-    let set = assemble(
-        &plan,
-        &registries,
-        &stack,
-        stage.get(),
-        &world_tables,
-        &reloadable_tables,
-        true,
-    )?;
+    let declarations = declarations::plan(report).map_err(RegistryLoadError::Declarations)?;
+    let (registries, diagnostics) =
+        mcrs_minecraft_registries::load_received(&declarations, &received)
+            .map_err(RegistryLoadError::Load)?;
     Ok(LoadedRegistries {
-        set,
         registries: Arc::new(registries),
         diagnostics,
     })
-}
-
-fn assemble(
-    plan: &Plan,
-    registries: &Registries,
-    stack: &PackStack,
-    mut set: RegistrySet,
-    world_tables: &WorldRegistries,
-    reloadable_tables: &WorldRegistries,
-    received: bool,
-) -> Result<RegistrySet, RegistryLoadError> {
-    let mut origins = Vec::new();
-    for planned in &plan.registries {
-        let key = planned.key.as_str();
-        let table = match planned.stage {
-            Stage::Reloadable => reloadable_tables,
-            Stage::World | Stage::Dimension => world_tables,
-        };
-        if let Some(attach) = planned.attach {
-            set = attach(registries, table, set, key)?;
-        }
-        match (planned.origins)(registries, stack) {
-            Some(of) => origins.push((key.to_owned(), of.into_boxed_slice())),
-            // An entry a server sent with its data comes from no pack of the client's stack.
-            None if received => {}
-            None => {
-                return Err(RegistryLoadError::Declarations(format!(
-                    "{key} has an entry of no stacked pack"
-                )));
-            }
-        }
-    }
-    let packs: Vec<String> = stack
-        .packs()
-        .iter()
-        .map(|pack| pack.id().to_owned())
-        .collect();
-    Ok(set.with_origins(packs, origins)?)
 }
 
 /// The repository's assets over the pinned client jar's data pack, which must be installed.
@@ -585,11 +471,6 @@ static TEST_REGISTRIES: std::sync::LazyLock<LoadedRegistries> = std::sync::LazyL
     load_registries(&test_packs())
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });
-
-#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn test_registries() -> &'static RegistrySet {
-    &TEST_REGISTRIES.set
-}
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_registries_arc() -> &'static Arc<Registries> {

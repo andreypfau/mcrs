@@ -8,7 +8,6 @@ use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::{Item, MenuType};
 use mcrs_minecraft_protocol::item::Text as ItemText;
-use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -18,35 +17,20 @@ use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
+
+use crate::item::harness::ctx;
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("inventory_packets").text());
 
 struct Fixture {
     ids: HashMap<(String, String), u16>,
-    names: HashMap<(String, u16), ResourceLocation>,
     packets: HashMap<String, Vec<u8>>,
-}
-
-impl RegistryLookup for Fixture {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
-        self.ids.get(&(registry.into(), name.to_string())).copied()
-    }
-
-    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
-        self.names.get(&(registry.into(), id))
-    }
-
-    fn registries(&self) -> Option<&RegistrySet> {
-        Some(sample_registries())
-    }
 }
 
 fn fixture() -> Fixture {
     let mut fixture = Fixture {
         ids: HashMap::new(),
-        names: HashMap::new(),
         packets: HashMap::new(),
     };
     for line in GOLDEN.lines() {
@@ -56,9 +40,6 @@ fn fixture() -> Fixture {
             };
             let id: u16 = id.parse().unwrap();
             fixture.ids.insert((registry.into(), name.into()), id);
-            fixture
-                .names
-                .insert((registry.into(), id), ResourceLocation::read(name).unwrap());
         } else if let Some((name, hex)) = line.split_once(' ') {
             fixture.packets.insert(name.into(), crate::common::hex(hex));
         }
@@ -69,8 +50,10 @@ fn fixture() -> Fixture {
 fn item(fixture: &Fixture, path: &str) -> Id<Item> {
     let id = Item::find(&format!("minecraft:{path}")).unwrap().id();
     assert_eq!(
-        fixture.id("item", &ResourceLocation::minecraft(path).unwrap()),
-        Some(id.number())
+        fixture
+            .ids
+            .get(&("item".into(), format!("minecraft:{path}"))),
+        Some(&id.number())
     );
     id
 }
@@ -107,12 +90,12 @@ fn sword(fixture: &Fixture) -> ProtoStack {
     ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
 }
 
-fn raw(fixture: &Fixture, slot: ProtoStack) -> RawStack {
-    RawStack::from_stack(&slot, fixture).unwrap()
+fn raw(slot: ProtoStack) -> RawStack {
+    RawStack::from_stack(&slot, &ctx()).unwrap()
 }
 
 fn plain(f: &Fixture, path: &str, n: i32) -> RawStack {
-    raw(f, ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
+    raw(ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
 }
 
 #[test]
@@ -129,7 +112,7 @@ fn container_packets_are_the_games_bytes() {
             container_id: VarInt(3),
             state_seqno: VarInt(7),
             slot: 5,
-            item: raw(f, sword(f)),
+            item: raw(sword(f)),
         },
     );
     check(
@@ -198,7 +181,7 @@ fn container_packets_are_the_games_bytes() {
     );
     let mut player = vec![RawStack::EMPTY; 46];
     player[9] = plain(f, "apple", 3);
-    player[36] = raw(f, sword(f));
+    player[36] = raw(sword(f));
     player[45] = plain(f, "stone", 16);
     check(
         f,
@@ -230,11 +213,11 @@ fn container_packets_are_the_games_bytes() {
         "set_creative_mode_slot",
         ServerboundSetCreativeModeSlot {
             slot: 36,
-            item: RawDelimitedStack::from_stack(&sword(f), f).unwrap(),
+            item: RawDelimitedStack::from_stack(&sword(f), &ctx()).unwrap(),
         },
     );
     let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
-    assert_eq!(packet.item.resolve(f).unwrap(), sword(f));
+    assert_eq!(packet.item.resolve(&ctx()).unwrap(), sword(f));
     check(
         f,
         "set_creative_mode_slot_empty",
@@ -372,7 +355,7 @@ fn merchant_offers() {
             container_id: VarInt(5),
             offers: offers
                 .iter()
-                .map(|offer| RawMerchantOffer::from_offer(offer, f).unwrap())
+                .map(|offer| RawMerchantOffer::from_offer(offer, &ctx()).unwrap())
                 .collect(),
             villager_level: VarInt(2),
             villager_xp: VarInt(15),
@@ -384,7 +367,7 @@ fn merchant_offers() {
     let resolved: Vec<MerchantOffer> = packet
         .offers
         .iter()
-        .map(|raw| raw.resolve(f).unwrap())
+        .map(|raw| raw.resolve(&ctx()).unwrap())
         .collect();
     assert_eq!(resolved, offers);
     assert!(!resolved[0].is_out_of_stock());
@@ -408,7 +391,7 @@ fn an_offer_never_sells_an_empty_stack() {
     let f = &fixture();
     let mut offer = offers(f).remove(0);
     offer.result = ProtoStack::EMPTY;
-    let error = RawMerchantOffer::from_offer(&offer, f).unwrap_err();
+    let error = RawMerchantOffer::from_offer(&offer, &ctx()).unwrap_err();
     assert!(error.to_string().contains("Empty ItemStack not allowed"));
     let mut bytes = f.packets["merchant_offers"].clone();
     let result_count = 6;
@@ -434,12 +417,12 @@ fn container_click_carries_hashed_slots() {
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
-    assert!(changed.matches(&sword(f), f));
+    assert!(changed.matches(&sword(f), &ctx()));
     assert_eq!(
         packet.carried_item,
         HashedStack::create(
             &ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY),
-            f
+            &ctx()
         )
         .unwrap()
     );

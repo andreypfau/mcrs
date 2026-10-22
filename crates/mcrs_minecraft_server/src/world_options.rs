@@ -4,8 +4,9 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::save::read_world_gen_settings;
@@ -22,34 +23,38 @@ pub(crate) struct WorldPresetName(pub String);
 
 pub(crate) fn bake_dimensions(
     mut commands: Commands,
-    set: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     save: Option<Res<WorldSave>>,
     given: Option<Res<PluginDimensions>>,
     preset: Res<WorldPresetName>,
     mut seed: ResMut<WorldSeed>,
 ) {
-    let mut report = LoadReport::new();
     let saved = save.map(|save| {
-        let settings = read_world_gen_settings(&save.0, &set).unwrap_or_else(|err| panic!("{err}"));
+        let settings =
+            read_world_gen_settings(&save.0, &registries).unwrap_or_else(|err| refuse(&err));
         seed.0 = settings.seed as u64;
         settings.dimensions
     });
     let (source, list) = if let Some(given) = given {
-        ("plugin".to_owned(), bake_list(&given.0, &set, &mut report))
+        ("plugin".to_owned(), bake_list(&given.0, &registries))
     } else if let Some(saved) = saved {
-        ("save".to_owned(), bake(&saved, &set, &mut report))
+        ("save".to_owned(), bake(&saved, &registries))
     } else {
         let name = &preset.0;
-        let Some(preset) = report
-            .registry(&set, mcrs_minecraft_world::keys::WORLD_PRESET)
-            .and_then(|registry| report.require_by_name(&registry, name))
+        let presets = registries.loaded::<WorldPreset>();
+        let Some(preset) = ResourceLocation::read(name)
+            .ok()
+            .and_then(|location| presets.by_name(&location))
+            .and_then(|id| presets.get(id))
         else {
-            refuse(&report)
+            refuse(&format!(
+                "{}: no world preset is named {name}",
+                mcrs_minecraft_world::keys::WORLD_PRESET
+            ))
         };
-        let base = &set.loaded_entries::<WorldPreset, WorldPreset>()[preset].dimensions;
-        (name.clone(), bake(base, &set, &mut report))
+        (name.clone(), bake(&preset.dimensions, &registries))
     };
-    let Some(list) = list else { refuse(&report) };
+    let list = list.unwrap_or_else(|error| refuse(&error));
 
     info!(%source, dimensions = list.len(), "dimension list");
     commands.insert_resource(DimensionList::new(list));

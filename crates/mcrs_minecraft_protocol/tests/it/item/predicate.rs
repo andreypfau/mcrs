@@ -4,9 +4,7 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;
 
-use crate::item::harness::{
-    TestLookup, decode, from_json, hex, in_samples, json_value, named, wire,
-};
+use crate::item::harness::{ctx, decode, from_json, hex, json_value, named, wire};
 
 #[derive(Deserialize)]
 struct Case {
@@ -21,51 +19,43 @@ struct Case {
     ordered: bool,
 }
 
-fn lookup() -> TestLookup {
-    let mut lookup = TestLookup::new();
-    lookup.registry_with_ids("block", &[("stone", 1), ("dirt", 9)]);
-    lookup
-}
-
 #[test]
 fn predicates_match_the_vanilla_codecs() {
-    in_samples(|| {
-        let cases: Vec<Case> = serde_json::from_str(&fixture("item_predicate").text()).unwrap();
-        assert_eq!(cases.len(), 81);
-        let lookup = lookup();
-        for case in cases {
-            let kind = DataComponentType::read(&case.kind).unwrap();
-            let label = format!("{} {}", case.kind, case.input);
-            let value = from_json(kind, &case.input);
-            assert_eq!(json_value(&value), case.json, "{label}");
-            assert_eq!(
-                hash_ops::hash(&named(&value)).unwrap(),
-                case.hash,
-                "{label}"
-            );
+    let cases: Vec<Case> = serde_json::from_str(&fixture("item_predicate").text()).unwrap();
+    assert_eq!(cases.len(), 81);
+    let lookup = ctx();
+    for case in cases {
+        let kind = DataComponentType::read(&case.kind).unwrap();
+        let label = format!("{} {}", case.kind, case.input);
+        let value = from_json(kind, &case.input);
+        assert_eq!(json_value(&value), case.json, "{label}");
+        assert_eq!(
+            hash_ops::hash(&named(&value)).unwrap(),
+            case.hash,
+            "{label}"
+        );
 
-            let bytes = hex(&case.wire);
-            if case.ordered {
-                assert_eq!(wire(&lookup, &value), bytes, "{label}");
-            }
-            let decoded = decode(&lookup, kind, &bytes);
-            assert_eq!(json_value(&decoded), case.json, "{label} from the wire");
-            assert_eq!(
-                hash_ops::hash(&named(&decoded)).unwrap(),
-                case.hash,
-                "{label} from the wire"
-            );
-            if case.ordered {
-                assert_eq!(wire(&lookup, &decoded), bytes, "{label} re-encoded");
-            } else {
-                assert_eq!(
-                    decode(&lookup, kind, &wire(&lookup, &decoded)),
-                    decoded,
-                    "{label} re-encoded"
-                );
-            }
+        let bytes = hex(&case.wire);
+        if case.ordered {
+            assert_eq!(wire(&lookup, &value), bytes, "{label}");
         }
-    });
+        let decoded = decode(&lookup, kind, &bytes);
+        assert_eq!(json_value(&decoded), case.json, "{label} from the wire");
+        assert_eq!(
+            hash_ops::hash(&named(&decoded)).unwrap(),
+            case.hash,
+            "{label} from the wire"
+        );
+        if case.ordered {
+            assert_eq!(wire(&lookup, &decoded), bytes, "{label} re-encoded");
+        } else {
+            assert_eq!(
+                decode(&lookup, kind, &wire(&lookup, &decoded)),
+                decoded,
+                "{label} re-encoded"
+            );
+        }
+    }
 }
 
 #[test]
@@ -74,159 +64,157 @@ fn predicates_match_the_vanilla_codecs() {
     reason = "one table of malformed predicates and the message the game raises for each"
 )]
 fn predicate_errors_read_like_vanilla() {
-    in_samples(|| {
-        let error = |kind: DataComponentType, json: &str| -> String {
-            let mut d = serde_json::Deserializer::from_str(json);
-            ItemComponentValue::deserialize_value(kind, &mut d)
-                .err()
-                .unwrap_or_else(|| panic!("{json} was accepted"))
-                .to_string()
-        };
-        for (json, expected) in [
-            ("[]", "List must have contents"),
-            (
-                "[{\"nbt\":\"not a compound\"}]",
-                "SNBT syntax error at 4: trailing data",
-            ),
-            (
-                "{\"components\":{\"minecraft:creative_slot_lock\":{}}}",
-                "'minecraft:creative_slot_lock' is not a persistent component",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:nope\":{}}}",
-                "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_predicate_type]: minecraft:nope",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:max_stack_size\":\"junk\"}}",
-                "invalid type: string \"junk\", expected a map",
-            ),
-            ("{\"foo\":1}", "unknown field `foo`"),
-            (
-                "{\"state\":{\"lit\":\"true\",\"lit\":\"false\"}}",
-                "Duplicate key 'lit'",
-            ),
-            (
-                "{\"blocks\":\"stone\",\"blocks\":\"dirt\"}",
-                "duplicate field `blocks`",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":\"junk\"}}",
-                "invalid type: string \"junk\", expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":true}}",
-                "invalid type: boolean `true`, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5,\"max\":2}}}}",
-                "Swapped bounds in range: Optional[5] is higher than Optional[2]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
-                "invalid type: string \"x\", expected a number",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
-                "unknown field `foo`, expected `durability` or `damage`",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:enchantments\":{}}}",
-                "invalid type: map, expected a sequence",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:firework_explosion\":{\"shape\":\"nope\"}}}",
-                "unknown variant `nope`",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:villager/variant\":{}}}",
-                "invalid type: map, expected",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":3,\"max\":1}}]}}}}",
-                "Swapped bounds in range: Optional[3.0] is higher than Optional[1.0]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":0.0,\"max\":-0.0}}]}}}}",
-                "Swapped bounds in range: Optional[0.0] is higher than Optional[-0.0]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":1e300,\"max\":1e-300}}]}}}}",
-                "Swapped bounds in range: Optional[1.0E300] is higher than Optional[1.0E-300]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[[]]}}}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5.1,\"max\":4.9}}}}",
-                "Swapped bounds in range: Optional[5] is higher than Optional[4]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:firework_explosion\":{\"has_twinkle\":0,\"has_trail\":1}}}",
-                "invalid type: integer `0`, expected a boolean",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":[1,2]}]}}}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{\"ambient\":1}}]}}}}",
-                "invalid type: integer `1`, expected a boolean",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"count\":[[\"a\",1]]}}}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":{\"contains\":[[]]}}}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":[]}}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:enchantments\":[[]]}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:trim\":[]}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{},\"minecraft:speed\":{}}]}}}}",
-                "Duplicate key 'minecraft:speed'",
-            ),
-        ] {
-            let message = error(DataComponentType::CanBreak, json);
-            assert!(message.starts_with(expected), "{json}: {message}");
-        }
-        for (json, expected) in [
-            (
-                "{\"predicates\":{\"minecraft:damage\":{},\"damage\":{}}}",
-                "Duplicate key 'damage'",
-            ),
-            (
-                "{\"count\":{\"min\":5,\"max\":2}}",
-                "Swapped bounds in range: Optional[5] is higher than Optional[2]",
-            ),
-            (
-                "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
-                "invalid type: sequence, expected a map",
-            ),
-            (
-                "{\"count\":true}",
-                "invalid type: boolean `true`, expected a number",
-            ),
-        ] {
-            let message = error(DataComponentType::Lock, json);
-            assert!(message.starts_with(expected), "{json}: {message}");
-        }
-    });
+    let error = |kind: DataComponentType, json: &str| -> String {
+        let mut d = serde_json::Deserializer::from_str(json);
+        ItemComponentValue::deserialize_value(kind, &mut d)
+            .err()
+            .unwrap_or_else(|| panic!("{json} was accepted"))
+            .to_string()
+    };
+    for (json, expected) in [
+        ("[]", "List must have contents"),
+        (
+            "[{\"nbt\":\"not a compound\"}]",
+            "SNBT syntax error at 4: trailing data",
+        ),
+        (
+            "{\"components\":{\"minecraft:creative_slot_lock\":{}}}",
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:nope\":{}}}",
+            "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_predicate_type]: minecraft:nope",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:max_stack_size\":\"junk\"}}",
+            "invalid type: string \"junk\", expected a map",
+        ),
+        ("{\"foo\":1}", "unknown field `foo`"),
+        (
+            "{\"state\":{\"lit\":\"true\",\"lit\":\"false\"}}",
+            "Duplicate key 'lit'",
+        ),
+        (
+            "{\"blocks\":\"stone\",\"blocks\":\"dirt\"}",
+            "duplicate field `blocks`",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":\"junk\"}}",
+            "invalid type: string \"junk\", expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":true}}",
+            "invalid type: boolean `true`, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5,\"max\":2}}}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[2]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
+            "invalid type: string \"x\", expected a number",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
+            "unknown field `foo`, expected `durability` or `damage`",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":{}}}",
+            "invalid type: map, expected a sequence",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:firework_explosion\":{\"shape\":\"nope\"}}}",
+            "unknown variant `nope`",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:villager/variant\":{}}}",
+            "invalid type: map, expected",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":3,\"max\":1}}]}}}}",
+            "Swapped bounds in range: Optional[3.0] is higher than Optional[1.0]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":0.0,\"max\":-0.0}}]}}}}",
+            "Swapped bounds in range: Optional[0.0] is higher than Optional[-0.0]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":1e300,\"max\":1e-300}}]}}}}",
+            "Swapped bounds in range: Optional[1.0E300] is higher than Optional[1.0E-300]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[[]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5.1,\"max\":4.9}}}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[4]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:firework_explosion\":{\"has_twinkle\":0,\"has_trail\":1}}}",
+            "invalid type: integer `0`, expected a boolean",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":[1,2]}]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{\"ambient\":1}}]}}}}",
+            "invalid type: integer `1`, expected a boolean",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"count\":[[\"a\",1]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":{\"contains\":[[]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":[]}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":[[]]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:trim\":[]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{},\"minecraft:speed\":{}}]}}}}",
+            "Duplicate key 'minecraft:speed'",
+        ),
+    ] {
+        let message = error(DataComponentType::CanBreak, json);
+        assert!(message.starts_with(expected), "{json}: {message}");
+    }
+    for (json, expected) in [
+        (
+            "{\"predicates\":{\"minecraft:damage\":{},\"damage\":{}}}",
+            "Duplicate key 'damage'",
+        ),
+        (
+            "{\"count\":{\"min\":5,\"max\":2}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[2]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"count\":true}",
+            "invalid type: boolean `true`, expected a number",
+        ),
+    ] {
+        let message = error(DataComponentType::Lock, json);
+        assert!(message.starts_with(expected), "{json}: {message}");
+    }
 }
 
 /// A predicate the wire carries in a shape its codec refuses fails to decode
@@ -247,7 +235,7 @@ fn malformed_predicate_values_are_refused_on_the_wire() {
         let bytes = hex(wire);
         let mut r = &bytes[..];
         let error =
-            decode_component_value(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
+            decode_component_value(DataComponentType::CanBreak, &ctx(), &mut r).unwrap_err();
         assert!(error.to_string().contains(expected), "{wire}: {error}");
     }
 }
@@ -257,7 +245,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     let mut wire = vec![0x01, 0x00, 0x00, 0x00, 0x00, 65];
     wire.extend(std::iter::repeat_n([0x00, 0x01, 0x0A, 0x00], 65).flatten());
     let mut r = &wire[..];
-    let error = decode_component_value(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
+    let error = decode_component_value(DataComponentType::CanBreak, &ctx(), &mut r).unwrap_err();
     assert!(
         error
             .to_string()
@@ -285,7 +273,7 @@ fn a_double_range_between_the_two_zeros_is_kept() {
 /// by position.
 #[test]
 fn predicate_order_does_not_affect_equality() {
-    let lookup = lookup();
+    let lookup = ctx();
     for (a, b) in [
         (
             "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
@@ -321,12 +309,9 @@ fn predicate_order_does_not_affect_equality() {
 
 #[test]
 fn a_predicate_key_reads_with_or_without_its_namespace() {
-    in_samples(|| {
-        let read = |key: &str| {
-            let input =
-                format!("{{\"predicates\":{{\"{key}\":{{\"durability\":{{\"min\":1}}}}}}}}");
-            from_json(DataComponentType::CanBreak, &input)
-        };
-        assert_eq!(read("damage"), read("minecraft:damage"));
-    });
+    let read = |key: &str| {
+        let input = format!("{{\"predicates\":{{\"{key}\":{{\"durability\":{{\"min\":1}}}}}}}}");
+        from_json(DataComponentType::CanBreak, &input)
+    };
+    assert_eq!(read("damage"), read("minecraft:damage"));
 }

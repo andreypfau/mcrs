@@ -1,7 +1,7 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{Registry, Tags};
+use mcrs_minecraft_registries::{Namer, Registries};
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
@@ -33,13 +33,11 @@ pub struct FeatureTables {
 /// repeats — the input the feature order is defined against.
 pub fn possible_biomes(
     source: &BiomeSource,
-    biomes: &Registry<mcrs_minecraft_biome::Biome>,
-    biome_tags: &Tags<mcrs_minecraft_biome::Biome>,
+    registries: &Registries,
     lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
     let named = |id: &mcrs_minecraft_core::Id<mcrs_minecraft_biome::Biome>| {
-        biomes
-            .name(*id)
+        Namer::name(registries, *id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
             .clone()
     };
@@ -47,18 +45,17 @@ pub fn possible_biomes(
         BiomeSource::MultiNoise(MultiNoiseBiomeSource::Biomes(entries)) => {
             entries.iter().map(|entry| named(&entry.biome)).collect()
         }
-        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => match lists.get(*list) {
-            Some(list) => preset_biomes(list.preset.parameter_list()),
-            None => panic!("no parameter list is numbered {}", list.index()),
-        },
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => {
+            match lists.get(list.index()) {
+                Some(list) => preset_biomes(list.preset.parameter_list()),
+                None => panic!("no parameter list is numbered {}", list.index()),
+            }
+        }
         BiomeSource::TheEnd => END_BIOMES
             .iter()
             .map(|biome| biome.location().to_arc())
             .collect(),
         BiomeSource::Fixed { biome } => vec![named(biome)],
-        BiomeSource::Checkerboard { biomes, .. } => {
-            biomes.ids(biome_tags).map(|id| named(&id)).collect()
-        }
         BiomeSource::Beta { land_biomes, .. } => land_biomes.iter().map(named).collect(),
     };
 
@@ -111,14 +108,14 @@ mod tests {
     }
 
     fn order(source: &BiomeSource) -> Vec<String> {
-        let biomes =
-            Registry::<mcrs_minecraft_biome::Biome>::new(mcrs_minecraft_biome::keys::BIOME, [])
-                .unwrap();
-        let tags = Tags::from_members(&biomes, Vec::new());
-        possible_biomes(source, &biomes, &tags, &crate::tests::parameter_lists().1)
-            .iter()
-            .map(|id| id.as_str().to_owned())
-            .collect()
+        possible_biomes(
+            source,
+            crate::tests::test_registries(),
+            crate::tests::parameter_lists(),
+        )
+        .iter()
+        .map(|id| id.as_str().to_owned())
+        .collect()
     }
 
     fn preset(name: &str) -> BiomeSource {

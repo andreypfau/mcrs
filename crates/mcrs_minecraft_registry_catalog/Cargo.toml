@@ -1,7 +1,7 @@
 # Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 [package]
 name = "mcrs_minecraft_registry_catalog"
-description = "The static registries and the registry types of every crate that owns one"
+description = "The entries of every static registry"
 version.workspace = true
 edition.workspace = true
 
@@ -32,7 +32,6 @@ mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 

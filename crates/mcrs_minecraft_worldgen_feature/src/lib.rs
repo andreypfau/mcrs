@@ -20,7 +20,6 @@ mod tests {
     use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
     use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
     use mcrs_minecraft_registries::Named;
-    use mcrs_minecraft_worldgen_testing::corpus_set;
     use serde::Serialize;
     use serde::de::DeserializeOwned;
 
@@ -106,11 +105,11 @@ mod tests {
                 r#"{"type":"minecraft:fixed_placement","positions":[[1,2,3]]}"#,
             ),
         ];
-        corpus_set().scope(|| {
+        {
             for (codec, json) in cases {
                 assert_eq!(codec(json).as_deref(), Ok(*json));
             }
-        });
+        };
     }
 
     #[test]
@@ -142,12 +141,12 @@ mod tests {
                 "",
             ),
         ];
-        corpus_set().scope(|| {
+        {
             for (codec, json, message) in cases {
                 let error = codec(json).expect_err(json);
                 assert!(error.contains(message), "{json}: {error}");
             }
-        });
+        };
     }
 }
 

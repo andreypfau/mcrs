@@ -145,7 +145,7 @@ mod tests {
     const S: StructureId = StructureId(0);
 
     fn placement(json: &str) -> StructurePlacement {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| serde_json::from_str(json).unwrap())
+        serde_json::from_str(json).unwrap()
     }
 
     fn wide() -> StructurePlacement {

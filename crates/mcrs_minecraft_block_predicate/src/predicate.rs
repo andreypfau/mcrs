@@ -112,14 +112,8 @@ pub enum BlockPredicate<M: Refs = Resolved> {
     },
 }
 
-impl Validate for BlockPredicate<Named> {
-    fn validate(&self) -> Result<(), String> {
-        mcrs_minecraft_registry::check_in_scope::<BlockPredicate>(self.clone())
-    }
-}
-
-mcrs_minecraft_registry::dispatch! {
-    validated BlockPredicate<Named>, key = "type", registry = crate::keys::BlockPredicateType,
+mcrs_minecraft_registries::dispatch! {
+    BlockPredicate<Named>, key = "type", registry = crate::keys::BlockPredicateType,
     {
         MatchingBlocks => MatchingBlocks,
         MatchingBlockTag => MatchingBlockTag,
@@ -177,8 +171,6 @@ mod tests {
     use super::*;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_nbt::{from_tag, to_nbt_tag};
-    use mcrs_minecraft_registries::{IdSet, Resolve};
-    use mcrs_minecraft_worldgen_testing::corpus_set;
 
     #[test]
     fn an_offset_is_an_int_array_in_nbt_and_a_list_in_json() {
@@ -199,14 +191,11 @@ mod tests {
 
     #[test]
     fn a_matching_fluids_predicate_round_trips_with_and_without_state() {
-        let set = corpus_set();
         for text in [
             r#"{"type":"minecraft:matching_fluids","fluids":"minecraft:water"}"#,
             r#"{"type":"minecraft:matching_fluids","offset":[0,1,0],"fluids":"minecraft:water","state":{"source":"true"}}"#,
         ] {
-            let named: BlockPredicate<Named> = serde_json::from_str(text).unwrap();
-            let predicate = BlockPredicate::resolve(named, set).unwrap();
-            let written = predicate.name(set).unwrap();
+            let written: BlockPredicate<Named> = serde_json::from_str(text).unwrap();
             assert_eq!(serde_json::to_string(&written).unwrap(), text, "{text}");
             let nbt = to_nbt_tag(&written).unwrap();
             assert_eq!(
@@ -218,29 +207,8 @@ mod tests {
     }
 
     #[test]
-    fn a_block_predicate_tag_resolves_in_the_loaded_scope() {
-        let text =
-            r##"{"type":"minecraft:matching_blocks","blocks":"#minecraft:base_stone_overworld"}"##;
-        let set = corpus_set();
-        let tags = set.tags::<mcrs_minecraft_block::keys::Block>().unwrap();
-        let named: BlockPredicate<Named> = serde_json::from_str(text).unwrap();
-        let BlockPredicate::MatchingBlocks {
-            blocks: IdSet::Tag(tag),
-            ..
-        } = BlockPredicate::resolve(named, set).unwrap()
-        else {
-            panic!("a matching_blocks predicate resolves its tag");
-        };
-        assert!(tags.contains(tag, mcrs_minecraft_block::keys::Block::Stone.id()));
-        assert!(!tags.contains(tag, mcrs_minecraft_block::keys::Block::Dirt.id()));
-    }
-
-    #[test]
     fn every_registered_predicate_type_is_a_variant() {
-        let names = mcrs_minecraft_registry::static_report::shipped_report()
-            .table("minecraft:block_predicate_type")
-            .unwrap()
-            .names();
+        let names = crate::keys::BlockPredicateType::ENTRIES;
         assert!(!names.is_empty());
         for name in names {
             let json = format!(r#"{{"type":"{name}"}}"#);

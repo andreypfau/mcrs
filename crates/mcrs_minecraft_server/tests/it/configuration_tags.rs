@@ -1,22 +1,27 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
+use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 use crate::configuration_registries::{json_files, sent_update_tags, shipped_packs};
 
 type SentTags = Vec<(String, BTreeMap<String, Vec<String>>)>;
 
-fn sent_tags(set: &RegistrySet, packet: &ClientboundUpdateTags) -> SentTags {
+fn key(registry: &str) -> ResourceLocation {
+    ResourceLocation::read(registry).unwrap()
+}
+
+fn sent_tags(registries: &Registries, packet: &ClientboundUpdateTags) -> SentTags {
     packet
         .registries
         .iter()
         .map(|registry| {
             let name = registry.registry.as_str();
-            let table = set
-                .table(name)
+            let entries = registries
+                .names_of(&key(name))
                 .unwrap_or_else(|| panic!("{name} has no table"));
             let tags = registry
                 .tags
@@ -27,7 +32,7 @@ fn sent_tags(set: &RegistrySet, packet: &ClientboundUpdateTags) -> SentTags {
                         .iter()
                         .map(|member| {
                             let member = usize::try_from(member.0).unwrap();
-                            table.name(member).unwrap().to_string()
+                            entries[member].to_string()
                         })
                         .collect();
                     (tag.name.to_string(), members)
@@ -83,10 +88,9 @@ fn shipped_tags(registry: &str) -> BTreeMap<String, ShippedTag> {
 
 #[test]
 fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
-    let set = test_registries();
     let packet = sent_update_tags(test_registries_arc());
     let mut checked = 0;
-    for (registry, sent) in sent_tags(set, &packet) {
+    for (registry, sent) in sent_tags(test_registries_arc(), &packet) {
         let shipped = shipped_tags(&registry);
         assert_eq!(
             sent.keys().collect::<BTreeSet<_>>(),
@@ -109,10 +113,12 @@ fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
 
 #[test]
 fn the_server_sends_tag_members_in_tag_order() {
-    let set = test_registries();
-    let packet = sent_update_tags(test_registries_arc());
+    let registries = test_registries_arc();
+    let packet = sent_update_tags(registries);
 
-    let blocks = set.tags::<Block>().expect("the block tags are loaded");
+    let blocks = registries
+        .tags::<Block>()
+        .expect("the block tags are loaded");
     let sent_blocks = packet
         .registries
         .iter()
@@ -121,8 +127,7 @@ fn the_server_sends_tag_members_in_tag_order() {
     let mut out_of_id_order = Vec::new();
     for group in &sent_blocks.tags {
         let id = blocks
-            .tag_ids()
-            .find(|&id| blocks.name(id).as_str() == group.name.as_str())
+            .by_name(&key(group.name.as_str()))
             .expect("a sent block tag is in the set");
         let in_tag_order: Vec<u16> = blocks.members(id).map(|member| member.number()).collect();
         let sent: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
@@ -138,20 +143,16 @@ fn the_server_sends_tag_members_in_tag_order() {
 
     for registry in &packet.registries {
         let name = registry.registry.as_str();
-        let table = set
-            .tag_table(name)
-            .unwrap_or_else(|| panic!("{name} has no tag table"));
+        let declared: Vec<(&ResourceLocation, &[u16])> = registries
+            .tags_of(&key(name))
+            .unwrap_or_else(|| panic!("{name} has no tag table"))
+            .collect();
         let sent: Vec<&str> = registry.tags.iter().map(|tag| tag.name.as_str()).collect();
-        let declared: Vec<&str> = table.names().iter().map(|tag| tag.as_str()).collect();
-        assert_eq!(sent, declared, "the tags {name} declares, in table order");
-        for (index, group) in registry.tags.iter().enumerate() {
+        let names: Vec<&str> = declared.iter().map(|(tag, _)| tag.as_str()).collect();
+        assert_eq!(sent, names, "the tags {name} declares, in table order");
+        for (group, (_, declared)) in registry.tags.iter().zip(&declared) {
             let members: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
-            assert_eq!(
-                members,
-                table.members(index),
-                "members of {name} {}",
-                group.name
-            );
+            assert_eq!(&members, declared, "members of {name} {}", group.name);
         }
     }
 }
@@ -196,7 +197,7 @@ fn the_tags_packet_follows_the_static_registry_order() {
 
 #[test]
 fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
-    let set = test_registries();
+    let registries = test_registries_arc();
     let packet = sent_update_tags(test_registries_arc());
     let sent: Vec<&str> = packet
         .registries
@@ -216,9 +217,35 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     let data = crate::configuration_registries::sent(test_registries_arc(), false);
     let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
     let has_tags = |registry: &str| {
-        set.tag_table(registry)
-            .is_some_and(|table| !table.is_empty())
+        registries
+            .tags_of(&key(registry))
+            .is_some_and(|mut tags| tags.next().is_some())
     };
+    let report = |name: &str| -> serde_json::Value {
+        serde_json::from_slice(
+            &std::fs::read(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../assets/mcrs/reports")
+                    .join(name),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    };
+    let statics: BTreeSet<String> = report("registries.json")
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    let data: BTreeSet<String> = report("datapack.json")["registries"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .filter(|(_, flags)| flags["elements"] == true)
+        .map(|(registry, _)| registry.clone())
+        .collect();
+    let is_world_registry = |registry: &str| data.contains(registry);
 
     let synced_sent: Vec<&str> = sent
         .iter()
@@ -234,14 +261,14 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     let statics_sent = &sent[synced_sent.len()..];
     for registry in statics_sent {
         assert!(
-            !synced.contains(registry) && !set.is_world_registry(registry),
+            !synced.contains(registry) && !is_world_registry(registry),
             "{registry} is neither synced nor static"
         );
     }
 
-    for table in set.tables() {
-        let registry = table.registry().as_str();
-        let networked = synced.contains(&registry) || !set.is_world_registry(registry);
+    for registry in statics.union(&data) {
+        let registry = registry.as_str();
+        let networked = synced.contains(&registry) || !is_world_registry(registry);
         assert_eq!(
             sent.contains(&registry),
             networked && has_tags(registry),
@@ -260,9 +287,7 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
         );
     }
     assert!(
-        set.tag_table("minecraft:villager_trade")
-            .is_some_and(|table| !table.is_empty())
-            && !sent.contains(&"minecraft:villager_trade"),
+        has_tags("minecraft:villager_trade") && !sent.contains(&"minecraft:villager_trade"),
         "a world registry the game does not synchronize is not sent even with tags"
     );
 

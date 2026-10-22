@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
     ItemComponentValue, Lore, MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch,
@@ -9,7 +8,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::Named;
 
-use crate::item::harness::{TestLookup, custom_data, hex, json_of, named, read_json};
+use crate::item::harness::{ctx, custom_data, hex, json_of, named, read_json, registries};
 use mcrs_minecraft_item::keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
@@ -36,7 +35,7 @@ fn patch(with_transient: bool) -> ComponentPatch {
 
 fn wire(value: &impl EncodeCtx) -> Vec<u8> {
     let mut out = Vec::new();
-    value.encode_ctx(&TestLookup::new(), &mut out).unwrap();
+    value.encode_ctx(&ctx(), &mut out).unwrap();
     out
 }
 
@@ -46,21 +45,15 @@ fn a_patch_matches_the_vanilla_stream_codec() {
     let bytes = hex(PATCH_WIRE);
     assert_eq!(wire(&patch), bytes);
     let mut r = &bytes[..];
-    assert_eq!(
-        ComponentPatch::decode_ctx(&TestLookup::new(), &mut r).unwrap(),
-        patch
-    );
+    assert_eq!(ComponentPatch::decode_ctx(&ctx(), &mut r).unwrap(), patch);
     assert!(r.is_empty());
 
     let delimited = hex(PATCH_DELIMITED_WIRE);
     let mut out = Vec::new();
-    encode_delimited_patch(&patch, &TestLookup::new(), &mut out).unwrap();
+    encode_delimited_patch(&patch, &ctx(), &mut out).unwrap();
     assert_eq!(out, delimited);
     let mut r = &delimited[..];
-    assert_eq!(
-        decode_delimited_patch(&TestLookup::new(), &mut r).unwrap(),
-        patch
-    );
+    assert_eq!(decode_delimited_patch(&ctx(), &mut r).unwrap(), patch);
     assert!(r.is_empty());
 }
 
@@ -94,10 +87,10 @@ fn text_free_kinds_hash_like_vanilla() {
 fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     assert_eq!(hash(Lore::new(vec![Text::text("line")])), -476441620);
     assert_eq!(hash(CustomName(Text::text("named"))), -756126370);
-    let hashed = HashedPatchMap::create(&patch(false), sample_registries()).unwrap();
+    let hashed = HashedPatchMap::create(&patch(false), registries()).unwrap();
     let vanilla = HashedPatchMap::decode(&mut &hex(HASHED_WIRE)[..]).unwrap();
     assert_eq!(sorted(&hashed), sorted(&vanilla));
-    assert!(vanilla.matches(&patch(false), sample_registries()));
+    assert!(vanilla.matches(&patch(false), registries()));
     assert_eq!(
         json_of(&Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap()),
         r#"{"id":"minecraft:diamond_sword","count":3,"components":{"minecraft:max_stack_size":16,"minecraft:custom_data":{"x":100000,"name":"mcrs"},"minecraft:lore":["line"],"minecraft:custom_name":"named","minecraft:damage":7,"minecraft:unbreakable":{},"!minecraft:repair_cost":{},"!minecraft:enchantments":{}}}"#
@@ -139,7 +132,7 @@ fn the_hashed_map_wire_is_the_vanilla_layout() {
 
 #[test]
 fn a_template_matches_the_vanilla_stream_codec_and_json() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let template = Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap();
     let mut out = Vec::new();
     template.encode_ctx(&lookup, &mut out).unwrap();

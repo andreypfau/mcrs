@@ -1,7 +1,8 @@
 use bytes::Buf;
 use mcrs_minecraft_entity::keys::{Attribute, VillagerProfession};
+use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::RegistryType;
 use mcrs_minecraft_worldgen_testing::dump_string;
 use std::collections::HashMap;
 
@@ -42,36 +43,43 @@ fn read_census() -> Census {
     Census { ids, attributes }
 }
 
-fn loaded_names(registry: &str) -> Vec<String> {
-    crate::registry_load::test_registries()
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
-        .names()
+fn loaded_names<R: RegistryType>() -> Vec<String> {
+    let registries = crate::registry_load::test_registries_arc();
+    registries
+        .key_of::<R>()
+        .and_then(|key| registries.names_of(key))
+        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()))
         .iter()
         .map(ToString::to_string)
         .collect()
 }
 
-fn report_set() -> RegistrySet {
-    RegistrySet::from_locations(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES).unwrap()
+fn report_names(registry: &str) -> Vec<String> {
+    let (_, names) = mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
+        .iter()
+        .find(|(key, _)| key.as_static_str() == registry)
+        .unwrap_or_else(|| panic!("{registry} is not a static registry"));
+    names.iter().map(ToString::to_string).collect()
 }
 
 #[test]
 fn entity_types_follow_the_registry_order() {
     let census = read_census();
-    let set = report_set();
-    let table = set.table("minecraft:entity_type").unwrap();
-    let actual: Vec<String> = table.names().iter().map(ToString::to_string).collect();
-    assert_eq!(actual, census.ids["minecraft:entity_type"]);
+    assert_eq!(
+        report_names("minecraft:entity_type"),
+        census.ids["minecraft:entity_type"]
+    );
 }
 
 #[test]
 fn every_template_entity_kind_is_a_registered_entity_type() {
-    let set = report_set();
-    let table = set.table("minecraft:entity_type").unwrap();
+    let entity_types = report_names("minecraft:entity_type");
     for kind in mcrs_minecraft_worldgen_feature::template::EntityKind::KINDS {
         let id = kind.as_static_str();
-        assert!(table.number(id).is_some(), "{id} is not an entity type");
+        assert!(
+            entity_types.iter().any(|name| name == id),
+            "{id} is not an entity type"
+        );
     }
 }
 
@@ -129,11 +137,11 @@ fn attributes_match_the_registry_entry_for_entry() {
 fn cat_variant_assets_sort_into_the_registry_order() {
     let census = read_census();
     assert_eq!(
-        loaded_names("minecraft:cat_variant"),
+        loaded_names::<CatVariant>(),
         census.ids["minecraft:cat_variant"]
     );
     assert_eq!(
-        loaded_names("minecraft:cat_sound_variant"),
+        loaded_names::<CatSoundVariant>(),
         census.ids["minecraft:cat_sound_variant"]
     );
 }

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, TypeBinding};
+use mcrs_minecraft_core::StaticResourceLocation;
 
 pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
     (
@@ -384,28 +384,3 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
         mcrs_minecraft_keys::test_function::ENTRIES,
     ),
 ];
-
-pub fn bindings() -> impl Iterator<Item = TypeBinding> {
-    std::iter::empty()
-        .chain(mcrs_minecraft_anvil::keys::bindings())
-        .chain(mcrs_minecraft_biome::keys::bindings())
-        .chain(mcrs_minecraft_block::keys::bindings())
-        .chain(mcrs_minecraft_block_predicate::keys::bindings())
-        .chain(mcrs_minecraft_dimension::keys::bindings())
-        .chain(mcrs_minecraft_enchantment::keys::bindings())
-        .chain(mcrs_minecraft_entity::keys::bindings())
-        .chain(mcrs_minecraft_environment::keys::bindings())
-        .chain(mcrs_minecraft_game_rule::keys::bindings())
-        .chain(mcrs_minecraft_item::keys::bindings())
-        .chain(mcrs_minecraft_loot::keys::bindings())
-        .chain(mcrs_minecraft_particle::keys::bindings())
-        .chain(mcrs_minecraft_predicate::keys::bindings())
-        .chain(mcrs_minecraft_sound::keys::bindings())
-        .chain(mcrs_minecraft_value_provider::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_carver::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_density::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_feature::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_noise::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_structure::keys::bindings())
-        .chain(mcrs_minecraft_worldgen_surface::keys::bindings())
-}

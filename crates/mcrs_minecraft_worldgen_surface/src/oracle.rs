@@ -183,9 +183,7 @@ impl<'a> MaterialOracle<'a> {
             }
             MaterialCondition::Biome { biome_is } => {
                 let biome = eval.biome();
-                let value = biome_is
-                    .ids(self.inputs.biome_tags)
-                    .any(|id| id.number() == biome);
+                let value = (self.inputs.biomes)(biome_is).is_some_and(|ids| ids.contains(&biome));
                 ("biome", value)
             }
             MaterialCondition::NoiseThreshold {
@@ -281,7 +279,7 @@ impl<'a> MaterialOracle<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile::tests::{biome_tags, build, material_corpus, resolve_block};
+    use crate::compile::tests::{biome_ids, build, material_corpus, resolve_block};
     use crate::eval::MaterialScratch;
     use mcrs_minecraft_core::rl;
 
@@ -328,12 +326,11 @@ mod tests {
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
         let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();
-        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome_tags: &biomes,
+            biomes: &biome_ids,
         };
         let height = HeightContext {
             min_y: router.noise.min_y,

@@ -1,195 +1,82 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
+use mcrs_minecraft_protocol::item::ctx::WireCtx;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
-use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
+use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemDataComponent};
-use mcrs_minecraft_registries::{Named, Resolve};
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
-
-pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
-    sample_registries().scope(run)
-}
+use mcrs_minecraft_registries::{IdSet, Key, Named, Registries, RegistryType, Resolve, Resolver};
+use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 pub use crate::common::{hex, nbt_tree};
 
-/// Every name a sample may reference, with the ids a capture session would
-/// have handed out.
-pub struct TestLookup {
-    by_name: HashMap<String, HashMap<ResourceLocation, u16>>,
-    by_id: HashMap<String, Vec<Option<ResourceLocation>>>,
-    block_states: Vec<TestBlockState>,
+pub fn registries() -> &'static Registries {
+    test_registries_arc()
 }
 
-struct TestBlockState {
-    id: u16,
-    block: ResourceLocation,
-    properties: Vec<(String, String)>,
-    default: bool,
+pub fn ctx() -> WireCtx<'static> {
+    WireCtx::new(registries())
 }
 
-impl TestLookup {
-    pub fn new() -> Self {
-        let mut lookup = TestLookup {
-            by_name: HashMap::new(),
-            by_id: HashMap::new(),
-            block_states: Vec::new(),
-        };
-        for (registry, names) in SAMPLE_NAMES {
-            lookup.registry(registry, names);
-        }
-        let sounds: Vec<(&str, u16)> = (0u16..)
-            .zip(mcrs_minecraft_sound::keys::sound_event::ENTRIES)
-            .map(|(number, name)| {
-                let name = name.as_static_str();
-                (name.strip_prefix("minecraft:").unwrap_or(name), number)
-            })
-            .collect();
-        lookup.registry_with_ids("sound_event", &sounds);
-        lookup
-    }
-
-    pub fn with_id_lines(text: &str) -> Self {
-        let mut ids: BTreeMap<String, BTreeMap<String, u16>> = BTreeMap::new();
-        for line in text.lines().filter_map(|line| line.strip_prefix("id ")) {
-            let [registry, name, id] = line.split(' ').collect::<Vec<_>>()[..] else {
-                panic!("malformed id line: {line}");
-            };
-            let registry = registry.strip_prefix("minecraft:").unwrap_or(registry);
-            let name = name.strip_prefix("minecraft:").unwrap_or(name);
-            ids.entry(registry.into())
-                .or_default()
-                .insert(name.into(), id.parse().unwrap());
-        }
-        Self::from_ids(&ids)
-    }
-
-    pub fn from_ids(ids: &BTreeMap<String, BTreeMap<String, u16>>) -> Self {
-        let mut lookup = Self::new();
-        for (registry, entries) in ids {
-            let entries: Vec<(&str, u16)> = entries.iter().map(|(k, v)| (k.as_str(), *v)).collect();
-            lookup.registry_with_ids(registry, &entries);
-        }
-        lookup
-    }
-
-    fn registry(&mut self, name: &str, paths: &[&str]) {
-        let entries: Vec<(&str, u16)> = paths.iter().zip(0u16..).map(|(p, id)| (*p, id)).collect();
-        self.registry_with_ids(name, &entries);
-    }
-
-    pub fn registry_with_ids(&mut self, name: &str, entries: &[(&str, u16)]) {
-        let mut by_id = Vec::new();
-        let mut by_name = HashMap::new();
-        for (path, id) in entries {
-            let location = ResourceLocation::minecraft(path).unwrap();
-            let index = usize::from(*id);
-            if by_id.len() <= index {
-                by_id.resize(index + 1, None);
-            }
-            by_id[index] = Some(location.clone());
-            by_name.insert(location, *id);
-        }
-        self.by_name.insert(name.into(), by_name);
-        self.by_id.insert(name.into(), by_id);
-    }
-
-    pub fn block_state(
-        &mut self,
-        id: u16,
-        block: &str,
-        properties: &[(&str, &str)],
-        default: bool,
-    ) {
-        self.block_states.push(TestBlockState {
-            id,
-            block: ResourceLocation::minecraft(block).unwrap(),
-            properties: properties
-                .iter()
-                .map(|(name, value)| (name.to_string(), value.to_string()))
-                .collect(),
-            default,
-        });
-    }
-}
-
-impl RegistryLookup for TestLookup {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
-        self.by_name.get(registry)?.get(name).copied()
-    }
-
-    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
-        self.by_id.get(registry)?.get(usize::from(id))?.as_ref()
-    }
-
-    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u16> {
-        let states: Vec<&TestBlockState> = self
-            .block_states
-            .iter()
-            .filter(|state| &state.block == block)
-            .collect();
-        let default = states.iter().find(|state| state.default)?;
-        let wanted: Vec<(&str, &str)> = default
-            .properties
-            .iter()
-            .map(|(name, value)| {
-                let given = properties
-                    .iter()
-                    .find(|(k, v)| {
-                        k == name
-                            && states
-                                .iter()
-                                .any(|s| s.properties.contains(&(k.to_string(), v.to_string())))
-                    })
-                    .map(|(_, v)| *v);
-                (name.as_str(), given.unwrap_or(value.as_str()))
-            })
-            .collect();
-        states
-            .iter()
-            .find(|state| {
-                state
-                    .properties
-                    .iter()
-                    .all(|(k, v)| wanted.contains(&(k.as_str(), v.as_str())))
-            })
-            .map(|state| state.id)
-    }
-
-    fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
-        let state = self.block_states.iter().find(|state| state.id == id)?;
-        let properties = if state.default {
-            Vec::new()
-        } else {
-            state.properties.clone()
-        };
-        Some((state.block.clone(), properties))
-    }
-
-    fn registries(&self) -> Option<&RegistrySet> {
-        Some(sample_registries())
-    }
+pub fn block_ctx() -> WireCtx<'static> {
+    ctx().with_blocks(&test_corpus().0)
 }
 
 pub fn named<T: Resolve + fmt::Debug>(value: &T) -> T::Named {
     value
-        .name(sample_registries())
+        .name(registries())
         .unwrap_or_else(|e| panic!("{value:?}: name: {e}"))
 }
 
 pub fn resolved<T: Resolve>(value: T::Named) -> Result<T, String> {
-    T::resolve(value, sample_registries()).map_err(|e| e.to_string())
+    T::resolve(value, registries()).map_err(|e| e.to_string())
+}
+
+/// The samples are numbered against their own few entries; the wire numbers them as the loaded
+/// registries do.
+pub fn samples<T: Sample + Into<ItemComponentValue>>() -> Vec<ItemComponentValue> {
+    T::samples()
+        .into_iter()
+        .map(|sample| in_registries(sample.into()))
+        .collect()
+}
+
+fn in_registries(sample: ItemComponentValue) -> ItemComponentValue {
+    let name = sample
+        .name(sample_registries())
+        .unwrap_or_else(|e| panic!("{sample:?}: name: {e}"));
+    resolved(name).unwrap_or_else(|e| panic!("{sample:?}: resolve: {e}"))
+}
+
+fn key<R>(path: &str) -> Key<R> {
+    Key::new(ResourceLocation::minecraft(path).unwrap())
+}
+
+pub fn entry<R: RegistryType>(path: &str) -> Id<R> {
+    registries().id(&key(path)).unwrap()
+}
+
+pub fn tag_set<R: RegistryType>(path: &str) -> IdSet<R> {
+    IdSet::Tag(registries().tag(&key(path)).unwrap())
+}
+
+pub fn one_set<R: RegistryType>(path: &str) -> IdSet<R> {
+    list_set(&[path])
+}
+
+pub fn list_set<R: RegistryType>(paths: &[&str]) -> IdSet<R> {
+    IdSet::List(paths.iter().map(|path| entry(path)).collect())
 }
 
 pub fn json_of<T: Resolve<Named: Serialize> + fmt::Debug>(value: &T) -> String {
@@ -222,17 +109,17 @@ pub fn try_from_json(kind: DataComponentType, json: &str) -> Result<ItemComponen
     resolved(ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?)
 }
 
-pub fn wire(lookup: &TestLookup, value: &ItemComponentValue) -> Vec<u8> {
+pub fn wire(ctx: &WireCtx<'_>, value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
     value
-        .encode_ctx(lookup, &mut out)
+        .encode_ctx(ctx, &mut out)
         .unwrap_or_else(|e| panic!("{:?}: encode {value:?}: {e}", value.kind()));
     out
 }
 
-pub fn decode(lookup: &TestLookup, kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
+pub fn decode(ctx: &WireCtx<'_>, kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
     let mut r = bytes;
-    let value = decode_component_value(kind, lookup, &mut r)
+    let value = decode_component_value(kind, ctx, &mut r)
         .unwrap_or_else(|e| panic!("{kind:?}: decode {bytes:02x?}: {e}"));
     assert!(r.is_empty(), "{kind:?}: {} trailing bytes", r.len());
     value
@@ -246,11 +133,7 @@ pub fn custom_data() -> item::CustomData {
 }
 
 pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
-    in_samples(check_samples_in_scope::<T>);
-}
-
-fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let samples = T::samples();
     assert!(
         !samples.is_empty(),
@@ -258,7 +141,7 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
         T::KIND.location()
     );
     for sample in samples {
-        let value: ItemComponentValue = sample.clone().into();
+        let value = in_registries(sample.clone().into());
         let kind = value.kind();
 
         if kind.is_persistent() {

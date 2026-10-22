@@ -6,23 +6,13 @@
     reason = "test support re-encodes a value into JSON for comparison"
 )]
 
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registry::static_report::shipped_report;
-use mcrs_minecraft_registry::tags::TagSource;
-use mcrs_minecraft_registry::{
-    HolderSet, NameTable, Registry, RegistrySet, TagRules, TagTable, below_vanilla_root, build_tags,
-};
+use mcrs_minecraft_registries::below_vanilla_root;
 use mcrs_minecraft_worldgen_builtin as builtin;
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
-use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 
 pub use mcrs_minecraft_fixtures::vanilla_dir;
 
@@ -132,172 +122,12 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::read(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-fn base_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let tables = shipped_report().tables().cloned().chain([
-            Arc::clone(shipped_names::<CarverConfig>("carver").table()),
-            Arc::clone(shipped_names::<PlacedFeature>("placed_feature").table()),
-        ]);
-        typed(
-            RegistrySet::from_tables(tables)
-                .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}")),
-        )
-    });
-    &SET
-}
-
-fn typed(set: RegistrySet) -> RegistrySet {
-    set.with_types(mcrs_minecraft_registry_catalog::bindings())
-        .unwrap_or_else(|e| panic!("the generated registry types do not bind: {e}"))
-}
-
-/// The static registries of the shipped report, the carvers and the placed
-/// features of the vanilla tree and of every pack, the built-in and shipped
-/// biomes and the shipped structures, with the block, fluid, biome and
-/// structure tags the corpus ships: what a worldgen value's references resolve
-/// against when a test reads or writes one outside the loader.
-pub fn corpus_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let biomes = builtin::biomes(base_set())
-            .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"))
-            .into_keys()
-            .chain(shipped_name_list("biome"))
-            .collect::<Vec<_>>();
-        let mut set = base_set()
-            .clone()
-            .with(numbered::<Biome>("biome", biomes))
-            .and_then(|set| {
-                set.with(numbered::<Structure>(
-                    "structure",
-                    shipped_name_list("structure"),
-                ))
-            })
-            .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
-        for (registry, folder) in [
-            (
-                mcrs_minecraft_block::keys::BLOCK.location().as_static_str(),
-                "block",
-            ),
-            (
-                mcrs_minecraft_block::keys::FLUID.location().as_static_str(),
-                "fluid",
-            ),
-            (
-                mcrs_minecraft_biome::keys::BIOME.location().as_static_str(),
-                "worldgen/biome",
-            ),
-            (
-                mcrs_minecraft_worldgen_structure::keys::STRUCTURE
-                    .location()
-                    .as_static_str(),
-                "worldgen/structure",
-            ),
-        ] {
-            let names = Arc::clone(
-                set.table(registry)
-                    .unwrap_or_else(|| panic!("the corpus set holds no {registry}")),
-            );
-            set = set.with_tags(shipped_tags(&names, folder));
-        }
-        set
-    });
-    &SET
-}
-
-fn shipped_names<R: mcrs_minecraft_core::Registered>(folder: &str) -> Registry<R> {
-    numbered(folder, shipped_name_list(folder))
-}
-
 fn worldgen_roots() -> impl Iterator<Item = PathBuf> {
     std::iter::once(worldgen_dir()).chain(
         packs()
             .into_iter()
             .map(|pack| pack.join("minecraft/worldgen")),
     )
-}
-
-fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
-    let mut names = Vec::new();
-    for root in worldgen_roots() {
-        let base = root.join(folder);
-        if base.is_dir() {
-            names.extend(json_files(&base).iter().map(|path| id_of(&base, path)));
-        }
-    }
-    names
-}
-
-fn numbered<R: mcrs_minecraft_core::Registered>(
-    folder: &str,
-    mut names: Vec<ResourceLocation<Arc<str>>>,
-) -> Registry<R> {
-    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    names.dedup();
-    Registry::new(R::REGISTRY, names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
-}
-
-/// `corpus_set` with the biomes of `leading` numbered first, in that order, and
-/// every other corpus biome after them in name order, the biome tags rebuilt
-/// over that numbering: what a test that fixes its own biome ids reads the
-/// worldgen assets in.
-pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
-    let base = corpus_set();
-    let all = base
-        .registry::<Biome>()
-        .expect("the corpus set holds the biome registry");
-    let mut names: Vec<ResourceLocation<Arc<str>>> = leading
-        .iter()
-        .map(|name| ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")))
-        .collect();
-    for id in all.ids() {
-        let name = all.name(id).expect("an id of the registry has a name");
-        if !names.contains(name) {
-            names.push(name.clone());
-        }
-    }
-    let biomes = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names)
-        .unwrap_or_else(|e| panic!("the biomes do not number: {e}"));
-    let biome_table = mcrs_minecraft_biome::keys::BIOME.location().as_static_str();
-    let mut set = typed(
-        RegistrySet::from_tables(
-            base.tables()
-                .filter(|table| table.registry().as_str() != biome_table)
-                .cloned()
-                .chain([Arc::clone(biomes.table())]),
-        )
-        .unwrap_or_else(|e| panic!("the renumbered corpus does not join the set: {e}")),
-    );
-    for table in base.tables() {
-        let name = table.registry().as_str();
-        if name != biome_table
-            && let Some(tags) = base.tag_table(name)
-        {
-            set = set.with_tags(Arc::clone(tags));
-        }
-    }
-    set.with_tags(shipped_tags(biomes.table(), "worldgen/biome"))
-}
-
-/// The names `set` holds, as `corpus_set` numbers them. A set that names a tag
-/// is refused.
-pub fn names_of<R: mcrs_minecraft_core::Registered>(set: &HolderSet<R>) -> Vec<String> {
-    let registry = corpus_set()
-        .registry::<R>()
-        .unwrap_or_else(|| panic!("the corpus set holds no {}", R::REGISTRY));
-    let ids = match set {
-        HolderSet::Named(_) => panic!("the corpus set holds no {} tags", R::REGISTRY),
-        HolderSet::One(id) => std::slice::from_ref(id),
-        HolderSet::List(ids) => ids,
-    };
-    ids.iter()
-        .map(|&id| {
-            registry
-                .name(id)
-                .unwrap_or_else(|| panic!("{id:?} is not in the corpus {}", R::REGISTRY))
-                .as_str()
-                .to_owned()
-        })
-        .collect()
 }
 
 /// The built template pools as the JSON they encode to, for the tests that read
@@ -309,19 +139,12 @@ pub fn built_template_pools() -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// The built biomes as the JSON they encode to, for the tests that read the
 /// corpus as files.
 pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let set = base_set();
-    let biomes = builtin::biomes(set)
-        .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"));
-    set.scope(|| {
-        biomes
+    encoded(
+        builtin::biome_names()
             .into_iter()
-            .map(|(id, biome)| {
-                let json = serde_json::to_vec(&biome)
-                    .unwrap_or_else(|e| panic!("biome/{id} does not encode: {e}"));
-                (id, json)
-            })
-            .collect()
-    })
+            .filter_map(|id| Some((id.clone(), builtin::biome(&id)?)))
+            .collect(),
+    )
 }
 
 fn encoded<T: serde::Serialize>(
@@ -389,144 +212,18 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     entries
 }
 
-/// A registry set holding the one registry `R`, numbered by the files the game
-/// ships under `<folder>`, for reading a value that names an entry of it inside
-/// `RegistrySet::scope`.
-pub fn shipped_registry_set<R: mcrs_minecraft_core::Registered>(folder: &str) -> RegistrySet {
-    RegistrySet::new()
-        .with(shipped_registry::<R>(folder))
-        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
-}
-
-/// `set` with the registry `R` numbered by the files the game ships under
-/// `<folder>`, and the tags it ships for it.
-pub fn with_shipped<R: mcrs_minecraft_core::Registered>(
-    set: RegistrySet,
-    folder: &str,
-) -> RegistrySet {
-    let registry = shipped_registry::<R>(folder);
-    let tags = shipped_tags(registry.table(), folder);
-    set.with(registry)
-        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
-        .with_tags(tags)
-}
-
-fn shipped_registry<R: mcrs_minecraft_core::Registered>(folder: &str) -> Registry<R> {
-    Registry::<R>::new(R::REGISTRY, shipped_ids(folder))
-        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
-}
-
-/// What a dimension type names: every registry of the report, with the block
-/// tags the corpus ships, and the timelines and world clocks the corpus ships,
-/// with the timeline tags.
-pub fn dimension_type_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> =
-        LazyLock::new(|| {
-            let report = corpus_set();
-            let blocks = report
-                .table(mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
-                .expect("the report holds the block registry");
-            let timelines = shipped_registry::<Timeline>("timeline");
-            let clocks = shipped_registry::<WorldClock>("world_clock");
-            let tables = report
-                .tables()
-                .cloned()
-                .chain([Arc::clone(timelines.table()), Arc::clone(clocks.table())]);
-            typed(RegistrySet::from_tables(tables).unwrap_or_else(|e| {
-                panic!("the dimension type registries do not join the set: {e}")
-            }))
-            .with_tags(shipped_tags(blocks, "block"))
-            .with_tags(shipped_tags(timelines.table(), "timeline"))
-        });
-    &SET
-}
-
-fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
-    let base = vanilla_dir().join(folder);
-    json_files(&base)
-        .iter()
-        .map(|path| id_of(&base, path))
-        .collect()
-}
-
-pub fn tagged_report() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let root = vanilla_dir().join("tags");
-        let mut set = typed(shipped_report().clone());
-        let mut folders: Vec<_> = std::fs::read_dir(&root)
-            .unwrap_or_else(|e| panic!("{}: {e}", root.display()))
-            .map(|entry| entry.expect("a tag folder entry").path())
-            .filter(|path| path.is_dir())
-            .collect();
-        folders.sort();
-        for folder in folders {
-            let name = folder
-                .file_name()
-                .and_then(|n| n.to_str())
-                .expect("a folder name");
-            let Some(table) = set.table(&format!("minecraft:{name}")).cloned() else {
-                continue;
-            };
-            set = set.with_tags(shipped_tags(&table, name));
-        }
-        set
-    });
-    &SET
-}
-
-pub fn shipped_tags(names: &NameTable, folder: &str) -> Arc<TagTable> {
-    let base = vanilla_dir().join("tags").join(folder);
-    let files: Vec<_> = json_files(&base)
-        .into_iter()
-        .map(|path| {
-            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            (id_of(&base, &path), path.display().to_string(), bytes)
-        })
-        .collect();
-    let sources: Vec<_> = files
-        .iter()
-        .map(|(tag, path, bytes)| {
-            (
-                tag.clone(),
-                vec![TagSource {
-                    pack: "vanilla",
-                    path,
-                    bytes,
-                }],
-            )
-        })
-        .collect();
-    let (tags, problems) = build_tags(names, TagRules::World, &sources, None);
-    assert!(
-        problems.is_empty(),
-        "the shipped {folder} tags: {problems:?}"
-    );
-    Arc::new(tags)
-}
-
 /// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
 /// the ones that do not would let a test read "the whole corpus compiles" off a
 /// corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
-    registry_in(corpus_set(), folder)
-}
-
-/// [`registry`] read in `set`'s scope.
-pub fn registry_in<T: DeserializeOwned>(
-    set: &RegistrySet,
-    folder: &str,
-) -> BTreeMap<ResourceLocation, T> {
-    let entries = entries(folder);
-    set.scope(|| {
-        entries
-            .into_iter()
-            .map(|(id, bytes)| {
-                let parsed =
-                    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-                (id, parsed)
-            })
-            .collect()
-    })
+    entries(folder)
+        .into_iter()
+        .map(|(id, bytes)| {
+            let parsed =
+                serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+            (id, parsed)
+        })
+        .collect()
 }
 
 /// Every `.json` under the [`corpus_path`] of `dir`, parsed. Panics naming every
@@ -563,7 +260,7 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
         .or_else(|| built_json(folder).remove(id))
         .or_else(|| std::fs::read(corpus_path(&path)).ok())
         .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
-    corpus_set().scope(|| serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}")))
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
 /// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`
@@ -585,15 +282,13 @@ pub fn same_json(a: &[u8], b: &[u8]) -> bool {
 /// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
     let entries = entries(folder);
-    corpus_set().scope(|| {
-        for (id, bytes) in &entries {
-            let raw: serde_json::Value =
-                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-            let parsed: T =
-                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-            assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
-        }
-    });
+    for (id, bytes) in &entries {
+        let raw: serde_json::Value =
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+        let parsed: T =
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+        assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
+    }
     entries.len()
 }
 

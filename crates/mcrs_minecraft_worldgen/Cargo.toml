@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
@@ -20,7 +21,6 @@ bevy_reflect = { workspace = true, optional = true }
 bevy_math.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
@@ -43,7 +43,6 @@ bevy = [
     "dep:bevy_reflect",
     "dep:piper",
     "mcrs_minecraft_core/bevy",
-    "mcrs_minecraft_registry/bevy",
     "mcrs_minecraft_worldgen_density/bevy",
     "mcrs_minecraft_worldgen_surface/bevy",
 ]

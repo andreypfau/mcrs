@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::bail;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::consume::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -11,7 +11,7 @@ use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
 
 impl EncodeCtx for ConsumeEffect {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         encode_registry_id(self.kind() as u16, &mut w)?;
         match self {
             Self::ApplyEffects {
@@ -36,7 +36,7 @@ impl EncodeCtx for ConsumeEffect {
 }
 
 impl DecodeCtx<'_> for ConsumeEffect {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = decode_registry_id(r)?;
         let Some(kind) = ConsumeEffectType::from_protocol_id(id) else {
             bail!("unknown consume effect type {id}");

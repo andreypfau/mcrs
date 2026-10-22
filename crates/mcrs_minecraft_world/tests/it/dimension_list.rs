@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_registries::{Key, Registries, RegistryOf, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -11,31 +11,30 @@ fn key(name: &str) -> ResourceKey<Dimension> {
 }
 
 fn normal() -> Dimensions {
-    let set = test_registries();
-    let id = set
-        .registry::<WorldPreset>()
-        .and_then(|registry| registry.get(&mcrs_minecraft_world::keys::world_preset::NORMAL))
+    let presets = test_registries_arc()
+        .registry::<RegistryOf<WorldPreset>>()
+        .expect("the presets are loaded");
+    let id = presets
+        .by_name(
+            &mcrs_minecraft_world::keys::world_preset::NORMAL
+                .location()
+                .to_arc(),
+        )
         .expect("the normal preset is loaded");
-    set.entries::<WorldPreset, WorldPreset>().unwrap()[id]
-        .dimensions
-        .clone()
+    presets.get(id).unwrap().dimensions.clone()
 }
 
-fn debug_dimension(set: &RegistrySet, dimension_type: &str) -> DimensionEntry {
+fn debug_dimension(set: &Registries, dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
         dimension_type: set
-            .registry::<DimensionType>()
-            .and_then(|registry| registry.by_name(dimension_type))
+            .id(&Key::new(dimension_type.parse().unwrap()))
             .expect("the dimension type is loaded"),
         generator: ChunkGenerator::Debug,
     }
 }
 
-fn baked(base: &Dimensions, set: &RegistrySet) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
-    let mut report = LoadReport::new();
-    let list = bake(base, set, &mut report);
-    assert!(report.is_empty(), "{report}");
-    list.expect("a list with an overworld bakes")
+fn baked(base: &Dimensions, set: &Registries) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
+    bake(base, set).expect("a list with an overworld bakes")
 }
 
 fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
@@ -44,10 +43,7 @@ fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
 
 #[test]
 fn an_empty_dimension_list_from_the_plugin_is_refused() {
-    let mut report = LoadReport::new();
-    assert!(bake_list(&Dimensions::new(), test_registries(), &mut report).is_none());
-    let text = report.to_string();
-    assert_eq!(text.lines().count(), 1, "{text}");
+    let text = bake_list(&Dimensions::new(), test_registries_arc()).unwrap_err();
     assert!(text.contains("minecraft:dimension"), "{text}");
 }
 
@@ -59,13 +55,7 @@ fn a_dimension_list_without_the_overworld_is_refused() {
         ("without the overworld", without_overworld),
         ("empty", Dimensions::new()),
     ] {
-        let mut report = LoadReport::new();
-        assert!(
-            bake(&base, test_registries(), &mut report).is_none(),
-            "{case}"
-        );
-        let text = report.to_string();
-        assert_eq!(text.lines().count(), 1, "{case}: {text}");
+        let text = bake(&base, test_registries_arc()).unwrap_err();
         assert!(text.contains("minecraft:dimension"), "{case}: {text}");
         assert!(text.contains("minecraft:overworld"), "{case}: {text}");
     }
@@ -73,7 +63,7 @@ fn a_dimension_list_without_the_overworld_is_refused() {
 
 #[test]
 fn the_baked_order_ignores_input_order() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let entry = debug_dimension(set, "minecraft:overworld");
     let mut base = normal();
     base.remove("minecraft:the_end");

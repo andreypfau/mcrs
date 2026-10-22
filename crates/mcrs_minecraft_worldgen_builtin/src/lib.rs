@@ -12,10 +12,9 @@ mod structure;
 mod template_pool;
 mod terrain;
 
-use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_biome_file::BiomeDraft;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -62,10 +61,8 @@ pub fn biome_names() -> Vec<ResourceLocation> {
     biome::names()
 }
 
-pub fn biomes(
-    set: &RegistrySet,
-) -> Result<BTreeMap<ResourceLocation, BiomeFile>, Vec<(usize, String)>> {
-    Ok(biome::names().into_iter().zip(biome::build(set)?).collect())
+pub fn biome(name: &ResourceLocation) -> Option<BiomeDraft> {
+    biome::draft(name)
 }
 
 pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {

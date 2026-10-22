@@ -1,5 +1,4 @@
 use crate::resource_location::ResourceLocation;
-use std::any::TypeId;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -25,16 +24,6 @@ impl<T> RegistryKey<T> {
             .as_static_str()
             .split_once(':')
             .map_or("", |(_, path)| path)
-    }
-}
-
-impl<T: 'static> RegistryKey<T> {
-    pub fn binding(self) -> TypeBinding {
-        TypeBinding {
-            type_id: TypeId::of::<T>(),
-            type_name: std::any::type_name::<T>(),
-            registry: self.location,
-        }
     }
 }
 
@@ -64,13 +53,6 @@ impl<T> fmt::Display for RegistryKey<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.location, f)
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct TypeBinding {
-    pub type_id: TypeId,
-    pub type_name: &'static str,
-    pub registry: ResourceLocation<&'static str>,
 }
 
 pub trait Registered: Sized + 'static {

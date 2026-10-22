@@ -6,7 +6,7 @@ use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_worldgen::bevy::named_templates;
 use mcrs_minecraft_worldgen::tables::template_path;
 use std::collections::BTreeSet;
@@ -44,12 +44,13 @@ fn list_registry_files(asset_server: &AssetServer, folder: &str, extension: &str
 
 fn request_templates(
     asset_server: &AssetServer,
-    set: &RegistrySet,
+    registries: &Registries,
     loaded: &mut LoadedRegistryAssets,
 ) {
     let listed = list_registry_files(asset_server, TEMPLATE_FOLDER, "nbt");
-    let named = named_templates(set).unwrap_or_else(|error| {
-        panic!("the loaded registries cannot list their templates: {error}")
+    let named = named_templates(registries).unwrap_or_else(|error| {
+        tracing::error!("the loaded registries cannot list their templates: {error}");
+        BTreeSet::new()
     });
     let files = match asset_server.get_source(AssetSourceId::Default) {
         Ok(source) => bevy_tasks::block_on(with_named_templates(source.reader(), listed, &named)),
@@ -94,10 +95,10 @@ async fn with_named_templates(
 
 pub(crate) fn request_data_pack_assets(
     asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
-    request_templates(&asset_server, &set, &mut loaded);
+    request_templates(&asset_server, &registries, &mut loaded);
 }
 
 pub(crate) async fn walk_files(
@@ -247,9 +248,9 @@ mod tests {
                 ),
             ],
         };
-        let set = load_registries(&source)
+        let registries = load_registries(&source)
             .unwrap_or_else(|error| panic!("{error}"))
-            .set;
+            .registries;
 
         let root = Dir::default();
         root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());
@@ -273,7 +274,7 @@ mod tests {
         let server = app.world().resource::<AssetServer>().clone();
 
         let mut loaded = LoadedRegistryAssets::default();
-        request_templates(&server, &set, &mut loaded);
+        request_templates(&server, &registries, &mut loaded);
 
         let requested = |id: &str| template_handle(&server, &ResourceLocation::read(id).unwrap());
         assert!(requested("example:house").is_some());

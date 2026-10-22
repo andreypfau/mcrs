@@ -8,7 +8,6 @@ use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_chunk::VoxelId;
 #[cfg(test)]
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_registry::Registry;
 
 #[cfg(test)]
 use super::build_beta_router;
@@ -18,7 +17,8 @@ use crate::ColumnBlocks;
 use crate::task::CancellationToken;
 #[cfg(test)]
 use crate::{apply_beta_surface, generate_column};
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_registries::Registries;
+use std::sync::Arc;
 
 #[cfg(test)]
 type GeneratedSections = Vec<
@@ -28,7 +28,7 @@ type GeneratedSections = Vec<
     )>,
 >;
 
-pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
+pub(crate) fn build_beta_biome_source() -> (BiomeSource, Arc<Registries>) {
     let land: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();
@@ -41,10 +41,10 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     ];
     let names: Vec<&str> = land.iter().map(String::as_str).chain(surface).collect();
     let registry = super::biome_registry(&names);
-    let land_biomes = std::array::from_fn(|i| registry.by_name(&land[i]).expect("a land biome"));
+    let land_biomes = std::array::from_fn(|i| super::biome_id(&registry, &land[i]));
     let biome_source = BiomeSource::Beta {
         land_biomes,
-        lookup: std::sync::Arc::new(build_beta_lookup_table()),
+        lookup: Arc::new(build_beta_lookup_table()),
     };
     (biome_source, registry)
 }

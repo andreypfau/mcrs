@@ -5,12 +5,11 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
-use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_core::{Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
-use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -413,8 +412,8 @@ pub fn block_mask(
     blocks: &dyn BlockResolver,
     list: &[Block],
 ) -> Result<StateMask, FeatureCompileError> {
-    let ids = list.iter().map(|block| block.id()).collect();
-    states_of(blocks, StateQuery::Blocks(&HolderSet::List(ids)))
+    let names: Vec<ResourceLocation> = list.iter().map(|block| block.location().into()).collect();
+    states_of(blocks, StateQuery::Names(&names))
 }
 
 pub fn state(

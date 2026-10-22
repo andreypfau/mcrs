@@ -11,8 +11,7 @@ use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registries::{CurrentRegistries, Key, RegistryOf, Resolver};
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
@@ -119,17 +118,21 @@ fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
 }
 
-fn world_clocks(app: &App) -> Registry<WorldClock> {
+fn world_clock_count(app: &App) -> usize {
     app.world()
-        .resource::<RegistrySet>()
-        .registry::<WorldClock>()
+        .resource::<CurrentRegistries>()
+        .registry::<RegistryOf<WorldClock>>()
         .expect("the world clock registry is loaded")
+        .len()
 }
 
 fn overworld_clock(app: &App) -> Id<WorldClock> {
-    world_clocks(app)
-        .require(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
-        .expect("the overworld clock is registered")
+    let overworld = mcrs_minecraft_environment::keys::world_clock::OVERWORLD;
+    Resolver::id(
+        &**app.world().resource::<CurrentRegistries>(),
+        &Key::new((*overworld.location()).into()),
+    )
+    .expect("the overworld clock is registered")
 }
 
 fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
@@ -159,7 +162,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     app.add_message::<InboundPlayerSpawn>();
     app.add_plugins(WorldClockPlugin);
     let mut clocks = WorldClocks::default();
-    clocks.reconcile(world_clocks(&app).len());
+    clocks.reconcile(world_clock_count(&app));
     app.insert_resource(clocks);
     host_app::drive_to_playing(&mut app);
     host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);

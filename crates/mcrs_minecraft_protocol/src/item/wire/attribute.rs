@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 
 use crate::item::component::attribute::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -18,7 +18,7 @@ record_ctx_wire!(AttributeEntry {
 record_wire! { AttributeModifierValue { id, amount, operation } }
 
 impl EncodeCtx for AttributeDisplay {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.type_id()).encode(&mut w)?;
         match self {
             AttributeDisplay::Override { value } => value.encode_ctx(ctx, w),
@@ -29,7 +29,7 @@ impl EncodeCtx for AttributeDisplay {
 
 /// An unknown type id reads as `Default`.
 impl DecodeCtx<'_> for AttributeDisplay {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(match VarInt::decode(r)?.0 {
             1 => AttributeDisplay::Hidden,
             2 => AttributeDisplay::Override {

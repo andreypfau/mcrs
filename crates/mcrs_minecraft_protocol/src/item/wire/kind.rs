@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 
 use crate::item::component::*;
 use crate::item::ctx::{
@@ -26,7 +26,7 @@ macro_rules! if_nbt_wire {
 macro_rules! value_wire {
     ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
         impl EncodeCtx for ItemComponentValue {
-            fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+            fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
                 match self {
                     $(Self::$ty(value) => if_nbt_wire!([$($flag),*] {
                         if_refs!([$($flag),*] {
@@ -44,7 +44,7 @@ macro_rules! value_wire {
         /// The value of `kind`, whose wire layout the kind alone selects.
         pub fn decode_component_value(
             kind: DataComponentType,
-            ctx: &dyn RegistryLookup,
+            ctx: &WireCtx<'_>,
             r: &mut &[u8],
         ) -> anyhow::Result<ItemComponentValue> {
             Ok(match kind {

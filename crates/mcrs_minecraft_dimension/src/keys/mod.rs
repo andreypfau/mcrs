@@ -6,7 +6,7 @@ pub mod dimension_type;
 
 pub use chunk_generator::ChunkGeneratorType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const DIMENSION: RegistryKey<crate::Dimension> = RegistryKey::new(rl!("minecraft:dimension"));
 impl Registered for crate::Dimension {
@@ -23,12 +23,4 @@ pub const CHUNK_GENERATOR: RegistryKey<crate::keys::ChunkGeneratorType> =
     RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 impl Registered for crate::keys::ChunkGeneratorType {
     const REGISTRY: RegistryKey<Self> = CHUNK_GENERATOR;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        DIMENSION.binding(),
-        DIMENSION_TYPE.binding(),
-        CHUNK_GENERATOR.binding(),
-    ]
 }

@@ -10,7 +10,6 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registries::{Registries, RegistryOf};
-use mcrs_minecraft_registry::HolderSet;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
@@ -177,7 +176,7 @@ impl EnvironmentAttributes {
             .registry::<RegistryOf<Timeline>>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let timeline_tags = registries
-            .tags::<RegistryOf<Timeline>>()
+            .tags::<Timeline>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let world_clocks = registries
             .registry::<RegistryOf<WorldClock>>()
@@ -193,18 +192,10 @@ impl EnvironmentAttributes {
                 ))?
                 .split();
 
-        let members: Vec<u16> = match &environment.timelines {
-            HolderSet::Named(tag) => timeline_tags
-                .iter()
-                .nth(tag.index())
-                .map(|(tag, _)| timeline_tags.members(tag).map(Id::number).collect())
-                .unwrap_or_default(),
-            HolderSet::One(entry) => vec![entry.number()],
-            HolderSet::List(entries) => entries.iter().map(|entry| entry.number()).collect(),
-        };
-        let dimension_timelines: Vec<&Timeline> = members
-            .into_iter()
-            .filter_map(|number| timelines.values().get(usize::from(number)))
+        let dimension_timelines: Vec<&Timeline> = environment
+            .timelines
+            .ids(&timeline_tags)
+            .filter_map(|id| timelines.values().get(id.index()))
             .collect();
 
         Self::build(

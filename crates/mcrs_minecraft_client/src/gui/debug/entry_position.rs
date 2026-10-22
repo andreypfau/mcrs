@@ -76,15 +76,9 @@ mod tests {
     fn the_group_reads_the_way_vanilla_prints_it() {
         let mut world = World::new();
         world.init_resource::<DebugScreenDisplayer>();
-        let types =
-            mcrs_minecraft_registry::Registry::<mcrs_minecraft_dimension::DimensionType>::new(
-                mcrs_minecraft_dimension::keys::DIMENSION_TYPE,
-                [ResourceLocation::read("minecraft:overworld").unwrap()],
-            )
-            .unwrap();
         world.spawn(CurrentDimension {
             key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-            dimension_type: types.id(0).unwrap(),
+            dimension_type: mcrs_minecraft_core::Id::checked(0, 1).unwrap(),
         });
         world.spawn((
             Player,

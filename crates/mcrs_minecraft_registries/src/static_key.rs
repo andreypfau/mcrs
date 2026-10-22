@@ -136,7 +136,9 @@ macro_rules! static_registry {
             }
 
             pub const fn location(self) -> $crate::static_key::StaticLocation {
-                Self::ENTRIES[self as usize]
+                match self {
+                    $($name::$variant => $crate::static_key::__rl!($location),)+
+                }
             }
 
             pub const fn as_static_str(self) -> &'static str {
@@ -148,18 +150,17 @@ macro_rules! static_registry {
             }
 
             pub const fn from_protocol_id(id: u16) -> Option<$name> {
-                if (id as usize) < Self::ALL.len() {
-                    Some(Self::ALL[id as usize])
-                } else {
-                    None
+                match Self::ALL.split_at_checked(id as usize) {
+                    Some((_, [entry, ..])) => Some(*entry),
+                    _ => None,
                 }
             }
 
             pub fn find(location: &str) -> Option<$name> {
-                Self::ENTRIES
+                Self::ALL
                     .iter()
-                    .position(|entry| entry.as_static_str() == location)
-                    .map(|position| Self::ALL[position])
+                    .find(|entry| entry.as_static_str() == location)
+                    .copied()
             }
 
             pub fn read(text: &str) -> Option<$name> {

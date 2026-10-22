@@ -12,14 +12,12 @@ use mcrs_minecraft_item::{
     UseEffects,
 };
 use mcrs_minecraft_registries::Ref;
-use mcrs_minecraft_registry::Registry;
-use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
 use crate::common::items;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 fn files() -> Vec<(String, Vec<u8>)> {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/").to_owned() + CORPUS_DIRECTORY;
@@ -47,19 +45,17 @@ for_each_data_component!(round_tripped_kinds);
 fn every_file_deserialises_and_re_serialises_identically() {
     let files = files();
     assert!(files.len() > 1000, "{} files", files.len());
-    test_registries().scope(|| {
-        for (path, bytes) in &files {
-            let file: ItemDefinitionFile =
-                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
-            let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-            let expected = &source["minecraft:item"]["components"];
-            let actual = serde_json::to_value(&file.item.components).unwrap();
-            assert!(
-                same_shape(&actual, expected),
-                "{path}\n{actual:#}\n{expected:#}"
-            );
-        }
-    });
+    for (path, bytes) in &files {
+        let file: ItemDefinitionFile =
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+        let expected = &source["minecraft:item"]["components"];
+        let actual = serde_json::to_value(&file.item.components).unwrap();
+        assert!(
+            same_shape(&actual, expected),
+            "{path}\n{actual:#}\n{expected:#}"
+        );
+    }
 }
 
 /// A float written by Java as a `float` re-emits with `f32` precision.
@@ -81,25 +77,42 @@ fn same_shape(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     }
 }
 
-fn item_registry() -> Registry<Item> {
-    from_report(include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/mcrs/reports/registries.json"
-    )))
-    .unwrap()
-    .registry_of(mcrs_minecraft_item::keys::ITEM)
-    .expect("the registries report has no item registry")
+#[derive(Deserialize)]
+struct ReportedRegistry {
+    entries: BTreeMap<String, ReportedEntry>,
+}
+
+#[derive(Deserialize)]
+struct ReportedEntry {
+    protocol_id: usize,
+}
+
+/// The item names of the registries report, in protocol id order.
+fn reported_items() -> Vec<String> {
+    let mut report: BTreeMap<String, ReportedRegistry> =
+        serde_json::from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        )))
+        .unwrap();
+    let items = report
+        .remove("minecraft:item")
+        .expect("the registries report has an item registry");
+    let mut names = vec![String::new(); items.entries.len()];
+    for (name, entry) in items.entries {
+        names[entry.protocol_id] = name;
+    }
+    names
 }
 
 fn ids_are_dense_and_named() {
     let items = items();
-    let registry = item_registry();
+    let reported = reported_items();
     assert_eq!(items.len(), files().len());
-    assert_eq!(items.len(), registry.len());
+    assert_eq!(items.len(), reported.len());
     for (index, entry) in items.iter().enumerate() {
-        let reported = registry.require_by_name(entry.identifier.as_str()).unwrap();
-        assert_eq!(reported.index(), index, "{}", entry.identifier);
-        assert_eq!(entry.id, reported, "{}", entry.identifier);
+        assert_eq!(reported[index], entry.identifier.as_str());
+        assert_eq!(entry.id.index(), index, "{}", entry.identifier);
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));
         assert!(std::ptr::eq(items.get(entry.id).unwrap(), entry));
     }
@@ -213,7 +226,7 @@ fn a_repeated_identifier_fails_to_load() {
         serde_json::to_vec(&stick_json).unwrap(),
     );
     let error =
-        mcrs_minecraft_world::item::definitions::from_files(files, test_registries(), blocks)
+        mcrs_minecraft_world::item::definitions::from_files(files, test_registries_arc(), blocks)
             .unwrap_err();
     assert!(
         matches!(
@@ -317,27 +330,18 @@ fn definition_prototypes_state_no_removal_key(files: &[(String, RawFile)]) {
 }
 
 fn definition_protocol_ids_match_the_registries_report(files: &[(String, RawFile)]) {
-    let registries = from_report(include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/mcrs/reports/registries.json"
-    )))
-    .unwrap();
-    let items = registries
-        .table("minecraft:item")
-        .expect("the registries report has no item registry");
+    let items = reported_items();
     let mismatches = files
         .iter()
         .filter_map(|(path, file)| {
             let description = &file.item.description;
-            let registered = items.names().get(usize::from(description.protocol_id));
-            (registered.map(|name| name.as_str()) != Some(description.identifier.as_str())).then(
-                || {
-                    format!(
-                        "{path}: protocol_id {} is {registered:?} in the registries report",
-                        description.protocol_id
-                    )
-                },
-            )
+            let registered = items.get(usize::from(description.protocol_id));
+            (registered.map(String::as_str) != Some(description.identifier.as_str())).then(|| {
+                format!(
+                    "{path}: protocol_id {} is {registered:?} in the registries report",
+                    description.protocol_id
+                )
+            })
         })
         .collect();
     assert_no_mismatches("items with a different protocol id", mismatches);

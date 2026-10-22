@@ -1,10 +1,9 @@
 use crate::loaded::Loaded;
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
-use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
+use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries, RegistryOf};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
@@ -30,24 +29,22 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     }
 }
 
-/// The carvers every biome runs, in the order its file lists them.
-fn carvers_by_biome(
-    biomes: &Registry<Biome>,
-    values: &Entries<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
-    carver_tags: &Tags<CarverConfig>,
-    table: &Entries<CarverConfig, CarverConfig>,
-) -> Entries<Biome, Arc<[CarverConfig]>> {
-    let lists = biomes
+/// The carvers every biome runs, in the order its file lists them, indexed by biome number.
+fn carvers_by_biome(registries: &Registries) -> Vec<Arc<[CarverConfig]>> {
+    let carvers = registries.loaded::<CarverConfig>();
+    let carver_tags = registries.loaded_tags::<RegistryOf<CarverConfig>>();
+    registries
+        .loaded::<BiomeFile>()
+        .values()
         .iter()
-        .map(|(id, _)| {
-            values[id]
+        .map(|biome| {
+            biome
                 .carvers
-                .ids(carver_tags)
-                .map(|carver| table[carver].clone())
+                .ids(&carver_tags)
+                .filter_map(|carver| carvers.get(carver).cloned())
                 .collect()
         })
-        .collect();
-    Entries::new(biomes, lists).expect("one list for every biome")
+        .collect()
 }
 
 /// Resolve every dimension's biome source climate table into carver lists.
@@ -58,7 +55,6 @@ fn carvers_by_biome(
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
-    registries: bevy_ecs::prelude::Res<RegistrySet>,
     current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {
     let mut diagnostics = Diagnostics::default();
@@ -66,16 +62,8 @@ fn build_modern_carver_biomes(
     if preset_tables.is_none() {
         tracing::error!(%diagnostics, "no multi-noise preset table; a preset dimension gets no carver table");
     }
-    let biomes = registries.loaded_registry::<Biome>();
-    let values =
-        registries.loaded_entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>();
-    let carver_tags = registries.loaded_tags::<CarverConfig>();
-    let carvers = carvers_by_biome(
-        &biomes,
-        &values,
-        &carver_tags,
-        &registries.loaded_entries::<CarverConfig, CarverConfig>(),
-    );
+    let carvers = carvers_by_biome(&current);
+    let carvers_of = |biome: usize| carvers.get(biome).cloned().unwrap_or_default();
 
     let mut tables = DimensionCarverBiomes::default();
     for (dimension, entry) in dimensions.iter() {
@@ -85,7 +73,7 @@ fn build_modern_carver_biomes(
         let dimension = dimension.location();
         let source = &generator.biome_source;
         if let BiomeSource::Beta { .. } = source {
-            let table = CarverBiomeTable::beta(source, |biome| carvers[biome].clone())
+            let table = CarverBiomeTable::beta(source, |biome| carvers_of(biome.index()))
                 .expect("a Beta source resolves to a Beta table");
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
@@ -103,7 +91,7 @@ fn build_modern_carver_biomes(
                     continue;
                 };
                 Some(CarverBiomeTable::from_climate(climate.climate(), |biome| {
-                    carvers.as_slice()[usize::from(biome)].clone()
+                    carvers_of(usize::from(biome))
                 }))
             }
             BiomeSource::MultiNoise(MultiNoiseBiomeSource::Biomes(entries)) => {
@@ -112,12 +100,12 @@ fn build_modern_carver_biomes(
                         .iter()
                         .map(|entry| (ParameterPoint::from(&entry.parameters), entry.biome))
                         .collect(),
-                    |biome| carvers[*biome].clone(),
+                    |biome| carvers_of(biome.index()),
                 )
             }
             BiomeSource::Fixed { biome } => {
                 CarverBiomeTable::from_entries(vec![(whole_climate_space(), *biome)], |biome| {
-                    carvers[*biome].clone()
+                    carvers_of(biome.index())
                 })
             }
             _ => continue,

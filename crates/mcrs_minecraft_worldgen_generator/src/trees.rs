@@ -22,7 +22,7 @@ use mcrs_minecraft_core::voxel_shape::{
 };
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
-    BlockResolver, FeatureCompileError, StateQuery, compile_predicate,
+    FeatureCompileError, StateQuery, compile_predicate,
 };
 use mcrs_minecraft_worldgen_feature::placer::StateMask;
 use mcrs_minecraft_worldgen_feature::tree::{
@@ -557,10 +557,10 @@ pub(super) fn compile_provider(
             rotations: Arc::new(rotation_table(&r.world.layouts)),
         },
         TypedBlockStateProvider::RandomBlock { blocks } => {
-            let set = r
-                .block_set(blocks)
+            let defaults = r
+                .block_set_defaults(blocks)
                 .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{blocks:?}")))?;
-            StateProvider::RandomBlock(r.block_set_defaults(&set))
+            StateProvider::RandomBlock(defaults)
         }
         TypedBlockStateProvider::CopyProperties { source } => {
             StateProvider::CopyProperties(Box::new(compile_provider(source, r)?))

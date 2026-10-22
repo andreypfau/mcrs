@@ -7,13 +7,14 @@ use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
-use super::{build_settings_router, corpus};
+use super::{build_settings_router, carvers_of, corpus};
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
 };
 use crate::{ColumnBlocks, column_fluid_field};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::Preset;
+use mcrs_minecraft_core::Id;
 
 fn overworld_height() -> HeightContext {
     HeightContext {
@@ -25,20 +26,6 @@ fn overworld_height() -> HeightContext {
 
 fn y_sections() -> Vec<i32> {
     (-4..20).collect()
-}
-
-/// The carver list a biome actually ships, read the way the loader would.
-pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = mcrs_minecraft_core::ResourceLocation::read(biome).expect("a biome id");
-    let biome: mcrs_minecraft_biome_file::BiomeFile =
-        mcrs_minecraft_worldgen_testing::read("biome", &id);
-    mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
-        .iter()
-        .map(|name| {
-            let id = mcrs_minecraft_core::ResourceLocation::read(name).expect("a carver id");
-            mcrs_minecraft_worldgen_testing::read("carver", &id)
-        })
-        .collect()
 }
 
 fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
@@ -158,37 +145,10 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     assert!(carved_columns > 0, "three chunks carved nothing at all");
 }
 
-/// The carvers every biome runs, built the way the freeze system builds them
-/// from the same files.
-fn carvers_by_biome() -> (
-    &'static mcrs_minecraft_registry::Registry<Biome>,
-    mcrs_minecraft_registry::Entries<Biome, Arc<[CarverConfig]>>,
-) {
-    let biomes =
-        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome_file::BiomeFile>("biome");
-    let configs: std::collections::BTreeMap<_, _> =
-        mcrs_minecraft_worldgen_testing::registry::<CarverConfig>("carver")
-            .into_iter()
-            .collect();
-    let registry = super::corpus_biomes();
-    let lists = registry
-        .iter()
-        .map(|(_, name)| {
-            let name = mcrs_minecraft_core::ResourceLocation::read(name.as_str())
-                .expect("a corpus biome id");
-            mcrs_minecraft_worldgen_testing::names_of(&biomes[&name].carvers)
-                .iter()
-                .map(|carver| {
-                    configs
-                        [&mcrs_minecraft_core::ResourceLocation::read(carver).expect("a carver id")]
-                        .clone()
-                })
-                .collect()
-        })
-        .collect();
-    let entries =
-        mcrs_minecraft_registry::Entries::new(registry, lists).expect("one list for every biome");
-    (registry, entries)
+/// The carvers every biome runs, indexed by biome number.
+fn carvers_by_biome() -> (&'static super::Biomes, Vec<Arc<[CarverConfig]>>) {
+    let biomes = super::corpus_biomes();
+    (biomes, (0..biomes.len()).map(super::carver_list).collect())
 }
 
 #[test]
@@ -202,8 +162,9 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             carvers.as_slice()[usize::from(biome)].clone()
         })
     };
-    let of_entries =
-        |entries| CarverBiomeTable::from_entries(entries, |biome| carvers[*biome].clone());
+    let of_entries = |entries| {
+        CarverBiomeTable::from_entries(entries, |biome: &Id<Biome>| carvers[biome.index()].clone())
+    };
 
     let overworld_climate = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes)
         .expect("every overworld preset biome is in the corpus");
@@ -232,7 +193,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             weirdness: point,
             offset: 0,
         },
-        biomes.by_name("minecraft:plains").expect("a corpus biome"),
+        super::biome_id(super::test_registries(), "minecraft:plains"),
     )])
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
@@ -249,7 +210,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             weirdness: point,
             offset: 0,
         },
-        biomes.by_name("minecraft:the_end").expect("a corpus biome"),
+        super::biome_id(super::test_registries(), "minecraft:the_end"),
     )])
     .unwrap();
     assert!(
@@ -299,7 +260,10 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
             let mut climate = [0.0f32; 2];
             router.fill_roots(&mut ws, &volume, &[TEMPERATURE, VEGETATION], &mut climate);
             let biome = source.beta_biome(climate[0], climate[1]);
-            let index = land_biomes.iter().position(|id| *id == biome).unwrap();
+            let index = land_biomes
+                .iter()
+                .position(|id| Some(*id) == biome)
+                .unwrap();
             let carvers = table.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
             assert_eq!(
                 carvers[0].probability(),

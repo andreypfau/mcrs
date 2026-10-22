@@ -7,7 +7,7 @@ pub mod multi_noise_biome_source_parameter_list;
 
 pub use biome_source::BiomeSourceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!("minecraft:worldgen/biome"));
 impl Registered for crate::Biome {
@@ -27,12 +27,4 @@ pub const MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST: RegistryKey<
 ));
 impl Registered for crate::parameter_list::MultiNoiseBiomeSourceParameterList {
     const REGISTRY: RegistryKey<Self> = MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        BIOME.binding(),
-        BIOME_SOURCE.binding(),
-        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.binding(),
-    ]
 }

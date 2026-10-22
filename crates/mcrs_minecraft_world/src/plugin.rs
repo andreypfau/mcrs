@@ -9,7 +9,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PACK_FILES;
-use mcrs_minecraft_block::keys::Block;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -76,32 +75,19 @@ impl Plugin for MinecraftWorldPlugin {
             mcrs_minecraft_core::check_corpus_version(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-        let (block_registry, registries, registries_arc) = {
+        let registries = {
             let started = bevy_platform::time::Instant::now();
             let loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
                 .unwrap_or_else(|error| registries::refuse(&error));
             registry_load::log_diagnostics(&loaded.diagnostics);
-            let registries = loaded.set;
-            tracing::info!(
-                statics = registries.statics().count(),
-                registries = registries.tables().count(),
-                entries = registries.tables().map(|table| table.len()).sum::<usize>(),
-                elapsed = ?started.elapsed(),
-                "loaded registries"
-            );
-            let block_registry = registries
-                .registry::<Block>()
-                .expect("the static registries hold minecraft:block");
-            app.insert_resource(registries.clone());
-            (block_registry, registries, loaded.registries)
+            tracing::info!(elapsed = ?started.elapsed(), "loaded registries");
+            loaded.registries
         };
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
-            let (definitions, report) = mcrs_minecraft_block::definition::load_block_definitions(
-                &asset_server,
-                &block_registry,
-            )
-            .expect("the block definition corpus loads");
+            let (definitions, report) =
+                mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
+                    .unwrap_or_else(|error| registries::refuse(&error));
             tracing::info!(
                 blocks = definitions.blocks().len(),
                 states = report.states,
@@ -112,26 +98,31 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded block definitions"
             );
             let sound_set_registry = registries
-                .registry::<mcrs_minecraft_sound::BlockSoundSet>()
-                .expect("the data pack registries hold minecraft:block_sound_set");
-            let sound_sets = mcrs_minecraft_block::definition::BlockSoundSets::resolve(
-                &definitions,
-                &sound_set_registry,
-            )
-            .unwrap_or_else(|error| registries::refuse(&error));
+                .registry::<mcrs_minecraft_registries::RegistryOf<mcrs_minecraft_sound::BlockSoundSet>>()
+                .unwrap_or_else(|| {
+                    registries::refuse(&"the data pack registries hold no minecraft:block_sound_set")
+                });
+            let sound_sets =
+                mcrs_minecraft_block::definition::BlockSoundSets::resolve(&definitions, |key| {
+                    let id = sound_set_registry.by_name(key.location())?;
+                    mcrs_minecraft_core::Id::checked(id.number(), sound_set_registry.len())
+                })
+                .unwrap_or_else(|key| {
+                    registries::refuse(&format!("the block sound set {key} is not loaded"))
+                });
             let definitions = std::sync::Arc::new(definitions);
             let items = crate::item::definitions::load_item_definitions(
                 &asset_server,
                 &registries,
                 &definitions,
             )
-            .expect("the item definition corpus loads");
+            .unwrap_or_else(|error| registries::refuse(&error));
             tracing::info!(items = items.len(), "loaded item definitions");
             app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
             app.insert_resource(sound_sets);
         }
-        crate::registry_snapshot::install_registries(app.world_mut(), registries_arc);
+        crate::registry_snapshot::install_registries(app.world_mut(), registries);
     }
 }
 

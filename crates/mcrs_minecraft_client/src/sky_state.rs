@@ -272,8 +272,23 @@ impl SkyStatic {
 }
 
 #[cfg(test)]
-pub(crate) static TEST_CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
-    std::sync::LazyLock::new(|| mcrs_minecraft_worldgen_testing::dimension_type_set().clone());
+pub(crate) fn test_resolved<T: mcrs_minecraft_registries::Resolve>(named: T::Named) -> T {
+    T::resolve(
+        named,
+        &**mcrs_minecraft_world::registry_load::test_registries_arc(),
+    )
+    .unwrap()
+}
+
+#[cfg(test)]
+pub(crate) fn test_clock_count() -> usize {
+    mcrs_minecraft_world::registry_load::test_registries_arc()
+        .registry::<mcrs_minecraft_registries::RegistryOf<
+            mcrs_minecraft_environment::world_clock::WorldClock,
+        >>()
+        .unwrap()
+        .len()
+}
 
 #[cfg(test)]
 mod tests {
@@ -286,14 +301,13 @@ mod tests {
     use mcrs_minecraft_environment::timeline::Timeline;
     use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
-    use super::TEST_CLOCKS as CLOCKS;
     use super::*;
+    use super::{test_clock_count, test_resolved};
+    use mcrs_minecraft_registries::Named;
 
     const NOON: i64 = 6000;
 
     /// The dimension fields an environment needs, read straight from the asset.
-    /// A `DimensionType` only reads inside a registry scope holding the blocks and
-    /// timelines it names, which these tests have no use for.
     #[derive(serde::Deserialize)]
     struct Dimension {
         has_skylight: bool,
@@ -311,12 +325,7 @@ mod tests {
                 .join(name),
         )
         .unwrap();
-        CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
-    }
-
-    fn clock_registry()
-    -> mcrs_minecraft_registry::Registry<mcrs_minecraft_environment::world_clock::WorldClock> {
-        CLOCKS.registry().unwrap()
+        serde_json::from_slice(&bytes).unwrap()
     }
 
     fn timeline(name: &str) -> Timeline {
@@ -326,7 +335,7 @@ mod tests {
                 .join(name),
         )
         .unwrap();
-        CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
+        test_resolved(serde_json::from_slice::<Timeline<Named>>(&bytes).unwrap())
     }
 
     /// The timelines a tag names, read from the shipped tag files and flattened
@@ -365,7 +374,7 @@ mod tests {
     fn build(file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
         let proto = dimension_type(file);
         let borrowed: Vec<&Timeline> = timelines.iter().collect();
-        EnvironmentAttributes::build(&shape(&proto), &borrowed, clock_registry().len()).unwrap()
+        EnvironmentAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap()
     }
 
     fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -452,8 +461,8 @@ mod tests {
     #[test]
     fn a_track_for_cloud_height_moves_it_into_the_frame_block() {
         let mut timelines = tagged_timelines("in_overworld");
-        timelines.push(CLOCKS.scope(|| {
-            serde_json::from_value(json!({
+        timelines.push(test_resolved(
+            serde_json::from_value::<Timeline<Named>>(json!({
                 "clock": "minecraft:overworld",
                 "period_ticks": 24000,
                 "tracks": {
@@ -462,8 +471,8 @@ mod tests {
                     },
                 },
             }))
-            .unwrap()
-        }));
+            .unwrap(),
+        ));
         let attributes = build("overworld.json", &timelines);
         let layout = SkyLayout::derive(&attributes);
 
@@ -529,8 +538,7 @@ mod tests {
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
         let attributes =
-            EnvironmentAttributes::build(&shape(&proto), &borrowed, clock_registry().len())
-                .unwrap();
+            EnvironmentAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap();
 
         let layout = SkyLayout::derive(&attributes);
         let ticks = ticks_at(&attributes, NOON, 0.0);

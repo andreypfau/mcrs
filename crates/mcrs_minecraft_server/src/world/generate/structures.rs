@@ -6,13 +6,16 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_VARIANT};
-use mcrs_minecraft_registry::{Registry, RegistrySet, Tags};
+use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryOf};
 use mcrs_minecraft_world::variant::spawn_selectors;
+use mcrs_minecraft_world::variant::{
+    CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
+};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
 use mcrs_minecraft_worldgen::tables::template_handle;
@@ -33,11 +36,11 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
-    biomes: &Registry<Biome>,
-    biome_tags: &Tags<Biome>,
+    registries: &Registries,
     lists: &ParameterLists,
     dimensions: &DimensionList,
 ) -> DimensionStructures {
+    let biomes = registries.loaded::<BiomeFile>();
     let mut tables = DimensionStructures::default();
     for (dimension, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
@@ -45,8 +48,8 @@ pub fn dimension_tables(
         };
         let dimension = dimension.location();
         let mut mask = FixedBitSet::with_capacity(biomes.len());
-        for name in possible_biomes(&generator.biome_source, biomes, biome_tags, lists) {
-            if let Some(id) = biomes.by_name(name.as_str()) {
+        for name in possible_biomes(&generator.biome_source, registries, lists) {
+            if let Some(id) = biomes.by_name(&name) {
                 mask.insert(id.index());
             }
         }
@@ -85,13 +88,8 @@ pub(crate) fn build_dimension_structures(
     asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
-    registries: Res<RegistrySet>,
+    registries: Res<CurrentRegistries>,
 ) {
-    let biomes = registries.loaded_registry::<Biome>();
-    let biome_tags = registries.loaded_tags::<Biome>();
-    let structure_registry = registries.loaded_registry::<Structure>();
-    let structure_tags = registries.loaded_tags::<Structure>();
-
     let sets = registries.loaded_by_name::<StructureSet>();
     let structures = registries.loaded_by_name::<Structure>();
     let pools = registries.loaded_by_name::<TemplatePool>();
@@ -111,40 +109,29 @@ pub(crate) fn build_dimension_structures(
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
     let (cats, chickens, zombie_nautiluses) = (|| -> Result<_, String> {
         Ok((
-            spawn_selectors(&registries, CAT_VARIANT)?,
-            spawn_selectors(&registries, CHICKEN_VARIANT)?,
-            spawn_selectors(&registries, ZOMBIE_NAUTILUS_VARIANT)?,
+            spawn_selectors::<CatVariantFile>(&registries)?,
+            spawn_selectors::<ChickenVariantFile>(&registries)?,
+            spawn_selectors::<ZombieNautilusVariantFile>(&registries)?,
         ))
     })()
     .unwrap_or_else(|error| {
         panic!("the loaded registries cannot list their spawn conditions: {error}")
     });
-    let names = |registry: &str| -> Vec<ResourceLocation> {
+    fn names<V: Send + Sync + 'static>(registries: &Registries) -> Vec<ResourceLocation> {
         registries
-            .table(registry)
-            .map(|table| table.names().to_vec())
+            .registry::<RegistryOf<V>>()
+            .map(|registry| registry.iter().map(|(_, name, _)| name.clone()).collect())
             .unwrap_or_default()
-    };
-    let cat_sounds = names(
-        mcrs_minecraft_entity::keys::CAT_SOUND_VARIANT
-            .location()
-            .as_static_str(),
-    );
-    let chicken_sounds = names(
-        mcrs_minecraft_entity::keys::CHICKEN_SOUND_VARIANT
-            .location()
-            .as_static_str(),
-    );
+    }
+    let cat_sounds = names::<CatSoundVariant>(&registries);
+    let chicken_sounds = names::<ChickenSoundVariant>(&registries);
     let frozen = freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,
         pools: &pools,
         template: &template,
         resolve: &resolve,
-        biomes: &biomes,
-        biome_tags: &biome_tags,
-        structure_registry: &structure_registry,
-        structure_tags: &structure_tags,
+        registries: &registries,
         variants: &VariantInputs {
             cats: Some(&cats),
             cat_sounds: &cat_sounds,
@@ -163,9 +150,8 @@ pub(crate) fn build_dimension_structures(
     );
     commands.insert_resource(dimension_tables(
         Arc::new(frozen),
-        &biomes,
-        &biome_tags,
-        &parameter_lists_of(&registries),
+        &registries,
+        &parameter_lists_of(&registries).unwrap_or_else(|| Arc::from(Vec::new())),
         &dimensions,
     ));
 }

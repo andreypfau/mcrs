@@ -298,7 +298,7 @@ fn assert_metadata_outcomes(cases: &[(&str, Option<&str>, Outcome)]) {
             &features(None),
             false,
         );
-        let available = stack.position("file/p.zip").is_some();
+        let available = stack.packs().iter().any(|pack| pack.id() == "file/p.zip");
         let about_pack: Vec<&Diagnostic> = diagnostics
             .iter()
             .filter(|d| {

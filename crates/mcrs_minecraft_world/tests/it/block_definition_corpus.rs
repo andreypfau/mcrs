@@ -8,29 +8,16 @@ use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockSoundSets, BlockStateData, BlockStateFlags, LoadReport,
     load_block_definitions,
 };
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::section::block_direct_bits;
-use mcrs_minecraft_registry::Registry;
-use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registries::RegistryOf;
 use mcrs_minecraft_sound::BlockSoundSet;
-use mcrs_minecraft_world::registry_load::test_registries;
-
-fn report_blocks() -> Registry<Block> {
-    let report = std::fs::read(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/mcrs/reports/registries.json"
-    ))
-    .expect("the registries report reads");
-    from_report(&report)
-        .expect("the registries report parses")
-        .registry_of(mcrs_minecraft_block::keys::BLOCK)
-        .expect("the registries report has blocks")
-}
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();
@@ -42,7 +29,7 @@ fn corpus() -> &'static (BlockDefinitions, LoadReport) {
             ..Default::default()
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
-        load_block_definitions(&asset_server, &report_blocks()).expect("the corpus loads")
+        load_block_definitions(&asset_server).expect("the corpus loads")
     })
 }
 
@@ -439,11 +426,14 @@ fn every_state_is_reachable_one_property_at_a_time() {
 
 fn every_sound_set_a_state_names_is_in_the_loaded_registry() {
     let (definitions, _) = corpus();
-    let registry = test_registries()
-        .registry::<BlockSoundSet>()
+    let registry = test_registries_arc()
+        .registry::<RegistryOf<BlockSoundSet>>()
         .expect("the data pack registries hold minecraft:block_sound_set");
-    let resolved =
-        BlockSoundSets::resolve(definitions, &registry).unwrap_or_else(|e| panic!("{e}"));
+    let resolved = BlockSoundSets::resolve(definitions, |key| {
+        let id = registry.by_name(key.location())?;
+        Id::checked(id.number(), registry.len())
+    })
+    .unwrap_or_else(|e| panic!("{e}"));
     let mut named = 0;
     let count = definitions.state_count();
     for state in (0..count).filter_map(|n| BlockStateId::checked(n as u16, count)) {
@@ -487,15 +477,12 @@ fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once(readers: usize) {
     });
     let asset_server = app.world().resource::<AssetServer>().clone();
     let (_, expected) = corpus();
-    let blocks = report_blocks();
 
     std::thread::scope(|scope| {
         for _ in 0..readers {
             let asset_server = asset_server.clone();
-            let blocks = blocks.clone();
             scope.spawn(move || {
-                let (_, report) =
-                    load_block_definitions(&asset_server, &blocks).expect("the corpus loads");
+                let (_, report) = load_block_definitions(&asset_server).expect("the corpus loads");
                 assert_eq!(report.files, expected.files);
                 assert_eq!(report.states, expected.states);
             });

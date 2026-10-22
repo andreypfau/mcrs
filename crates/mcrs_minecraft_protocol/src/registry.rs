@@ -1,9 +1,8 @@
 use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{Registered, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -68,18 +67,10 @@ world_registry_wire!(
     mcrs_minecraft_item::PaintingVariantValue,
 );
 
-fn decode_world_registry_id<R: Registered>(r: &mut &[u8]) -> anyhow::Result<Id<R>> {
+// The number is checked where the id is looked up in the registries the connection holds.
+fn decode_world_registry_id<R>(r: &mut &[u8]) -> anyhow::Result<Id<R>> {
     let number = decode_registry_id(r)?;
-    Registry::<R>::in_scope(std::any::type_name::<Id<R>>(), |registry| {
-        registry.id(number).with_context(|| {
-            format!(
-                "registry {} has {} entries and none is numbered {number}",
-                R::REGISTRY,
-                registry.len()
-            )
-        })
-    })
-    .with_context(|| format!("cannot read an id of registry {}", R::REGISTRY))?
+    Id::checked(number, usize::from(u16::MAX) + 1).context("a sixteen-bit id")
 }
 
 pub fn encode_registry_id(id: u16, w: impl Write) -> anyhow::Result<()> {
@@ -161,19 +152,6 @@ mod tests {
                 assert!(decode(&mut bytes.as_slice()).is_err(), "{name} {raw}");
             }
         }
-    }
-
-    fn cat_variants(len: usize) -> mcrs_minecraft_registry::RegistrySet {
-        use mcrs_minecraft_entity::keys::CAT_VARIANT;
-        let names = (0..len).map(|n| {
-            mcrs_minecraft_core::ResourceLocation::<std::sync::Arc<str>>::read(&format!(
-                "minecraft:cat{n}"
-            ))
-            .unwrap()
-        });
-        mcrs_minecraft_registry::RegistrySet::new()
-            .with(mcrs_minecraft_registry::Registry::new(CAT_VARIANT, names).unwrap())
-            .unwrap()
     }
 
     fn with_number(valid: &[u8], prefix: usize, last: u16, number: u16) -> Vec<u8> {
@@ -291,34 +269,10 @@ mod tests {
     }
 
     #[test]
-    fn a_world_registry_id_outside_its_registry_does_not_decode() {
-        use mcrs_minecraft_entity::variant::CatVariant;
-
-        let decode_cat = |number: i32| {
-            let bytes = var_int(number);
-            Id::<CatVariant>::decode(&mut bytes.as_slice())
-        };
-
-        cat_variants(3).scope(|| {
-            assert_eq!(decode_cat(2).unwrap().number(), 2);
-            let refused = format!("{:#}", decode_cat(3).unwrap_err());
-            assert!(refused.contains("minecraft:cat_variant"), "{refused}");
-            assert!(refused.contains('3'), "{refused}");
-        });
-
-        let outside = format!("{:#}", decode_cat(0).unwrap_err());
-        assert!(outside.contains("minecraft:cat_variant"), "{outside}");
-    }
-
-    #[test]
     fn a_world_registry_id_writes_its_number_without_a_registry() {
         use mcrs_minecraft_entity::variant::CatVariant;
 
-        let id = cat_variants(3)
-            .registry::<CatVariant>()
-            .unwrap()
-            .id(2)
-            .unwrap();
+        let id = Id::<CatVariant>::checked(2, 3).unwrap();
         let mut bytes = Vec::new();
         id.encode(&mut bytes).unwrap();
         assert_eq!(bytes, var_int(2));

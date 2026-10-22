@@ -76,7 +76,6 @@ mod tests {
     use bevy_app::TaskPoolPlugin;
     use bevy_asset::{AssetPlugin, AssetServer};
     use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
-    use mcrs_minecraft_registry::static_report::shipped_report;
 
     fn corpus() -> &'static Blocks {
         static CORPUS: OnceLock<Blocks> = OnceLock::new();
@@ -88,11 +87,8 @@ mod tests {
                 ..Default::default()
             });
             let asset_server = app.world().resource::<AssetServer>().clone();
-            let blocks = shipped_report()
-                .registry_of(mcrs_minecraft_block::keys::BLOCK)
-                .expect("the registries report has blocks");
-            let (definitions, _) = load_block_definitions(&asset_server, &blocks)
-                .expect("the block definition corpus loads");
+            let (definitions, _) =
+                load_block_definitions(&asset_server).expect("the block definition corpus loads");
             Blocks(Arc::new(definitions))
         })
     }

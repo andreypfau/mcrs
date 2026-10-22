@@ -798,25 +798,38 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 #[test]
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_world::registry_load::test_registries;
+    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_registries::{Key, Named, Resolve, Resolver};
+    use mcrs_minecraft_world::registry_load::test_registries_arc;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
-    let registry = test_registries()
-        .registry::<Biome>()
+    let registries = Arc::clone(test_registries_arc());
+    let biomes = registries
+        .key_of::<Biome>()
+        .and_then(|key| registries.names_of(key))
         .expect("the loader parses the biomes");
-    let ids: std::collections::HashMap<String, u16> = registry
+    let ids: std::collections::HashMap<String, u16> = biomes
         .iter()
-        .map(|(id, name)| (name.to_string(), id.number()))
+        .zip(0..)
+        .map(|(name, id)| (name.to_string(), id))
         .collect();
     let (router, material) = overworld_material_router(2, &ids);
-    let source = test_registries()
-        .scope(|| {
-            serde_json::from_str::<BiomeSource>(
-                r#"{"type":"minecraft:fixed","biome":"minecraft:desert"}"#,
-            )
-        })
-        .expect("a fixed biome source parses with the loader holding desert");
-    let ctx = surface_fill_context(router, material, registry.clone(), source);
+    let source = BiomeSource::resolve(
+        serde_json::from_str::<BiomeSource<Named>>(
+            r#"{"type":"minecraft:fixed","biome":"minecraft:desert"}"#,
+        )
+        .expect("a fixed biome source parses"),
+        &*registries,
+    )
+    .expect("the loader holds desert");
+    let desert = Resolver::id::<Biome>(
+        &*registries,
+        &Key::new(ResourceLocation::read("minecraft:desert").unwrap()),
+    )
+    .expect("the loader holds desert")
+    .narrow::<u8>()
+    .expect("a biome id the palette can store");
+    let ctx = surface_fill_context(router, material, Arc::clone(&registries), source);
 
     let mut column = ColumnBlocks::new(&ctx.y_sections);
     let snapshot = fill_column(
@@ -827,11 +840,6 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     )
     .expect("the fill was not cancelled");
 
-    let desert = registry
-        .by_name("minecraft:desert")
-        .expect("the loader holds desert")
-        .narrow::<u8>()
-        .expect("a biome id the palette can store");
     let mut cells = 0;
     for (_, biomes) in snapshot.sections.iter().flatten() {
         for (x, y, z) in

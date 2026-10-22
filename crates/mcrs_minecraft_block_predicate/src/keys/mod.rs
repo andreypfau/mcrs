@@ -7,7 +7,7 @@ pub mod block_state_provider_type;
 pub use block_predicate_type::BlockPredicateType;
 pub use block_state_provider_type::BlockStateProviderType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const BLOCK_PREDICATE_TYPE: RegistryKey<crate::keys::BlockPredicateType> =
     RegistryKey::new(rl!("minecraft:block_predicate_type"));
@@ -25,12 +25,4 @@ pub const BLOCK_STATE_PROVIDER_TYPE: RegistryKey<crate::keys::BlockStateProvider
     RegistryKey::new(rl!("minecraft:worldgen/block_state_provider_type"));
 impl Registered for crate::keys::BlockStateProviderType {
     const REGISTRY: RegistryKey<Self> = BLOCK_STATE_PROVIDER_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        BLOCK_PREDICATE_TYPE.binding(),
-        BLOCK_STATE_PROVIDER.binding(),
-        BLOCK_STATE_PROVIDER_TYPE.binding(),
-    ]
 }

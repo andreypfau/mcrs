@@ -1,7 +1,7 @@
 mod advancement;
 mod corpus;
 mod golden;
-mod harness;
+pub(crate) mod harness;
 mod holders;
 mod nested;
 mod particle;

@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use mcrs_minecraft_core::codec;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::instrument::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -11,7 +11,7 @@ use crate::{Decode, Encode, VarInt};
 newtype_ctx_wire!(Instrument, JukeboxPlayable);
 
 impl EncodeCtx for InstrumentValue {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.sound_event.encode_ctx(ctx, &mut w)?;
         self.use_duration.encode(&mut w)?;
         self.range.encode(&mut w)?;
@@ -21,7 +21,7 @@ impl EncodeCtx for InstrumentValue {
 }
 
 impl DecodeCtx<'_> for InstrumentValue {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(InstrumentValue {
             sound_event: DecodeCtx::decode_ctx(ctx, r)?,
             use_duration: f32::decode(r)?,
@@ -33,7 +33,7 @@ impl DecodeCtx<'_> for InstrumentValue {
 }
 
 impl EncodeCtx for JukeboxSong {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.sound_event.encode_ctx(ctx, &mut w)?;
         self.description.encode_ctx(ctx, &mut w)?;
         self.length_in_seconds.encode(&mut w)?;
@@ -42,7 +42,7 @@ impl EncodeCtx for JukeboxSong {
 }
 
 impl DecodeCtx<'_> for JukeboxSong {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(JukeboxSong {
             sound_event: DecodeCtx::decode_ctx(ctx, r)?,
             description: DecodeCtx::decode_ctx(ctx, r)?,

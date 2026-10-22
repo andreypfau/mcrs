@@ -34,7 +34,7 @@ pub enum SpawnCondition<M: Refs = Resolved> {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     SpawnCondition<Named>, key = "type", registry = crate::keys::SpawnConditionType,
     {
         Structure => Structure,

@@ -52,14 +52,11 @@ fn router(seed: u64) -> NoiseRouter {
 fn material_router(seed: u64) -> (NoiseRouter, MaterialProgram) {
     let rules: BTreeMap<_, MaterialRuleHolder> = corpus::registry("material_rule");
     let conditions: BTreeMap<_, MaterialConditionHolder> = corpus::registry("material_condition");
-    let biomes = corpus::corpus_set()
-        .tags()
-        .expect("the corpus holds the biome registry");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
         block: &|_| Some(VoxelId(3)),
-        biome_tags: &biomes,
+        biomes: &|_| Some(Vec::new()),
     };
     build_router_and_material(
         &settings(),

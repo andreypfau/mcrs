@@ -13,7 +13,7 @@ pub use environment_attribute::EnvironmentAttribute;
 pub use test_environment_definition_type::TestEnvironmentDefinitionType;
 pub use test_instance_type::TestInstanceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const ACTIVITY: RegistryKey<crate::keys::Activity> =
     RegistryKey::new(rl!("minecraft:activity"));
@@ -50,15 +50,4 @@ pub const WORLD_CLOCK: RegistryKey<crate::world_clock::WorldClock> =
     RegistryKey::new(rl!("minecraft:world_clock"));
 impl Registered for crate::world_clock::WorldClock {
     const REGISTRY: RegistryKey<Self> = WORLD_CLOCK;
-}
-
-pub fn bindings() -> [TypeBinding; 6] {
-    [
-        ACTIVITY.binding(),
-        ENVIRONMENT_ATTRIBUTE.binding(),
-        TEST_ENVIRONMENT_DEFINITION_TYPE.binding(),
-        TEST_INSTANCE_TYPE.binding(),
-        TIMELINE.binding(),
-        WORLD_CLOCK.binding(),
-    ]
 }

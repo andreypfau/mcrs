@@ -6,26 +6,19 @@ use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_pa
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
-use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
-};
-use mcrs_minecraft_worldgen_testing::{registry, registry_in};
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 
-use super::modern_carvers::carvers_of;
+use super::carvers_of;
 use super::surface::fill_context;
-use super::{build_settings_router, corpus, corpus_state_of, router_blocks};
+use super::{build_settings_router, corpus, corpus_state_of};
 use crate::ColumnBlocks;
 use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, modern_carving_mask};
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
-use mcrs_minecraft_biome::Biome;
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x100_0000_01b3;
@@ -167,43 +160,7 @@ fn the_per_column_mask_is_what_it_was() {
     assert_masks_are_pinned(&mask_sets()[..1], &MASK_DIGESTS[..1]);
 }
 
-fn material_router(
-    dimension: Dimension,
-    seed: u64,
-    biomes: &Registry<Biome>,
-) -> (NoiseRouter, MaterialProgram) {
-    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-        "noise_settings",
-        &ResourceLocation::minecraft(dimension.settings()).unwrap(),
-    );
-    let set = super::registries_over(biomes);
-    let rules: std::collections::BTreeMap<ResourceLocation, MaterialRuleHolder> =
-        registry_in(&set, "material_rule");
-    let conditions: std::collections::BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry_in(&set, "material_condition");
-    let biome_tags = set.tags().expect("the corpus holds the biome tags");
-    let inputs = MaterialInputs {
-        rules: &rules,
-        conditions: &conditions,
-        block: &|state| {
-            corpus()
-                .block(state.name.as_str())
-                .map(|block| block.default_state_id.number().into())
-        },
-        biome_tags: &biome_tags,
-    };
-    build_router_and_material(
-        &settings,
-        &registry("density_function"),
-        &registry("noise"),
-        seed,
-        router_blocks(corpus()),
-        &inputs,
-    )
-    .expect("the material rule compiles")
-}
-
-fn biome_registry(dimension: Dimension) -> Registry<Biome> {
+fn biome_registry(dimension: Dimension) -> Arc<Registries> {
     let mut names: Vec<&str> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [
@@ -222,7 +179,7 @@ fn biome_registry(dimension: Dimension) -> Registry<Biome> {
 
 fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let registry = biome_registry(dimension);
-    let (router, material) = material_router(dimension, seed, &registry);
+    let (router, material) = super::material_router(dimension.settings(), seed, &registry);
     let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(super::parameter_list_id(
         dimension.preset().name(),
     )));

@@ -7,7 +7,7 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registries::{Key, KeySet, Registries};
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
@@ -20,9 +20,8 @@ use crate::staging::RegionSnapshots;
 
 use super::{
     TEMPERATE, bare_fill_context, biome_registry, blocks, build_beta_router, build_program,
-    flat_snapshot, one_step, region_of, registries_over, try_build_program,
+    flat_snapshot, one_step, region_of, try_build_program,
 };
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::keys::Fluid;
 
 const ORE: &str = r#"{
@@ -71,7 +70,7 @@ fn test_entry(feature: Feature, placement: Vec<PlacementModifier>) -> Arc<Compil
     })
 }
 
-fn program_of(tables: &FeatureTables, registry: &Registry<Biome>) -> FeatureProgram {
+fn program_of(tables: &FeatureTables, registry: &Registries) -> FeatureProgram {
     build_program(tables, &Default::default(), registry, 0)
 }
 
@@ -271,10 +270,7 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
             .collect(),
     };
     let program = program_of(&tables, &registry);
-    let other = registry
-        .by_name(OTHER)
-        .expect("the second biome is in the registry")
-        .number();
+    let other = super::biome_id(&registry, OTHER).number();
 
     assert!(
         program.carries(other, 0, 0),
@@ -287,10 +283,9 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
 /// block definition interns that fluid, so matching by name alone inverted it.
 #[test]
 fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
-    use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
-    let registries = registries_over(&biome_registry(&[BIOME]));
+    let registries = biome_registry(&[BIOME]);
     let resolver = crate::feature_program::Resolver::new(
         &blocks().0,
         &registries,
@@ -299,7 +294,7 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         &super::corpus_features().block_state_providers,
     )
     .expect("the corpus resolves");
-    let set = HolderSet::One(Fluid::Empty.id());
+    let set = fluid_set("minecraft:empty");
     let mask = resolver
         .states(StateQuery::Fluids(
             &set,
@@ -359,7 +354,7 @@ fn a_spring_places_its_fluid_state_as_the_fluid_blocks_level() {
 }
 
 fn fluid_resolver_test<F: FnOnce(&crate::feature_program::Resolver<'_>)>(test: F) {
-    let registries = registries_over(&biome_registry(&[BIOME]));
+    let registries = biome_registry(&[BIOME]);
     let providers = std::collections::BTreeMap::new();
     let resolver =
         crate::feature_program::Resolver::new(&blocks().0, &registries, 0, &[], &providers)
@@ -382,17 +377,13 @@ fn corpus_state(
 #[test]
 fn a_source_only_fluid_query_holds_sources_and_waterlogged_blocks() {
     use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
-    use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
     fluid_resolver_test(|resolver| {
         let sources: StatePropertiesPredicate =
             serde_json::from_str(r#"{"source": "true"}"#).unwrap();
         let mask = resolver
-            .states(StateQuery::Fluids(
-                &HolderSet::One(Fluid::Water.id()),
-                &sources,
-            ))
+            .states(StateQuery::Fluids(&fluid_set("minecraft:water"), &sources))
             .expect("water resolves");
         for (name, properties, held) in [
             ("water", &[("level", "0")][..], true),
@@ -448,4 +439,8 @@ fn a_survival_rule_reads_the_water_condition_its_block_names() {
             );
         }
     });
+}
+
+fn fluid_set(name: &str) -> KeySet<Fluid> {
+    KeySet::List(Box::new([Key::new(ResourceLocation::read(name).unwrap())]))
 }

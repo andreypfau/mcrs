@@ -1157,7 +1157,7 @@ enum PieceTag {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     PieceTag, key = "id", registry = crate::keys::StructurePieceType,
     {
         Mscorridor => MineshaftCorridor,
@@ -2242,9 +2242,7 @@ mod tests {
                 .as_str()
                 .unwrap()
         );
-        let Structure::Jigsaw { jigsaw, .. } = mcrs_minecraft_worldgen_testing::corpus_set()
-            .scope(|| serde_json::from_str(&json).unwrap())
-        else {
+        let Structure::Jigsaw { jigsaw, .. } = serde_json::from_str(&json).unwrap() else {
             unreachable!()
         };
         frozen.structures.push(FrozenStructure {

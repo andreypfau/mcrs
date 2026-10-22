@@ -6,7 +6,6 @@ mod overworld;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome::keys::biome;
-use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
@@ -15,7 +14,6 @@ use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_registries::StaticKey;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_sound::keys::sound_event;
 use mcrs_minecraft_value_provider::IntProvider;
@@ -300,18 +298,10 @@ pub fn names() -> Vec<ResourceLocation> {
         .collect()
 }
 
-pub fn build(set: &RegistrySet) -> Result<Vec<BiomeFile>, Vec<(usize, String)>> {
-    let mut built = Vec::with_capacity(BIOMES.len());
-    let mut failures = Vec::new();
-    for (index, (_, draft)) in BIOMES.iter().enumerate() {
-        match set.scope(|| draft().resolve(set)) {
-            Ok(biome) => built.push(biome),
-            Err(messages) => failures.push((index, messages.join("; "))),
-        }
-    }
-    if failures.is_empty() {
-        Ok(built)
-    } else {
-        Err(failures)
-    }
+/// The biome named `name` as code describes it, its carvers and features still names.
+pub fn draft(name: &ResourceLocation) -> Option<Draft> {
+    BIOMES
+        .iter()
+        .find(|(key, _)| key.location().as_str() == name.as_str())
+        .map(|(_, draft)| draft())
 }

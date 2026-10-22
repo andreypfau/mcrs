@@ -6,13 +6,13 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_registries::{Key, Registries, RegistryOf, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use mcrs_minecraft_world::registry_snapshot::install_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -33,57 +33,54 @@ pub fn insert_corpus(app: &mut App) {
 /// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
-    app.insert_resource(test_registries().clone());
     install_registries(app.world_mut(), Arc::clone(test_registries_arc()));
 }
 
 pub fn dimension_type(name: &str) -> Id<DimensionType> {
-    test_registries()
-        .registry::<DimensionType>()
-        .and_then(|registry| registry.by_name(name))
-        .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
+    Resolver::id(
+        &**test_registries_arc(),
+        &Key::new(ResourceLocation::read(name).unwrap()),
+    )
+    .unwrap_or_else(|error| panic!("the dimension type {name} is loaded: {error}"))
 }
 
 pub fn preset(name: &str) -> Dimensions {
-    let set = test_registries();
-    let id = set
-        .registry::<WorldPreset>()
-        .and_then(|registry| registry.by_name(name))
-        .unwrap_or_else(|| panic!("the preset {name} is loaded"));
-    set.entries::<WorldPreset, WorldPreset>().unwrap()[id]
+    let presets = test_registries_arc()
+        .registry::<RegistryOf<WorldPreset>>()
+        .expect("the presets are loaded");
+    presets
+        .by_name(&ResourceLocation::read(name).unwrap())
+        .and_then(|id| presets.get(id))
+        .unwrap_or_else(|| panic!("the preset {name} is loaded"))
         .dimensions
         .clone()
 }
 
 pub fn baked(
     dimensions: &Dimensions,
-    set: &RegistrySet,
+    registries: &Registries,
 ) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
-    let mut report = LoadReport::new();
-    let list = bake(dimensions, set, &mut report);
-    assert!(report.is_empty(), "{report}");
-    list.expect("a list with an overworld bakes")
+    bake(dimensions, registries).expect("a list with an overworld bakes")
 }
 
 /// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
 pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::DimensionList {
     use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
-    let set = test_registries();
     let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL.as_str());
     dimensions.insert(
         ResourceKey::from_location("test:extra".parse().unwrap()),
         DimensionEntry {
-            dimension_type: set
-                .registry::<DimensionType>()
-                .and_then(|registry| {
-                    registry.get(&mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD)
-                })
-                .expect("the dimension type is loaded"),
+            dimension_type: dimension_type(
+                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),
+            ),
             generator: ChunkGenerator::Debug,
         },
     );
-    mcrs_minecraft_server::world_options::DimensionList::new(baked(&dimensions, set))
+    mcrs_minecraft_server::world_options::DimensionList::new(baked(
+        &dimensions,
+        test_registries_arc(),
+    ))
 }
 
 pub fn update_until_playing(app: &mut App) {

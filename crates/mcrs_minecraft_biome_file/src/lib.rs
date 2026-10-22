@@ -1,29 +1,30 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 use mcrs_minecraft_biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureModifier};
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
-use mcrs_minecraft_registries::{DataDeclaration, Declaration, RegistryOf, Stage};
-use mcrs_minecraft_registry::{AlwaysList, HolderSet, RegistrySet};
+use mcrs_minecraft_registries::{
+    DataDeclaration, Declaration, Key, KeySet, Named, Refs, RegistryOf, Resolve, Resolved, Stage,
+};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
-use std::sync::Arc;
 
 mod validate;
 
 pub use validate::check_feature_domains;
 
-pub type CarverSet = HolderSet<CarverConfig>;
-pub type FeatureSteps = Vec<HolderSet<PlacedFeature>>;
+pub type Carvers = RegistryOf<CarverConfig>;
+pub type PlacedFeatures = RegistryOf<PlacedFeature>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(bound(serialize = "C: Serialize, F: AsRef<[HolderSet<PlacedFeature>]>"))]
-pub struct BiomeFile<C = CarverSet, F = FeatureSteps> {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Resolve)]
+#[serde(bound(
+    serialize = "M::Set<Carvers>: Serialize, M::Set<PlacedFeatures>: ListForm",
+    deserialize = "M::Set<Carvers>: Deserialize<'de> + Default, M::Set<PlacedFeatures>: Deserialize<'de>"
+))]
+pub struct BiomeFile<M: Refs = Resolved> {
     pub temperature: f32,
     pub downfall: f32,
     pub has_precipitation: bool,
@@ -33,21 +34,39 @@ pub struct BiomeFile<C = CarverSet, F = FeatureSteps> {
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default)]
-    pub carvers: C,
+    pub carvers: M::Set<Carvers>,
     #[serde(default, serialize_with = "serialize_steps")]
-    pub features: F,
+    pub features: Vec<M::Set<PlacedFeatures>>,
 }
 
-fn serialize_steps<F: AsRef<[HolderSet<PlacedFeature>]>, S: Serializer>(
-    steps: &F,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    s.collect_seq(steps.as_ref().iter().map(AlwaysList))
+/// A decoration step writes a single entry as a list, where any other set writes it bare.
+pub trait ListForm {
+    fn serialize_listed<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error>;
 }
 
-/// A biome described in code, before any registry has ids: carvers and
-/// placed features are still keys.
-pub type BiomeDraft = BiomeFile<Vec<StaticResourceLocation>, Vec<Vec<PlacedFeatureKey>>>;
+impl<R> ListForm for KeySet<R> {
+    fn serialize_listed<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            KeySet::Tag(_) => self.serialize(s),
+            KeySet::List(keys) => keys.serialize(s),
+        }
+    }
+}
+
+struct Listed<'a, T>(&'a T);
+
+impl<T: ListForm> Serialize for Listed<'_, T> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize_listed(s)
+    }
+}
+
+fn serialize_steps<T: ListForm, S: Serializer>(steps: &[T], s: S) -> Result<S::Ok, S::Error> {
+    s.collect_seq(steps.iter().map(Listed))
+}
+
+/// A biome described in code: carvers and placed features are still names.
+pub type BiomeDraft = BiomeFile<Named>;
 
 /// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
 ///
@@ -66,13 +85,12 @@ pub struct NetworkBiome {
 }
 
 impl NetworkBiome {
-    /// The columns a client keeps of a biome: it has no generation settings.
     /// The parts a client holds of a biome: the generation settings the network leaves out are
     /// empty.
     pub fn into_client_parts(self) -> (Biome, EnvironmentAttributeMap, BiomeGenerationSettings) {
         let (biome, attributes) = self.into_parts();
         let generation = BiomeGenerationSettings {
-            carvers: HolderSet::default(),
+            carvers: Default::default(),
             features: Vec::new(),
         };
         (biome, attributes, generation)
@@ -111,13 +129,17 @@ pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
 /// were added. A step is listed up to the last one that was given a feature.
 #[derive(Debug, Default)]
 pub struct BiomeGeneration {
-    carvers: Vec<StaticResourceLocation>,
-    features: Vec<Vec<PlacedFeatureKey>>,
+    carvers: Vec<Key<Carvers>>,
+    features: Vec<Vec<Key<PlacedFeatures>>>,
+}
+
+fn key<R, V>(key: ResourceKey<V, &'static str>) -> Key<R> {
+    Key::new(ResourceLocation::from(*key.location()))
 }
 
 impl BiomeGeneration {
-    pub fn carver(&mut self, key: ResourceKey<CarverConfig, &'static str>) -> &mut Self {
-        self.carvers.push(*key.location());
+    pub fn carver(&mut self, carver: ResourceKey<CarverConfig, &'static str>) -> &mut Self {
+        self.carvers.push(key(carver));
         self
     }
 
@@ -130,74 +152,24 @@ impl BiomeGeneration {
         if self.features.len() <= step {
             self.features.resize_with(step + 1, Vec::new);
         }
-        self.features[step].extend_from_slice(keys);
+        self.features[step].extend(keys.iter().copied().map(key));
         self
     }
-}
-
-fn ids<R: mcrs_minecraft_core::Registered>(
-    set: &RegistrySet,
-    names: &[StaticResourceLocation],
-    failures: &mut Vec<String>,
-) -> Vec<Id<R>> {
-    let Some(registry) = set.registry::<R>() else {
-        if !names.is_empty() {
-            failures.push(format!("the registry {} is not loaded", R::REGISTRY));
-        }
-        return Vec::new();
-    };
-    names
-        .iter()
-        .filter_map(|name| {
-            let id = registry.get(&ResourceKey::<R, _>::new(*name));
-            if id.is_none() {
-                failures.push(format!("{name} is not an entry of {}", R::REGISTRY));
-            }
-            id
-        })
-        .collect()
 }
 
 impl BiomeDraft {
     pub fn generation(mut self, generation: BiomeGeneration) -> Self {
-        self.carvers = generation.carvers;
-        self.features = generation.features;
-        self
-    }
-
-    /// Every key that names no entry of its registry is reported, so a
-    /// biome that cannot be built says everything wrong with it at once.
-    pub fn resolve(self, set: &RegistrySet) -> Result<BiomeFile, Vec<String>> {
-        let mut failures = Vec::new();
-        let carvers = match ids::<CarverConfig>(set, &self.carvers, &mut failures)[..] {
-            [only] => HolderSet::One(only),
-            ref listed => HolderSet::List(listed.into()),
-        };
-        let features = self
+        self.carvers = KeySet::List(generation.carvers.into());
+        self.features = generation
             .features
-            .iter()
-            .map(|step| {
-                let names: Vec<_> = step.iter().map(|key| *key.location()).collect();
-                HolderSet::List(ids::<PlacedFeature>(set, &names, &mut failures).into())
-            })
+            .into_iter()
+            .map(|step| KeySet::List(step.into()))
             .collect();
-        if !failures.is_empty() {
-            return Err(failures);
-        }
-        Ok(BiomeFile {
-            temperature: self.temperature,
-            downfall: self.downfall,
-            has_precipitation: self.has_precipitation,
-            temperature_modifier: self.temperature_modifier,
-            effects: self.effects,
-            attributes: self.attributes,
-            carvers,
-            features,
-        })
+        self
     }
 }
 
-impl<C: Default, F: Default> BiomeFile<C, F> {
+impl BiomeDraft {
     pub const NORMAL_WATER_COLOR: i32 = 4159204;
 
     pub fn new(has_precipitation: bool, temperature: f32, downfall: f32) -> Self {
@@ -208,8 +180,8 @@ impl<C: Default, F: Default> BiomeFile<C, F> {
             temperature_modifier: None,
             effects: BiomeEffects::default(),
             attributes: Default::default(),
-            carvers: C::default(),
-            features: F::default(),
+            carvers: KeySet::default(),
+            features: Vec::new(),
         }
         .water(Self::NORMAL_WATER_COLOR)
     }
@@ -276,8 +248,8 @@ impl<C: Default, F: Default> BiomeFile<C, F> {
 /// generator reads.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BiomeGenerationSettings {
-    pub carvers: CarverSet,
-    pub features: FeatureSteps,
+    pub carvers: mcrs_minecraft_registries::IdSet<Carvers>,
+    pub features: Vec<mcrs_minecraft_registries::IdSet<PlacedFeatures>>,
 }
 
 impl BiomeFile {
@@ -316,35 +288,30 @@ impl BiomeFile {
     }
 }
 
-mcrs_minecraft_registries::read_with_serde!(crate::BiomeFile);
-
 impl BiomeFile {
-    pub fn declaration<S>(scope: S) -> DataDeclaration<RegistryOf<Self>>
-    where
-        S: Fn() -> RegistrySet + Send + Sync + 'static,
-    {
+    pub fn declaration() -> DataDeclaration<RegistryOf<Self>> {
         let key = mcrs_minecraft_biome::keys::BIOME.location().into();
         Declaration::data::<RegistryOf<Self>>(key, Stage::World)
             .named_by::<mcrs_minecraft_biome::Biome>()
-            .validate(move |registry, ctx| {
+            .validate(|registry, ctx| {
                 let placed = ctx
-                    .registry::<RegistryOf<PlacedFeature>>()
+                    .registry::<PlacedFeatures>()
                     .ok_or_else(|| "the placed features are not loaded".to_owned())?;
-                let set = scope()
-                    .with_column(
-                        PLACED_FEATURE.location().as_static_str(),
-                        Arc::clone(placed.values()),
-                    )
-                    .map_err(|error| error.to_string())?;
-                let settings: Vec<BiomeGenerationSettings> = registry
-                    .values()
-                    .iter()
-                    .map(|biome| BiomeGenerationSettings {
-                        carvers: biome.carvers.clone(),
-                        features: biome.features.clone(),
-                    })
-                    .collect();
-                registry.entry_failures(check_feature_domains(&settings, &set))
+                let tags = ctx
+                    .tags::<PlacedFeatures>()
+                    .ok_or_else(|| "the placed feature tags are not loaded".to_owned())?;
+                let biomes = registry.values().iter().map(|biome| {
+                    biome
+                        .features
+                        .iter()
+                        .map(|step| {
+                            step.ids(&tags)
+                                .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
+                                .collect()
+                        })
+                        .collect()
+                });
+                registry.entry_failures(check_feature_domains(biomes))
             })
     }
 }

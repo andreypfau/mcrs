@@ -2,6 +2,7 @@ use mcrs_minecraft_item::keys::{RecipeBookCategory, RecipeDisplayType, SlotDispl
 use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Validate;
@@ -9,7 +10,6 @@ use mcrs_minecraft_item::component::trim::TrimPatternRef;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registries::{IdSet, Resolved};
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
@@ -19,14 +19,14 @@ use crate::{Decode as _, Encode as _, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
 
 impl EncodeCtx for Ingredient {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         self.validate().map_err(anyhow::Error::msg)?;
         self.0.encode_ctx(ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for Ingredient {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let announced = VarInt::decode(&mut &r[..])?.0;
         let ingredient = Ingredient(DecodeCtx::decode_ctx(ctx, r)?);
         if ctx.walking() {
@@ -99,7 +99,7 @@ impl SlotDisplay {
 }
 
 impl EncodeCtx for SlotDisplay {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         let w: &mut dyn Write = &mut w;
         self.kind().encode(&mut *w)?;
         match self {
@@ -138,7 +138,7 @@ impl EncodeCtx for SlotDisplay {
 }
 
 impl DecodeCtx<'_> for SlotDisplay {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         nested(|| {
             let boxed = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r).map(Box::new);
             Ok(match SlotDisplayType::decode(r)? {
@@ -246,7 +246,7 @@ impl Validate for RecipeDisplay {
 }
 
 impl EncodeCtx for RecipeDisplay {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.validate().map_err(anyhow::Error::msg)?;
         self.kind().encode(&mut w)?;
         match self {
@@ -314,7 +314,7 @@ impl EncodeCtx for RecipeDisplay {
 }
 
 impl DecodeCtx<'_> for RecipeDisplay {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let slot = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r);
         let display = match RecipeDisplayType::decode(r)? {
             RecipeDisplayType::CraftingShapeless => Self::CraftingShapeless {
@@ -375,7 +375,7 @@ impl RecipeBookEntry {
 }
 
 impl EncodeCtx for RecipeBookEntry {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.id.encode(&mut w)?;
         self.display.encode_ctx(ctx, &mut w)?;
         OptionalUnsignedInt(self.group).encode(&mut w)?;
@@ -386,7 +386,7 @@ impl EncodeCtx for RecipeBookEntry {
 }
 
 impl DecodeCtx<'_> for RecipeBookEntry {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(RecipeBookEntry {
             id: VarInt::decode(r)?,
             display: RecipeDisplay::decode_ctx(ctx, r)?,
@@ -410,14 +410,14 @@ pub struct SelectableRecipe {
 }
 
 impl EncodeCtx for SelectableRecipe {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.input.encode_ctx(ctx, &mut w)?;
         self.option_display.encode_ctx(ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for SelectableRecipe {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(SelectableRecipe {
             input: Ingredient::decode_ctx(ctx, r)?,
             option_display: SlotDisplay::decode_ctx(ctx, r)?,

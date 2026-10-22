@@ -9,8 +9,14 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
 use mcrs_minecraft_registries::require_registry;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, RegistryOf};
-use mcrs_minecraft_registry::UnknownEntry;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("registry {registry} holds no entry named {name}")]
+pub struct UnknownEntry {
+    pub registry: ResourceLocation,
+    pub name: String,
+}
 
 /// Why a biome source has no climate table: a biome the registry does not hold,
 /// an id the palette's byte cannot store, or a source that names no biomes.
@@ -27,12 +33,6 @@ pub enum BiomeTableError {
 /// The biome registry as a table builder reads it: a name in, the id out.
 pub trait BiomeNames {
     fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry>;
-}
-
-impl BiomeNames for mcrs_minecraft_registry::Registry<Biome> {
-    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
-        self.require_by_name(name)
-    }
 }
 
 impl BiomeNames for mcrs_minecraft_registries::Registry<RegistryOf<BiomeFile>> {

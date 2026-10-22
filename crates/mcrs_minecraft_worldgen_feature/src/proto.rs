@@ -1,5 +1,5 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_registries::{KeySet, Named};
 use std::fmt;
 
 use serde::de::Error as _;
@@ -10,64 +10,46 @@ use super::placement::IntOr;
 use super::placement::{PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
 use super::tree::TreeConfig;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::fluid_state::FluidState;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
+use mcrs_minecraft_block_predicate::provider::{BlockStateProvider, UnitFloat};
 use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registry::{HolderSet, Registry, Tags};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
 /// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: a `#tag`, one entry or a
-/// list of them, each a registry id or an inline placed feature. A tag is
-/// expanded from the set the file is read in and writes back as the tag; a
-/// one-entry list writes as the bare entry.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct PlacedFeatureSet {
-    tag: Option<TagId<PlacedFeature>>,
-    entries: Vec<Holder<PlacedFeature>>,
+/// list of them, each a registry id or an inline placed feature. A tag keeps
+/// its name and is expanded when the features compile; a one-entry list
+/// writes as the bare entry.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlacedFeatureSet {
+    Tag(ResourceLocation),
+    List(Vec<Holder<PlacedFeature>>),
 }
 
 impl PlacedFeatureSet {
-    pub fn entries(&self) -> &[Holder<PlacedFeature>] {
-        &self.entries
-    }
-
-    fn listed(entries: Vec<Holder<PlacedFeature>>) -> Self {
-        PlacedFeatureSet { tag: None, entries }
+    /// The entries written in the file; a tag lists none.
+    pub fn listed(&self) -> &[Holder<PlacedFeature>] {
+        match self {
+            PlacedFeatureSet::Tag(_) => &[],
+            PlacedFeatureSet::List(entries) => entries,
+        }
     }
 
     fn tagged<E: serde::de::Error>(text: &str) -> Result<Self, E> {
-        let tag = match HolderSet::<PlacedFeature>::deserialize(value::StrDeserializer::new(text))?
-        {
-            HolderSet::Named(tag) => tag,
-            // `skip_sets` reads every set as empty.
-            _ => return Ok(PlacedFeatureSet::default()),
-        };
-        let entries = Tags::<PlacedFeature>::in_scope("a placed feature tag", |tags| {
-            Registry::<PlacedFeature>::in_scope("a placed feature tag", |names| {
-                tags.members(tag)
-                    .map(|id| {
-                        Holder::Reference(names.name(id).expect("a tag member has a name").clone())
-                    })
-                    .collect()
-            })
-        })
-        .and_then(|entries| entries)
-        .map_err(E::custom)?;
-        Ok(PlacedFeatureSet {
-            tag: Some(tag),
-            entries,
-        })
+        let tag = text.strip_prefix('#').unwrap_or(text);
+        ResourceLocation::read(tag)
+            .map(PlacedFeatureSet::Tag)
+            .map_err(E::custom)
     }
 }
 
@@ -87,20 +69,19 @@ impl<'de> Deserialize<'de> for PlacedFeatureSet {
                     return PlacedFeatureSet::tagged(text);
                 }
                 Holder::deserialize(value::StrDeserializer::new(text))
-                    .map(|only| PlacedFeatureSet::listed(vec![only]))
+                    .map(|only| PlacedFeatureSet::List(vec![only]))
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 Holder::deserialize(value::MapAccessDeserializer::new(map))
-                    .map(|only| PlacedFeatureSet::listed(vec![only]))
+                    .map(|only| PlacedFeatureSet::List(vec![only]))
             }
 
             fn visit_seq<A: serde::de::SeqAccess<'de>>(
                 self,
                 seq: A,
             ) -> Result<Self::Value, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq))
-                    .map(PlacedFeatureSet::listed)
+                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(PlacedFeatureSet::List)
             }
         }
 
@@ -110,12 +91,12 @@ impl<'de> Deserialize<'de> for PlacedFeatureSet {
 
 impl Serialize for PlacedFeatureSet {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if let Some(tag) = self.tag {
-            return HolderSet::Named(tag).serialize(serializer);
-        }
-        match self.entries.as_slice() {
-            [only] => only.serialize(serializer),
-            entries => entries.serialize(serializer),
+        match self {
+            PlacedFeatureSet::Tag(tag) => serializer.collect_str(&format_args!("#{tag}")),
+            PlacedFeatureSet::List(entries) => match entries.as_slice() {
+                [only] => only.serialize(serializer),
+                entries => entries.serialize(serializer),
+            },
         }
     }
 }
@@ -151,7 +132,7 @@ impl Feature {
             Self::CoralClaw { feature } | Self::CoralTree { feature } => visit(feature),
             Self::Overlay { features }
             | Self::Sequence { features }
-            | Self::SimpleRandomSelector { features } => features.entries().iter().for_each(visit),
+            | Self::SimpleRandomSelector { features } => features.listed().iter().for_each(visit),
             Self::RandomBooleanSelector {
                 feature_true,
                 feature_false,
@@ -411,7 +392,7 @@ pub enum Feature {
     },
     LargeSpeleothem {
         base_block: BlockState,
-        replaceable_blocks: BlockSet,
+        replaceable_blocks: KeySet<Block>,
         #[serde(default, skip_serializing_if = "is_default")]
         floor_to_ceiling_search_range: Bounded<1, 512, 30>,
         column_radius: BoundedIntProvider<1, 16>,
@@ -436,7 +417,7 @@ pub enum Feature {
         can_place_on_wall: bool,
         #[serde(default = "d_unit_0_5", skip_serializing_if = "is_unit_0_5")]
         chance_of_spreading: UnitFloat,
-        can_be_placed_on: BlockSet,
+        can_be_placed_on: KeySet<Block>,
     },
     NetherrackReplaceBlobs {
         target: BlockState,
@@ -465,7 +446,7 @@ pub enum Feature {
     },
     RandomNeighborSpread {
         block: BlockStateProvider<Named>,
-        accepted_neighbors: BlockSet,
+        accepted_neighbors: KeySet<Block>,
         can_replace: BlockPredicate<Named>,
         attempts: BoundedIntProvider<1, 3000>,
         xz_offset: BoundedIntProvider<-16, 16>,
@@ -484,7 +465,7 @@ pub enum Feature {
         level_test_distance: Bounded<0, 16>,
         max_level_deviation: Bounded<0, 64>,
         root_radius: Bounded<1, 64>,
-        root_replaceable: BlockSet,
+        root_replaceable: KeySet<Block>,
         root_state_provider: BlockStateProvider<Named>,
         root_placement_attempts: Bounded<1, 256>,
         root_column_max_height: Bounded<1, 4096>,
@@ -533,7 +514,7 @@ pub enum Feature {
     Speleothem {
         base_block: BlockState,
         pointed_block: BlockState,
-        replaceable_blocks: BlockSet,
+        replaceable_blocks: KeySet<Block>,
         #[serde(default = "d_unit_0_2", skip_serializing_if = "is_unit_0_2")]
         chance_of_taller_generation: UnitFloat,
         #[serde(default = "d_unit_0_7", skip_serializing_if = "is_unit_0_7")]
@@ -546,7 +527,7 @@ pub enum Feature {
     SpeleothemCluster {
         base_block: BlockState,
         pointed_block: BlockState,
-        replaceable_blocks: BlockSet,
+        replaceable_blocks: KeySet<Block>,
         floor_to_ceiling_search_range: Bounded<1, 512>,
         height: BoundedIntProvider<1, 128>,
         radius: BoundedIntProvider<1, 128>,
@@ -574,13 +555,13 @@ pub enum Feature {
         rock_count: IntOr<4>,
         #[serde(default, skip_serializing_if = "is_default")]
         hole_count: IntOr<1>,
-        valid_blocks: BlockSet,
+        valid_blocks: KeySet<Block>,
     },
     SteppedColumnCluster {
         block: BlockStateProvider<Named>,
         continue_through: BlockPredicate<Named>,
         can_replace: BlockPredicate<Named>,
-        cannot_place_on: BlockSet,
+        cannot_place_on: KeySet<Block>,
         cluster_reach: IntProvider,
         column_count: IntProvider,
         column_reach: IntProvider,
@@ -606,7 +587,7 @@ pub enum Feature {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     Feature, key = "type", registry = crate::keys::FeatureType,
     {
         Bamboo => Bamboo,
@@ -747,7 +728,7 @@ pub struct EndSpike {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VegetationPatchConfig {
-    pub replaceable: BlockSet,
+    pub replaceable: KeySet<Block>,
     pub ground_state: BlockStateProvider<Named>,
     pub vegetation_feature: Holder<PlacedFeature>,
     pub surface: CaveSurface,
@@ -777,8 +758,8 @@ pub struct GeodeBlockSettings {
     pub outer_layer_provider: BlockStateProvider<Named>,
     #[serde(deserialize_with = "non_empty")]
     pub inner_placements: Vec<BlockState>,
-    pub cannot_replace: BlockSet,
-    pub invalid_blocks: BlockSet,
+    pub cannot_replace: KeySet<Block>,
+    pub invalid_blocks: KeySet<Block>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -844,7 +825,7 @@ pub enum StructureProcessor {
     },
     BlockRot {
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        rottable_blocks: Option<BlockSet>,
+        rottable_blocks: Option<KeySet<Block>>,
         integrity: UnitFloat,
     },
     Capped {
@@ -861,14 +842,14 @@ pub enum StructureProcessor {
     LavaSubmergedBlock,
     Nop,
     ProtectedBlocks {
-        value: BlockSet,
+        value: KeySet<Block>,
     },
     Rule {
         rules: Vec<ProcessorRule>,
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     StructureProcessor, key = "processor_type", registry = crate::keys::StructureProcessorType,
     {
         BlackstoneReplace => BlackstoneReplace,
@@ -910,7 +891,7 @@ pub enum PosRuleTest {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     PosRuleTest, key = "predicate_type", registry = crate::keys::PosRuleTestType,
     {
         AlwaysTrue => AlwaysTrue,
@@ -942,7 +923,7 @@ pub enum RuleBlockEntityModifier {
     AppendLoot { loot_table: ResourceLocation },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     RuleBlockEntityModifier, key = "type", registry = crate::keys::RuleBlockEntityModifierType,
     {
         Clear => Clear,
@@ -995,7 +976,7 @@ defaults! {
 
 fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFeatureSet, D::Error> {
     let set = PlacedFeatureSet::deserialize(deserializer)?;
-    if set.tag.is_none() && set.entries.is_empty() {
+    if matches!(&set, PlacedFeatureSet::List(entries) if entries.is_empty()) {
         return Err(D::Error::custom("List must have contents"));
     }
     Ok(set)

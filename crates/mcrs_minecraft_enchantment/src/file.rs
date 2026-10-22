@@ -5,10 +5,12 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
-use crate::effects::EnchantmentEffects;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 /// An enchantment file as a data pack writes it, stored as its registry value
 /// and its effects column.
+// chisle: the effects are kept as the file's NBT and sent as is; nothing applies them until the
+// loot conditions and predicates they name get types.
 #[registry_value]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -26,11 +28,11 @@ pub struct EnchantmentFile<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclusive_set: Option<M::Set<EnchantmentData>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effects: Option<EnchantmentEffects>,
+    pub effects: Option<NbtTag>,
 }
 
 impl EnchantmentFile {
-    pub fn split(&self) -> (EnchantmentData, Option<EnchantmentEffects>) {
+    pub fn split(&self) -> (EnchantmentData, Option<NbtTag>) {
         let data = EnchantmentData {
             description: self.description.clone(),
             min_cost: self.min_cost.clone(),
@@ -46,7 +48,7 @@ impl EnchantmentFile {
         (data, self.effects.clone())
     }
 
-    pub fn join((data, effects): (&EnchantmentData, &Option<EnchantmentEffects>)) -> Self {
+    pub fn join((data, effects): (&EnchantmentData, &Option<NbtTag>)) -> Self {
         EnchantmentFile {
             description: data.description.clone(),
             min_cost: data.min_cost.clone(),

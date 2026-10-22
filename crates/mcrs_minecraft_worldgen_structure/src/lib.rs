@@ -26,7 +26,7 @@ use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, PositiveFloat, PositiveInt, is_default, non_empty,
 };
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::KeySet;
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -62,13 +62,13 @@ pub enum StructurePlacement {
         distance: Bounded<0, 1023>,
         spread: Bounded<0, 1023>,
         count: Bounded<1, 4095>,
-        preferred_biomes: HolderSet<Biome>,
+        preferred_biomes: KeySet<Biome>,
     },
     // An empty struct variant, not a unit one: only the former refuses extra keys.
     DimensionOrigin {},
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     StructurePlacement, key = "type", registry = crate::keys::StructurePlacementType,
     {
         ConcentricRings => ConcentricRings,
@@ -198,7 +198,7 @@ pub enum Structure {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     Structure, key = "type", registry = crate::keys::StructureType,
     {
         BuriedTreasure => BuriedTreasure,
@@ -261,7 +261,7 @@ impl Structure {
 // Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructureSettings {
-    pub biomes: HolderSet<Biome>,
+    pub biomes: KeySet<Biome>,
     pub spawn_overrides: BTreeMap<MobCategory, SpawnOverride>,
     pub step: DecorationStep,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -444,7 +444,7 @@ pub enum PoolAlias {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     PoolAlias, key = "type", registry = crate::keys::PoolAliasBindingType,
     {
         Random => Random,
@@ -457,7 +457,7 @@ mcrs_minecraft_registry::dispatch! {
 mod tests {
     use super::*;
     use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, TemplatePool};
-    use mcrs_minecraft_worldgen_testing::{corpus_set, round_trips};
+    use mcrs_minecraft_worldgen_testing::round_trips;
 
     #[test]
     fn every_shipped_set_structure_and_pool_round_trips() {
@@ -467,20 +467,20 @@ mod tests {
     }
 
     fn round_trip<T: serde::de::DeserializeOwned + Serialize>(json: &str) -> T {
-        corpus_set().scope(|| {
+        {
             let parsed: T = serde_json::from_str(json).unwrap();
             assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
             parsed
-        })
+        }
     }
 
     type Codec = fn(&str) -> Result<String, String>;
 
     fn codec<T: serde::de::DeserializeOwned + Serialize>(json: &str) -> Result<String, String> {
-        corpus_set().scope(|| {
+        {
             let value: T = serde_json::from_str(json).map_err(|error| error.to_string())?;
             Ok(serde_json::to_string(&value).unwrap())
-        })
+        }
     }
 
     #[test]
@@ -555,10 +555,9 @@ mod tests {
         );
 
         let explicit_defaults = r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/village_plains","spawn_overrides":{},"step":"surface_structures","terrain_adaptation":"none","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80,"vertical":4064},"dimension_padding":0,"liquid_settings":"apply_waterlogging","pool_aliases":[]}"##;
-        let parsed: Structure =
-            corpus_set().scope(|| serde_json::from_str(explicit_defaults).unwrap());
+        let parsed: Structure = serde_json::from_str(explicit_defaults).unwrap();
         assert_eq!(
-            corpus_set().scope(|| serde_json::to_string(&parsed).unwrap()),
+            (serde_json::to_string(&parsed).unwrap()),
             r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/village_plains","spawn_overrides":{},"step":"surface_structures","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80}}"##
         );
         let Structure::Jigsaw { jigsaw, .. } = parsed else {

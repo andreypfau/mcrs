@@ -29,9 +29,9 @@ use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{Registry, RegistryLookup, UnknownEntry};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
+use std::collections::HashMap;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -223,7 +223,7 @@ pub struct BlockDefinitions {
     sound_sets: Vec<ResourceKey<BlockSoundSet>>,
     blocks: Vec<BlockEntry>,
     owners: Vec<Id<Block>>,
-    registry: Registry<Block>,
+    ids: HashMap<ResourceLocation<Arc<str>>, Id<Block>>,
 }
 
 const _: () = assert!(size_of::<Id<Block>>() == 2);
@@ -301,7 +301,7 @@ impl BlockDefinitions {
 
     #[inline]
     pub fn id_of(&self, identifier: &str) -> Option<Id<Block>> {
-        self.registry.by_name(identifier)
+        self.ids.get(identifier).copied()
     }
 
     pub fn table_bytes(&self) -> usize {
@@ -325,16 +325,15 @@ impl std::ops::Index<Id<Block>> for BlockDefinitions {
     }
 }
 
-impl RegistryLookup for BlockDefinitions {
-    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u16> {
-        None
-    }
-
-    fn name(&self, _: &str, _: u16) -> Option<&ResourceLocation> {
-        None
-    }
-
-    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u16> {
+impl BlockDefinitions {
+    /// The state id of `block` with `properties`, each unspecified property taking the block's
+    /// default. A property the block lacks, or a value the property lacks, is ignored the way the
+    /// block state codec ignores it.
+    pub fn state_id_of(
+        &self,
+        block: &ResourceLocation,
+        properties: &[(&str, &str)],
+    ) -> Option<u16> {
         let entry = self.block(block.as_str())?;
         let id = properties
             .iter()
@@ -344,7 +343,9 @@ impl RegistryLookup for BlockDefinitions {
         Some(id.number())
     }
 
-    fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+    /// The block of state `id` and every property, or none when `id` is the block's default
+    /// state, since that is the state a bare block id names.
+    pub fn properties_of(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         let id = BlockStateId::checked(id, self.states.len())?;
         let entry = self.owner(id);
         let properties = if id == entry.default_state_id {
@@ -354,11 +355,9 @@ impl RegistryLookup for BlockDefinitions {
                 .properties
                 .0
                 .iter()
-                .map(|property| {
-                    let value = entry
-                        .value_of(id, &property.name)
-                        .expect("the state's own property");
-                    (property.name.to_string(), value.to_text())
+                .filter_map(|property| {
+                    let value = entry.value_of(id, &property.name)?;
+                    Some((property.name.to_string(), value.to_text()))
                 })
                 .collect()
         };
@@ -373,14 +372,15 @@ impl RegistryLookup for BlockDefinitions {
 pub struct BlockSoundSets(Box<[Id<BlockSoundSet>]>);
 
 impl BlockSoundSets {
+    /// Fails with the first sound set `id_of` does not know.
     pub fn resolve(
         blocks: &BlockDefinitions,
-        registry: &Registry<BlockSoundSet>,
-    ) -> Result<Self, UnknownEntry> {
+        id_of: impl Fn(&ResourceKey<BlockSoundSet>) -> Option<Id<BlockSoundSet>>,
+    ) -> Result<Self, ResourceKey<BlockSoundSet>> {
         blocks
             .sound_sets
             .iter()
-            .map(|key| registry.require(key))
+            .map(|key| id_of(key).ok_or_else(|| key.clone()))
             .collect::<Result<_, _>>()
             .map(BlockSoundSets)
     }
@@ -435,12 +435,14 @@ pub enum LoadError {
     UnclaimedState(u16),
     #[error("`{block}` is in the registries report and has no definition file")]
     MissingDefinition { block: String },
+    #[error("`{name}` is not an identifier")]
+    InvalidName { name: String },
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockError {
-    #[error(transparent)]
-    Unknown(#[from] UnknownEntry),
+    #[error("the block registry holds no `{0}`")]
+    Unknown(String),
     #[error("states protocol id {stated}, which is {report} in the registries report")]
     ProtocolIdDisagrees { stated: u16, report: usize },
     #[error("condition `{condition}`: {source}")]
@@ -467,25 +469,30 @@ pub enum BlockError {
 #[cfg(feature = "bevy")]
 pub fn load_block_definitions(
     asset_server: &AssetServer,
-    blocks: &Registry<Block>,
 ) -> Result<(BlockDefinitions, LoadReport), LoadError> {
     let started = Instant::now();
     let source = asset_server
         .get_source(AssetSourceId::Default)
         .map_err(|_| LoadError::NoAssetSource)?;
     let corpus = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-    let (definitions, mut report) = build_block_definitions(blocks, corpus)?;
+    let (definitions, mut report) = build_block_definitions(
+        &Block::ENTRIES
+            .iter()
+            .map(|entry| entry.as_static_str())
+            .collect::<Vec<_>>(),
+        corpus,
+    )?;
     report.elapsed = started.elapsed();
     Ok((definitions, report))
 }
 
-/// The definitions the files state, one file per block, against the block
-/// registry they number. The report's `elapsed` is left zero.
-pub fn build_block_definitions(
-    blocks: &Registry<Block>,
+/// The definitions the files state, one file per block, against the block names numbered by
+/// their position. The report's `elapsed` is left zero.
+pub fn build_block_definitions<S: AsRef<str>>(
+    blocks: &[S],
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
 ) -> Result<(BlockDefinitions, LoadReport), LoadError> {
-    let mut builder = Builder::new(blocks);
+    let mut builder = Builder::new(blocks)?;
     let mut count = 0;
     for (path, bytes) in files {
         count += 1;
@@ -545,14 +552,27 @@ struct Builder {
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
     sound_sets: Vec<ResourceKey<BlockSoundSet>>,
-    registry: Registry<Block>,
+    names: Vec<ResourceLocation<Arc<str>>>,
+    ids: HashMap<ResourceLocation<Arc<str>>, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
 }
 
 impl Builder {
-    fn new(registry: &Registry<Block>) -> Self {
-        Builder {
+    fn new<S: AsRef<str>>(names: &[S]) -> Result<Self, LoadError> {
+        let mut ids = HashMap::with_capacity(names.len());
+        let mut read = Vec::with_capacity(names.len());
+        for (number, name) in (0..=u16::MAX).zip(names) {
+            let name =
+                ResourceLocation::read(name.as_ref()).map_err(|_| LoadError::InvalidName {
+                    name: name.as_ref().to_owned(),
+                })?;
+            if let Some(id) = Id::checked(number, names.len()) {
+                ids.insert(name.clone(), id);
+            }
+            read.push(name);
+        }
+        Ok(Builder {
             states: Vec::new(),
             owners: Vec::new(),
             shapes: Vec::new(),
@@ -560,12 +580,11 @@ impl Builder {
             loot: Vec::new(),
             experience: Vec::new(),
             sound_sets: Vec::new(),
-            blocks: std::iter::repeat_with(|| None)
-                .take(registry.len())
-                .collect(),
-            registry: registry.clone(),
+            blocks: std::iter::repeat_with(|| None).take(names.len()).collect(),
+            names: read,
+            ids,
             permutations: 0,
-        }
+        })
     }
 
     fn intern_shape(&mut self, boxes: &[ModelBox]) -> ShapeId {
@@ -603,9 +622,10 @@ impl Builder {
     )]
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
         let description = file.block.description;
-        let id = self
-            .registry
-            .require(&ResourceKey::from_location(description.identifier.clone()))?;
+        let id = *self
+            .ids
+            .get(&description.identifier)
+            .ok_or_else(|| BlockError::Unknown(description.identifier.to_string()))?;
         if usize::from(description.protocol_id) != id.index() {
             return Err(BlockError::ProtocolIdDisagrees {
                 stated: description.protocol_id,
@@ -689,9 +709,8 @@ impl Builder {
                 return Err(BlockError::OverlappingState {
                     state: state as u16,
                     owner: self
-                        .registry
-                        .table()
-                        .name(owner.index())
+                        .names
+                        .get(owner.index())
                         .map_or_else(String::new, |name| name.as_str().to_owned()),
                 });
             }
@@ -707,11 +726,7 @@ impl Builder {
             self.states[state] = data;
         }
 
-        let identifier = self
-            .registry
-            .name(id)
-            .expect("the id came from this registry")
-            .clone();
+        let identifier = description.identifier.clone();
         self.blocks[id.index()] = Some(BlockEntry {
             identifier,
             base_state_id,
@@ -865,9 +880,8 @@ impl Builder {
             blocks.push(slot.ok_or_else(|| {
                 LoadError::MissingDefinition {
                     block: self
-                        .registry
-                        .table()
-                        .name(index)
+                        .names
+                        .get(index)
                         .map_or_else(String::new, |name| name.as_str().to_owned()),
                 }
             })?);
@@ -886,7 +900,7 @@ impl Builder {
             sound_sets: std::mem::take(&mut self.sound_sets),
             blocks,
             owners,
-            registry: self.registry.clone(),
+            ids: std::mem::take(&mut self.ids),
         })
     }
 }
@@ -1001,18 +1015,8 @@ mod tests {
         )
     }
 
-    fn registry(names: &[&str]) -> Registry<Block> {
-        Registry::new(
-            crate::keys::BLOCK,
-            names
-                .iter()
-                .map(|name| ResourceLocation::read(name).unwrap()),
-        )
-        .unwrap()
-    }
-
     fn build_against(names: &[&str], files: &[String]) -> Result<BlockDefinitions, LoadError> {
-        let mut builder = Builder::new(&registry(names));
+        let mut builder = Builder::new(names).unwrap();
         for source in files {
             let file: BlockDefinitionFile = serde_json::from_str(source).expect("valid json");
             let block = file.block.description.identifier.as_str().to_owned();
@@ -1269,33 +1273,28 @@ mod tests {
         assert_eq!(set_of(1), Some("minecraft:decorated_pot"));
         assert_eq!(set_of(2), None);
 
-        let registry = |names: &[&str]| {
-            Registry::<BlockSoundSet>::new(
-                mcrs_minecraft_sound::keys::BLOCK_SOUND_SET,
-                names
-                    .iter()
-                    .map(|name| ResourceLocation::read(name).unwrap().to_arc()),
-            )
-            .unwrap()
-        };
-        let missing =
-            BlockSoundSets::resolve(&definitions, &registry(&["minecraft:decorated_pot"]))
-                .unwrap_err();
-        assert_eq!(missing.name, "minecraft:decorated_pot_cracked");
-
-        let loaded = registry(&[
+        const LOADED: [&str; 3] = [
             "minecraft:stone",
             "minecraft:decorated_pot",
             "minecraft:decorated_pot_cracked",
-        ]);
-        let resolved = BlockSoundSets::resolve(&definitions, &loaded).unwrap();
+        ];
+        let id_of = |names: &'static [&'static str]| {
+            move |key: &ResourceKey<BlockSoundSet>| {
+                let at = names.iter().position(|name| *name == key.as_str())?;
+                Id::checked(u16::try_from(at).ok()?, names.len())
+            }
+        };
+        let missing =
+            BlockSoundSets::resolve(&definitions, id_of(&["minecraft:decorated_pot"])).unwrap_err();
+        assert_eq!(missing.as_str(), "minecraft:decorated_pot_cracked");
+
+        let resolved = BlockSoundSets::resolve(&definitions, id_of(&LOADED)).unwrap();
         let resolved_of = |state: usize| {
             definitions
                 .state(states[state])
                 .sound_set
                 .and_then(|id| resolved.get(id))
-                .and_then(|id| loaded.name(id))
-                .map(ResourceLocation::as_str)
+                .and_then(|id| LOADED.get(id.index()).copied())
         };
         assert_eq!(resolved_of(0), Some("minecraft:decorated_pot_cracked"));
         assert_eq!(resolved_of(1), Some("minecraft:decorated_pot"));
@@ -1314,27 +1313,32 @@ mod tests {
         let definitions = build(&[source, file("minecraft:stone", 4, "", "")]).unwrap();
         let furnace = rl!("minecraft:furnace").to_arc();
         let stone = rl!("minecraft:stone").to_arc();
-        let lookup: &dyn RegistryLookup = &definitions;
 
-        assert_eq!(lookup.block_state_id(&furnace, &[]), Some(1));
-        assert_eq!(lookup.block_state_id(&furnace, &[("lit", "true")]), Some(0));
+        assert_eq!(definitions.state_id_of(&furnace, &[]), Some(1));
         assert_eq!(
-            lookup.block_state_id(&furnace, &[("lit", "nope"), ("facing", "south")]),
+            definitions.state_id_of(&furnace, &[("lit", "true")]),
+            Some(0)
+        );
+        assert_eq!(
+            definitions.state_id_of(&furnace, &[("lit", "nope"), ("facing", "south")]),
             Some(3)
         );
         assert_eq!(
-            lookup.block_state_id(&furnace, &[("bogus", "x"), ("lit", "true")]),
+            definitions.state_id_of(&furnace, &[("bogus", "x"), ("lit", "true")]),
             Some(0)
         );
-        assert_eq!(lookup.block_state_id(&stone, &[("lit", "true")]), Some(4));
+        assert_eq!(definitions.state_id_of(&stone, &[("lit", "true")]), Some(4));
         assert_eq!(
-            lookup.block_state_id(&rl!("minecraft:nope").to_arc(), &[]),
+            definitions.state_id_of(&rl!("minecraft:nope").to_arc(), &[]),
             None
         );
 
-        assert_eq!(lookup.block_state(1), Some((furnace.clone(), vec![])));
         assert_eq!(
-            lookup.block_state(2),
+            definitions.properties_of(1),
+            Some((furnace.clone(), vec![]))
+        );
+        assert_eq!(
+            definitions.properties_of(2),
             Some((
                 furnace,
                 vec![
@@ -1343,9 +1347,9 @@ mod tests {
                 ]
             ))
         );
-        assert_eq!(lookup.block_state(4), Some((stone, vec![])));
-        assert_eq!(lookup.block_state(5), None);
-        assert_eq!(lookup.block_state(u16::MAX), None);
+        assert_eq!(definitions.properties_of(4), Some((stone, vec![])));
+        assert_eq!(definitions.properties_of(5), None);
+        assert_eq!(definitions.properties_of(u16::MAX), None);
     }
 
     #[test]

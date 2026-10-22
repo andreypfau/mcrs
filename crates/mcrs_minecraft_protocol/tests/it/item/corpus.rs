@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_protocol::item::{ComponentMap, ComponentPatch, ItemPredicate, Template};
 use mcrs_minecraft_registries::Resolve;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -26,7 +26,7 @@ impl Family {
             .strip_prefix(mcrs_minecraft_fixtures::vanilla_dir())
             .unwrap_or(file)
             .display();
-        let registries = test_registries();
+        let registries = &**test_registries_arc();
         let value = match serde_json::from_str::<T::Named>(&source.to_string())
             .map_err(|error| error.to_string())
             .and_then(|named| T::resolve(named, registries).map_err(|error| error.to_string()))

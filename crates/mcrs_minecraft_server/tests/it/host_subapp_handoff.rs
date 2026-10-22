@@ -415,12 +415,12 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     use mcrs_minecraft_block::definition::Blocks;
     use mcrs_minecraft_core::Versioned;
     use mcrs_minecraft_item::Items;
-    use mcrs_minecraft_registry::RegistrySet;
+    use mcrs_minecraft_registries::CurrentRegistries;
     use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
     use std::any::type_name;
 
     let expected = [
-        type_name::<RegistrySet>(),
+        type_name::<CurrentRegistries>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
     ];
@@ -436,7 +436,9 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         .filter(|name| is_registry_type(name))
         .collect();
     assert!(
-        candidates.iter().any(|name| name.contains("RegistrySet")),
+        candidates
+            .iter()
+            .any(|name| name.contains("CurrentRegistries")),
         "the host holds no registry resource to check: {candidates:?}"
     );
 
@@ -469,7 +471,7 @@ fn is_registry_type(name: &str) -> bool {
     let leaf = head.rsplit("::").next().unwrap_or(head);
     matches!(
         leaf,
-        "Registry" | "Entries" | "RegistrySet" | "Blocks" | "Items"
+        "Registry" | "Registries" | "CurrentRegistries" | "Blocks" | "Items"
     )
 }
 

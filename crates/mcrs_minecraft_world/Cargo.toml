@@ -33,13 +33,11 @@ bevy = [
     "mcrs_minecraft_environment/bevy",
     "mcrs_minecraft_item/bevy",
     "mcrs_minecraft_registries/bevy",
-    "mcrs_minecraft_registry/bevy",
     "mcrs_minecraft_worldgen_carver/bevy",
 ]
 
 [dependencies]
 mcrs_minecraft_game_rule.workspace = true
-mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
@@ -58,7 +56,6 @@ mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets = { workspace = true, optional = true }
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
@@ -85,7 +82,6 @@ mcrs_minecraft_fixtures = { workspace = true, optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true

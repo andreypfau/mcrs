@@ -8,7 +8,7 @@ use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{IdSet, Named, Refs, Resolve, Resolved};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
@@ -44,9 +44,18 @@ fn monster_spawn_light_level<'de, D: Deserializer<'de>>(d: D) -> Result<IntProvi
     BoundedIntProvider::<0, 15>::deserialize(d).map(|provider| provider.0)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
-pub struct DimensionTypeFile {
+#[derive(Debug, Clone, Serialize, Deserialize, Resolve)]
+#[serde(
+    remote = "Self",
+    deny_unknown_fields,
+    bound(
+        serialize = "M::Set<Block>: Serialize, M::Set<Timeline>: Serialize + Default + PartialEq, \
+                     M::Id<WorldClock>: Serialize",
+        deserialize = "M::Set<Block>: Deserialize<'de>, M::Set<Timeline>: Deserialize<'de> + Default, \
+                       M::Id<WorldClock>: Deserialize<'de>"
+    )
+)]
+pub struct DimensionTypeFile<M: Refs = Resolved> {
     pub has_skylight: bool,
     pub has_ceiling: bool,
     pub has_ender_dragon_fight: bool,
@@ -58,7 +67,7 @@ pub struct DimensionTypeFile {
     pub height: u32,
     #[serde(deserialize_with = "logical_height")]
     pub logical_height: u32,
-    pub infiniburn: HolderSet<Block>,
+    pub infiniburn: M::Set<Block>,
     pub ambient_light: f32,
     #[serde(deserialize_with = "monster_spawn_block_light_limit")]
     pub monster_spawn_block_light_limit: u32,
@@ -73,16 +82,12 @@ pub struct DimensionTypeFile {
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, skip_serializing_if = "is_default")]
-    pub timelines: HolderSet<Timeline>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "mcrs_minecraft_registry::by_name::option"
-    )]
-    pub default_clock: Option<Id<WorldClock>>,
+    pub timelines: M::Set<Timeline>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_clock: Option<M::Id<WorldClock>>,
 }
 
-impl<'de> Deserialize<'de> for DimensionTypeFile {
+impl<'de> Deserialize<'de> for DimensionTypeFile<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let dimension_type = DimensionTypeFile::deserialize(d)?;
         let (min_y, height) = (dimension_type.min_y, dimension_type.height as i32);
@@ -107,7 +112,7 @@ impl<'de> Deserialize<'de> for DimensionTypeFile {
     }
 }
 
-impl Serialize for DimensionTypeFile {
+impl Serialize for DimensionTypeFile<Named> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         DimensionTypeFile::serialize(self, s)
     }
@@ -118,7 +123,7 @@ impl Serialize for DimensionTypeFile {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionTypeEnvironment {
     pub attributes: EnvironmentAttributeMap,
-    pub timelines: HolderSet<Timeline>,
+    pub timelines: IdSet<Timeline>,
     pub default_clock: Option<Id<WorldClock>>,
 }
 
@@ -171,7 +176,9 @@ impl DimensionTypeFile {
             default_clock: environment.default_clock,
         }
     }
+}
 
+impl<M: Refs> DimensionTypeFile<M> {
     pub fn synced(mut self) -> Self {
         self.attributes = self.attributes.filter_syncable();
         self
@@ -181,7 +188,7 @@ impl DimensionTypeFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::{dimension_type_set, packs, vanilla_dir};
+    use mcrs_minecraft_worldgen_testing::{packs, vanilla_dir};
     use serde_json::Value;
     use std::path::PathBuf;
 
@@ -196,24 +203,18 @@ mod tests {
             .collect()
     }
 
-    fn read(name: &str) -> DimensionTypeFile {
+    fn read(name: &str) -> DimensionTypeFile<Named> {
         let path = dimension_type_dirs()
             .into_iter()
             .map(|dir| dir.join(name))
             .find(|path| path.is_file())
             .unwrap();
-        dimension_type_set()
-            .scope(|| serde_json::from_slice(&std::fs::read(path).unwrap()))
-            .unwrap()
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
     }
 
     #[test]
     fn the_network_dimension_type_is_the_games() {
-        let sent = |name: &str| {
-            dimension_type_set()
-                .scope(|| serde_json::to_value(read(name).synced()))
-                .unwrap()
-        };
+        let sent = |name: &str| serde_json::to_value(read(name).synced()).unwrap();
 
         let overworld = sent("overworld.json");
         assert!(overworld.get("skybox").is_none(), "{overworld}");
@@ -241,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn every_dimension_type_parses_through_the_registry() {
+    fn every_dimension_type_round_trips() {
         let mut count = 0;
         for entry in dimension_type_dirs().into_iter().flat_map(|dir| {
             std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
@@ -252,14 +253,10 @@ mod tests {
             }
             let bytes = std::fs::read(&path).unwrap();
             let raw: Value = serde_json::from_slice(&bytes).unwrap();
-            let parsed: DimensionTypeFile = dimension_type_set()
-                .scope(|| serde_json::from_slice(&bytes))
+            let parsed: DimensionTypeFile<Named> = serde_json::from_slice(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
 
-            let written: Value = serde_json::from_str(
-                &dimension_type_set().scope(|| serde_json::to_string(&parsed).unwrap()),
-            )
-            .unwrap();
+            let written = mcrs_minecraft_worldgen_testing::reencode(&parsed);
             assert_eq!(written, raw, "{} must round-trip unchanged", path.display());
             count += 1;
         }

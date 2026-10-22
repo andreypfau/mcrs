@@ -13,7 +13,6 @@ workspace = true
 [dependencies]
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_chunk.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
@@ -30,7 +29,6 @@ bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
 bevy_app.workspace = true
 bevy_asset.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bevy_math.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 

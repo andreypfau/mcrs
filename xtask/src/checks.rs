@@ -26,7 +26,7 @@ const WASM32_PACKAGES: [&str; 9] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 47] = [
+const NO_BEVY_PACKAGES: [&str; 46] = [
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
@@ -56,7 +56,6 @@ const NO_BEVY_PACKAGES: [&str; 47] = [
     "mcrs_minecraft_protocol_macros",
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
-    "mcrs_minecraft_registry",
     "mcrs_minecraft_registry_catalog",
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_sound",

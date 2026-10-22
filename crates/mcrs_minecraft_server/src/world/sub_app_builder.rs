@@ -79,8 +79,7 @@ use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
@@ -89,8 +88,8 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registries::RegistryOf;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
@@ -167,22 +166,21 @@ pub fn spawn_dim_subapp(
         dimension_type: request.dimension_type.number(),
     };
     let (type_config, has_sky, has_weather) = {
-        let set = app.world().get_resource::<RegistrySet>();
-        let types = set.and_then(|set| set.entries::<DimensionType, DimensionType>());
-        let environments =
-            set.and_then(|set| set.entries::<DimensionType, DimensionTypeEnvironment>());
-        let dimension_type = types
-            .as_ref()
-            .and_then(|types| types.get(request.dimension_type))
+        let file = app
+            .world()
+            .get_resource::<CurrentRegistries>()
+            .and_then(|registries| registries.registry::<RegistryOf<DimensionTypeFile>>())
+            .and_then(|types| {
+                let id =
+                    mcrs_minecraft_core::Id::checked(request.dimension_type.number(), types.len())?;
+                types.get(id)
+            })
             .ok_or_else(unknown)?;
-        let environment = environments
-            .as_ref()
-            .and_then(|environments| environments.get(request.dimension_type))
-            .ok_or_else(unknown)?;
+        let (dimension_type, environment) = file.split();
         (
             DimensionTypeConfig::new(dimension_type.min_y, dimension_type.height),
             dimension_type.has_skylight,
-            DimensionEnvironment::of(&request.dimension, dimension_type, environment)
+            DimensionEnvironment::of(&request.dimension, &dimension_type, &environment)
                 .can_have_weather,
         )
     };
@@ -457,8 +455,12 @@ pub fn spawn_dim_subapp(
                 &preset_tables,
                 registries.heightmap_predicates.clone(),
                 registries.world_save.as_ref().and_then(|save| {
-                    let set = sub_app.world().resource::<RegistrySet>().clone();
-                    SavedColumns::open(&save.0, &request.dimension, set)
+                    let registries = sub_app
+                        .world()
+                        .resource::<CurrentRegistries>()
+                        .arc()
+                        .clone();
+                    SavedColumns::open(&save.0, &request.dimension, registries)
                 }),
                 registries
                     .modern_carver_biomes

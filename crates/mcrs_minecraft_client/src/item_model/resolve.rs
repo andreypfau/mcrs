@@ -10,8 +10,8 @@ use bevy::prelude::{
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_item::{Held, ItemStack, Items, StackRevision};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
-use mcrs_minecraft_network::client::DecodeScope;
 use mcrs_minecraft_protocol::item::ItemModel;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
 use super::bake::{BakedItemModel, BakedNode, ItemModels};
 use super::eval::{EntityStack, Evaluator};
@@ -61,27 +61,22 @@ pub fn resolve_item_layers(
     models: Res<ItemModels>,
     stacks: Query<(Entity, Ref<StackRevision>, Has<ItemRenderLayers>), With<Held>>,
     reads: Query<EntityRef, With<ItemStack>>,
-    scope: Option<Res<DecodeScope>>,
+    registries: Option<Res<CurrentRegistries>>,
     mut commands: Commands,
 ) {
     let all = models.is_changed();
-    let mut resolve_stacks = || {
-        for (entity, revision, resolved) in &stacks {
-            if !(all || !resolved || revision.is_changed()) {
-                continue;
-            }
-            let Ok(stack) = reads.get(entity) else {
-                continue;
-            };
-            let lookup = |child| reads.get(child).ok();
-            commands
-                .entity(entity)
-                .insert(resolve(stack, &items, &models, &lookup));
+    let registries = registries.as_deref().map(|registries| &**registries);
+    for (entity, revision, resolved) in &stacks {
+        if !(all || !resolved || revision.is_changed()) {
+            continue;
         }
-    };
-    match scope {
-        Some(scope) => scope.0.scope(resolve_stacks),
-        None => resolve_stacks(),
+        let Ok(stack) = reads.get(entity) else {
+            continue;
+        };
+        let lookup = |child| reads.get(child).ok();
+        commands
+            .entity(entity)
+            .insert(resolve(stack, &items, &models, registries, &lookup));
     }
 }
 
@@ -89,6 +84,7 @@ pub fn resolve<'a>(
     stack: EntityRef<'a>,
     items: &Items,
     models: &ItemModels,
+    registries: Option<&Registries>,
     lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,
 ) -> ItemRenderLayers {
     let item = match stack.get::<ItemModel>() {
@@ -106,6 +102,7 @@ pub fn resolve<'a>(
     };
     let evaluator = Evaluator {
         stack,
+        registries,
         grass: &grass,
     };
     let mut layers = Vec::new();
@@ -380,12 +377,13 @@ mod tests {
                 items: items(),
                 lookup: move |child| world.get_entity(child).ok(),
             },
+            registries: None,
             grass: &grass,
         }
     }
 
     fn resolved(world: &World, stack: Entity) -> ItemRenderLayers {
-        resolve(world.entity(stack), items(), models(), &|child| {
+        resolve(world.entity(stack), items(), models(), None, &|child| {
             world.get_entity(child).ok()
         })
     }

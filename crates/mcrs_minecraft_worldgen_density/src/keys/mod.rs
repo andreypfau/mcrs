@@ -6,7 +6,7 @@ pub mod noise_settings;
 
 pub use density_function_type::DensityFunctionType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const DENSITY_FUNCTION: RegistryKey<crate::proto::DensityFunctionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/density_function"));
@@ -24,12 +24,4 @@ pub const NOISE_SETTINGS: RegistryKey<crate::router::NoiseGeneratorSettings> =
     RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
 impl Registered for crate::router::NoiseGeneratorSettings {
     const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        DENSITY_FUNCTION.binding(),
-        DENSITY_FUNCTION_TYPE.binding(),
-        NOISE_SETTINGS.binding(),
-    ]
 }

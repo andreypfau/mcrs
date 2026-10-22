@@ -8,7 +8,7 @@ pub use custom_stat::CustomStat;
 pub use entity_sub_predicate_type::EntitySubPredicateType;
 pub use stat_type::StatType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const CUSTOM_STAT: RegistryKey<crate::keys::CustomStat> =
     RegistryKey::new(rl!("minecraft:custom_stat"));
@@ -26,12 +26,4 @@ pub const STAT_TYPE: RegistryKey<crate::keys::StatType> =
     RegistryKey::new(rl!("minecraft:stat_type"));
 impl Registered for crate::keys::StatType {
     const REGISTRY: RegistryKey<Self> = STAT_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        CUSTOM_STAT.binding(),
-        ENTITY_SUB_PREDICATE_TYPE.binding(),
-        STAT_TYPE.binding(),
-    ]
 }

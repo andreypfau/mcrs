@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::codec::{Bounded, is_default};
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::{Key, Named, Refs, Resolve, Resolved, registry_value};
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -85,38 +84,33 @@ pub fn beta_biome_from_climate(
 // Biome sources
 // ===========================================================================
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub enum BiomeSource {
-    MultiNoise(MultiNoiseBiomeSource),
+pub enum BiomeSource<M: Refs = Resolved> {
+    MultiNoise(MultiNoiseBiomeSource<M>),
     TheEnd,
     Fixed {
-        #[serde(with = "mcrs_minecraft_registry::by_name")]
-        biome: Id<crate::Biome>,
-    },
-    Checkerboard {
-        biomes: HolderSet<crate::Biome>,
-        #[serde(default, skip_serializing_if = "is_default")]
-        scale: Bounded<0, 62, 2>,
+        biome: M::Id<crate::Biome>,
     },
     Beta {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
-        #[serde(rename = "biomes", with = "mcrs_minecraft_registry::by_name::array")]
-        land_biomes: [Id<crate::Biome>; 11],
+        #[serde(rename = "biomes")]
+        land_biomes: [M::Id<crate::Biome>; 11],
         #[serde(skip, default = "beta_lookup")]
         lookup: Arc<[[BetaLandBiome; 64]; 64]>,
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
-    BiomeSource, key = "type", registry = crate::keys::BiomeSourceType,
+mcrs_minecraft_registries::dispatch! {
+    BiomeSource<Named>, key = "type", registry = crate::keys::BiomeSourceType,
     {
         MultiNoise => MultiNoise,
         TheEnd => TheEnd,
         Fixed => Fixed,
-        Checkerboard => Checkerboard,
     }
+    unsupported { Checkerboard }
     extend { "mcrs:beta" => Beta }
 }
 
@@ -125,39 +119,35 @@ fn beta_lookup() -> Arc<[[BetaLandBiome; 64]; 64]> {
 }
 
 impl BiomeSource {
-    pub fn beta_biome(&self, temp: f32, rain: f32) -> Id<crate::Biome> {
+    pub fn beta_biome(&self, temp: f32, rain: f32) -> Option<Id<crate::Biome>> {
         match self {
             BiomeSource::Beta {
                 land_biomes,
                 lookup,
-            } => land_biomes[beta_biome_from_climate(lookup, temp, rain) as usize],
-            _ => panic!("beta_biome called on non-Beta BiomeSource"),
+            } => land_biomes
+                .get(beta_biome_from_climate(lookup, temp, rain) as usize)
+                .copied(),
+            _ => None,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum MultiNoiseBiomeSource {
-    Biomes(Vec<MultiNoiseBiomeEntry>),
-    Preset(Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>),
+#[derive(Debug, Clone, PartialEq, Resolve)]
+pub enum MultiNoiseBiomeSource<M: Refs = Resolved> {
+    Biomes(Vec<MultiNoiseBiomeEntry<M>>),
+    Preset(M::Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>),
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MultiNoiseFields {
     #[serde(default, deserialize_with = "distinguishable_entries")]
-    biomes: Option<Vec<MultiNoiseBiomeEntry>>,
-    #[serde(default, with = "mcrs_minecraft_registry::by_name::option")]
-    preset: Option<Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
+    biomes: Option<Vec<MultiNoiseBiomeEntry<Named>>>,
+    #[serde(default)]
+    preset: Option<Key<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
 }
 
-#[derive(Serialize)]
-struct PresetRef<'a>(
-    #[serde(with = "mcrs_minecraft_registry::by_name")]
-    &'a Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>,
-);
-
-impl<'de> Deserialize<'de> for MultiNoiseBiomeSource {
+impl<'de> Deserialize<'de> for MultiNoiseBiomeSource<Named> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         match MultiNoiseFields::deserialize(d)? {
             MultiNoiseFields {
@@ -178,36 +168,36 @@ impl<'de> Deserialize<'de> for MultiNoiseBiomeSource {
     }
 }
 
-impl Serialize for MultiNoiseBiomeSource {
+impl Serialize for MultiNoiseBiomeSource<Named> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
         let mut fields = s.serialize_struct("MultiNoiseBiomeSource", 1)?;
         match self {
             Self::Biomes(biomes) => fields.serialize_field("biomes", biomes)?,
-            Self::Preset(preset) => fields.serialize_field("preset", &PresetRef(preset))?,
+            Self::Preset(preset) => fields.serialize_field("preset", preset)?,
         }
         fields.end()
     }
 }
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MultiNoiseBiomeEntry {
+pub struct MultiNoiseBiomeEntry<M: Refs = Resolved> {
     pub parameters: ClimateParameters,
-    #[serde(with = "mcrs_minecraft_registry::by_name")]
-    pub biome: Id<crate::Biome>,
+    pub biome: M::Id<crate::Biome>,
 }
 
 fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<Option<Vec<MultiNoiseBiomeEntry>>, D::Error> {
-    let entries = Vec::<MultiNoiseBiomeEntry>::deserialize(deserializer)?;
+) -> Result<Option<Vec<MultiNoiseBiomeEntry<Named>>>, D::Error> {
+    let entries = Vec::<MultiNoiseBiomeEntry<Named>>::deserialize(deserializer)?;
     if entries.is_empty() {
         return Err(serde::de::Error::custom("List must have contents"));
     }
     let points: Vec<_> = entries
         .iter()
-        .map(|entry| (entry.biome, ParameterPoint::from(&entry.parameters)))
+        .map(|entry| (&entry.biome, ParameterPoint::from(&entry.parameters)))
         .collect();
     for (first, (biome_a, a)) in points.iter().enumerate() {
         for (second, (biome_b, b)) in points.iter().enumerate().skip(first + 1) {
@@ -228,27 +218,19 @@ fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_registry::{Registry, RegistrySet};
     use std::collections::HashSet;
-    use std::sync::Arc;
 
     #[test]
     fn two_biomes_no_climate_can_tell_apart_are_a_load_error() {
-        let names = ["minecraft:plains", "minecraft:desert"]
-            .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
-        let set = RegistrySet::new()
-            .with(Registry::<crate::Biome>::new(crate::keys::BIOME, names).unwrap())
-            .unwrap();
         let entry = |biome: &str, humidity: &str| {
             format!(
                 r#"{{"biome":"{biome}","parameters":{{"temperature":0.0,"humidity":{humidity},"continentalness":0.0,"erosion":0.0,"depth":0.0,"weirdness":0.0,"offset":0.0}}}}"#
             )
         };
         let parse = |a: String, b: String| {
-            set.scope(|| {
-                serde_json::from_str::<MultiNoiseBiomeSource>(&format!(r#"{{"biomes":[{a},{b}]}}"#))
-            })
+            serde_json::from_str::<MultiNoiseBiomeSource<Named>>(&format!(
+                r#"{{"biomes":[{a},{b}]}}"#
+            ))
         };
 
         let error = parse(
@@ -274,69 +256,19 @@ mod tests {
         );
     }
 
-    fn source_set() -> RegistrySet {
-        let read = |name: &str| ResourceLocation::<Arc<str>>::read(name).unwrap();
-        let biomes = Registry::<crate::Biome>::new(
-            crate::keys::BIOME,
-            ["minecraft:plains", "minecraft:desert"].map(read),
-        )
-        .unwrap();
-        let tag = r#"{"values":["minecraft:desert","minecraft:plains"]}"#;
-        let files = [(
-            read("minecraft:warm"),
-            vec![mcrs_minecraft_registry::tags::TagSource {
-                pack: "test",
-                path: "minecraft/tags/worldgen/biome/warm.json",
-                bytes: tag.as_bytes(),
-            }],
-        )];
-        let (tags, problems) = mcrs_minecraft_registry::build_tags(
-            biomes.table(),
-            mcrs_minecraft_registry::TagRules::World,
-            &files,
-            None,
-        );
-        assert!(problems.is_empty(), "{problems:?}");
-        RegistrySet::new()
-            .with(biomes)
-            .unwrap()
-            .with(
-                Registry::<crate::parameter_list::MultiNoiseBiomeSourceParameterList>::new(
-                    crate::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-                    [read("minecraft:overworld")],
-                )
-                .unwrap(),
-            )
-            .unwrap()
-            .with_tags(Arc::new(tags))
-    }
-
     #[test]
     fn a_biome_source_reads_and_writes_the_shapes_the_reference_does() {
         let entry = r#"{"parameters":{"temperature":0.0,"humidity":0.0,"continentalness":0.0,"erosion":0.0,"depth":0.0,"weirdness":0.0,"offset":0.0},"biome":"minecraft:plains"}"#;
         let round_trips = [
             r#"{"type":"minecraft:multi_noise","preset":"minecraft:overworld"}"#.to_owned(),
             format!(r#"{{"type":"minecraft:multi_noise","biomes":[{entry}]}}"#),
-            r##"{"type":"minecraft:checkerboard","biomes":"#minecraft:warm"}"##.to_owned(),
-            r#"{"type":"minecraft:checkerboard","biomes":["minecraft:plains","minecraft:desert"],"scale":62}"#.to_owned(),
-            r#"{"type":"minecraft:checkerboard","biomes":"minecraft:plains"}"#.to_owned(),
+            r#"{"type":"minecraft:fixed","biome":"minecraft:plains"}"#.to_owned(),
         ];
-        let set = source_set();
-        set.scope(|| {
-            for text in &round_trips {
-                let read: BiomeSource =
-                    serde_json::from_str(text).unwrap_or_else(|e| panic!("{text}: {e}"));
-                assert_eq!(&serde_json::to_string(&read).unwrap(), text);
-            }
-            let explicit: BiomeSource = serde_json::from_str(
-                r#"{"type":"minecraft:checkerboard","biomes":["minecraft:plains"],"scale":2}"#,
-            )
-            .unwrap();
-            assert_eq!(
-                serde_json::to_string(&explicit).unwrap(),
-                r#"{"type":"minecraft:checkerboard","biomes":"minecraft:plains"}"#
-            );
-        });
+        for text in &round_trips {
+            let read: BiomeSource<Named> =
+                serde_json::from_str(text).unwrap_or_else(|e| panic!("{text}: {e}"));
+            assert_eq!(&serde_json::to_string(&read).unwrap(), text);
+        }
     }
 
     #[test]
@@ -357,26 +289,13 @@ mod tests {
                 r#"{"type":"minecraft:multi_noise","biomes":[]}"#.to_owned(),
                 "List must have contents",
             ),
-            (
-                r#"{"type":"minecraft:checkerboard","biomes":["minecraft:plains"],"scale":63}"#
-                    .to_owned(),
-                "Value must be within range [0;62]: 63",
-            ),
-            (
-                r#"{"type":"minecraft:checkerboard","biomes":["minecraft:plains"],"scale":-1}"#
-                    .to_owned(),
-                "Value must be within range [0;62]: -1",
-            ),
         ];
-        let set = source_set();
-        set.scope(|| {
-            for (text, expected) in &refused {
-                let error = serde_json::from_str::<BiomeSource>(text)
-                    .expect_err(text)
-                    .to_string();
-                assert!(error.contains(expected), "{text}: {error}");
-            }
-        });
+        for (text, expected) in &refused {
+            let error = serde_json::from_str::<BiomeSource<Named>>(text)
+                .expect_err(text)
+                .to_string();
+            assert!(error.contains(expected), "{text}: {error}");
+        }
     }
 
     #[test]

@@ -15,7 +15,7 @@ pub use loot_pool_entry_type::LootPoolEntryType;
 pub use loot_score_provider_type::LootScoreProviderType;
 pub use slot_source_type::SlotSourceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const ITEM_MODIFIER: RegistryKey<crate::function::LootItemFunction> =
     RegistryKey::new(rl!("minecraft:item_modifier"));
@@ -69,18 +69,4 @@ pub const SLOT_SOURCE_TYPE: RegistryKey<crate::keys::SlotSourceType> =
     RegistryKey::new(rl!("minecraft:slot_source_type"));
 impl Registered for crate::keys::SlotSourceType {
     const REGISTRY: RegistryKey<Self> = SLOT_SOURCE_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 9] {
-    [
-        ITEM_MODIFIER.binding(),
-        LOOT_CONDITION_TYPE.binding(),
-        LOOT_FUNCTION_TYPE.binding(),
-        LOOT_NBT_PROVIDER_TYPE.binding(),
-        LOOT_POOL_ENTRY_TYPE.binding(),
-        LOOT_SCORE_PROVIDER_TYPE.binding(),
-        PREDICATE.binding(),
-        SLOT_SOURCE.binding(),
-        SLOT_SOURCE_TYPE.binding(),
-    ]
 }

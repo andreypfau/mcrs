@@ -6,7 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::climate::ParameterList;
 use crate::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::{Entries, RegistrySet};
+use mcrs_minecraft_registries::{Registries, RegistryOf, RegistryType};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Preset {
@@ -70,15 +71,16 @@ pub struct MultiNoiseBiomeSourceParameterList {
     pub preset: Preset,
 }
 
-pub type ParameterLists = Entries<
-    crate::parameter_list::MultiNoiseBiomeSourceParameterList,
-    MultiNoiseBiomeSourceParameterList,
->;
+impl RegistryType for MultiNoiseBiomeSourceParameterList {
+    type Value = ();
+}
 
-pub fn parameter_lists_of(set: &RegistrySet) -> ParameterLists {
-    set.entries().expect(
-        "the data pack loader parses minecraft:worldgen/multi_noise_biome_source_parameter_list",
-    )
+pub type ParameterLists = Arc<[MultiNoiseBiomeSourceParameterList]>;
+
+pub fn parameter_lists_of(registries: &Registries) -> Option<ParameterLists> {
+    registries
+        .registry::<RegistryOf<MultiNoiseBiomeSourceParameterList>>()
+        .map(|registry| Arc::clone(registry.values()))
 }
 
 #[cfg(test)]

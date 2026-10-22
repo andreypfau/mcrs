@@ -1,8 +1,9 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use anyhow::Context;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::component::RgbInt;
 use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_particle::{
@@ -11,7 +12,6 @@ use mcrs_minecraft_particle::{
     PositionSource, PowerParticle, SculkChargeParticle, ShriekParticle, SpellParticle,
     TrailParticle, VibrationParticle,
 };
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
 use crate::item::wire::{record_ctx_wire, record_wire};
@@ -22,7 +22,7 @@ macro_rules! particle_wire {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         fn encode_payload(
             options: &ParticleOptions,
-            ctx: &dyn RegistryLookup,
+            ctx: &WireCtx<'_>,
             w: impl Write,
         ) -> anyhow::Result<()> {
             match options {
@@ -34,7 +34,7 @@ macro_rules! particle_wire {
 
         fn decode_payload(
             kind: ParticleType,
-            ctx: &dyn RegistryLookup,
+            ctx: &WireCtx<'_>,
             r: &mut &[u8],
         ) -> anyhow::Result<ParticleOptions> {
             Ok(match kind {
@@ -76,38 +76,46 @@ mcrs_minecraft_particle::for_each_particle_type!(particle_wire);
 static_registry_wire!(ParticleType, "particle type");
 
 impl EncodeCtx for ParticleOptions {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.kind().encode(&mut w)?;
         encode_payload(self, ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for ParticleOptions {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let kind = ParticleType::decode(r)?;
         decode_payload(kind, ctx, r)
     }
 }
 
 impl EncodeCtx for BlockStateValue {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         let properties: Vec<(&str, &str)> = self
             .properties
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
         let id = ctx
-            .block_state_id(self.block.location(), &properties)
+            .blocks()?
+            .state_id_of(self.block.location(), &properties)
             .with_context(|| format!("{} has no block state {:?}", self.block, self.properties))?;
         encode_registry_id(id, w)
     }
 }
 
 impl DecodeCtx<'_> for BlockStateValue {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = decode_registry_id(r)?;
+        if ctx.walking() {
+            return Ok(BlockStateValue {
+                block: ResourceKey::from_location(ResourceLocation::read("mcrs:unresolved")?),
+                properties: Default::default(),
+            });
+        }
         let (block, properties) = ctx
-            .block_state(id)
+            .blocks()?
+            .properties_of(id)
             .with_context(|| format!("no block state has id {id}"))?;
         Ok(BlockStateValue {
             block: ResourceKey::from_location(block),

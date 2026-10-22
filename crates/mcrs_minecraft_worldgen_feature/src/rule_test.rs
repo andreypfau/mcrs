@@ -39,7 +39,7 @@ pub enum RuleTest {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     RuleTest, key = "predicate_type", registry = crate::keys::RuleTestType,
     {
         AllOf => AllOf,

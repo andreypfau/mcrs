@@ -20,7 +20,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::particle::RawParticle;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 
-use crate::item::harness::{TestLookup, hex, named, read_json};
+use crate::item::harness::{block_ctx, hex, named, read_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("particles").text());
 
@@ -36,42 +36,9 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-pub(crate) fn lookup() -> TestLookup {
-    let mut lookup = TestLookup::new();
-    lookup.registry_with_ids(
-        "item",
-        &[
-            ("air", 0),
-            ("stone", 1),
-            ("apple", 1008),
-            ("diamond_sword", 1051),
-        ],
-    );
-    lookup.block_state(1, "stone", &[], true);
-    lookup.block_state(
-        6884,
-        "furnace",
-        &[("facing", "north"), ("lit", "false")],
-        true,
-    );
-    lookup.block_state(
-        6883,
-        "furnace",
-        &[("facing", "north"), ("lit", "true")],
-        false,
-    );
-    lookup.block_state(
-        6886,
-        "furnace",
-        &[("facing", "south"), ("lit", "false")],
-        false,
-    );
-    lookup
-}
-
 fn wire(particle: &ParticleOptions) -> Vec<u8> {
     let mut out = Vec::new();
-    particle.encode_ctx(&lookup(), &mut out).unwrap();
+    particle.encode_ctx(&block_ctx(), &mut out).unwrap();
     out
 }
 
@@ -81,7 +48,7 @@ fn wire(particle: &ParticleOptions) -> Vec<u8> {
 fn check(label: &str) -> ParticleOptions {
     let bytes = hex(golden(&format!("{label}.wire")));
     let mut r = &bytes[..];
-    let decoded = ParticleOptions::decode_ctx(&lookup(), &mut r).unwrap();
+    let decoded = ParticleOptions::decode_ctx(&block_ctx(), &mut r).unwrap();
     assert!(r.is_empty(), "{label}: {} trailing bytes", r.len());
     assert_eq!(to_hex(&wire(&decoded)), to_hex(&bytes), "{label}: wire");
 
@@ -94,7 +61,7 @@ fn check(label: &str) -> ParticleOptions {
 
     let raw = RawParticle::decode(&mut &bytes[..]).unwrap();
     assert_eq!(raw.0, bytes, "{label}: raw walk");
-    assert_eq!(raw.resolve(&lookup()).unwrap(), decoded);
+    assert_eq!(raw.resolve(&block_ctx()).unwrap(), decoded);
     decoded
 }
 
@@ -110,11 +77,12 @@ fn particle_type_wire_ids_and_position_sources_match_the_golden() {
         );
     }
 
-    let set = mcrs_minecraft_registry::static_report::shipped_report();
-    let sources = set.table("minecraft:position_source_type").unwrap();
-    assert_eq!(sources.len(), 2);
-    assert_eq!(sources.names()[0].as_str(), "minecraft:block");
-    assert_eq!(sources.names()[1].as_str(), "minecraft:entity");
+    let (_, sources) = mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
+        .iter()
+        .find(|(key, _)| key.as_static_str() == "minecraft:position_source_type")
+        .unwrap();
+    let names: Vec<&str> = sources.iter().map(|name| name.as_static_str()).collect();
+    assert_eq!(names, ["minecraft:block", "minecraft:entity"]);
     let mut out = Vec::new();
     PositionSource::Entity {
         entity_id: 7,
@@ -249,14 +217,14 @@ fn data_forms_validate_like_vanilla() {
         read_json(r#"{"type":"block","block_state":"minecraft:nope"}"#).unwrap();
     assert!(
         unknown
-            .encode_ctx(&lookup(), &mut Vec::new())
+            .encode_ctx(&block_ctx(), &mut Vec::new())
             .unwrap_err()
             .to_string()
             .contains("has no block state")
     );
 
     let clamped =
-        ParticleOptions::decode_ctx(&lookup(), &mut &hex("1500ff000041200000")[..]).unwrap();
+        ParticleOptions::decode_ctx(&block_ctx(), &mut &hex("1500ff000041200000")[..]).unwrap();
     assert_eq!(
         clamped,
         ParticleOptions::Dust(DustParticle {
@@ -285,7 +253,10 @@ fn level_particles_packet_matches_vanilla() {
             randomization: ParticleRandomization::Default,
         }
     );
-    assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("dust"));
+    assert_eq!(
+        packet.particle.resolve(&block_ctx()).unwrap(),
+        check("dust")
+    );
     let mut out = Vec::new();
     packet.encode(&mut out).unwrap();
     assert_eq!(to_hex(&out), to_hex(&bytes));
@@ -293,9 +264,12 @@ fn level_particles_packet_matches_vanilla() {
     let bytes = hex(golden("particles_packet_item.wire"));
     let packet = ClientboundLevelParticles::decode(&mut &bytes[..]).unwrap();
     assert_eq!(packet.count, VarInt(3));
-    assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("item"));
+    assert_eq!(
+        packet.particle.resolve(&block_ctx()).unwrap(),
+        check("item")
+    );
     let rebuilt = ClientboundLevelParticles {
-        particle: RawParticle::from_value(&check("item"), &lookup()).unwrap(),
+        particle: RawParticle::from_value(&check("item"), &block_ctx()).unwrap(),
         ..packet
     };
     let mut out = Vec::new();
@@ -330,7 +304,7 @@ fn block_states_read_from_data_resolve_like_vanilla() {
             golden(&format!("{label}.parsed_wire")),
             "{label}: wire"
         );
-        let resolved = ParticleOptions::decode_ctx(&lookup(), &mut &bytes[..]).unwrap();
+        let resolved = ParticleOptions::decode_ctx(&block_ctx(), &mut &bytes[..]).unwrap();
         let json: serde_json::Value = serde_json::to_value(named(&resolved)).unwrap();
         let vanilla: serde_json::Value =
             serde_json::from_str(golden(&format!("{label}.parsed_json"))).unwrap();

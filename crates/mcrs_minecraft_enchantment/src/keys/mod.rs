@@ -12,7 +12,7 @@ pub use enchantment_location_based_effect_type::EnchantmentLocationBasedEffectTy
 pub use enchantment_provider_type::EnchantmentProviderType;
 pub use enchantment_value_effect_type::EnchantmentValueEffectType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const ENCHANTMENT_EFFECT_COMPONENT_TYPE: RegistryKey<
     crate::keys::EnchantmentEffectComponentType,
@@ -44,14 +44,4 @@ pub const ENCHANTMENT_VALUE_EFFECT_TYPE: RegistryKey<crate::keys::EnchantmentVal
     RegistryKey::new(rl!("minecraft:enchantment_value_effect_type"));
 impl Registered for crate::keys::EnchantmentValueEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_VALUE_EFFECT_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 5] {
-    [
-        ENCHANTMENT_EFFECT_COMPONENT_TYPE.binding(),
-        ENCHANTMENT_ENTITY_EFFECT_TYPE.binding(),
-        ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.binding(),
-        ENCHANTMENT_PROVIDER_TYPE.binding(),
-        ENCHANTMENT_VALUE_EFFECT_TYPE.binding(),
-    ]
 }

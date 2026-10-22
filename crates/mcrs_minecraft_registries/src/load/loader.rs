@@ -7,9 +7,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use super::ctx::{LoadCtx, Slot};
 use super::declaration::{Declaration, EntrySource, Erased, Kind, Source};
 use super::index::{self, Directories, SlotFiles};
-use super::view::StageView;
 use super::{Registries, Stage, Table, Tables, TagTables, network, tag_build};
-use crate::diagnostics::{Diagnostic, Diagnostics, Missing, ROOT};
+use crate::diagnostics::{Diagnostic, Diagnostics, Missing};
 use crate::order::{entry_file_order, identifier_order};
 use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack, VANILLA};
 use crate::registry::Names;
@@ -35,9 +34,7 @@ pub(super) fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic
         let declaration = &declaration.inner;
         let registry = declaration.key().clone();
         let mut fresh = keys.insert(registry.clone());
-        for registry_type in std::iter::once(declaration.registry_type())
-            .chain(declaration.aliases().iter().copied())
-        {
+        for &registry_type in declaration.types() {
             fresh &= types.insert(registry_type);
         }
         if !fresh {
@@ -65,6 +62,14 @@ pub(super) fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic
         }
     }
     errors
+}
+
+pub(super) fn slots_by_type(slots: &[Slot<'_>]) -> HashMap<TypeId, usize> {
+    slots
+        .iter()
+        .enumerate()
+        .flat_map(|(at, slot)| slot.declaration.types().iter().map(move |&t| (t, at)))
+        .collect()
 }
 
 pub(super) fn too_many(registry: &ResourceLocation, count: usize) -> Diagnostic {
@@ -170,7 +175,7 @@ pub(super) fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> Built
 fn reuse(stage: Option<Stage>, slots: &mut [Slot<'_>], previous: &Registries) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     for slot in slots.iter_mut().filter(|s| s.stage() == stage) {
-        let Some(table) = previous.table(slot.declaration.registry_type()) else {
+        let Some(table) = previous.table(slot.key()) else {
             errors.push(Diagnostic::Declaration {
                 registry: slot.key().clone(),
                 message: "the registry is missing from the registries being reloaded".to_owned(),
@@ -244,7 +249,7 @@ fn build_tags(
             stack,
             previous.is_none() && stage.is_some(),
             previous
-                .and_then(|p| p.tag_table(slot.declaration.registry_type()))
+                .and_then(|p| p.tag_table(slot.key()))
                 .map(Arc::as_ref),
         );
         diagnostics.extend(outcome.file_diagnostics);
@@ -343,6 +348,7 @@ pub(super) fn assemble(
     let mut world = Tables::default();
     let mut reloadable = Tables::default();
     let mut tags = TagTables::default();
+    let mut keys = HashMap::new();
     let mut errors = Vec::new();
     for slot in slots {
         let stage = slot.stage();
@@ -350,16 +356,15 @@ pub(super) fn assemble(
             errors.push(not_built(slot.declaration.key()));
             continue;
         };
-        let declaration = slot.declaration;
-        let types = std::iter::once(declaration.registry_type())
-            .chain(declaration.aliases().iter().copied());
-        for registry_type in types {
-            match stage {
-                Some(Stage::Reloadable) => reloadable.insert(registry_type, table.clone()),
-                _ => world.insert(registry_type, table.clone()),
-            };
-            tags.insert(registry_type, Arc::clone(&tag_table));
+        let key = slot.declaration.key();
+        for &registry_type in slot.declaration.types() {
+            keys.insert(registry_type, key.clone());
         }
+        tags.insert(key.clone(), tag_table);
+        match stage {
+            Some(Stage::Reloadable) => reloadable.insert(key.clone(), table),
+            _ => world.insert(key.clone(), table),
+        };
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -368,6 +373,7 @@ pub(super) fn assemble(
         world: previous.map_or_else(|| Arc::new(world), |p| Arc::clone(&p.world)),
         reloadable: Arc::new(reloadable),
         tags: Arc::new(tags),
+        keys: Arc::new(keys),
         world_stack: previous.map_or_else(|| Arc::clone(&stack), |p| Arc::clone(&p.world_stack)),
         reload_stack: stack,
         generation: previous.map_or(0, |p| p.generation.saturating_add(1)),
@@ -395,36 +401,21 @@ type Pending<'f> = (
     BTreeMap<usize, Vec<Missing>>,
 );
 
-#[doc(hidden)]
-pub type StageScope<'s> = dyn FnMut(&StageView, &mut dyn FnMut()) + 's;
-
 fn run_stage(
     stage: Stage,
     slots: &mut [Slot<'_>],
     by_type: &HashMap<TypeId, usize>,
     stack: &PackStack,
-    pending: Pending<'_>,
-    scope: &mut StageScope<'_>,
+    (sources, mut unresolved): Pending<'_>,
 ) -> Vec<Diagnostic> {
-    let view = StageView::new(stage, slots);
-    let mut pending = Some(pending);
     let mut errors = Vec::new();
-    scope(&view, &mut || {
-        let Some((sources, mut unresolved)) = pending.take() else {
-            return;
-        };
-        let missing = decode(Some(stage), slots, by_type, sources, stack, &mut errors);
-        for (at, missing) in missing {
-            unresolved.entry(at).or_default().push(missing);
-        }
-        report_unresolved(unresolved, slots, &mut errors);
-        if errors.is_empty() {
-            errors = validate(Some(stage), slots, by_type);
-        }
-    });
-    if pending.is_some() {
-        let skipped = slots.iter().filter(|slot| slot.stage() == Some(stage));
-        errors.extend(skipped.map(|slot| not_built(slot.key())));
+    let missing = decode(Some(stage), slots, by_type, sources, stack, &mut errors);
+    for (at, missing) in missing {
+        unresolved.entry(at).or_default().push(missing);
+    }
+    report_unresolved(unresolved, slots, &mut errors);
+    if errors.is_empty() {
+        errors = validate(Some(stage), slots, by_type);
     }
     errors
 }
@@ -435,19 +426,6 @@ pub fn load(
     files: &PackFiles,
     previous: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
-    load_with(declarations, stack, files, previous, &mut |_, decode| {
-        decode()
-    })
-}
-
-#[doc(hidden)]
-pub fn load_with(
-    declarations: &[Declaration],
-    stack: Arc<PackStack>,
-    files: &PackFiles,
-    previous: Option<&Registries>,
-    scope: &mut StageScope<'_>,
-) -> Result<(Registries, Diagnostics), Diagnostics> {
     let mut diagnostics = Diagnostics::default();
     let errors = check_declarations(declarations);
     if !errors.is_empty() {
@@ -455,16 +433,7 @@ pub fn load_with(
     }
 
     let mut slots = empty_slots(declarations);
-    let by_type: HashMap<TypeId, usize> = slots
-        .iter()
-        .enumerate()
-        .flat_map(|(at, slot)| {
-            let declaration = slot.declaration;
-            std::iter::once(declaration.registry_type())
-                .chain(declaration.aliases().iter().copied())
-                .map(move |registry_type| (registry_type, at))
-        })
-        .collect();
+    let by_type = slots_by_type(&slots);
 
     let built_in_paths = built_in_paths(&slots, &stack);
     let mut found = Vec::new();
@@ -520,7 +489,7 @@ pub fn load_with(
         match stage.filter(|_| reused.is_none()) {
             Some(stage) => {
                 let pending = (sources, unresolved);
-                errors = run_stage(stage, &mut slots, &by_type, &stack, pending, scope);
+                errors = run_stage(stage, &mut slots, &by_type, &stack, pending);
             }
             None => report_unresolved(unresolved, &slots, &mut errors),
         }
@@ -529,45 +498,21 @@ pub fn load_with(
         }
     }
 
-    let view = StageView::new(Stage::Reloadable, &slots);
     let mut registries = match assemble(slots, stack, previous) {
         Ok(registries) => registries,
         Err(errors) => return Err(fail(diagnostics, errors)),
     };
-    match encode_network(declarations, &view, &registries, scope) {
+    match network::snapshot(
+        &declarations
+            .iter()
+            .map(|d| &*d.inner)
+            .collect::<Vec<&dyn Erased>>(),
+        &registries,
+    ) {
         Ok(network) => {
             registries.network = Arc::new(network);
             Ok((registries, diagnostics))
         }
         Err(errors) => Err(fail(diagnostics, errors)),
     }
-}
-
-fn encode_network(
-    declarations: &[Declaration],
-    view: &StageView,
-    registries: &Registries,
-    scope: &mut StageScope<'_>,
-) -> Result<network::NetworkSnapshot, Vec<Diagnostic>> {
-    let declarations: Vec<&dyn Erased> = declarations.iter().map(|d| &*d.inner).collect();
-    let mut network = None;
-    let mut encode = || network = Some(network::snapshot(&declarations, registries));
-    // Values that still name entries through the stage scope encode inside it.
-    let synced = declarations
-        .iter()
-        .any(|declaration| match declaration.kind() {
-            Kind::Data(data) => data.is_synced(),
-            Kind::Fixed(_) => false,
-        });
-    if synced {
-        scope(view, &mut encode);
-    } else {
-        encode();
-    }
-    network.unwrap_or_else(|| {
-        Err(vec![Diagnostic::Declaration {
-            registry: ROOT.into(),
-            message: "the stage scope did not run the network encoding".to_owned(),
-        }])
-    })
 }

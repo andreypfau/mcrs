@@ -10,8 +10,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 #[cfg(feature = "bevy")]
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_registries::RegistryOf;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -25,6 +25,10 @@ pub struct WorldClock {}
 
 impl RegistryValue for WorldClock {
     type Registry = Self;
+}
+
+impl mcrs_minecraft_registries::RegistryType for WorldClock {
+    type Value = ();
 }
 
 /// One clock's authoritative state.
@@ -220,11 +224,13 @@ impl ClockTimeMarkers {
     }
 }
 
-pub fn check_time_markers(timelines: &[Timeline], set: &RegistrySet) -> Vec<(usize, String)> {
-    let Some(clocks) = set.registry::<WorldClock>() else {
-        return Vec::new();
-    };
-    match ClockTimeMarkers::derive(timelines, |clock| clocks.name(clock)) {
+pub fn check_time_markers(
+    timelines: &[Timeline],
+    clocks: &mcrs_minecraft_registries::Registry<RegistryOf<WorldClock>>,
+) -> Vec<(usize, String)> {
+    let clock_name =
+        |clock: Id<WorldClock>| clocks.name(Id::checked(clock.number(), clocks.len())?);
+    match ClockTimeMarkers::derive(timelines, clock_name) {
         Ok(_) => Vec::new(),
         Err(duplicates) => duplicates
             .into_iter()
@@ -295,32 +301,107 @@ pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
     }
 }
 
-#[cfg(all(test, feature = "bevy"))]
-pub(crate) static TEST_CLOCKS: std::sync::LazyLock<RegistrySet> = std::sync::LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+/// The shipped world clocks numbered in name order, standing in for the registries a value that
+/// names a clock is resolved and named against.
+#[cfg(test)]
+pub(crate) struct TestClocks(Vec<ResourceLocation<Arc<str>>>);
+
+#[cfg(test)]
+pub(crate) static TEST_CLOCKS: std::sync::LazyLock<TestClocks> = std::sync::LazyLock::new(|| {
+    let base = mcrs_minecraft_worldgen_testing::vanilla_dir().join("world_clock");
+    let mut names: Vec<_> = mcrs_minecraft_worldgen_testing::json_files(&base)
+        .iter()
+        .map(|path| {
+            let name = path.file_stem().unwrap().to_str().unwrap();
+            ResourceLocation::read(&format!("minecraft:{name}")).unwrap()
+        })
+        .collect();
+    names.sort();
+    TestClocks(names)
 });
+
+#[cfg(test)]
+impl TestClocks {
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub(crate) fn id(&self, name: &str) -> Id<WorldClock> {
+        let at = self
+            .0
+            .iter()
+            .position(|known| known.as_str() == name)
+            .unwrap();
+        Id::checked(at as u16, self.0.len()).unwrap()
+    }
+
+    /// `json` read as the named form of `T` and resolved against the shipped clocks.
+    pub(crate) fn read<T>(&self, json: serde_json::Value) -> Result<T, String>
+    where
+        T: mcrs_minecraft_registries::Resolve,
+        T::Named: serde::de::DeserializeOwned,
+    {
+        let named = serde_json::from_value(json).map_err(|e| e.to_string())?;
+        T::resolve(named, self).map_err(|e| e.to_string())
+    }
+
+    pub(crate) fn named<T: mcrs_minecraft_registries::Resolve>(&self, value: &T) -> T::Named {
+        value.name(self).unwrap()
+    }
+}
+
+#[cfg(test)]
+impl mcrs_minecraft_registries::Resolver for TestClocks {
+    fn id<R: mcrs_minecraft_registries::RegistryType>(
+        &self,
+        key: &mcrs_minecraft_registries::Key<R>,
+    ) -> Result<Id<R>, String> {
+        let at = self.0.iter().position(|name| name == key.location());
+        at.and_then(|at| Id::checked(at as u16, self.0.len()))
+            .ok_or_else(|| format!("unknown entry {} of minecraft:world_clock", key.location()))
+    }
+
+    fn tag<R: mcrs_minecraft_registries::RegistryType>(
+        &self,
+        tag: &mcrs_minecraft_registries::Key<R>,
+    ) -> Result<mcrs_minecraft_core::TagId<R>, String> {
+        Err(format!("unknown tag #{}", tag.location()))
+    }
+}
+
+#[cfg(test)]
+impl mcrs_minecraft_registries::Namer for TestClocks {
+    fn name<R: mcrs_minecraft_registries::RegistryType>(
+        &self,
+        id: Id<R>,
+    ) -> Option<&ResourceLocation> {
+        self.0.get(id.index())
+    }
+
+    fn tag_name<R: mcrs_minecraft_registries::RegistryType>(
+        &self,
+        _: mcrs_minecraft_core::TagId<R>,
+    ) -> Option<&ResourceLocation> {
+        None
+    }
+}
 
 #[cfg(all(test, feature = "bevy"))]
 mod tests {
     use super::*;
     use crate::timeline::Timeline;
-    use mcrs_minecraft_registry::Registry;
 
     const OVERWORLD: &str = "minecraft:overworld";
 
     const THE_END: &str = "minecraft:the_end";
 
     fn id(name: &str) -> Id<WorldClock> {
-        TEST_CLOCKS
-            .registry::<WorldClock>()
-            .unwrap()
-            .require_by_name(name)
-            .unwrap()
+        TEST_CLOCKS.id(name)
     }
 
     fn all_clocks() -> WorldClocks {
         let mut clocks = WorldClocks::default();
-        clocks.reconcile(TEST_CLOCKS.registry::<WorldClock>().unwrap().len());
+        clocks.reconcile(TEST_CLOCKS.len());
         clocks
     }
 
@@ -349,15 +430,8 @@ mod tests {
 
     #[test]
     fn reconcile_gives_one_clock_per_registry_entry() {
-        let registry = TEST_CLOCKS.registry::<WorldClock>().unwrap();
-        let removed = Registry::<WorldClock>::new(
-            crate::keys::WORLD_CLOCK,
-            ["minecraft:overworld", THE_END, "datapack:removed"]
-                .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
-        )
-        .unwrap()
-        .require_by_name("datapack:removed")
-        .unwrap();
+        let shipped = TEST_CLOCKS.len();
+        let removed = Id::<WorldClock>::checked(shipped as u16, shipped + 1).unwrap();
         let mut clocks = WorldClocks::default();
         clocks.insert(
             id(OVERWORLD),
@@ -368,9 +442,9 @@ mod tests {
         );
         clocks.insert(removed, ClockState::default());
 
-        clocks.reconcile(registry.len());
+        clocks.reconcile(shipped);
 
-        assert_eq!(clocks.len(), registry.len());
+        assert_eq!(clocks.len(), shipped);
         assert_eq!(clocks.get(id(OVERWORLD)).unwrap().total_ticks, 500);
         assert_eq!(clocks.get(id(THE_END)).unwrap().total_ticks, 0);
         assert!(clocks.get(removed).is_none());
@@ -500,7 +574,9 @@ mod tests {
         let bytes = mcrs_minecraft_worldgen_testing::vanilla_dir()
             .join("timeline")
             .join(name);
-        TEST_CLOCKS.scope(|| serde_json::from_slice(&std::fs::read(bytes).unwrap()).unwrap())
+        TEST_CLOCKS
+            .read(serde_json::from_slice(&std::fs::read(bytes).unwrap()).unwrap())
+            .unwrap()
     }
 
     fn timeline_json(clock: &str, period: Option<u32>, markers: serde_json::Value) -> Timeline {
@@ -508,14 +584,15 @@ mod tests {
         if let Some(period) = period {
             json["period_ticks"] = period.into();
         }
-        TEST_CLOCKS.scope(|| serde_json::from_value(json).unwrap())
+        TEST_CLOCKS.read(json).unwrap()
     }
 
     fn markers_of(
         timelines: &[Timeline],
     ) -> Result<ClockTimeMarkers, Vec<(usize, DuplicateTimeMarker)>> {
-        let clocks = TEST_CLOCKS.registry::<WorldClock>().unwrap();
-        ClockTimeMarkers::derive(timelines, |clock| clocks.name(clock))
+        ClockTimeMarkers::derive(timelines, |clock| {
+            mcrs_minecraft_registries::Namer::name(&*TEST_CLOCKS, clock)
+        })
     }
 
     #[test]

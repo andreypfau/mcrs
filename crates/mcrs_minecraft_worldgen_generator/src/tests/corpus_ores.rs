@@ -12,7 +12,7 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 #[cfg(test)]
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
@@ -34,7 +34,6 @@ use crate::staging::{FilledSnapshot, RegionSnapshots, region_column};
 use super::{biome_registry, build_program, corpus_features, one_step};
 #[cfg(test)]
 use super::{blocks, build_settings_router, fill_context_with, flat_snapshot};
-use mcrs_minecraft_biome::Biome;
 
 /// The one biome of these tables, so that every ore is carried and the `biome`
 /// placement filter passes wherever the palette says 0. A registry numbers its
@@ -78,7 +77,7 @@ pub(super) fn ore_tables() -> (FeatureTables, Vec<String>) {
 /// The one biome the tables carry, at id 0, and the three the surface stage
 /// resolves by name off whatever registry the dimension holds — without them
 /// `SurfaceIds::resolve` panics before a column is ever filled.
-pub(super) fn one_biome_registry() -> Registry<Biome> {
+pub(super) fn one_biome_registry() -> Arc<Registries> {
     biome_registry(&[
         BIOME,
         "minecraft:eroded_badlands",

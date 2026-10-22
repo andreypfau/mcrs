@@ -1,49 +1,27 @@
 use bevy_app::App;
-use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::TagKey;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_dimension_environment::dimension_type::{
-    DimensionTypeEnvironment, DimensionTypeFile,
-};
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::PACKS_ROOT;
+use mcrs_minecraft_registries::{CurrentRegistries, Key, RegistryOf, Resolve, Resolver};
+
+use crate::common::tag_members;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
 fn overworld_clock(app: &App) -> Id<WorldClock> {
     app.world()
-        .resource::<RegistrySet>()
-        .registry::<WorldClock>()
-        .expect("the world clock registry is loaded")
-        .require_by_name(OVERWORLD_CLOCK)
+        .resource::<CurrentRegistries>()
+        .id(&Key::new(OVERWORLD_CLOCK.parse().unwrap()))
         .expect("the overworld clock is registered")
 }
 
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let set = app.world().resource::<RegistrySet>();
-    let timelines = set
-        .registry::<Timeline>()
-        .expect("the timeline registry is loaded");
-    let tags = set
-        .tags::<Timeline>()
-        .expect("the load builds the timeline tags");
-    let key = TagKey::<Timeline, _>::from_location(ResourceLocation::read(tag).unwrap());
-    let mut names: Vec<String> = tags
-        .members(tags.get(&key).expect("the tag is resolved"))
-        .map(|id| {
-            timelines
-                .name(id)
-                .expect("a member id maps back")
-                .as_str()
-                .to_owned()
-        })
-        .collect();
+    let mut names = tag_members::<Timeline>(app.world().resource::<CurrentRegistries>(), tag);
     names.sort();
     names
 }
@@ -69,18 +47,14 @@ pub fn the_timeline_tags_resolve_through_universal(app: &App) {
 }
 
 pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
-    let set = app.world().resource::<RegistrySet>();
-    let types = set
-        .registry::<DimensionType>()
-        .expect("the dimension types are loaded");
+    let set = app.world().resource::<CurrentRegistries>();
     let environment = |name: &str| {
         let dimension = ResourceKey::<Dimension>::from_location(name.parse().unwrap());
         EnvironmentAttributes::of_dimension(
-            app.world().resource::<CurrentRegistries>(),
+            set,
             &dimension,
-            types
-                .by_name(name)
-                .unwrap_or_else(|| panic!("{name} is not a dimension type")),
+            set.id::<DimensionType>(&Key::new(name.parse().unwrap()))
+                .unwrap_or_else(|error| panic!("{name}: {error}")),
         )
         .ok()
     };
@@ -111,24 +85,17 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
 }
 
 pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app: &App) {
-    let set = app.world().resource::<RegistrySet>();
-    let table = set
-        .table("minecraft:dimension_type")
-        .expect("the dimension type table is loaded");
-    let dimension_types = set
-        .column::<DimensionType>("minecraft:dimension_type")
-        .expect("the loader splits the dimension types");
-    let environments = set
-        .column::<DimensionTypeEnvironment>("minecraft:dimension_type")
-        .expect("the loader splits the dimension types");
+    let set = app.world().resource::<CurrentRegistries>();
+    let registry = set
+        .registry::<RegistryOf<DimensionTypeFile>>()
+        .expect("the dimension types are loaded");
 
     let mut seen = 0;
-    for (index, rl) in table.names().iter().enumerate() {
-        let dimension_type =
-            DimensionTypeFile::join((&dimension_types[index], &environments[index]));
+    for (id, rl, dimension_type) in registry.iter() {
         let pack = set
-            .pack_of("minecraft:dimension_type", index)
-            .unwrap_or_else(|| panic!("{rl} has no pack"));
+            .origin(id)
+            .unwrap_or_else(|| panic!("{rl} has no pack"))
+            .id();
         let root = match pack {
             "vanilla" => mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
             pack => std::path::PathBuf::from(format!(
@@ -141,7 +108,8 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
         )
         .unwrap();
 
-        let sent = set.scope(|| serde_json::to_value(dimension_type.synced()).unwrap());
+        let synced = dimension_type.clone().synced().name(&**set).unwrap();
+        let sent = serde_json::to_value(synced).unwrap();
         assert_eq!(
             sent.get("timelines").and_then(|v| v.as_str()),
             raw.get("timelines").and_then(|v| v.as_str()),

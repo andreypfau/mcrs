@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 
 use crate::Encode;
 use crate::item::component::nested::*;
@@ -15,7 +15,7 @@ record_ctx_wire! {
 }
 
 impl EncodeCtx for PotDecorations {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         for side in self.sides() {
             match side {
                 Some(template) => {
@@ -30,7 +30,7 @@ impl EncodeCtx for PotDecorations {
 }
 
 impl<'a> DecodeCtx<'a> for PotDecorations {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let mut side = || Option::<Template>::decode_ctx(ctx, r).map(|t| t.map(Box::new));
         Ok(PotDecorations {
             back: side()?,

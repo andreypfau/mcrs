@@ -2,24 +2,28 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
-use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
-use mcrs_minecraft_registry::Holder;
+use mcrs_minecraft_item::component::common::InlineRef;
+use mcrs_minecraft_registries::{Named, Refs, RegistryOf, Resolved, registry_value};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
-pub enum TestEnvironment {
+pub type EnvironmentRef<M = Resolved> =
+    InlineRef<M, RegistryOf<TestEnvironment>, TestEnvironment<M>>;
+
+#[registry_value]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self")]
+pub enum TestEnvironment<M: Refs = Resolved> {
     AllOf {
-        definitions: Vec<Holder<TestEnvironment>>,
+        definitions: Vec<EnvironmentRef<M>>,
     },
     ClockTime {
-        clock: Holder<WorldClock>,
+        clock: M::Id<RegistryOf<WorldClock>>,
         time: Bounded<0, { i32::MAX }>,
     },
     SetDifficulty {
@@ -35,15 +39,15 @@ pub enum TestEnvironment {
         rules: GameRuleMap,
     },
     Timelines {
-        timelines: Vec<Holder<Timeline>>,
+        timelines: Vec<M::Id<RegistryOf<Timeline>>>,
     },
     Weather {
         weather: Weather,
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
-    TestEnvironment, key = "type", registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType,
+mcrs_minecraft_registries::dispatch! {
+    TestEnvironment<Named>, key = "type", registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType,
     {
         AllOf => AllOf,
         ClockTime => ClockTime,
@@ -54,11 +58,6 @@ mcrs_minecraft_registry::dispatch! {
         Weather => Weather,
     }
 }
-
-impl RegistryValue for TestEnvironment {
-    type Registry = Self;
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Difficulty {
@@ -173,11 +172,11 @@ fn is_unrotated(rotation: &Rotation) -> bool {
 
 macro_rules! test_instance {
     ($name:ident { $($head:tt)* }) => {
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        #[serde(deny_unknown_fields)]
-        pub struct $name {
+        #[registry_value]
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        pub struct $name<M: Refs = Resolved> {
             $($head)*
-            pub environment: Holder<TestEnvironment>,
+            pub environment: EnvironmentRef<M>,
             #[serde(default = "overworld", skip_serializing_if = "is_overworld")]
             pub dimension: ResourceKey<Dimension>,
             pub structure: ResourceLocation,
@@ -207,22 +206,21 @@ test_instance!(FunctionTest {
     pub function: ResourceLocation,
 });
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[registry_value]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
-pub enum TestInstance {
-    BlockBased(BlockBasedTest),
-    Function(FunctionTest),
+pub enum TestInstance<M: Refs = Resolved> {
+    BlockBased(BlockBasedTest<M>),
+    Function(FunctionTest<M>),
 }
 
-mcrs_minecraft_registry::dispatch! {
-    TestInstance, key = "type", registry = mcrs_minecraft_environment::keys::TestInstanceType,
+mcrs_minecraft_registries::dispatch! {
+    TestInstance<Named>, key = "type", registry = mcrs_minecraft_environment::keys::TestInstanceType,
     {
         BlockBased => BlockBased,
         Function => Function,
     }
 }
-
-mcrs_minecraft_registries::read_with_serde!(TestEnvironment, TestInstance);
 
 mcrs_minecraft_registries::declare_registries!(
     TestEnvironment => crate::keys::TEST_ENVIRONMENT, World;

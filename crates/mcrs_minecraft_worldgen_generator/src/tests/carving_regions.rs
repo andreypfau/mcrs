@@ -14,7 +14,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 
 use super::beta_surface::build_beta_biome_source;
-use super::modern_carvers::carvers_of;
+use super::carvers_of;
 use super::surface::{fill_context, overworld_biome_registry, overworld_material_router};
 use super::{build_settings_router, corpus};
 use crate::ColumnBlocks;

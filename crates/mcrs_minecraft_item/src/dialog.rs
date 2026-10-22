@@ -120,7 +120,7 @@ pub enum DialogBody<M: Refs = Resolved> {
     PlainMessage(PlainMessage<M>),
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DialogBody<Named>, key = "type", registry = crate::keys::DialogBodyType,
     {
         Item => Item,
@@ -323,7 +323,7 @@ pub enum Input<M: Refs = Resolved> {
     Text(TextInput<M>),
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     Input<Named>, key = "type", registry = crate::keys::InputControlType,
     {
         Boolean => Boolean,
@@ -386,7 +386,7 @@ pub enum DynamicAction {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DynamicAction, key = "type", registry = crate::keys::DialogActionType,
     {
         DynamicRunCommand => RunCommand,
@@ -620,7 +620,7 @@ pub enum Dialog<M: Refs = Resolved> {
     DialogList(DialogList<M>),
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     Dialog<Named>, key = "type", registry = crate::keys::DialogType,
     {
         Notice => Notice,

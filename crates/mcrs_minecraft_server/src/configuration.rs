@@ -37,7 +37,6 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -268,10 +267,6 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 ///
 /// If no live label entity exists yet (dims still loading), the session stays
 /// unplaced and the emit is retried next tick.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
@@ -282,7 +277,6 @@ pub fn emit_initial_player_spawn(
     dim_channels: Res<DimChannelsResource>,
     dimension_list: Res<DimensionList>,
     save: Option<Res<WorldSave>>,
-    registries: Res<RegistrySet>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     if live_dims.is_empty() {
@@ -299,12 +293,9 @@ pub fn emit_initial_player_spawn(
         if placement.place() != Place::Unplaced {
             continue;
         }
-        let saved = save.as_ref().and_then(|save| {
-            registries
-                .scope(|| read_player_dat(&save.0, profile.id))
-                .ok()
-                .flatten()
-        });
+        let saved = save
+            .as_ref()
+            .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
         let live = |key: &ResourceKey<mcrs_minecraft_dimension::Dimension>| {
             live_dims
                 .iter()

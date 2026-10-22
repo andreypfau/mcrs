@@ -17,6 +17,7 @@ pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_registries::{Namer, Registries, RegistryType};
 use std::io::Write;
 use uuid::Uuid;
 
@@ -78,6 +79,31 @@ impl<'a> crate::Decode<'a> for Metadata<'a> {
                 value: MetaDataValue::decode(r)?,
             });
         }
+    }
+}
+
+impl Metadata<'_> {
+    /// Whether every registry id the entries hold numbers an entry of `registries`.
+    pub fn names_entries_of(&self, registries: &Registries) -> bool {
+        fn named<R: RegistryType>(registries: &Registries, id: Id<R>) -> bool {
+            Namer::name(registries, id).is_some()
+        }
+        self.0.iter().all(|entry| match entry.value {
+            MetaDataValue::CatVariant(id) => named(registries, id),
+            MetaDataValue::CatSoundVariant(id) => named(registries, id),
+            MetaDataValue::CowVariant(id) => named(registries, id),
+            MetaDataValue::CowSoundVariant(id) => named(registries, id),
+            MetaDataValue::WolfVariant(id) => named(registries, id),
+            MetaDataValue::WolfSoundVariant(id) => named(registries, id),
+            MetaDataValue::FrogVariant(id) => named(registries, id),
+            MetaDataValue::PigVariant(id) => named(registries, id),
+            MetaDataValue::PigSoundVariant(id) => named(registries, id),
+            MetaDataValue::ChickenVariant(id) => named(registries, id),
+            MetaDataValue::ChickenSoundVariant(id) => named(registries, id),
+            MetaDataValue::ZombieNautilusVariant(id) => named(registries, id),
+            MetaDataValue::PaintingVariant(id) => named(registries, id),
+            _ => true,
+        })
     }
 }
 

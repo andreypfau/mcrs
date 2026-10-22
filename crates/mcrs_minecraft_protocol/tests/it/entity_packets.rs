@@ -1,54 +1,31 @@
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_entity::keys::{
-    Attribute, CAT_SOUND_VARIANT, CAT_VARIANT, EntityType, VillagerProfession, VillagerType,
-    ZOMBIE_NAUTILUS_VARIANT,
-};
+use mcrs_minecraft_entity::keys::{Attribute, EntityType, VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_item::PaintingVariantValue;
-use mcrs_minecraft_item::keys::{Item, PAINTING_VARIANT};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
 };
 use mcrs_minecraft_protocol::item::RawStack;
+use mcrs_minecraft_protocol::item::ctx::WireCtx;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{NoRegistries, Registry, RegistrySet};
-use std::sync::Arc;
 use uuid::Uuid;
 
-fn registry<R>(key: RegistryKey<R>, len: usize) -> Registry<R> {
-    let names = (0..len)
-        .map(|n| ResourceLocation::<Arc<str>>::read(&format!("minecraft:entry{n}")).unwrap());
-    Registry::new(key, names).unwrap()
-}
-
-fn world_registries() -> RegistrySet {
-    RegistrySet::new()
-        .with(registry(CAT_VARIANT, 3))
-        .unwrap()
-        .with(registry(CAT_SOUND_VARIANT, 2))
-        .unwrap()
-        .with(registry(ZOMBIE_NAUTILUS_VARIANT, 2))
-        .unwrap()
-        .with(registry(PAINTING_VARIANT, 5))
-        .unwrap()
-}
-
-fn id<R: 'static>(set: &RegistrySet, number: u16) -> Id<R> {
-    set.registry::<R>().unwrap().id(number).unwrap()
+fn id<R>(number: u16) -> Id<R> {
+    Id::checked(number, usize::from(u16::MAX) + 1).unwrap()
 }
 
 fn raw(slot: ProtoStack) -> RawStack {
-    RawStack::from_stack(&slot, &NoRegistries).unwrap()
+    RawStack::from_stack(&slot, &WireCtx::NONE).unwrap()
 }
 
 fn round_trip<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
@@ -84,7 +61,6 @@ fn add_entity_writes_pitch_before_yaw() {
 
 #[test]
 fn entity_data_uses_the_registered_serializer_ids() {
-    let set = world_registries();
     let entries = vec![
         (0, MetaDataValue::Byte(0x20), 0),
         (1, MetaDataValue::VarInt(VarInt(300)), 1),
@@ -121,20 +97,20 @@ fn entity_data_uses_the_registered_serializer_ids() {
             19,
         ),
         (10, MetaDataValue::Pose(Pose::Sitting), 20),
-        (11, MetaDataValue::CatVariant(id::<CatVariant>(&set, 1)), 21),
+        (11, MetaDataValue::CatVariant(id::<CatVariant>(1)), 21),
         (
             12,
-            MetaDataValue::CatSoundVariant(id::<CatSoundVariant>(&set, 0)),
+            MetaDataValue::CatSoundVariant(id::<CatSoundVariant>(0)),
             22,
         ),
         (
             13,
-            MetaDataValue::ZombieNautilusVariant(id::<ZombieNautilusVariant>(&set, 0)),
+            MetaDataValue::ZombieNautilusVariant(id::<ZombieNautilusVariant>(0)),
             32,
         ),
         (
             14,
-            MetaDataValue::PaintingVariant(id::<PaintingVariantValue>(&set, 3)),
+            MetaDataValue::PaintingVariant(id::<PaintingVariantValue>(3)),
             34,
         ),
         (15, MetaDataValue::DyeColor(DyeColor::Black), 43),
@@ -163,7 +139,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         ),
     };
     let mut buf = Vec::new();
-    let bytes = set.scope(|| round_trip(&packet, &mut buf));
+    let bytes = round_trip(&packet, &mut buf);
     assert_eq!(*bytes.last().unwrap(), 0xFF);
 
     let empty = ClientboundSetEntityData {

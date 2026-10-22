@@ -10,7 +10,7 @@ pub use block::Block;
 pub use block_entity_type::BlockEntityType;
 pub use fluid::Fluid;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const BLOCK: RegistryKey<crate::keys::Block> = RegistryKey::new(rl!("minecraft:block"));
 impl Registered for crate::keys::Block {
@@ -26,12 +26,4 @@ impl Registered for crate::keys::BlockEntityType {
 pub const FLUID: RegistryKey<crate::keys::Fluid> = RegistryKey::new(rl!("minecraft:fluid"));
 impl Registered for crate::keys::Fluid {
     const REGISTRY: RegistryKey<Self> = FLUID;
-}
-
-pub fn bindings() -> [TypeBinding; 3] {
-    [
-        BLOCK.binding(),
-        BLOCK_ENTITY_TYPE.binding(),
-        FLUID.binding(),
-    ]
 }

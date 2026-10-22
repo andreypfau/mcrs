@@ -25,7 +25,6 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_volume.workspace = true
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
@@ -34,7 +33,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
-mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 mcrs_minecraft_worldgen_feature = { path = ".", default-features = false, features = ["test-support"] }

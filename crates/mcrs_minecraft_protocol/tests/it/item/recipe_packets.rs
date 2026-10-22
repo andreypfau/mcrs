@@ -12,8 +12,7 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
 use mcrs_minecraft_item::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
-use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
-use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
+use mcrs_minecraft_protocol::item::ctx::{MAX_NESTING, WireCtx};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, InlineRef, ItemComponentValue, Raw, Template,
     Text, TrimPattern, TrimPatternRef,
@@ -31,13 +30,12 @@ use mcrs_minecraft_protocol::recipe::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{IdSet, Resolved};
-use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::harness::{TestLookup, hex, read_json};
+use crate::item::harness::{ctx, entry, hex, list_set, one_set, read_json, tag_set};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("recipe_packets").text());
 
-fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
+fn golden() -> (WireCtx<'static>, BTreeMap<String, Vec<u8>>) {
     let wires = GOLDEN
         .lines()
         .filter(|line| !line.starts_with("id "))
@@ -52,7 +50,7 @@ fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
             (label.to_string(), hex(value))
         })
         .collect();
-    (TestLookup::with_id_lines(&GOLDEN), wires)
+    (ctx(), wires)
 }
 
 fn key(path: &str) -> Id<Item> {
@@ -205,7 +203,7 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(wire: &'a [u8
     assert_eq!(out, wire);
 }
 
-fn raw<T: EncodeCtx + for<'a> DecodeCtx<'a>>(value: &T, lookup: &dyn RegistryLookup) -> Raw<T> {
+fn raw<T: EncodeCtx + for<'a> DecodeCtx<'a>>(value: &T, lookup: &WireCtx<'_>) -> Raw<T> {
     Raw::from_value(value, lookup).unwrap()
 }
 
@@ -342,9 +340,8 @@ fn shaped_display_rejects_mismatched_dimensions() {
 
 #[test]
 fn ingredient_rejects_what_vanilla_refuses_to_construct() {
-    let lookup = TestLookup::new();
-    let air = rl!("minecraft:air").to_arc();
-    let air_id = lookup.id("item", &air).unwrap() as u8;
+    let lookup = ctx();
+    let air_id = Item::Air.id().number() as u8;
     let empty_stonecutter = [1, SlotDisplayType::Empty as u8];
     let error = Raw::<SelectableRecipe>::decode(&mut &empty_stonecutter[..]).unwrap_err();
     assert_eq!(error.to_string(), "Ingredients can't be empty");
@@ -374,7 +371,7 @@ fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
     let wire = wrapped(MAX_NESTING - 1);
     let raw = Raw::<SlotDisplay>::decode(&mut &wire[..]).unwrap();
     assert_eq!(
-        raw.resolve(&TestLookup::new()).unwrap().kind(),
+        raw.resolve(&ctx()).unwrap().kind(),
         SlotDisplayType::WithAnyPotion
     );
     let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap_err();

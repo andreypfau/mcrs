@@ -8,7 +8,7 @@ pub mod keys;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::dispatch::Buffered;
+use mcrs_minecraft_registries::dispatch::Buffered;
 use serde::de::{self, Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
@@ -314,7 +314,7 @@ pub enum DispatchedIntProvider {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DispatchedIntProvider, key = "type", registry = crate::keys::IntProviderType,
     {
         Constant => Constant,
@@ -547,7 +547,7 @@ pub enum DispatchedFloatProvider {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DispatchedFloatProvider, key = "type", registry = crate::keys::FloatProviderType,
     {
         Constant => Constant,
@@ -624,7 +624,7 @@ pub enum DispatchedHeightProvider {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     DispatchedHeightProvider, key = "type", registry = crate::keys::HeightProviderType,
     {
         Constant => Constant,

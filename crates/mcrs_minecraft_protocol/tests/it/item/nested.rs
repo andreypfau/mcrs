@@ -1,26 +1,23 @@
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use std::collections::BTreeMap;
 
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::keys::{DataComponentType, Item};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentValue, PotDecorations,
     Template, hash_ops,
 };
+use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
 use crate::item::harness::{
-    TestLookup, from_json, from_nbt, hex, json_of, named, nbt_tree, persistent_json,
+    ctx, from_json, from_nbt, hex, json_of, named, nbt_tree, persistent_json,
 };
 
 #[derive(Deserialize)]
 struct Golden {
-    lookup: BTreeMap<String, BTreeMap<String, u16>>,
     cases: Vec<Case>,
 }
 
@@ -41,7 +38,7 @@ fn golden() -> Golden {
 #[test]
 fn nested_kinds_match_vanilla_in_every_form() {
     let golden = golden();
-    let lookup = TestLookup::from_ids(&golden.lookup);
+    let lookup = ctx();
     for case in &golden.cases {
         let kind = DataComponentType::read(&case.kind).unwrap();
         let value = from_json(kind, &case.json);
@@ -79,7 +76,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
 #[test]
 fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let golden = golden();
-    let lookup = TestLookup::from_ids(&golden.lookup);
+    let lookup = ctx();
     let sparse: Container<Named> = serde_json::from_str(
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )
@@ -119,14 +116,20 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
 
 #[test]
 fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
-    let lookup = TestLookup::new();
-    let bundle = lookup
-        .id("item", &rl!("minecraft:bundle").to_arc())
-        .unwrap() as u8;
+    let lookup = ctx();
+    let mut bundle = Vec::new();
+    VarInt(i32::from(Item::Bundle.id().number()))
+        .encode(&mut bundle)
+        .unwrap();
     let bundle_contents = DataComponentType::BundleContents as u8;
     let wrapped = |levels: u32| {
-        let mut wire = [bundle, 1, 1, 0, bundle_contents, 1].repeat(levels as usize);
-        wire.extend([bundle, 1, 0, 0]);
+        let mut wire = Vec::new();
+        for _ in 0..levels {
+            wire.extend(&bundle);
+            wire.extend([1, 1, 0, bundle_contents, 1]);
+        }
+        wire.extend(&bundle);
+        wire.extend([1, 0, 0]);
         wire
     };
     let wire = wrapped(MAX_NESTING - 1);
@@ -215,7 +218,7 @@ fn errors_read_like_vanilla() {
 
 #[test]
 fn wire_templates_are_checked_like_the_vanilla_constructor() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let decode = |kind, wire: &str| {
         let mut r = &hex(wire)[..];
         decode_component_value(kind, &lookup, &mut r)

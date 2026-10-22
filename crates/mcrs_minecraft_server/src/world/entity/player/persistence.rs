@@ -8,7 +8,6 @@ use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
@@ -41,10 +40,7 @@ pub fn load_player(world: &mut World, player: Entity) {
     let Some(uuid) = world.get::<GameProfile>(player).map(|profile| profile.id) else {
         return;
     };
-    let Some(registries) = world.get_resource::<RegistrySet>().cloned() else {
-        return;
-    };
-    let dat = match registries.scope(|| read_player_dat(&save.0, uuid)) {
+    let dat = match read_player_dat(&save.0, uuid) {
         Ok(Some(dat)) => dat,
         Ok(None) => return,
         Err(err) => {
@@ -97,11 +93,8 @@ pub fn write_player(world: &World, player: Entity) {
     if world.get::<UnreadablePlayerDat>(player).is_some() {
         return;
     }
-    let Some(registries) = world.get_resource::<RegistrySet>() else {
-        return;
-    };
     let dat = save_player(world, player);
-    if let Err(err) = registries.scope(|| write_player_dat(&save.0, uuid, &dat)) {
+    if let Err(err) = write_player_dat(&save.0, uuid, &dat) {
         error!(%uuid, "player data not saved: {err}");
     }
 }

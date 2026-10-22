@@ -5,9 +5,10 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
+use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_feature::template::{PaletteState, Template};
-use mcrs_minecraft_worldgen_testing::{corpus_set, same_json, vanilla_dir};
+use mcrs_minecraft_worldgen_testing::{same_json, vanilla_dir};
 
 #[derive(Default)]
 struct Differences(Vec<String>);
@@ -72,14 +73,13 @@ fn every_built_in_entry_equals_the_file_the_game_ships_for_it() {
     differences.json("noise_settings", builtin::vanilla_noise_settings());
     differences.json("template_pool", builtin::template_pools());
 
-    let set = corpus_set();
-    let biomes = builtin::biomes(set)
-        .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"));
+    let biomes = builtin::biome_names();
     assert!(!biomes.is_empty());
-    for (id, built) in &biomes {
+    for id in &biomes {
+        let built = builtin::biome(id).unwrap_or_else(|| panic!("{id} is listed but not built"));
         differences.compare(&format!("worldgen/biome/{}.json", id.path()), |shipped| {
-            set.scope(|| serde_json::from_slice::<BiomeFile>(shipped))
-                .is_ok_and(|shipped| shipped == *built)
+            serde_json::from_slice::<BiomeFile<Named>>(shipped)
+                .is_ok_and(|shipped| shipped == built)
         });
     }
 

@@ -3,18 +3,18 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
+use mcrs_minecraft_registries::{Refs, Registries, RegistryOf, Resolved, registry_value};
 
+#[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DimensionEntry {
-    #[serde(rename = "type", with = "mcrs_minecraft_registry::by_name")]
-    pub dimension_type: Id<DimensionType>,
-    pub generator: ChunkGenerator,
+pub struct DimensionEntry<M: Refs = Resolved> {
+    #[serde(rename = "type")]
+    pub dimension_type: M::Id<DimensionType>,
+    pub generator: ChunkGenerator<M>,
 }
 
 impl DimensionEntry {
@@ -44,22 +44,20 @@ const LEADING: [ResourceKey<Dimension, &str>; 3] = [
 /// The vanilla dimension list of a save or a world preset, which must hold the overworld.
 pub fn bake(
     base: &Dimensions,
-    set: &RegistrySet,
-    report: &mut LoadReport,
-) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
-    let baked = merge(base, set, report)?;
+    registries: &Registries,
+) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+    let baked = merge(base, registries)?;
     if !baked
         .first()
         .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
     {
-        report.missing(
+        return Err(format!(
+            "{}: the dimension list has no {}, which every world needs",
             mcrs_minecraft_dimension::keys::DIMENSION,
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str(),
-            "the dimension list has no overworld, which every world needs",
-        );
-        return None;
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str()
+        ));
     }
-    Some(baked)
+    Ok(baked)
 }
 
 /// `base` with the data pack's dimensions over it, the vanilla dimensions first when present.
@@ -67,39 +65,34 @@ pub fn bake(
 /// empty.
 pub fn bake_list(
     base: &Dimensions,
-    set: &RegistrySet,
-    report: &mut LoadReport,
-) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
-    let baked = merge(base, set, report)?;
+    registries: &Registries,
+) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+    let baked = merge(base, registries)?;
     if baked.is_empty() {
-        report.invalid_report(format_args!(
+        return Err(format!(
             "{}: the dimension list is empty, so no player has a dimension to spawn in",
             mcrs_minecraft_dimension::keys::DIMENSION
         ));
-        return None;
     }
-    Some(baked)
+    Ok(baked)
 }
 
 fn merge(
     base: &Dimensions,
-    set: &RegistrySet,
-    report: &mut LoadReport,
-) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
-    let registry = report.registry(set, mcrs_minecraft_dimension::keys::DIMENSION)?;
-    let (Some(dimensions), Some(generators)) = (
-        set.entries::<Dimension, Dimension>(),
-        set.entries::<Dimension, ChunkGenerator>(),
-    ) else {
-        panic!("the data pack loader splits minecraft:dimension");
-    };
+    registries: &Registries,
+) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+    let registry = registries
+        .registry::<RegistryOf<DimensionEntry>>()
+        .ok_or_else(|| {
+            format!(
+                "{} is not loaded",
+                mcrs_minecraft_dimension::keys::DIMENSION
+            )
+        })?;
 
     let mut merged = base.clone();
-    for (id, name) in registry.iter() {
-        merged.insert(
-            ResourceKey::from_location(name.clone()),
-            DimensionEntry::join((&dimensions[id], &generators[id])),
-        );
+    for (_, name, entry) in registry.iter() {
+        merged.insert(ResourceKey::from_location(name.clone()), entry.clone());
     }
 
     let mut baked = Vec::with_capacity(merged.len());
@@ -109,10 +102,8 @@ fn merge(
         }
     }
     baked.extend(merged);
-    Some(baked)
+    Ok(baked)
 }
-
-mcrs_minecraft_registries::read_with_serde!(DimensionEntry);
 
 mcrs_minecraft_registries::declare_registries!(
     DimensionEntry => mcrs_minecraft_dimension::keys::DIMENSION, Dimension;

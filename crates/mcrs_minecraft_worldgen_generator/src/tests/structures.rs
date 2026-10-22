@@ -6,8 +6,6 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, LazyLock};
 
 #[cfg(test)]
-use fixedbitset::FixedBitSet;
-#[cfg(test)]
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
 #[cfg(test)]
@@ -17,8 +15,6 @@ use mcrs_minecraft_core::rl;
 #[cfg(test)]
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-#[cfg(test)]
-use mcrs_minecraft_registry::{Registry, TagRules, Tags, build_tags};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::template::Projection;
@@ -29,16 +25,14 @@ use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_structure::{MineshaftType, OceanTemperature};
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
-use mcrs_minecraft_worldgen_testing::{corpus_set, json_files, vanilla_dir};
+use mcrs_minecraft_worldgen_testing::{json_files, vanilla_dir};
 
-use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
 #[cfg(test)]
-use crate::features::possible_biomes;
+use super::biome_id;
+use super::{corpus, test_registries};
 #[cfg(test)]
 use crate::structures::live_sets;
 use crate::structures::{StructureInputs, VariantInputs, freeze, resolve_palette_state};
-#[cfg(test)]
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, StructureKind};
@@ -78,8 +72,7 @@ fn variant_selectors(
         .into_iter()
         .map(|path| {
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let variant: Variant = corpus_set()
-                .scope(|| serde_json::from_slice(&bytes))
+            let variant: Variant = (serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let name = path.file_stem().expect("a file").to_string_lossy();
             (
@@ -130,10 +123,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             pools: &corpus_registries.pools,
             template: &template_file,
             resolve: &|state| resolve_palette_state(corpus(), state),
-            biomes: corpus_biomes(),
-            biome_tags: &biome_tags(),
-            structure_registry: structure_registry(),
-            structure_tags: &structure_tags(),
+            registries: test_registries(),
             variants: &variant_inputs(),
         })
         .unwrap_or_else(|e| panic!("{e}"))
@@ -175,7 +165,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     );
     let in_hut = SpawnContext {
         structure: Some(frozen.structure_ids[&rl!("minecraft:swamp_hut").to_arc()].0),
-        biome: corpus_biomes().by_name("minecraft:swamp").unwrap().number(),
+        biome: biome_id(test_registries(), "minecraft:swamp").number(),
         moon_brightness: 1.0,
     };
     let mut rng = WorldgenRandom::new(1);
@@ -199,7 +189,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
 
 #[cfg(test)]
 fn every_hardcoded_type_freezes_its_own_config() {
-    let biome = |name: &str| corpus_biomes().by_name(name).unwrap().index();
+    let biome = |name: &str| biome_id(test_registries(), name).index();
     let StructureKind::Mineshaft {
         mineshaft_type,
         blocking,
@@ -311,15 +301,7 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
 #[cfg(test)]
 fn live_set_names(source: &BiomeSource) -> Vec<String> {
     let frozen = frozen();
-    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(
-        source,
-        corpus_biomes(),
-        &super::biome_tags(),
-        &crate::tests::parameter_lists().1,
-    ) {
-        mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
-    }
+    let mask = super::possible_biome_mask(source);
     live_sets(frozen, &mask)
         .into_iter()
         .map(|(set, _)| frozen.sets[usize::from(set.0)].id.to_string())
@@ -370,23 +352,14 @@ fn parse<T: serde::de::DeserializeOwned>(
         .map(|(id, json)| {
             (
                 ResourceLocation::read(id).unwrap(),
-                corpus_set()
-                    .scope(|| serde_json::from_str(json))
-                    .unwrap_or_else(|e| panic!("{id}: {e}")),
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{id}: {e}")),
             )
         })
         .collect()
 }
 
 #[cfg(test)]
-fn no_tags<R: 'static>(registry: &Registry<R>) -> Tags<R> {
-    let (table, problems) = build_tags(registry.table(), TagRules::World, &[], None);
-    assert!(problems.is_empty(), "{problems:?}");
-    Tags::new(Arc::new(table))
-}
-
-#[cfg(test)]
-/// Freeze a synthetic corpus with no templates, biomes or tags loaded.
+/// Freeze a synthetic corpus with no templates loaded.
 fn try_freeze(
     sets: &[(&str, &str)],
     structures: &[(&str, &str)],
@@ -406,13 +379,6 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes =
-        Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, []).expect("an empty registry");
-    let tags = no_tags(&biomes);
-    let structure_registry =
-        Registry::<Structure>::new(mcrs_minecraft_worldgen_structure::keys::STRUCTURE, [])
-            .expect("an empty registry");
-    let structure_tags = no_tags(&structure_registry);
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {
         sets: &sets,
@@ -420,10 +386,7 @@ fn try_freeze_with(
         pools: &pools,
         template: &template,
         resolve,
-        biomes: &biomes,
-        biome_tags: &tags,
-        structure_registry: &structure_registry,
-        structure_tags: &structure_tags,
+        registries: test_registries(),
         variants: &VariantInputs::default(),
     })
 }
@@ -522,12 +485,11 @@ fn every_dangling_id_is_named() {
         r#""biomes": []"#,
         r##""biomes": "#minecraft:has_structure/gone""##,
     );
-    let error = corpus_set()
-        .scope(|| serde_json::from_str::<Structure>(&tagged))
-        .expect_err(
-            "a biome tag the data pack does not define is refused when the structure is read",
-        )
-        .to_string();
+    let error = check(
+        &[],
+        &[("minecraft:s", &tagged)],
+        &[("minecraft:empty", EMPTY_POOL)],
+    );
     assert!(
         error.contains("minecraft:has_structure/gone")
             && error.contains("minecraft:worldgen/biome"),

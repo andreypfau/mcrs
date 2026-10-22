@@ -3,9 +3,13 @@ pub mod keys;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_registries::IdSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
+
+impl mcrs_minecraft_registries::RegistryType for DimensionType {
+    type Value = ();
+}
 
 /// The part of a dimension type every crate that names one can hold. Its
 /// environment attributes, timelines and default clock are a column beside the
@@ -19,7 +23,7 @@ pub struct DimensionType {
     pub min_y: i32,
     pub height: u32,
     pub logical_height: u32,
-    pub infiniburn: HolderSet<Block>,
+    pub infiniburn: IdSet<Block>,
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntProvider,

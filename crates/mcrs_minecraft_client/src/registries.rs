@@ -8,7 +8,6 @@ use bevy::ecs::schedule::SystemSet;
 use bevy::log::{error, info};
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
@@ -17,12 +16,12 @@ use mcrs_minecraft_environment::world_clock::{
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ClientNetworkSystems, CurrentDimension, DecodeScope, HoldsVanillaPack, RegistriesReceived,
-    ServerRegistries, TagsReceived, close_connection_later, finish_configuration,
+    ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, ServerRegistries,
+    TagsReceived, close_connection_later, finish_configuration,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
-use mcrs_minecraft_world::registries::{refuse, static_registries};
+use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::registry_load::{
     DirectoryPacks, KnownEntries, LoadedRegistries, PackSource, RegistryLoadError, load_received,
     load_vanilla_registries,
@@ -85,12 +84,8 @@ impl Plugin for ClientRegistriesPlugin {
     fn finish(&self, app: &mut App) {
         let assets = app.world().resource::<AssetServer>().clone();
         check_corpus_version(&assets);
-        let statics = static_registries().unwrap_or_else(|report| refuse(&report));
-        let blocks = statics
-            .registry::<Block>()
-            .expect("the static registries hold minecraft:block");
         let (definitions, report) =
-            load_block_definitions(&assets, &blocks).expect("the block definition corpus loads");
+            load_block_definitions(&assets).unwrap_or_else(|error| refuse(&error));
         info!(
             blocks = definitions.blocks().len(),
             states = report.states,
@@ -128,14 +123,14 @@ pub(crate) fn load_registries(
     )
 }
 
-/// The decode scope and the item table are taken from the loaded set with the registries, so no
-/// frame sees the numbers of one load beside the values of another.
+/// The item table is derived from the loaded registries as they are installed, so no frame sees
+/// the numbers of one load beside the values of another.
 fn install(
     loaded: LoadedRegistries,
     (assets, blocks): (&AssetServer, &Blocks),
     commands: &mut Commands,
 ) {
-    match load_item_definitions(assets, &loaded.set, blocks) {
+    match load_item_definitions(assets, &loaded.registries, blocks) {
         Ok(items) => {
             info!(
                 items = items.len(),
@@ -148,7 +143,6 @@ fn install(
             commands.remove_resource::<Items>();
         }
     }
-    commands.insert_resource(DecodeScope(loaded.set));
     commands.insert_resource(CurrentRegistries::new(loaded.registries));
 }
 

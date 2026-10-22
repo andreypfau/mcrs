@@ -4,10 +4,9 @@ use crate::proto::{
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_minecraft_registry::{HolderSet, Tags};
+use mcrs_minecraft_registries::KeySet;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;
@@ -275,14 +274,13 @@ pub enum SurfaceNoise {
     IcebergSurface,
 }
 
-/// The two registries plus what this crate cannot supply itself: a resolver for
-/// block states, which it has no registry for, and the biome tags a `biome_is`
-/// set may name.
+/// The two registries plus what this crate cannot supply itself: resolvers for block states and
+/// for the biome numbers a `biome_is` set names, which it has no registries for.
 pub struct MaterialInputs<'a> {
     pub rules: &'a BTreeMap<ResourceLocation, MaterialRuleHolder>,
     pub conditions: &'a BTreeMap<ResourceLocation, MaterialConditionHolder>,
     pub block: &'a dyn Fn(&BlockState) -> Option<VoxelId>,
-    pub biome_tags: &'a Tags<mcrs_minecraft_biome::Biome>,
+    pub biomes: &'a dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>>,
 }
 
 /// The router and the material program compiled into one graph, which is how
@@ -519,7 +517,7 @@ impl<'r> Builder<'_, '_, 'r> {
             ),
             MaterialCondition::Biome { biome_is } => (
                 Condition::Biome {
-                    set: self.biome_set(biome_is),
+                    set: self.biome_set(biome_is)?,
                 },
                 Scope::Y,
             ),
@@ -604,16 +602,20 @@ impl<'r> Builder<'_, '_, 'r> {
             .ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     }
 
-    fn biome_set(&mut self, set: &HolderSet<mcrs_minecraft_biome::Biome>) -> BiomeMaskId {
-        let ids: Vec<u16> = set.ids(self.inputs.biome_tags).map(Id::number).collect();
+    fn biome_set(
+        &mut self,
+        set: &KeySet<mcrs_minecraft_biome::Biome>,
+    ) -> Result<BiomeMaskId, CompileError> {
+        let ids = (self.inputs.biomes)(set)
+            .ok_or_else(|| CompileError::UnknownBiomes(format!("{set:?}")))?;
         let mask = BiomeMask::new(&ids);
         if let Some(&id) = self.biome_set_ids.get(&mask) {
-            return id;
+            return Ok(id);
         }
         let id = self.biome_sets.len() as BiomeMaskId;
         self.biome_set_ids.insert(mask.clone(), id);
         self.biome_sets.push(mask);
-        id
+        Ok(id)
     }
 
     /// Each dimensionality gets its own id: the descent's cache is one slot per id,
@@ -761,10 +763,14 @@ pub(crate) mod tests {
         Some(VoxelId(hash_id(state.name.as_str()) as u16))
     }
 
-    pub(crate) fn biome_tags() -> Tags<mcrs_minecraft_biome::Biome> {
-        mcrs_minecraft_worldgen_testing::corpus_set()
-            .tags()
-            .expect("the corpus holds the biome registry")
+    /// Stands in for the biome registry the compiling crate does not have: every
+    /// name and tag resolves, to ids that depend on the name alone.
+    pub(crate) fn biome_ids(set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>> {
+        let id = |name: &ResourceLocation| (hash_id(name.as_str()) % 64) as u16;
+        Some(match set {
+            KeySet::Tag(tag) => vec![id(tag.location()), (id(tag.location()) + 1) % 64],
+            KeySet::List(keys) => keys.iter().map(|key| id(key.location())).collect(),
+        })
     }
 
     fn hash_id(name: &str) -> u32 {
@@ -786,12 +792,11 @@ pub(crate) mod tests {
         MaterialProgram,
     ) {
         let (rules, conditions) = material_corpus();
-        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome_tags: &biomes,
+            biomes: &biome_ids,
         };
         build_router_and_material(
             &settings(name),
@@ -1022,12 +1027,11 @@ pub(crate) mod tests {
             rl!("minecraft:overworld").to_arc(),
             serde_json::from_str(rule).unwrap(),
         );
-        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block,
-            biome_tags: &biomes,
+            biomes: &biome_ids,
         };
         build_router_and_material(
             &settings("overworld"),
@@ -1093,12 +1097,11 @@ pub(crate) mod tests {
     #[test]
     fn a_missing_noise_is_a_compile_error() {
         let (rules, conditions) = material_corpus();
-        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome_tags: &biomes,
+            biomes: &biome_ids,
         };
         let error = build_router_and_material(
             &settings("overworld"),

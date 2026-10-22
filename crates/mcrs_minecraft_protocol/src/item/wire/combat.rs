@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use crate::item::ctx::WireCtx;
 use mcrs_minecraft_core::codec;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::combat::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
@@ -25,7 +25,7 @@ record_ctx_wire! {
 }
 
 impl EncodeCtx for KineticWeapon {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.contact_cooldown_ticks.0).encode(&mut w)?;
         VarInt(self.delay_ticks.0).encode(&mut w)?;
         self.dismount_conditions.encode(&mut w)?;
@@ -39,7 +39,7 @@ impl EncodeCtx for KineticWeapon {
 }
 
 impl DecodeCtx<'_> for KineticWeapon {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(KineticWeapon {
             contact_cooldown_ticks: codec::Bounded(VarInt::decode(r)?.0),
             delay_ticks: codec::Bounded(VarInt::decode(r)?.0),

@@ -5,18 +5,19 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_level::session::PlayerSessionCounter;
 use mcrs_minecraft_level::world::dimension::{
     DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_registries::RegistryOf;
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::enqueue_dim_spawns;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_server::world_options::DimensionList;
 use mcrs_minecraft_world::dimension::Dimensions;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 use crate::{host_app, support};
@@ -29,7 +30,7 @@ fn host_spawning(dimensions: &Dimensions) -> App {
     app.add_message::<InboundPlayerSpawn>();
     app.insert_resource(DimensionList::new(support::baked(
         dimensions,
-        test_registries(),
+        test_registries_arc(),
     )));
     app.world_mut()
         .run_system_once(enqueue_dim_spawns)
@@ -107,10 +108,10 @@ fn every_shipped_preset_dimension_spawns_with_its_entry_type(
     dimensions: &Dimensions,
     app: &mut App,
 ) {
-    let types = test_registries()
-        .entries::<DimensionType, DimensionType>()
+    let types = test_registries_arc()
+        .registry::<RegistryOf<DimensionTypeFile>>()
         .expect("the dimension types are loaded");
-    for (key, entry) in support::baked(dimensions, test_registries()) {
+    for (key, entry) in support::baked(dimensions, test_registries_arc()) {
         let label = label_of(app, key.as_str());
         let (spawned, has_sky) = in_world(app, label, |world| {
             let spawned = *world
@@ -123,7 +124,7 @@ fn every_shipped_preset_dimension_spawns_with_its_entry_type(
         assert_eq!(spawned.0, entry.dimension_type, "{name}: {key}");
         assert_eq!(
             has_sky,
-            types.as_slice()[entry.dimension_type.index()].has_skylight,
+            types.values()[entry.dimension_type.index()].has_skylight,
             "{name}: {key}"
         );
     }
@@ -158,13 +159,15 @@ fn every_join_into_a_dimension_sends_the_type_of_its_entry(app: &mut App) {
 }
 
 fn presets_spawn_their_dimensions_with_their_entry_types(include: impl Fn(&str) -> bool) {
-    let presets = test_registries().registry::<WorldPreset>().unwrap();
+    let presets = test_registries_arc()
+        .registry::<RegistryOf<WorldPreset>>()
+        .unwrap();
     assert!(presets.len() > 1, "the shipped presets are loaded");
 
     let mut failed = Vec::new();
     let mut ran = false;
-    for preset_id in presets.ids() {
-        let name = presets.name(preset_id).unwrap().as_str();
+    for (_, name, _) in presets.iter() {
+        let name = name.as_str();
         if !include(name) {
             continue;
         }

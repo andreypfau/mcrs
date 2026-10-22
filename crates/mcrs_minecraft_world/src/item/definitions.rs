@@ -5,7 +5,7 @@ use bevy_asset::io::AssetSourceId;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::ResourceLocation;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::FORMAT_VERSION;
@@ -13,17 +13,19 @@ use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::patch::ComponentMap;
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError, Template};
-use mcrs_minecraft_registries::{Resolve, ResolveError};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{Registries, Resolve, ResolveError, Resolver};
 
 pub fn from_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
-    registries: &RegistrySet,
+    registries: &Registries,
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
-    let items = registries
+    let items: Vec<ResourceLocation> = registries
         .registry::<Item>()
-        .ok_or(ItemCorpusError::NoItemRegistry)?;
+        .ok_or(ItemCorpusError::NoItemRegistry)?
+        .iter()
+        .map(|(_, name, ())| name.clone())
+        .collect();
     let mut entries = Vec::new();
     let mut paths = Vec::new();
     for (path, bytes) in files {
@@ -43,11 +45,11 @@ pub fn from_files(
         }
         let item = file.item;
         let found = item.description.protocol_id;
-        let reported = items
-            .require(&ResourceKey::from_location(
-                item.description.identifier.clone(),
-            ))
-            .map_err(ItemTableError::from)?;
+        let reported = Resolver::id::<Item>(
+            registries,
+            &mcrs_minecraft_registries::Key::new(item.description.identifier.clone()),
+        )
+        .map_err(|_| ItemTableError::Unknown(item.description.identifier.clone()))?;
         if found != reported.number() {
             return Err(ItemCorpusError::ProtocolIds {
                 expected: reported.number(),
@@ -95,7 +97,7 @@ pub enum ItemCorpusError {
     #[cfg(feature = "bevy")]
     #[error("no default asset source")]
     NoAssetSource,
-    #[error("the registry set holds no item registry")]
+    #[error("the registries hold no item registry")]
     NoItemRegistry,
     #[cfg(feature = "bevy")]
     #[error(transparent)]
@@ -128,7 +130,7 @@ pub enum ItemCorpusError {
 #[cfg(feature = "bevy")]
 pub fn load_item_definitions(
     asset_server: &AssetServer,
-    registries: &RegistrySet,
+    registries: &Registries,
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
     let source = asset_server

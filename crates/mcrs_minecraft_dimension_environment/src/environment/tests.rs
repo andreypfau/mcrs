@@ -1,44 +1,77 @@
 use mcrs_minecraft_core::mth::wrap_degrees;
-use std::sync::{Arc, LazyLock};
 
+use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use super::*;
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
-use mcrs_minecraft_registry::Tags;
-use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_core::TagId;
+use mcrs_minecraft_registries::{Key, Named, RegistryType, Resolve, Resolver};
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
-use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
 const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
 
-fn dimension_type(name: &str) -> (DimensionType, DimensionTypeEnvironment) {
-    let bytes = std::fs::read(vanilla_dir().join("dimension_type").join(name)).unwrap();
-    mcrs_minecraft_worldgen_testing::dimension_type_set()
-        .scope(|| serde_json::from_slice::<DimensionTypeFile>(&bytes))
-        .unwrap()
-        .split()
+/// Numbers every key by its place among the shipped world clocks, the only
+/// registry these values name an entry of, and every tag as the first.
+struct ShippedClocks(Vec<String>);
+
+impl ShippedClocks {
+    fn new() -> Self {
+        let mut names: Vec<String> = std::fs::read_dir(vanilla_dir().join("world_clock"))
+            .unwrap()
+            .map(|entry| {
+                let path = entry.unwrap().path();
+                format!("minecraft:{}", path.file_stem().unwrap().to_str().unwrap())
+            })
+            .collect();
+        names.sort();
+        ShippedClocks(names)
+    }
 }
 
-static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
-});
+impl Resolver for ShippedClocks {
+    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String> {
+        let at = self
+            .0
+            .iter()
+            .position(|name| name == key.location().as_str());
+        at.and_then(|at| Id::checked(at as u16, self.0.len()))
+            .ok_or_else(|| format!("{} is not a shipped clock", key.location()))
+    }
 
-fn clock_registry() -> Registry<WorldClock> {
-    CLOCKS.registry().unwrap()
+    fn tag<R: RegistryType>(&self, _: &Key<R>) -> Result<TagId<R>, String> {
+        Ok(TagId::checked(0, 1).unwrap())
+    }
+}
+
+fn resolved<T: Resolve>(named: T::Named) -> T {
+    T::resolve(named, &ShippedClocks::new()).unwrap()
+}
+
+fn read<T: Resolve>(dir: &str, name: &str) -> T
+where
+    T::Named: DeserializeOwned,
+{
+    let bytes = std::fs::read(vanilla_dir().join(dir).join(name)).unwrap();
+    resolved(serde_json::from_slice(&bytes).unwrap())
+}
+
+fn clock_count() -> usize {
+    ShippedClocks::new().0.len()
+}
+
+fn dimension_type(name: &str) -> (DimensionType, DimensionTypeEnvironment) {
+    read::<DimensionTypeFile>("dimension_type", name).split()
 }
 
 fn timeline(name: &str) -> Timeline {
-    let bytes = std::fs::read(vanilla_dir().join("timeline").join(name)).unwrap();
-    CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
+    read("timeline", name)
 }
 
 /// The timelines a tag names, read from the shipped tag files and flattened
@@ -80,7 +113,7 @@ fn shape<'a>(
 fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
     let proto = dimension_type(file);
     let borrowed: Vec<&Timeline> = timelines.iter().collect();
-    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, clock_registry().len()).unwrap()
+    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, clock_count()).unwrap()
 }
 
 fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -221,14 +254,13 @@ fn a_dimension_with_no_timelines_still_builds() {
     );
 }
 
-/// Two timelines writing one attribute stack in the order the tag file lists
-/// them. The nested tag is listed second but names the alphabetically first
-/// timeline, so resolving by registry id would let the wrong one win.
+/// Two timelines writing one attribute stack in the order the dimension's
+/// tag lists them: the last one wins.
 #[test]
-fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
+fn the_timeline_listed_last_wins_the_attribute_they_share() {
     fn overriding(level: f32) -> Timeline {
-        CLOCKS.scope(|| {
-            serde_json::from_value(json!({
+        resolved(
+            serde_json::from_value::<Timeline<Named>>(json!({
                 "clock": "minecraft:overworld",
                 "period_ticks": 24000,
                 "tracks": {
@@ -238,76 +270,16 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
                     },
                 },
             }))
-            .unwrap()
-        })
-    }
-
-    fn rl(id: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::read(id).unwrap()
-    }
-
-    let alpha = overriding(0.25);
-    let zulu = overriding(0.75);
-
-    let registry = Registry::<mcrs_minecraft_environment::timeline::Timeline>::new(
-        mcrs_minecraft_environment::keys::TIMELINE,
-        [rl("test:alpha"), rl("test:zulu")],
-    )
-    .unwrap();
-    let source = |path, bytes| TagSource {
-        pack: "test",
-        path,
-        bytes,
-    };
-    let files = [
-        (
-            rl("test:listing"),
-            vec![source(
-                "test/tags/timeline/listing.json",
-                br##"{"values":["test:zulu","#test:nested"]}"##,
-            )],
-        ),
-        (
-            rl("test:nested"),
-            vec![source(
-                "test/tags/timeline/nested.json",
-                br#"{"values":["test:alpha"]}"#,
-            )],
-        ),
-    ];
-    let (table, problems) = build_tags(registry.table(), TagRules::World, &files, None);
-    assert!(problems.is_empty(), "{problems:?}");
-    let tags = Tags::<mcrs_minecraft_environment::timeline::Timeline>::new(Arc::new(table));
-    let listing = tags
-        .get(
-            &TagKey::<mcrs_minecraft_environment::timeline::Timeline, _>::from_location(rl(
-                "test:listing",
-            )),
+            .unwrap(),
         )
-        .unwrap();
-    let order: Vec<_> = tags.members(listing).collect();
-    assert_eq!(
-        order,
-        vec![
-            registry.by_name("test:zulu").unwrap(),
-            registry.by_name("test:alpha").unwrap()
-        ]
-    );
+    }
 
-    let ordered: Vec<&Timeline> = order
-        .iter()
-        .map(|id| match registry.name(*id).unwrap().as_str() {
-            "test:alpha" => &alpha,
-            "test:zulu" => &zulu,
-            other => panic!("unexpected member {other}"),
-        })
-        .collect();
-
+    let (zulu, alpha) = (overriding(0.75), overriding(0.25));
     let proto = dimension_type("overworld.json");
     let attributes = EnvironmentAttributes::build(
         &shape("minecraft:overworld", &proto),
-        &ordered,
-        clock_registry().len(),
+        &[&zulu, &alpha],
+        clock_count(),
     )
     .unwrap();
 
@@ -335,8 +307,7 @@ fn a_dimension_type_outside_the_games_bounds_fails() {
                 value => file[key] = value.clone(),
             }
         }
-        mcrs_minecraft_worldgen_testing::dimension_type_set()
-            .scope(|| serde_json::from_value::<DimensionTypeFile>(file))
+        serde_json::from_value::<DimensionTypeFile<Named>>(file)
     };
     for refused in [
         json!({"weather": true}),

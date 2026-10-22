@@ -111,7 +111,7 @@ pub enum PlacementModifier<P = BlockPredicate<Named>> {
     },
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     for<P> serialize { P: Serialize } deserialize { P: Deserialize<'de> }
     PlacementModifier<P>, key = "type", registry = crate::keys::PlacementModifierType,
     {
@@ -365,7 +365,7 @@ mod tests {
             (format!("{square},{}", filters.join(",")), (0, 15)),
         ];
 
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+        {
             for (placement, expected) in cases {
                 let chain: Vec<PlacementModifier> = serde_json::from_str(&format!("[{placement}]"))
                     .unwrap_or_else(|error| panic!("{placement}: {error}"));
@@ -374,6 +374,6 @@ mod tests {
                     .fold(0..=0, |domain, modifier| modifier.xz_domain(domain));
                 assert_eq!((*domain.start(), *domain.end()), expected, "{placement}");
             }
-        });
+        };
     }
 }

@@ -5,17 +5,12 @@
 mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::parameter_list::Preset;
-use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_value_provider::HeightContext;
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, modern_carving_mask,
 };
@@ -25,14 +20,9 @@ use mcrs_minecraft_worldgen_generator::{
     ColumnBlocks, NO_TOP, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
     multi_noise_grid, multi_noise_palettes,
 };
-use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
-};
+use mcrs_minecraft_worldgen_surface::MaterialScratch;
 
-use common::support::{corpus, router_blocks};
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
+use common::support::{biome_id, biomes_of, carvers_of, corpus, material_router, registries_over};
 
 const ABSENT_BIOME: u16 = 250;
 
@@ -43,57 +33,6 @@ fn biome_ids() -> HashMap<String, u16> {
         ids.entry((*biome).to_owned()).or_insert(next);
     }
     ids
-}
-
-fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, MaterialProgram) {
-    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-        "noise_settings",
-        &rl!("minecraft:overworld").to_arc(),
-    );
-    let mut numbered: Vec<(u16, &str)> =
-        ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
-    numbered.sort();
-    let leading: Vec<&str> = numbered.into_iter().map(|(_, name)| name).collect();
-    let set = corpus_set_numbered(&leading);
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");
-    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry_in(&set, "material_condition");
-    let biome_tags = set.tags().expect("the corpus holds the biome tags");
-    let inputs = MaterialInputs {
-        rules: &rules,
-        conditions: &conditions,
-        block: &|state| {
-            corpus()
-                .block(state.name.as_str())
-                .map(|b| b.default_state_id.number().into())
-        },
-        biome_tags: &biome_tags,
-    };
-    build_router_and_material(
-        &settings,
-        &registry("density_function"),
-        &registry("noise"),
-        seed,
-        router_blocks(corpus()),
-        &inputs,
-    )
-    .expect("the overworld compiles")
-}
-
-fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = ResourceLocation::read(biome).expect("a biome id");
-    let biome: mcrs_minecraft_biome_file::BiomeFile =
-        mcrs_minecraft_worldgen_testing::read("biome", &id);
-    mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
-        .iter()
-        .map(|name| {
-            let path = worldgen_dir().join(format!(
-                "carver/{}.json",
-                name.strip_prefix("minecraft:").unwrap_or(name)
-            ));
-            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap()
-        })
-        .collect()
 }
 
 #[derive(Default, Clone, Copy)]
@@ -120,24 +59,16 @@ fn main() {
     for (name, &id) in &ids {
         names[id as usize] = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
     }
-    let (router, material) = material_router(seed, &ids);
-    let mut numbered: Vec<(&u16, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
+    let mut numbered: Vec<(&u16, &str)> =
+        ids.iter().map(|(name, id)| (id, name.as_str())).collect();
     numbered.sort();
-    let biomes = Registry::<Biome>::new(
-        mcrs_minecraft_biome::keys::BIOME,
-        numbered
-            .into_iter()
-            .map(|(_, name)| ResourceLocation::read(name).unwrap()),
-    )
-    .unwrap();
-    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, &biomes).unwrap();
+    let leading: Vec<&str> = numbered.into_iter().map(|(_, name)| name).collect();
+    let registries = registries_over(&leading);
+    let (router, material) = material_router("overworld", seed, &registries);
+    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes_of(&registries)).unwrap();
     let carvers = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);
     let carver_ids = ModernCarverBlockIds::resolve(corpus(), []);
-    let biome = |name: &str| {
-        biomes
-            .require_by_name(name)
-            .expect("the preset holds the biome")
-    };
+    let biome = |name: &str| biome_id(&registries, name);
     let surface_ids = SurfaceIds {
         eroded_badlands: biome("minecraft:eroded_badlands"),
         frozen_ocean: biome("minecraft:frozen_ocean"),

@@ -5,7 +5,7 @@ use crate::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predi
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, base_height, fill_column_dense_any};
 
-use super::{blocks, build_settings_router, loaded_block_tags};
+use super::{block_tags, blocks, build_settings_router};
 
 const MIN_Y: i32 = -64;
 const HEIGHT: i32 = 384;
@@ -17,7 +17,7 @@ const COLUMNS: [(i32, i32); 6] = [(0, 0), (15, 15), (7, 8), (3, 12), (15, 0), (0
 #[test]
 fn base_height_matches_a_descent_of_the_raw_fill() {
     let router = build_settings_router("overworld", 42);
-    let predicates = heightmap_predicates(blocks(), loaded_block_tags());
+    let predicates = heightmap_predicates(blocks(), block_tags());
     let y_sections: Vec<i32> = (-4..20).collect();
     let mut column = ColumnBlocks::new(&y_sections);
     let mut ws = Workspace::new();

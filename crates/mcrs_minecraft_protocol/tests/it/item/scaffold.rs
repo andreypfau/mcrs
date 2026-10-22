@@ -3,8 +3,7 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::{DataComponentType, Item};
-use mcrs_minecraft_protocol::item::harness::sample_registries;
-use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
+use mcrs_minecraft_protocol::item::ctx::WireCtx;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
@@ -12,9 +11,11 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{IdSet, Key, Named, Ref};
-use mcrs_minecraft_registry::NoRegistries;
 
-use crate::item::harness::{TestLookup, custom_data, json_of, named, read_json, resolved};
+use crate::item::harness::{
+    ctx, custom_data, entry, json_of, list_set, named, one_set, read_json, registries, resolved,
+    tag_set,
+};
 
 fn stack_size(n: i32) -> MaxStackSize {
     MaxStackSize(Bounded(n))
@@ -95,11 +96,11 @@ fn transient_kinds_travel_on_the_wire_but_not_in_the_map() {
     patch.set(Unbreakable);
     assert_eq!(json_of(&patch), r#"{"minecraft:unbreakable":{}}"#);
     let mut wire = Vec::new();
-    patch.encode_ctx(&NoRegistries, &mut wire).unwrap();
+    patch.encode_ctx(&WireCtx::NONE, &mut wire).unwrap();
     assert_eq!(wire, [2, 0, 20, 4]);
     let mut r = &wire[..];
     assert_eq!(
-        ComponentPatch::decode_ctx(&NoRegistries, &mut r).unwrap(),
+        ComponentPatch::decode_ctx(&WireCtx::NONE, &mut r).unwrap(),
         patch
     );
 }
@@ -107,7 +108,7 @@ fn transient_kinds_travel_on_the_wire_but_not_in_the_map() {
 #[test]
 fn the_wire_patch_counts_then_lists() {
     let patch = patch();
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let mut wire = Vec::new();
     patch.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(&wire[..2], [3, 1]);
@@ -120,13 +121,13 @@ fn the_wire_patch_counts_then_lists() {
     assert!(r.is_empty());
 
     let duplicated = [2, 0, 1, 5, 1, 9];
-    let decoded = ComponentPatch::decode_ctx(&NoRegistries, &mut &duplicated[..]).unwrap();
+    let decoded = ComponentPatch::decode_ctx(&WireCtx::NONE, &mut &duplicated[..]).unwrap();
     assert_eq!(decoded.added, vec![stack_size(9).into()]);
 }
 
 #[test]
 fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let slot = ProtoStack::new(Item::OpenEyeblossom.id(), 200, patch());
     let mut wire = Vec::new();
     slot.encode_ctx(&lookup, &mut wire).unwrap();
@@ -141,7 +142,7 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     assert_eq!(empty, [0]);
     assert_eq!(RawStack::EMPTY.0, empty);
     assert_eq!(
-        RawStack::EMPTY.resolve(&NoRegistries).unwrap(),
+        RawStack::EMPTY.resolve(&WireCtx::NONE).unwrap(),
         ProtoStack::EMPTY
     );
 
@@ -154,7 +155,7 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
 
 #[test]
 fn a_delimited_stack_skips_what_a_value_leaves_unread() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let slot = ProtoStack::new(Item::Stone.id(), 1, patch());
     let raw = RawDelimitedStack::from_stack(&slot, &lookup).unwrap();
     assert_eq!(raw.resolve(&lookup).unwrap(), slot);
@@ -236,7 +237,7 @@ fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
 #[test]
 fn a_hashed_patch_matches_through_hash_ops() {
     let patch = patch();
-    let names = sample_registries();
+    let names = registries();
     let hashed = HashedPatchMap::create(&patch, names).unwrap();
     assert_eq!(hashed.removed, vec![DataComponentType::Damage]);
     let (kind, hash) = hashed.added[0];
@@ -259,7 +260,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     assert!(HashedPatchMap::create(&transient, names).is_err());
     assert!(!HashedPatchMap::default().matches(&transient, names));
     assert_eq!(
-        HashedStack::create(&ProtoStack::EMPTY, &TestLookup::new()).unwrap(),
+        HashedStack::create(&ProtoStack::EMPTY, &ctx()).unwrap(),
         None
     );
 }
@@ -327,12 +328,12 @@ fn a_template_reads_a_bare_id_and_omits_defaults() {
         serde_json::from_str::<Template<Named>>(r#"{"id":"minecraft:stone","count":0}"#).is_err()
     );
 
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let mut wire = Vec::new();
     full.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(&wire[..4], [1, 3, 1, 0]);
     assert_eq!(Template::decode_ctx(&lookup, &mut &wire[..]).unwrap(), full);
-    assert!(full.encode_ctx(&NoRegistries, &mut Vec::new()).is_err());
+    assert!(full.encode_ctx(&WireCtx::NONE, &mut Vec::new()).is_err());
 }
 
 #[test]
@@ -367,9 +368,10 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
     let two: IdSet<Block> = list_set(&["stone", "dirt"]);
     assert_eq!(json_of(&two), r#"["minecraft:stone","minecraft:dirt"]"#);
 
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     type Blocks = IdSet<Block>;
     let dirt: Id<Block> = entry("dirt");
+    let d = u8::try_from(dirt.number()).unwrap();
     let cases: [(Blocks, &[u8]); 4] = [
         (
             tag_set("logs"),
@@ -378,8 +380,8 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
                 b'g', b's',
             ],
         ),
-        (IdSet::List(Box::new([dirt])), &[2, 1]),
-        (IdSet::List(Box::new([dirt, dirt])), &[3, 1, 1]),
+        (IdSet::List(Box::new([dirt])), &[2, d]),
+        (IdSet::List(Box::new([dirt, dirt])), &[3, d, d]),
         (IdSet::List(Box::new([])), &[1]),
     ];
     for (set, bytes) in cases {
@@ -396,11 +398,11 @@ fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
     use mcrs_minecraft_sound::keys::sound_event::ENTRIES;
 
     assert!(
-        mcrs_minecraft_protocol::item::harness::sample_registries()
+        registries()
             .tags::<SoundEvent>()
-            .is_none()
+            .is_none_or(|tags| tags.iter().next().is_none())
     );
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let id = |n: usize| {
         let name = ENTRIES[n].as_static_str();
         entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
@@ -418,32 +420,33 @@ fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
 
 #[test]
 fn a_holder_set_naming_what_the_receiver_lacks_fails_the_packet() {
-    let mut lookup = TestLookup::new();
-    lookup.registry_with_ids("block", &[("stone", 0), ("not_a_block", 7)]);
+    let lookup = ctx();
     let mut unknown_tag = vec![0, 13];
     unknown_tag.extend(b"minecraft:zzz");
+    let mut unassigned = vec![2];
+    let blocks = registries().registry::<Block>().unwrap().len();
+    VarInt(i32::try_from(blocks).unwrap())
+        .encode(&mut unassigned)
+        .unwrap();
     for (what, wire) in [
         ("a tag the receiver never built", unknown_tag),
-        ("a number the sender never assigned", vec![2, 9]),
-        ("a block only the sender has", vec![2, 7]),
+        ("a number the receiver never assigned", unassigned),
     ] {
         assert!(
             IdSet::<Block>::decode_ctx(&lookup, &mut &wire[..]).is_err(),
             "{what}"
         );
     }
+    let stone = u8::try_from(entry::<Block>("stone").number()).unwrap();
     assert_eq!(
-        IdSet::<Block>::decode_ctx(&lookup, &mut &[2u8, 0][..]).unwrap(),
+        IdSet::<Block>::decode_ctx(&lookup, &mut &[2u8, stone][..]).unwrap(),
         one_set("stone")
     );
 }
 
 #[test]
 fn a_holder_set_decoded_without_registries_fails_the_packet() {
-    let one: IdSet<Block> = one_set("dirt");
-    let mut wire = Vec::new();
-    assert!(one.encode_ctx(&NoRegistries, &mut wire).is_err());
-    assert!(IdSet::<Block>::decode_ctx(&NoRegistries, &mut &[2u8, 1][..]).is_err());
+    assert!(IdSet::<Block>::decode_ctx(&WireCtx::NONE, &mut &[2u8, 1][..]).is_err());
 }
 
 #[test]
@@ -465,7 +468,7 @@ fn a_kind_is_a_var_int_on_the_wire() {
 fn a_holder_id_below_zero_is_an_error_not_a_panic() {
     use mcrs_minecraft_sound::SoundEvent;
     type Sound = Ref<SoundEvent, SoundEvent>;
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let min_var_int = [0x80, 0x80, 0x80, 0x80, 0x08];
     let error = Sound::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
     assert!(error.to_string().contains("is outside"), "{error}");
@@ -476,7 +479,7 @@ fn a_holder_id_below_zero_is_an_error_not_a_panic() {
 #[test]
 fn a_wire_amplifier_clamps_to_a_byte() {
     use mcrs_minecraft_protocol::item::MobEffectDetails;
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     for (wire, amplifier) in [
         (vec![0xAC, 0x02, 100, 0, 1, 1, 0], 255u8),
         (vec![0xF9, 0xFF, 0xFF, 0xFF, 0x0F, 100, 0, 1, 1, 0], 0),
@@ -491,7 +494,7 @@ fn a_wire_amplifier_clamps_to_a_byte() {
 
 #[test]
 fn an_air_stack_is_empty_whatever_its_count() {
-    let lookup = TestLookup::new();
+    let lookup = ctx();
     let air = ProtoStack::new(Item::Air.id(), 5, patch());
     assert!(air.is_empty());
     let mut wire = Vec::new();

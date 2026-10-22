@@ -4,7 +4,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
@@ -53,7 +53,7 @@ const FLAG_SHOW_TOAST: i32 = 2;
 const FLAG_HIDDEN: i32 = 4;
 
 impl EncodeCtx for DisplayInfo {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.title.encode_ctx(ctx, &mut w)?;
         self.description.encode_ctx(ctx, &mut w)?;
         self.icon.encode_ctx(ctx, &mut w)?;
@@ -77,7 +77,7 @@ impl EncodeCtx for DisplayInfo {
 }
 
 impl DecodeCtx<'_> for DisplayInfo {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let title = Text::decode_ctx(ctx, r)?;
         let description = Text::decode_ctx(ctx, r)?;
         let icon = Template::decode_ctx(ctx, r)?;
@@ -138,7 +138,7 @@ pub type RawAdvancement = Raw<PositionedAdvancement>;
 impl RawAdvancement {
     pub fn from_positioned(
         advancement: &PositionedAdvancement,
-        ctx: &dyn RegistryLookup,
+        ctx: &WireCtx<'_>,
     ) -> anyhow::Result<RawAdvancement> {
         Raw::from_value(advancement, ctx)
     }

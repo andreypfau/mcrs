@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_world::registry_load::{
-    KnownEntries, load_received, load_vanilla_registries, sent_by, test_packs, test_registries,
-    test_registries_arc,
+    KnownEntries, load_received, load_vanilla_registries, sent_by, test_packs, test_registries_arc,
 };
 
 const REPORT: &[u8] = include_bytes!(concat!(
@@ -13,19 +13,19 @@ const REPORT: &[u8] = include_bytes!(concat!(
 
 type Contents = BTreeMap<String, (Vec<String>, Vec<(String, Vec<u16>)>)>;
 
-fn contents(set: &RegistrySet, registries: &[String]) -> Contents {
+fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
+            let key = ResourceLocation::read(registry).unwrap();
             let names = set
-                .table(registry)
-                .map(|table| table.names().iter().map(ToString::to_string).collect())
+                .names_of(&key)
+                .map(|names| names.iter().map(ToString::to_string).collect())
                 .unwrap_or_default();
             let tags = set
-                .tag_table(registry)
-                .map(|table| {
-                    (0..table.names().len())
-                        .map(|tag| (table.names()[tag].to_string(), table.members(tag).to_vec()))
+                .tags_of(&key)
+                .map(|tags| {
+                    tags.map(|(name, members)| (name.to_string(), members.to_vec()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -49,8 +49,8 @@ fn a_client_holds_the_synced_registries_and_tags_the_server_holds() {
         let client = load_received(REPORT, local, received)
             .unwrap_or_else(|error| panic!("known {known}: {error}"));
         assert_eq!(
-            contents(&client.set, &sent),
-            contents(test_registries(), &sent),
+            contents(&client.registries, &sent),
+            contents(test_registries_arc(), &sent),
             "known packs negotiated: {known}"
         );
     }

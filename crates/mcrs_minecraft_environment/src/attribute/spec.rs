@@ -472,7 +472,7 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
         T::Activity => V::Activity(crate::keys::Activity::deserialize(d)?),
         T::BedRule => V::BedRule(BedRule::deserialize(d)?),
         T::Particle => V::Particle(Box::new(
-            mcrs_minecraft_registry::Checked::<ParticleOptions>::deserialize(d)?.0,
+            <ParticleOptions<mcrs_minecraft_registries::Named> as Deserialize>::deserialize(d)?,
         )),
         T::AmbientParticles => V::AmbientParticles(Vec::deserialize(d)?),
         T::BackgroundMusic => V::BackgroundMusic(Box::new(BackgroundMusic::deserialize(d)?)),
@@ -684,9 +684,7 @@ fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> Attribut
         can_set_spawn,
         destroy_on_use: false,
         destroy_on_leave,
-        error_message: Some(mcrs_minecraft_registry::Checked::unchecked(
-            Text::translate("block.minecraft.bed.no_sleep", Vec::new()),
-        )),
+        error_message: Some(Text::translate("block.minecraft.bed.no_sleep", Vec::new())),
     })
 }
 

@@ -1,12 +1,15 @@
-#![deny(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::unreachable,
-    clippy::todo,
-    clippy::unimplemented,
-    clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )
 )]
 
 extern crate self as mcrs_minecraft_registries;
@@ -14,6 +17,7 @@ extern crate self as mcrs_minecraft_registries;
 #[cfg(feature = "bevy")]
 mod bevy;
 mod diagnostics;
+pub mod dispatch;
 mod id;
 mod json;
 mod load;
@@ -31,13 +35,13 @@ pub use bevy::CurrentRegistries;
 pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
 pub use id::Key;
 pub use load::{
-    DataDeclaration, Declaration, LoadCtx, NetworkSnapshot, Received, Registries, RegistryView,
-    Stage, StageScope, StageView, ValueSeed, load, load_received, load_with,
+    DataDeclaration, Declaration, LoadCtx, NetworkSnapshot, Received, Registries, Stage, TagEntry,
+    ValueSeed, load, load_received,
 };
 pub use mcrs_minecraft_registries_derive::{Resolve, registry_value};
 pub use pack::{
-    AvailablePack, Features, KnownPack, PackFiles, PackIndex, PackSelection, PackStack,
-    StackedPack, pack_stack,
+    AvailablePack, Features, KnownPack, PACKS_ROOT, PackFiles, PackSelection, PackStack,
+    StackedPack, VANILLA_PACK, VANILLA_ROOT, below_vanilla_root, pack_stack,
 };
 pub use refs::{
     Inline, KeyOr, KeySet, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
@@ -50,9 +54,7 @@ pub use tags::{IdSet, Tags};
 #[doc(hidden)]
 pub use serde as __serde;
 
-// chisle: a value read this way resolves its references through whatever thread-local scope the
-// caller installs around the stage, not through the `LoadCtx` seeds; giving the type a seed-based
-// `ReadValue` retires its use of this macro, and the macro goes with the last one.
+/// Reads a value that names no registry entry as its `Deserialize` reads it.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! read_with_serde {

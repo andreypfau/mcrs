@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 
 use crate::item::component::fireworks::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
@@ -34,14 +34,14 @@ impl Decode<'_> for FireworkExplosion {
 ctx_free!(FireworkExplosion);
 
 impl EncodeCtx for Fireworks {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.flight_duration).encode(&mut w)?;
         self.explosions.encode_ctx(ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for Fireworks {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Fireworks {
             flight_duration: VarInt::decode(r)?.0,
             explosions: Bounded::decode_ctx(ctx, r)?,

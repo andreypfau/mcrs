@@ -31,8 +31,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registries::{KeySet, Named};
-use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registries::{IdSet, Key, KeySet, Named, Registries, RegistryOf, Resolve, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -431,16 +430,18 @@ impl FeatureProgram {
         tables: &FeatureTables,
         corpus: &LoadedFeatures,
         blocks: &BlockDefinitions,
-        registries: &RegistrySet,
+        registries: &Registries,
         world_seed: i64,
         structures: Option<&FrozenStructures>,
     ) -> Result<Self, FeatureCompileError> {
         let biomes = registries
-            .registry::<Biome>()
-            .expect("the loaded registries hold the biome registry");
+            .registry::<RegistryOf<mcrs_minecraft_biome_file::BiomeFile>>()
+            .ok_or_else(|| {
+                FeatureCompileError::UnknownBiome("the biomes are not loaded".to_owned())
+            })?;
         let climate: Vec<BiomeClimate> = biomes
             .iter()
-            .map(|(_, name)| {
+            .map(|(_, name, _)| {
                 tables
                     .climate
                     .get(name.as_str())
@@ -483,7 +484,7 @@ impl FeatureProgram {
 
         let mut biome_slot = [None; 256];
         for (slot, id) in tables.biome_order.iter().enumerate() {
-            if let Some(id) = biomes.by_name(id.as_str())
+            if let Some(id) = biomes.by_name(id)
                 && let Ok(byte) = id.narrow::<u8>()
             {
                 biome_slot[usize::from(byte)] = Some(slot as u16);
@@ -1155,9 +1156,8 @@ fn compile_structures(
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
                 StructureKind::RuinedPortal { setups, .. } => {
-                    let features_cannot_replace = resolver
-                        .block_tag(mcrs_minecraft_block::keys::block_tags::FEATURES_CANNOT_REPLACE)
-                        .map_err(|error| error.within(&structure.id))?;
+                    let features_cannot_replace =
+                        block_tag(mcrs_minecraft_block::keys::block_tags::FEATURES_CANNOT_REPLACE);
                     Some(CompiledStructure::RuinedPortal(Box::new(
                         RuinedPortalBlocks::compile(
                             setups,
@@ -1265,8 +1265,8 @@ fn compile_generator(
             }
         }
         Feature::SimpleRandomSelector { features } => {
-            let entries = features
-                .entries()
+            let entries = corpus
+                .placed_set(features)?
                 .iter()
                 .map(|holder| Ok((1, compile_nested(holder, trees, resolver, corpus)?)))
                 .collect::<Compiled<Vec<_>>>()?;
@@ -1440,15 +1440,15 @@ fn compile_generator(
             y_offset: y_offset.0.clone(),
         })),
         Feature::Overlay { features } => Generator::Overlay(
-            features
-                .entries()
+            corpus
+                .placed_set(features)?
                 .iter()
                 .map(|holder| compile_nested(holder, trees, resolver, corpus))
                 .collect::<Compiled<_>>()?,
         ),
         Feature::Sequence { features } => {
-            let entries: Vec<Nested> = features
-                .entries()
+            let entries: Vec<Nested> = corpus
+                .placed_set(features)?
                 .iter()
                 .map(|holder| compile_nested(holder, trees, resolver, corpus))
                 .collect::<Compiled<_>>()?;
@@ -2656,10 +2656,10 @@ pub struct Resolver<'a> {
     /// and resolved with them: one per dimension, shared by every feature that
     /// reads one.
     pub tables: Arc<BlockTables>,
+    registries: &'a Registries,
     tags: Tags<Block>,
     fluid_tags: Tags<Fluid>,
     biome_tags: Tags<Biome>,
-    biomes: Registry<Biome>,
     /// The geode's noise and the End's spike ring are drawn from the world seed
     /// rather than from the object's own source, so they belong to the freeze.
     pub world_seed: i64,
@@ -2718,7 +2718,7 @@ impl ShapeMasks {
 impl<'a> Resolver<'a> {
     pub fn new(
         blocks: &'a BlockDefinitions,
-        registries: &RegistrySet,
+        registries: &'a Registries,
         world_seed: i64,
         climate: &'a [BiomeClimate],
         block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
@@ -2728,18 +2728,16 @@ impl<'a> Resolver<'a> {
             blocks,
             world: WorldStates::default(),
             tables: Arc::new(BlockTables::default()),
+            registries,
             tags: registries
                 .tags::<Block>()
-                .expect("the loaded registries hold the block tags"),
+                .ok_or_else(|| unloaded_tags("minecraft:block"))?,
             fluid_tags: registries
                 .tags::<Fluid>()
-                .expect("the loaded registries hold the fluid tags"),
+                .ok_or_else(|| unloaded_tags("minecraft:fluid"))?,
             biome_tags: registries
                 .tags::<Biome>()
-                .expect("the loaded registries hold the biome tags"),
-            biomes: registries
-                .registry::<Biome>()
-                .expect("the loaded registries hold the biome registry"),
+                .ok_or_else(|| unloaded_tags("minecraft:worldgen/biome"))?,
             world_seed,
             climate,
             shape_masks: ShapeMasks::new(blocks),
@@ -2767,11 +2765,11 @@ impl<'a> Resolver<'a> {
     /// The world-wide state sets, resolved once for every feature to share.
     fn world_states(&self) -> WorldStates {
         let water = self.states(StateQuery::Fluids(
-            &HolderSet::One(Fluid::Water.id()),
+            &named(Fluid::Water.location().into()),
             &StatePropertiesPredicate::ANY,
         ));
         let lava = self.states(StateQuery::Fluids(
-            &HolderSet::One(Fluid::Lava.id()),
+            &named(Fluid::Lava.location().into()),
             &StatePropertiesPredicate::ANY,
         ));
         let block = |block: Block| block_mask(self, &[block]).unwrap_or_default();
@@ -2837,7 +2835,7 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn tag_mask(&self, tag: TagKey<Block, &'static str>) -> Compiled<StateMask> {
-        self.mask(StateQuery::Blocks(&self.block_tag(tag)?))
+        self.mask(StateQuery::Blocks(&block_tag(tag)))
     }
 
     pub fn fluid_tag_mask(
@@ -2845,19 +2843,8 @@ impl<'a> Resolver<'a> {
         tag: TagKey<Fluid, &'static str>,
         state: &StatePropertiesPredicate,
     ) -> Compiled<StateMask> {
-        let set = self
-            .fluid_tags
-            .get(&tag)
-            .map(HolderSet::Named)
-            .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))?;
+        let set = KeySet::Tag(Key::new((*tag.location()).into()));
         self.mask(StateQuery::Fluids(&set, state))
-    }
-
-    pub fn block_tag(&self, tag: TagKey<Block, &'static str>) -> Compiled<HolderSet<Block>> {
-        self.tags
-            .get(&tag)
-            .map(HolderSet::Named)
-            .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))
     }
 
     pub fn default_state_of(&self, block: Id<Block>) -> VoxelId {
@@ -2894,10 +2881,20 @@ impl<'a> Resolver<'a> {
 
     /// The default state of every block of a set, in the set's own order — what
     /// `random_block_provider` draws one of.
-    pub fn block_set_defaults(&self, set: &HolderSet<Block>) -> Vec<VoxelId> {
-        set.ids(&self.tags)
-            .map(|id| VoxelId::from(self.blocks[id].default_state_id.number()))
-            .collect()
+    pub fn block_set_defaults(&self, set: &KeySet<Block>) -> Option<Vec<VoxelId>> {
+        let set = self.resolved(set)?;
+        Some(
+            set.ids(&self.tags)
+                .map(|id| VoxelId::from(self.blocks[id].default_state_id.number()))
+                .collect(),
+        )
+    }
+
+    fn resolved<R: mcrs_minecraft_registries::RegistryType>(
+        &self,
+        set: &KeySet<R>,
+    ) -> Option<IdSet<R>> {
+        IdSet::resolve(set.clone(), self.registries).ok()
     }
 
     /// The block's name when no `canSurvive` rule covers it, which makes a
@@ -2922,36 +2919,30 @@ impl<'a> Resolver<'a> {
         Some(())
     }
 
-    fn add_tag(&self, mask: &mut FixedBitSet, tag: &ResourceLocation) -> Option<()> {
-        let tag = self
-            .tags
-            .get(&TagKey::<Block, Arc<str>>::from_location(tag.clone()))?;
-        self.add_set(mask, &HolderSet::Named(tag));
-        Some(())
-    }
-
-    fn add_set(&self, mask: &mut FixedBitSet, set: &HolderSet<Block>) {
-        for id in set.ids(&self.tags) {
+    fn add_set(&self, mask: &mut FixedBitSet, set: &KeySet<Block>) -> Option<()> {
+        for id in self.resolved(set)?.ids(&self.tags) {
             Self::add_entry(mask, &self.blocks[id]);
         }
+        Some(())
     }
 
     fn fluid_mask(
         &self,
-        set: &HolderSet<Fluid>,
+        set: &KeySet<Fluid>,
         properties: &StatePropertiesPredicate,
-    ) -> StateMask {
+    ) -> Option<StateMask> {
+        let set = self.resolved(set)?;
         // No block definition interns `minecraft:empty`, but the
         // reference's fluid-less states all carry it, so it matches
         // everything that holds no fluid rather than nothing at all.
         let empty =
-            set.contains(Fluid::Empty.id(), &self.fluid_tags) && properties.matches_fluid(None);
-        self.state_mask(|state| match &state.fluid {
+            set.contains(&self.fluid_tags, Fluid::Empty.id()) && properties.matches_fluid(None);
+        Some(self.state_mask(|state| match &state.fluid {
             None => empty,
             Some(fluid) => {
-                set.contains(fluid.fluid, &self.fluid_tags) && properties.matches_fluid(Some(fluid))
+                set.contains(&self.fluid_tags, fluid.fluid) && properties.matches_fluid(Some(fluid))
             }
-        })
+        }))
     }
 }
 
@@ -2964,13 +2955,15 @@ impl BlockResolver for Resolver<'_> {
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask> {
         let mut mask = FixedBitSet::with_capacity(self.blocks.state_count());
         match query {
-            StateQuery::Blocks(set) => self.add_set(&mut mask, set),
+            StateQuery::Blocks(set) => self.add_set(&mut mask, set)?,
             StateQuery::Names(names) => names
                 .iter()
                 .try_for_each(|name| self.add_block(&mut mask, name))?,
             StateQuery::Block(id) => self.add_block(&mut mask, id)?,
-            StateQuery::BlockTag(tag) => self.add_tag(&mut mask, tag)?,
-            StateQuery::Fluids(set, properties) => return Some(self.fluid_mask(set, properties)),
+            StateQuery::BlockTag(tag) => {
+                self.add_set(&mut mask, &KeySet::Tag(Key::new(tag.clone())))?
+            }
+            StateQuery::Fluids(set, properties) => return self.fluid_mask(set, properties),
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
             StateQuery::FullOutline => return Some(self.shape_masks.full_outline.clone()),
@@ -2984,37 +2977,22 @@ impl BlockResolver for Resolver<'_> {
         Some(Arc::new(mask))
     }
 
-    fn block_set(&self, keys: &KeySet<Block>) -> Option<HolderSet<Block>> {
-        holder_set(keys, &self.tags, |name| Block::find(name).map(Block::id))
-    }
-
-    fn fluid_set(&self, keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
-        holder_set(keys, &self.fluid_tags, |name| {
-            Fluid::find(name).map(Fluid::id)
-        })
-    }
-
     fn biomes(&self, set: &KeySet<Biome>) -> Option<BiomeMask> {
-        let set = holder_set(set, &self.biome_tags, |name| self.biomes.by_name(name))?;
-        let mut mask = FixedBitSet::with_capacity(self.biomes.len());
+        let set = self.resolved(set)?;
+        let mut mask = FixedBitSet::with_capacity(self.climate.len());
         mask.extend(set.ids(&self.biome_tags).map(Id::index));
         Some(Arc::new(mask))
     }
 }
 
-fn holder_set<R: 'static>(
-    keys: &KeySet<R>,
-    tags: &Tags<R>,
-    entry: impl Fn(&str) -> Option<Id<R>>,
-) -> Option<HolderSet<R>> {
-    Some(match keys {
-        KeySet::Tag(tag) => {
-            HolderSet::Named(tags.get(&TagKey::from_location(tag.location().clone()))?)
-        }
-        KeySet::List(keys) => HolderSet::List(
-            keys.iter()
-                .map(|key| entry(key.location().as_str()))
-                .collect::<Option<_>>()?,
-        ),
-    })
+fn named<R>(location: ResourceLocation) -> KeySet<R> {
+    KeySet::List(Box::new([Key::new(location)]))
+}
+
+fn block_tag(tag: TagKey<Block, &'static str>) -> KeySet<Block> {
+    KeySet::Tag(Key::new((*tag.location()).into()))
+}
+
+fn unloaded_tags(registry: &str) -> FeatureCompileError {
+    FeatureCompileError::UnknownBlockSet(format!("the tags of {registry} are not loaded"))
 }

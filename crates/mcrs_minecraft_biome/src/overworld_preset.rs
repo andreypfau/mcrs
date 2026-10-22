@@ -1262,13 +1262,17 @@ mod tests {
     #[test]
     fn the_table_names_exactly_the_biomes_with_overworld_carvers() {
         let with_overworld_carvers: BTreeSet<String> = mcrs_minecraft_worldgen_testing::registry::<
-            mcrs_minecraft_biome_file::BiomeFile,
+            mcrs_minecraft_biome_file::BiomeFile<mcrs_minecraft_registries::Named>,
         >("biome")
         .into_iter()
-        .filter(|(_, biome)| {
-            mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
-                .iter()
-                .any(|carver| carver == mcrs_minecraft_worldgen_carver::keys::carver::CAVE.as_str())
+        .filter(|(_, biome)| match &biome.carvers {
+            mcrs_minecraft_registries::KeySet::List(carvers) => carvers.iter().any(|carver| {
+                carver.location().as_str()
+                    == mcrs_minecraft_worldgen_carver::keys::carver::CAVE.as_str()
+            }),
+            mcrs_minecraft_registries::KeySet::Tag(tag) => {
+                panic!("a biome names the carver tag #{}", tag.location())
+            }
         })
         .map(|(id, _)| id.as_str().to_owned())
         .collect();

@@ -9,14 +9,9 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{
-    DecodeScope, HoldsVanillaPack, RegistriesReceived, ServerRegistries,
-};
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::{
-    Collected, sent_by, test_packs, test_registries, test_registries_arc,
-};
+use mcrs_minecraft_network::client::{HoldsVanillaPack, RegistriesReceived, ServerRegistries};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryOf};
+use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_packs, test_registries_arc};
 use std::collections::BTreeMap;
 
 pub fn boot(extra: impl FnOnce(&mut App)) -> App {
@@ -79,19 +74,19 @@ pub fn received_id<V: Send + Sync + 'static, R>(app: &App, name: &str) -> Id<R> 
 
 type Contents = BTreeMap<String, (Vec<String>, Vec<(String, Vec<u16>)>)>;
 
-fn contents(set: &RegistrySet, registries: &[String]) -> Contents {
+fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
+            let key = ResourceLocation::read(registry).unwrap();
             let names = set
-                .table(registry)
-                .map(|table| table.names().iter().map(ToString::to_string).collect())
+                .names_of(&key)
+                .map(|names| names.iter().map(ToString::to_string).collect())
                 .unwrap_or_default();
             let tags = set
-                .tag_table(registry)
-                .map(|table| {
-                    (0..table.names().len())
-                        .map(|tag| (table.names()[tag].to_string(), table.members(tag).to_vec()))
+                .tags_of(&key)
+                .map(|tags| {
+                    tags.map(|(name, members)| (name.to_string(), members.to_vec()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -124,8 +119,8 @@ fn a_client_ends_configuration_with_the_registries_the_server_holds() {
         .chain(tags.iter().map(|(key, _)| key.to_string()))
         .collect();
     assert_eq!(
-        contents(&app.world().resource::<DecodeScope>().0, &sent),
-        contents(test_registries(), &sent)
+        contents(app.world().resource::<CurrentRegistries>(), &sent),
+        contents(test_registries_arc(), &sent)
     );
 
     let registries = app.world().resource::<CurrentRegistries>();

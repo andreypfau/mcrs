@@ -11,8 +11,7 @@ use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -26,24 +25,24 @@ use mcrs_minecraft_worldgen_generator::{
 };
 
 use common::support::{build_settings_router, corpus};
-use mcrs_minecraft_biome::Biome;
 
-fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
-    let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)
-        .map(|i| ResourceLocation::read(&format!("minecraft:land_biome_{i}")).unwrap())
+/// The eleven land biomes numbered in name order, as a registry of only them numbers them.
+fn build_beta_biome_source() -> BiomeSource {
+    let mut names: Vec<String> = (0..11)
+        .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();
-    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    let registry = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names)
-        .expect("distinct land biomes");
-    let biome_source = BiomeSource::Beta {
+    names.sort();
+    BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| {
-            registry
-                .by_name(&format!("minecraft:land_biome_{i}"))
-                .expect("a land biome")
+            let name = format!("minecraft:land_biome_{i}");
+            let number = names
+                .iter()
+                .position(|held| *held == name)
+                .expect("a land biome");
+            Id::checked(number as u16, names.len()).expect("an id of the eleven")
         }),
-        lookup: std::sync::Arc::new(build_beta_lookup_table()),
-    };
-    (biome_source, registry)
+        lookup: Arc::new(build_beta_lookup_table()),
+    }
 }
 
 /// Beta's carver in every land biome, as the shipped Beta biomes carry it.
@@ -142,7 +141,7 @@ fn generate_range(
     start: Option<&Barrier>,
 ) -> (Vec<f64>, Stages, f64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, _) = build_beta_biome_source();
+    let biome_source = build_beta_biome_source();
     let carvers = beta_carvers(&biome_source);
     let cancel = CancellationToken::new();
     let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
@@ -175,7 +174,7 @@ fn generate_range(
 /// Non-air blocks in one column, to confirm a section span actually carries terrain.
 fn report_content(y_sections: &[i32], seed: u64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, _) = build_beta_biome_source();
+    let biome_source = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let mut column = ColumnBlocks::new(y_sections);
     let _ = fill_column_dense_any(

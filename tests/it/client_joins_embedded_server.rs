@@ -2,13 +2,13 @@ use bevy_app::{App, AppExit, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Local, Res};
 use mcrs_minecraft_client::columns::{BlockSource, ColumnCachePlugin, ColumnStore};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, DecodeScope,
-    JoinedGame, PendingTeleports, ServerProfile, offline_player_uuid,
+    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, JoinedGame,
+    PendingTeleports, ServerProfile, offline_player_uuid,
 };
-use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
 use mcrs_minecraft_world::registry_load::sent_by;
 use std::collections::BTreeMap;
@@ -24,19 +24,19 @@ use crate::support::{
 
 type Contents = BTreeMap<String, (Vec<String>, Vec<(String, Vec<u16>)>)>;
 
-fn contents(set: &RegistrySet, registries: &[String]) -> Contents {
+fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
+            let key = ResourceLocation::read(registry).unwrap();
             let names = set
-                .table(registry)
-                .map(|table| table.names().iter().map(ToString::to_string).collect())
+                .names_of(&key)
+                .map(|names| names.iter().map(ToString::to_string).collect())
                 .unwrap_or_default();
             let tags = set
-                .tag_table(registry)
-                .map(|table| {
-                    (0..table.names().len())
-                        .map(|tag| (table.names()[tag].to_string(), table.members(tag).to_vec()))
+                .tags_of(&key)
+                .map(|tags| {
+                    tags.map(|(name, members)| (name.to_string(), members.to_vec()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -66,10 +66,8 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     let (synced_send, synced_recv) = mpsc::channel();
     server.add_systems(
         Update,
-        move |registries: Option<Res<CurrentRegistries>>,
-              set: Option<Res<RegistrySet>>,
-              mut sent: Local<bool>| {
-            let (Some(registries), Some(set)) = (registries, set) else {
+        move |registries: Option<Res<CurrentRegistries>>, mut sent: Local<bool>| {
+            let Some(registries) = registries else {
                 return;
             };
             if std::mem::replace(&mut *sent, true) {
@@ -83,7 +81,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
                 .collect();
             let synced = data.len();
             synced_send
-                .send((synced, contents(&set, &named), named))
+                .send((synced, contents(&registries, &named), named))
                 .ok();
         },
     );
@@ -139,7 +137,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         "the server syncs biomes"
     );
     assert_eq!(
-        contents(&world.resource::<DecodeScope>().0, &named),
+        contents(world.resource::<CurrentRegistries>(), &named),
         server,
         "the client holds the names, id order and tags the server holds"
     );

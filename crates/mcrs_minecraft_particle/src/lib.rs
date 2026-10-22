@@ -21,7 +21,7 @@ macro_rules! particle_types {
             $($variant $(($payload))?),*
         }
 
-        mcrs_minecraft_registry::dispatch! {
+        mcrs_minecraft_registries::dispatch! {
             ParticleOptions<Named>, key = "type", registry = crate::keys::ParticleType,
             {
                 $($variant),*
@@ -369,7 +369,7 @@ enum PositionSourceRepr {
     Entity {},
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     reads_only PositionSourceRepr, key = "type", registry = crate::keys::PositionSourceType,
     {
         Block,

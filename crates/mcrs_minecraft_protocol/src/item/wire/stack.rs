@@ -1,14 +1,14 @@
 use std::io::Write;
 use std::marker::PhantomData;
 
+use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use bytes::Bytes;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::{Named, Resolve};
-use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, registries};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, nested, registries};
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{
     HashedPatchMap, ItemStackValue, MAX_HASHED_COMPONENTS, ProtoStack, Template,
@@ -18,7 +18,7 @@ use crate::{Decode, Encode, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
 
 impl EncodeCtx for Template {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.0.item.encode(&mut w)?;
         VarInt(self.0.count.0).encode(&mut w)?;
         self.0.components.encode_ctx(ctx, w)
@@ -26,7 +26,7 @@ impl EncodeCtx for Template {
 }
 
 impl<'a> DecodeCtx<'a> for Template {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         nested(|| {
             let item = Id::<Item>::decode(r)?;
             let count = VarInt::decode(r)?.0;
@@ -38,9 +38,9 @@ impl<'a> DecodeCtx<'a> for Template {
 
 fn encode_with(
     stack: &ProtoStack,
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     mut w: impl Write,
-    patch: impl FnOnce(&ComponentPatch, &dyn RegistryLookup, &mut dyn Write) -> anyhow::Result<()>,
+    patch: impl FnOnce(&ComponentPatch, &WireCtx<'_>, &mut dyn Write) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     if stack.is_empty() {
         return VarInt(0).encode(w);
@@ -51,9 +51,9 @@ fn encode_with(
 }
 
 fn decode_with<'a>(
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     r: &mut &'a [u8],
-    patch: impl FnOnce(&dyn RegistryLookup, &mut &'a [u8]) -> anyhow::Result<ComponentPatch>,
+    patch: impl FnOnce(&WireCtx<'_>, &mut &'a [u8]) -> anyhow::Result<ComponentPatch>,
 ) -> anyhow::Result<ProtoStack> {
     let count = VarInt::decode(r)?.0;
     if count <= 0 {
@@ -73,7 +73,7 @@ fn decode_with<'a>(
 
 pub fn encode_delimited_ctx(
     stack: &ProtoStack,
-    ctx: &dyn RegistryLookup,
+    ctx: &WireCtx<'_>,
     w: impl Write,
 ) -> anyhow::Result<()> {
     encode_with(stack, ctx, w, |patch, ctx, w| {
@@ -81,18 +81,18 @@ pub fn encode_delimited_ctx(
     })
 }
 
-pub fn decode_delimited_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<ProtoStack> {
+pub fn decode_delimited_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<ProtoStack> {
     decode_with(ctx, r, decode_delimited_patch)
 }
 
 impl EncodeCtx for ProtoStack {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         encode_with(self, ctx, w, |patch, ctx, w| patch.encode_ctx(ctx, w))
     }
 }
 
 impl<'a> DecodeCtx<'a> for ProtoStack {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         decode_with(ctx, r, ComponentPatch::decode_ctx)
     }
 }
@@ -110,7 +110,7 @@ impl Default for RawStack {
 impl RawStack {
     pub const EMPTY: RawStack = Raw(Bytes::from_static(&[0]), PhantomData);
 
-    pub fn from_stack(stack: &ProtoStack, ctx: &dyn RegistryLookup) -> anyhow::Result<RawStack> {
+    pub fn from_stack(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<RawStack> {
         Raw::from_value(stack, ctx)
     }
 }
@@ -131,7 +131,7 @@ impl RawDelimitedStack {
     /// Vanilla validates by re-encoding through the persistent codec; here every
     /// codec's checks sit on the read side, so the stack is read back from its
     /// persistent form instead.
-    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ProtoStack> {
+    pub fn resolve(&self, ctx: &WireCtx<'_>) -> anyhow::Result<ProtoStack> {
         let mut r = &self.0[..];
         let stack = decode_delimited_ctx(ctx, &mut r)?;
         ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
@@ -143,10 +143,7 @@ impl RawDelimitedStack {
         Ok(stack)
     }
 
-    pub fn from_stack(
-        stack: &ProtoStack,
-        ctx: &dyn RegistryLookup,
-    ) -> anyhow::Result<RawDelimitedStack> {
+    pub fn from_stack(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<RawDelimitedStack> {
         let mut bytes = Vec::new();
         encode_delimited_ctx(stack, ctx, &mut bytes)?;
         Ok(RawDelimitedStack(bytes.into()))
@@ -162,7 +159,7 @@ impl Encode for RawDelimitedStack {
 impl Decode<'_> for RawDelimitedStack {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let start = *r;
-        decode_delimited_ctx(&Opaque, r)?;
+        decode_delimited_ctx(&WireCtx::WALKING, r)?;
         Ok(RawDelimitedStack(Bytes::copy_from_slice(
             &start[..start.len() - r.len()],
         )))
@@ -177,7 +174,7 @@ pub struct HashedStack {
 }
 
 impl HashedStack {
-    pub fn create(stack: &ProtoStack, ctx: &dyn RegistryLookup) -> anyhow::Result<Option<Self>> {
+    pub fn create(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<Option<Self>> {
         if stack.is_empty() {
             return Ok(None);
         }
@@ -188,7 +185,7 @@ impl HashedStack {
         }))
     }
 
-    pub fn matches(&self, stack: &ProtoStack, ctx: &dyn RegistryLookup) -> bool {
+    pub fn matches(&self, stack: &ProtoStack, ctx: &WireCtx<'_>) -> bool {
         self.count == stack.count
             && self.id == stack.id
             && registries(ctx).is_ok_and(|names| self.components.matches(&stack.components, names))

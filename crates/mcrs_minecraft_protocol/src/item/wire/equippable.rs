@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_registry::RegistryLookup;
+use crate::item::ctx::WireCtx;
 
 use crate::item::component::equippable::EquipmentSlot;
 use crate::item::component::equippable::*;
@@ -8,7 +8,7 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::{Decode, Encode, VarInt};
 
 impl EncodeCtx for Equippable {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.slot.equippable_id() as i32).encode(&mut w)?;
         self.equip_sound.encode_ctx(ctx, &mut w)?;
         self.asset_id.encode(&mut w)?;
@@ -24,7 +24,7 @@ impl EncodeCtx for Equippable {
 }
 
 impl DecodeCtx<'_> for Equippable {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Equippable {
             slot: u8::try_from(VarInt::decode(r)?.0)
                 .map_or(EquipmentSlot::MainHand, EquipmentSlot::from_equippable_id),

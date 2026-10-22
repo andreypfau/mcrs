@@ -4,7 +4,7 @@
 //! nothing, so a gap here is silent in the world and loud only in this census.
 
 #[cfg(test)]
-use mcrs_minecraft_worldgen_testing::{corpus_set, registry};
+use mcrs_minecraft_worldgen_testing::registry;
 #[cfg(test)]
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -26,7 +26,7 @@ use crate::features::FeatureTables;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
 #[cfg(test)]
-use super::{biome_registry, blocks, build_program, registries_over};
+use super::{biome_registry, blocks, build_program};
 use super::{corpus_features, one_step};
 
 #[cfg(test)]
@@ -221,7 +221,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
         };
         assert_eq!(shape, matches, "{name}");
 
-        let registries = registries_over(&biome_registry(&[BIOME]));
+        let registries = biome_registry(&[BIOME]);
         let compiled = crate::trees::compile_provider(
             &proto,
             &crate::feature_program::Resolver::new(
@@ -322,8 +322,7 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
             let parsed = values
                 .into_iter()
                 .map(|value| {
-                    corpus_set()
-                        .scope(|| serde_json::from_value(value))
+                    serde_json::from_value(value)
                         .unwrap_or_else(|e| panic!("{kind} does not parse as a feature: {e}"))
                 })
                 .collect();

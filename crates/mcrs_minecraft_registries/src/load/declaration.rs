@@ -1,5 +1,4 @@
-use std::any::TypeId;
-use std::marker::PhantomData;
+use std::any::{Any, TypeId};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -40,7 +39,7 @@ pub(crate) struct EntryFailure {
 }
 
 pub(crate) enum Kind<'a> {
-    Fixed(&'a dyn ErasedFixed),
+    Fixed(&'a Fixed),
     Data(&'a dyn ErasedData),
 }
 
@@ -55,16 +54,9 @@ impl Kind<'_> {
 
 pub(crate) trait Erased: Send + Sync {
     fn key(&self) -> &ResourceLocation;
-    fn registry_type(&self) -> TypeId;
-    fn aliases(&self) -> &[TypeId] {
-        &[]
-    }
+    /// The Rust types that address this registry; empty for one addressed by its key alone.
+    fn types(&self) -> &[TypeId];
     fn kind(&self) -> Kind<'_>;
-}
-
-pub(crate) trait ErasedFixed {
-    fn names(&self) -> &[ResourceLocation];
-    fn assemble(&self, names: Arc<Names>) -> Table;
 }
 
 pub(crate) trait ErasedData {
@@ -103,7 +95,7 @@ pub struct DataDeclaration<R: RegistryType> {
     non_empty: bool,
     validator: Option<Validator<R>>,
     built_in: Vec<BuiltInSet<R>>,
-    aliases: Vec<TypeId>,
+    types: Vec<TypeId>,
     synced: Option<Project<R>>,
     received: Option<Receive<R>>,
 }
@@ -147,7 +139,7 @@ where
 
     /// Lets a crate below the one that holds the values name this registry by the marker `K`.
     pub fn named_by<K: RegistryType>(mut self) -> Self {
-        self.aliases.push(TypeId::of::<K>());
+        self.types.push(TypeId::of::<K>());
         self
     }
 
@@ -224,9 +216,16 @@ impl Declaration {
             non_empty: false,
             validator: None,
             built_in: Vec::new(),
-            aliases: Vec::new(),
+            types: vec![TypeId::of::<R>()],
             synced: None,
             received: None,
+        }
+    }
+
+    /// A data registry whose entries are the names of its files, which are never read.
+    pub fn names_only(key: ResourceLocation, stage: Stage) -> Declaration {
+        Declaration {
+            inner: Box::new(NamesOnly { key, stage }),
         }
     }
 
@@ -234,11 +233,33 @@ impl Declaration {
         key: ResourceLocation,
         names: Vec<ResourceLocation>,
     ) -> Declaration {
+        Self::fixed_as(key, names, vec![TypeId::of::<R>()], |key, names| {
+            Arc::new(Registry::<R>::new(
+                key.clone(),
+                Arc::clone(names),
+                vec![(); names.len()],
+                Vec::new(),
+            ))
+        })
+    }
+
+    /// A static registry addressed by its key alone.
+    pub fn fixed_names(key: ResourceLocation, names: Vec<ResourceLocation>) -> Declaration {
+        Self::fixed_as(key, names, Vec::new(), |_, _| Arc::new(()))
+    }
+
+    fn fixed_as(
+        key: ResourceLocation,
+        names: Vec<ResourceLocation>,
+        types: Vec<TypeId>,
+        registry: MakeRegistry,
+    ) -> Declaration {
         Declaration {
-            inner: Box::new(Fixed::<R> {
+            inner: Box::new(Fixed {
                 key,
                 names,
-                registry: PhantomData,
+                types,
+                registry,
             }),
         }
     }
@@ -263,12 +284,8 @@ where
         &self.key
     }
 
-    fn registry_type(&self) -> TypeId {
-        TypeId::of::<R>()
-    }
-
-    fn aliases(&self) -> &[TypeId] {
-        &self.aliases
+    fn types(&self) -> &[TypeId] {
+        &self.types
     }
 
     fn kind(&self) -> Kind<'_> {
@@ -329,6 +346,7 @@ where
             return Err(failures);
         }
         Ok(Table {
+            key: self.key.clone(),
             names: Arc::clone(names),
             registry: Arc::new(Registry::<R>::new(
                 self.key.clone(),
@@ -392,19 +410,36 @@ where
     }
 }
 
-struct Fixed<R> {
+type MakeRegistry = fn(&ResourceLocation, &Arc<Names>) -> Arc<dyn Any + Send + Sync>;
+
+pub(crate) struct Fixed {
     key: ResourceLocation,
     names: Vec<ResourceLocation>,
-    registry: PhantomData<fn() -> R>,
+    types: Vec<TypeId>,
+    registry: MakeRegistry,
 }
 
-impl<R: RegistryType<Value = ()>> Erased for Fixed<R> {
+impl Fixed {
+    pub(crate) fn names(&self) -> &[ResourceLocation] {
+        &self.names
+    }
+
+    pub(crate) fn assemble(&self, names: Arc<Names>) -> Table {
+        Table {
+            key: self.key.clone(),
+            registry: (self.registry)(&self.key, &names),
+            names,
+        }
+    }
+}
+
+impl Erased for Fixed {
     fn key(&self) -> &ResourceLocation {
         &self.key
     }
 
-    fn registry_type(&self) -> TypeId {
-        TypeId::of::<R>()
+    fn types(&self) -> &[TypeId] {
+        &self.types
     }
 
     fn kind(&self) -> Kind<'_> {
@@ -412,21 +447,63 @@ impl<R: RegistryType<Value = ()>> Erased for Fixed<R> {
     }
 }
 
-impl<R: RegistryType<Value = ()>> ErasedFixed for Fixed<R> {
-    fn names(&self) -> &[ResourceLocation] {
-        &self.names
+struct NamesOnly {
+    key: ResourceLocation,
+    stage: Stage,
+}
+
+impl Erased for NamesOnly {
+    fn key(&self) -> &ResourceLocation {
+        &self.key
     }
 
-    fn assemble(&self, names: Arc<Names>) -> Table {
-        let values = vec![(); names.len()];
-        Table {
-            registry: Arc::new(Registry::<R>::new(
-                self.key.clone(),
-                Arc::clone(&names),
-                values,
-                Vec::new(),
-            )),
-            names,
-        }
+    fn types(&self) -> &[TypeId] {
+        &[]
+    }
+
+    fn kind(&self) -> Kind<'_> {
+        Kind::Data(self)
+    }
+}
+
+impl ErasedData for NamesOnly {
+    fn stage(&self) -> Stage {
+        self.stage
+    }
+
+    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])> {
+        Vec::new()
+    }
+
+    fn must_not_be_empty(&self) -> bool {
+        false
+    }
+
+    fn build(
+        &self,
+        _: &LoadCtx<'_>,
+        names: &Arc<Names>,
+        _: Vec<EntrySource<'_>>,
+    ) -> Result<Table, Vec<EntryFailure>> {
+        Ok(Table {
+            key: self.key.clone(),
+            names: Arc::clone(names),
+            registry: Arc::new(()),
+        })
+    }
+
+    fn validate(&self, _: &Table, _: &LoadCtx<'_>) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn is_synced(&self) -> bool {
+        false
+    }
+
+    fn synced_entries<'r>(
+        &self,
+        _: &'r Registries,
+    ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>> {
+        None
     }
 }

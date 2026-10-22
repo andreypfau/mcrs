@@ -115,12 +115,9 @@ fn receive_game_mode_packets(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
+    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_protocol::game_mode::OptGameMode;
     use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
-    use mcrs_minecraft_registry::{Registry, RegistrySet};
-    use std::sync::Arc;
 
     const PLAYER_ID: i32 = 7;
 
@@ -141,29 +138,20 @@ mod tests {
         (app, connection)
     }
 
-    fn session() -> RegistrySet {
-        let overworld = ResourceLocation::<Arc<str>>::read("minecraft:overworld").unwrap();
-        RegistrySet::new()
-            .with(Registry::new(DIMENSION_TYPE, [overworld]).unwrap())
-            .unwrap()
-    }
-
     fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, packet: P) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
-        session().scope(|| {
-            app.world_mut().trigger(ReceivedPacketEvent {
-                entity: connection,
-                id: P::ID,
-                data: data.into(),
-                timestamp: mcrs_minecraft_network::Instant::now(),
-            });
+        app.world_mut().trigger(ReceivedPacketEvent {
+            entity: connection,
+            id: P::ID,
+            data: data.into(),
+            timestamp: mcrs_minecraft_network::Instant::now(),
         });
         app.world_mut().flush();
     }
 
     fn spawn_info(mode: GameMode, previous: Option<GameMode>) -> PlayerSpawnInfo {
-        let overworld = session().registry().unwrap().id(0).unwrap();
+        let overworld = Id::checked(0, 1).unwrap();
         PlayerSpawnInfo {
             prev_game_mode: OptGameMode(previous),
             ..PlayerSpawnInfo::new(

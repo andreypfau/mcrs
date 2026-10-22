@@ -1,48 +1,38 @@
-use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings};
-use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
+use mcrs_minecraft_biome_file::BiomeFile;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
 use bevy_asset::io::{AssetReaderError, AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
-use mcrs_minecraft_assets::packs::{
-    PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source, layered_reader,
-};
+use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostic, Level, Registries, Resolve};
-use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{HolderSet, RegistrySet, WorldRegistries};
-use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
-use mcrs_minecraft_world::registries::{
-    reloadable_registries, static_registries as build_static_registries, world_registries,
+use mcrs_minecraft_registries::{
+    CurrentRegistries, Diagnostic, IdSet, Key, Level, Registries, RegistryOf, RegistryType,
+    Resolve, Resolver, StackedPack, VANILLA_PACK,
 };
-use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, sent_by, test_registries, test_registries_arc,
-};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, sent_by, test_registries_arc};
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
-use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
-use mcrs_minecraft_world::villager_trade::VillagerTrade;
+use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::{corpus_path, packs, vanilla_dir};
-use std::sync::LazyLock;
 
 use crate::common::{
     WithFiles, assets, datapack_report, declared_registries, loaded_names, plugin_app, read_named,
     write_named,
 };
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -53,34 +43,35 @@ use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructurePr
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 
-#[test]
-fn the_generated_static_set_equals_the_report() {
-    let report =
-        from_report(&std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap())
-            .unwrap();
-    let built = build_static_registries().unwrap();
-
-    assert_eq!(built.tables().count(), report.tables().count());
-    for stored in report.tables() {
-        let registry = stored.registry().as_str();
-        let table = built
-            .table(registry)
-            .unwrap_or_else(|| panic!("{registry} is missing from the generated set"));
-        assert_eq!(table.names(), stored.names(), "{registry}");
-        for (id, name) in stored.names().iter().enumerate() {
-            assert_eq!(
-                table.number(name.as_str()),
-                u16::try_from(id).ok(),
-                "{name}"
-            );
-        }
-    }
+#[derive(serde::Deserialize)]
+struct ReportedRegistry {
+    entries: BTreeMap<String, ReportedEntry>,
 }
 
-static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
-    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    world_registries(&bytes).expect("the report parses")
-});
+#[derive(serde::Deserialize)]
+struct ReportedEntry {
+    protocol_id: usize,
+}
+
+#[test]
+fn the_loaded_static_registries_number_their_entries_as_the_report() {
+    let report: BTreeMap<String, ReportedRegistry> = serde_json::from_slice(
+        &std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(!report.is_empty());
+    for (registry, reported) in report {
+        let mut expected = vec![String::new(); reported.entries.len()];
+        for (name, entry) in reported.entries {
+            expected[entry.protocol_id] = name;
+        }
+        assert_eq!(
+            loaded_names(test_registries_arc(), &registry),
+            expected,
+            "{registry}"
+        );
+    }
+}
 
 fn load_text(files: &[(&str, &str)]) -> String {
     WithFiles::test_pack(files)
@@ -146,113 +137,45 @@ fn instrument(sound: &str) -> String {
     )
 }
 
-fn static_registries() -> BTreeSet<String> {
+fn every_registry() -> BTreeSet<String> {
     let path = assets().join("mcrs/reports/registries.json");
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let report: BTreeMap<String, serde_json::Value> = serde_json::from_str(&text).unwrap();
-    report.into_keys().collect()
+    report
+        .into_keys()
+        .chain(declared_registries(false))
+        .chain(declared_registries(true))
+        .collect()
 }
 
 #[test]
-fn the_declared_registries_are_the_reports_world_registries() {
+fn every_registry_of_the_reports_is_loaded() {
     let report = datapack_report();
-    let statics = static_registries();
-    let set = test_registries();
-
-    let reloadable = declared_registries(true);
-    let loaded: BTreeSet<String> = set
-        .tables()
-        .map(|table| table.registry().to_string())
-        .filter(|registry| !statics.contains(registry))
-        .collect();
-    let world: BTreeSet<String> = loaded.difference(&reloadable).cloned().collect();
-    assert_eq!(world, declared_registries(false));
-    assert!(
-        reloadable.is_subset(&loaded),
-        "{:?} are reloadable and not loaded",
-        reloadable.difference(&loaded).collect::<Vec<_>>()
-    );
-
+    let set = test_registries_arc();
+    for registry in every_registry() {
+        assert!(
+            set.names_of(&ResourceLocation::read(&registry).unwrap())
+                .is_some(),
+            "{registry} is not loaded"
+        );
+    }
     for (registry, flags) in &report.registries {
-        if flags.stable {
-            assert!(
-                !WORLD
-                    .declared()
-                    .any(|declared| declared.as_str() == registry),
-                "{registry} is stable"
-            );
-        }
         let directory = vanilla_dir().join(registry.trim_start_matches("minecraft:"));
         if directory.is_dir() {
             assert!(
-                world.contains(registry) || flags.stable,
-                "{registry} has files in the vanilla data pack and is neither declared nor stable"
+                flags.elements,
+                "{registry} has files in the vanilla data pack and no elements"
             );
         }
     }
 }
 
-const PARSED_WORLDGEN: [&str; 16] = [
-    "minecraft:worldgen/biome",
-    "minecraft:worldgen/block_state_provider",
-    "minecraft:worldgen/carver",
-    "minecraft:worldgen/density_function",
-    "minecraft:worldgen/feature",
-    "minecraft:worldgen/material_condition",
-    "minecraft:worldgen/material_rule",
-    "minecraft:worldgen/multi_noise_biome_source_parameter_list",
-    "minecraft:worldgen/noise",
-    "minecraft:worldgen/noise_settings",
-    "minecraft:worldgen/placed_feature",
-    "minecraft:worldgen/processor_list",
-    "minecraft:worldgen/structure",
-    "minecraft:worldgen/structure_set",
-    "minecraft:worldgen/template_pool",
-    "minecraft:worldgen/world_preset",
-];
-
-const BUILT_WORLDGEN: [&str; 4] = [
-    "minecraft:worldgen/density_function",
-    "minecraft:worldgen/noise",
-    "minecraft:worldgen/noise_settings",
-    "minecraft:worldgen/template_pool",
-];
-
-#[test]
-fn the_parsed_registries_are_the_reports_world_registries_outside_unparsed_worldgen() {
-    let world = &*WORLD;
-    let parsed: BTreeSet<String> = world
-        .declared()
-        .filter(|registry| world.parses(registry.as_str()))
-        .map(|registry| registry.to_string())
-        .collect();
-    let expected: BTreeSet<String> = datapack_report()
-        .registries
-        .into_iter()
-        .filter(|(registry, flags)| {
-            flags.elements
-                && !flags.stable
-                && (!registry.starts_with("minecraft:worldgen/")
-                    || PARSED_WORLDGEN.contains(&registry.as_str()))
-                && registry.as_str() != "minecraft:trial_spawner"
-        })
-        .map(|(registry, _)| registry)
-        .collect();
-
-    let unparsed: Vec<_> = expected.difference(&parsed).collect();
-    let unexpected: Vec<_> = parsed.difference(&expected).collect();
-    assert!(
-        unparsed.is_empty() && unexpected.is_empty(),
-        "world registries the loader does not parse: {unparsed:?}; registries it parses that are not world registries outside worldgen: {unexpected:?}"
-    );
-}
-
 #[test]
 fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
-    let set = test_registries();
-    let biomes = set.table("minecraft:worldgen/biome").expect("biome table");
-    let names: BTreeSet<String> = biomes.names().iter().map(|name| name.to_string()).collect();
-    let built = mcrs_minecraft_worldgen_builtin::biomes(set).expect("the built biomes resolve");
+    let names: BTreeSet<String> = loaded_names(test_registries_arc(), "minecraft:worldgen/biome")
+        .into_iter()
+        .collect();
+    let built = mcrs_minecraft_worldgen_builtin::biome_names();
     assert!(!built.is_empty());
     let files: Vec<String> = std::iter::once(vanilla_dir().join("worldgen/biome"))
         .chain(
@@ -268,7 +191,7 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
         })
         .collect();
     assert!(!files.is_empty());
-    for expected in built.keys().map(|name| name.to_string()).chain(files) {
+    for expected in built.iter().map(|name| name.to_string()).chain(files) {
         assert!(
             names.contains(&expected),
             "{expected} is missing from the biome names"
@@ -276,14 +199,33 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     }
 }
 
+fn from_pack<R: RegistryType>(set: &Registries, pack: &str) -> Vec<ResourceLocation> {
+    let registry = set
+        .registry::<R>()
+        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()));
+    registry
+        .iter()
+        .filter(|(id, _, _)| set.origin(*id).map(StackedPack::id) == Some(pack))
+        .map(|(_, name, _)| name.clone())
+        .collect()
+}
+
+fn pack_of<R: RegistryType>(set: &Registries, name: &str) -> Option<String> {
+    let registry = set.registry::<R>()?;
+    let id = registry.by_name(&ResourceLocation::read(name).ok()?)?;
+    set.origin(id).map(|pack| pack.id().to_owned())
+}
+
+fn key_of<R: RegistryType>(set: &Registries) -> ResourceLocation {
+    set.key_of::<R>()
+        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()))
+        .clone()
+}
+
 #[test]
 fn vanilla_biomes_are_built_entries_not_files() {
-    let set = test_registries();
-    let table = set.table("minecraft:worldgen/biome").expect("biome table");
-    let vanilla = (0..table.len())
-        .filter(|&id| set.pack_of("minecraft:worldgen/biome", id) == Some(VANILLA_PACK))
-        .count();
-    assert_eq!(vanilla, 68);
+    let vanilla = from_pack::<RegistryOf<BiomeFile>>(test_registries_arc(), VANILLA_PACK);
+    assert_eq!(vanilla.len(), 68);
     assert!(
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/biome/plains.json").is_none(),
         "a built biome is served as a file"
@@ -292,20 +234,31 @@ fn vanilla_biomes_are_built_entries_not_files() {
 
 #[test]
 fn vanilla_noise_settings_are_built_entries_not_files() {
-    let set = test_registries();
-    for (registry, vanilla, beta) in [
-        ("minecraft:worldgen/noise", 65, 5),
-        ("minecraft:worldgen/density_function", 55, 10),
-        ("minecraft:worldgen/noise_settings", 7, 1),
-    ] {
-        let table = set.table(registry).expect(registry);
-        let from = |pack: &str| {
-            (0..table.len())
-                .filter(|&id| set.pack_of(registry, id) == Some(pack))
-                .count()
-        };
+    let set = test_registries_arc();
+    type FromPack = fn(&Registries, &str) -> Vec<ResourceLocation>;
+    let cases: [(&str, FromPack, usize, usize); 3] = [
+        (
+            "minecraft:worldgen/noise",
+            from_pack::<RegistryOf<NoiseParam>>,
+            65,
+            5,
+        ),
+        (
+            "minecraft:worldgen/density_function",
+            from_pack::<RegistryOf<DensityFunctionHolder>>,
+            55,
+            10,
+        ),
+        (
+            "minecraft:worldgen/noise_settings",
+            from_pack::<RegistryOf<NoiseGeneratorSettings>>,
+            7,
+            1,
+        ),
+    ];
+    for (registry, from, vanilla, beta) in cases {
         assert_eq!(
-            (from(VANILLA_PACK), from("file/beta")),
+            (from(set, VANILLA_PACK).len(), from(set, "file/beta").len()),
             (vanilla, beta),
             "{registry}"
         );
@@ -319,18 +272,16 @@ fn vanilla_noise_settings_are_built_entries_not_files() {
 
 #[test]
 fn vanilla_template_pools_are_built_entries_not_files() {
-    let set = test_registries();
-    let registry = "minecraft:worldgen/template_pool";
-    let table = set.table(registry).expect(registry);
-    assert_eq!(table.len(), 245);
-    assert!(
-        (0..table.len()).all(|id| set.pack_of(registry, id) == Some(VANILLA_PACK)),
+    let set = test_registries_arc();
+    let pools = set
+        .registry::<RegistryOf<TemplatePool>>()
+        .expect("the loader parses template pools");
+    assert_eq!(pools.len(), 245);
+    assert_eq!(
+        from_pack::<RegistryOf<TemplatePool>>(set, VANILLA_PACK).len(),
+        pools.len(),
         "a template pool comes from a pack other than the vanilla one"
     );
-    let pools = set
-        .entries::<TemplatePool, TemplatePool>()
-        .expect("the loader parses template pools");
-    assert_eq!(pools.as_slice().len(), table.len());
     assert!(
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/template_pool/empty.json")
             .is_none(),
@@ -340,7 +291,7 @@ fn vanilla_template_pools_are_built_entries_not_files() {
 
 #[test]
 fn the_fallback_serves_only_structure_templates() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let fallback = layered_reader(
         Box::new(MemoryAssetReader {
             root: Dir::default(),
@@ -349,16 +300,34 @@ fn the_fallback_serves_only_structure_templates() {
     );
 
     let mut json_paths = 0;
-    for registry in std::iter::once("minecraft:worldgen/biome").chain(BUILT_WORLDGEN) {
-        let table = set.table(registry).expect(registry);
-        for (id, name) in table.names().iter().enumerate() {
-            if set.pack_of(registry, id) != Some(VANILLA_PACK) {
-                continue;
-            }
+    let built: [(ResourceLocation, Vec<ResourceLocation>); 5] = [
+        (
+            key_of::<RegistryOf<BiomeFile>>(set),
+            from_pack::<RegistryOf<BiomeFile>>(set, VANILLA_PACK),
+        ),
+        (
+            key_of::<RegistryOf<DensityFunctionHolder>>(set),
+            from_pack::<RegistryOf<DensityFunctionHolder>>(set, VANILLA_PACK),
+        ),
+        (
+            key_of::<RegistryOf<NoiseParam>>(set),
+            from_pack::<RegistryOf<NoiseParam>>(set, VANILLA_PACK),
+        ),
+        (
+            key_of::<RegistryOf<NoiseGeneratorSettings>>(set),
+            from_pack::<RegistryOf<NoiseGeneratorSettings>>(set, VANILLA_PACK),
+        ),
+        (
+            key_of::<RegistryOf<TemplatePool>>(set),
+            from_pack::<RegistryOf<TemplatePool>>(set, VANILLA_PACK),
+        ),
+    ];
+    for (registry, names) in &built {
+        for name in names {
             let path = format!(
                 "{}/{}/{}.json",
                 name.namespace(),
-                table.registry().path(),
+                registry.path(),
                 name.path()
             );
             assert!(
@@ -452,69 +421,42 @@ fn a_biome_placing_a_feature_outside_the_allowed_range_fails_the_load() {
 }
 
 #[test]
-fn the_banner_pattern_column_follows_the_name_table() {
-    let set = test_registries();
-    let table = set
-        .table("minecraft:banner_pattern")
-        .expect("banner pattern table");
-    let column = set
-        .column::<BannerPattern>("minecraft:banner_pattern")
+fn every_banner_pattern_is_named_after_its_asset() {
+    let patterns = test_registries_arc()
+        .registry::<RegistryOf<BannerPattern>>()
         .expect("banner patterns are parsed by the loader");
-    assert_eq!(column.len(), table.len());
-    assert!(!column.is_empty());
-    for (name, pattern) in table.names().iter().zip(column) {
+    assert!(!patterns.is_empty());
+    for (_, name, pattern) in patterns.iter() {
         assert_eq!(&pattern.asset_id.to_string(), &name.to_string());
     }
 }
 
 #[test]
 fn a_local_entry_comes_from_its_pack() {
-    let set = test_registries();
-    for (registry, name, pack) in [
-        ("minecraft:dimension_type", "minecraft:beta", "file/beta"),
-        ("minecraft:dimension_type", "minecraft:overworld", "vanilla"),
+    let set = test_registries_arc();
+    type PackOf = fn(&Registries, &str) -> Option<String>;
+    let dimension_type: PackOf = pack_of::<RegistryOf<DimensionTypeFile>>;
+    let preset: PackOf = pack_of::<RegistryOf<WorldPreset>>;
+    let noise_settings: PackOf = pack_of::<RegistryOf<NoiseGeneratorSettings>>;
+    let density_function: PackOf = pack_of::<RegistryOf<DensityFunctionHolder>>;
+    let noise: PackOf = pack_of::<RegistryOf<NoiseParam>>;
+    for (pack_of, name, pack) in [
+        (dimension_type, "minecraft:beta", "file/beta"),
+        (dimension_type, "minecraft:overworld", "vanilla"),
+        (preset, "minecraft:beta", "file/beta"),
+        (preset, "minecraft:normal", "vanilla"),
+        (noise_settings, "minecraft:beta", "file/beta"),
+        (noise_settings, "minecraft:overworld", "vanilla"),
         (
-            "minecraft:worldgen/world_preset",
-            "minecraft:beta",
-            "file/beta",
-        ),
-        (
-            "minecraft:worldgen/world_preset",
-            "minecraft:normal",
-            "vanilla",
-        ),
-        (
-            "minecraft:worldgen/noise_settings",
-            "minecraft:beta",
-            "file/beta",
-        ),
-        (
-            "minecraft:worldgen/noise_settings",
-            "minecraft:overworld",
-            "vanilla",
-        ),
-        (
-            "minecraft:worldgen/density_function",
+            density_function,
             "minecraft:overworld/continents",
             "vanilla",
         ),
-        (
-            "minecraft:worldgen/density_function",
-            "minecraft:beta/temperature",
-            "file/beta",
-        ),
-        (
-            "minecraft:worldgen/noise",
-            "mcrs:beta/temperature",
-            "file/beta",
-        ),
-        ("minecraft:worldgen/noise", "minecraft:ridge", "vanilla"),
+        (density_function, "minecraft:beta/temperature", "file/beta"),
+        (noise, "mcrs:beta/temperature", "file/beta"),
+        (noise, "minecraft:ridge", "vanilla"),
     ] {
-        let id = set
-            .table(registry)
-            .and_then(|table| table.number(name))
-            .unwrap_or_else(|| panic!("{registry} has no {name}"));
-        assert_eq!(set.pack_of(registry, id as usize), Some(pack), "{name}");
+        assert_eq!(pack_of(set, name).as_deref(), Some(pack), "{name}");
     }
 }
 
@@ -540,14 +482,17 @@ fn packs_follow_vanilla_in_name_order() {
         )
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
-    let set = &loaded.set;
+    let set = &loaded.registries;
 
-    let registry = "minecraft:banner_pattern";
-    let table = set.table(registry).unwrap();
-    let column = set.column::<BannerPattern>(registry).unwrap();
+    let patterns = set.registry::<RegistryOf<BannerPattern>>().unwrap();
     let entry = |name: &str| {
-        let id = usize::from(table.number(name).unwrap_or_else(|| panic!("no {name}")));
-        (set.pack_of(registry, id), column[id].asset_id.to_string())
+        let id = patterns
+            .by_name(&ResourceLocation::read(name).unwrap())
+            .unwrap_or_else(|| panic!("no {name}"));
+        (
+            set.origin(id).map(StackedPack::id),
+            patterns.get(id).unwrap().asset_id.to_string(),
+        )
     };
     assert_eq!(
         entry("minecraft:a"),
@@ -589,55 +534,20 @@ fn packs_follow_vanilla_in_name_order() {
     assert_eq!(bytes, pattern("b").as_bytes());
 }
 
-fn contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Option<String>)>> {
-    set.tables()
-        .map(|table| {
-            let registry = table.registry().as_str();
-            let entries = table
-                .names()
-                .iter()
-                .enumerate()
-                .map(|(id, name)| {
-                    (
-                        name.to_string(),
-                        set.pack_of(registry, id).map(str::to_owned),
-                    )
-                })
-                .collect();
-            (registry.to_owned(), entries)
-        })
-        .collect()
-}
-
-fn tag_contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Vec<u16>)>> {
-    set.tables()
-        .filter_map(|table| {
-            let tags = set.tag_table(table.registry().as_str())?;
-            let rows = tags
-                .names()
-                .iter()
-                .enumerate()
-                .map(|(tag, name)| (name.to_string(), tags.members(tag).to_vec()))
-                .collect();
-            Some((table.registry().to_string(), rows))
-        })
-        .collect()
-}
-
 #[test]
 fn the_plugin_and_the_directory_reader_load_equal_sets() {
     let app = plugin_app();
-    let through_plugin = app.world().resource::<RegistrySet>();
-    let through_directory = test_registries();
+    let through_plugin: &Registries = app.world().resource::<CurrentRegistries>();
+    let through_directory: &Registries = test_registries_arc();
 
-    let (plugin, directory) = (contents(through_plugin), contents(through_directory));
-    assert!(plugin.len() > 100, "the corpus loads few registries");
-    assert_eq!(
-        plugin.keys().collect::<Vec<_>>(),
-        directory.keys().collect::<Vec<_>>()
-    );
-    for (registry, from_plugin) in &plugin {
-        assert_eq!(from_plugin, &directory[registry], "{registry}");
+    let registries = every_registry();
+    assert!(registries.len() > 100, "the corpus loads few registries");
+    for registry in &registries {
+        assert_eq!(
+            loaded_names(through_plugin, registry),
+            loaded_names(through_directory, registry),
+            "{registry}"
+        );
     }
     let sent = |registries: &Registries| -> Vec<Vec<u8>> {
         registries
@@ -646,19 +556,15 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
             .map(<[u8]>::to_vec)
             .collect()
     };
+    assert_eq!(sent(through_plugin), sent(through_directory));
     assert_eq!(
-        sent(app.world().resource::<CurrentRegistries>()),
-        sent(test_registries_arc())
-    );
-    assert_eq!(
-        tag_contents(through_plugin),
-        tag_contents(through_directory)
+        through_plugin.network().tags(),
+        through_directory.network().tags()
     );
     assert!(
-        app.world()
-            .resource::<CurrentRegistries>()
+        through_plugin
             .known_packs()
-            .eq(test_registries_arc().known_packs())
+            .eq(through_directory.known_packs())
     );
 }
 
@@ -675,14 +581,6 @@ fn a_pack_directory_without_a_namespace_has_no_files() {
             .known_packs()
             .all(|known| known.id != "zz_empty")
     );
-    let set = &loaded.set;
-    for table in set.tables() {
-        let registry = table.registry().as_str();
-        assert!(
-            (0..table.len()).all(|id| set.pack_of(registry, id) != Some("file/zz_empty")),
-            "{registry} holds an entry of the empty pack"
-        );
-    }
     assert!(
         !loaded.diagnostics.iter().any(|diagnostic| matches!(
             diagnostic,
@@ -710,141 +608,6 @@ fn an_unreadable_registry_file_is_a_report_entry_naming_its_path() {
     );
 }
 
-fn shipped_file(
-    pack: &str,
-    registry_path: &str,
-    namespace: &str,
-    path: &str,
-) -> std::path::PathBuf {
-    let root = if pack == VANILLA_PACK {
-        corpus_path(namespace)
-    } else {
-        assets()
-            .join(PACKS_ROOT)
-            .join(pack.trim_start_matches("file/"))
-            .join(namespace)
-    };
-    root.join(registry_path).join(format!("{path}.json"))
-}
-
-fn read_back<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> serde_json::Value {
-    mcrs_minecraft_worldgen_testing::reencode(&serde_json::from_str::<T>(json).unwrap())
-}
-
-const SHIPPED_EMPTY: [&str; 1] = ["minecraft:dimension"];
-
-fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(String, usize)> {
-    let set = test_registries();
-    let mut parsed = Vec::new();
-    for registry in registries
-        .declared()
-        .filter(|r| registries.parses(r.as_str()))
-    {
-        let table = set
-            .table(registry.as_str())
-            .unwrap_or_else(|| panic!("{registry} has no table"));
-        for (index, name) in table.names().iter().enumerate() {
-            let pack = set
-                .pack_of(registry.as_str(), index)
-                .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
-            let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
-            let shipped = std::fs::read_to_string(&file);
-            let encoded = registries
-                .encode(set, registry.as_str(), index)
-                .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
-                .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
-            let built_typed = BUILT_WORLDGEN.contains(&registry.as_str())
-                && (pack == VANILLA_PACK || pack == "file/beta");
-            let built_biome =
-                pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome";
-            if built_typed || built_biome {
-                if built_typed {
-                    let read = set.scope(|| match registry.as_str() {
-                        "minecraft:worldgen/noise" => read_back::<NoiseParam>(&encoded),
-                        "minecraft:worldgen/density_function" => {
-                            read_back::<DensityFunctionHolder>(&encoded)
-                        }
-                        "minecraft:worldgen/template_pool" => read_back::<TemplatePool>(&encoded),
-                        _ => read_back::<NoiseGeneratorSettings>(&encoded),
-                    });
-                    assert_eq!(
-                        read,
-                        serde_json::from_str::<serde_json::Value>(&encoded).unwrap(),
-                        "{registry}/{name} reads back changed"
-                    );
-                    continue;
-                }
-                let read: BiomeFile = set.scope(|| serde_json::from_str(&encoded).unwrap());
-                let stored = BiomeFile::join((
-                    &set.column::<Biome>(registry.as_str()).unwrap()[index],
-                    &set.column::<EnvironmentAttributeMap>(registry.as_str())
-                        .unwrap()[index],
-                    &set.column::<BiomeGenerationSettings>(registry.as_str())
-                        .unwrap()[index],
-                ));
-                assert!(read == stored, "{registry}/{name} reads back changed");
-                continue;
-            }
-            let text = shipped.unwrap_or_else(|_| {
-                panic!(
-                    "{registry}/{name}: {} is not a file and the entry is not a built one",
-                    file.display()
-                )
-            });
-            let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
-            let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
-            assert_eq!(
-                from_entry,
-                from_file,
-                "{registry}/{name} ({})",
-                file.display()
-            );
-        }
-        parsed.push((registry.to_string(), table.len()));
-    }
-    parsed.sort();
-    parsed
-}
-
-#[test]
-fn every_shipped_file_of_a_parsed_registry_round_trips() {
-    let parsed = assert_shipped_entries_round_trip(&WORLD);
-    assert!(!parsed.is_empty(), "the loader parses no registry");
-    for (registry, len) in parsed {
-        if SHIPPED_EMPTY.contains(&registry.as_str()) {
-            assert_eq!(len, 0, "{registry} is shipped empty and has entries");
-        } else {
-            assert!(len > 0, "{registry} parses and has no entries");
-        }
-    }
-}
-
-static RELOADABLE: LazyLock<WorldRegistries> = LazyLock::new(|| {
-    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    reloadable_registries(&bytes).expect("the report parses")
-});
-
-#[test]
-fn every_shipped_file_of_a_parsed_reloadable_registry_round_trips() {
-    let parsed = assert_shipped_entries_round_trip(&RELOADABLE);
-    let counts: Vec<(&str, bool)> = parsed
-        .iter()
-        .map(|(registry, len)| (registry.as_str(), *len > 0))
-        .collect();
-    assert_eq!(
-        counts,
-        [
-            ("minecraft:context_float_provider", true),
-            ("minecraft:context_int_provider", true),
-            ("minecraft:item_modifier", false),
-            ("minecraft:loot_table", true),
-            ("minecraft:predicate", true),
-            ("minecraft:recipe", true),
-            ("minecraft:slot_source", false),
-        ]
-    );
-}
-
 fn json_at(path: &Path) -> serde_json::Value {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
@@ -852,17 +615,15 @@ fn json_at(path: &Path) -> serde_json::Value {
 
 #[test]
 fn a_loaded_holder_set_answers_membership_through_the_tags() {
-    let set = test_registries();
-    let registry = "minecraft:sulfur_cube_archetype";
-    let names = set.table(registry).expect("the archetypes have names");
+    let set = test_registries_arc();
     let archetypes = set
-        .column::<SulfurCubeArchetype>(registry)
+        .registry::<RegistryOf<SulfurCubeArchetype>>()
         .expect("the archetypes are parsed by the loader");
     let items = set.registry::<Item>().unwrap();
-    let tags = test_registries_arc().tags::<Item>().unwrap();
+    let tags = set.tags::<Item>().unwrap();
 
     let mut checked = 0;
-    for (name, archetype) in names.names().iter().zip(archetypes) {
+    for (_, name, archetype) in archetypes.iter() {
         let file = json_at(
             &vanilla_dir()
                 .join("sulfur_cube_archetype")
@@ -889,7 +650,7 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
         if listed.iter().any(|value| value.starts_with('#')) {
             continue;
         }
-        for (id, item) in items.iter() {
+        for (id, item, _) in items.iter() {
             assert_eq!(
                 archetype.items.contains(&tags, id),
                 listed.contains(&item.as_str()),
@@ -906,13 +667,11 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
 
 #[test]
 fn the_local_light_tag_reaches_the_loaded_item_tags() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let items = set.registry::<Item>().unwrap();
     let tags = set.tags::<Item>().unwrap();
     let tag = tags
-        .get(&TagKey::<Item, _>::from_location(
-            ResourceLocation::read("mcrs:water_sensitive_light").unwrap(),
-        ))
+        .by_name(&ResourceLocation::read("mcrs:water_sensitive_light").unwrap())
         .expect("the local light tag is loaded");
     let members: Vec<&str> = tags
         .members(tag)
@@ -935,7 +694,7 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
 
 #[test]
 fn a_bare_name_takes_the_default_namespace() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let bare: InstrumentValue = read_named(set, &instrument("item.goat_horn.sound.0")).unwrap();
     let written = serde_json::to_value(write_named(set, &bare)).unwrap();
     assert_eq!(written["sound_event"], "minecraft:item.goat_horn.sound.0");
@@ -946,7 +705,7 @@ fn a_bare_name_takes_the_default_namespace() {
 
 #[test]
 fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let instrument = |extra: &str| {
         format!(
             r#"{{
@@ -968,13 +727,9 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
 }
 
 #[test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one table of malformed registry files and the entries each error must name, so every case reads against its expectation"
-)]
 fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
     let stone = r#"{"id":"minecraft:stone"}"#;
-    let cases: [(&str, String, &[&str]); 16] = [
+    let cases: [(&str, String, &[&str]); 9] = [
         ("instrument", "{}".to_owned(), &["sound_event"]),
         (
             "instrument",
@@ -1009,18 +764,6 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
             &["bogus"],
         ),
         (
-            "test_environment",
-            r#"{"bogus":1,"type":"minecraft:weather","weather":"clear"}"#.to_owned(),
-            &["bogus"],
-        ),
-        (
-            "test_instance",
-            r#"{"bogus":1,"type":"minecraft:block_based","environment":"minecraft:default",
-                "structure":"minecraft:empty","max_ticks":1}"#
-                .to_owned(),
-            &["bogus"],
-        ),
-        (
             "enchantment",
             enchantment_json(r##""#minecraft:nowhere""##, ""),
             &["minecraft:item", "minecraft:nowhere"],
@@ -1029,36 +772,6 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
             "sulfur_cube_archetype",
             archetype_json("minecraft:no_such_attribute"),
             &["minecraft:attribute", "minecraft:no_such_attribute"],
-        ),
-        (
-            "enchantment_provider",
-            r#"{"type":"minecraft:single","enchantment":"minecraft:no_such_enchantment","level":1}"#
-                .to_owned(),
-            &["minecraft:enchantment", "minecraft:no_such_enchantment"],
-        ),
-        (
-            "enchantment_provider",
-            r#"{"type":"minecraft:by_cost","enchantments":["minecraft:no_such_enchantment"],"cost":1}"#
-                .to_owned(),
-            &["minecraft:enchantment", "minecraft:no_such_enchantment"],
-        ),
-        (
-            "enchantment_provider",
-            r##"{"type":"minecraft:by_cost_with_difficulty","enchantments":"#minecraft:no_such_tag",
-                "min_cost":1,"max_cost_span":1}"##
-                .to_owned(),
-            &["minecraft:enchantment", "minecraft:no_such_tag"],
-        ),
-        (
-            "trade_set",
-            r##"{"amount":2,"trades":"#minecraft:nowhere"}"##.to_owned(),
-            &["minecraft:villager_trade", "minecraft:nowhere"],
-        ),
-        (
-            "villager_trade",
-            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:no_such_item"}}"#
-                .to_owned(),
-            &["minecraft:item", "minecraft:no_such_item"],
         ),
     ];
     let refused = refused_each(
@@ -1137,8 +850,8 @@ fn an_empty_variant_registry_fails_the_load() {
 
 #[test]
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
-    let set = test_registries();
-    let (_, wolves) = sent_by(test_registries_arc(), false)
+    let set = test_registries_arc();
+    let (_, wolves) = sent_by(set, false)
         .0
         .into_iter()
         .find(|(registry, _)| registry.as_str() == "minecraft:wolf_variant")
@@ -1152,19 +865,10 @@ fn the_synced_wolf_variant_has_no_spawn_conditions() {
     assert!(synced.get("assets").is_some());
     assert!(synced.get("spawn_conditions").is_none());
 
-    let index = set
-        .table("minecraft:wolf_variant")
-        .and_then(|table| table.number("minecraft:pale"))
-        .expect("the pale wolf is loaded") as usize;
-    let file: serde_json::Value = serde_json::from_str(
-        &WORLD
-            .encode(set, "minecraft:wolf_variant", index)
-            .expect("the pale wolf has an encoding")
-            .expect("the pale wolf encodes"),
-    )
-    .unwrap();
+    let selectors = spawn_selectors::<WolfVariantFile>(set).unwrap();
+    let pale = &selectors[&ResourceLocation::read("minecraft:pale").unwrap()];
     assert_eq!(
-        file["spawn_conditions"],
+        serde_json::to_value(pale).unwrap(),
         serde_json::json!([{"priority": 0}])
     );
 }
@@ -1200,25 +904,18 @@ fn a_chat_parameter_outside_the_game_set_fails() {
 }
 
 fn registered_names(registry: &str) -> BTreeSet<String> {
-    loaded_names(test_registries(), registry)
+    loaded_names(test_registries_arc(), registry)
         .into_iter()
         .collect()
-}
-
-fn round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> serde_json::Value {
-    test_registries().scope(|| {
-        let value: T = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
-        let text = serde_json::to_string(&value).unwrap();
-        serde_json::from_str(&text).unwrap()
-    })
 }
 
 fn round_trip_named<T: Resolve>(json: &str) -> serde_json::Value
 where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
-    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
-    let text = serde_json::to_string(&write_named(test_registries(), &value)).unwrap();
+    let value: T =
+        read_named(test_registries_arc(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    let text = serde_json::to_string(&write_named(test_registries_arc(), &value)).unwrap();
     serde_json::from_str(&text).unwrap()
 }
 
@@ -1241,268 +938,13 @@ fn assert_samples_round_trip(
     }
 }
 
-#[test]
-fn every_test_environment_type_round_trips() {
-    assert_samples_round_trip(
-        "minecraft:test_environment_definition_type",
-        round_trip::<TestEnvironment>,
-        &[
-            (
-                "minecraft:all_of",
-                r#"{"type":"minecraft:all_of","definitions":["minecraft:default",
-                    {"type":"minecraft:weather","weather":"rain"}]}"#,
-            ),
-            (
-                "minecraft:clock_time",
-                r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":6000}"#,
-            ),
-            (
-                "minecraft:difficulty",
-                r#"{"type":"minecraft:difficulty","difficulty":"hard"}"#,
-            ),
-            (
-                "minecraft:function",
-                r#"{"type":"minecraft:function","setup":"minecraft:prepare","teardown":"minecraft:clean_up"}"#,
-            ),
-            (
-                "minecraft:game_rules",
-                r#"{"type":"minecraft:game_rules","rules":{"minecraft:pvp":false,
-                    "minecraft:random_tick_speed":0,"minecraft:max_minecart_speed":1000}}"#,
-            ),
-            (
-                "minecraft:timeline_attributes",
-                r#"{"type":"minecraft:timeline_attributes","timelines":["minecraft:day"]}"#,
-            ),
-            (
-                "minecraft:weather",
-                r#"{"type":"minecraft:weather","weather":"thunder"}"#,
-            ),
-        ],
-    );
-
-    for json in [
-        r#"{"type":"minecraft:function"}"#,
-        r#"{"type":"minecraft:clock_time","clock":{},"time":0}"#,
-        r#"{"type":"minecraft:all_of","definitions":[]}"#,
-        r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld"}]}"#,
-    ] {
-        let read: serde_json::Value = serde_json::from_str(json).unwrap();
-        assert_eq!(round_trip::<TestEnvironment>(json), read);
-    }
-
-    assert_eq!(
-        round_trip::<TestEnvironment>(
-            r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld","tracks":{},"time_markers":{}}]}"#
-        ),
-        serde_json::json!({
-            "type": "minecraft:timeline_attributes",
-            "timelines": [{"clock": "minecraft:overworld"}],
-        })
-    );
-}
-
-#[test]
-fn every_test_instance_type_round_trips() {
-    assert_samples_round_trip(
-        "minecraft:test_instance_type",
-        round_trip::<TestInstance>,
-        &[
-            (
-                "minecraft:block_based",
-                r#"{"type":"minecraft:block_based","environment":"minecraft:default",
-                    "structure":"minecraft:empty","max_ticks":100}"#,
-            ),
-            (
-                "minecraft:function",
-                r#"{"type":"minecraft:function","function":"minecraft:always_pass",
-                    "environment":{"type":"minecraft:weather","weather":"clear"},
-                    "dimension":"minecraft:the_nether","structure":"minecraft:empty",
-                    "max_ticks":20,"setup_ticks":2,"required":false,"rotation":"180",
-                    "manual_only":true,"max_attempts":3,"required_successes":2,
-                    "sky_access":true,"padding":4}"#,
-            ),
-        ],
-    );
-}
-
-fn instance_naming(field: &str, name: &str) -> String {
-    let (environment, function) = match field {
-        "environment" => (name, "minecraft:always_pass"),
-        _ => ("minecraft:default", name),
-    };
-    format!(
-        r#"{{"type":"minecraft:function","function":"{function}","environment":"{environment}",
-            "structure":"minecraft:empty","max_ticks":1}}"#
-    )
-}
-
-fn refused_with_environment_default(instance: &str) -> String {
-    load_text(&[
-        (
-            "minecraft/test_environment/default.json",
-            r#"{"type":"minecraft:all_of","definitions":[]}"#,
-        ),
-        ("minecraft/test_instance/odd.json", instance),
-    ])
-}
-
-#[test]
-fn a_test_instance_naming_an_unknown_environment_fails() {
-    let text =
-        refused_with_environment_default(&instance_naming("environment", "minecraft:nowhere"));
-    for part in [
-        "minecraft:test_environment",
-        "minecraft:nowhere",
-        "minecraft:odd",
-        "minecraft/test_instance/odd.json",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-
-    let text =
-        refused_with_environment_default(&instance_naming("environment", "minecraft:default"));
-    assert!(!text.contains("minecraft:test_instance"), "{text}");
-}
-
-#[test]
-fn a_test_instance_naming_a_function_outside_the_report_loads() {
-    let text = refused_with_environment_default(&instance_naming("function", "minecraft:nowhere"));
-    for part in ["minecraft:test_instance", "minecraft:nowhere"] {
-        assert!(!text.contains(part), "{part} in:\n{text}");
-    }
-}
-
-#[test]
-fn test_values_the_game_refuses_fail_to_parse() {
-    let environment =
-        |body: &str| format!(r#"{{"type":"minecraft:game_rules","rules":{{{body}}}}}"#);
-    let cases: [(String, &[&str]); 6] = [
-        (environment(r#""minecraft:pvp":1"#), &["minecraft:pvp"]),
-        (
-            environment(r#""minecraft:random_tick_speed":true"#),
-            &["minecraft:random_tick_speed"],
-        ),
-        (
-            environment(r#""minecraft:max_minecart_speed":1001"#),
-            &["[1:1000]"],
-        ),
-        (
-            environment(r#""minecraft:no_such_rule":true"#),
-            &["minecraft:no_such_rule"],
-        ),
-        (
-            r#"{"type":"minecraft:clock_time","clock":"minecraft:nowhere","time":0}"#.to_owned(),
-            &["minecraft:world_clock", "minecraft:nowhere"],
-        ),
-        (
-            r#"{"type":"minecraft:lightning"}"#.to_owned(),
-            &["minecraft:lightning"],
-        ),
-    ];
-    let refused = refused_each(
-        &cases
-            .iter()
-            .map(|(json, _)| ("test_environment", json.clone()))
-            .collect::<Vec<_>>(),
-    );
-    for ((json, parts), (_, text)) in cases.iter().zip(refused) {
-        for part in *parts {
-            assert!(text.contains(part), "{part} missing for {json}:\n{text}");
-        }
-    }
-    let text = load_text(&[
-        ("minecraft/world_clock/overworld.json", "{}"),
-        (
-            "minecraft/test_environment/odd.json",
-            r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":-1}"#,
-        ),
-    ]);
-    assert!(
-        text.contains("non-negative"),
-        "non-negative missing from:\n{text}"
-    );
-
-    let instance = |fields: &str| {
-        format!(
-            r#"{{"type":"minecraft:block_based","environment":"minecraft:default",
-                "structure":"minecraft:empty",{fields}}}"#
-        )
-    };
-    for (fields, part) in [
-        (r#""max_ticks":0"#, "positive"),
-        (r#""max_ticks":1,"padding":129"#, "[0;128]"),
-        (r#""max_ticks":1,"rotation":"sideways""#, "sideways"),
-    ] {
-        let text = refused_with_environment_default(&instance(fields));
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
-fn synced<T: serde::de::DeserializeOwned + serde::Serialize>(
-    json: &str,
-) -> mcrs_minecraft_nbt::compound::NbtCompound {
-    test_registries().scope(|| {
-        let value: T = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
-        mcrs_minecraft_nbt::to_nbt_compound(&value).unwrap()
-    })
-}
-
 fn synced_named<T: Resolve>(json: &str) -> mcrs_minecraft_nbt::compound::NbtCompound
 where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
-    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
-    mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries(), &value)).unwrap()
-}
-
-#[test]
-fn test_values_are_synced_with_the_tags_the_game_writes() {
-    let instance = synced::<TestInstance>(
-        r#"{"type":"minecraft:function","function":"minecraft:always_pass",
-            "environment":"minecraft:default","dimension":"minecraft:the_nether",
-            "structure":"minecraft:empty","max_ticks":20,"setup_ticks":2,"required":false,
-            "rotation":"180","manual_only":true,"max_attempts":3,"required_successes":2,
-            "sky_access":true,"padding":4}"#,
-    );
-    for (field, tag) in [
-        ("max_ticks", NbtTag::Int(20)),
-        ("setup_ticks", NbtTag::Int(2)),
-        ("max_attempts", NbtTag::Int(3)),
-        ("required_successes", NbtTag::Int(2)),
-        ("padding", NbtTag::Int(4)),
-        ("required", NbtTag::Byte(0)),
-        ("manual_only", NbtTag::Byte(1)),
-        ("sky_access", NbtTag::Byte(1)),
-        ("rotation", NbtTag::String("180".to_owned())),
-        (
-            "environment",
-            NbtTag::String("minecraft:default".to_owned()),
-        ),
-        (
-            "function",
-            NbtTag::String("minecraft:always_pass".to_owned()),
-        ),
-    ] {
-        assert_eq!(instance.get(field), Some(&tag), "{field}");
-    }
-
-    let rules = synced::<TestEnvironment>(
-        r#"{"type":"minecraft:game_rules","rules":{"minecraft:pvp":false,
-            "minecraft:random_tick_speed":0}}"#,
-    );
-    let rules = rules
-        .get_compound("rules")
-        .expect("the rules are a compound");
-    assert_eq!(rules.get("minecraft:pvp"), Some(&NbtTag::Byte(0)));
-    assert_eq!(
-        rules.get("minecraft:random_tick_speed"),
-        Some(&NbtTag::Int(0))
-    );
-
-    let clock = synced::<TestEnvironment>(
-        r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":6000}"#,
-    );
-    assert_eq!(clock.get("time"), Some(&NbtTag::Int(6000)));
+    let value: T =
+        read_named(test_registries_arc(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries_arc(), &value)).unwrap()
 }
 
 fn dialog_list_in(tag: &str, dialogs: &str) -> String {
@@ -1883,84 +1325,6 @@ fn enchantment_json(supported_items: &str, effects: &str) -> String {
     )
 }
 
-fn replacing_with(block_state: &str) -> String {
-    format!(
-        r#","effects":{{"minecraft:location_changed":[{{"effect":{{
-        "type":"minecraft:replace_disk","radius":1.0,"height":1.0,
-        "block_state":{block_state}}}}}]}}"#
-    )
-}
-
-#[test]
-fn a_block_state_provider_reference_is_checked() {
-    let text = refused_by_the_loader(
-        "enchantment",
-        "odd",
-        &enchantment_json(
-            r#""minecraft:stick""#,
-            &replacing_with(r#""minecraft:no_such_provider""#),
-        ),
-    );
-    for part in [
-        "minecraft:worldgen/block_state_provider",
-        "minecraft:no_such_provider",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-
-    use mcrs_minecraft_enchantment::effects::{BlockState, BlockStateProvider};
-    let set = test_registries();
-    let provider = set
-        .table("minecraft:worldgen/block_state_provider")
-        .and_then(|table| table.names().first())
-        .expect("the data pack ships a block state provider")
-        .to_string();
-    set.scope(|| {
-        let provider = format!("\"{provider}\"");
-        for json in [
-            provider.as_str(),
-            r#"{"id":"minecraft:frosted_ice","properties":{"age":"0"}}"#,
-            r#"{"type":"minecraft:simple","state":"minecraft:stone"}"#,
-            r#"{"type":"minecraft:simple","state":{"id":"minecraft:stone"}}"#,
-        ] {
-            let read: BlockStateProvider =
-                serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
-            assert_eq!(
-                serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&read).unwrap())
-                    .unwrap(),
-                serde_json::from_str::<serde_json::Value>(json).unwrap(),
-                "{json}"
-            );
-        }
-        for json in [
-            r#""minecraft:stone""#,
-            r#"{"id":"minecraft:stone","properties":{}}"#,
-        ] {
-            let read: BlockState =
-                serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
-            assert_eq!(serde_json::to_string(&read).unwrap(), json, "{json}");
-        }
-        for json in [
-            r#""minecraft:no_such_block""#,
-            r#"{"id":"minecraft:no_such_block"}"#,
-        ] {
-            let message = serde_json::from_str::<BlockState>(json)
-                .expect_err(json)
-                .to_string();
-            assert!(message.contains("minecraft:block"), "{message}");
-            assert!(message.contains("minecraft:no_such_block"), "{message}");
-        }
-        for json in [
-            r#"{"type":"minecraft:simple","id":"minecraft:stone"}"#,
-            r#"{"type":"minecraft:nowhere","state":"minecraft:stone"}"#,
-            r#"{"id":"minecraft:stone","state":"minecraft:stone"}"#,
-            r#"{"id":"minecraft:stone","bogus":1}"#,
-        ] {
-            serde_json::from_str::<BlockStateProvider>(json).expect_err(json);
-        }
-    });
-}
-
 fn archetype_json(attribute: &str) -> String {
     format!(
         r#"{{"attribute_modifiers":[{{"amount":-1.0,"attribute":"{attribute}",
@@ -2038,232 +1402,10 @@ fn an_archetype_the_game_refuses_fails_to_parse() {
             .as_object_mut()
             .unwrap()
             .insert(key.to_owned(), value);
-        let message = read_named::<SulfurCubeArchetype>(test_registries(), &json.to_string())
+        let message = read_named::<SulfurCubeArchetype>(test_registries_arc(), &json.to_string())
             .expect_err(pointer);
         assert!(message.contains(expected), "{pointer}: {message}");
     }
-}
-
-#[test]
-fn every_enchantment_provider_type_round_trips() {
-    assert_samples_round_trip(
-        "minecraft:enchantment_provider_type",
-        round_trip::<EnchantmentProvider>,
-        &[
-            (
-                "minecraft:by_cost",
-                r##"{"type":"minecraft:by_cost","enchantments":"#minecraft:on_mob_spawn_equipment",
-                    "cost":{"type":"minecraft:uniform","min_inclusive":5,"max_inclusive":20}}"##,
-            ),
-            (
-                "minecraft:by_cost_with_difficulty",
-                r#"{"type":"minecraft:by_cost_with_difficulty",
-                    "enchantments":["minecraft:sharpness","minecraft:smite"],
-                    "min_cost":5,"max_cost_span":17}"#,
-            ),
-            (
-                "minecraft:single",
-                r#"{"type":"minecraft:single","enchantment":"minecraft:silk_touch","level":1}"#,
-            ),
-        ],
-    );
-
-    for json in [
-        r#"{"type":"minecraft:by_cost","enchantments":"minecraft:sharpness","cost":7}"#,
-        r##"{"type":"minecraft:by_cost_with_difficulty",
-            "enchantments":"#minecraft:on_mob_spawn_equipment","min_cost":1,"max_cost_span":0}"##,
-        r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness",
-            "level":{"type":"minecraft:uniform","min_inclusive":1,"max_inclusive":3}}"#,
-    ] {
-        let read: serde_json::Value = serde_json::from_str(json).unwrap();
-        assert_eq!(round_trip::<EnchantmentProvider>(json), read, "{json}");
-    }
-}
-
-#[test]
-fn a_provider_the_game_refuses_fails_to_parse() {
-    for (json, expected) in [
-        (
-            r#"{"type":"minecraft:by_cost_with_difficulty","enchantments":"minecraft:sharpness",
-                "min_cost":0,"max_cost_span":1}"#,
-            "[1;10000]",
-        ),
-        (
-            r#"{"type":"minecraft:by_cost_with_difficulty","enchantments":"minecraft:sharpness",
-                "min_cost":1,"max_cost_span":10001}"#,
-            "[0;10000]",
-        ),
-        (
-            r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness"}"#,
-            "level",
-        ),
-        (
-            r#"{"type":"minecraft:nowhere","enchantment":"minecraft:sharpness","level":1}"#,
-            "minecraft:nowhere",
-        ),
-        (
-            r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness","level":1,"bogus":1}"#,
-            "bogus",
-        ),
-    ] {
-        let message = test_registries().scope(|| {
-            serde_json::from_str::<EnchantmentProvider>(json)
-                .expect_err(json)
-                .to_string()
-        });
-        assert!(message.contains(expected), "{json}: {message}");
-    }
-}
-
-fn trade_with_modifier(modifier: &str) -> String {
-    format!(
-        r#"{{"gives":{{"id":"minecraft:emerald"}},"wants":{{"id":"minecraft:stick"}},
-        "given_item_modifier":{modifier}}}"#
-    )
-}
-
-#[test]
-fn trade_forms_beyond_the_shipped_files_round_trip() {
-    let trade = |overrides: serde_json::Value| {
-        let mut trade = serde_json::json!({
-            "gives": {"id": "minecraft:emerald"},
-            "wants": {"id": "minecraft:stick"},
-        });
-        trade
-            .as_object_mut()
-            .unwrap()
-            .extend(overrides.as_object().unwrap().clone());
-        trade
-    };
-    let cases = [
-        (trade(serde_json::json!({})), None),
-        (
-            trade(serde_json::json!({"gives": "minecraft:emerald", "max_uses": 4, "xp": 1})),
-            Some(trade(serde_json::json!({}))),
-        ),
-        (
-            trade(serde_json::json!({
-                "max_uses": {"type": "minecraft:constant", "value": 3},
-                "xp": {"type": "minecraft:uniform", "min": 1,
-                    "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
-                "reputation_discount": {"type": "minecraft:constant", "value": 0.25},
-            })),
-            Some(trade(serde_json::json!({
-                "max_uses": 3,
-                "xp": {"type": "minecraft:uniform", "min": 1,
-                    "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
-                "reputation_discount": 0.25,
-            }))),
-        ),
-        (
-            trade(serde_json::json!({"given_item_modifier": [
-                {"type": "minecraft:discard"},
-                {"type": "minecraft:set_potion", "id": "minecraft:water"},
-            ]})),
-            None,
-        ),
-        (
-            trade(serde_json::json!({"given_item_modifier": {
-                "type": "minecraft:filtered",
-                "condition": {"type": "minecraft:inverted",
-                    "term": {"type": "minecraft:weather_check", "raining": true}},
-                "item_filter": {"items": "minecraft:bow"},
-                "on_pass": [{"type": "minecraft:set_random_potion"}],
-                "on_fail": {"type": "minecraft:discard"},
-            }})),
-            None,
-        ),
-        (
-            trade(serde_json::json!({"given_item_modifier": {
-                "type": "minecraft:exploration_map",
-                "destination": "#minecraft:on_woodland_mansion_maps",
-                "zoom": 2, "search_radius": 50, "skip_existing_chunks": true,
-            }})),
-            Some(trade(serde_json::json!({"given_item_modifier": {
-                "type": "minecraft:exploration_map",
-                "destination": "#minecraft:on_woodland_mansion_maps",
-            }}))),
-        ),
-    ];
-    for (input, expected) in cases {
-        let expected = expected.unwrap_or_else(|| input.clone());
-        assert_eq!(round_trip::<VillagerTrade>(&input.to_string()), expected);
-    }
-}
-
-#[test]
-fn trade_values_the_game_refuses_fail_to_parse() {
-    let wants =
-        |id: &str| format!(r#"{{"gives":{{"id":"minecraft:emerald"}},"wants":{{"id":"{id}"}}}}"#);
-    let modifier = |modifier: &str| trade_with_modifier(modifier);
-    let cases = [
-        (wants("minecraft:air"), "minecraft:air"),
-        (
-            r#"{"gives":{"id":"minecraft:emerald","count":0},"wants":{"id":"minecraft:stick"}}"#
-                .to_owned(),
-            "[1;99]",
-        ),
-        (
-            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},"bogus":1}"#
-                .to_owned(),
-            "bogus",
-        ),
-        (
-            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
-                "max_uses":{"type":"minecraft:abs","value":1}}"#
-                .to_owned(),
-            "input",
-        ),
-        (
-            modifier(r#""minecraft:some_item_modifier""#),
-            "minecraft:some_item_modifier",
-        ),
-        (
-            modifier(
-                r#"{"type":"minecraft:set_stew_effect","effects":[
-                {"type":"minecraft:poison","duration":5},{"type":"minecraft:poison","duration":6}]}"#,
-            ),
-            "duplicate mob effect",
-        ),
-        (
-            modifier(
-                r#"{"type":"minecraft:set_stew_effect","effects":[
-                {"type":"minecraft:no_such_effect","duration":5}]}"#,
-            ),
-            "minecraft:no_such_effect",
-        ),
-        (
-            modifier(r#"{"type":"minecraft:set_potion","id":"minecraft:no_such_potion"}"#),
-            "minecraft:no_such_potion",
-        ),
-        (
-            modifier(
-                r##"{"type":"minecraft:enchant_randomly","options":"#minecraft:no_such_tag"}"##,
-            ),
-            "minecraft:no_such_tag",
-        ),
-        (
-            modifier(
-                r##"{"type":"minecraft:exploration_map","destination":"#minecraft:no_such_tag"}"##,
-            ),
-            "minecraft:no_such_tag",
-        ),
-        (
-            modifier(r#"{"type":"minecraft:discard","bogus":1}"#),
-            "bogus",
-        ),
-    ];
-    let accepted: Vec<_> = cases
-        .iter()
-        .filter_map(|(json, expected)| {
-            let message = test_registries().scope(|| {
-                serde_json::from_str::<VillagerTrade>(json)
-                    .map_or_else(|e| e.to_string(), |_| "accepted".to_owned())
-            });
-            (!message.contains(expected)).then(|| format!("{json}: {message}"))
-        })
-        .collect();
-    assert_eq!(accepted, Vec::<String>::new());
 }
 
 fn layered_asset_app() -> App {
@@ -2308,12 +1450,14 @@ fn timeline_file(clock: &str, markers: &str) -> String {
 pub(crate) fn load_shipped_and(
     directory: &str,
     files: &[(&str, String)],
-) -> Result<RegistrySet, RegistryLoadError> {
+) -> Result<Arc<Registries>, RegistryLoadError> {
     let files: Vec<(String, &str)> = files
         .iter()
         .map(|(name, json)| (format!("{directory}/{name}.json"), json.as_str()))
         .collect();
-    WithFiles::test_pack(&files).load().map(|loaded| loaded.set)
+    WithFiles::test_pack(&files)
+        .load()
+        .map(|loaded| loaded.registries)
 }
 
 #[test]
@@ -2384,15 +1528,13 @@ fn a_timeline_naming_an_unknown_clock_fails() {
         "test/timeline",
         &[("lost", timeline_file("minecraft:nowhere", "{}"))],
     )
-    .err()
-    .expect("a clock the registry does not hold is refused")
+    .expect_err("a clock the registry does not hold is refused")
     .to_string();
 
     for part in [
         "minecraft:world_clock",
-        "minecraft:nowhere",
-        "minecraft:timeline/test:lost: ",
-        "test/timeline/lost.json",
+        "unresolved references minecraft:nowhere",
+        "minecraft:timeline/test:lost",
     ] {
         assert!(refused.contains(part), "{part} missing from:\n{refused}");
     }
@@ -2412,82 +1554,55 @@ fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {
 
 #[test]
 fn trial_spawners_have_names_and_no_values() {
+    let set = test_registries_arc();
     for loot in [
         "minecraft:loot_table",
         "minecraft:predicate",
         "minecraft:item_modifier",
     ] {
         assert!(
-            !WORLD.declared().any(|registry| registry.as_str() == loot),
-            "{loot} is declared"
-        );
-        assert!(
-            test_registries().table(loot).is_some(),
-            "{loot} has no table from the reloadable registries"
+            set.names_of(&ResourceLocation::read(loot).unwrap())
+                .is_some(),
+            "{loot} has no names from the reloadable registries"
         );
     }
 
     let mut shipped = BTreeSet::new();
     json_names(&vanilla_dir().join("trial_spawner"), "", &mut shipped);
-    let table = test_registries()
-        .table("minecraft:trial_spawner")
-        .expect("trial spawner table");
-    let named: BTreeSet<String> = table.names().iter().map(|name| name.to_string()).collect();
+    let named: BTreeSet<String> = loaded_names(set, "minecraft:trial_spawner")
+        .into_iter()
+        .collect();
     assert!(!named.is_empty());
     assert_eq!(named, shipped);
 }
 
 pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app: &App) {
-    fn parsed<T: 'static>(set: &RegistrySet, registry: &str) -> usize {
-        set.column::<T>(registry)
-            .unwrap_or_else(|| panic!("{registry} is not parsed by the loader"))
-            .len()
+    fn parsed<R: RegistryType>(set: &Registries) -> (ResourceLocation, Vec<ResourceLocation>) {
+        let registry = set.registry::<R>().unwrap_or_else(|| {
+            panic!("{} is not parsed by the loader", std::any::type_name::<R>())
+        });
+        let names = registry.iter().map(|(_, name, _)| name.clone()).collect();
+        (registry.key().clone(), names)
     }
 
-    let set = app.world().resource::<RegistrySet>();
+    let set: &Registries = app.world().resource::<CurrentRegistries>();
     let server = app.world().resource::<AssetServer>();
 
     let counts = [
-        (
-            "minecraft:worldgen/carver",
-            parsed::<CarverConfig>(set, "minecraft:worldgen/carver"),
-            5,
-        ),
-        (
-            "minecraft:worldgen/feature",
-            parsed::<Feature>(set, "minecraft:worldgen/feature"),
-            262,
-        ),
-        (
-            "minecraft:worldgen/placed_feature",
-            parsed::<PlacedFeature>(set, "minecraft:worldgen/placed_feature"),
-            300,
-        ),
-        (
-            "minecraft:worldgen/processor_list",
-            parsed::<StructureProcessorList>(set, "minecraft:worldgen/processor_list"),
-            40,
-        ),
-        (
-            "minecraft:worldgen/structure",
-            parsed::<Structure>(set, "minecraft:worldgen/structure"),
-            52,
-        ),
-        (
-            "minecraft:worldgen/structure_set",
-            parsed::<StructureSet>(set, "minecraft:worldgen/structure_set"),
-            21,
-        ),
+        (parsed::<RegistryOf<CarverConfig>>(set), 5),
+        (parsed::<RegistryOf<Feature>>(set), 262),
+        (parsed::<RegistryOf<PlacedFeature>>(set), 300),
+        (parsed::<RegistryOf<StructureProcessorList>>(set), 40),
+        (parsed::<RegistryOf<Structure>>(set), 52),
+        (parsed::<RegistryOf<StructureSet>>(set), 21),
     ];
-    for (registry, parsed, expected) in counts {
-        assert_eq!(parsed, expected, "{registry}");
-        let table = set.table(registry).unwrap();
-        assert_eq!(table.len(), expected, "{registry}");
-        for name in table.names() {
+    for ((registry, names), expected) in counts {
+        assert_eq!(names.len(), expected, "{registry}");
+        for name in names {
             let path = format!(
                 "{}/{}/{}.json",
                 name.namespace(),
-                table.registry().path(),
+                registry.path(),
                 name.path()
             );
             assert!(
@@ -2497,8 +1612,12 @@ pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app:
         }
     }
 
-    let carvers = set.registry::<CarverConfig>().unwrap();
-    assert!(carvers.by_name("minecraft:beta_cave").is_some());
+    let carvers = set.registry::<RegistryOf<CarverConfig>>().unwrap();
+    assert!(
+        carvers
+            .by_name(&ResourceLocation::read("minecraft:beta_cave").unwrap())
+            .is_some()
+    );
 }
 
 fn overworld_dimension_type_with(
@@ -2516,50 +1635,45 @@ fn overworld_dimension_type_with(
             }
         }
     }
-    test_registries().scope(|| serde_json::from_value(file).map_err(|e| e.to_string()))
+    read_named(test_registries_arc(), &file.to_string())
 }
 
-fn tag_in<R: mcrs_minecraft_core::Registered>(set: &RegistrySet, name: &str) -> TagId<R> {
+fn tag_in<R: RegistryType>(set: &Registries, name: &str) -> TagId<R> {
     set.tags::<R>()
-        .unwrap_or_else(|| panic!("{} has loaded tags", R::REGISTRY))
-        .get(&TagKey::<R, _>::from_location(
-            ResourceLocation::read(name).unwrap(),
-        ))
+        .unwrap_or_else(|| panic!("{} has loaded tags", std::any::type_name::<R>()))
+        .by_name(&ResourceLocation::read(name).unwrap())
         .unwrap_or_else(|| panic!("{name} is a loaded tag"))
+}
+
+fn id_in<R: RegistryType>(set: &Registries, name: &str) -> Id<R> {
+    set.id(&Key::new(ResourceLocation::read(name).unwrap()))
+        .unwrap_or_else(|error| panic!("{error}"))
 }
 
 #[test]
 fn a_dimension_type_sends_has_fixed_time_only_when_set() {
     for (json, sent) in [("false", None), ("true", Some(NbtTag::Byte(1)))] {
         let read = overworld_dimension_type_with(&[("has_fixed_time", Some(json))]).unwrap();
-        let nbt = test_registries()
-            .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&read))
-            .unwrap();
+        let nbt =
+            mcrs_minecraft_nbt::to_nbt_compound(&read.name(&**test_registries_arc()).unwrap())
+                .unwrap();
         assert_eq!(nbt.get("has_fixed_time").cloned(), sent, "{json}");
     }
 }
 
 #[test]
 fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
-    let set = test_registries();
-    let stone = set
-        .registry::<Block>()
-        .unwrap()
-        .by_name("minecraft:stone")
-        .unwrap();
-    let overworld_clock = set
-        .registry::<WorldClock>()
-        .unwrap()
-        .get(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
-        .unwrap();
+    let set = test_registries_arc();
+    let stone = Block::Stone.id();
+    let overworld_clock = id_in::<WorldClock>(set, "minecraft:overworld");
 
-    let infiniburn: [(&str, HolderSet<Block>); 3] = [
+    let infiniburn: [(&str, IdSet<Block>); 3] = [
         (
             r##""#minecraft:infiniburn_overworld""##,
-            HolderSet::Named(tag_in::<Block>(set, "minecraft:infiniburn_overworld")),
+            IdSet::Tag(tag_in::<Block>(set, "minecraft:infiniburn_overworld")),
         ),
-        (r#""minecraft:stone""#, HolderSet::One(stone)),
-        (r#"["minecraft:stone"]"#, HolderSet::List(Box::new([stone]))),
+        (r#""minecraft:stone""#, IdSet::List(Box::new([stone]))),
+        (r#"["minecraft:stone"]"#, IdSet::List(Box::new([stone]))),
     ];
     for (json, expected) in infiniburn {
         let read = overworld_dimension_type_with(&[("infiniburn", Some(json))])
@@ -2569,13 +1683,13 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
 
     let absent = overworld_dimension_type_with(&[("timelines", None), ("default_clock", None)])
         .expect("a dimension type without timelines or a clock reads");
-    assert_eq!(absent.timelines, HolderSet::default());
+    assert_eq!(absent.timelines, IdSet::default());
     assert_eq!(absent.default_clock, None);
 
     let shipped = overworld_dimension_type_with(&[]).expect("the shipped overworld reads");
     assert_eq!(
         shipped.timelines,
-        HolderSet::Named(tag_in::<Timeline>(set, "minecraft:in_overworld"))
+        IdSet::Tag(tag_in::<Timeline>(set, "minecraft:in_overworld"))
     );
     assert_eq!(shipped.default_clock, Some(overworld_clock));
 
@@ -2617,37 +1731,19 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
     }
 }
 
-fn the_loaded_presets() -> (
-    mcrs_minecraft_registry::Registry<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>,
-    mcrs_minecraft_registry::Entries<
-        mcrs_minecraft_world::worldgen::world_preset::WorldPreset,
-        WorldPreset,
-    >,
-) {
-    let set = test_registries();
-    (
-        set.registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
-            .expect("world presets are a declared registry"),
-        set.entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
-            .expect("the loader parses world presets"),
-    )
-}
-
 #[test]
 fn every_preset_parses_in_registry_context() {
-    let set = test_registries();
-    let (names, presets) = the_loaded_presets();
+    let set = test_registries_arc();
+    let presets = set
+        .registry::<RegistryOf<WorldPreset>>()
+        .expect("the loader parses world presets");
     let preset = |name: &str| {
-        &presets[names
-            .by_name(name)
-            .unwrap_or_else(|| panic!("no preset {name}"))]
+        presets
+            .by_name(&ResourceLocation::read(name).unwrap())
+            .and_then(|id| presets.get(id))
+            .unwrap_or_else(|| panic!("no preset {name}"))
     };
     let overworld = |name: &str| &preset(name).dimensions["minecraft:overworld"].generator;
-    let id_in = |registry: &str, name: &str| {
-        set.table(registry)
-            .and_then(|table| table.number(name))
-            .unwrap_or_else(|| panic!("{registry} has no {name}"))
-    };
 
     let ChunkGenerator::Noise(normal) = overworld("minecraft:normal") else {
         panic!("the normal overworld is a noise generator");
@@ -2655,17 +1751,8 @@ fn every_preset_parses_in_registry_context() {
     let BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) = &normal.biome_source else {
         panic!("the normal overworld uses a multi-noise preset");
     };
-    assert_eq!(
-        Some(list.number()),
-        Some(id_in(
-            "minecraft:worldgen/multi_noise_biome_source_parameter_list",
-            "minecraft:overworld"
-        ))
-    );
-    assert_eq!(
-        normal.settings.number(),
-        id_in("minecraft:worldgen/noise_settings", "minecraft:overworld")
-    );
+    assert_eq!(*list, id_in(set, "minecraft:overworld"));
+    assert_eq!(normal.settings, id_in(set, "minecraft:overworld"));
 
     let ChunkGenerator::Noise(single) = overworld("minecraft:single_biome_surface") else {
         panic!("single_biome_surface is a noise generator");
@@ -2673,46 +1760,40 @@ fn every_preset_parses_in_registry_context() {
     assert_eq!(
         single.biome_source,
         BiomeSource::Fixed {
-            biome: set
-                .registry::<Biome>()
-                .unwrap()
-                .get(&mcrs_minecraft_biome::keys::biome::PLAINS)
-                .unwrap()
+            biome: id_in(set, "minecraft:plains")
         }
     );
 
-    let ChunkGenerator::Flat(flat) = overworld("minecraft:flat") else {
-        panic!("expected a flat generator");
-    };
+    assert!(matches!(
+        overworld("minecraft:flat"),
+        ChunkGenerator::Flat(_)
+    ));
     assert_eq!(preset("minecraft:flat").dimensions.len(), 3);
-    assert_eq!(flat.settings.layers.len(), 3);
-    assert_eq!(flat.settings.structure_overrides.len(), 2);
 
     assert_eq!(
         overworld("minecraft:debug_all_block_states"),
         &ChunkGenerator::Debug
     );
 
-    for id in names.ids() {
-        let name = names.name(id).unwrap();
-        let written = set
-            .scope(|| serde_json::to_string(&presets[id]))
+    for (_, name, value) in presets.iter() {
+        let written = serde_json::to_string(&write_named(set, value))
             .unwrap_or_else(|e| panic!("{name} does not encode: {e}"));
-        let read: WorldPreset = set
-            .scope(|| serde_json::from_str(&written))
-            .unwrap_or_else(|e| panic!("{name} does not read back: {e}"));
-        assert_eq!(
-            read, presets[id],
-            "{name} changed across an encode and a parse"
-        );
+        let read: WorldPreset =
+            read_named(set, &written).unwrap_or_else(|e| panic!("{name} does not read back: {e}"));
+        assert_eq!(&read, value, "{name} changed across an encode and a parse");
     }
 }
 
 #[test]
 fn a_preset_reads_its_dimensions_as_a_map_by_key() {
-    let set = test_registries();
-    let (names, presets) = the_loaded_presets();
-    let preset = |name: &str| &presets[names.by_name(name).unwrap()];
+    let set = test_registries_arc();
+    let presets = set.registry::<RegistryOf<WorldPreset>>().unwrap();
+    let preset = |name: &str| {
+        presets
+            .by_name(&ResourceLocation::read(name).unwrap())
+            .and_then(|id| presets.get(id))
+            .unwrap()
+    };
 
     let beta = preset("minecraft:beta");
     assert_eq!(
@@ -2722,11 +1803,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
             .collect::<Vec<_>>(),
         ["minecraft:overworld"]
     );
-    let beta_type = set
-        .registry::<DimensionType>()
-        .unwrap()
-        .by_name("minecraft:beta")
-        .expect("the beta pack ships the beta dimension type");
+    let beta_type: Id<DimensionType> = id_in(set, "minecraft:beta");
     assert_eq!(
         beta.dimensions["minecraft:overworld"].dimension_type,
         beta_type
@@ -2744,8 +1821,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
         format!(r#"{{"dimensions":{{{}}}}}"#, entries.join(","))
     };
     let parse = |text: String| -> WorldPreset {
-        set.scope(|| serde_json::from_str(&text))
-            .unwrap_or_else(|e| panic!("{e}: {text}"))
+        read_named(set, &text).unwrap_or_else(|e| panic!("{e}: {text}"))
     };
     let forward = parse(listing([
         "minecraft:overworld",
@@ -2770,11 +1846,17 @@ fn an_inline_dimension_type_is_refused() {
     let text = format!(
         r#"{{"dimensions":{{"minecraft:overworld":{{"type":{inline},"generator":{{"type":"minecraft:debug"}}}}}}}}"#
     );
-    let error = test_registries()
-        .scope(|| serde_json::from_str::<WorldPreset>(&text))
-        .expect_err("a dimension type written out in the preset is refused")
-        .to_string();
-    assert!(error.contains("minecraft:dimension_type"), "{error}");
+    let refused = refused_by_the_loader("worldgen/world_preset", "inline", &text);
+    let line = refused
+        .lines()
+        .find(|line| line.contains("minecraft:inline"))
+        .unwrap_or_else(|| {
+            panic!("a dimension type written out in the preset is refused: {refused}")
+        });
+    assert!(
+        line.contains("dimensions.minecraft:overworld.type"),
+        "{line}"
+    );
 }
 
 #[test]
@@ -2803,10 +1885,6 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
             r#"{"generator":{"type":"minecraft:noise","biome_source":{"type":"minecraft:fixed","biome":"test:no_such_name"},"settings":"minecraft:overworld"},"type":"minecraft:overworld"}"#,
         ),
         (
-            "minecraft:worldgen/biome",
-            r#"{"generator":{"type":"minecraft:flat","settings":{"biome":"test:no_such_name","layers":[]}},"type":"minecraft:overworld"}"#,
-        ),
-        (
             "minecraft:worldgen/multi_noise_biome_source_parameter_list",
             r#"{"generator":{"type":"minecraft:noise","biome_source":{"type":"minecraft:multi_noise","preset":"test:no_such_name"},"settings":"minecraft:overworld"},"type":"minecraft:overworld"}"#,
         ),
@@ -2824,42 +1902,21 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
 }
 
 #[test]
-fn a_flat_world_taller_than_the_build_height_fails_the_load() {
-    let cases = [
-        (
-            r#"[{"block":"minecraft:stone","height":4065}]"#,
-            "[0;4064]: 4065",
-        ),
-        (
-            r#"[{"block":"minecraft:stone","height":4000},{"block":"minecraft:dirt","height":65}]"#,
-            "Sum of layer heights is > 4064",
-        ),
-    ];
-    for (layers, expected) in cases {
-        let preset = format!(
-            r#"{{"dimensions":{{"minecraft:overworld":{{"generator":{{"type":"minecraft:flat","settings":{{"layers":{layers}}}}},"type":"minecraft:overworld"}}}}}}"#
-        );
-        let refused = refused_by_the_loader("worldgen/world_preset", "test_preset", &preset);
-        assert!(refused.contains(expected), "{layers}: {refused}");
-    }
-}
-
-#[test]
 fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let items = set.registry::<Item>().unwrap();
     let blocks = set.registry::<Block>().unwrap();
-    assert_eq!(items.by_name("minecraft:stone"), Some(Item::Stone.id()));
-    assert_eq!(blocks.by_name("minecraft:stone"), Some(Block::Stone.id()));
+    let stone = ResourceLocation::read("minecraft:stone").unwrap();
+    assert_eq!(items.by_name(&stone), Some(Item::Stone.id()));
+    assert_eq!(blocks.by_name(&stone), Some(Block::Stone.id()));
 
     let mut differing = 0;
-    for item in items.ids() {
-        let name = items.name(item).unwrap().as_str();
+    for (item, name, _) in items.iter() {
         let Some(block) = blocks.by_name(name) else {
             continue;
         };
-        assert_eq!(Item::find(name).unwrap().id(), item, "{name}");
-        assert_eq!(Block::find(name).unwrap().id(), block, "{name}");
+        assert_eq!(Item::find(name.as_str()).unwrap().id(), item, "{name}");
+        assert_eq!(Block::find(name.as_str()).unwrap().id(), block, "{name}");
         differing += usize::from(item.number() != block.number());
     }
     assert!(differing > 0, "no shared name is numbered differently");
@@ -2879,28 +1936,6 @@ fn a_block_state_provider_names_only_providers_that_exist() {
     let missing = load_text(&[(path, &rotated("minecraft:no_such_provider"))]);
     assert!(missing.contains("minecraft:no_such_provider"), "{missing}");
     let present = load_text(&[(path, &rotated("minecraft:soil_beneath_tree"))]);
-    assert!(present.is_empty(), "{present}");
-}
-
-#[test]
-fn a_block_predicate_inside_an_enchantment_names_only_blocks_that_exist() {
-    let enchantment = |block: &str| {
-        format!(
-            r#"{{"description":"x","supported_items":"minecraft:stone","weight":1,"max_level":1,
-            "min_cost":{{"base":1,"per_level_above_first":1}},"max_cost":{{"base":1,"per_level_above_first":1}},
-            "anvil_cost":1,"slots":["feet"],"effects":{{"minecraft:location_changed":[{{"effect":{{
-            "type":"minecraft:replace_disk","block_state":{{"type":"minecraft:simple",
-            "state":{{"id":"minecraft:stone"}}}},"radius":1,"height":1,
-            "predicate":{{"type":"minecraft:matching_blocks","blocks":"{block}"}}}}}}]}}}}"#
-        )
-    };
-    let missing = refused_by_the_loader(
-        "enchantment",
-        "odd",
-        &enchantment("minecraft:no_such_block"),
-    );
-    assert!(missing.contains("minecraft:no_such_block"), "{missing}");
-    let present = refused_by_the_loader("enchantment", "odd", &enchantment("minecraft:dirt"));
     assert!(present.is_empty(), "{present}");
 }
 

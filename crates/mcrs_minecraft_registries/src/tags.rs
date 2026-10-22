@@ -178,6 +178,12 @@ impl<R: RegistryType> IdSet<R> {
     }
 }
 
+impl<R> Default for IdSet<R> {
+    fn default() -> Self {
+        IdSet::List(Box::new([]))
+    }
+}
+
 impl<R> Clone for IdSet<R> {
     fn clone(&self) -> Self {
         match self {

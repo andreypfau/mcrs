@@ -12,7 +12,6 @@ mod beta_surface_capture;
 #[cfg(test)]
 mod biome_parity;
 #[cfg(test)]
-#[cfg(test)]
 mod biome_upscale;
 #[cfg(test)]
 mod carving_pins;
@@ -77,7 +76,7 @@ use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registries::Registries;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
@@ -89,7 +88,6 @@ use crate::heightmap::TerrainHeightmaps;
 use crate::stages::{FillContext, fill_column, merge_column, run_region};
 use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
 use crate::task::{CancellationToken, ColumnSource};
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
@@ -132,9 +130,28 @@ pub fn corpus_features() -> &'static LoadedFeatures {
             templates,
             processor_lists: registry("processor_list"),
             block_state_providers: registry("block_state_provider"),
+            placed_feature_tags: placed_feature_tags(),
         }
     });
     &CORPUS
+}
+
+fn placed_feature_tags() -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
+    use mcrs_minecraft_registries::{Namer, RegistryOf};
+
+    let registries = test_registries();
+    let tags = registries
+        .tags::<RegistryOf<PlacedFeature>>()
+        .expect("the loaded registries hold the placed feature tags");
+    tags.iter()
+        .map(|(tag, name)| {
+            let members = tags
+                .members(tag)
+                .filter_map(|id| Namer::name(registries.as_ref(), id).cloned())
+                .collect();
+            (name.clone(), members)
+        })
+        .collect()
 }
 
 /// One step that `biome` carries whole; the order is the caller's, not the
@@ -165,60 +182,41 @@ pub const TEMPERATE: BiomeClimate = BiomeClimate {
 pub fn build_program(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
-    registry: &Registry<Biome>,
+    registries: &Registries,
     seed: i64,
 ) -> FeatureProgram {
-    build_program_with(tables, corpus, registry, seed, None)
-}
-
-/// The corpus registries with the biomes of `biomes` numbered as it numbers
-/// them and every other corpus biome after them.
-pub fn registries_over(biomes: &Registry<Biome>) -> mcrs_minecraft_registry::RegistrySet {
-    let leading: Vec<&str> = biomes
-        .ids()
-        .map(|id| {
-            biomes
-                .name(id)
-                .expect("an id of the registry has a name")
-                .as_str()
-        })
-        .collect();
-    mcrs_minecraft_worldgen_testing::corpus_set_numbered(&leading)
+    build_program_with(tables, corpus, registries, seed, None)
 }
 
 pub fn build_program_with(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
-    registry: &Registry<Biome>,
+    registries: &Registries,
     seed: i64,
     structures: Option<&FrozenStructures>,
 ) -> FeatureProgram {
-    try_build_program(tables, corpus, registry, seed, structures)
+    try_build_program(tables, corpus, registries, seed, structures)
         .unwrap_or_else(|error| panic!("the feature program does not resolve: {error}"))
 }
 
 pub fn try_build_program(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
-    registry: &Registry<Biome>,
+    registries: &Registries,
     seed: i64,
     structures: Option<&FrozenStructures>,
 ) -> Result<FeatureProgram, mcrs_minecraft_worldgen_feature::compile::FeatureCompileError> {
     let mut tables = tables.clone();
-    let registries = registries_over(registry);
-    let numbered = registries
-        .registry::<Biome>()
-        .expect("the corpus holds the biome registry");
-    for id in numbered.ids() {
-        let name = numbered.name(id).expect("an id of the registry has a name");
+    for (_, name, _) in biomes_of(registries).iter() {
         tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
-    FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
+    FeatureProgram::build(&tables, corpus, &blocks().0, registries, seed, structures)
 }
 
-pub fn surface_ids_over(biomes: &Registry<Biome>) -> std::sync::Arc<crate::SurfaceIds> {
-    let ids = crate::SurfaceIds::from_lookup(|key| biomes.get(&key))
-        .expect("the registry holds the surface biomes");
+pub fn surface_ids_over(registries: &Registries) -> std::sync::Arc<crate::SurfaceIds> {
+    let mut diagnostics = mcrs_minecraft_registries::Diagnostics::default();
+    let ids = crate::SurfaceIds::resolve(registries, &mut diagnostics)
+        .unwrap_or_else(|| panic!("the registries hold the surface biomes: {diagnostics}"));
     std::sync::Arc::new(ids)
 }
 
@@ -252,49 +250,28 @@ pub fn fill_context_with(
     }
 }
 
-/// A biome registry naming `names`, numbered in name order: the feature tables
-/// only need the ids to resolve, and the surface stage only needs its own three
-/// to exist.
-pub fn biome_registry(names: &[&str]) -> Registry<Biome> {
+/// The loaded registries with the biomes of `names` numbered first, in name order: the feature
+/// tables only need the ids to resolve, and the surface stage only needs its own three to exist.
+pub fn biome_registry(names: &[&str]) -> Arc<Registries> {
     let mut names = names.to_vec();
     names.sort_unstable();
-    ordered_biome_registry(&names)
+    registries_over(&names)
 }
 
-pub fn parameter_lists() -> &'static (
-    Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
-    mcrs_minecraft_biome::parameter_list::ParameterLists,
-) {
-    static LISTS: std::sync::OnceLock<(
-        Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
-        mcrs_minecraft_biome::parameter_list::ParameterLists,
-    )> = std::sync::OnceLock::new();
+pub fn parameter_lists() -> &'static mcrs_minecraft_biome::parameter_list::ParameterLists {
+    static LISTS: std::sync::OnceLock<mcrs_minecraft_biome::parameter_list::ParameterLists> =
+        std::sync::OnceLock::new();
     LISTS.get_or_init(|| {
-        let shipped: BTreeMap<
-            ResourceLocation,
-            mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
-        > = registry("multi_noise_biome_source_parameter_list");
-        let names = Registry::new(
-            mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-            shipped.keys().cloned(),
-        )
-        .expect("a registry of distinct names");
-        let lists = mcrs_minecraft_registry::Entries::new(&names, shipped.into_values().collect())
-            .expect("one list for every name");
-        (names, lists)
+        mcrs_minecraft_biome::parameter_list::parameter_lists_of(test_registries())
+            .expect("the loaded registries hold the parameter lists")
     })
 }
 
 pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables {
     static TABLES: LazyLock<crate::multi_noise_biomes::PresetBiomeTables> = LazyLock::new(|| {
-        let (names, lists) = parameter_lists();
         let mut diagnostics = mcrs_minecraft_registries::Diagnostics::default();
-        crate::multi_noise_biomes::PresetBiomeTables::build(
-            names.iter().map(|(id, name)| (name, lists[id].preset)),
-            corpus_biomes(),
-            &mut diagnostics,
-        )
-        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {diagnostics}"))
+        crate::multi_noise_biomes::PresetBiomeTables::resolve(test_registries(), &mut diagnostics)
+            .unwrap_or_else(|| panic!("the corpus holds every preset biome: {diagnostics}"))
     });
     &TABLES
 }
@@ -303,21 +280,11 @@ pub fn parameter_list_id(
     name: &str,
 ) -> mcrs_minecraft_core::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>
 {
-    parameter_lists()
-        .0
-        .require_by_name(name)
+    let key = mcrs_minecraft_registries::Key::new(
+        ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
+    );
+    mcrs_minecraft_registries::Resolver::id(test_registries().as_ref(), &key)
         .unwrap_or_else(|e| panic!("{e}"))
-}
-
-/// A biome registry numbering `names` in the order given.
-pub fn ordered_biome_registry(names: &[&str]) -> Registry<Biome> {
-    Registry::new(
-        mcrs_minecraft_biome::keys::BIOME,
-        names
-            .iter()
-            .map(|name| ResourceLocation::read(name).expect("a biome name")),
-    )
-    .expect("a registry of distinct names")
 }
 
 /// A filled column of one block per section — `None` leaves the section empty
@@ -443,9 +410,19 @@ pub fn beta_carver_table(
     .expect("a Beta biome source")
 }
 
-/// The program every biome of a Beta `registry` runs: the shipped populate step,
-/// alone in its one step.
-pub fn beta_populate_program(registry: &Registry<Biome>, seed: i64) -> FeatureProgram {
+/// The biomes `source` can place, as a mask over the loaded biome numbers.
+pub fn possible_biome_mask(source: &mcrs_minecraft_biome::source::BiomeSource) -> FixedBitSet {
+    let registries = test_registries();
+    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+    for name in crate::features::possible_biomes(source, registries, parameter_lists()) {
+        mask.insert(biome_id(registries, name.as_str()).index());
+    }
+    mask
+}
+
+/// The program every biome of `registries` runs: the shipped populate step, alone in its one
+/// step.
+pub fn beta_populate_program(registries: &Registries, seed: i64) -> FeatureProgram {
     let id = ResourceLocation::read("minecraft:beta_populate").unwrap();
     let entry = Arc::new(CompiledPlacedFeature {
         placed: corpus_features().placed_features[&id].clone(),
@@ -453,14 +430,9 @@ pub fn beta_populate_program(registry: &Registry<Biome>, seed: i64) -> FeaturePr
     });
     let mut carried = FixedBitSet::with_capacity(1);
     carried.insert(0);
-    let biome_order: Vec<ResourceLocation> = registry
-        .ids()
-        .map(|id| {
-            registry
-                .name(id)
-                .expect("an id of the registry has a name")
-                .clone()
-        })
+    let biome_order: Vec<ResourceLocation> = biomes_of(registries)
+        .iter()
+        .map(|(_, name, _)| name.clone())
         .collect();
     let tables = FeatureTables {
         features: FeatureSteps {
@@ -471,5 +443,5 @@ pub fn beta_populate_program(registry: &Registry<Biome>, seed: i64) -> FeaturePr
         biome_order,
         climate: BTreeMap::new(),
     };
-    build_program(&tables, corpus_features(), registry, seed)
+    build_program(&tables, corpus_features(), registries, seed)
 }

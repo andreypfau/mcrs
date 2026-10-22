@@ -11,8 +11,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode};
 
-use crate::item::harness::{hex, json_of, read_json};
-use crate::item::particle::{golden, lookup, to_hex};
+use crate::item::harness::{block_ctx, hex, json_of, read_json};
+use crate::item::particle::{golden, to_hex};
 
 fn id(text: &str) -> ResourceLocation {
     ResourceLocation::read(text).unwrap()
@@ -85,11 +85,11 @@ fn positioned(name: &str, value: Advancement, x: f32, y: f32) -> PositionedAdvan
 fn an_advancement_matches_the_vanilla_stream_codec() {
     let bytes = hex(golden("root.wire"));
     let mut r = &bytes[..];
-    let decoded = Advancement::decode_ctx(&lookup(), &mut r).unwrap();
+    let decoded = Advancement::decode_ctx(&block_ctx(), &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(decoded, root());
     let mut out = Vec::new();
-    decoded.encode_ctx(&lookup(), &mut out).unwrap();
+    decoded.encode_ctx(&block_ctx(), &mut out).unwrap();
     assert_eq!(to_hex(&out), to_hex(&bytes));
 }
 
@@ -156,7 +156,7 @@ fn update_advancements_packet_matches_vanilla() {
     let resolved: Vec<PositionedAdvancement> = packet
         .added
         .iter()
-        .map(|raw| raw.resolve(&lookup()).unwrap())
+        .map(|raw| raw.resolve(&block_ctx()).unwrap())
         .collect();
     assert_eq!(
         resolved,
@@ -173,7 +173,7 @@ fn update_advancements_packet_matches_vanilla() {
     let rebuilt = ClientboundUpdateAdvancements {
         added: resolved
             .iter()
-            .map(|advancement| RawAdvancement::from_positioned(advancement, &lookup()).unwrap())
+            .map(|advancement| RawAdvancement::from_positioned(advancement, &block_ctx()).unwrap())
             .collect(),
         ..packet
     };

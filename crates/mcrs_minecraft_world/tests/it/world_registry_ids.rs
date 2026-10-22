@@ -2,9 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use bevy_app::App;
+use mcrs_minecraft_core::Id;
+use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_protocol::item::ctx::WireCtx;
+use mcrs_minecraft_protocol::item::{DecodeCtx, EncodeCtx};
+use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
+use mcrs_minecraft_registries::Ref;
+use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries_arc};
 
 use crate::common::{declared_registries, loaded_names};
 
@@ -18,11 +24,11 @@ fn read(relative: &str) -> String {
 }
 
 pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
-    let set = app.world().resource::<RegistrySet>();
+    let set = app.world().resource::<CurrentRegistries>();
     let world_registries = declared_registries(false);
 
     let mut snapshots = 0;
-    for (registry, entries) in sent_by(app.world().resource::<CurrentRegistries>(), false)
+    for (registry, entries) in sent_by(set, false)
         .0
         .into_iter()
         .filter(|(registry, _)| world_registries.contains(registry.as_str()))
@@ -56,7 +62,7 @@ fn recorded_by_registry(text: &str) -> BTreeMap<String, Vec<String>> {
 
 #[test]
 fn the_loader_keeps_every_recorded_world_registry_id() {
-    let set = test_registries();
+    let set = test_registries_arc();
     let changed: BTreeSet<String> =
         std::fs::read_to_string(crate_path("tests/fixtures/world_registry_id_changes.txt"))
             .unwrap_or_default()
@@ -86,8 +92,42 @@ fn the_loader_keeps_every_recorded_world_registry_id() {
 
 #[test]
 fn a_world_registry_without_files_is_empty() {
-    let table = test_registries()
-        .table("minecraft:dimension")
-        .expect("minecraft:dimension is a loaded registry");
-    assert!(table.is_empty(), "{} names", table.len());
+    let names = loaded_names(test_registries_arc(), "minecraft:dimension");
+    assert!(names.is_empty(), "{names:?}");
+}
+
+#[test]
+fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_trips() {
+    let registries = test_registries_arc();
+    let ctx = WireCtx::new(registries);
+    let past = |registry: &str, offset: usize| {
+        let len = loaded_names(registries, registry).len();
+        let mut wire = Vec::new();
+        VarInt(i32::try_from(len + offset).unwrap())
+            .encode(&mut wire)
+            .unwrap();
+        wire
+    };
+
+    let error =
+        Id::<DimensionType>::decode_ctx(&ctx, &mut &past("minecraft:dimension_type", 0)[..])
+            .unwrap_err();
+    assert!(
+        format!("{error:#}").contains("minecraft:dimension_type"),
+        "{error:#}"
+    );
+
+    type Sound = Ref<SoundEvent, SoundEvent>;
+    let error = Sound::decode_ctx(&ctx, &mut &past("minecraft:sound_event", 1)[..]).unwrap_err();
+    assert!(
+        format!("{error:#}").contains("minecraft:sound_event"),
+        "{error:#}"
+    );
+
+    let sound = Sound::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id());
+    let mut wire = Vec::new();
+    sound.encode_ctx(&ctx, &mut wire).unwrap();
+    let mut r = &wire[..];
+    assert_eq!(Sound::decode_ctx(&ctx, &mut r).unwrap(), sound);
+    assert!(r.is_empty());
 }

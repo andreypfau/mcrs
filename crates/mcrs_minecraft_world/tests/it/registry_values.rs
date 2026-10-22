@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registry_load::{sent_by, test_registries, test_registries_arc};
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries_arc};
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -150,17 +148,22 @@ fn walk(ours: &NbtTag, game: &NbtTag) -> Vec<Difference> {
 const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are replaced]";
 const SECTION_OTHERS: &str = "[other compared registries]";
 
-fn from_set(set: &RegistrySet, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
-    let (_, entries) = sent_by(test_registries_arc(), false)
-        .0
-        .into_iter()
-        .find(|(sent, _)| sent.as_str() == registry)?;
-    Some(
-        entries
+/// The vanilla pack's entries of `registry` as the server sends them: a client that knows the
+/// vanilla pack is sent those entries without data.
+fn vanilla_entries(registry: &str) -> Option<BTreeMap<String, NbtTag>> {
+    let sent = |known| {
+        sent_by(test_registries_arc(), known)
+            .0
             .into_iter()
-            .enumerate()
-            .filter(|(id, _)| set.pack_of(registry, *id) == Some(VANILLA_PACK))
-            .filter_map(|(_, (name, data))| Some((name.to_string(), data?)))
+            .find(|(sent, _)| sent.as_str() == registry)
+            .map(|(_, entries)| entries)
+    };
+    let (full, known) = (sent(false)?, sent(true)?);
+    Some(
+        full.into_iter()
+            .zip(known)
+            .filter(|(_, (_, known))| known.is_none())
+            .filter_map(|((name, data), _)| Some((name.to_string(), data?)))
             .collect(),
     )
 }
@@ -223,13 +226,12 @@ fn sections(text: &str) -> BTreeMap<String, Vec<String>> {
 
 #[test]
 fn the_synced_values_differ_from_the_game_as_recorded() {
-    let set = test_registries();
     let golden = golden();
 
     let mut untyped_copies = BTreeSet::new();
     let mut others = BTreeSet::new();
     for (registry, game) in &golden.registries {
-        let Some(ours) = from_set(set, registry) else {
+        let Some(ours) = vanilla_entries(registry) else {
             continue;
         };
         let lines = compare_registry(registry, &ours, game);

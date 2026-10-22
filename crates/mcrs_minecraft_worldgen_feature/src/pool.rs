@@ -45,7 +45,7 @@ pub enum PoolElement {
     Empty {},
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     PoolElement, key = "element_type", registry = crate::keys::StructurePoolElementType,
     {
         SinglePoolElement => Single,

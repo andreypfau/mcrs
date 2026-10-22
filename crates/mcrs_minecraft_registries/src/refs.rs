@@ -70,6 +70,12 @@ pub enum KeySet<R> {
     List(Box<[Key<R>]>),
 }
 
+impl<R> Default for KeySet<R> {
+    fn default() -> Self {
+        KeySet::List(Box::new([]))
+    }
+}
+
 impl<R> Clone for KeySet<R> {
     fn clone(&self) -> Self {
         match self {
@@ -85,6 +91,17 @@ impl<R> PartialEq for KeySet<R> {
             (KeySet::Tag(a), KeySet::Tag(b)) => a == b,
             (KeySet::List(a), KeySet::List(b)) => a == b,
             _ => false,
+        }
+    }
+}
+
+impl<R> Eq for KeySet<R> {}
+
+impl<R> std::hash::Hash for KeySet<R> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            KeySet::Tag(tag) => tag.hash(state),
+            KeySet::List(keys) => keys.hash(state),
         }
     }
 }
@@ -446,6 +463,26 @@ impl<T: Resolve> Resolve for Vec<T> {
         self.iter()
             .enumerate()
             .map(|(at, value)| value.name(names).map_err(|e| e.at_index(at)))
+            .collect()
+    }
+}
+
+impl<K: Ord + Clone + fmt::Display, V: Resolve> Resolve for std::collections::BTreeMap<K, V> {
+    type Named = std::collections::BTreeMap<K, V::Named>;
+
+    fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
+        named
+            .into_iter()
+            .map(|(key, value)| match V::resolve(value, ctx) {
+                Ok(value) => Ok((key, value)),
+                Err(error) => Err(error.at(&key)),
+            })
+            .collect()
+    }
+
+    fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
+        self.iter()
+            .map(|(key, value)| Ok((key.clone(), value.name(names).map_err(|e| e.at(key))?)))
             .collect()
     }
 }

@@ -9,8 +9,8 @@
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;
 use super::{
-    block_tags, blocks, build_beta_router, build_program_with, corpus_biomes, corpus_climate,
-    corpus_features, loaded_block_tags, one_step,
+    biome_id, block_tags, blocks, build_beta_router, build_program_with, corpus_biomes,
+    corpus_climate, corpus_features, one_step, test_registries,
 };
 use crate::heightmap::heightmap_predicates;
 use crate::modern_carvers::ModernCarverBlockIds;
@@ -121,9 +121,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         },
         seed,
     );
-    let biome = corpus_biomes()
-        .by_name(biome_id)
-        .expect("the biome registry holds the corpus");
+    let biome = self::biome_id(test_registries(), biome_id);
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
     mask.insert(biome.index());
     let tables = DimensionStructureTables {
@@ -211,7 +209,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
                     &blocks().0,
                     block_tags().members(
                         block_tags()
-                            .get(&mcrs_minecraft_block::keys::block_tags::UNCARVABLE)
+                            .id(&mcrs_minecraft_block::keys::block_tags::UNCARVABLE)
                             .expect("the corpus holds the uncarvable tag"),
                     ),
                 )),
@@ -226,7 +224,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
         biome: source.clone(),
         // The modern vein probes `OCEAN_FLOOR_WG`, which is a terrain map, so
         // without the table it would place nothing at all.
-        predicates: Some(heightmap_predicates(blocks(), loaded_block_tags())),
+        predicates: Some(heightmap_predicates(blocks(), block_tags())),
         saved: None,
         program,
         router,

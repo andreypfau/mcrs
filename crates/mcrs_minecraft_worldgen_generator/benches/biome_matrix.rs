@@ -15,32 +15,22 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::Registry;
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::{Diagnostics, Key, Registries, Resolver};
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
     ColumnBlocks, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
+use mcrs_minecraft_worldgen_surface::MaterialScratch;
+use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
+
+use common::support::{
+    biome_id, biomes_of, corpus, corpus_biomes, material_router, test_registries,
 };
-
-use common::support::{corpus, router_blocks};
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in};
-
-fn parameter_lists() -> Registry<MultiNoiseBiomeSourceParameterList> {
-    Registry::new(
-        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-        Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
-    )
-    .unwrap()
-}
 
 const NETHER: [&str; 5] = [
     "nether_wastes",
@@ -57,15 +47,13 @@ const END: [&str; 5] = [
     "small_end_islands",
 ];
 
-/// Every biome the corpus ships, numbered by sorted file name. The material
-/// rules and the biome grid share this numbering, and it must cover the whole
-/// corpus rather than one preset: a biome the rules name but the map does not
-/// hold would fall back to a substitute id and quietly make those rules
-/// unreachable.
+/// Every loaded biome, in the numbering the material rules and the biome grid share. It covers
+/// every biome rather than one preset: a biome the rules name but the map does not hold would fall
+/// back to a substitute id and quietly make those rules unreachable.
 fn corpus_biome_ids() -> Vec<String> {
-    let names: Vec<String> = registry::<serde::de::IgnoredAny>("biome")
-        .into_keys()
-        .map(|id| id.path().to_owned())
+    let names: Vec<String> = corpus_biomes()
+        .iter()
+        .map(|(_, name, _)| name.path().to_owned())
         .collect();
     assert!(names.len() <= 256, "the biome grid stores a u8");
     names
@@ -84,49 +72,13 @@ fn overworld_subset(names: &[String]) -> Vec<(usize, String)> {
         .collect()
 }
 
-fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram) {
-    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-        "noise_settings",
-        &rl!("minecraft:overworld").to_arc(),
-    );
-    let qualified: Vec<String> = names
-        .iter()
-        .map(|name| format!("minecraft:{name}"))
-        .collect();
-    let leading: Vec<&str> = qualified.iter().map(String::as_str).collect();
-    let set = corpus_set_numbered(&leading);
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");
-    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry_in(&set, "material_condition");
-    let biome_tags = set.tags().expect("the corpus holds the biome tags");
-    let inputs = MaterialInputs {
-        rules: &rules,
-        conditions: &conditions,
-        block: &|state| {
-            corpus()
-                .block(state.name.as_str())
-                .map(|b| b.default_state_id.number().into())
-        },
-        biome_tags: &biome_tags,
-    };
-    build_router_and_material(
-        &settings,
-        &registry("density_function"),
-        &registry("noise"),
-        seed,
-        router_blocks(corpus()),
-        &inputs,
-    )
-    .expect("the overworld compiles")
-}
-
 struct Ids {
     surface: std::sync::Arc<SurfaceIds>,
     states: SurfaceStates,
 }
 
-fn surface_ids(biomes: &Registry<Biome>) -> Ids {
-    let surface = SurfaceIds::from_lookup(|key| biomes.get(&key))
+fn surface_ids(registries: &Registries) -> Ids {
+    let surface = SurfaceIds::resolve(registries, &mut Diagnostics::default())
         .expect("the corpus holds the surface biomes");
     Ids {
         surface: std::sync::Arc::new(surface),
@@ -134,24 +86,9 @@ fn surface_ids(biomes: &Registry<Biome>) -> Ids {
     }
 }
 
-/// A registry over the whole corpus, numbering `names` in order, which is the
-/// order `corpus_biome_ids` produces, so a biome's id here equals the id the
-/// material rules were compiled with.
-fn biome_registry(names: &[String]) -> Registry<Biome> {
-    Registry::new(
-        mcrs_minecraft_biome::keys::BIOME,
-        names.iter().map(|name| {
-            ResourceLocation::read(&format!("minecraft:{name}")).expect("a biome name")
-        }),
-    )
-    .expect("the corpus names distinct biomes")
-}
-
-fn fixed_source(registry: &Registry<Biome>, name: &str) -> BiomeSource {
+fn fixed_source(registries: &Registries, name: &str) -> BiomeSource {
     BiomeSource::Fixed {
-        biome: registry
-            .require_by_name(&format!("minecraft:{name}"))
-            .expect("a corpus biome"),
+        biome: biome_id(registries, &format!("minecraft:{name}")),
     }
 }
 
@@ -166,9 +103,9 @@ fn main() {
         .unwrap_or_else(|| vec![-128]);
 
     let names = corpus_biome_ids();
-    let (router, material) = material_router(seed, &names);
-    let registry = biome_registry(&names);
-    let ids = surface_ids(&registry);
+    let registry = test_registries();
+    let (router, material) = material_router("overworld", seed, registry);
+    let ids = surface_ids(registry);
     let y_sections: Vec<i32> = (-4..20).collect();
     let cancel = CancellationToken::new();
 
@@ -180,7 +117,7 @@ fn main() {
                     &material,
                     &names,
                     &ids,
-                    &registry,
+                    registry,
                     &y_sections,
                     &cancel,
                     side,
@@ -193,7 +130,7 @@ fn main() {
             &material,
             &names,
             &ids,
-            &registry,
+            registry,
             &y_sections,
             &cancel,
             side,
@@ -265,7 +202,7 @@ fn matrix(
     material: &MaterialProgram,
     names: &[String],
     ids: &Ids,
-    registry: &Registry<Biome>,
+    registry: &Registries,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
@@ -359,16 +296,15 @@ fn natural(
     material: &MaterialProgram,
     names: &[String],
     ids: &Ids,
-    registry: &Registry<Biome>,
+    registry: &Registries,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
     offset: i32,
 ) {
-    let list_names = parameter_lists();
-    let multi =
-        MultiNoiseBiomeSource::Preset(list_names.require_by_name("minecraft:overworld").unwrap());
-    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, registry)
+    let overworld = Key::new(ResourceLocation::read("minecraft:overworld").unwrap());
+    let multi = MultiNoiseBiomeSource::Preset(Resolver::id(registry, &overworld).unwrap());
+    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes_of(registry))
         .expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
     let natural = ColumnBiomes::new(Some(&natural_source), Some(Arc::new(table))).unwrap();

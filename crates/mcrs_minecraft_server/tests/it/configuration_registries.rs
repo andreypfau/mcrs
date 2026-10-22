@@ -4,7 +4,6 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -18,22 +17,22 @@ use mcrs_minecraft_protocol::packets::configuration::{
 };
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registries::{
+    CurrentRegistries, Registries, RegistryOf, VANILLA_PACK, VANILLA_ROOT,
+};
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
     KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
 };
-use mcrs_minecraft_world::registry_load::{test_registries, test_registries_arc};
+use mcrs_minecraft_world::registry_load::test_registries_arc;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn served(root: &Path) -> (RegistrySet, Arc<Registries>) {
+fn served(root: &Path) -> Arc<Registries> {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
         asset_path: Some(root.to_str().unwrap().to_owned()),
@@ -42,11 +41,7 @@ fn served(root: &Path) -> (RegistrySet, Arc<Registries>) {
     });
     app.finish();
     app.cleanup();
-    let world = app.world();
-    (
-        world.resource::<RegistrySet>().clone(),
-        Arc::clone(world.resource::<CurrentRegistries>().arc()),
-    )
+    Arc::clone(app.world().resource::<CurrentRegistries>().arc())
 }
 
 /// The registry data packets the load encoded, decoded as a client reads them.
@@ -131,16 +126,18 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
             r#"{"exhaustion":0.75,"message_id":"arrow","scaling":"when_caused_by_living_non_player"}"#,
         )],
     );
-    let (set, registries) = served(&root.0);
+    let registries = served(&root.0);
 
     let registry = "minecraft:damage_type";
-    let table = set.table(registry).unwrap();
-    let arrow = usize::from(table.number("minecraft:arrow").unwrap());
+    let damage_types = registries.registry::<RegistryOf<DamageType>>().unwrap();
+    let arrow = damage_types
+        .by_name(&ResourceLocation::read("minecraft:arrow").unwrap())
+        .unwrap();
+    assert_eq!(damage_types.get(arrow).unwrap().exhaustion, 0.75);
     assert_eq!(
-        set.column::<DamageType>(registry).unwrap()[arrow].exhaustion,
-        0.75
+        registries.origin(arrow).map(|pack| pack.id()),
+        Some("file/zz_override")
     );
-    assert_eq!(set.pack_of(registry, arrow), Some("file/zz_override"));
 
     let packets = sent(&registries, true);
     let sent = sent_entry(&packets, registry, "minecraft:arrow")
@@ -272,7 +269,7 @@ fn the_registry_packets_list_the_entries_the_packs_ship() {
 
 #[test]
 fn the_registry_packets_carry_each_synced_registry_in_id_order() {
-    let set = test_registries();
+    let registries = test_registries_arc();
     let packets = sent(test_registries_arc(), false);
 
     let sent: Vec<&str> = packets
@@ -283,13 +280,18 @@ fn the_registry_packets_carry_each_synced_registry_in_id_order() {
     assert!(!sent.contains(&"minecraft:environment_attribute"));
 
     for packet in &packets {
-        let table = set.table(packet.registry.as_str()).unwrap();
+        let key = ResourceLocation::read(packet.registry.as_str()).unwrap();
+        let in_id_order: Vec<&str> = registries
+            .names_of(&key)
+            .unwrap()
+            .iter()
+            .map(|name| name.as_str())
+            .collect();
         let names: Vec<&str> = packet
             .entries
             .iter()
             .map(|entry| entry.id.as_str())
             .collect();
-        let in_id_order: Vec<&str> = table.names().iter().map(|name| name.as_str()).collect();
         assert_eq!(names, in_id_order, "entries of {}", packet.registry);
         assert!(
             packet.entries.iter().all(|entry| entry.data.is_some()),
@@ -317,12 +319,12 @@ const OTHER_PACK: KnownPack<'static> = KnownPack {
 
 #[test]
 fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
-    let set = test_registries();
     let mut from_other_packs = 0;
     for packet in sent(test_registries_arc(), true) {
         let registry = packet.registry.as_str();
-        for (id, entry) in packet.entries.iter().enumerate() {
-            let vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
+        let shipped: BTreeMap<String, String> = shipped_entries(registry).into_iter().collect();
+        for entry in &packet.entries {
+            let vanilla = shipped.get(entry.id.as_str()).map(String::as_str) == Some(VANILLA_PACK);
             assert_eq!(
                 entry.data.is_none(),
                 vanilla,
@@ -371,31 +373,6 @@ fn only_a_reply_that_repeats_the_offer_negotiates_its_packs() {
             expected,
             "offer {offered:?}, reply {reply:?}"
         );
-    }
-}
-
-#[test]
-fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
-    let set = test_registries();
-    let packets = sent(test_registries_arc(), false);
-    assert!(!packets.is_empty());
-
-    for packet in &packets {
-        let path = packet.registry.path();
-        for (position, entry) in packet.entries.iter().enumerate() {
-            let name = ResourceLocation::read(entry.id.as_str()).unwrap();
-            let number = u16::try_from(position).unwrap();
-            assert_eq!(
-                RegistryLookup::id(set, path, &name),
-                Some(number),
-                "{path}/{name}"
-            );
-            assert_eq!(
-                RegistryLookup::name(set, path, number),
-                Some(&name),
-                "{path}/{number}"
-            );
-        }
     }
 }
 

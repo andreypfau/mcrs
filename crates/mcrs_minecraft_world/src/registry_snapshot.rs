@@ -4,14 +4,12 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_registry::RegistrySet;
 use std::any::type_name;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RegistrySnapshot {
     registries: Arc<Registries>,
-    set: RegistrySet,
     blocks: Blocks,
     items: Items,
 }
@@ -19,7 +17,6 @@ pub struct RegistrySnapshot {
 impl RegistrySnapshot {
     fn insert_into(&self, world: &mut World) {
         world.insert_resource(CurrentRegistries::new(Arc::clone(&self.registries)));
-        world.insert_resource(self.set.clone());
         world.insert_resource(self.blocks.clone());
         world.insert_resource(self.items.clone());
     }
@@ -34,7 +31,6 @@ fn held<T: Resource + Clone>(world: &World) -> T {
 
 pub fn install_registries(world: &mut World, registries: Arc<Registries>) {
     let snapshot = RegistrySnapshot {
-        set: held(world),
         blocks: held(world),
         items: held(world),
         registries,
@@ -49,9 +45,9 @@ pub fn extract_registries(main: &World, sub: &mut World) {
     }
 }
 
-/// Swaps only the `Registries`. The old `RegistrySet`, `Blocks` and `Items` stay from the
-/// previous snapshot, so a dimension would see the new `Registries` beside the old
-/// `RegistrySet`: tests only.
+/// Swaps only the `Registries`. The old `Blocks` and `Items` stay from the previous snapshot,
+/// so a dimension would see the new `Registries` beside items resolved against the old ones:
+/// tests only.
 #[cfg(feature = "test-support")]
 pub fn replace_registries(world: &mut World, registries: Registries) {
     let registries = Arc::new(registries);

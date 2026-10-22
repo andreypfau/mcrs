@@ -13,7 +13,7 @@ use crate::diagnostics::{Missing, Referrer};
 use crate::id::Key;
 use crate::refs::Resolver;
 use crate::registry::{Names, ReadValue, Registry, RegistryType};
-use crate::tags::TagTable;
+use crate::tags::{TagTable, Tags};
 
 pub(crate) struct Slot<'d> {
     pub(crate) declaration: &'d dyn Erased,
@@ -99,6 +99,11 @@ impl<'a> LoadCtx<'a> {
     pub fn registry<R: RegistryType>(&self) -> Option<&Registry<R>> {
         let slot = self.slots.get(*self.by_type.get(&TypeId::of::<R>())?)?;
         slot.table.as_ref()?.registry.downcast_ref::<Registry<R>>()
+    }
+
+    pub fn tags<R: RegistryType>(&self) -> Option<Tags<R>> {
+        let slot = self.slots.get(*self.by_type.get(&TypeId::of::<R>())?)?;
+        slot.tags.as_ref().map(|table| Tags::new(Arc::clone(table)))
     }
 
     fn visible<R: 'static>(&self) -> Result<(usize, &'a Slot<'a>), String> {

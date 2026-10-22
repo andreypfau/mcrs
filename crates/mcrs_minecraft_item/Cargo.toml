@@ -12,7 +12,6 @@ bevy = [
     "dep:bevy_ecs",
     "mcrs_minecraft_core/bevy",
     "mcrs_minecraft_profile/bevy",
-    "mcrs_minecraft_registry/bevy",
 ]
 
 [lints]
@@ -29,7 +28,6 @@ bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_text.workspace = true
 anyhow.workspace = true
 crc32c.workspace = true
@@ -38,6 +36,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 mcrs_minecraft_fixtures.workspace = true

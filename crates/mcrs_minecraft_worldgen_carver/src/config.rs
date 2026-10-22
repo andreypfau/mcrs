@@ -42,7 +42,7 @@ pub enum CarverConfig {
     BetaCave,
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     CarverConfig, key = "type", registry = crate::keys::CarverType,
     {
         Cave => Cave,

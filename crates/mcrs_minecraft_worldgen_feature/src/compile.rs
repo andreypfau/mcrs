@@ -1,4 +1,5 @@
 use mcrs_minecraft_registries::{KeySet, Named};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -11,7 +12,9 @@ use bevy_math::IVec3;
 
 use super::placement::PlacementModifier;
 use super::placer::{BiomeMask, Modifier, Predicate, Rule, StateMask, single_state};
-use super::proto::{Feature, FeatureStepList, PlacedFeature, StructureProcessorList};
+use super::proto::{
+    Feature, FeatureStepList, PlacedFeature, PlacedFeatureSet, StructureProcessorList,
+};
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
@@ -22,7 +25,6 @@ use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_registry::HolderSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FeatureCompileError {
@@ -30,6 +32,8 @@ pub enum FeatureCompileError {
     UnknownFeature(ResourceLocation),
     #[error("unknown placed feature: {0}")]
     UnknownPlacedFeature(ResourceLocation),
+    #[error("unknown placed feature tag: #{0}")]
+    UnknownPlacedFeatureTag(ResourceLocation),
     #[error("unknown template: {0}")]
     UnknownTemplate(ResourceLocation),
     #[error("unknown processor list: {0}")]
@@ -77,6 +81,25 @@ pub struct LoadedFeatures {
     pub templates: BTreeMap<ResourceLocation, Template>,
     pub processor_lists: BTreeMap<ResourceLocation, StructureProcessorList>,
     pub block_state_providers: BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
+    pub placed_feature_tags: BTreeMap<ResourceLocation, Vec<ResourceLocation>>,
+}
+
+impl LoadedFeatures {
+    /// The entries of `set`, a tag expanded to the placed features it names.
+    pub fn placed_set<'a>(
+        &'a self,
+        set: &'a PlacedFeatureSet,
+    ) -> Result<Cow<'a, [Holder<PlacedFeature>]>, FeatureCompileError> {
+        match set {
+            PlacedFeatureSet::List(entries) => Ok(Cow::Borrowed(entries)),
+            PlacedFeatureSet::Tag(tag) => self
+                .placed_feature_tags
+                .get(tag)
+                .map(|members| members.iter().cloned().map(Holder::Reference).collect())
+                .map(Cow::Owned)
+                .ok_or_else(|| FeatureCompileError::UnknownPlacedFeatureTag(tag.clone())),
+        }
+    }
 }
 
 /// One vertex of the sorted order: a placed feature and, unless it was written
@@ -223,12 +246,12 @@ impl<'a> Interner<'a> {
 /// function of the state, so each of these collapses to one mask at freeze and
 /// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
-    Blocks(&'a HolderSet<mcrs_minecraft_block::keys::Block>),
+    Blocks(&'a KeySet<mcrs_minecraft_block::keys::Block>),
     /// Blocks a datapack value lists by name rather than as a holder set.
     Names(&'a [ResourceLocation]),
     Block(&'a ResourceLocation),
     BlockTag(&'a ResourceLocation),
-    Fluids(&'a HolderSet<Fluid>, &'a StatePropertiesPredicate),
+    Fluids(&'a KeySet<Fluid>, &'a StatePropertiesPredicate),
     SturdyFace(Direction),
     /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
     FullCollisionFace(Direction),
@@ -243,13 +266,6 @@ pub trait BlockResolver {
     fn state(&self, state: &BlockState) -> Option<VoxelId>;
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask>;
-
-    fn block_set(
-        &self,
-        keys: &KeySet<mcrs_minecraft_block::keys::Block>,
-    ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>>;
-
-    fn fluid_set(&self, keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>>;
 
     fn biomes(&self, set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask>;
 }
@@ -326,12 +342,7 @@ pub fn compile_predicate(
         BlockPredicate::MatchingBlocks {
             offset,
             blocks: set,
-        } => {
-            let set = blocks
-                .block_set(set)
-                .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{set:?}")))?;
-            matching(offset, StateQuery::Blocks(&set))?
-        }
+        } => matching(offset, StateQuery::Blocks(set))?,
         BlockPredicate::MatchingBlockTag { offset, tag } => {
             matching(offset, StateQuery::BlockTag(tag))?
         }
@@ -339,12 +350,7 @@ pub fn compile_predicate(
             offset,
             fluids,
             state,
-        } => {
-            let fluids = blocks
-                .fluid_set(fluids)
-                .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("{fluids:?}")))?;
-            matching(offset, StateQuery::Fluids(&fluids, state))?
-        }
+        } => matching(offset, StateQuery::Fluids(fluids, state))?,
         BlockPredicate::HasSturdyFace { offset, direction } => {
             matching(offset, StateQuery::SturdyFace(*direction))?
         }
@@ -592,17 +598,6 @@ mod tests {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
 
-        fn block_set(
-            &self,
-            _keys: &KeySet<mcrs_minecraft_block::keys::Block>,
-        ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>> {
-            Some(HolderSet::List(Box::new([])))
-        }
-
-        fn fluid_set(&self, _keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
-            Some(HolderSet::List(Box::new([])))
-        }
-
         fn biomes(&self, _set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
@@ -645,15 +640,6 @@ mod tests {
                 None
             }
             fn states(&self, _query: StateQuery<'_>) -> Option<StateMask> {
-                None
-            }
-            fn block_set(
-                &self,
-                _keys: &KeySet<mcrs_minecraft_block::keys::Block>,
-            ) -> Option<HolderSet<mcrs_minecraft_block::keys::Block>> {
-                None
-            }
-            fn fluid_set(&self, _keys: &KeySet<Fluid>) -> Option<HolderSet<Fluid>> {
                 None
             }
             fn biomes(&self, _set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {

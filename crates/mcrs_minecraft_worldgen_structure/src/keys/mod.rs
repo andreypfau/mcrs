@@ -15,7 +15,7 @@ pub use structure_piece::StructurePieceType;
 pub use structure_placement::StructurePlacementType;
 pub use structure_type::StructureType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const SPAWN_CONDITION_TYPE: RegistryKey<crate::keys::SpawnConditionType> =
     RegistryKey::new(rl!("minecraft:spawn_condition_type"));
@@ -57,16 +57,4 @@ pub const STRUCTURE_TYPE: RegistryKey<crate::keys::StructureType> =
     RegistryKey::new(rl!("minecraft:worldgen/structure_type"));
 impl Registered for crate::keys::StructureType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 7] {
-    [
-        SPAWN_CONDITION_TYPE.binding(),
-        POOL_ALIAS_BINDING.binding(),
-        STRUCTURE.binding(),
-        STRUCTURE_PIECE.binding(),
-        STRUCTURE_PLACEMENT.binding(),
-        STRUCTURE_SET.binding(),
-        STRUCTURE_TYPE.binding(),
-    ]
 }

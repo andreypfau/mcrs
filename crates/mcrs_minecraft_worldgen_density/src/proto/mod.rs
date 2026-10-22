@@ -230,7 +230,7 @@ pub enum ProtoDensityFunction {
     OldBlendedNoise(BlendedNoiseArguments),
 }
 
-mcrs_minecraft_registry::dispatch! {
+mcrs_minecraft_registries::dispatch! {
     ProtoDensityFunction, key = "type", registry = crate::keys::DensityFunctionType,
     {
         Constant => Constant,

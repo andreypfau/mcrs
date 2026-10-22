@@ -3,7 +3,6 @@ use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
 use bytes::Buf;
-use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_fixtures::fixture;
@@ -12,13 +11,9 @@ use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 use mcrs_minecraft_worldgen_testing::dump_string;
 
 use super::structures::{frozen_shared, preset};
-use super::{
-    biome_registry, blocks, build_settings_router, corpus_biomes, corpus_climate,
-    loaded_block_tags, registries_over,
-};
+use super::{biome_registry, block_tags, blocks, build_settings_router, corpus_climate};
 use crate::base_height;
 use crate::feature_program::Resolver;
-use crate::features::possible_biomes;
 use crate::heightmap::{HeightmapKinds, heightmap_predicates};
 use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::live_sets;
@@ -177,15 +172,7 @@ pub(super) fn dimension(id: &str) -> Dimension {
 pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = &dimension.source;
-    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(
-        source,
-        corpus_biomes(),
-        &super::biome_tags(),
-        &crate::tests::parameter_lists().1,
-    ) {
-        mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
-    }
+    let mask = super::possible_biome_mask(source);
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
         live: live_sets(frozen, &mask),
@@ -194,9 +181,15 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         BiomeSource::MultiNoise(multi) => {
             BiomeLookup::MultiNoise(super::preset_tables().table_of(multi).unwrap())
         }
-        BiomeSource::TheEnd => {
-            BiomeLookup::TheEnd(EndBiomes::from_lookup(|key| corpus_biomes().get(&key)).unwrap())
-        }
+        BiomeSource::TheEnd => BiomeLookup::TheEnd(
+            EndBiomes::from_lookup(|key| {
+                Some(super::biome_id(
+                    super::test_registries(),
+                    key.location().as_str(),
+                ))
+            })
+            .unwrap(),
+        ),
         _ => unreachable!(),
     };
     StructureIndex::new(
@@ -204,7 +197,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         seed,
         Arc::new(build_settings_router(dimension.settings, seed as u64)),
         biomes,
-        Some(heightmap_predicates(blocks(), loaded_block_tags())),
+        Some(heightmap_predicates(blocks(), block_tags())),
         Arc::clone(world_states()),
         Arc::clone(corpus_climate()),
         dimension.accessor_min_y,
@@ -214,7 +207,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
 
 fn world_states() -> &'static Arc<WorldStates> {
     static STATES: LazyLock<Arc<WorldStates>> = LazyLock::new(|| {
-        let registries = registries_over(&biome_registry(&["minecraft:plains"]));
+        let registries = biome_registry(&["minecraft:plains"]);
         let resolver = Resolver::new(
             &blocks().0,
             &registries,
@@ -241,7 +234,7 @@ const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_P
 const RING_WINDOW_CHUNKS: i32 = 15;
 
 fn assert_base_heights_match_the_oracle(dump: &[DumpSeed], dimensions: usize) {
-    let predicates = heightmap_predicates(blocks(), loaded_block_tags());
+    let predicates = heightmap_predicates(blocks(), block_tags());
     let mut ws = Workspace::new();
     for entry in dump {
         assert_eq!(entry.heights.len(), 2);

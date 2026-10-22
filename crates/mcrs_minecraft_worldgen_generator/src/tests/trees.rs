@@ -1,7 +1,7 @@
 //! The corpus's own tree features over a real overworld column: that they
 //! decorate at all, and that how many they place stays where it was measured.
 
-use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
+#[cfg(test)]
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -10,10 +10,10 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::ResourceLocation;
 #[cfg(test)]
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -25,17 +25,9 @@ use crate::modern_carvers::ModernCarverBlockIds;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
 use crate::{ColumnBiomes, SurfaceStates};
 
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
-use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
-};
-
 #[cfg(test)]
 use super::generate_region;
-use super::{blocks, build_program, corpus_features, loaded_block_tags, one_step};
-use mcrs_minecraft_biome::Biome;
-#[cfg(test)]
-use mcrs_minecraft_block::keys::Block;
+use super::{block_tags, blocks, build_program, corpus_features, one_step};
 
 /// The three biomes of the step-6 checkpoint, each with the tree feature its
 /// own `worldgen/biome` file names and nothing else.
@@ -50,7 +42,7 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
 
 /// The names `SurfaceIds::resolve` asks the registry for, which it refuses
 /// to resolve without, plus the three the tests decorate in.
-pub(super) fn biome_registry() -> Registry<Biome> {
+pub(super) fn biome_registry() -> Arc<Registries> {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
         "minecraft:eroded_badlands",
@@ -91,41 +83,6 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
     )
 }
 
-/// The overworld router with its material rules compiled against the registry
-/// below, so that the surface a tree grows on is the biome's own.
-fn material_router(registry: &Registry<Biome>, seed: u64) -> (NoiseRouter, MaterialProgram) {
-    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-        "noise_settings",
-        &rl!("minecraft:overworld").to_arc(),
-    );
-    let set = super::registries_over(registry);
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> =
-        mcrs_minecraft_worldgen_testing::registry_in(&set, "material_rule");
-    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        mcrs_minecraft_worldgen_testing::registry_in(&set, "material_condition");
-    let biome_tags = set.tags().expect("the corpus holds the biome tags");
-    let inputs = MaterialInputs {
-        rules: &rules,
-        conditions: &conditions,
-        block: &|state| {
-            blocks()
-                .0
-                .block(state.name.as_str())
-                .map(|entry| entry.default_state_id.number().into())
-        },
-        biome_tags: &biome_tags,
-    };
-    build_router_and_material(
-        &settings,
-        &mcrs_minecraft_worldgen_testing::registry("density_function"),
-        &mcrs_minecraft_worldgen_testing::registry("noise"),
-        seed,
-        super::router_blocks(&blocks().0),
-        &inputs,
-    )
-    .expect("the overworld material rule compiles")
-}
-
 /// The overworld router, one biome everywhere, and the tree program over it.
 pub(super) fn tree_dimension(biome: &str, placed_id: &str, seed: u64) -> (FillContext, Arc<[i32]>) {
     dimension_over(biome, Arc::new(tree_tables(biome, placed_id)), seed)
@@ -152,24 +109,22 @@ pub(super) fn dimension_over(
 /// registry the dimension is given.
 pub(super) fn dimension_with(
     biome: &str,
-    program: impl FnOnce(&Registry<Biome>) -> FeatureProgram,
+    program: impl FnOnce(&Registries) -> FeatureProgram,
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
     let registry = biome_registry();
-    let (router, material) = material_router(&registry, seed);
+    let (router, material) = super::material_router("overworld", seed, &registry);
     let router = Arc::new(router);
     let y_sections = dimension_y_sections(&router, -64, 24);
     let program = program(&registry);
     let source = Arc::new(BiomeSource::Fixed {
-        biome: registry
-            .require_by_name(biome)
-            .expect("the dimension's biome"),
+        biome: super::biome_id(&registry, biome),
     });
     let biomes = ColumnBiomes::new(Some(&source), None).unwrap();
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(source),
-        predicates: Some(heightmap_predicates(blocks(), loaded_block_tags())),
+        predicates: Some(heightmap_predicates(blocks(), block_tags())),
         saved: None,
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
@@ -194,11 +149,9 @@ pub(super) fn dimension_with(
 #[cfg(test)]
 pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
-    let key: mcrs_minecraft_core::tag_key::TagKey<Block, std::sync::Arc<str>> =
-        mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::read(tag).unwrap());
     let tags = super::block_tags();
     for id in tags.members(
-        tags.get(&key)
+        tags.by_name(&ResourceLocation::read(tag).unwrap())
             .unwrap_or_else(|| panic!("{tag} is not loaded")),
     ) {
         let index = id.index();

@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::world_clock::WorldClock;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_registries::{Key, Named, Refs, RegistryType, Resolve, Resolved};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -23,31 +23,44 @@ fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> 
     NonNegativeInt::deserialize(d).map(|ticks| ticks.0 as u32)
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Timeline {
-    #[serde(serialize_with = "mcrs_minecraft_registry::by_name::serialize")]
-    pub clock: Id<WorldClock>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+#[derive(Debug, Clone, Resolve)]
+pub struct Timeline<M: Refs = Resolved> {
+    pub clock: M::Id<WorldClock>,
     pub period_ticks: Option<u32>,
-    #[serde(skip_serializing_if = "no_tracks")]
     pub tracks: Tracks,
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub time_markers: TimeMarkers,
-}
-
-fn no_tracks(tracks: &Tracks) -> bool {
-    tracks.is_empty()
 }
 
 impl RegistryValue for Timeline {
     type Registry = Self;
 }
 
+impl RegistryType for Timeline {
+    type Value = ();
+}
+
+impl Serialize for Timeline<Named> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut fields = serializer.serialize_struct("Timeline", 4)?;
+        fields.serialize_field("clock", &self.clock)?;
+        if let Some(period) = self.period_ticks {
+            fields.serialize_field("period_ticks", &period)?;
+        }
+        if !self.tracks.is_empty() {
+            fields.serialize_field("tracks", &self.tracks)?;
+        }
+        if !self.time_markers.is_empty() {
+            fields.serialize_field("time_markers", &self.time_markers)?;
+        }
+        fields.end()
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRepr {
-    #[serde(deserialize_with = "mcrs_minecraft_registry::by_name::deserialize")]
-    clock: Id<WorldClock>,
+    clock: Key<WorldClock>,
     #[serde(default)]
     period_ticks: Option<PositiveInt>,
     #[serde(default)]
@@ -56,7 +69,7 @@ struct TimelineRepr {
     time_markers: TimeMarkers,
 }
 
-impl<'de> Deserialize<'de> for Timeline {
+impl<'de> Deserialize<'de> for Timeline<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let repr = TimelineRepr::deserialize(d)?;
         let period_ticks = repr.period_ticks.map(|period| period.0 as u32);
@@ -91,13 +104,18 @@ impl<'de> Deserialize<'de> for Timeline {
 }
 
 /// A timeline as the client receives it: only the tracks it is allowed to see.
-#[derive(Debug, Clone, Serialize)]
-#[serde(transparent)]
-pub struct NetworkTimeline(Timeline);
+#[derive(Debug, Clone, Resolve)]
+pub struct NetworkTimeline<M: Refs = Resolved>(Timeline<M>);
 
-impl<'de> Deserialize<'de> for NetworkTimeline {
+impl Serialize for NetworkTimeline<Named> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for NetworkTimeline<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let timeline = Timeline::deserialize(d)?;
+        let timeline = Timeline::<Named>::deserialize(d)?;
         Ok(NetworkTimeline(Timeline {
             tracks: timeline.tracks.syncable(),
             ..timeline
@@ -173,7 +191,7 @@ mod tests {
     }
 
     fn timeline(name: &str) -> Timeline {
-        TEST_CLOCKS.scope(|| serde_json::from_value(raw(name)).unwrap())
+        TEST_CLOCKS.read(raw(name)).unwrap()
     }
 
     /// A one-track timeline read the way a datapack reaches one.
@@ -182,7 +200,7 @@ mod tests {
         if let Some(period) = period_ticks {
             doc["period_ticks"] = json!(period);
         }
-        TEST_CLOCKS.scope(|| serde_json::from_value(doc).map_err(|e| e.to_string()))
+        TEST_CLOCKS.read(doc)
     }
 
     fn bake_one(
@@ -195,11 +213,11 @@ mod tests {
     }
 
     fn written(timeline: &Timeline) -> Value {
-        TEST_CLOCKS.scope(|| reencode(timeline))
+        reencode(&TEST_CLOCKS.named(timeline))
     }
 
     fn sent(timeline: &Timeline) -> Value {
-        TEST_CLOCKS.scope(|| reencode(&NetworkTimeline::from(timeline)))
+        reencode(&TEST_CLOCKS.named(&NetworkTimeline::from(timeline)))
     }
 
     #[test]
@@ -258,16 +276,14 @@ mod tests {
         ] {
             let mut document = document;
             document["clock"] = json!("minecraft:overworld");
-            let read = TEST_CLOCKS.scope(|| serde_json::from_value::<Timeline>(document.clone()));
+            let read = TEST_CLOCKS.read::<Timeline>(document.clone());
             assert!(read.is_err(), "{field}: {document} loads");
         }
-        let edge = TEST_CLOCKS.scope(|| {
-            serde_json::from_value::<Timeline>(json!({
-                "clock": "minecraft:overworld",
-                "time_markers": {"minecraft:noon": i32::MAX},
-                "tracks": track(json!(i32::MAX)),
-            }))
-        });
+        let edge = TEST_CLOCKS.read::<Timeline>(json!({
+            "clock": "minecraft:overworld",
+            "time_markers": {"minecraft:noon": i32::MAX},
+            "tracks": track(json!(i32::MAX)),
+        }));
         assert!(edge.is_ok(), "{edge:?}");
     }
 
@@ -349,7 +365,7 @@ mod tests {
     #[test]
     fn the_nbt_form_types_every_keyframe_the_way_the_client_reads_it() {
         let day = timeline("day.json");
-        let nbt = TEST_CLOCKS.scope(|| mcrs_minecraft_nbt::to_nbt_compound(&day).unwrap());
+        let nbt = mcrs_minecraft_nbt::to_nbt_compound(&TEST_CLOCKS.named(&day)).unwrap();
 
         assert_eq!(nbt.get_string("clock"), Some("minecraft:overworld"));
         assert_eq!(nbt.get("period_ticks"), Some(&NbtTag::Int(24000)));
@@ -418,8 +434,8 @@ mod tests {
         );
 
         // an opaque payload keeps whatever shape it had, here a string
-        let moon = TEST_CLOCKS
-            .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&timeline("moon.json")).unwrap());
+        let moon = mcrs_minecraft_nbt::to_nbt_compound(&TEST_CLOCKS.named(&timeline("moon.json")))
+            .unwrap();
         assert_eq!(
             moon.get_compound("tracks")
                 .unwrap()
@@ -666,7 +682,7 @@ mod tests {
     }
 
     fn read_document(doc: Value) -> Result<Timeline, String> {
-        TEST_CLOCKS.scope(|| serde_json::from_value(doc).map_err(|e| e.to_string()))
+        TEST_CLOCKS.read(doc)
     }
 
     #[test]

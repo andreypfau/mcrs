@@ -1,7 +1,6 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::TrimMaterial;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
@@ -11,7 +10,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
-use mcrs_minecraft_registry::{Registry, name_in_scope};
+use mcrs_minecraft_registries::{Namer, Registries, Resolve};
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
@@ -145,6 +144,9 @@ fn opaque(color: i32) -> u32 {
 /// the viewer, the world or the swing are the constants the GUI shows.
 pub struct Evaluator<'a, S> {
     pub stack: S,
+    /// What a selector names an entry the stack holds by; without them such a selector matches
+    /// no case.
+    pub registries: Option<&'a Registries>,
     /// The grass colormap sample at a temperature and downfall.
     pub grass: &'a dyn Fn(f32, f32) -> Option<[f32; 4]>,
 }
@@ -200,11 +202,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
         match switch {
             SelectSwitch::TrimMaterial { cases } => match &self.stack.get::<Trim>()?.material {
                 InlineRef::Id(id) => {
-                    let name =
-                        Registry::<TrimMaterial>::in_scope("a trim material select", |registry| {
-                            registry.name(*id).cloned()
-                        })
-                        .ok()??;
+                    let name = Namer::name(self.registries?, *id)?.clone();
                     find(cases, &ResourceKey::from_location(name))
                 }
                 InlineRef::Inline(_) => None,
@@ -226,7 +224,11 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 self.custom_model_data()?.strings.get(*index as usize)?,
             ),
             SelectSwitch::Component(switch) => {
-                let value = name_in_scope(&self.stack.value(switch.component)?)?;
+                let value = self
+                    .stack
+                    .value(switch.component)?
+                    .name(self.registries?)
+                    .ok()?;
                 switch
                     .cases
                     .iter()

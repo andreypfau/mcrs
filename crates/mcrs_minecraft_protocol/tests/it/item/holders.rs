@@ -16,12 +16,11 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_registries::{Named, Ref};
 
-use crate::item::harness::{TestLookup, from_json, hex, named, nbt_tree, persistent_json};
+use crate::item::harness::{ctx, from_json, hex, named, nbt_tree, persistent_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("item_holders").text());
 
 struct Golden {
-    lookup: TestLookup,
     samples: BTreeMap<String, BTreeMap<String, String>>,
 }
 
@@ -39,10 +38,7 @@ fn golden() -> Golden {
             .or_default()
             .insert(key.into(), value.into());
     }
-    Golden {
-        lookup: TestLookup::with_id_lines(&GOLDEN),
-        samples,
-    }
+    Golden { samples }
 }
 
 fn kind_of(label: &str) -> DataComponentType {
@@ -55,7 +51,8 @@ fn kind_of(label: &str) -> DataComponentType {
 
 #[test]
 fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
-    let Golden { lookup, samples } = golden();
+    let Golden { samples } = golden();
+    let lookup = ctx();
     let mut checked = 0;
     for (label, fields) in &samples {
         let Some(input) = fields.get("in") else {
@@ -95,7 +92,8 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
 }
 
 fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
-    let Golden { lookup, samples } = golden();
+    let Golden { samples } = golden();
+    let lookup = ctx();
     let value = value.into();
     let wire = hex(&samples[label]["wire"]);
     let mut out = Vec::new();
@@ -163,7 +161,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
 
 #[test]
 fn errors_read_like_vanilla() {
-    let Golden { lookup, .. } = golden();
+    let lookup = ctx();
     for (input, message) in [
         (
             r#"{"type":"minecraft:apply_effects","effects":[],"probability":1.5}"#,

@@ -12,6 +12,7 @@ pub trait Sample: Sized {
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
@@ -19,8 +20,9 @@ use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
-use mcrs_minecraft_registries::{IdSet, Key, RegistryType, Resolver};
-use mcrs_minecraft_registry::{Registry, RegistrySet, Tags};
+use mcrs_minecraft_registries::{IdSet, Key, Namer, RegistryOf, RegistryType, Resolver};
+use std::any::TypeId;
+use std::collections::HashMap;
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -103,33 +105,85 @@ impl Sample for Profile {
     }
 }
 
-fn registry_with_tags<R: 'static>(
-    set: RegistrySet,
-    key: RegistryKey<R>,
+#[derive(Clone)]
+struct SampleRegistry {
     names: Vec<ResourceLocation>,
-    tags: &[(&str, &[&str])],
-) -> RegistrySet {
-    let name = |path: &str| -> ResourceLocation { ResourceLocation::minecraft(path).unwrap() };
-    let registry = Registry::new(key, names)
-        .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"));
-    let members = tags
-        .iter()
-        .map(|(tag, members)| {
-            let ids = members
+    tags: Vec<(ResourceLocation, Vec<u16>)>,
+}
+
+/// Names and tags of a few entries of each registry the component samples name, keyed by the
+/// type a value names the registry with.
+#[derive(Default)]
+pub struct SampleRegistries(HashMap<TypeId, SampleRegistry>);
+
+impl SampleRegistries {
+    fn with<R: 'static>(
+        mut self,
+        key: RegistryKey<R>,
+        names: Vec<ResourceLocation>,
+        tags: &[(&str, &[&str])],
+    ) -> Self {
+        let number = |member: &str| {
+            names
                 .iter()
-                .map(|member| {
-                    registry
-                        .by_name(&format!("minecraft:{member}"))
-                        .unwrap_or_else(|| panic!("the sample {key} tag {tag} names {member}"))
-                })
-                .collect();
-            (name(tag), ids)
-        })
-        .collect();
-    let tags = Tags::from_members(&registry, members);
-    set.with(registry)
-        .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"))
-        .with_tags(tags.table().clone())
+                .position(|name| name.as_str() == format!("minecraft:{member}"))
+                .and_then(|at| u16::try_from(at).ok())
+                .unwrap_or_else(|| panic!("the sample {key} tags name {member}"))
+        };
+        let tags = tags
+            .iter()
+            .map(|(tag, members)| {
+                let name = ResourceLocation::minecraft(tag)
+                    .unwrap_or_else(|error| panic!("the sample tag {tag}: {error}"));
+                (name, members.iter().map(|member| number(member)).collect())
+            })
+            .collect();
+        let registry = SampleRegistry { names, tags };
+        // A value names its registry by `R` or by `RegistryOf<R>`, as the loaded registries alias.
+        self.0
+            .insert(TypeId::of::<RegistryOf<R>>(), registry.clone());
+        self.0.insert(TypeId::of::<R>(), registry);
+        self
+    }
+
+    fn registry<R: 'static>(&self) -> Result<&SampleRegistry, String> {
+        self.0
+            .get(&TypeId::of::<R>())
+            .ok_or_else(|| format!("the samples hold no {}", std::any::type_name::<R>()))
+    }
+}
+
+impl Resolver for SampleRegistries {
+    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String> {
+        let registry = self.registry::<R>()?;
+        registry
+            .names
+            .iter()
+            .position(|name| name == key.location())
+            .and_then(|at| Id::checked(u16::try_from(at).ok()?, registry.names.len()))
+            .ok_or_else(|| format!("the samples hold no {}", key.location()))
+    }
+
+    fn tag<R: RegistryType>(&self, tag: &Key<R>) -> Result<TagId<R>, String> {
+        let registry = self.registry::<R>()?;
+        registry
+            .tags
+            .iter()
+            .position(|(name, _)| name == tag.location())
+            .and_then(|at| TagId::checked(u16::try_from(at).ok()?, registry.tags.len()))
+            .ok_or_else(|| format!("the samples hold no tag #{}", tag.location()))
+    }
+}
+
+impl Namer for SampleRegistries {
+    fn name<R: RegistryType>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+        self.registry::<R>().ok()?.names.get(id.index())
+    }
+
+    fn tag_name<R: RegistryType>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+        let (name, _) = self.registry::<R>().ok()?.tags.get(tag.index())?;
+        Some(name)
+    }
 }
 
 /// A static registry numbers its entries as the generated constants do, so a constant names the
@@ -147,13 +201,13 @@ macro_rules! sample_registries_table {
     ($($key:expr => $path:literal $(numbered $entries:path)? [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
         pub const SAMPLE_NAMES: &[(&str, &[&str])] = &[$(($path, &[$($name),+])),*];
 
-        fn build_listed_registries(set: RegistrySet) -> RegistrySet {
+        fn build_listed_registries(registries: SampleRegistries) -> SampleRegistries {
             $(
                 let tags: &[(&str, &[&str])] = &[$(($tag, &[$($member),*])),*];
                 let names = sample_numbering!($($entries)?; $($name),+);
-                let set = registry_with_tags(set, $key, names, tags);
+                let registries = registries.with($key, names, tags);
             )*
-            set
+            registries
         }
     };
 }
@@ -197,21 +251,20 @@ sample_registries_table! {
     crate::keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
 }
 
-fn build_sample_registries() -> RegistrySet {
-    let sounds = Registry::<mcrs_minecraft_sound::SoundEvent>::new(
+fn build_sample_registries() -> SampleRegistries {
+    let sounds = mcrs_minecraft_sound::keys::sound_event::ENTRIES
+        .iter()
+        .map(|&name| name.into())
+        .collect();
+    build_listed_registries(SampleRegistries::default()).with(
         mcrs_minecraft_sound::keys::SOUND_EVENT,
-        mcrs_minecraft_sound::keys::sound_event::ENTRIES
-            .iter()
-            .map(|&name| name.into()),
+        sounds,
+        &[],
     )
-    .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"));
-    build_listed_registries(RegistrySet::new())
-        .with(sounds)
-        .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"))
 }
 
-pub fn sample_registries() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(build_sample_registries);
+pub fn sample_registries() -> &'static SampleRegistries {
+    static SET: LazyLock<SampleRegistries> = LazyLock::new(build_sample_registries);
     &SET
 }
 

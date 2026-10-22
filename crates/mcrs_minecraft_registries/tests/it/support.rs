@@ -5,7 +5,7 @@ use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_registries::{
     AvailablePack, Declaration, Diagnostic, Diagnostics, Features, IdSet, Key, KeyOr, KeySet,
     Namer, PackFiles, PackSelection, PackStack, Ref, Registries, RegistryType, Resolve,
-    ResolveError, Resolver, Stage, StageScope, load_with, pack_stack,
+    ResolveError, Resolver, Stage, load, pack_stack,
 };
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -221,17 +221,8 @@ impl Packs {
         declarations: &[Declaration],
         previous: Option<&Registries>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
-        self.load_with(declarations, previous, &mut |_, decode| decode())
-    }
-
-    pub fn load_with(
-        &self,
-        declarations: &[Declaration],
-        previous: Option<&Registries>,
-        scope: &mut StageScope<'_>,
-    ) -> Result<(Registries, Diagnostics), Diagnostics> {
         let (stack, _) = self.stack();
-        load_with(declarations, Arc::new(stack), &self.files, previous, scope)
+        load(declarations, Arc::new(stack), &self.files, previous)
     }
 }
 

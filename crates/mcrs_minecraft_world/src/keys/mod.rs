@@ -11,7 +11,7 @@ pub mod villager_trade_tags;
 pub mod world_preset;
 pub mod world_preset_tags;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, TypeBinding, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, rl};
 
 pub const CHAT_TYPE: RegistryKey<crate::chat_type::ChatType> =
     RegistryKey::new(rl!("minecraft:chat_type"));
@@ -59,17 +59,4 @@ pub const WORLD_PRESET: RegistryKey<crate::worldgen::world_preset::WorldPreset> 
     RegistryKey::new(rl!("minecraft:worldgen/world_preset"));
 impl Registered for crate::worldgen::world_preset::WorldPreset {
     const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
-}
-
-pub fn bindings() -> [TypeBinding; 8] {
-    [
-        CHAT_TYPE.binding(),
-        ENCHANTMENT_PROVIDER.binding(),
-        SULFUR_CUBE_ARCHETYPE.binding(),
-        TEST_ENVIRONMENT.binding(),
-        TEST_INSTANCE.binding(),
-        TRADE_SET.binding(),
-        VILLAGER_TRADE.binding(),
-        WORLD_PRESET.binding(),
-    ]
 }

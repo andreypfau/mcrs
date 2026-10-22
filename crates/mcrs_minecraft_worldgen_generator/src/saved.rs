@@ -5,14 +5,15 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registries::{Registries, Registry, RegistryOf};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::Dimension;
 use tracing::{debug, error};
 
@@ -41,11 +42,12 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
 
 /// Resolves a saved biome name against the registry the dimension runs with.
 /// Biomes carry no properties, so only the name selects the entry.
-pub struct RegistryBiomes<'a>(pub &'a Registry<Biome>);
+pub struct RegistryBiomes<'a>(pub &'a Registry<RegistryOf<BiomeFile>>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
-        self.0.by_name(name).and_then(|id| id.narrow::<u8>().ok())
+        let name = ResourceLocation::read(name).ok()?;
+        self.0.by_name(&name).and_then(|id| id.narrow::<u8>().ok())
     }
 }
 
@@ -81,7 +83,7 @@ type Region = Arc<OnceLock<Option<Arc<RegionFile>>>>;
 
 pub struct Regions {
     dir: PathBuf,
-    registries: RegistrySet,
+    registries: Arc<Registries>,
     open: Mutex<HashMap<RegionPos, Region>>,
 }
 
@@ -91,7 +93,7 @@ impl SavedColumns {
     pub fn open(
         world: &Path,
         dimension: &ResourceKey<Dimension>,
-        registries: RegistrySet,
+        registries: Arc<Registries>,
     ) -> Option<Self> {
         let dir = region_dir(world, dimension)?;
         dir.is_dir().then(|| {
@@ -103,7 +105,7 @@ impl SavedColumns {
         })
     }
 
-    pub fn registries(&self) -> &RegistrySet {
+    pub fn registries(&self) -> &Registries {
         &self.0.registries
     }
 
@@ -117,14 +119,13 @@ impl SavedColumns {
     /// hold no blocks, so anything short of `full` is absent too and the
     /// generator fills the column instead of the save handing back a hole.
     pub fn read(&self, pos: ColumnPos, blocks: &BlockDefinitions) -> Option<Chunk> {
-        let biomes = self
-            .0
-            .registries
-            .registry::<Biome>()
-            .expect("a dimension's registries hold the biome registry");
+        let Some(biomes) = self.0.registries.registry::<RegistryOf<BiomeFile>>() else {
+            error!(?pos, "the dimension's registries hold no biomes");
+            return None;
+        };
         let region = self.region(RegionPos::from(pos))?;
         let chunk =
-            match region.read_chunk(pos, &CorpusBlockStates(blocks), &RegistryBiomes(&biomes)) {
+            match region.read_chunk(pos, &CorpusBlockStates(blocks), &RegistryBiomes(biomes)) {
                 Ok(chunk) => chunk?,
                 Err(err) => {
                     error!(%err, ?pos, "reading a saved column");
@@ -209,19 +210,16 @@ pub type SectionData = (BlockPalette, BiomePalette);
 /// does name that fails to read is an error, never a silently missing entity.
 pub fn saved_block_entities(
     chunk: &Chunk,
-    registries: &RegistrySet,
 ) -> Result<Vec<GeneratedBlockEntity>, mcrs_minecraft_nbt::Error> {
-    registries.scope(|| {
-        chunk
-            .block_entities
-            .iter()
-            .filter(|compound| {
-                compound
-                    .get_string("id")
-                    .and_then(GeneratedBlockEntity::kind_of)
-                    .is_some()
-            })
-            .map(GeneratedBlockEntity::from_compound)
-            .collect()
-    })
+    chunk
+        .block_entities
+        .iter()
+        .filter(|compound| {
+            compound
+                .get_string("id")
+                .and_then(GeneratedBlockEntity::kind_of)
+                .is_some()
+        })
+        .map(GeneratedBlockEntity::from_compound)
+        .collect()
 }

@@ -8,8 +8,8 @@ use crate::{ComponentMap, Template};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::{Registry, UnknownEntry};
+use mcrs_minecraft_core::ResourceLocation;
+use std::collections::HashMap;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -24,10 +24,10 @@ pub struct ItemEntry {
     pub crafting_remainder: Option<Template>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ItemDefinitions {
     entries: Vec<ItemEntry>,
-    registry: Registry<Item>,
+    ids: HashMap<ResourceLocation<Arc<str>>, Id<Item>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -40,8 +40,8 @@ pub struct DuplicateItem {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ItemTableError {
-    #[error(transparent)]
-    Unknown(#[from] UnknownEntry),
+    #[error("the item registry holds no `{0}`")]
+    Unknown(ResourceLocation<Arc<str>>),
     #[error(transparent)]
     Duplicate(#[from] DuplicateItem),
     #[error("the registries report lists item `{identifier}` but no entry defines it")]
@@ -50,31 +50,27 @@ pub enum ItemTableError {
     },
 }
 
-impl Default for ItemDefinitions {
-    fn default() -> Self {
-        Self {
-            entries: Vec::new(),
-            registry: Registry::new(crate::keys::ITEM, std::iter::empty())
-                .expect("a registry without entries builds"),
-        }
-    }
-}
-
 impl ItemDefinitions {
+    /// `items` names the item registry's entries in id order.
     pub fn from_entries(
-        items: &Registry<Item>,
+        items: &[ResourceLocation<Arc<str>>],
         entries: Vec<ItemEntry>,
     ) -> Result<Self, ItemTableError> {
+        let ids: HashMap<ResourceLocation<Arc<str>>, Id<Item>> = (0..=u16::MAX)
+            .zip(items)
+            .filter_map(|(number, name)| Some((name.clone(), Id::checked(number, items.len())?)))
+            .collect();
         let mut placed: Vec<Option<(usize, ItemEntry)>> =
             std::iter::repeat_with(|| None).take(items.len()).collect();
         for (position, mut entry) in entries.into_iter().enumerate() {
-            let id = items.require(&ResourceKey::from_location(entry.identifier.clone()))?;
+            let id = *ids
+                .get(&entry.identifier)
+                .ok_or_else(|| ItemTableError::Unknown(entry.identifier.clone()))?;
             entry.id = id;
-            entry.identifier = items
-                .name(id)
-                .expect("the id came from this registry")
-                .clone();
-            if let Some((first, _)) = &placed[id.index()] {
+            let Some(slot) = placed.get_mut(id.index()) else {
+                return Err(ItemTableError::Unknown(entry.identifier));
+            };
+            if let Some((first, _)) = slot {
                 return Err(DuplicateItem {
                     identifier: entry.identifier,
                     first: *first,
@@ -82,25 +78,19 @@ impl ItemDefinitions {
                 }
                 .into());
             }
-            placed[id.index()] = Some((position, entry));
+            *slot = Some((position, entry));
         }
         let entries = placed
             .into_iter()
-            .zip(items.ids())
-            .map(|(slot, id)| {
+            .zip(items)
+            .map(|(slot, name)| {
                 slot.map(|(_, entry)| entry)
                     .ok_or_else(|| ItemTableError::Missing {
-                        identifier: items
-                            .name(id)
-                            .expect("the id came from this registry")
-                            .clone(),
+                        identifier: name.clone(),
                     })
             })
             .collect::<Result<_, _>>()?;
-        Ok(Self {
-            entries,
-            registry: items.clone(),
-        })
+        Ok(Self { entries, ids })
     }
 
     pub fn get(&self, id: Id<Item>) -> Option<&ItemEntry> {
@@ -108,7 +98,7 @@ impl ItemDefinitions {
     }
 
     pub fn id_of(&self, location: &str) -> Option<Id<Item>> {
-        self.registry.by_name(location)
+        self.ids.get(location).copied()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ItemEntry> {
@@ -154,14 +144,11 @@ mod tests {
         }
     }
 
-    fn registry(names: &[&str]) -> Registry<Item> {
-        Registry::new(
-            crate::keys::ITEM,
-            names
-                .iter()
-                .map(|name| ResourceLocation::minecraft(name).unwrap()),
-        )
-        .unwrap()
+    fn registry(names: &[&str]) -> Vec<ResourceLocation<Arc<str>>> {
+        names
+            .iter()
+            .map(|name| ResourceLocation::minecraft(name).unwrap())
+            .collect()
     }
 
     #[test]

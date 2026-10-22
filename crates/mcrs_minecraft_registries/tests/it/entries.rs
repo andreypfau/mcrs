@@ -560,3 +560,34 @@ fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
         assert_eq!(entries, expected, "{case}");
     }
 }
+
+#[test]
+fn a_registry_without_a_type_is_named_by_its_files_and_tagged_by_key() {
+    let declarations = [
+        Declaration::fixed_names(rl("sound"), vec![rl("a"), rl("b")]),
+        Declaration::names_only(rl("advancement"), Stage::Reloadable),
+    ];
+    let packs = Packs::new().vanilla(&[
+        ("data/minecraft/advancement/b.json", "not json"),
+        ("data/minecraft/advancement/a/c.json", "{}"),
+        (
+            "data/minecraft/tags/advancement/all.json",
+            r#"{"values":["a/c","b"]}"#,
+        ),
+        (
+            "data/minecraft/tags/sound/second.json",
+            r#"{"values":["b"]}"#,
+        ),
+    ]);
+    let (registries, _) = packs.load(&declarations).unwrap();
+
+    let advancement = rl("advancement");
+    assert_eq!(
+        registries.names_of(&advancement).unwrap(),
+        [rl("a/c"), rl("b")]
+    );
+    let tags: Vec<_> = registries.tags_of(&advancement).unwrap().collect();
+    assert_eq!(tags, [(&rl("all"), &[0, 1][..])]);
+    let sound_tags: Vec<_> = registries.tags_of(&rl("sound")).unwrap().collect();
+    assert_eq!(sound_tags, [(&rl("second"), &[1][..])]);
+}
