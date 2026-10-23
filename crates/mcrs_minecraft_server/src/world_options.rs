@@ -1,18 +1,17 @@
 use crate::WorldSave;
-use crate::loaded::Loaded;
-use bevy_ecs::prelude::{Commands, ResMut};
+use bevy_app::AppExit;
+use bevy_ecs::prelude::{Commands, MessageWriter, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use crate::refuse;
 use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
 
 /// The dimension list the server plugin was given, which replaces the save's and the preset's.
 #[derive(Resource, Clone)]
@@ -28,36 +27,61 @@ pub(crate) fn bake_dimensions(
     given: Option<Res<PluginDimensions>>,
     preset: Res<WorldPresetName>,
     mut seed: ResMut<WorldSeed>,
+    mut exit: MessageWriter<AppExit>,
 ) {
-    let saved = save.map(|save| {
-        let settings =
-            read_world_gen_settings(&save.0, &registries).unwrap_or_else(|err| refuse(&err));
-        seed.0 = settings.seed as u64;
-        settings.dimensions
-    });
-    let (source, list) = if let Some(given) = given {
-        ("plugin".to_owned(), bake_list(&given.0, &registries))
-    } else if let Some(saved) = saved {
-        ("save".to_owned(), bake(&saved, &registries))
-    } else {
-        let name = &preset.0;
-        let presets = registries.loaded::<WorldPreset>();
-        let Some(preset) = ResourceLocation::read(name)
-            .ok()
-            .and_then(|location| presets.by_name(&location))
-            .and_then(|id| presets.get(id))
-        else {
-            refuse(&format!(
-                "{}: no world preset is named {name}",
-                mcrs_minecraft_world::keys::WORLD_PRESET
-            ))
-        };
-        (name.clone(), bake(&preset.dimensions, &registries))
-    };
-    let list = list.unwrap_or_else(|error| refuse(&error));
+    let baked = dimension_list(
+        &registries,
+        save.as_deref(),
+        given.as_deref(),
+        &preset.0,
+        &mut seed,
+    );
+    match baked {
+        Ok((source, list)) => {
+            info!(%source, dimensions = list.len(), "dimension list");
+            commands.insert_resource(DimensionList::new(list));
+        }
+        Err(error) => {
+            error!("the registries are unusable:\n{error}");
+            exit.write(AppExit::error());
+        }
+    }
+}
 
-    info!(%source, dimensions = list.len(), "dimension list");
-    commands.insert_resource(DimensionList::new(list));
+fn dimension_list(
+    registries: &Registries,
+    save: Option<&WorldSave>,
+    given: Option<&PluginDimensions>,
+    preset: &str,
+    seed: &mut WorldSeed,
+) -> Result<(String, Vec<(ResourceKey<Dimension>, DimensionEntry)>), String> {
+    let saved = match save {
+        Some(save) => {
+            let settings =
+                read_world_gen_settings(&save.0, registries).map_err(|error| error.to_string())?;
+            seed.0 = settings.seed as u64;
+            Some(settings.dimensions)
+        }
+        None => None,
+    };
+    if let Some(given) = given {
+        Ok(("plugin".to_owned(), bake_list(&given.0, registries)?))
+    } else if let Some(saved) = saved {
+        Ok(("save".to_owned(), bake(&saved, registries)?))
+    } else {
+        let named = registries
+            .registry::<WorldPreset>()
+            .and_then(|presets| {
+                presets.get(presets.by_name(&ResourceLocation::read(preset).ok()?)?)
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{}: no world preset is named {preset}",
+                    mcrs_minecraft_world::keys::WORLD_PRESET
+                )
+            })?;
+        Ok((preset.to_owned(), bake(&named.dimensions, registries)?))
+    }
 }
 
 /// Every dimension the world spawns, in spawn order. Written once at `Startup`.

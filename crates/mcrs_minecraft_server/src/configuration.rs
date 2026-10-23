@@ -9,7 +9,9 @@ use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
-use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, Resource, With, Without};
+use bevy_ecs::prelude::{
+    Changed, Commands, Entity, On, Query, ResMut, Resource, With, Without, resource_exists,
+};
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
@@ -66,7 +68,9 @@ impl Plugin for ConfigurationStatePlugin {
         app.add_observer(on_game_configuration_ack);
         app.add_systems(
             Update,
-            emit_initial_player_spawn.before(crate::world::bridge::bridge_inbound_to_channel),
+            emit_initial_player_spawn
+                .run_if(resource_exists::<DimensionList>)
+                .before(crate::world::bridge::bridge_inbound_to_channel),
         );
     }
 }

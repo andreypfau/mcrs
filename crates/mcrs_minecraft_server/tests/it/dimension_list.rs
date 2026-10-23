@@ -1,4 +1,4 @@
-use bevy_app::App;
+use bevy_app::{App, AppExit};
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceKey;
@@ -69,6 +69,16 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
         ]
     );
     std::fs::remove_dir_all(world).unwrap();
+}
+
+#[test]
+fn a_preset_that_names_no_world_preset_asks_the_app_to_exit_with_an_error() {
+    let mut app = booted(MinecraftServerPlugin {
+        preset: "test:absent".to_owned(),
+        ..MinecraftServerPlugin::embedded()
+    });
+    app.update();
+    assert_eq!(app.should_exit(), Some(AppExit::error()));
 }
 
 fn booted(plugin: MinecraftServerPlugin) -> App {

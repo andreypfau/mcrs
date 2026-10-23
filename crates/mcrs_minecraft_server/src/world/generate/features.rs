@@ -1,4 +1,3 @@
-use crate::loaded::Loaded;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
 use crate::world_options::{DimensionList, WorldSeed};
 use bevy_app::{App, Plugin};
@@ -14,7 +13,7 @@ use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{
-    CurrentRegistries, IdSet, Named, Namer, Registries, Resolve, Tags,
+    CurrentRegistries, IdSet, Named, Namer, Registries, Registry, Resolve, Tags,
 };
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
@@ -22,6 +21,7 @@ use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
+use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
@@ -70,8 +70,8 @@ fn decoration_steps(
 /// Every placed feature tag by name, with its members by name.
 fn placed_feature_tags(
     registries: &Registries,
+    tags: &Tags<PlacedFeature>,
 ) -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
-    let tags = registries.loaded_tags::<PlacedFeature>();
     tags.iter()
         .map(|(tag, name)| {
             let members = tags
@@ -93,9 +93,9 @@ fn placed_feature_tags(
 /// the entry.
 fn named_providers(
     registries: &Registries,
+    providers: &Registry<DirectBlockStateProvider>,
 ) -> BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>> {
-    registries
-        .loaded::<DirectBlockStateProvider>()
+    providers
         .iter()
         .filter_map(|(_, name, provider)| match provider.name(registries) {
             Ok(provider) => Some((name.clone(), provider)),
@@ -107,6 +107,32 @@ fn named_providers(
         .collect()
 }
 
+fn loaded_features(
+    registries: &Registries,
+    templates: BTreeMap<ResourceLocation, Template>,
+) -> Option<LoadedFeatures> {
+    Some(LoadedFeatures {
+        features: registries
+            .registry::<Feature>()?
+            .iter()
+            .map(|(_, name, feature)| (name.clone(), feature.clone()))
+            .collect(),
+        placed_features: registries
+            .registry::<PlacedFeature>()?
+            .iter()
+            .map(|(_, name, feature)| (name.clone(), feature.clone()))
+            .collect(),
+        templates,
+        processor_lists: registries
+            .registry::<StructureProcessorList>()?
+            .iter()
+            .map(|(_, name, list)| (name.clone(), list.clone()))
+            .collect(),
+        block_state_providers: named_providers(registries, registries.registry()?),
+        placed_feature_tags: placed_feature_tags(registries, &registries.tags()?),
+    })
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -116,7 +142,7 @@ fn build_dimension_features(
     dimensions: Res<DimensionList>,
     asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
-    structures: Res<DimensionStructures>,
+    structures: Option<Res<DimensionStructures>>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
@@ -133,18 +159,18 @@ fn build_dimension_features(
             Some((id, templates.get(&handle)?.template.clone()))
         })
         .collect();
-    let loaded = LoadedFeatures {
-        features: registries.loaded_by_name::<Feature>(),
-        placed_features: registries.loaded_by_name::<PlacedFeature>(),
-        templates: template_values,
-        processor_lists: registries.loaded_by_name::<StructureProcessorList>(),
-        block_state_providers: named_providers(&registries),
-        placed_feature_tags: placed_feature_tags(&registries),
+    let (Some(loaded), Some(placed_tags), Some(biomes)) = (
+        loaded_features(&registries, template_values),
+        registries.tags::<PlacedFeature>(),
+        registries.registry::<BiomeFile>(),
+    ) else {
+        tracing::error!(
+            "the registries declare no feature, placed feature, processor list, block state provider or biome registry; no dimension gets a feature program"
+        );
+        return;
     };
 
-    let placed_tags = registries.loaded_tags::<PlacedFeature>();
-    let by_id: BTreeMap<ResourceLocation, &BiomeFile> = registries
-        .loaded::<BiomeFile>()
+    let by_id: BTreeMap<ResourceLocation, &BiomeFile> = biomes
         .iter()
         .map(|(_, name, biome)| (name.clone(), biome))
         .collect();
@@ -205,7 +231,10 @@ fn build_dimension_features(
             &blocks.0,
             &registries,
             seed.0 as i64,
-            structures.0.get(dimension).map(|tables| &*tables.frozen),
+            structures
+                .as_ref()
+                .and_then(|structures| structures.0.get(dimension))
+                .map(|tables| &*tables.frozen),
         )
         .unwrap_or_else(|error| {
             panic!("{dimension}: the feature program does not resolve: {error}")

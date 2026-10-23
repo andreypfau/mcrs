@@ -1,4 +1,3 @@
-use crate::loaded::Loaded;
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
@@ -30,21 +29,23 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 }
 
 /// The carvers every biome runs, in the order its file lists them, indexed by biome number.
-fn carvers_by_biome(registries: &Registries) -> Vec<Arc<[CarverConfig]>> {
-    let carvers = registries.loaded::<CarverConfig>();
-    let carver_tags = registries.loaded_tags::<CarverConfig>();
-    registries
-        .loaded::<BiomeFile>()
-        .values()
-        .iter()
-        .map(|biome| {
-            biome
-                .carvers
-                .ids(&carver_tags)
-                .filter_map(|carver| carvers.get(carver).cloned())
-                .collect()
-        })
-        .collect()
+fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>> {
+    let carvers = registries.registry::<CarverConfig>()?;
+    let carver_tags = registries.tags::<CarverConfig>()?;
+    let biomes = registries.registry::<BiomeFile>()?;
+    Some(
+        biomes
+            .values()
+            .iter()
+            .map(|biome| {
+                biome
+                    .carvers
+                    .ids(&carver_tags)
+                    .filter_map(|carver| carvers.get(carver).cloned())
+                    .collect()
+            })
+            .collect(),
+    )
 }
 
 /// Resolve every dimension's biome source climate table into carver lists.
@@ -57,12 +58,17 @@ fn build_modern_carver_biomes(
     dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
     current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {
+    let Some(carvers) = carvers_by_biome(&current) else {
+        tracing::error!(
+            "the registries declare no carver registry with its tags or no biome registry; no dimension gets a carver table"
+        );
+        return;
+    };
     let mut diagnostics = Diagnostics::default();
     let preset_tables = PresetBiomeTables::resolve(&current, &mut diagnostics);
     if preset_tables.is_none() {
         tracing::error!(%diagnostics, "no multi-noise preset table; a preset dimension gets no carver table");
     }
-    let carvers = carvers_by_biome(&current);
     let carvers_of = |biome: usize| carvers.get(biome).cloned().unwrap_or_default();
 
     let mut tables = DimensionCarverBiomes::default();

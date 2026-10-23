@@ -1,4 +1,3 @@
-use crate::loaded::Loaded;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -42,9 +41,14 @@ pub(crate) fn build_dimension_routers(
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
-    structures: Res<DimensionStructures>,
+    structures: Option<Res<DimensionStructures>>,
 ) {
-    let noise_settings = registries.loaded::<NoiseGeneratorSettings>();
+    let Some(noise_settings) = registries.registry::<NoiseGeneratorSettings>() else {
+        error!(
+            "the registries declare no noise settings registry; no dimension gets a noise router"
+        );
+        return;
+    };
 
     let mut routers = DimensionRouters::default();
     for (dimension, entry) in dimensions.iter() {
@@ -61,7 +65,10 @@ pub(crate) fn build_dimension_routers(
         let settings_name = noise_settings
             .name(generator.settings)
             .expect("an id of the registry has a name");
-        if let Some(tables) = structures.0.get(dimension) {
+        if let Some(tables) = structures
+            .as_ref()
+            .and_then(|tables| tables.0.get(dimension))
+        {
             refuse_misplaced_beardifier(&registries, dimension, settings_name, settings, tables);
         }
         match build_router(&registries, settings, seed.0, &blocks) {

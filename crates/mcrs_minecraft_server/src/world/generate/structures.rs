@@ -1,4 +1,3 @@
-use crate::loaded::Loaded;
 use crate::world_options::DimensionList;
 use bevy_app::{App, Plugin};
 use bevy_asset::{AssetServer, Assets, Handle};
@@ -12,7 +11,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, Registry};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::variant::{
     CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
@@ -37,11 +36,11 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
+    biomes: &Registry<BiomeFile>,
     registries: &Registries,
     lists: &ParameterLists,
     dimensions: &DimensionList,
 ) -> DimensionStructures {
-    let biomes = registries.loaded::<BiomeFile>();
     let mut tables = DimensionStructures::default();
     for (dimension, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
@@ -91,9 +90,29 @@ pub(crate) fn build_dimension_structures(
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
 ) {
-    let sets = registries.loaded_by_name::<StructureSet>();
-    let structures = registries.loaded_by_name::<Structure>();
-    let pools = registries.loaded_by_name::<TemplatePool>();
+    let (Some(sets), Some(structures), Some(pools), Some(biomes)) = (
+        registries.registry::<StructureSet>(),
+        registries.registry::<Structure>(),
+        registries.registry::<TemplatePool>(),
+        registries.registry::<BiomeFile>(),
+    ) else {
+        tracing::error!(
+            "the registries declare no structure set, structure, template pool or biome registry; no dimension gets structures"
+        );
+        return;
+    };
+    let sets = sets
+        .iter()
+        .map(|(_, name, set)| (name.clone(), set.clone()))
+        .collect();
+    let structures = structures
+        .iter()
+        .map(|(_, name, structure)| (name.clone(), structure.clone()))
+        .collect();
+    let pools = pools
+        .iter()
+        .map(|(_, name, pool)| (name.clone(), pool.clone()))
+        .collect();
     let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> =
         named_templates(&registries)
             .unwrap_or_else(|error| {
@@ -151,6 +170,7 @@ pub(crate) fn build_dimension_structures(
     );
     commands.insert_resource(dimension_tables(
         Arc::new(frozen),
+        biomes,
         &registries,
         &parameter_lists_of(&registries).unwrap_or_else(|| Arc::from(Vec::new())),
         &dimensions,

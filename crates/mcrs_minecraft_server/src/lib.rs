@@ -10,7 +10,6 @@ pub mod configuration;
 pub mod dim;
 pub mod disconnect;
 mod keep_alive;
-mod loaded;
 pub mod login;
 pub mod ops;
 pub mod world;
@@ -21,7 +20,7 @@ use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::world::WorldPlugin;
-use bevy_app::{App, Plugin};
+use bevy_app::{App, AppExit, Plugin};
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -180,17 +179,16 @@ impl MinecraftServerPlugin {
     }
 }
 
-pub(crate) fn refuse<E: std::fmt::Display>(error: &E) -> ! {
-    tracing::error!("the registries are unusable:\n{error}");
-    std::process::exit(1)
-}
-
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
-        let vanilla = self
-            .data_pack
-            .resolve()
-            .unwrap_or_else(|error| refuse(&error));
+        let vanilla = match self.data_pack.resolve() {
+            Ok(vanilla) => vanilla,
+            Err(error) => {
+                tracing::error!("the registries are unusable:\n{error}");
+                app.world_mut().write_message(AppExit::error());
+                return;
+            }
+        };
         let roots = mcrs_minecraft_assets::packs::PackRoots {
             assets: self
                 .asset_path
