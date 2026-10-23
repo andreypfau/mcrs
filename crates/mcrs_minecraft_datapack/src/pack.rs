@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::{ResourceLocation, rl};
@@ -154,7 +155,14 @@ pub struct PackStack {
     pub(crate) enabled_features: Vec<ResourceLocation>,
 }
 
-/// A file a pack contributes under `data/<namespace>/`, after its overlays are applied.
+/// What a pack holds at a path: the bytes of a file, or a ready value in place of one.
+pub enum PackContent<'f> {
+    Bytes(&'f [u8]),
+    Value(Box<dyn Any + Send + Sync>),
+}
+
+/// A file or a value a pack contributes under `data/<namespace>/`, after its overlays are
+/// applied.
 pub struct PackFile<'f> {
     pub pack: PackIndex,
     pub namespace: &'f str,
@@ -162,7 +170,7 @@ pub struct PackFile<'f> {
     pub relative: &'f str,
     /// The path in the pack, overlay directory included.
     pub path: &'f str,
-    pub bytes: &'f [u8],
+    pub content: PackContent<'f>,
 }
 
 impl PackStack {
@@ -172,12 +180,6 @@ impl PackStack {
 
     pub fn get(&self, index: PackIndex) -> Option<&StackedPack> {
         self.packs.get(index.index())
-    }
-
-    pub fn position(&self, id: &str) -> Option<PackIndex> {
-        self.indexed()
-            .find(|(_, pack)| pack.id == id)
-            .map(|(index, _)| index)
     }
 
     pub fn indexed(&self) -> impl Iterator<Item = (PackIndex, &StackedPack)> {
@@ -192,36 +194,55 @@ impl PackStack {
         &self.enabled_features
     }
 
-    /// Every file of every pack, from the bottom of the stack up. Within one pack the file of a
-    /// later overlay replaces the file of the same path below it.
-    pub fn files<'f>(&self, files: &'f PackFiles) -> Vec<PackFile<'f>> {
+    /// Every file and value of every pack, from the bottom of the stack up. Within one pack the
+    /// content of a later overlay replaces the content of the same path below it. Each value of a
+    /// listed pack moves out of `files`, which keeps a unit value in its place.
+    pub fn files<'f>(&self, files: &'f mut PackFiles) -> Vec<PackFile<'f>> {
+        let mut by_pack: HashMap<&str, &'f mut BTreeMap<String, Content>> = files
+            .packs
+            .iter_mut()
+            .map(|(pack, contents)| (pack.as_str(), contents))
+            .collect();
         let mut out = Vec::new();
         for (pack_index, pack) in self.indexed() {
-            let Some(contents) = files.packs.get(pack.id()) else {
+            let Some(contents) = by_pack.remove(pack.id()) else {
                 continue;
             };
-            let mut merged: BTreeMap<(&'f str, &'f str), (&'f str, &'f [u8])> = BTreeMap::new();
-            let roots = std::iter::once("data/".to_owned())
-                .chain(pack.overlays.iter().map(|o| format!("{o}/data/")));
-            for root in roots {
-                for (path, bytes) in contents.range(root.clone()..) {
-                    let Some(rest) = path.strip_prefix(root.as_str()) else {
-                        break;
-                    };
-                    if let Some((namespace, relative)) = rest.split_once('/') {
-                        merged.insert((namespace, relative), (path.as_str(), bytes.as_slice()));
+            let roots: Vec<String> = std::iter::once("data/".to_owned())
+                .chain(pack.overlays.iter().map(|o| format!("{o}/data/")))
+                .collect();
+            let mut merged = Merged::new();
+            for (path, content) in contents.iter_mut() {
+                let mut under = roots.iter().enumerate().filter_map(|(rank, root)| {
+                    let (namespace, relative) =
+                        path.strip_prefix(root.as_str())?.split_once('/')?;
+                    Some((rank, (namespace, relative)))
+                });
+                match content {
+                    Content::Bytes(bytes) => {
+                        let bytes: &'f [u8] = bytes;
+                        for (rank, key) in under {
+                            keep(&mut merged, key, (rank, path, PackContent::Bytes(bytes)));
+                        }
+                    }
+                    Content::Value(value) => {
+                        if let Some((rank, key)) = under.next_back() {
+                            // A unit box does not allocate.
+                            let value = std::mem::replace(value, Box::new(()));
+                            keep(&mut merged, key, (rank, path, PackContent::Value(value)));
+                        }
                     }
                 }
             }
             out.extend(
                 merged
                     .into_iter()
-                    .map(|((namespace, relative), (path, bytes))| PackFile {
+                    .map(|((namespace, relative), (_, path, content))| PackFile {
                         pack: pack_index,
                         namespace,
                         relative,
                         path,
-                        bytes,
+                        content,
                     }),
             );
         }
@@ -229,16 +250,57 @@ impl PackStack {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+/// The content each `(namespace, relative)` path of one pack lists, with the rank of the root it
+/// lies below: `data/` first, then each overlay.
+type Merged<'f> = BTreeMap<(&'f str, &'f str), (usize, &'f str, PackContent<'f>)>;
+
+fn keep<'f>(
+    merged: &mut Merged<'f>,
+    key: (&'f str, &'f str),
+    listed: (usize, &'f str, PackContent<'f>),
+) {
+    if merged.get(&key).is_none_or(|(rank, ..)| *rank < listed.0) {
+        merged.insert(key, listed);
+    }
+}
+
+enum Content {
+    Bytes(Vec<u8>),
+    Value(Box<dyn Any + Send + Sync>),
+}
+
+/// The files and ready values of each pack, by their path in the pack. A value replaces the file
+/// at the same path, whichever of the two is inserted first.
+#[derive(Default)]
 pub struct PackFiles {
-    packs: HashMap<String, BTreeMap<String, Vec<u8>>>,
+    packs: HashMap<String, BTreeMap<String, Content>>,
 }
 
 impl PackFiles {
     pub fn insert(&mut self, pack: &str, path: impl Into<String>, bytes: impl Into<Vec<u8>>) {
+        let contents = self.packs.entry(pack.to_owned()).or_default();
+        let content = contents
+            .entry(path.into())
+            .or_insert(Content::Bytes(Vec::new()));
+        if let Content::Bytes(held) = content {
+            *held = bytes.into();
+        }
+    }
+
+    pub fn insert_value(
+        &mut self,
+        pack: &str,
+        path: impl Into<String>,
+        value: Box<dyn Any + Send + Sync>,
+    ) {
         self.packs
             .entry(pack.to_owned())
             .or_default()
-            .insert(path.into(), bytes.into());
+            .insert(path.into(), Content::Value(value));
+    }
+
+    pub(crate) fn holds_value(&self, pack: &str, path: &str) -> bool {
+        let content = self.packs.get(pack).and_then(|contents| contents.get(path));
+        matches!(content, Some(Content::Value(_)))
     }
 }

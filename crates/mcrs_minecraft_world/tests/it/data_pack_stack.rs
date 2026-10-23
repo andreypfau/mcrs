@@ -107,6 +107,14 @@ fn a_feature_pack_is_not_read_as_part_of_the_vanilla_pack() {
 }
 
 #[test]
+fn a_jar_file_that_a_built_in_entry_replaces_is_never_read() {
+    WithFiles::over_assets()
+        .unreadable("minecraft/worldgen/noise/temperature.json")
+        .load()
+        .unwrap_or_else(|error| panic!("{error}"));
+}
+
+#[test]
 fn an_active_overlay_of_a_local_pack_is_read_under_its_own_root() {
     let (registries, _) = WithFiles::over_assets()
         .with(

@@ -40,10 +40,10 @@ fn an_entry_that_cannot_be_sent_fails_the_load_naming_it() {
 
 #[test]
 fn only_synced_registries_have_registry_data() {
-    let packs = Packs::new().world("a", &[("data/t/damage_type/fine.json", &damage("t:fine"))]);
-    let (synced, _) = packs.load(&synced_damage()).unwrap();
+    let packs = || Packs::new().world("a", &[("data/t/damage_type/fine.json", &damage("t:fine"))]);
+    let (synced, _) = packs().load(&synced_damage()).unwrap();
     assert_eq!(synced.network().registry_data(false).count(), 1);
-    let (unsynced, _) = packs
+    let (unsynced, _) = packs()
         .load(&declarations_with(Declaration::data::<Damage>().into()))
         .unwrap();
     assert_eq!(unsynced.network().registry_data(false).count(), 0);

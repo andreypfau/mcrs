@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_datapack::{PackFiles, PackIndex, PackStack, VANILLA_PACK, Visibility};
+use mcrs_minecraft_datapack::{PackFiles, PackIndex, PackStack, Visibility};
 
 use super::ctx::{LoadCtx, Slot};
-use super::declaration::{Declaration, EntrySource, Kind, Source};
+use super::declaration::{Declaration, EntrySource, Kind};
 use super::index::{self, Directories, SlotFiles};
 use super::tag_build;
 use crate::network;
@@ -73,44 +73,12 @@ pub(super) fn too_many(registry: &ResourceLocation, count: usize) -> Diagnostic 
     }
 }
 
-pub(super) struct BuiltInPath<'d> {
-    pub(super) pack: PackIndex,
-    replaces_own_file: bool,
-    set: usize,
-    pub(super) name: &'d ResourceLocation,
-    pub(super) relative: String,
-}
-
-pub(super) fn entry_sources<'f>(
-    built_in: &[BuiltInPath<'_>],
-    files: &mut SlotFiles<'f>,
-    visibility: &Visibility<'_>,
-) -> (Vec<ResourceLocation>, Vec<EntrySource<'f>>) {
-    let mut entries = std::mem::take(&mut files.entries);
-    for path in built_in {
-        if visibility.hidden(path.pack, path.name.namespace(), &path.relative) {
-            continue;
-        }
-        // A vanilla built-in replaces the game's file of the same name, which the jar still
-        // ships; the built-in of any other pack yields to that pack's own file.
-        if entries.get(path.name).is_none_or(|winner| {
-            winner.pack < path.pack || (path.replaces_own_file && winner.pack == path.pack)
-        }) {
-            entries.insert(
-                path.name.clone(),
-                EntrySource {
-                    pack: path.pack,
-                    source: Source::BuiltIn { set: path.set },
-                },
-            );
-        }
-    }
-    let mut entries: Vec<(ResourceLocation, EntrySource<'f>)> = entries.into_iter().collect();
+fn entry_sources<'f>(files: &mut SlotFiles<'f>) -> (Vec<ResourceLocation>, Vec<EntrySource<'f>>) {
+    let mut entries: Vec<(ResourceLocation, EntrySource<'f>)> =
+        std::mem::take(&mut files.entries).into_iter().collect();
     entries.sort_by(|a, b| entry_file_order(&a.0, &b.0));
     entries.into_iter().unzip()
 }
-
-pub(super) type BuiltInPaths<'d> = Vec<Vec<BuiltInPath<'d>>>;
 
 pub(super) fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
     let mut slots: Vec<Slot<'_>> = declarations
@@ -139,33 +107,6 @@ pub(super) fn directories(slots: &[Slot<'_>]) -> Directories {
     directories
 }
 
-pub(super) fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> BuiltInPaths<'d> {
-    slots
-        .iter()
-        .map(|slot| {
-            let declaration = slot.declaration;
-            let Some(data) = declaration.data_part() else {
-                return Vec::new();
-            };
-            let directory = declaration.key().path();
-            let sets = data.built_ins().into_iter().enumerate();
-            sets.filter_map(|(set, (pack, names))| {
-                Some((set, stack.position(pack)?, pack == VANILLA_PACK, names))
-            })
-            .flat_map(|(set, pack, replaces_own_file, names)| {
-                names.iter().map(move |name| BuiltInPath {
-                    pack,
-                    replaces_own_file,
-                    set,
-                    name,
-                    relative: format!("{directory}/{}.json", name.path()),
-                })
-            })
-            .collect()
-        })
-        .collect()
-}
-
 fn reuse(stage: Stage, slots: &mut [Slot<'_>], previous: &Registries) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     for slot in slots.iter_mut().filter(|s| s.stage() == stage) {
@@ -186,8 +127,6 @@ fn name_entries<'f>(
     stage: Stage,
     slots: &mut [Slot<'_>],
     files: &mut [SlotFiles<'f>],
-    built_in_paths: &BuiltInPaths<'_>,
-    visibility: &Visibility<'_>,
 ) -> (Vec<(usize, Vec<EntrySource<'f>>)>, Vec<Diagnostic>) {
     let mut errors = Vec::new();
     let mut sources = Vec::new();
@@ -196,8 +135,7 @@ fn name_entries<'f>(
         let named = match &slot.declaration.kind {
             Kind::Fixed(names) => Names::new(names.clone(), Vec::new()),
             Kind::Names | Kind::Data(_) => {
-                let built_in = built_in_paths.get(at).map_or(&[][..], Vec::as_slice);
-                let (names, entry_sources) = entry_sources(built_in, files, visibility);
+                let (names, entry_sources) = entry_sources(files);
                 let origins = entry_sources.iter().map(|source| source.pack).collect();
                 if slot.declaration.data_part().is_some() {
                     sources.push((at, entry_sources));
@@ -437,10 +375,11 @@ fn run_stage(
     errors
 }
 
+/// Loads `declarations` over `stack` from `files`, whose values move into the registries.
 pub fn load(
     declarations: &[Declaration],
     stack: Arc<PackStack>,
-    files: &PackFiles,
+    mut files: PackFiles,
     previous: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
     let mut diagnostics = Diagnostics::default();
@@ -452,19 +391,10 @@ pub fn load(
     let mut slots = empty_slots(declarations);
     let by_key = slots_by_key(&slots);
 
-    let built_in_paths = built_in_paths(&slots, &stack);
     let mut found = Vec::new();
-    let candidates = index::candidates(&stack, files, &directories(&slots), &mut found);
-    let tested: Vec<(PackIndex, &str, &str)> = candidates
-        .iter()
-        .map(index::Candidate::tested)
-        .chain(
-            built_in_paths
-                .iter()
-                .flatten()
-                .map(|path| (path.pack, path.name.namespace(), path.relative.as_str())),
-        )
-        .collect();
+    let candidates = index::candidates(&stack, &mut files, &directories(&slots), &mut found);
+    let tested: Vec<(PackIndex, &str, &str)> =
+        candidates.iter().map(index::Candidate::tested).collect();
     let (visibility, ignored) = Visibility::new(&stack, &tested);
     let mut slot_files = index::assign(candidates, &visibility, slots.len());
     diagnostics.extend(found);
@@ -474,13 +404,7 @@ pub fn load(
         let reused = previous.filter(|_| stage < Stage::Reloadable);
         let (sources, mut errors) = match reused {
             Some(previous) => (Vec::new(), reuse(stage, &mut slots, previous)),
-            None => name_entries(
-                stage,
-                &mut slots,
-                &mut slot_files,
-                &built_in_paths,
-                &visibility,
-            ),
+            None => name_entries(stage, &mut slots, &mut slot_files),
         };
         if !errors.is_empty() {
             return Err(fail(diagnostics, errors));

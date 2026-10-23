@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
-    PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack, Visibility,
+    PackContent, PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack, Visibility,
 };
 
 use super::declaration::{EntrySource, Source};
@@ -52,7 +52,7 @@ pub(crate) struct Candidate<'f> {
     tag: bool,
     name: ResourceLocation,
     path: &'f str,
-    bytes: &'f [u8],
+    content: PackContent<'f>,
 }
 
 impl<'f> Candidate<'f> {
@@ -74,23 +74,32 @@ pub(crate) fn assign<'f>(
         let Some(slot) = out.get_mut(candidate.slot) else {
             continue;
         };
-        if candidate.tag {
-            slot.tags.entry(candidate.name).or_default().push(Located {
-                pack: candidate.pack,
-                path: candidate.path,
-                bytes: candidate.bytes,
-            });
-        } else {
-            slot.entries.insert(
-                candidate.name,
-                EntrySource {
+        match (candidate.tag, candidate.content) {
+            (true, PackContent::Bytes(bytes)) => {
+                slot.tags.entry(candidate.name).or_default().push(Located {
                     pack: candidate.pack,
-                    source: Source::File {
+                    path: candidate.path,
+                    bytes,
+                });
+            }
+            // A value stands for an entry; a tag is read from a file only.
+            (true, PackContent::Value(_)) => {}
+            (false, content) => {
+                let source = match content {
+                    PackContent::Bytes(bytes) => Source::File {
                         path: candidate.path,
-                        bytes: candidate.bytes,
+                        bytes,
                     },
-                },
-            );
+                    PackContent::Value(value) => Source::Value(value),
+                };
+                slot.entries.insert(
+                    candidate.name,
+                    EntrySource {
+                        pack: candidate.pack,
+                        source,
+                    },
+                );
+            }
         }
     }
     out
@@ -98,7 +107,7 @@ pub(crate) fn assign<'f>(
 
 pub(crate) fn candidates<'f>(
     stack: &PackStack,
-    files: &'f PackFiles,
+    files: &'f mut PackFiles,
     directories: &Directories,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Candidate<'f>> {
@@ -109,7 +118,7 @@ pub(crate) fn candidates<'f>(
             namespace,
             relative,
             path,
-            bytes,
+            content,
         } = file;
         let (tag, inside) = match relative.strip_prefix("tags/") {
             Some(inside) => (true, inside),
@@ -140,7 +149,7 @@ pub(crate) fn candidates<'f>(
             tag,
             name,
             path,
-            bytes,
+            content,
         });
     }
     out

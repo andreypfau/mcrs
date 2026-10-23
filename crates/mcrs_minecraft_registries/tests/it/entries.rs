@@ -1,8 +1,8 @@
 use std::mem::size_of;
 
-use mcrs_minecraft_core::{Id, ResourceLocation};
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Stage};
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Stage, insert_entry};
 
 use crate::support::{
     Damage, DamageType, LootTable, Packs, Things, damage, declarations, get, names, report_errors,
@@ -416,43 +416,37 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
 
 #[test]
 fn built_in_entries_behave_as_files_of_their_pack() {
-    let declaration = || -> Vec<Declaration> {
-        vec![
-            Declaration::data::<Damage>()
-                .built_in(
-                    "file/a",
-                    vec![rl("plains"), rl("desert"), rl("forest"), rl("ocean")],
-                    built("built"),
-                )
-                .into(),
-        ]
-    };
     let filter = r#"{"pack":{"description":"x","min_format":122,"max_format":122},
         "filter":{"block":[{"namespace":"^minecraft$","path":"^damage_type/ocean\\.json$"}]}}"#;
-    let packs = Packs::new()
-        .world(
-            "a",
-            &[(
-                "data/minecraft/damage_type/forest.json",
-                &damage("own file"),
-            )],
-        )
-        .world(
-            "b",
-            &[
-                (
-                    "data/minecraft/damage_type/plains.json",
-                    &damage("higher file"),
-                ),
-                ("data/t/damage_type/aaa.json", &damage("aaa")),
-            ],
-        )
-        .world_with_meta("c", filter, &[])
-        .world(
-            "d",
-            &[("data/minecraft/damage_type/ocean.json", &damage("top file"))],
-        );
-    let (registries, _) = packs.load(&declaration()).unwrap();
+    let packs = built(
+        Packs::new(),
+        "file/a",
+        "built",
+        &["plains", "desert", "forest", "ocean"],
+    )
+    .world(
+        "a",
+        &[(
+            "data/minecraft/damage_type/forest.json",
+            &damage("own file"),
+        )],
+    )
+    .world(
+        "b",
+        &[
+            (
+                "data/minecraft/damage_type/plains.json",
+                &damage("higher file"),
+            ),
+            ("data/t/damage_type/aaa.json", &damage("aaa")),
+        ],
+    )
+    .world_with_meta("c", filter, &[])
+    .world(
+        "d",
+        &[("data/minecraft/damage_type/ocean.json", &damage("top file"))],
+    );
+    let (registries, _) = packs.load(&[Declaration::data::<Damage>().into()]).unwrap();
     let registry = registries.registry::<Damage>().unwrap();
     assert_eq!(
         names::<DamageType>(&registries),
@@ -470,20 +464,13 @@ fn built_in_entries_behave_as_files_of_their_pack() {
         (registry.get(id).unwrap().message_id.clone(), origin)
     };
     assert_eq!(value("desert"), ("built desert".into(), "file/a".into()));
-    assert_eq!(value("forest"), ("own file".into(), "file/a".into()));
+    assert_eq!(value("forest"), ("built forest".into(), "file/a".into()));
     assert_eq!(value("plains"), ("higher file".into(), "file/b".into()));
     assert_eq!(value("ocean"), ("top file".into(), "file/d".into()));
 }
 
 #[test]
 fn a_vanilla_built_in_replaces_the_games_file_and_yields_to_a_pack() {
-    let declaration = || -> Vec<Declaration> {
-        vec![
-            Declaration::data::<Damage>()
-                .built_in("vanilla", vec![rl("forest"), rl("plains")], built("built"))
-                .into(),
-        ]
-    };
     let packs = Packs::new()
         .vanilla(&[
             (
@@ -502,7 +489,8 @@ fn a_vanilla_built_in_replaces_the_games_file_and_yields_to_a_pack() {
                 &damage("pack file"),
             )],
         );
-    let (registries, _) = packs.load(&declaration()).unwrap();
+    let packs = built(packs, "vanilla", "built", &["forest", "plains"]);
+    let (registries, _) = packs.load(&[Declaration::data::<Damage>().into()]).unwrap();
     let registry = registries.registry::<Damage>().unwrap();
     let value = |name: &str| {
         let id = get::<DamageType>(&registries, name);
@@ -513,29 +501,27 @@ fn a_vanilla_built_in_replaces_the_games_file_and_yields_to_a_pack() {
     assert_eq!(value("plains"), ("pack file".into(), "file/a".into()));
 }
 
-fn built(prefix: &'static str) -> impl Fn(&ResourceLocation) -> Option<Damage> + Send + Sync {
-    move |name| {
-        Some(Damage {
-            message_id: format!("{prefix} {}", name.path()),
+fn built(mut packs: Packs, pack: &str, prefix: &str, names: &[&str]) -> Packs {
+    for name in names {
+        let value = Damage {
+            message_id: format!("{prefix} {name}"),
             exhaustion: 0.0,
-        })
+        };
+        insert_entry::<Damage>(packs.files_mut(), pack, &rl(name), value);
     }
+    packs
 }
 
 #[test]
-fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
-    let declaration = || -> Vec<Declaration> {
-        vec![
-            Declaration::data::<Damage>()
-                .built_in("file/a", vec![rl("shared"), rl("high")], built("a"))
-                .built_in("vanilla", vec![rl("shared"), rl("low")], built("vanilla"))
-                .into(),
-        ]
+fn the_built_in_entries_of_two_packs_hold_their_own_names_and_the_higher_pack_wins() {
+    let both = |packs| {
+        let packs = built(packs, "file/a", "a", &["shared", "high"]);
+        built(packs, "vanilla", "vanilla", &["shared", "low"])
     };
     let cases: [(&str, Packs, &[(&str, &str, &str)]); 2] = [
         (
             "both packs",
-            Packs::new().world("a", &[]),
+            both(Packs::new().world("a", &[])),
             &[
                 ("high", "a high", "file/a"),
                 ("low", "vanilla low", "vanilla"),
@@ -544,7 +530,7 @@ fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
         ),
         (
             "file/a absent",
-            Packs::new(),
+            both(Packs::new()),
             &[
                 ("low", "vanilla low", "vanilla"),
                 ("shared", "vanilla shared", "vanilla"),
@@ -552,7 +538,7 @@ fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
         ),
     ];
     for (case, packs, expected) in cases {
-        let (registries, _) = packs.load(&declaration()).unwrap();
+        let (registries, _) = packs.load(&[Declaration::data::<Damage>().into()]).unwrap();
         let registry = registries.registry::<Damage>().unwrap();
         let entries: Vec<(&str, &str, &str)> = registry
             .iter()
@@ -563,6 +549,24 @@ fn each_built_in_set_decodes_its_own_names_and_the_higher_pack_wins() {
             .collect();
         assert_eq!(entries, expected, "{case}");
     }
+}
+
+#[test]
+fn a_value_of_another_type_is_an_entry_error() {
+    let mut packs = Packs::new();
+    let path = "data/t/damage_type/x.json";
+    packs
+        .files_mut()
+        .insert_value("vanilla", path, Box::new("not a damage type".to_owned()));
+    let errors = report_errors(&packs.load(&[Declaration::data::<Damage>().into()]));
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [Diagnostic::Entry { registry, entry, .. }]
+                if *registry == rl("damage_type") && *entry == rl("t:x")
+        ),
+        "{errors:?}"
+    );
 }
 
 #[test]

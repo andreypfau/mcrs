@@ -1,7 +1,4 @@
 use crate::chat_type::ChatType;
-use crate::declarations::{
-    built_biomes, built_density_functions, built_noise_settings, built_noises, built_template_pools,
-};
 use crate::dimension::DimensionEntry;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
@@ -53,19 +50,17 @@ macro_rules! spawning_variants {
 /// Every data registry whose values this crate reads; the data pack report stages each one.
 pub(crate) fn typed_declarations() -> Vec<Declaration> {
     let mut declarations: Vec<Declaration> = vec![
-        built_biomes(BiomeFile::declaration())
-            .synced_via::<NetworkBiome>()
-            .into(),
+        BiomeFile::declaration().synced_via::<NetworkBiome>().into(),
         Declaration::data::<Feature>().into(),
         Declaration::data::<PlacedFeature>().into(),
         Declaration::data::<StructureProcessorList>().into(),
         Declaration::data::<Structure>().into(),
         Declaration::data::<StructureSet>().into(),
         Declaration::data::<CarverConfig>().into(),
-        built_template_pools(Declaration::data::<TemplatePool>()).into(),
-        built_noises(Declaration::data::<NoiseParam>()).into(),
-        built_density_functions(Declaration::data::<DensityFunctionHolder>()).into(),
-        built_noise_settings(Declaration::data::<NoiseGeneratorSettings>()).into(),
+        Declaration::data::<TemplatePool>().into(),
+        Declaration::data::<NoiseParam>().into(),
+        Declaration::data::<DensityFunctionHolder>().into(),
+        Declaration::data::<NoiseGeneratorSettings>().into(),
         Declaration::data::<MaterialRuleHolder>().into(),
         Declaration::data::<MaterialConditionHolder>().into(),
         Declaration::data::<ChatType>().synced().into(),

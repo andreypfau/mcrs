@@ -33,7 +33,7 @@ mod text;
 pub use bevy::CurrentRegistries;
 pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 pub use load::{
-    DataDeclaration, Declaration, LoadCtx, Received, TagEntry, load, load_received,
+    DataDeclaration, Declaration, LoadCtx, Received, TagEntry, insert_entry, load, load_received,
 };
 pub use network::NetworkSnapshot;
 pub use registries::{Registries, Stage};

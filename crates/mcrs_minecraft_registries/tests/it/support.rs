@@ -219,19 +219,19 @@ impl Packs {
     }
 
     pub fn load(
-        &self,
+        self,
         declarations: &[Declaration],
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
         self.load_after(declarations, None)
     }
 
     pub fn load_after(
-        &self,
+        self,
         declarations: &[Declaration],
         previous: Option<&Registries>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
         let (stack, _) = self.stack();
-        load(declarations, Arc::new(stack), &self.files, previous)
+        load(declarations, Arc::new(stack), self.files, previous)
     }
 }
 

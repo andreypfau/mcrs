@@ -1,15 +1,24 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
-    Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
+    Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, VANILLA_PACK,
+    pack_stack,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
-use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Received, Registries, load};
+use mcrs_minecraft_registries::{
+    DataValue, Diagnostic, Diagnostics, Received, Registries, insert_entry, load,
+};
+use mcrs_minecraft_worldgen_builtin as builtin;
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 use crate::declarations;
 use crate::packs::DATAPACK_REPORT;
@@ -133,11 +142,10 @@ fn load_stack(
     let unavailable = packs.unavailable().iter().cloned();
     diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
     let mut files = PackFiles::default();
+    insert_built_ins(&mut files);
     packs.read_files(source, &stack, &mut files)?;
 
-    let outcome = load(&declarations, Arc::new(stack), &files, None);
-    drop(files);
-    match outcome {
+    match load(&declarations, Arc::new(stack), files, None) {
         Ok((registries, loaded)) => {
             diagnostics.extend(loaded);
             Ok((registries, diagnostics))
@@ -146,6 +154,35 @@ fn load_stack(
             diagnostics.extend(failed);
             Err(RegistryLoadError::Load(diagnostics))
         }
+    }
+}
+
+const BETA_PACK: &str = "file/beta";
+
+fn insert_built_ins(files: &mut PackFiles) {
+    for name in builtin::biome_names() {
+        if let Some(biome) = builtin::biome(&name) {
+            insert_entry::<BiomeFile>(files, VANILLA_PACK, &name, biome);
+        }
+    }
+    insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools());
+    insert_all::<NoiseParam>(files, VANILLA_PACK, builtin::vanilla_noises());
+    insert_all::<NoiseParam>(files, BETA_PACK, builtin::beta_noises());
+    insert_all::<DensityFunctionHolder>(files, VANILLA_PACK, builtin::vanilla_density_functions());
+    insert_all::<DensityFunctionHolder>(files, BETA_PACK, builtin::beta_density_functions());
+    insert_all::<NoiseGeneratorSettings>(files, VANILLA_PACK, builtin::vanilla_noise_settings());
+    insert_all::<NoiseGeneratorSettings>(files, BETA_PACK, builtin::beta_noise_settings());
+}
+
+fn insert_all<V: DataValue>(
+    files: &mut PackFiles,
+    pack: &str,
+    values: BTreeMap<ResourceLocation, V::Named>,
+) where
+    V::Named: Send + Sync,
+{
+    for (name, value) in values {
+        insert_entry::<V>(files, pack, &name, value);
     }
 }
 
@@ -229,7 +266,10 @@ pub fn load_received(
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
     let assets = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    mcrs_minecraft_datapack::DirectoryPacks::new(assets, mcrs_minecraft_fixtures::vanilla_dir().to_owned())
+    mcrs_minecraft_datapack::DirectoryPacks::new(
+        assets,
+        mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+    )
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
@@ -289,7 +329,7 @@ pub fn registries_declaring(declarations: &[mcrs_minecraft_registries::Declarati
         &Features::vanilla(),
         false,
     );
-    mcrs_minecraft_registries::load(declarations, Arc::new(stack), &PackFiles::default(), None)
+    mcrs_minecraft_registries::load(declarations, Arc::new(stack), PackFiles::default(), None)
         .map(|(registries, _)| registries)
         .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
 }

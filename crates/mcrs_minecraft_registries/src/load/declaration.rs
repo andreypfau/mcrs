@@ -1,7 +1,8 @@
+use std::any::{Any, type_name};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{Registered, ResourceLocation};
-use mcrs_minecraft_datapack::{PackIndex, read_json};
+use mcrs_minecraft_datapack::{PackFiles, PackIndex, read_json};
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::Serialize;
@@ -19,9 +20,7 @@ pub(crate) enum Source<'f> {
         path: &'f str,
         bytes: &'f [u8],
     },
-    BuiltIn {
-        set: usize,
-    },
+    Value(Box<dyn Any + Send + Sync>),
     /// An entry a server sent with its data.
     Network(&'f NbtTag),
 }
@@ -39,7 +38,6 @@ pub(crate) struct EntryFailure {
 }
 
 pub(crate) trait ErasedData: Send + Sync {
-    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])>;
     fn must_not_be_empty(&self) -> bool;
     fn build(
         &self,
@@ -61,20 +59,12 @@ type Validator<V> =
     Box<dyn Fn(&Registry<V>, &LoadCtx<'_>) -> Vec<(usize, String)> + Send + Sync>;
 type Project<V> = Box<dyn Fn(&V, &Registries) -> Result<NbtTag, String> + Send + Sync>;
 type Receive<V> = Box<dyn Fn(NbtTag, &LoadCtx<'_>) -> Result<V, ResolveError> + Send + Sync>;
-type BuiltIn<V> = Box<dyn Fn(&ResourceLocation) -> Option<<V as Resolve>::Named> + Send + Sync>;
 
 pub struct DataDeclaration<V: DataValue> {
     non_empty: bool,
     validator: Option<Validator<V>>,
-    built_in: Vec<BuiltInSet<V>>,
     synced: Option<Project<V>>,
     received: Option<Receive<V>>,
-}
-
-struct BuiltInSet<V: DataValue> {
-    pack: String,
-    names: Vec<ResourceLocation>,
-    value: BuiltIn<V>,
 }
 
 impl<V: DataValue> DataDeclaration<V> {
@@ -125,46 +115,45 @@ impl<V: DataValue> DataDeclaration<V> {
         self.synced_as(|value, registries| named_nbt(&N::from(value), registries))
     }
 
-    /// Entries `pack` holds without files: `value` gives the named form of each of `names`, which
-    /// is resolved as a file of that pack would be.
-    pub fn built_in(
-        mut self,
-        pack: &str,
-        names: Vec<ResourceLocation>,
-        value: impl Fn(&ResourceLocation) -> Option<V::Named> + Send + Sync + 'static,
-    ) -> Self {
-        self.built_in.push(BuiltInSet {
-            pack: pack.to_owned(),
-            names,
-            value: Box::new(value),
-        });
-        self
-    }
-
     fn key() -> ResourceLocation {
         <V::Registry as Registered>::REGISTRY.location().into()
     }
 
-    fn decode(
-        &self,
-        ctx: &LoadCtx<'_>,
-        name: &ResourceLocation,
-        source: &Source<'_>,
-    ) -> Result<V, ResolveError> {
+    fn decode(&self, ctx: &LoadCtx<'_>, source: Source<'_>) -> Result<V, ResolveError> {
         let named = match source {
             Source::File { bytes, .. } => read_json::<V::Named>(bytes)
                 .map_err(|error| ResolveError::in_field(error.field, error.message))?,
-            Source::BuiltIn { set } => (self.built_in.get(*set))
-                .and_then(|set| (set.value)(name))
-                .ok_or_else(|| ResolveError::new(format!("no built-in value is named {name}")))?,
+            Source::Value(value) => *value.downcast::<V::Named>().map_err(|_| {
+                ResolveError::new(format!("the value is not a {}", type_name::<V::Named>()))
+            })?,
             Source::Network(tag) => match &self.received {
-                Some(read) => return read((*tag).clone(), ctx),
-                None => mcrs_minecraft_nbt::from_tag((*tag).clone())
+                Some(read) => return read(tag.clone(), ctx),
+                None => mcrs_minecraft_nbt::from_tag(tag.clone())
                     .map_err(|error| ResolveError::new(error.to_string()))?,
             },
         };
         V::resolve(named, ctx)
     }
+}
+
+/// Puts `value` in `pack` as the entry `name` of the data registry of `V`, at the path of the
+/// entry's file. It replaces a file at that path.
+pub fn insert_entry<V: DataValue>(
+    files: &mut PackFiles,
+    pack: &str,
+    name: &ResourceLocation,
+    value: V::Named,
+) where
+    V::Named: Send + Sync,
+{
+    let registry = <V::Registry as Registered>::REGISTRY.location();
+    let path = format!(
+        "data/{}/{}/{}.json",
+        name.namespace(),
+        registry.path(),
+        name.path()
+    );
+    files.insert_value(pack, path, Box::new(value));
 }
 
 fn named_nbt<T: Resolve<Named: Serialize>>(
@@ -194,7 +183,6 @@ impl Declaration {
         DataDeclaration {
             non_empty: false,
             validator: None,
-            built_in: Vec::new(),
             synced: None,
             received: None,
         }
@@ -253,13 +241,6 @@ impl<V: DataValue> From<DataDeclaration<V>> for Declaration {
 }
 
 impl<V: DataValue> ErasedData for DataDeclaration<V> {
-    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])> {
-        self.built_in
-            .iter()
-            .map(|set| (set.pack.as_str(), set.names.as_slice()))
-            .collect()
-    }
-
     fn must_not_be_empty(&self) -> bool {
         self.non_empty
     }
@@ -273,15 +254,16 @@ impl<V: DataValue> ErasedData for DataDeclaration<V> {
         let mut values = Vec::with_capacity(sources.len());
         let mut failures = Vec::new();
         for (name, entry) in names.all().iter().zip(sources) {
-            match self.decode(ctx, name, &entry.source) {
+            let file = match &entry.source {
+                Source::File { path, .. } => Some(*path),
+                Source::Value(_) | Source::Network(_) => None,
+            };
+            match self.decode(ctx, entry.source) {
                 Ok(value) => values.push(value),
                 Err(error) => failures.push(EntryFailure {
                     entry: name.clone(),
                     pack: entry.pack,
-                    file: match entry.source {
-                        Source::File { path, .. } => Some(path.to_owned()),
-                        Source::BuiltIn { .. } | Source::Network(_) => None,
-                    },
+                    file: file.map(str::to_owned),
                     error,
                 }),
             }

@@ -231,11 +231,10 @@ fn namespace_into(
         _ => format!("{root}/{namespace}"),
     };
     for (path, relative) in walk(source, &directory)? {
-        files.insert(
-            pack,
-            format!("{data}/{namespace}/{relative}"),
-            source.read(&path)?,
-        );
+        let in_pack = format!("{data}/{namespace}/{relative}");
+        if !files.holds_value(pack, &in_pack) {
+            files.insert(pack, in_pack, source.read(&path)?);
+        }
     }
     Ok(())
 }

@@ -17,12 +17,12 @@ pub(crate) const MAX_ENTRIES: usize = u16::MAX as usize + 1;
 
 /// What a data registry holds: a value read from the named form its files and packets carry.
 pub trait DataValue:
-    RegistryValue + Resolve<Named: DeserializeOwned> + Send + Sync + 'static
+    RegistryValue + Resolve<Named: DeserializeOwned + 'static> + Send + Sync + 'static
 {
 }
 
 impl<T> DataValue for T where
-    T: RegistryValue + Resolve<Named: DeserializeOwned> + Send + Sync + 'static
+    T: RegistryValue + Resolve<Named: DeserializeOwned + 'static> + Send + Sync + 'static
 {
 }
 
