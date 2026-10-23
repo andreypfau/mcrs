@@ -6,6 +6,7 @@
 
 mod biome_tags;
 mod block_definition_corpus;
+mod broken_packs;
 mod common;
 mod data_pack_stack;
 mod dimension_list;

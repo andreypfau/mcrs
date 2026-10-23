@@ -25,7 +25,11 @@ pub fn read_vanilla(source: &dyn PackSource, path: &str) -> Result<Vec<u8>, Read
     let below = (path.strip_prefix(STANDARD_DATA))
         .and_then(|below| below.strip_prefix('/'))
         .map(Path::new)
-        .filter(|below| below.components().all(|c| matches!(c, Component::Normal(_))))
+        .filter(|below| {
+            below
+                .components()
+                .all(|c| matches!(c, Component::Normal(_)))
+        })
         .filter(|below| below_vanilla_root(below).is_some())
         .and_then(Path::to_str);
     match below {
@@ -69,6 +73,12 @@ pub trait PackSource {
 
     /// A directory that does not exist lists no entries.
     fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError>;
+
+    /// The name of the pack below [`PACKS_ROOT`] that is laid out as a standard data pack: its
+    /// namespaces lie below `data` and `<overlay>/data` rather than at the pack root.
+    fn standard_pack(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The packs under `assets`, with the vanilla pack's directory read from `vanilla`, which holds
@@ -77,15 +87,40 @@ pub trait PackSource {
 pub struct DirectoryPacks {
     assets: PathBuf,
     vanilla: PathBuf,
+    only_pack: Option<(String, PathBuf)>,
 }
 
 impl DirectoryPacks {
     pub fn new(assets: PathBuf, vanilla: PathBuf) -> Self {
-        Self { assets, vanilla }
+        Self {
+            assets,
+            vanilla,
+            only_pack: None,
+        }
+    }
+
+    /// These packs with the standard data pack at `directory` in place of the local packs, named
+    /// after the directory.
+    pub fn with_only_pack(mut self, directory: &Path) -> Result<Self, ReadError> {
+        let shown = directory.display().to_string();
+        let directory =
+            std::fs::canonicalize(directory).map_err(|error| ReadError::new(&shown, error))?;
+        let name = (directory.file_name().and_then(|name| name.to_str()))
+            .ok_or_else(|| ReadError::new(&shown, "the directory name is not a pack name"))?
+            .to_owned();
+        self.only_pack = Some((name, directory));
+        Ok(self)
     }
 
     fn path(&self, path: &str) -> PathBuf {
-        match below_vanilla_root(Path::new(path)) {
+        let path = Path::new(path);
+        if let Some((name, directory)) = &self.only_pack
+            && let Some(below) =
+                (path.strip_prefix(PACKS_ROOT).ok()).and_then(|packs| packs.strip_prefix(name).ok())
+        {
+            return directory.join(below);
+        }
+        match below_vanilla_root(path) {
             Some(below) => self.vanilla.join(below),
             None => self.assets.join(path),
         }
@@ -98,6 +133,14 @@ impl PackSource for DirectoryPacks {
     }
 
     fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError> {
+        if let Some((name, _)) = &self.only_pack
+            && directory == PACKS_ROOT
+        {
+            return Ok(vec![DirectoryEntry {
+                name: name.clone(),
+                directory: true,
+            }]);
+        }
         let entries = match std::fs::read_dir(self.path(directory)) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -117,6 +160,10 @@ impl PackSource for DirectoryPacks {
             }
         }
         Ok(listed)
+    }
+
+    fn standard_pack(&self) -> Option<&str> {
+        self.only_pack.as_ref().map(|(name, _)| name.as_str())
     }
 }
 
@@ -150,6 +197,7 @@ fn walk(source: &dyn PackSource, root: &str) -> Result<Vec<(String, String)>, Re
 enum PackDirectory {
     Vanilla,
     Local(String),
+    Standard(String),
 }
 
 /// The packs a pack root offers, the directory each one reads from, and the packs it cannot
@@ -182,9 +230,11 @@ impl RootPacks {
                 pack: format!("file/{}", entry.name),
                 reason,
             };
-            if list(source, &root)?
-                .iter()
-                .any(|e| e.directory && e.name == STANDARD_DATA)
+            let standard = source.standard_pack() == Some(entry.name.as_str());
+            if !standard
+                && list(source, &root)?
+                    .iter()
+                    .any(|e| e.directory && e.name == STANDARD_DATA)
             {
                 packs.unavailable.push(unavailable(format!(
                     "{root} has a top-level {STANDARD_DATA} directory, but a local pack keeps its \
@@ -199,9 +249,11 @@ impl RootPacks {
                     continue;
                 }
             };
-            packs
-                .directories
-                .insert(pack.id().to_owned(), PackDirectory::Local(root));
+            let directory = match standard {
+                true => PackDirectory::Standard(root),
+                false => PackDirectory::Local(root),
+            };
+            packs.directories.insert(pack.id().to_owned(), directory);
             packs.available.push(pack);
         }
         Ok(packs)
@@ -224,10 +276,15 @@ impl RootPacks {
     ) -> Result<(), ReadError> {
         for pack in stack.packs() {
             match self.directories.get(pack.id()) {
-                Some(PackDirectory::Vanilla) => {
-                    namespace_into(source, files, pack.id(), ("", STANDARD_DATA), VANILLA_ROOT)?
-                }
+                Some(PackDirectory::Vanilla) => read_tree(
+                    source,
+                    files,
+                    pack.id(),
+                    VANILLA_ROOT,
+                    &format!("{STANDARD_DATA}/{VANILLA_ROOT}"),
+                )?,
                 Some(PackDirectory::Local(root)) => local_into(source, files, pack, root)?,
+                Some(PackDirectory::Standard(root)) => standard_into(source, files, pack, root)?,
                 None => {}
             }
         }
@@ -235,19 +292,15 @@ impl RootPacks {
     }
 }
 
-fn namespace_into(
+fn read_tree(
     source: &dyn PackSource,
     files: &mut PackFiles,
     pack: &str,
-    (root, data): (&str, &str),
-    namespace: &str,
+    directory: &str,
+    in_pack: &str,
 ) -> Result<(), ReadError> {
-    let directory = match root {
-        "" => namespace.to_owned(),
-        _ => format!("{root}/{namespace}"),
-    };
-    for (path, relative) in walk(source, &directory)? {
-        let in_pack = format!("{data}/{namespace}/{relative}");
+    for (path, relative) in walk(source, directory)? {
+        let in_pack = format!("{in_pack}/{relative}");
         if !files.holds_value(pack, &in_pack) {
             files.insert(pack, in_pack, source.read(&path)?);
         }
@@ -261,27 +314,37 @@ fn local_into(
     pack: &StackedPack,
     root: &str,
 ) -> Result<(), ReadError> {
-    let overlays = pack.overlays();
+    let overlays = &pack.overlays;
     for entry in list(source, root)?.into_iter().filter(|e| e.directory) {
         if !overlays.contains(&entry.name) {
-            namespace_into(source, files, pack.id(), (root, STANDARD_DATA), &entry.name)?;
+            let directory = format!("{root}/{}", entry.name);
+            let in_pack = format!("{STANDARD_DATA}/{}", entry.name);
+            read_tree(source, files, pack.id(), &directory, &in_pack)?;
         }
     }
     for overlay in overlays {
         let overlay_root = format!("{root}/{overlay}");
-        let data = format!("{overlay}/{STANDARD_DATA}");
         for entry in list(source, &overlay_root)?
             .into_iter()
             .filter(|e| e.directory)
         {
-            namespace_into(
-                source,
-                files,
-                pack.id(),
-                (&overlay_root, &data),
-                &entry.name,
-            )?;
+            let directory = format!("{overlay_root}/{}", entry.name);
+            let in_pack = format!("{overlay}/{STANDARD_DATA}/{}", entry.name);
+            read_tree(source, files, pack.id(), &directory, &in_pack)?;
         }
+    }
+    Ok(())
+}
+
+fn standard_into(
+    source: &dyn PackSource,
+    files: &mut PackFiles,
+    pack: &StackedPack,
+    root: &str,
+) -> Result<(), ReadError> {
+    let overlays = pack.overlays.iter().map(|o| format!("{o}/{STANDARD_DATA}"));
+    for data in std::iter::once(STANDARD_DATA.to_owned()).chain(overlays) {
+        read_tree(source, files, pack.id(), &format!("{root}/{data}"), &data)?;
     }
     Ok(())
 }
