@@ -4,7 +4,7 @@ use mcrs_minecraft_core::ResourceKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Plugin, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
 use bevy_asset::io::{AssetReaderError, AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
@@ -12,21 +12,21 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{Id, RegistryValue, ResourceLocation, TagId, TagKey, rl};
+use mcrs_minecraft_core::{Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl};
+use mcrs_minecraft_datapack::{Level, PackDiagnostic, PackFiles, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_registries::{
     CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries, Resolve,
-    Resolver, Stage,
+    Resolver, Stage, insert_entry,
 };
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, sent_by, test_network, test_registries,
+    RegistryAdditions, RegistryLoadError, load_registries, sent_by, test_network, test_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
@@ -36,7 +36,7 @@ use mcrs_minecraft_worldgen_testing::{corpus_path, packs, vanilla_dir};
 
 use crate::common::{
     WithFiles, assets, datapack_report, declared_registries, loaded_names, plugin_app, read_named,
-    write_named,
+    tag_members, write_named,
 };
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
@@ -534,7 +534,7 @@ fn packs_follow_vanilla_in_name_order() {
 
 #[test]
 fn the_plugin_and_the_directory_reader_load_equal_sets() {
-    let app = plugin_app();
+    let app = plugin_app(());
     let through_plugin: &Registries = app.world().resource::<CurrentRegistries>();
     let through_directory: &Registries = test_registries();
 
@@ -558,6 +558,133 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
             .known_packs()
             .eq(through_directory.known_packs())
     );
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct Kit {
+    size: i32,
+}
+
+impl Registered for Kit {
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("t:kit"));
+}
+
+mcrs_minecraft_registries::resolve_as_is!(Kit);
+
+struct KitPlugin;
+
+impl Plugin for KitPlugin {
+    fn build(&self, app: &mut App) {
+        let mut additions = app.world_mut().get_resource_or_init::<RegistryAdditions>();
+        let additions = &mut *additions;
+        let files = &mut additions.files;
+        files.insert("kit", "data/t/kit/a.json", r#"{"size":1}"#);
+        insert_entry::<Kit>(files, "kit", &rl!("t:b").into(), Kit { size: 2 });
+        files.insert(
+            "kit",
+            "data/t/tags/kit/all.json",
+            r#"{"values":["t:a","t:b"]}"#,
+        );
+        additions.embedded_packs.push("kit".to_owned());
+        additions
+            .declarations
+            .push(Declaration::data::<Kit>().synced().into());
+    }
+}
+
+#[test]
+fn a_plugin_registry_loads_from_its_embedded_pack_and_leaves_what_a_client_receives_unchanged() {
+    let app = plugin_app(KitPlugin);
+    let loaded: &Registries = app.world().resource::<CurrentRegistries>();
+
+    let kits = loaded.registry::<Kit>().expect("the plugin declares t:kit");
+    assert_eq!(**kits.values(), [Kit { size: 1 }, Kit { size: 2 }]);
+    assert_eq!(loaded_names(loaded, "t:kit"), ["t:a", "t:b"]);
+    assert_eq!(tag_members::<Kit>(loaded, "t:all"), ["t:a", "t:b"]);
+    for registry in every_registry() {
+        assert_eq!(
+            loaded_names(loaded, &registry),
+            loaded_names(test_registries(), &registry),
+            "{registry}"
+        );
+    }
+
+    let sent = &app.world().resource::<SyncedRegistries>().0;
+    for known in [false, true] {
+        assert!(
+            (sent.registry_data(known)).eq(test_network().registry_data(known)),
+            "registry data, known: {known}"
+        );
+    }
+    assert_eq!(sent.tags(), test_network().tags());
+}
+
+#[test]
+fn an_embedded_pack_overrides_vanilla_below_the_root_packs_and_is_always_sent_with_data() {
+    let pattern =
+        |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
+    let source = WithFiles::over_assets()
+        .pack("mcrs/datapacks/zz_world")
+        .with(
+            "mcrs/datapacks/zz_world/minecraft/banner_pattern/piglin.json",
+            pattern("world"),
+        );
+    let embedding = |ids: &[&str]| {
+        let mut files = PackFiles::default();
+        for name in ["globe", "piglin"] {
+            let path = format!("data/minecraft/banner_pattern/{name}.json");
+            files.insert("extra", path, pattern("embedded"));
+        }
+        RegistryAdditions {
+            embedded_packs: ids.iter().map(|id| id.to_string()).collect(),
+            files,
+            ..Default::default()
+        }
+    };
+
+    let (registries, _) =
+        load_registries(&source, embedding(&["extra"])).unwrap_or_else(|error| panic!("{error}"));
+    let patterns = registries.registry::<BannerPattern>().unwrap();
+    let entry = |name: &str| {
+        let id = patterns
+            .by_name(&ResourceLocation::read(name).unwrap())
+            .unwrap();
+        let origin = registries.origin(id).unwrap();
+        let asset = patterns.get(id).unwrap().asset_id.to_string();
+        (origin.id(), origin.known_pack().is_some(), asset)
+    };
+    assert_eq!(
+        entry("minecraft:creeper"),
+        (VANILLA_PACK, true, "minecraft:creeper".to_owned())
+    );
+    assert_eq!(
+        entry("minecraft:globe"),
+        ("extra", false, "minecraft:embedded".to_owned())
+    );
+    assert_eq!(
+        entry("minecraft:piglin"),
+        ("file/zz_world", false, "minecraft:world".to_owned())
+    );
+    let (_, sent) = (sent_by(&registries, true).registries.into_iter())
+        .find(|(registry, _)| registry.as_str() == "minecraft:banner_pattern")
+        .expect("the banner patterns are synced");
+    let with_data = |name: &str| {
+        (sent.iter())
+            .find(|(entry, _)| entry.as_str() == name)
+            .map(|(_, data)| data.is_some())
+    };
+    assert_eq!(with_data("minecraft:creeper"), Some(false));
+    assert_eq!(with_data("minecraft:globe"), Some(true));
+
+    for ids in [&["extra", "extra"][..], &["file/zz_world"], &[VANILLA_PACK]] {
+        match load_registries(&source, embedding(ids)) {
+            Err(RegistryLoadError::Declarations(message)) => {
+                assert!(message.contains(ids.last().unwrap()), "{ids:?}: {message}")
+            }
+            Ok(_) => panic!("{ids:?}: the load succeeds"),
+            Err(error) => panic!("{ids:?}: {error}"),
+        }
+    }
 }
 
 #[test]
@@ -928,8 +1055,7 @@ fn round_trip_named<T: Resolve>(json: &str) -> serde_json::Value
 where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
-    let value: T =
-        read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
     let text = serde_json::to_string(&write_named(test_registries(), &value)).unwrap();
     serde_json::from_str(&text).unwrap()
 }
@@ -957,8 +1083,7 @@ fn synced_named<T: Resolve>(json: &str) -> mcrs_minecraft_nbt::compound::NbtComp
 where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
-    let value: T =
-        read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    let value: T = read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
     mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries(), &value)).unwrap()
 }
 
@@ -1537,7 +1662,11 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
         panic!("one entry error expected: {errors:?}");
     };
     assert_eq!(registry.as_str(), "minecraft:timeline");
-    assert_eq!(entry.as_str(), "test:second", "the error names the second timeline");
+    assert_eq!(
+        entry.as_str(),
+        "test:second",
+        "the error names the second timeline"
+    );
     assert!(message.contains("test:marker"), "{message}");
     assert!(message.contains("minecraft:overworld"), "{message}");
     assert!(message.contains("more than once"), "{message}");
@@ -1680,8 +1809,7 @@ fn a_dimension_type_sends_has_fixed_time_only_when_set() {
     for (json, sent) in [("false", None), ("true", Some(NbtTag::Byte(1)))] {
         let read = overworld_dimension_type_with(&[("has_fixed_time", Some(json))]).unwrap();
         let nbt =
-            mcrs_minecraft_nbt::to_nbt_compound(&read.name(test_registries()).unwrap())
-                .unwrap();
+            mcrs_minecraft_nbt::to_nbt_compound(&read.name(test_registries()).unwrap()).unwrap();
         assert_eq!(nbt.get("has_fixed_time").cloned(), sent, "{json}");
     }
 }

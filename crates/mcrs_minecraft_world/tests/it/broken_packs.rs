@@ -138,7 +138,7 @@ fn each_broken_pack_over_vanilla_reports_its_one_error_with_pack_file_and_field(
         let packs = directory_packs()
             .with_only_pack(&write_pack(name, metadata, files))
             .unwrap();
-        let (failed, diagnostics) = match load_registries(&packs, Vec::new()) {
+        let (failed, diagnostics) = match load_registries(&packs, Default::default()) {
             Ok((_, diagnostics)) => (false, diagnostics),
             Err(RegistryLoadError::Load(diagnostics)) => (true, diagnostics),
             Err(error) => panic!("{name}: {error}"),

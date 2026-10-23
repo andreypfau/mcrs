@@ -21,13 +21,17 @@ struct SyncedRegistry {
 }
 
 impl NetworkSnapshot {
-    /// Encodes what the configuration phase sends of `registries`.
+    /// Encodes what the configuration phase sends of `registries`. No registry outside the
+    /// `minecraft` namespace is sent, so a vanilla client never receives one.
     pub fn new(registries: &Registries) -> Result<Self, Diagnostics> {
         let mut synced = Vec::new();
         let mut synced_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
         let mut static_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
         let mut errors = Vec::new();
         for table in registries.tables() {
+            if table.key.namespace() != "minecraft" {
+                continue;
+            }
             let tags =
                 (table.tags.resolved().next().is_some()).then_some((&table.key, &*table.tags));
             match &table.kind {

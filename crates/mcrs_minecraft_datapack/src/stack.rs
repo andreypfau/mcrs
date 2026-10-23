@@ -28,7 +28,7 @@ fn known_pack(pack: &AvailablePack) -> Option<KnownPack> {
     let id = match pack.kind {
         PackKind::Vanilla => "core",
         PackKind::Feature => pack.id.as_str(),
-        PackKind::Directory | PackKind::Zip => return None,
+        PackKind::Directory | PackKind::Zip | PackKind::Embedded => return None,
     };
     Some(KnownPack {
         namespace: "minecraft".to_owned(),
@@ -50,6 +50,11 @@ fn candidates<'a>(
         let metadata = match (pack.kind, &pack.metadata) {
             (PackKind::Vanilla, _) => Ok(Metadata {
                 features: features.vanilla.clone(),
+                filter: None,
+                overlays: Vec::new(),
+            }),
+            (PackKind::Embedded, _) => Ok(Metadata {
+                features: Vec::new(),
                 filter: None,
                 overlays: Vec::new(),
             }),

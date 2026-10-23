@@ -15,6 +15,7 @@ pub(crate) enum PackKind {
     Feature,
     Directory,
     Zip,
+    Embedded,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +55,16 @@ impl AvailablePack {
             id: format!("file/{file_name}"),
             kind: PackKind::Zip,
             metadata,
+        }
+    }
+
+    /// A pack that a program carries in its binary. It requests no feature and has no filter, no
+    /// overlay and no known-pack identity.
+    pub fn embedded(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            kind: PackKind::Embedded,
+            metadata: None,
         }
     }
 
@@ -139,10 +150,6 @@ impl StackedPack {
 
     pub fn features(&self) -> &[ResourceLocation] {
         &self.features
-    }
-
-    pub fn overlays(&self) -> &[String] {
-        &self.overlays
     }
 }
 

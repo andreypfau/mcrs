@@ -5,8 +5,8 @@ use std::sync::Arc;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
-    Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, VANILLA_PACK,
-    pack_stack, read_vanilla,
+    AvailablePack, Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks,
+    VANILLA_PACK, pack_stack, read_vanilla,
 };
 use mcrs_minecraft_registries::{
     DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry,
@@ -107,24 +107,48 @@ pub(crate) fn log_diagnostics(diagnostics: &Diagnostics) {
     }
 }
 
-/// The registries of every pack of `source`, over the vanilla declarations and `extra`.
+/// Registries and packs that a load adds to the vanilla declarations and the packs of a pack root.
+/// Each embedded pack is enabled, above `vanilla` and below the packs of the root, in the order of
+/// `embedded_packs`; `files` holds its files and values under its id. A plugin puts this resource
+/// in the app before `MinecraftWorldPlugin` finishes, which takes it. An embedded pack whose id is
+/// the id of another pack fails the load.
+#[derive(Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::prelude::Resource))]
+pub struct RegistryAdditions {
+    pub declarations: Vec<Declaration>,
+    pub embedded_packs: Vec<String>,
+    pub files: PackFiles,
+}
+
+/// The registries of every pack of `source` and of `additions`, over the vanilla declarations
+/// and those of `additions`.
 pub fn load_registries(
     source: &dyn PackSource,
-    extra: Vec<Declaration>,
+    additions: RegistryAdditions,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
+    let RegistryAdditions {
+        declarations: extra,
+        embedded_packs,
+        mut files,
+    } = additions;
     let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
-    let (stack, found) = pack_stack(
-        &PackSelection::default(),
-        packs.available(),
-        &Features::vanilla(),
-        false,
-    );
+    let mut selection = PackSelection::default();
+    let mut available = packs.available().to_vec();
+    for id in embedded_packs {
+        if available.iter().any(|pack| pack.id() == id) {
+            return Err(RegistryLoadError::Declarations(format!(
+                "the embedded pack {id} has the id of another pack"
+            )));
+        }
+        selection.enabled.push(id.clone());
+        available.push(AvailablePack::embedded(id));
+    }
+    let (stack, found) = pack_stack(&selection, &available, &Features::vanilla(), false);
     let mut diagnostics = Diagnostics::default();
     let unavailable = packs.unavailable().iter().cloned();
     diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
-    let mut files = PackFiles::default();
     insert_built_ins(&mut files);
     packs.read_files(source, &stack, &mut files)?;
 
@@ -193,7 +217,7 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 static TEST_REGISTRIES: std::sync::LazyLock<Registries> = std::sync::LazyLock::new(|| {
-    load_registries(&test_packs(), Vec::new())
+    load_registries(&test_packs(), RegistryAdditions::default())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });

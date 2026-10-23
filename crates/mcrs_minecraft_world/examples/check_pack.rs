@@ -14,7 +14,7 @@ fn main() -> ExitCode {
     let loaded = test_packs()
         .with_only_pack(Path::new(&pack))
         .map_err(RegistryLoadError::from)
-        .and_then(|packs| load_registries(&packs, Vec::new()));
+        .and_then(|packs| load_registries(&packs, Default::default()));
     let diagnostics = match loaded {
         Ok((_, diagnostics)) | Err(RegistryLoadError::Load(diagnostics)) => diagnostics,
         Err(error) => {

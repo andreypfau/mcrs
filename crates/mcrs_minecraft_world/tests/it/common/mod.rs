@@ -2,7 +2,7 @@ use mcrs_minecraft_core::{Registered, TagKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Plugins, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
@@ -143,7 +143,7 @@ pub fn run_to_playing() -> App {
     }
 }
 
-pub fn plugin_app() -> App {
+pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin::default());
     app.add_plugins(StatesPlugin);
@@ -157,6 +157,7 @@ pub fn plugin_app() -> App {
         ..Default::default()
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
+    app.add_plugins(plugins);
     app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();
@@ -226,7 +227,7 @@ impl WithFiles {
     }
 
     pub fn load(&self) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-        load_registries(self, Vec::new())
+        load_registries(self, Default::default())
     }
 }
 

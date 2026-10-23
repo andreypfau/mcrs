@@ -85,9 +85,12 @@ fn install(world: &mut World) -> Result<(), String> {
         .and_then(|bytes| mcrs_minecraft_core::check_corpus_version(&bytes))
         .map_err(|error| format!("{}: {error}", path.display()))?;
 
+    let additions = world
+        .remove_resource::<registry_load::RegistryAdditions>()
+        .unwrap_or_default();
     let started = bevy_platform::time::Instant::now();
     let (registries, diagnostics) =
-        registry_load::load_registries(&AssetReaderPacks(pack_files), Vec::new())
+        registry_load::load_registries(&AssetReaderPacks(pack_files), additions)
             .map_err(|error| error.to_string())?;
     registry_load::log_diagnostics(&diagnostics);
     tracing::info!(elapsed = ?started.elapsed(), "loaded registries");

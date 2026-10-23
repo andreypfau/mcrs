@@ -327,6 +327,7 @@ once zipped. Expected: `Bad.json` is skipped with a log line naming `t` and the 
   - With `--safeMode`, the stack is `["vanilla"]`.
   - Feature packs are enabled explicitly. A world created with a feature turned on enables the feature pack. When an existing world's `enabled_features` names a feature that no selected pack provides, every feature pack whose requested features are all in `enabled_features` is appended, with a log line.
   - The world's resulting enabled features are the union of the features requested by the packs in the stack and those already stored for the world.
+- **Local rule: embedded packs.** This implementation lets a plugin ship a pack in its binary, under an id that the plugin gives. An embedded pack is available as a built-in pack and is enabled by default. In the stack, it is above `vanilla` and below every world pack, in the order that the plugins add the embedded packs. It has no known-pack identity, so its entries are always sent with their data (REG-ENTRY-006, REG-NET-005). Its files and built entries (REG-ENTRY-007) take part in override, filtering and ordering as the files of any other pack do. The game has no embedded packs.
 - **Postconditions:**
   - The stack's order decides every override (REG-PACK-003) and every tag merge (REG-TAG-003).
   - The stack, its pack ids and each pack's known-pack identity are fixed for the server session as far as stage 1 and 2 registries are concerned (REG-RELOAD-001). A later `/datapack enable` or `disable` changes the selection recorded in `level.dat` and the stack used for the tags of every registry and for stage 3 entries (REG-RELOAD-001).
@@ -1115,6 +1116,7 @@ every entry must then carry data.
   - A packet is sent for each of these registries even when it has zero entries.
   - Static registries are never sent as entries, because both sides already know them (REG-SET-001).
   - Data-pack registries not on this list are never sent: the other world generation registries, `dimension`, and every stage 3 registry.
+- **Local rule: registries outside the `minecraft` namespace.** This implementation can declare a registry whose key is outside the `minecraft` namespace. The server never sends such a registry, whether it is a static registry or a data-pack registry. It sends no registry data packet for it, and the update tags packet has no record for it (REG-NET-008). An entry outside the `minecraft` namespace in a `minecraft` registry is sent as any other entry. The game has no registry outside the `minecraft` namespace, so a vanilla client receives the same packets from this implementation as from the game.
 - **Edge cases:** the vanilla client loads every synced registry together after it has received all packets. Whether a different packet order changes anything for it is OQ-06. For bit parity with vanilla, use the order above.
 - **Invariants:** the list is a subset of the `elements: true` registries in `datapack.json`.
 
@@ -1189,6 +1191,7 @@ Provenance: `source_suggested`. Confidence: medium.
   - The packet contains one record for each registry that has at least one tag and is either a static registry or a synced registry (REG-NET-004).
   - Registries with no tags are left out.
   - The tags of data-pack registries that are not synced are never sent. Examples are `worldgen/structure`, `villager_trade`, `worldgen/world_preset`, `worldgen/flat_level_generator_preset` and the stage 3 registries.
+  - Local rule: a registry outside the `minecraft` namespace has no record (REG-NET-004).
   - Each record maps every tag id of the registry, including empty tags, to the numeric ids of its resolved members, in resolved order (REG-TAG-005). The ids are those of REG-SET-001 for static registries and of REG-NET-006 for synced registries.
 - **Ordering constraints:**
   - The order of records, and of tags within a record, carries no meaning. Vanilla does not keep a stable order, and a client must accept any order.
