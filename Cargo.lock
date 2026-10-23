@@ -3499,6 +3499,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_state",
  "bevy_tasks",
+ "mcrs_minecraft_datapack",
  "piper",
  "thiserror 2.0.18",
 ]
@@ -3595,6 +3596,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_entity",

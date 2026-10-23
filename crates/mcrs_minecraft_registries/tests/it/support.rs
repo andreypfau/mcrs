@@ -160,15 +160,13 @@ pub struct Packs {
 
 impl Packs {
     pub fn new() -> Self {
+        let mut features = Features::vanilla();
+        features.known.push(rl("trade_rebalance"));
         Self {
             selection: PackSelection::default(),
             available: vec![AvailablePack::vanilla()],
             files: PackFiles::default(),
-            features: Features {
-                known: vec![rl("vanilla"), rl("trade_rebalance")],
-                vanilla: vec![rl("vanilla")],
-                world: None,
-            },
+            features,
         }
     }
 

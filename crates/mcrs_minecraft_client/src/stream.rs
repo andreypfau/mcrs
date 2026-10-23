@@ -1582,9 +1582,9 @@ mod tests {
             tags,
             vanilla_known: false,
         };
-        let loaded = crate::registries::load_registries(&received, None)
+        let (registries, _) = crate::registries::load_registries(&received, None)
             .unwrap_or_else(|error| panic!("{error}"));
-        CurrentRegistries::new(loaded.registries)
+        CurrentRegistries::new(registries)
     }
 
     mod jar {

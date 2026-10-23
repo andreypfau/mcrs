@@ -9,6 +9,7 @@ use bevy::log::{error, info};
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_datapack::{DirectoryPacks, PackSource};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
     ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
@@ -19,12 +20,11 @@ use mcrs_minecraft_network::client::{
     ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, ServerRegistries,
     TagsReceived, close_connection_later, finish_configuration,
 };
-use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::registry_load::{
-    DirectoryPacks, KnownEntries, LoadedRegistries, PackSource, RegistryLoadError, load_received,
-    load_vanilla_registries,
+    KnownEntries, RegistryLoadError, load_received, load_vanilla_registries,
 };
 
 use crate::blocks::BiomeTints;
@@ -105,14 +105,14 @@ impl Plugin for ClientRegistriesPlugin {
 
 fn vanilla_entries(source: &dyn PackSource) -> KnownEntries {
     load_vanilla_registries(source)
-        .and_then(|vanilla| KnownEntries::of(&vanilla.registries))
+        .and_then(|(vanilla, _)| KnownEntries::of(&vanilla))
         .unwrap_or_else(|error| refuse(&error))
 }
 
 pub(crate) fn load_registries(
     received: &ServerRegistries,
     vanilla: Option<&VanillaEntries>,
-) -> Result<LoadedRegistries, RegistryLoadError> {
+) -> Result<(Registries, Diagnostics), RegistryLoadError> {
     let known = vanilla
         .filter(|_| received.vanilla_known)
         .map(|vanilla| &vanilla.0);
@@ -126,11 +126,11 @@ pub(crate) fn load_registries(
 /// The item table is derived from the loaded registries as they are installed, so no frame sees
 /// the numbers of one load beside the values of another.
 fn install(
-    loaded: LoadedRegistries,
+    (registries, _): (Registries, Diagnostics),
     (assets, blocks): (&AssetServer, &Blocks),
     commands: &mut Commands,
 ) {
-    match load_item_definitions(assets, &loaded.registries, blocks) {
+    match load_item_definitions(assets, &registries, blocks) {
         Ok(items) => {
             info!(
                 items = items.len(),
@@ -143,7 +143,7 @@ fn install(
             commands.remove_resource::<Items>();
         }
     }
-    commands.insert_resource(CurrentRegistries::new(loaded.registries));
+    commands.insert_resource(CurrentRegistries::new(registries));
 }
 
 fn load_server_registries(

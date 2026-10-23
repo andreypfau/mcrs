@@ -589,8 +589,8 @@ fn separate_load() -> mcrs_minecraft_registries::Registries {
     use mcrs_minecraft_world::registry_load::{load_registries, test_packs};
 
     load_registries(&test_packs())
+        .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
-        .registries
 }
 
 fn assert_every_dimension_holds_the_hosts_registries(app: &App) {

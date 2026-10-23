@@ -1,7 +1,7 @@
 use crate::support;
 
-use mcrs_minecraft_assets::packs::VANILLA_ROOT;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_datapack::VANILLA_ROOT;
 
 fn corpus() -> &'static BlockDefinitions {
     &support::standalone_corpus().0.0

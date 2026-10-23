@@ -4,7 +4,6 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::VANILLA_ROOT;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -18,7 +17,7 @@ use mcrs_minecraft_protocol::packets::configuration::{
 };
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
-use mcrs_minecraft_datapack::VANILLA_PACK;
+use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{

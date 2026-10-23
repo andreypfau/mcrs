@@ -1,107 +1,43 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_ROOT, below_vanilla_root};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_datapack::{
+    Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
+};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
-use mcrs_minecraft_datapack::{
-    AvailablePack, Features, Level, PackDiagnostic, PackFiles, PackSelection, PackStack,
-    StackedPack, pack_stack,
-};
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Received, Registries, load};
 
 use crate::declarations;
 use crate::packs::DATAPACK_REPORT;
-
-const FEATURE_PACKS: &str = "minecraft/datapacks";
-const METADATA: &str = "pack.mcmeta";
-const VANILLA_FEATURE: &str = "minecraft:vanilla";
-const STANDARD_DATA: &str = "data";
-
-pub struct PackEntry {
-    pub name: String,
-    pub directory: bool,
-}
-
-pub trait PackSource {
-    fn read(&self, path: &str) -> Result<Vec<u8>, String>;
-
-    fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String>;
-}
-
-/// The packs under `assets`, with the vanilla pack's directory read from `vanilla`, which holds
-/// the game jar's `data/minecraft` tree.
-pub struct DirectoryPacks {
-    assets: PathBuf,
-    vanilla: PathBuf,
-}
-
-impl DirectoryPacks {
-    pub fn new(assets: PathBuf, vanilla: PathBuf) -> Self {
-        Self { assets, vanilla }
-    }
-
-    fn path(&self, path: &str) -> PathBuf {
-        match below_vanilla_root(Path::new(path)) {
-            Some(below) => self.vanilla.join(below),
-            None => self.assets.join(path),
-        }
-    }
-}
-
-impl PackSource for DirectoryPacks {
-    fn read(&self, path: &str) -> Result<Vec<u8>, String> {
-        std::fs::read(self.path(path)).map_err(|error| format!("{path}: {error}"))
-    }
-
-    fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String> {
-        let entries = match std::fs::read_dir(self.path(directory)) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(format!("{directory}: {error}")),
-        };
-        let mut listed = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|error| format!("{directory}: {error}"))?;
-            let kind = entry
-                .file_type()
-                .map_err(|error| format!("{directory}: {error}"))?;
-            if let Ok(name) = entry.file_name().into_string() {
-                listed.push(PackEntry {
-                    name,
-                    directory: kind.is_dir(),
-                });
-            }
-        }
-        Ok(listed)
-    }
-}
 
 #[cfg(feature = "bevy")]
 pub(crate) struct AssetReaderPacks<'a>(pub &'a dyn bevy_asset::io::ErasedAssetReader);
 
 #[cfg(feature = "bevy")]
 impl PackSource for AssetReaderPacks<'_> {
-    fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+    fn read(&self, path: &str) -> Result<Vec<u8>, ReadError> {
         bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
             self.0,
             std::path::Path::new(path),
         ))
-        .map_err(|error| format!("{path}: {error}"))
+        .map_err(|error| ReadError::new(path, error))
     }
 
-    fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String> {
+    fn list(
+        &self,
+        directory: &str,
+    ) -> Result<Vec<mcrs_minecraft_datapack::DirectoryEntry>, ReadError> {
         use bevy_asset::io::AssetReaderError;
         use bevy_tasks::futures_lite::StreamExt;
         bevy_tasks::block_on(async {
             let mut paths = match self.0.read_directory(std::path::Path::new(directory)).await {
                 Ok(paths) => paths,
                 Err(AssetReaderError::NotFound(_)) => return Ok(Vec::new()),
-                Err(error) => return Err(format!("{directory}: {error}")),
+                Err(error) => return Err(ReadError::new(directory, error)),
             };
             let mut listed = Vec::new();
             while let Some(path) = paths.next().await {
@@ -109,9 +45,9 @@ impl PackSource for AssetReaderPacks<'_> {
                     .0
                     .is_directory(&path)
                     .await
-                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                    .map_err(|error| ReadError::new(path.display().to_string(), error))?;
                 if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
-                    listed.push(PackEntry {
+                    listed.push(mcrs_minecraft_datapack::DirectoryEntry {
                         name: name.to_owned(),
                         directory,
                     });
@@ -124,17 +60,17 @@ impl PackSource for AssetReaderPacks<'_> {
 
 #[derive(Debug)]
 pub enum RegistryLoadError {
-    Read(String),
-    Malformed(String),
+    Read(ReadError),
     Declarations(String),
+    Packet(String),
     Load(Diagnostics),
 }
 
 impl fmt::Display for RegistryLoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RegistryLoadError::Read(message) => write!(f, "cannot read {message}"),
-            RegistryLoadError::Malformed(message) | RegistryLoadError::Declarations(message) => {
+            RegistryLoadError::Read(error) => write!(f, "cannot read {error}"),
+            RegistryLoadError::Declarations(message) | RegistryLoadError::Packet(message) => {
                 f.write_str(message)
             }
             RegistryLoadError::Load(diagnostics) => {
@@ -151,180 +87,10 @@ impl fmt::Display for RegistryLoadError {
 
 impl std::error::Error for RegistryLoadError {}
 
-pub struct LoadedRegistries {
-    pub registries: Registries,
-    pub diagnostics: Diagnostics,
-}
-
-fn read(source: &dyn PackSource, path: &str) -> Result<Vec<u8>, RegistryLoadError> {
-    source.read(path).map_err(RegistryLoadError::Read)
-}
-
-fn list(source: &dyn PackSource, directory: &str) -> Result<Vec<PackEntry>, RegistryLoadError> {
-    let mut entries = source.list(directory).map_err(RegistryLoadError::Read)?;
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(entries)
-}
-
-fn walk(source: &dyn PackSource, root: &str) -> Result<Vec<(String, String)>, RegistryLoadError> {
-    let mut found = Vec::new();
-    let mut directories = vec![root.to_owned()];
-    while let Some(directory) = directories.pop() {
-        for entry in list(source, &directory)? {
-            let path = format!("{directory}/{}", entry.name);
-            if entry.directory {
-                if path != FEATURE_PACKS {
-                    directories.push(path);
-                }
-            } else if entry.name.ends_with(".json")
-                && let Some(relative) = path.strip_prefix(root)
-            {
-                let relative = relative.trim_start_matches('/').to_owned();
-                found.push((path, relative));
-            }
-        }
+impl From<ReadError> for RegistryLoadError {
+    fn from(error: ReadError) -> Self {
+        RegistryLoadError::Read(error)
     }
-    Ok(found)
-}
-
-enum PackRoot {
-    Vanilla,
-    Local(String),
-}
-
-struct Available {
-    packs: Vec<AvailablePack>,
-    features: Features,
-    roots: BTreeMap<String, PackRoot>,
-    unavailable: Vec<PackDiagnostic>,
-}
-
-fn vanilla_pack() -> Result<Available, RegistryLoadError> {
-    let vanilla_feature = ResourceLocation::read(VANILLA_FEATURE)
-        .map_err(|error| RegistryLoadError::Malformed(error.to_string()))?;
-    let vanilla = AvailablePack::vanilla();
-    Ok(Available {
-        features: Features {
-            known: vec![vanilla_feature.clone()],
-            vanilla: vec![vanilla_feature],
-            world: None,
-        },
-        roots: BTreeMap::from([(vanilla.id().to_owned(), PackRoot::Vanilla)]),
-        packs: vec![vanilla],
-        unavailable: Vec::new(),
-    })
-}
-
-fn available_packs(source: &dyn PackSource) -> Result<Available, RegistryLoadError> {
-    let mut available = vanilla_pack()?;
-    for entry in list(source, PACKS_ROOT)?
-        .into_iter()
-        .filter(|e| e.directory)
-    {
-        let root = format!("{PACKS_ROOT}/{}", entry.name);
-        let unavailable = |reason| PackDiagnostic::UnavailablePack {
-            pack: format!("file/{}", entry.name),
-            reason,
-        };
-        if list(source, &root)?
-            .iter()
-            .any(|e| e.directory && e.name == STANDARD_DATA)
-        {
-            available.unavailable.push(unavailable(format!(
-                "{root} has a top-level {STANDARD_DATA} directory, but a local pack keeps its \
-                 namespaces at the pack root"
-            )));
-            continue;
-        }
-        let pack = match source.read(&format!("{root}/{METADATA}")) {
-            Ok(metadata) => AvailablePack::directory(&entry.name, metadata),
-            Err(reason) => {
-                available.unavailable.push(unavailable(reason));
-                continue;
-            }
-        };
-        available
-            .roots
-            .insert(pack.id().to_owned(), PackRoot::Local(root));
-        available.packs.push(pack);
-    }
-    Ok(available)
-}
-
-fn namespace_into(
-    source: &dyn PackSource,
-    files: &mut PackFiles,
-    pack: &str,
-    (root, data): (&str, &str),
-    namespace: &str,
-) -> Result<(), RegistryLoadError> {
-    let directory = match root {
-        "" => namespace.to_owned(),
-        _ => format!("{root}/{namespace}"),
-    };
-    for (path, relative) in walk(source, &directory)? {
-        files.insert(
-            pack,
-            format!("{data}/{namespace}/{relative}"),
-            read(source, &path)?,
-        );
-    }
-    Ok(())
-}
-
-fn local_into(
-    source: &dyn PackSource,
-    files: &mut PackFiles,
-    pack: &StackedPack,
-    root: &str,
-) -> Result<(), RegistryLoadError> {
-    let overlays = pack.overlays();
-    for entry in list(source, root)?.into_iter().filter(|e| e.directory) {
-        if !overlays.contains(&entry.name) {
-            namespace_into(source, files, pack.id(), (root, STANDARD_DATA), &entry.name)?;
-        }
-    }
-    for overlay in overlays {
-        let overlay_root = format!("{root}/{overlay}");
-        let data = format!("{overlay}/{STANDARD_DATA}");
-        for entry in list(source, &overlay_root)?
-            .into_iter()
-            .filter(|e| e.directory)
-        {
-            namespace_into(
-                source,
-                files,
-                pack.id(),
-                (&overlay_root, &data),
-                &entry.name,
-            )?;
-        }
-    }
-    Ok(())
-}
-
-fn pack_files(
-    source: &dyn PackSource,
-    stack: &PackStack,
-    roots: &BTreeMap<String, PackRoot>,
-) -> Result<PackFiles, RegistryLoadError> {
-    let mut files = PackFiles::default();
-    for pack in stack.packs() {
-        match roots.get(pack.id()) {
-            Some(PackRoot::Vanilla) => {
-                namespace_into(
-                    source,
-                    &mut files,
-                    pack.id(),
-                    ("", STANDARD_DATA),
-                    VANILLA_ROOT,
-                )?;
-            }
-            Some(PackRoot::Local(root)) => local_into(source, &mut files, pack, root)?,
-            None => {}
-        }
-    }
-    Ok(files)
 }
 
 #[cfg(feature = "bevy")]
@@ -338,46 +104,49 @@ pub(crate) fn log_diagnostics(diagnostics: &Diagnostics) {
     }
 }
 
-fn merged(mut first: Diagnostics, second: &Diagnostics) -> Diagnostics {
-    first.extend(second.iter().cloned());
-    first
-}
-
-pub fn load_registries(source: &dyn PackSource) -> Result<LoadedRegistries, RegistryLoadError> {
-    load_stack(source, available_packs(source)?)
+pub fn load_registries(
+    source: &dyn PackSource,
+) -> Result<(Registries, Diagnostics), RegistryLoadError> {
+    load_stack(source, RootPacks::read(source)?)
 }
 
 pub fn load_vanilla_registries(
     source: &dyn PackSource,
-) -> Result<LoadedRegistries, RegistryLoadError> {
-    load_stack(source, vanilla_pack()?)
+) -> Result<(Registries, Diagnostics), RegistryLoadError> {
+    load_stack(source, RootPacks::vanilla())
 }
 
 fn load_stack(
     source: &dyn PackSource,
-    available: Available,
-) -> Result<LoadedRegistries, RegistryLoadError> {
-    let report = read(source, DATAPACK_REPORT)?;
+    packs: RootPacks,
+) -> Result<(Registries, Diagnostics), RegistryLoadError> {
+    let report = source.read(DATAPACK_REPORT)?;
     let declarations = declarations::plan(&report).map_err(RegistryLoadError::Declarations)?;
 
     let (stack, found) = pack_stack(
         &PackSelection::default(),
-        &available.packs,
-        &available.features,
+        packs.available(),
+        &Features::vanilla(),
         false,
     );
     let mut diagnostics = Diagnostics::default();
-    diagnostics.extend(found.into_iter().chain(available.unavailable).map(Diagnostic::Pack));
-    let files = pack_files(source, &stack, &available.roots)?;
+    let unavailable = packs.unavailable().iter().cloned();
+    diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
+    let mut files = PackFiles::default();
+    packs.read_files(source, &stack, &mut files)?;
 
     let outcome = load(&declarations, Arc::new(stack), &files, None);
     drop(files);
-    let (registries, loaded) =
-        outcome.map_err(|failed| RegistryLoadError::Load(merged(diagnostics.clone(), &failed)))?;
-    Ok(LoadedRegistries {
-        registries,
-        diagnostics: merged(diagnostics, &loaded),
-    })
+    match outcome {
+        Ok((registries, loaded)) => {
+            diagnostics.extend(loaded);
+            Ok((registries, diagnostics))
+        }
+        Err(failed) => {
+            diagnostics.extend(failed);
+            Err(RegistryLoadError::Load(diagnostics))
+        }
+    }
 }
 
 /// The network form of every synced entry of a load: what a server that holds the same pack
@@ -389,7 +158,7 @@ impl KnownEntries {
         let mut entries = HashMap::new();
         for body in registries.network().registry_data(false) {
             let packet = ClientboundRegistryData::decode(&mut &body[..])
-                .map_err(|error| RegistryLoadError::Declarations(error.to_string()))?;
+                .map_err(|error| RegistryLoadError::Packet(error.to_string()))?;
             let registry: ResourceLocation = packet.registry.into();
             for entry in packet.entries {
                 if let Some(data) = entry.data {
@@ -414,7 +183,7 @@ pub fn load_received(
     report: &[u8],
     known: Option<&KnownEntries>,
     (registries, tags): Collected,
-) -> Result<LoadedRegistries, RegistryLoadError> {
+) -> Result<(Registries, Diagnostics), RegistryLoadError> {
     let mut missing = Vec::new();
     let registries = registries
         .into_iter()
@@ -452,31 +221,27 @@ pub fn load_received(
     let received = Received { registries, tags };
 
     let declarations = declarations::plan(report).map_err(RegistryLoadError::Declarations)?;
-    let (registries, diagnostics) =
-        mcrs_minecraft_registries::load_received(&declarations, &received)
-            .map_err(RegistryLoadError::Load)?;
-    Ok(LoadedRegistries {
-        registries,
-        diagnostics,
-    })
+    mcrs_minecraft_registries::load_received(&declarations, &received)
+        .map_err(RegistryLoadError::Load)
 }
 
 /// The repository's assets over the pinned client jar's data pack, which must be installed.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn test_packs() -> DirectoryPacks {
-    let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    DirectoryPacks::new(assets, mcrs_minecraft_fixtures::vanilla_dir().to_owned())
+pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
+    let assets = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+    mcrs_minecraft_datapack::DirectoryPacks::new(assets, mcrs_minecraft_fixtures::vanilla_dir().to_owned())
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-static TEST_REGISTRIES: std::sync::LazyLock<LoadedRegistries> = std::sync::LazyLock::new(|| {
+static TEST_REGISTRIES: std::sync::LazyLock<Registries> = std::sync::LazyLock::new(|| {
     load_registries(&test_packs())
+        .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn test_registries() -> &'static Registries {
-    &TEST_REGISTRIES.registries
+    &TEST_REGISTRIES
 }
 
 /// What a client collects from the payloads `registries` encoded; entries of the vanilla pack go
@@ -518,16 +283,10 @@ pub fn sent_by(registries: &Registries, known: bool) -> Collected {
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub fn registries_declaring(declarations: &[mcrs_minecraft_registries::Declaration]) -> Registries {
-    let vanilla = ResourceLocation::read(VANILLA_FEATURE).expect("a valid feature name");
-    let features = Features {
-        known: vec![vanilla.clone()],
-        vanilla: vec![vanilla],
-        world: None,
-    };
     let (stack, _) = pack_stack(
         &PackSelection::default(),
-        &[AvailablePack::vanilla()],
-        &features,
+        RootPacks::vanilla().available(),
+        &Features::vanilla(),
         false,
     );
     mcrs_minecraft_registries::load(declarations, Arc::new(stack), &PackFiles::default(), None)

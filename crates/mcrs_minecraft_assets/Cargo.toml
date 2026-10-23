@@ -16,5 +16,6 @@ bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
+mcrs_minecraft_datapack.workspace = true
 piper.workspace = true
 thiserror.workspace = true

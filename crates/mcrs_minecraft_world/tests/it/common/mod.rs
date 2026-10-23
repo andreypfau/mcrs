@@ -9,14 +9,14 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, Resolve};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::{
-    DirectoryPacks, LoadedRegistries, PackEntry, PackSource, RegistryLoadError, load_registries,
-};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
@@ -225,22 +225,22 @@ impl WithFiles {
         })
     }
 
-    pub fn load(&self) -> Result<LoadedRegistries, RegistryLoadError> {
+    pub fn load(&self) -> Result<(Registries, Diagnostics), RegistryLoadError> {
         load_registries(self)
     }
 }
 
 impl PackSource for WithFiles {
-    fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+    fn read(&self, path: &str) -> Result<Vec<u8>, ReadError> {
         match self.files.get(path) {
             Some(Some(bytes)) => Ok(bytes.clone()),
-            Some(None) => Err(format!("{path}: unreadable")),
-            None if self.is_hidden(path) => Err(format!("{path}: hidden")),
+            Some(None) => Err(ReadError::new(path, "unreadable")),
+            None if self.is_hidden(path) => Err(ReadError::new(path, "hidden")),
             None => self.base.read(path),
         }
     }
 
-    fn list(&self, directory: &str) -> Result<Vec<PackEntry>, String> {
+    fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError> {
         let mut listed = match self.is_hidden(directory) {
             true => Vec::new(),
             false => self.base.list(directory)?,
@@ -256,7 +256,7 @@ impl PackSource for WithFiles {
                 None => (rest, false),
             };
             if !listed.iter().any(|entry| entry.name == name) {
-                listed.push(PackEntry {
+                listed.push(DirectoryEntry {
                     name: name.to_owned(),
                     directory,
                 });

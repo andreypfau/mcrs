@@ -94,22 +94,11 @@ impl Diagnostic {
     }
 }
 
-pub(crate) const ROOT: StaticResourceLocation = ResourceLocation::new_static("minecraft:root");
+const ROOT: StaticResourceLocation = ResourceLocation::new_static("minecraft:root");
 
-fn list<T: fmt::Display>(f: &mut fmt::Formatter<'_>, items: &[T]) -> fmt::Result {
-    for (n, item) in items.iter().enumerate() {
-        if n > 0 {
-            f.write_str(", ")?;
-        }
-        write!(f, "{item}")?;
-    }
-    Ok(())
-}
-
-impl From<PackDiagnostic> for Diagnostic {
-    fn from(diagnostic: PackDiagnostic) -> Self {
-        Diagnostic::Pack(diagnostic)
-    }
+fn list(missing: &[Missing]) -> String {
+    let items: Vec<String> = missing.iter().map(ToString::to_string).collect();
+    items.join(", ")
 }
 
 impl fmt::Display for Missing {
@@ -146,7 +135,7 @@ impl fmt::Display for Diagnostic {
                 missing,
             } => {
                 write!(f, "tag #{tag} in {registry} failed, missing ")?;
-                list(f, missing)
+                f.write_str(&list(missing))
             }
             Diagnostic::Entry {
                 pack,
@@ -168,8 +157,7 @@ impl fmt::Display for Diagnostic {
                 Ok(())
             }
             Diagnostic::Unresolved { missing, .. } => {
-                f.write_str("unresolved references ")?;
-                list(f, missing)
+                write!(f, "unresolved references {}", list(missing))
             }
             Diagnostic::EmptyRegistry { .. } => f.write_str("the registry must not be empty"),
             Diagnostic::TooManyEntries { count, .. } => over_range(f, *count, "entries"),
@@ -203,6 +191,15 @@ impl fmt::Display for Diagnostics {
             write!(f, "{diagnostic}")?;
         }
         Ok(())
+    }
+}
+
+impl IntoIterator for Diagnostics {
+    type Item = Diagnostic;
+    type IntoIter = std::vec::IntoIter<Diagnostic>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

@@ -9,6 +9,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PACK_FILES;
+use mcrs_minecraft_datapack::ReadError;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -62,8 +63,9 @@ impl Plugin for MinecraftWorldPlugin {
         let pack_files = asset_server
             .get_source(PACK_FILES)
             .unwrap_or_else(|error| {
-                registries::refuse(&RegistryLoadError::Read(format!(
-                    "asset source {PACK_FILES}: {error}"
+                registries::refuse(&RegistryLoadError::Read(ReadError::new(
+                    format!("asset source {PACK_FILES}"),
+                    error,
                 )))
             })
             .reader();
@@ -77,11 +79,12 @@ impl Plugin for MinecraftWorldPlugin {
         }
         let registries = {
             let started = bevy_platform::time::Instant::now();
-            let loaded = registry_load::load_registries(&AssetReaderPacks(pack_files))
-                .unwrap_or_else(|error| registries::refuse(&error));
-            registry_load::log_diagnostics(&loaded.diagnostics);
+            let (registries, diagnostics) =
+                registry_load::load_registries(&AssetReaderPacks(pack_files))
+                    .unwrap_or_else(|error| registries::refuse(&error));
+            registry_load::log_diagnostics(&diagnostics);
             tracing::info!(elapsed = ?started.elapsed(), "loaded registries");
-            loaded.registries
+            registries
         };
         {
             let asset_server = app.world().resource::<AssetServer>().clone();

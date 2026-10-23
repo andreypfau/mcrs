@@ -7,19 +7,9 @@ use bevy_asset::io::{
 };
 use bevy_ecs::resource::Resource;
 use bevy_tasks::futures_lite::StreamExt;
+use mcrs_minecraft_datapack::{PACKS_ROOT, VANILLA_ROOT, below_vanilla_root};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-
-/// The directory below the asset root that holds one directory per local pack.
-pub const PACKS_ROOT: &str = "mcrs/datapacks";
-/// The vanilla pack's directory below a pack root. The game jar's `data/minecraft` tree fills
-/// it, never the assets root.
-pub const VANILLA_ROOT: &str = "minecraft";
-
-/// `path`, relative to a pack root, below the [`VANILLA_ROOT`] directory, if it lies there.
-pub fn below_vanilla_root(path: &Path) -> Option<&Path> {
-    path.strip_prefix(VANILLA_ROOT).ok()
-}
 
 pub async fn pack_names(reader: &dyn ErasedAssetReader) -> Vec<String> {
     let Ok(mut listing) = reader.read_directory(Path::new(PACKS_ROOT)).await else {

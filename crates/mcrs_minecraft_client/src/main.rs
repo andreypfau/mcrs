@@ -19,6 +19,8 @@ use bevy::window::{
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::Id;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
@@ -26,8 +28,6 @@ use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
-#[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_world::registry_load::DirectoryPacks;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 

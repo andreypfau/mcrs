@@ -1,7 +1,7 @@
 use bevy_app::App;
-use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_datapack::PACKS_ROOT;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;

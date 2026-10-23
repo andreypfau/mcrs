@@ -458,7 +458,7 @@ fn a_local_entry_comes_from_its_pack() {
 fn packs_follow_vanilla_in_name_order() {
     let pattern =
         |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
-    let loaded = WithFiles::over_assets()
+    let (registries, _) = WithFiles::over_assets()
         .with("minecraft/banner_pattern/a.json", pattern("a"))
         .pack("mcrs/datapacks/zz_second")
         .with(
@@ -476,7 +476,7 @@ fn packs_follow_vanilla_in_name_order() {
         )
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
-    let set = &loaded.registries;
+    let set = &registries;
 
     let patterns = set.registry::<BannerPattern>().unwrap();
     let entry = |name: &str| {
@@ -564,24 +564,19 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
 
 #[test]
 fn a_pack_directory_without_a_namespace_has_no_files() {
-    let loaded = WithFiles::over_assets()
+    let (registries, diagnostics) = WithFiles::over_assets()
         .pack("mcrs/datapacks/zz_empty")
         .load()
         .unwrap_or_else(|error| panic!("{error}"));
 
+    assert!(registries.known_packs().all(|known| known.id != "zz_empty"));
     assert!(
-        loaded
-            .registries
-            .known_packs()
-            .all(|known| known.id != "zz_empty")
-    );
-    assert!(
-        !loaded.diagnostics.iter().any(|diagnostic| matches!(
+        !diagnostics.iter().any(|diagnostic| matches!(
             diagnostic,
             Diagnostic::Pack(PackDiagnostic::UnavailablePack { pack, .. }) if pack == "file/zz_empty"
         )),
         "{:?}",
-        loaded.diagnostics
+        diagnostics
     );
 }
 
@@ -1453,7 +1448,7 @@ pub(crate) fn load_shipped_and(
         .collect();
     WithFiles::test_pack(&files)
         .load()
-        .map(|loaded| loaded.registries)
+        .map(|(registries, _)| registries)
 }
 
 #[test]

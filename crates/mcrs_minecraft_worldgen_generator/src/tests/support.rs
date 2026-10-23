@@ -318,9 +318,8 @@ pub fn registries_over(leading: &[&str]) -> Registries {
             }
         }
     }
-    let loaded = load_received(REPORT, None, (registries, tags))
-        .unwrap_or_else(|error| panic!("the renumbered biomes do not load: {error}"))
-        .registries;
+    let (loaded, _) = load_received(REPORT, None, (registries, tags))
+        .unwrap_or_else(|error| panic!("the renumbered biomes do not load: {error}"));
     over.insert(key, loaded.clone());
     loaded
 }

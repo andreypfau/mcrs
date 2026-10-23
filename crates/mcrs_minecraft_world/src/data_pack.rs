@@ -138,6 +138,7 @@ mod tests {
     use super::*;
     use bevy_asset::io::memory::{Dir, MemoryAssetReader};
     use mcrs_minecraft_assets::packs::layered_reader;
+    use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
 
     #[test]
     fn a_named_template_is_requested_when_any_pack_layer_holds_it() {
@@ -181,19 +182,19 @@ mod tests {
     }
 
     struct WithExtraPack {
-        base: crate::registry_load::DirectoryPacks,
+        base: DirectoryPacks,
         files: Vec<(String, Vec<u8>)>,
     }
 
-    impl crate::registry_load::PackSource for WithExtraPack {
-        fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+    impl PackSource for WithExtraPack {
+        fn read(&self, path: &str) -> Result<Vec<u8>, ReadError> {
             match self.files.iter().find(|(file, _)| file == path) {
                 Some((_, bytes)) => Ok(bytes.clone()),
                 None => self.base.read(path),
             }
         }
 
-        fn list(&self, directory: &str) -> Result<Vec<crate::registry_load::PackEntry>, String> {
+        fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError> {
             let mut listed = self.base.list(directory)?;
             let prefix = format!("{directory}/");
             for (path, _) in &self.files {
@@ -205,7 +206,7 @@ mod tests {
                     None => (rest, false),
                 };
                 if !listed.iter().any(|entry| entry.name == name) {
-                    listed.push(crate::registry_load::PackEntry {
+                    listed.push(DirectoryEntry {
                         name: name.to_owned(),
                         directory,
                     });
@@ -217,7 +218,7 @@ mod tests {
 
     #[test]
     fn a_template_named_only_by_an_extra_pack_pool_is_requested() {
-        use crate::registry_load::{DirectoryPacks, load_registries};
+        use crate::registry_load::load_registries;
         use bevy_app::{App, TaskPoolPlugin};
         use bevy_asset::io::AssetSourceBuilder;
         use bevy_asset::io::memory::MemoryAssetReader;
@@ -248,9 +249,7 @@ mod tests {
                 ),
             ],
         };
-        let registries = load_registries(&source)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .registries;
+        let (registries, _) = load_registries(&source).unwrap_or_else(|error| panic!("{error}"));
 
         let root = Dir::default();
         root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 
 use crate::filter::Filter;
 
@@ -80,6 +80,19 @@ pub struct Features {
     pub known: Vec<ResourceLocation>,
     pub vanilla: Vec<ResourceLocation>,
     pub world: Option<Vec<ResourceLocation>>,
+}
+
+impl Features {
+    /// The vanilla feature alone, known and enabled by the vanilla pack, in a world that does not
+    /// restrict its features.
+    pub fn vanilla() -> Self {
+        let vanilla: ResourceLocation = rl!("minecraft:vanilla").into();
+        Self {
+            known: vec![vanilla.clone()],
+            vanilla: vec![vanilla],
+            world: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
