@@ -2,12 +2,11 @@ use mcrs_minecraft_core::ResourceLocation;
 
 use crate::Registries;
 use crate::load::{Declaration, Kind};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::Diagnostics;
 use crate::tags::TagTable;
 
-/// The bodies of the configuration packets that carry the registries, without their packet ids,
-/// encoded once per load.
-#[derive(Debug, Default)]
+/// The bodies of the configuration packets that carry the registries, without their packet ids.
+#[derive(Debug)]
 pub struct NetworkSnapshot {
     registries: Box<[SyncedRegistry]>,
     tags: Box<[u8]>,
@@ -20,6 +19,42 @@ struct SyncedRegistry {
 }
 
 impl NetworkSnapshot {
+    /// Encodes what the configuration phase sends of `registries`, loaded over `declarations`.
+    pub fn new(declarations: &[Declaration], registries: &Registries) -> Result<Self, Diagnostics> {
+        let mut synced = Vec::new();
+        let mut synced_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
+        let mut static_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
+        let mut errors = Vec::new();
+        for declaration in declarations {
+            let tags = registries
+                .table(declaration.key().as_str())
+                .filter(|table| table.tags.resolved().next().is_some())
+                .map(|table| (declaration.key(), &*table.tags));
+            match &declaration.kind {
+                Kind::Fixed(_) => static_tags.extend(tags),
+                Kind::Names => {}
+                Kind::Data(data) => match data.synced_entries(registries) {
+                    None => {}
+                    Some(Ok(entries)) => {
+                        synced.push(registry_data(declaration.key(), &entries));
+                        synced_tags.extend(tags);
+                    }
+                    Some(Err(error)) => errors.push(error),
+                },
+            }
+        }
+        if !errors.is_empty() {
+            let mut report = Diagnostics::default();
+            report.push_report(errors);
+            return Err(report);
+        }
+        synced_tags.append(&mut static_tags);
+        Ok(NetworkSnapshot {
+            registries: synced.into_boxed_slice(),
+            tags: update_tags(&synced_tags),
+        })
+    }
+
     /// One registry data body per synced registry, in the declared order. With `known`, an entry
     /// whose winning pack has a known-pack identity leaves its data out.
     pub fn registry_data(&self, known: bool) -> impl Iterator<Item = &[u8]> {
@@ -43,42 +78,6 @@ pub(crate) struct SyncedEntry<'a> {
     pub(crate) name: &'a ResourceLocation,
     pub(crate) data: Vec<u8>,
     pub(crate) known: bool,
-}
-
-pub(crate) fn snapshot(
-    declarations: &[Declaration],
-    registries: &Registries,
-) -> Result<NetworkSnapshot, Vec<Diagnostic>> {
-    let mut synced = Vec::new();
-    let mut synced_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
-    let mut static_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
-    let mut errors = Vec::new();
-    for declaration in declarations {
-        let tags = registries
-            .table(declaration.key().as_str())
-            .filter(|table| table.tags.resolved().next().is_some())
-            .map(|table| (declaration.key(), &*table.tags));
-        match &declaration.kind {
-            Kind::Fixed(_) => static_tags.extend(tags),
-            Kind::Names => {}
-            Kind::Data(data) => match data.synced_entries(registries) {
-                None => {}
-                Some(Ok(entries)) => {
-                    synced.push(registry_data(declaration.key(), &entries));
-                    synced_tags.extend(tags);
-                }
-                Some(Err(error)) => errors.push(error),
-            },
-        }
-    }
-    if !errors.is_empty() {
-        return Err(errors);
-    }
-    synced_tags.append(&mut static_tags);
-    Ok(NetworkSnapshot {
-        registries: synced.into_boxed_slice(),
-        tags: update_tags(&synced_tags),
-    })
 }
 
 fn registry_data(registry: &ResourceLocation, entries: &[SyncedEntry<'_>]) -> SyncedRegistry {

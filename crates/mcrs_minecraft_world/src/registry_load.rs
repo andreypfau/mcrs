@@ -9,7 +9,8 @@ use mcrs_minecraft_datapack::{
     pack_stack,
 };
 use mcrs_minecraft_registries::{
-    DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry, load,
+    DataValue, Declaration, Diagnostic, Diagnostics, NetworkSnapshot, Received, Registries,
+    insert_entry, load,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -185,6 +186,15 @@ fn insert_all<V: DataValue>(
     }
 }
 
+/// What the configuration phase sends of `registries`, a load of the packs of `source`.
+pub fn network_snapshot(
+    source: &dyn PackSource,
+    registries: &Registries,
+) -> Result<NetworkSnapshot, RegistryLoadError> {
+    let declarations = declarations(&source.read(DATAPACK_REPORT)?, Vec::new())?;
+    NetworkSnapshot::new(&declarations, registries).map_err(RegistryLoadError::Load)
+}
+
 /// The registries a client holds after a server's configuration, over the vanilla declarations.
 /// An entry sent without data takes the data of the same entry of `known`.
 pub fn load_received(
@@ -219,6 +229,18 @@ pub fn test_registries() -> &'static Registries {
     &TEST_REGISTRIES
 }
 
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+static TEST_NETWORK: std::sync::LazyLock<NetworkSnapshot> = std::sync::LazyLock::new(|| {
+    network_snapshot(&test_packs(), &TEST_REGISTRIES)
+        .unwrap_or_else(|error| panic!("the registries cannot be sent:\n{error}"))
+});
+
+/// What the configuration phase sends of [`test_registries`].
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn test_network() -> &'static NetworkSnapshot {
+    &TEST_NETWORK
+}
+
 /// What a client collects from the payloads `registries` encoded; entries of the vanilla pack go
 /// without data when the client is `known` to hold it.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
@@ -228,7 +250,8 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
         ClientboundRegistryData, ClientboundUpdateTags,
     };
 
-    let network = registries.network();
+    let network = network_snapshot(&test_packs(), registries)
+        .unwrap_or_else(|error| panic!("the registries cannot be sent:\n{error}"));
     let registries = network
         .registry_data(known)
         .map(|body| {

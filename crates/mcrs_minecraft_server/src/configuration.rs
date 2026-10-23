@@ -39,6 +39,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -164,7 +165,7 @@ fn on_configuration_enter(
 pub fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection, &AwaitingKnownPacks)>,
-    registries: Res<CurrentRegistries>,
+    synced: Res<SyncedRegistries>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con, AwaitingKnownPacks(offered))) = query.get_mut(event.entity) else {
@@ -179,7 +180,7 @@ pub fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    let network = registries.network();
+    let network = &synced.0;
     let known = negotiated(offered, &packs_response.known_packs);
     for body in network.registry_data(known) {
         con.write_packet(&EncodedBody::<ClientboundRegistryData>::new(body));

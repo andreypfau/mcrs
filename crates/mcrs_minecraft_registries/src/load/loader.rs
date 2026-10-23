@@ -8,7 +8,6 @@ use super::ctx::{LoadCtx, Slot};
 use super::declaration::{Declaration, EntrySource, Kind};
 use super::index::{self, Directories, SlotFiles};
 use super::tag_build;
-use crate::network;
 use crate::registries::{Erased, Registries, Stage, Table};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 use crate::order::{entry_file_order, identifier_order};
@@ -335,7 +334,6 @@ pub(super) fn assemble(
         tables: Arc::new(tables),
         world_stack: previous.map_or_else(|| Arc::clone(&stack), |p| Arc::clone(&p.world_stack)),
         reload_stack: stack,
-        network: Arc::default(),
     })
 }
 
@@ -434,15 +432,8 @@ pub fn load(
         }
     }
 
-    let mut registries = match assemble(slots, stack, previous) {
-        Ok(registries) => registries,
-        Err(errors) => return Err(fail(diagnostics, errors)),
-    };
-    match network::snapshot(declarations, &registries) {
-        Ok(network) => {
-            registries.network = Arc::new(network);
-            Ok((registries, diagnostics))
-        }
+    match assemble(slots, stack, previous) {
+        Ok(registries) => Ok((registries, diagnostics)),
         Err(errors) => Err(fail(diagnostics, errors)),
     }
 }

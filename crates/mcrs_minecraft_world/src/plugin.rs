@@ -8,6 +8,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PACK_FILES;
+use mcrs_minecraft_registries::NetworkSnapshot;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -38,6 +39,10 @@ impl LoadedRegistryAssets {
         })
     }
 }
+
+/// What the configuration phase sends of the installed registries, encoded once per load.
+#[derive(Resource)]
+pub struct SyncedRegistries(pub NetworkSnapshot);
 
 pub struct MinecraftWorldPlugin;
 
@@ -86,6 +91,8 @@ fn install(world: &mut World) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
     registry_load::log_diagnostics(&diagnostics);
     tracing::info!(elapsed = ?started.elapsed(), "loaded registries");
+    let synced = registry_load::network_snapshot(&AssetReaderPacks(pack_files), &registries)
+        .map_err(|error| error.to_string())?;
 
     let (definitions, report) =
         mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
@@ -114,6 +121,7 @@ fn install(world: &mut World) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
     tracing::info!(items = items.len(), "loaded item definitions");
     world.insert_resource(sound_sets);
+    world.insert_resource(SyncedRegistries(synced));
     crate::registry_snapshot::install_registries(
         world,
         registries,

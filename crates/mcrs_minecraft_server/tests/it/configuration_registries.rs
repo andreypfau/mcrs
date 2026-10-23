@@ -18,19 +18,22 @@ use mcrs_minecraft_protocol::packets::configuration::{
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_registries::{CurrentRegistries, NetworkSnapshot, Registries};
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
     KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
 };
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_world::SyncedRegistries;
+use mcrs_minecraft_world::registry_load::{
+    network_snapshot, test_network, test_packs, test_registries,
+};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn served(root: &Path) -> Registries {
+fn served(root: &Path) -> (Registries, NetworkSnapshot) {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
         asset_path: Some(root.to_str().unwrap().to_owned()),
@@ -39,13 +42,17 @@ fn served(root: &Path) -> Registries {
     });
     app.finish();
     app.cleanup();
-    Registries::clone(app.world().resource::<CurrentRegistries>())
+    let registries = Registries::clone(app.world().resource::<CurrentRegistries>());
+    let synced = app
+        .world_mut()
+        .remove_resource::<SyncedRegistries>()
+        .unwrap();
+    (registries, synced.0)
 }
 
-/// The registry data packets the load encoded, decoded as a client reads them.
-pub(crate) fn sent(registries: &Registries, known: bool) -> Vec<ClientboundRegistryData<'_>> {
-    registries
-        .network()
+/// The registry data packets the server encoded, decoded as a client reads them.
+pub(crate) fn sent(network: &NetworkSnapshot, known: bool) -> Vec<ClientboundRegistryData<'_>> {
+    network
         .registry_data(known)
         .map(|body| {
             let mut r = body;
@@ -56,8 +63,8 @@ pub(crate) fn sent(registries: &Registries, known: bool) -> Vec<ClientboundRegis
         .collect()
 }
 
-pub(crate) fn sent_update_tags(registries: &Registries) -> ClientboundUpdateTags<'_> {
-    let mut r = registries.network().tags();
+pub(crate) fn sent_update_tags(network: &NetworkSnapshot) -> ClientboundUpdateTags<'_> {
+    let mut r = network.tags();
     let packet = ClientboundUpdateTags::decode(&mut r).unwrap();
     assert!(r.is_empty(), "{} trailing bytes", r.len());
     packet
@@ -124,7 +131,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
             r#"{"exhaustion":0.75,"message_id":"arrow","scaling":"when_caused_by_living_non_player"}"#,
         )],
     );
-    let registries = served(&root.0);
+    let (registries, network) = served(&root.0);
 
     let registry = "minecraft:damage_type";
     let damage_types = registries.registry::<DamageType>().unwrap();
@@ -137,7 +144,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
         Some("file/zz_override")
     );
 
-    let packets = sent(&registries, true);
+    let packets = sent(&network, true);
     let sent = sent_entry(&packets, registry, "minecraft:arrow")
         .data
         .as_deref()
@@ -241,7 +248,7 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
 #[test]
 fn the_registry_packets_list_the_entries_the_packs_ship() {
     for known in [false, true] {
-        for packet in sent(test_registries(), known) {
+        for packet in sent(test_network(), known) {
             let registry = packet.registry.as_str();
             let shipped = shipped_entries(registry);
             let sent: Vec<&str> = packet
@@ -268,7 +275,7 @@ fn the_registry_packets_list_the_entries_the_packs_ship() {
 #[test]
 fn the_registry_packets_carry_each_synced_registry_in_id_order() {
     let registries = test_registries();
-    let packets = sent(test_registries(), false);
+    let packets = sent(test_network(), false);
 
     let sent: Vec<&str> = packets
         .iter()
@@ -298,11 +305,7 @@ fn the_registry_packets_carry_each_synced_registry_in_id_order() {
         );
     }
 
-    let bytes: usize = test_registries()
-        .network()
-        .registry_data(false)
-        .map(<[u8]>::len)
-        .sum();
+    let bytes: usize = test_network().registry_data(false).map(<[u8]>::len).sum();
     println!(
         "the {} registry packets encode to {bytes} bytes",
         packets.len()
@@ -318,7 +321,7 @@ const OTHER_PACK: KnownPack<'static> = KnownPack {
 #[test]
 fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
     let mut from_other_packs = 0;
-    for packet in sent(test_registries(), true) {
+    for packet in sent(test_network(), true) {
         let registry = packet.registry.as_str();
         let shipped: BTreeMap<String, String> = shipped_entries(registry).into_iter().collect();
         for entry in &packet.entries {
@@ -337,7 +340,7 @@ fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
         "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
     );
     assert!(
-        sent(test_registries(), false)
+        sent(test_network(), false)
             .iter()
             .flat_map(|packet| &packet.entries)
             .all(|entry| entry.data.is_some())
@@ -392,6 +395,9 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .insert_resource(SyncedRegistries(
+            network_snapshot(&test_packs(), test_registries()).unwrap(),
+        ))
         .insert_resource(KnownPackOffer(true))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
@@ -459,6 +465,9 @@ fn every_join_writes_the_registry_bytes_the_load_encoded() {
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
         .insert_resource(CurrentRegistries::new(registries.clone()))
+        .insert_resource(SyncedRegistries(
+            network_snapshot(&test_packs(), registries).unwrap(),
+        ))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
     let offer = known_pack_offer(true, registries);
@@ -517,13 +526,13 @@ fn every_join_writes_the_registry_bytes_the_load_encoded() {
             .filter(|frame| frame.id == ClientboundRegistryData::ID)
             .map(|frame| &frame.body[..])
             .collect();
-        let baked: Vec<&[u8]> = registries.network().registry_data(known).collect();
+        let baked: Vec<&[u8]> = test_network().registry_data(known).collect();
         assert_eq!(registry_data, baked, "known packs negotiated: {known}");
         let tags: Vec<&[u8]> = frames
             .iter()
             .filter(|frame| frame.id == ClientboundUpdateTags::ID)
             .map(|frame| &frame.body[..])
             .collect();
-        assert_eq!(tags, [registries.network().tags()]);
+        assert_eq!(tags, [test_network().tags()]);
     }
 }

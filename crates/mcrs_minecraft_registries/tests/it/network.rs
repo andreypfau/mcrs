@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
-    Declaration, Diagnostic, Received, Registries, Stage, load_received,
+    Declaration, Diagnostic, NetworkSnapshot, Received, Registries, Stage, load_received,
 };
 
 use crate::support::{
@@ -21,7 +21,7 @@ fn synced_damage() -> Vec<Declaration> {
 }
 
 #[test]
-fn an_entry_that_cannot_be_sent_fails_the_load_naming_it() {
+fn an_entry_that_cannot_be_sent_fails_the_snapshot_naming_it() {
     let packs = Packs::new().world(
         "a",
         &[
@@ -29,7 +29,9 @@ fn an_entry_that_cannot_be_sent_fails_the_load_naming_it() {
             ("data/t/damage_type/huge.json", &damage("t:huge")),
         ],
     );
-    let errors = report_errors(&packs.load(&synced_damage()));
+    let declarations = synced_damage();
+    let (registries, _) = packs.load(&declarations).unwrap();
+    let errors = report_errors(&NetworkSnapshot::new(&declarations, &registries));
     assert!(
         matches!(
             &errors[..],
@@ -45,12 +47,16 @@ fn an_entry_that_cannot_be_sent_fails_the_load_naming_it() {
 #[test]
 fn only_synced_registries_have_registry_data() {
     let packs = || Packs::new().world("a", &[("data/t/damage_type/fine.json", &damage("t:fine"))]);
-    let (synced, _) = packs().load(&synced_damage()).unwrap();
-    assert_eq!(synced.network().registry_data(false).count(), 1);
-    let (unsynced, _) = packs()
-        .load(&declarations_with(Declaration::data::<Damage>().into()))
-        .unwrap();
-    assert_eq!(unsynced.network().registry_data(false).count(), 0);
+    let registry_data = |declarations: &[Declaration]| {
+        let (registries, _) = packs().load(declarations).unwrap();
+        let snapshot = NetworkSnapshot::new(declarations, &registries).unwrap();
+        snapshot.registry_data(false).count()
+    };
+    assert_eq!(registry_data(&synced_damage()), 1);
+    assert_eq!(
+        registry_data(&declarations_with(Declaration::data::<Damage>().into())),
+        0
+    );
 }
 
 fn compound(message_id: &str) -> NbtTag {

@@ -28,4 +28,6 @@ pub mod villager_trade;
 pub mod worldgen;
 
 #[cfg(feature = "bevy")]
-pub use plugin::{LoadedRegistryAssets, MinecraftWorldPlugin, transition_to_playing};
+pub use plugin::{
+    LoadedRegistryAssets, MinecraftWorldPlugin, SyncedRegistries, transition_to_playing,
+};

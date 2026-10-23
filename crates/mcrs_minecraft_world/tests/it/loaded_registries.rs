@@ -21,9 +21,13 @@ use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_registries::{
-    CurrentRegistries, Declaration, Diagnostic, IdSet, Registries, Resolve, Resolver, Stage,
+    CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries, Resolve,
+    Resolver, Stage,
 };
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, sent_by, test_registries};
+use mcrs_minecraft_world::SyncedRegistries;
+use mcrs_minecraft_world::registry_load::{
+    RegistryLoadError, sent_by, test_network, test_registries,
+};
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -543,18 +547,12 @@ fn the_plugin_and_the_directory_reader_load_equal_sets() {
             "{registry}"
         );
     }
-    let sent = |registries: &Registries| -> Vec<Vec<u8>> {
-        registries
-            .network()
-            .registry_data(false)
-            .map(<[u8]>::to_vec)
-            .collect()
+    let through_plugin_sent = &app.world().resource::<SyncedRegistries>().0;
+    let sent = |network: &NetworkSnapshot| -> Vec<Vec<u8>> {
+        network.registry_data(false).map(<[u8]>::to_vec).collect()
     };
-    assert_eq!(sent(through_plugin), sent(through_directory));
-    assert_eq!(
-        through_plugin.network().tags(),
-        through_directory.network().tags()
-    );
+    assert_eq!(sent(through_plugin_sent), sent(test_network()));
+    assert_eq!(through_plugin_sent.tags(), test_network().tags());
     assert!(
         through_plugin
             .known_packs()

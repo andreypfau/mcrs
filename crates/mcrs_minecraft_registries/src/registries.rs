@@ -8,7 +8,6 @@ use mcrs_minecraft_core::{
 };
 use mcrs_minecraft_datapack::{KnownPack, PackStack, StackedPack};
 
-use crate::network::NetworkSnapshot;
 use crate::refs::{Namer, ResolveError, Resolver};
 use crate::registry::{Entries, Names, Registry};
 use crate::tags::{TagTable, Tags};
@@ -52,15 +51,9 @@ pub struct Registries {
     pub(crate) tables: Arc<HashMap<ResourceLocation, Table>>,
     pub(crate) world_stack: Arc<PackStack>,
     pub(crate) reload_stack: Arc<PackStack>,
-    pub(crate) network: Arc<NetworkSnapshot>,
 }
 
 impl Registries {
-    /// What the configuration phase sends of these registries.
-    pub fn network(&self) -> &NetworkSnapshot {
-        &self.network
-    }
-
     pub fn registry<V: RegistryValue + 'static>(&self) -> Option<&Registry<V>> {
         self.table(key_of::<V::Registry>())?
             .registry
