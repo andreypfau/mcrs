@@ -16,12 +16,7 @@ pub mod router;
 /// bit equality (`docs/worldgen.md` §15).
 pub const FAST_PROFILE: bool = cfg!(feature = "fast");
 
-mcrs_minecraft_registries::read_with_serde!(
+mcrs_minecraft_registries::resolve_as_is!(
     crate::proto::DensityFunctionHolder,
     crate::router::NoiseGeneratorSettings
-);
-
-mcrs_minecraft_registries::declare_registries!(
-    crate::proto::DensityFunctionHolder => crate::keys::DENSITY_FUNCTION, World;
-    crate::router::NoiseGeneratorSettings => crate::keys::NOISE_SETTINGS, World;
 );

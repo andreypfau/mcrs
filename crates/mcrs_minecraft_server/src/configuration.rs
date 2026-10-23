@@ -48,7 +48,7 @@ use crate::world_options::{DimensionList, bake_dimensions};
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_registries::KnownPack>);
+pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_datapack::KnownPack>);
 
 pub struct ConfigurationStatePlugin;
 
@@ -100,7 +100,7 @@ pub struct KnownPackOffer(pub bool);
 pub fn known_pack_offer(
     offer: bool,
     registries: &Registries,
-) -> Vec<mcrs_minecraft_registries::KnownPack> {
+) -> Vec<mcrs_minecraft_datapack::KnownPack> {
     if offer {
         registries.known_packs().cloned().collect()
     } else {
@@ -108,7 +108,7 @@ pub fn known_pack_offer(
     }
 }
 
-pub fn offered_pack(pack: &mcrs_minecraft_registries::KnownPack) -> KnownPack<'_> {
+pub fn offered_pack(pack: &mcrs_minecraft_datapack::KnownPack) -> KnownPack<'_> {
     KnownPack {
         namespace: &pack.namespace,
         id: &pack.id,
@@ -118,7 +118,7 @@ pub fn offered_pack(pack: &mcrs_minecraft_registries::KnownPack) -> KnownPack<'_
 
 /// Whether the client may fill entries from the offered packs: only when its reply repeats the
 /// offer exactly. An empty offer negotiates nothing.
-pub fn negotiated(offered: &[mcrs_minecraft_registries::KnownPack], reply: &[KnownPack]) -> bool {
+pub fn negotiated(offered: &[mcrs_minecraft_datapack::KnownPack], reply: &[KnownPack]) -> bool {
     !offered.is_empty()
         && offered.len() == reply.len()
         && offered

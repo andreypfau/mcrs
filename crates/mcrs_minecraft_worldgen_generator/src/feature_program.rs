@@ -23,6 +23,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
@@ -31,7 +32,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registries::{IdSet, Key, KeySet, Named, Registries, RegistryOf, Resolve, Tags};
+use mcrs_minecraft_registries::{IdSet, KeySet, Named, Registries, Resolve, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -435,7 +436,7 @@ impl FeatureProgram {
         structures: Option<&FrozenStructures>,
     ) -> Result<Self, FeatureCompileError> {
         let biomes = registries
-            .registry::<RegistryOf<mcrs_minecraft_biome_file::BiomeFile>>()
+            .registry::<mcrs_minecraft_biome_file::BiomeFile>()
             .ok_or_else(|| {
                 FeatureCompileError::UnknownBiome("the biomes are not loaded".to_owned())
             })?;
@@ -2843,7 +2844,7 @@ impl<'a> Resolver<'a> {
         tag: TagKey<Fluid, &'static str>,
         state: &StatePropertiesPredicate,
     ) -> Compiled<StateMask> {
-        let set = KeySet::Tag(Key::new((*tag.location()).into()));
+        let set = KeySet::Tag(tag.into());
         self.mask(StateQuery::Fluids(&set, state))
     }
 
@@ -2890,10 +2891,7 @@ impl<'a> Resolver<'a> {
         )
     }
 
-    fn resolved<R: mcrs_minecraft_registries::RegistryType>(
-        &self,
-        set: &KeySet<R>,
-    ) -> Option<IdSet<R>> {
+    fn resolved<R: mcrs_minecraft_core::Registered>(&self, set: &KeySet<R>) -> Option<IdSet<R>> {
         IdSet::resolve(set.clone(), self.registries).ok()
     }
 
@@ -2961,7 +2959,7 @@ impl BlockResolver for Resolver<'_> {
                 .try_for_each(|name| self.add_block(&mut mask, name))?,
             StateQuery::Block(id) => self.add_block(&mut mask, id)?,
             StateQuery::BlockTag(tag) => {
-                self.add_set(&mut mask, &KeySet::Tag(Key::new(tag.clone())))?
+                self.add_set(&mut mask, &KeySet::Tag(TagKey::from_location(tag.clone())))?
             }
             StateQuery::Fluids(set, properties) => return self.fluid_mask(set, properties),
             StateQuery::Solid => return Some(self.world.solid.clone()),
@@ -2986,11 +2984,11 @@ impl BlockResolver for Resolver<'_> {
 }
 
 fn named<R>(location: ResourceLocation) -> KeySet<R> {
-    KeySet::List(Box::new([Key::new(location)]))
+    KeySet::List(Box::new([ResourceKey::from_location(location)]))
 }
 
 fn block_tag(tag: TagKey<Block, &'static str>) -> KeySet<Block> {
-    KeySet::Tag(Key::new((*tag.location()).into()))
+    KeySet::Tag(tag.into())
 }
 
 fn unloaded_tags(registry: &str) -> FeatureCompileError {

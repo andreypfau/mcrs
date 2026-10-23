@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -6,7 +7,7 @@ use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_protocol::item::{
     EnchantmentGlintOverride, ItemComponentValue, ItemStackValue, ItemStackWithSlot,
 };
-use mcrs_minecraft_registries::{Key, Named};
+use mcrs_minecraft_registries::Named;
 
 type ComponentPatch = mcrs_minecraft_protocol::item::ComponentPatch<Named>;
 type Slotted = ItemStackWithSlot<Named>;
@@ -15,7 +16,7 @@ fn stack(slot: u8, path: &str, count: i32, components: ComponentPatch) -> Slotte
     ItemStackWithSlot {
         slot,
         stack: ItemStackValue {
-            item: Key::new(ResourceLocation::minecraft(path).unwrap()),
+            item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
             count: Bounded(count),
             components,
         },

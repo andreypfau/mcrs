@@ -3,14 +3,13 @@ use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registries::{Diagnostics, Registries, RegistryOf};
-use mcrs_minecraft_registries::{require_id, require_registry};
+use mcrs_minecraft_registries::require_id;
+use mcrs_minecraft_registries::{Diagnostics, Registries};
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
@@ -27,12 +26,7 @@ pub struct SurfaceIds {
 
 impl SurfaceIds {
     pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
-        let biomes = require_registry::<_, RegistryOf<BiomeFile>>(
-            registries,
-            mcrs_minecraft_biome::keys::BIOME,
-            diagnostics,
-        )?;
-        Self::from_lookup(|key| require_id(biomes, key, diagnostics))
+        Self::from_lookup(|key| require_id(registries, key, diagnostics))
     }
 
     pub fn from_lookup(

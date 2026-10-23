@@ -8,10 +8,8 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::registry_key::RegistryValue;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registries::RegistryOf;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -22,14 +20,6 @@ use crate::timeline::Timeline;
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorldClock {}
-
-impl RegistryValue for WorldClock {
-    type Registry = Self;
-}
-
-impl mcrs_minecraft_registries::RegistryType for WorldClock {
-    type Value = ();
-}
 
 /// One clock's authoritative state.
 ///
@@ -226,7 +216,7 @@ impl ClockTimeMarkers {
 
 pub fn check_time_markers(
     timelines: &[Timeline],
-    clocks: &mcrs_minecraft_registries::Registry<RegistryOf<WorldClock>>,
+    clocks: &mcrs_minecraft_registries::Registry<WorldClock>,
 ) -> Vec<(usize, String)> {
     let clock_name =
         |clock: Id<WorldClock>| clocks.name(Id::checked(clock.number(), clocks.len())?);
@@ -271,7 +261,7 @@ impl Plugin for WorldClockPlugin {
 
 #[cfg(feature = "bevy")]
 fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, registries: Res<CurrentRegistries>) {
-    let Some(registry) = registries.registry::<RegistryOf<WorldClock>>() else {
+    let Some(registry) = registries.registry::<WorldClock>() else {
         tracing::error!("the registries hold no world_clock registry to seed the clocks from");
         return;
     };
@@ -352,33 +342,32 @@ impl TestClocks {
 
 #[cfg(test)]
 impl mcrs_minecraft_registries::Resolver for TestClocks {
-    fn id<R: mcrs_minecraft_registries::RegistryType>(
+    fn id<R: mcrs_minecraft_core::Registered>(
         &self,
-        key: &mcrs_minecraft_registries::Key<R>,
-    ) -> Result<Id<R>, String> {
+        key: &mcrs_minecraft_core::ResourceKey<R>,
+    ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let at = self.0.iter().position(|name| name == key.location());
         at.and_then(|at| Id::checked(at as u16, self.0.len()))
-            .ok_or_else(|| format!("unknown entry {} of minecraft:world_clock", key.location()))
+            .ok_or_else(|| {
+                format!("unknown entry {} of minecraft:world_clock", key.location()).into()
+            })
     }
 
-    fn tag<R: mcrs_minecraft_registries::RegistryType>(
+    fn tag<R: mcrs_minecraft_core::Registered>(
         &self,
-        tag: &mcrs_minecraft_registries::Key<R>,
-    ) -> Result<mcrs_minecraft_core::TagId<R>, String> {
-        Err(format!("unknown tag #{}", tag.location()))
+        tag: &mcrs_minecraft_core::TagKey<R>,
+    ) -> Result<mcrs_minecraft_core::TagId<R>, mcrs_minecraft_registries::ResolveError> {
+        Err(format!("unknown tag #{}", tag.as_str()).into())
     }
 }
 
 #[cfg(test)]
 impl mcrs_minecraft_registries::Namer for TestClocks {
-    fn name<R: mcrs_minecraft_registries::RegistryType>(
-        &self,
-        id: Id<R>,
-    ) -> Option<&ResourceLocation> {
+    fn name<R: mcrs_minecraft_core::Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
         self.0.get(id.index())
     }
 
-    fn tag_name<R: mcrs_minecraft_registries::RegistryType>(
+    fn tag_name<R: mcrs_minecraft_core::Registered>(
         &self,
         _: mcrs_minecraft_core::TagId<R>,
     ) -> Option<&ResourceLocation> {

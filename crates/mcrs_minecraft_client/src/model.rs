@@ -11,8 +11,8 @@ use bevy::math::Vec3;
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_assets::packs::pack_names;
-use mcrs_minecraft_registries::PACKS_ROOT;
 use serde::Deserialize;
 
 use crate::vanilla;

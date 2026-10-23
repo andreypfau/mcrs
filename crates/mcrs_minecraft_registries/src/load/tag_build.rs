@@ -1,14 +1,13 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_datapack::{PackIndex, PackStack, StackedPack, read_json};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
 use super::index::Located;
 use crate::diagnostics::{Diagnostic, Missing, Referrer};
-use crate::json;
 use crate::order::identifier_order;
-use crate::pack::{PackIndex, PackStack, StackedPack};
 use crate::registry::Names;
 use crate::tags::TagTable;
 
@@ -247,7 +246,7 @@ fn read_nodes(
         let mut exists = false;
         let mut valid: Vec<(TagFile, PackIndex)> = Vec::new();
         for file in located {
-            match json::read::<TagFile>(file.bytes) {
+            match read_json::<TagFile>(file.bytes) {
                 Ok(tag_file) => {
                     exists = true;
                     valid.push((tag_file, file.pack));

@@ -42,7 +42,7 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
 
 /// The names `SurfaceIds::resolve` asks the registry for, which it refuses
 /// to resolve without, plus the three the tests decorate in.
-pub(super) fn biome_registry() -> Arc<Registries> {
+pub(super) fn biome_registry() -> Registries {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
         "minecraft:eroded_badlands",
@@ -151,8 +151,10 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let tags = super::block_tags();
     for id in tags.members(
-        tags.by_name(&ResourceLocation::read(tag).unwrap())
-            .unwrap_or_else(|| panic!("{tag} is not loaded")),
+        tags.id(&mcrs_minecraft_core::TagKey::from_location(
+            ResourceLocation::read(tag).unwrap(),
+        ))
+        .unwrap_or_else(|| panic!("{tag} is not loaded")),
     ) {
         let index = id.index();
         let entry = &blocks().0.blocks()[index];

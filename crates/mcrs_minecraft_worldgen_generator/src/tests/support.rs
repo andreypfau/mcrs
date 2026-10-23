@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::ResourceKey;
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -159,25 +160,25 @@ use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_registries::{
-    IdSet, Key, KeySet, Registries, Registry, RegistryOf, Resolve, Resolver, Tags,
-};
+use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Registry, Resolve, Resolver, Tags};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
-pub type Biomes = Registry<RegistryOf<BiomeFile>>;
+pub type Biomes = Registry<BiomeFile>;
 
-pub fn test_registries() -> &'static Arc<Registries> {
-    mcrs_minecraft_world::registry_load::test_registries_arc()
+pub fn test_registries() -> &'static Registries {
+    mcrs_minecraft_world::registry_load::test_registries()
 }
 
 pub fn biomes_of(registries: &Registries) -> &Biomes {
     registries
-        .registry::<RegistryOf<BiomeFile>>()
+        .registry::<BiomeFile>()
         .expect("the registries hold the biomes")
 }
 
 pub fn biome_id(registries: &Registries, name: &str) -> Id<Biome> {
-    let key = Key::new(ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")));
+    let key = ResourceKey::from_location(
+        ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
+    );
     Resolver::id(registries, &key).unwrap_or_else(|e| panic!("{e}"))
 }
 
@@ -251,7 +252,7 @@ pub fn biome_tags() -> Tags<Biome> {
 /// The loaded registries as a client holds them after a server sent its biomes with `leading`
 /// first, in that order, and every other biome after them in the loaded order. A leading name the
 /// loaded registries lack is a biome with the data of `minecraft:plains`.
-pub fn registries_over(leading: &[&str]) -> Arc<Registries> {
+pub fn registries_over(leading: &[&str]) -> Registries {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -262,7 +263,7 @@ pub fn registries_over(leading: &[&str]) -> Arc<Registries> {
         "/../../assets/mcrs/reports/datapack.json"
     ));
     static SENT: OnceLock<Collected> = OnceLock::new();
-    static OVER: OnceLock<Mutex<HashMap<Vec<String>, Arc<Registries>>>> = OnceLock::new();
+    static OVER: OnceLock<Mutex<HashMap<Vec<String>, Registries>>> = OnceLock::new();
 
     let key: Vec<String> = leading.iter().map(|name| (*name).to_owned()).collect();
     let mut over = OVER
@@ -270,7 +271,7 @@ pub fn registries_over(leading: &[&str]) -> Arc<Registries> {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(registries) = over.get(&key) {
-        return Arc::clone(registries);
+        return registries.clone();
     }
     let (mut registries, mut tags) = SENT
         .get_or_init(|| sent_by(test_registries(), false))
@@ -320,6 +321,6 @@ pub fn registries_over(leading: &[&str]) -> Arc<Registries> {
     let loaded = load_received(REPORT, None, (registries, tags))
         .unwrap_or_else(|error| panic!("the renumbered biomes do not load: {error}"))
         .registries;
-    over.insert(key, Arc::clone(&loaded));
+    over.insert(key, loaded.clone());
     loaded
 }

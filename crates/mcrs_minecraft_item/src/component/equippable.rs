@@ -153,7 +153,7 @@ where
 }
 
 fn equip_generic<M: Refs>() -> Sound<M> {
-    M::ref_of(sound_event::ITEM_ARMOR_EQUIP_GENERIC)
+    Ref::of(sound_event::ITEM_ARMOR_EQUIP_GENERIC)
 }
 
 fn is_equip_generic<M: Refs>(sound: &Sound<M>) -> bool {
@@ -161,7 +161,7 @@ fn is_equip_generic<M: Refs>(sound: &Sound<M>) -> bool {
 }
 
 fn shears_snip<M: Refs>() -> Sound<M> {
-    M::ref_of(sound_event::ITEM_SHEARS_SNIP)
+    Ref::of(sound_event::ITEM_SHEARS_SNIP)
 }
 
 fn is_shears_snip<M: Refs>(sound: &Sound<M>) -> bool {

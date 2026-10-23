@@ -11,7 +11,7 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, DecodeCtx, InlineRef, ItemComponentValue, JukeboxPlayable,
+    Consumable, ConsumeEffect, DecodeCtx, ItemComponentValue, JukeboxPlayable,
     JukeboxSong, PaintingVariant, PaintingVariantValue, Text, WireRef, hash_ops,
 };
 use mcrs_minecraft_registries::{Named, Ref};
@@ -114,7 +114,7 @@ fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
 fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct",
-        JukeboxPlayable(WireRef(InlineRef::Inline(Arc::new(JukeboxSong {
+        JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
             sound_event: Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
             description: Text::text("Song"),
             length_in_seconds: 12.5,
@@ -123,7 +123,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     );
     wire_only(
         "jukebox_playable_direct_sound",
-        JukeboxPlayable(WireRef(InlineRef::Inline(Arc::new(JukeboxSong {
+        JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
             sound_event: Ref::Inline(Arc::new(SoundEvent {
                 sound_id: rl!("mcrs:song").to_arc(),
                 range: None,
@@ -135,7 +135,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     );
     wire_only(
         "painting_variant_direct",
-        PaintingVariant(WireRef(InlineRef::Inline(Arc::new(PaintingVariantValue {
+        PaintingVariant(WireRef(Ref::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(2),
             height: Bounded(1),
             asset_id: rl!("mcrs:art").to_arc(),
@@ -145,7 +145,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     );
     wire_only(
         "painting_variant_direct_both",
-        PaintingVariant(WireRef(InlineRef::Inline(Arc::new(PaintingVariantValue {
+        PaintingVariant(WireRef(Ref::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(16),
             height: Bounded(16),
             asset_id: rl!("mcrs:big").to_arc(),

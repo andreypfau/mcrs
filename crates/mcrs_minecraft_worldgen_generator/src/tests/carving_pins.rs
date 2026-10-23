@@ -160,7 +160,7 @@ fn the_per_column_mask_is_what_it_was() {
     assert_masks_are_pinned(&mask_sets()[..1], &MASK_DIGESTS[..1]);
 }
 
-fn biome_registry(dimension: Dimension) -> Arc<Registries> {
+fn biome_registry(dimension: Dimension) -> Registries {
     let mut names: Vec<&str> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_world::registry_load::{sent_by, test_registries_arc};
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -152,7 +152,7 @@ const SECTION_OTHERS: &str = "[other compared registries]";
 /// vanilla pack is sent those entries without data.
 fn vanilla_entries(registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let sent = |known| {
-        sent_by(test_registries_arc(), known)
+        sent_by(test_registries(), known)
             .0
             .into_iter()
             .find(|(sent, _)| sent.as_str() == registry)

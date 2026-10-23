@@ -1,6 +1,7 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use serde::{Deserialize, Serialize};
 
@@ -29,31 +30,26 @@ pub struct PoolEntry {
     pub weight: Bounded<1, 150>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::StructurePoolElementType, key = "element_type")]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum PoolElement {
+    #[dispatch(SinglePoolElement)]
     Single(SingleElement),
+    #[dispatch(LegacySinglePoolElement)]
     LegacySingle(SingleElement),
+    #[dispatch(ListPoolElement)]
     List {
         elements: Vec<PoolElement>,
         projection: Projection,
     },
+    #[dispatch(FeaturePoolElement)]
     Feature {
         feature: Holder<PlacedFeature>,
         projection: Projection,
     },
+    #[dispatch(EmptyPoolElement)]
     Empty {},
-}
-
-mcrs_minecraft_registries::dispatch! {
-    PoolElement, key = "element_type", registry = crate::keys::StructurePoolElementType,
-    {
-        SinglePoolElement => Single,
-        ListPoolElement => List,
-        FeaturePoolElement => Feature,
-        EmptyPoolElement => Empty,
-        LegacySinglePoolElement => LegacySingle,
-    }
 }
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.

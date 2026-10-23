@@ -8,9 +8,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::*;
 use crate::dimension::Dimensions;
-use crate::registry_load::test_registries_arc;
+use crate::registry_load::test_registries;
 use crate::worldgen::world_preset::WorldPreset;
-use mcrs_minecraft_registries::RegistryOf;
 
 const OBSERVED_UUID_INTS: [i32; 4] = [-1495452199, -11581732, -1243709312, 65080886];
 const OBSERVED_UUID_FILE_NAME: &str = "a6dd35d9-ff4f-46dc-b5de-808003e10e36";
@@ -355,12 +354,12 @@ fn singleplayer_uuid_ints_name_the_player_file_when_a_player_has_opened_the_worl
 }
 
 fn registries() -> &'static Registries {
-    test_registries_arc()
+    test_registries()
 }
 
 fn normal_dimensions() -> Dimensions {
     let presets = registries()
-        .registry::<RegistryOf<WorldPreset>>()
+        .registry::<WorldPreset>()
         .expect("the presets are loaded");
     let id = presets
         .by_name(&crate::keys::world_preset::NORMAL.location().to_arc())

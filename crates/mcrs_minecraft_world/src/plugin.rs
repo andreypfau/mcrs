@@ -98,9 +98,11 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded block definitions"
             );
             let sound_set_registry = registries
-                .registry::<mcrs_minecraft_registries::RegistryOf<mcrs_minecraft_sound::BlockSoundSet>>()
+                .registry::<mcrs_minecraft_sound::BlockSoundSet>()
                 .unwrap_or_else(|| {
-                    registries::refuse(&"the data pack registries hold no minecraft:block_sound_set")
+                    registries::refuse(
+                        &"the data pack registries hold no minecraft:block_sound_set",
+                    )
                 });
             let sound_sets =
                 mcrs_minecraft_block::definition::BlockSoundSets::resolve(&definitions, |key| {

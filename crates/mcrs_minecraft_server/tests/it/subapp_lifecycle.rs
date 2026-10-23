@@ -11,13 +11,12 @@ use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_registries::{CurrentRegistries, Key, RegistryOf, Resolver};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, Resolver};
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
 };
 use mcrs_minecraft_server::world_options::DimensionList;
-use std::sync::Arc;
 
 use crate::host_app;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -40,7 +39,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
         "host world should hold zero Dimension entities"
     );
 
-    let host_registry = Arc::clone(app.world().resource::<CurrentRegistries>().arc());
+    let host_registry = Registries::clone(app.world().resource::<CurrentRegistries>());
     let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
     let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
     assert_eq!(handles.len(), 2, "one host-side handle entity per sub-app");
@@ -61,7 +60,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
             .get_resource::<CurrentRegistries>()
             .expect("CurrentRegistries resource present in sub-app");
         assert!(
-            Arc::ptr_eq(&host_registry, held.arc()),
+            Registries::ptr_eq(&host_registry, held),
             "the registries must share the host Arc"
         );
         assert!(
@@ -121,7 +120,7 @@ fn install_counters(sub_app: &mut bevy_app::SubApp) {
 fn world_clock_count(app: &App) -> usize {
     app.world()
         .resource::<CurrentRegistries>()
-        .registry::<RegistryOf<WorldClock>>()
+        .registry::<WorldClock>()
         .expect("the world clock registry is loaded")
         .len()
 }
@@ -130,7 +129,7 @@ fn overworld_clock(app: &App) -> Id<WorldClock> {
     let overworld = mcrs_minecraft_environment::keys::world_clock::OVERWORLD;
     Resolver::id(
         &**app.world().resource::<CurrentRegistries>(),
-        &Key::new((*overworld.location()).into()),
+        &overworld.into(),
     )
     .expect("the overworld clock is registered")
 }

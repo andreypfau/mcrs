@@ -1,7 +1,7 @@
 use crate::Text;
 use crate::component::EquipmentSlotGroup;
 use crate::keys::Item;
-use mcrs_minecraft_registries::{Refs, RegistryType, Resolve, Resolved};
+use mcrs_minecraft_registries::{Refs, Resolve, Resolved};
 use serde::{Deserialize, Serialize};
 
 /// An enchantment's effects are the `mcrs_minecraft_enchantment` column beside it.
@@ -17,10 +17,6 @@ pub struct EnchantmentData<M: Refs = Resolved> {
     pub weight: u32,
     pub max_level: u32,
     pub exclusive_set: Option<M::Set<EnchantmentData>>,
-}
-
-impl RegistryType for EnchantmentData {
-    type Value = ();
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,13 +1,14 @@
 //! The modern path of the `Run` stage: one ore feature, resolved at freeze and
 //! placed against a region of stone.
 
+use mcrs_minecraft_core::ResourceKey;
 use std::sync::Arc;
 
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registries::{Key, KeySet, Registries};
+use mcrs_minecraft_registries::{KeySet, Registries};
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
@@ -442,5 +443,7 @@ fn a_survival_rule_reads_the_water_condition_its_block_names() {
 }
 
 fn fluid_set(name: &str) -> KeySet<Fluid> {
-    KeySet::List(Box::new([Key::new(ResourceLocation::read(name).unwrap())]))
+    KeySet::List(Box::new([ResourceKey::from_location(
+        ResourceLocation::read(name).unwrap(),
+    )]))
 }

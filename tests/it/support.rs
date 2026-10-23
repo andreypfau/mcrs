@@ -7,13 +7,13 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::{Id, RegistryValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, CurrentDimension, JoinedGame, PendingTeleports,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);
@@ -91,7 +91,7 @@ pub fn assert_session_registries(client: &App, connection: Entity) {
     let registries = world.resource::<CurrentRegistries>();
 
     let biomes = registries
-        .registry::<RegistryOf<BiomeFile>>()
+        .registry::<BiomeFile>()
         .expect("the session holds the biome registry");
     assert!(!biomes.is_empty(), "the biome registry arrived empty");
     assert!(
@@ -109,7 +109,7 @@ pub fn assert_session_registries(client: &App, connection: Entity) {
         (
             "minecraft:worldgen/biome",
             registries
-                .tags::<RegistryOf<BiomeFile>>()
+                .tags::<<BiomeFile as RegistryValue>::Registry>()
                 .map(|tags| tags.iter().count()),
         ),
     ] {
@@ -123,7 +123,7 @@ pub fn assert_session_registries(client: &App, connection: Entity) {
         .get::<CurrentDimension>(connection)
         .expect("the login named the dimension the player is in");
     let dimension_types = registries
-        .registry::<RegistryOf<DimensionTypeFile>>()
+        .registry::<DimensionTypeFile>()
         .expect("the session holds the dimension types");
     let dimension_type = Id::checked(current.dimension_type.number(), dimension_types.len())
         .and_then(|id| dimension_types.get(id))

@@ -9,6 +9,7 @@ use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 use serde::{Deserialize, Serialize};
@@ -31,8 +32,8 @@ pub struct GeneratedEntity {
     pub passengers: Vec<GeneratedEntity>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_entity::keys::EntityType, key = "id", only)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GeneratedKind {
     Witch {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
@@ -111,27 +112,6 @@ pub enum GeneratedKind {
         #[serde(rename = "LootTableSeed")]
         loot_table_seed: i64,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    GeneratedKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
-    {
-        Allay => Allay,
-        Cat => Cat,
-        ChestMinecart => ChestMinecart,
-        Chicken => Chicken,
-        Drowned => Drowned,
-        ElderGuardian => ElderGuardian,
-        Evoker => Evoker,
-        ItemFrame => ItemFrame,
-        Shulker => Shulker,
-        Villager => Villager,
-        Vindicator => Vindicator,
-        Witch => Witch,
-        ZombieNautilus => ZombieNautilus,
-        ZombieVillager => ZombieVillager,
-    }
-    wildcard unsupported
 }
 
 use mcrs_minecraft_item::keys::Item;
@@ -583,7 +563,7 @@ mod tests {
     use fixedbitset::FixedBitSet;
     use mcrs_minecraft_core::rl;
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_minecraft_registries::{Key, KeySet, Named};
+    use mcrs_minecraft_registries::{KeySet, Named};
     use mcrs_minecraft_worldgen_structure::spawn_condition::{
         IdSet, SpawnCondition, SpawnSelector, VariantTable,
     };
@@ -627,7 +607,9 @@ mod tests {
     }
 
     fn tag_key<R>(tag: &str) -> KeySet<R> {
-        KeySet::Tag(Key::new(ResourceLocation::minecraft(tag).unwrap()))
+        KeySet::Tag(mcrs_minecraft_core::TagKey::from_location(
+            ResourceLocation::minecraft(tag).unwrap(),
+        ))
     }
 
     fn tagged<R>(

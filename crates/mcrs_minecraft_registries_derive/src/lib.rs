@@ -1,6 +1,9 @@
+mod dispatch;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as Tokens};
 use quote::{ToTokens, format_ident, quote};
+use syn::meta::ParseNestedMeta;
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::visit_mut::VisitMut;
@@ -20,6 +23,20 @@ pub fn registry_value(args: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+/// Reads and writes an enum as one map whose `key` names an entry of the static `registry`, the
+/// way `Codec.dispatch` does: the entry chooses the variant, the rest of the map is its body.
+/// A variant reads the entry of its own name, `#[dispatch(Entry)]` another one and
+/// `#[dispatch(id = "ns:path")]` a name outside the registry. Every entry has a variant or is
+/// listed in `unsupported(..)`, unless `only` refuses the entries left out; `key_last` writes the
+/// key after the body.
+#[proc_macro_attribute]
+pub fn dispatch(args: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    dispatch::dispatch(args, input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
 #[proc_macro_derive(Resolve)]
 pub fn derive_resolve(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -28,11 +45,57 @@ pub fn derive_resolve(item: TokenStream) -> TokenStream {
         .into()
 }
 
+fn has_serde_bound(attrs: &[Attribute]) -> bool {
+    attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("serde"))
+        .any(|attr| {
+            let mut bound = false;
+            let _ = attr.parse_nested_meta(|meta| {
+                bound |= meta.path.is_ident("bound");
+                skip_meta_value(&meta)
+            });
+            bound
+        })
+}
+
+fn skip_meta_value(meta: &ParseNestedMeta) -> Result<()> {
+    if meta.input.peek(Token![=]) {
+        meta.value()?.parse::<Expr>()?;
+    } else if meta.input.peek(syn::token::Paren) {
+        meta.parse_nested_meta(|inner| {
+            if inner.input.peek(Token![=]) {
+                inner.value()?.parse::<Expr>()?;
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
 fn bound_serde(input: &mut DeriveInput) -> Result<()> {
     let mode = mode_param(&input.generics)?;
+    if !has_serde_bound(&input.attrs) {
+        let bound = serde_bound(&input.data, &[&mode]);
+        // A helper attribute placed before the derive that introduces it is rejected.
+        let after_derives = input
+            .attrs
+            .iter()
+            .rposition(|attr| attr.path().is_ident("derive"))
+            .map_or(0, |at| at + 1);
+        input.attrs.insert(after_derives, bound);
+    }
+    input.attrs.insert(
+        0,
+        parse_quote!(#[derive(::mcrs_minecraft_registries::Resolve)]),
+    );
+    Ok(())
+}
+
+fn serde_bound(data: &Data, params: &[&Ident]) -> Attribute {
     let mut types: Vec<String> = Vec::new();
-    for field in all_fields(&input.data) {
-        if mentions(&field.ty, &mode) {
+    for field in all_fields(data) {
+        if mentions_any(&field.ty, params) {
             let ty = field.ty.to_token_stream().to_string();
             if !types.contains(&ty) {
                 types.push(ty);
@@ -45,20 +108,7 @@ fn bound_serde(input: &mut DeriveInput) -> Result<()> {
     };
     let serialize = bounds("::serde::Serialize");
     let deserialize = bounds("::serde::Deserialize<'de>");
-    let bound: Attribute =
-        parse_quote!(#[serde(bound(serialize = #serialize, deserialize = #deserialize))]);
-    // A helper attribute placed before the derive that introduces it is rejected.
-    let after_derives = input
-        .attrs
-        .iter()
-        .rposition(|attr| attr.path().is_ident("derive"))
-        .map_or(0, |at| at + 1);
-    input.attrs.insert(after_derives, bound);
-    input.attrs.insert(
-        0,
-        parse_quote!(#[derive(::mcrs_minecraft_registries::Resolve)]),
-    );
-    Ok(())
+    parse_quote!(#[serde(bound(serialize = #serialize, deserialize = #deserialize))])
 }
 
 fn all_fields(data: &Data) -> Vec<&Field> {
@@ -98,18 +148,21 @@ fn mode_param(generics: &syn::Generics) -> Result<Ident> {
 }
 
 struct Mentions<'a> {
-    mode: &'a Ident,
+    params: &'a [&'a Ident],
     found: bool,
 }
 
 impl Visit<'_> for Mentions<'_> {
     fn visit_ident(&mut self, ident: &Ident) {
-        self.found |= ident == self.mode;
+        self.found |= self.params.contains(&ident);
     }
 }
 
-fn mentions(ty: &Type, mode: &Ident) -> bool {
-    let mut visit = Mentions { mode, found: false };
+fn mentions_any(ty: &Type, params: &[&Ident]) -> bool {
+    let mut visit = Mentions {
+        params,
+        found: false,
+    };
     visit.visit_type(ty);
     visit.found
 }
@@ -160,17 +213,10 @@ fn renamed(field: &Field) -> Option<String> {
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("rename") && meta.input.peek(Token![=]) {
                 rename = Some(meta.value()?.parse::<LitStr>()?.value());
-            } else if meta.input.peek(Token![=]) {
-                meta.value()?.parse::<Expr>()?;
-            } else if meta.input.peek(syn::token::Paren) {
-                meta.parse_nested_meta(|inner| {
-                    if inner.input.peek(Token![=]) {
-                        inner.value()?.parse::<Expr>()?;
-                    }
-                    Ok(())
-                })?;
+                Ok(())
+            } else {
+                skip_meta_value(&meta)
             }
-            Ok(())
         });
     }
     rename
@@ -197,7 +243,7 @@ fn convert(fields: &Fields, mode: &Ident, resolved_mode: &Type) -> Conversion {
     for (at, field) in fields.iter().enumerate() {
         let binding = format_ident!("__field{at}");
         let label = label(field, at);
-        let (to_resolved, to_named) = match mentions(&field.ty, mode) {
+        let (to_resolved, to_named) = match mentions_any(&field.ty, &[mode]) {
             true => {
                 let ty = substitute(&field.ty, mode, resolved_mode);
                 (

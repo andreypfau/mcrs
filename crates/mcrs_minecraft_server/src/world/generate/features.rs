@@ -14,7 +14,7 @@ use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{
-    CurrentRegistries, IdSet, Named, Namer, Registries, RegistryOf, Resolve, Tags,
+    CurrentRegistries, IdSet, Named, Namer, Registries, Resolve, Tags,
 };
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
@@ -53,9 +53,9 @@ impl Plugin for FeaturePlugin {
 
 /// A biome's decoration steps in the form the feature compiler reads.
 fn decoration_steps(
-    steps: &[IdSet<RegistryOf<PlacedFeature>>],
+    steps: &[IdSet<PlacedFeature>],
     registries: &Registries,
-    tags: &Tags<RegistryOf<PlacedFeature>>,
+    tags: &Tags<PlacedFeature>,
 ) -> Vec<FeatureStepList> {
     steps
         .iter()
@@ -71,7 +71,7 @@ fn decoration_steps(
 fn placed_feature_tags(
     registries: &Registries,
 ) -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
-    let tags = registries.loaded_tags::<RegistryOf<PlacedFeature>>();
+    let tags = registries.loaded_tags::<PlacedFeature>();
     tags.iter()
         .map(|(tag, name)| {
             let members = tags
@@ -142,7 +142,7 @@ fn build_dimension_features(
         placed_feature_tags: placed_feature_tags(&registries),
     };
 
-    let placed_tags = registries.loaded_tags::<RegistryOf<PlacedFeature>>();
+    let placed_tags = registries.loaded_tags::<PlacedFeature>();
     let by_id: BTreeMap<ResourceLocation, &BiomeFile> = registries
         .loaded::<BiomeFile>()
         .iter()

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::KeySet;
+use mcrs_minecraft_registries::{KeySet, dispatch};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
@@ -15,6 +15,10 @@ pub enum MaterialRuleHolder {
     Owned(Box<MaterialRule>),
 }
 
+impl mcrs_minecraft_core::RegistryValue for MaterialRuleHolder {
+    type Registry = MaterialRule;
+}
+
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
@@ -23,8 +27,8 @@ pub enum MaterialConditionHolder {
     Owned(Box<MaterialCondition>),
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::MaterialRuleType)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 #[expect(
     clippy::large_enum_variant,
@@ -53,19 +57,8 @@ pub enum MaterialRule {
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    MaterialRule, key = "type", registry = crate::keys::MaterialRuleType,
-    {
-        Block => Block,
-        Bandlands => Bandlands,
-        Sequence => Sequence,
-        Condition => Condition,
-        OreVein => OreVein,
-    }
-}
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::MaterialConditionType)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
     Biome {
@@ -106,23 +99,6 @@ pub enum MaterialCondition {
         secondary_depth_range: i32,
         surface_type: CaveSurface,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    MaterialCondition, key = "type", registry = crate::keys::MaterialConditionType,
-    {
-        Biome => Biome,
-        NoiseThreshold => NoiseThreshold,
-        VerticalGradient => VerticalGradient,
-        YAbove => YAbove,
-        Water => Water,
-        Temperature => Temperature,
-        Steep => Steep,
-        Not => Not,
-        Hole => Hole,
-        AbovePreliminarySurface => AbovePreliminarySurface,
-        StoneDepth => StoneDepth,
-    }
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]

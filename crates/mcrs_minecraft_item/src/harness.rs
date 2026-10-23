@@ -9,18 +9,20 @@ pub trait Sample: Sized {
     }
 }
 
+use mcrs_minecraft_core::Registered;
+use mcrs_minecraft_core::ResourceKey;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{TagId, TagKey};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
-use mcrs_minecraft_registries::{IdSet, Key, Namer, RegistryOf, RegistryType, Resolver};
+use mcrs_minecraft_registries::{IdSet, Namer, Resolver};
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -139,9 +141,6 @@ impl SampleRegistries {
             })
             .collect();
         let registry = SampleRegistry { names, tags };
-        // A value names its registry by `R` or by `RegistryOf<R>`, as the loaded registries alias.
-        self.0
-            .insert(TypeId::of::<RegistryOf<R>>(), registry.clone());
         self.0.insert(TypeId::of::<R>(), registry);
         self
     }
@@ -154,33 +153,39 @@ impl SampleRegistries {
 }
 
 impl Resolver for SampleRegistries {
-    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String> {
+    fn id<R: Registered>(
+        &self,
+        key: &ResourceKey<R>,
+    ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let registry = self.registry::<R>()?;
         registry
             .names
             .iter()
             .position(|name| name == key.location())
             .and_then(|at| Id::checked(u16::try_from(at).ok()?, registry.names.len()))
-            .ok_or_else(|| format!("the samples hold no {}", key.location()))
+            .ok_or_else(|| format!("the samples hold no {}", key.location()).into())
     }
 
-    fn tag<R: RegistryType>(&self, tag: &Key<R>) -> Result<TagId<R>, String> {
+    fn tag<R: Registered>(
+        &self,
+        tag: &TagKey<R>,
+    ) -> Result<TagId<R>, mcrs_minecraft_registries::ResolveError> {
         let registry = self.registry::<R>()?;
         registry
             .tags
             .iter()
-            .position(|(name, _)| name == tag.location())
+            .position(|(name, _)| name.as_str() == tag.as_str())
             .and_then(|at| TagId::checked(u16::try_from(at).ok()?, registry.tags.len()))
-            .ok_or_else(|| format!("the samples hold no tag #{}", tag.location()))
+            .ok_or_else(|| format!("the samples hold no tag #{}", tag.location()).into())
     }
 }
 
 impl Namer for SampleRegistries {
-    fn name<R: RegistryType>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
         self.registry::<R>().ok()?.names.get(id.index())
     }
 
-    fn tag_name<R: RegistryType>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
         let (name, _) = self.registry::<R>().ok()?.tags.get(tag.index())?;
         Some(name)
     }
@@ -268,30 +273,32 @@ pub fn sample_registries() -> &'static SampleRegistries {
     &SET
 }
 
-fn sample_key<R>(path: &str) -> Key<R> {
-    Key::new(
+fn sample_key<R>(path: &str) -> ResourceKey<R> {
+    ResourceKey::from_location(
         ResourceLocation::minecraft(path)
             .unwrap_or_else(|error| panic!("the sample name {path}: {error}")),
     )
 }
 
-pub fn entry<R: RegistryType>(path: &str) -> Id<R> {
+pub fn entry<R: Registered>(path: &str) -> Id<R> {
     sample_registries()
         .id(&sample_key(path))
         .unwrap_or_else(|error| panic!("{error}"))
 }
 
-pub fn tag_set<R: RegistryType>(path: &str) -> IdSet<R> {
+pub fn tag_set<R: Registered>(path: &str) -> IdSet<R> {
     sample_registries()
-        .tag(&sample_key(path))
+        .tag(&TagKey::from_location(
+            sample_key::<R>(path).location().clone(),
+        ))
         .map(IdSet::Tag)
         .unwrap_or_else(|error| panic!("{error}"))
 }
 
-pub fn one_set<R: RegistryType>(path: &str) -> IdSet<R> {
+pub fn one_set<R: Registered>(path: &str) -> IdSet<R> {
     list_set(&[path])
 }
 
-pub fn list_set<R: RegistryType>(paths: &[&str]) -> IdSet<R> {
+pub fn list_set<R: Registered>(paths: &[&str]) -> IdSet<R> {
     IdSet::List(paths.iter().map(|path| entry(path)).collect())
 }

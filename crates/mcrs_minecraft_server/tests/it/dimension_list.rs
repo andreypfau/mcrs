@@ -7,10 +7,10 @@ use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
@@ -47,7 +47,7 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
             seed: 3,
             dimensions,
         },
-        test_registries_arc(),
+        test_registries(),
     )
     .unwrap();
 
@@ -102,7 +102,7 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
     let registered = app
         .world()
         .resource::<CurrentRegistries>()
-        .registry::<RegistryOf<WorldClock>>()
+        .registry::<WorldClock>()
         .expect("the world clock registry is loaded");
     assert!(!registered.is_empty());
     assert_eq!(

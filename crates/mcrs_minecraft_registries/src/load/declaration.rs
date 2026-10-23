@@ -1,16 +1,18 @@
-use std::any::{Any, TypeId};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{Registered, ResourceLocation};
+use mcrs_minecraft_datapack::{PackIndex, read_json};
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use super::ctx::LoadCtx;
-use super::network::SyncedEntry;
-use super::{Registries, Stage, Table};
+use crate::network::SyncedEntry;
+use crate::registries::{Erased, Registries, Stage};
 use crate::diagnostics::Diagnostic;
-use crate::pack::PackIndex;
-use crate::registry::{Names, ReadValue, Registry, RegistryType};
+use crate::refs::{Resolve, ResolveError};
+use crate::registry::{DataValue, Names, Registry};
 
 pub(crate) enum Source<'f> {
     File {
@@ -33,34 +35,10 @@ pub(crate) struct EntryFailure {
     pub(crate) entry: ResourceLocation,
     pub(crate) pack: PackIndex,
     pub(crate) file: Option<String>,
-    pub(crate) field: Option<String>,
-    pub(crate) message: String,
-    pub(crate) reported_as_unresolved: bool,
+    pub(crate) error: ResolveError,
 }
 
-pub(crate) enum Kind<'a> {
-    Fixed(&'a Fixed),
-    Data(&'a dyn ErasedData),
-}
-
-impl Kind<'_> {
-    pub(crate) fn stage(&self) -> Option<Stage> {
-        match self {
-            Kind::Fixed(_) => None,
-            Kind::Data(data) => Some(data.stage()),
-        }
-    }
-}
-
-pub(crate) trait Erased: Send + Sync {
-    fn key(&self) -> &ResourceLocation;
-    /// The Rust types that address this registry; empty for one addressed by its key alone.
-    fn types(&self) -> &[TypeId];
-    fn kind(&self) -> Kind<'_>;
-}
-
-pub(crate) trait ErasedData {
-    fn stage(&self) -> Stage;
+pub(crate) trait ErasedData: Send + Sync {
     fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])>;
     fn must_not_be_empty(&self) -> bool;
     fn build(
@@ -68,8 +46,9 @@ pub(crate) trait ErasedData {
         ctx: &LoadCtx<'_>,
         names: &Arc<Names>,
         sources: Vec<EntrySource<'_>>,
-    ) -> Result<Table, Vec<EntryFailure>>;
-    fn validate(&self, table: &Table, ctx: &LoadCtx<'_>) -> Result<(), String>;
+    ) -> Result<Erased, Vec<EntryFailure>>;
+    /// The entries the validator refuses, by their position in the registry.
+    fn validate(&self, registry: &Erased, ctx: &LoadCtx<'_>) -> Vec<(usize, String)>;
     fn is_synced(&self) -> bool;
     /// `None` for a registry that is not sent to clients.
     fn synced_entries<'r>(
@@ -78,98 +57,81 @@ pub(crate) trait ErasedData {
     ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>>;
 }
 
-type Validator<R> = Box<dyn Fn(&Registry<R>, &LoadCtx<'_>) -> Result<(), String> + Send + Sync>;
-type Project<R> =
-    Box<dyn Fn(&<R as RegistryType>::Value, &Registries) -> Result<NbtTag, String> + Send + Sync>;
-type Receive<R> =
-    Box<dyn Fn(NbtTag, &LoadCtx<'_>) -> Result<<R as RegistryType>::Value, String> + Send + Sync>;
-type BuiltIn<R> = Box<
-    dyn Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<<R as RegistryType>::Value, String>
-        + Send
-        + Sync,
->;
+type Validator<V> =
+    Box<dyn Fn(&Registry<V>, &LoadCtx<'_>) -> Vec<(usize, String)> + Send + Sync>;
+type Project<V> = Box<dyn Fn(&V, &Registries) -> Result<NbtTag, String> + Send + Sync>;
+type Receive<V> = Box<dyn Fn(NbtTag, &LoadCtx<'_>) -> Result<V, ResolveError> + Send + Sync>;
+type BuiltIn<V> = Box<dyn Fn(&ResourceLocation) -> Option<<V as Resolve>::Named> + Send + Sync>;
 
-pub struct DataDeclaration<R: RegistryType> {
-    key: ResourceLocation,
-    stage: Stage,
+pub struct DataDeclaration<V: DataValue> {
     non_empty: bool,
-    validator: Option<Validator<R>>,
-    built_in: Vec<BuiltInSet<R>>,
-    types: Vec<TypeId>,
-    synced: Option<Project<R>>,
-    received: Option<Receive<R>>,
+    validator: Option<Validator<V>>,
+    built_in: Vec<BuiltInSet<V>>,
+    synced: Option<Project<V>>,
+    received: Option<Receive<V>>,
 }
 
-struct BuiltInSet<R: RegistryType> {
+struct BuiltInSet<V: DataValue> {
     pack: String,
     names: Vec<ResourceLocation>,
-    value: BuiltIn<R>,
+    value: BuiltIn<V>,
 }
 
-impl<R: RegistryType> DataDeclaration<R> {
-    pub fn key(&self) -> &ResourceLocation {
-        &self.key
-    }
-
-    pub fn stage(&self) -> Stage {
-        self.stage
-    }
-
-    pub fn is_non_empty(&self) -> bool {
-        self.non_empty
-    }
-}
-
-impl<R: RegistryType> DataDeclaration<R>
-where
-    R::Value: ReadValue,
-{
+impl<V: DataValue> DataDeclaration<V> {
     pub fn non_empty(mut self) -> Self {
         self.non_empty = true;
         self
     }
 
+    /// Checks the loaded registry as a whole. `validator` names each entry it refuses by its
+    /// position in [`Registry::values`].
     pub fn validate(
         mut self,
-        validator: impl Fn(&Registry<R>, &LoadCtx<'_>) -> Result<(), String> + Send + Sync + 'static,
+        validator: impl Fn(&Registry<V>, &LoadCtx<'_>) -> Vec<(usize, String)> + Send + Sync + 'static,
     ) -> Self {
         self.validator = Some(Box::new(validator));
         self
     }
 
-    /// Lets a crate below the one that holds the values name this registry by the marker `K`.
-    pub fn named_by<K: RegistryType>(mut self) -> Self {
-        self.types.push(TypeId::of::<K>());
-        self
+    /// Sends the registry to clients, each entry in its named form.
+    pub fn synced(self) -> Self
+    where
+        V::Named: Serialize,
+    {
+        self.synced_as(|value, registries| named_nbt(value, registries))
     }
 
     /// Sends the registry to clients, each entry as the network NBT `project` makes of it.
-    pub fn synced(
+    pub fn synced_as(
         mut self,
-        project: impl Fn(&R::Value, &Registries) -> Result<NbtTag, String> + Send + Sync + 'static,
+        project: impl Fn(&V, &Registries) -> Result<NbtTag, String> + Send + Sync + 'static,
     ) -> Self {
         self.synced = Some(Box::new(project));
         self
     }
 
-    /// Reads an entry a server sent in a network form that differs from its file form. Without
-    /// it, the network NBT is read as the file is.
-    pub fn received(
-        mut self,
-        read: impl Fn(NbtTag, &LoadCtx<'_>) -> Result<R::Value, String> + Send + Sync + 'static,
-    ) -> Self {
-        self.received = Some(Box::new(read));
-        self
+    /// Sends the registry to clients as `N` and reads what a server sent back through it, for a
+    /// registry whose network form differs from its file form.
+    pub fn synced_via<N>(mut self) -> Self
+    where
+        N: Resolve<Named: Serialize + DeserializeOwned> + for<'v> From<&'v V>,
+        V: From<N>,
+    {
+        self.received = Some(Box::new(|tag, ctx| {
+            let named = mcrs_minecraft_nbt::from_tag(tag)
+                .map_err(|error| ResolveError::new(error.to_string()))?;
+            Ok(V::from(N::resolve(named, ctx)?))
+        }));
+        self.synced_as(|value, registries| named_nbt(&N::from(value), registries))
     }
 
+    /// Entries `pack` holds without files: `value` gives the named form of each of `names`, which
+    /// is resolved as a file of that pack would be.
     pub fn built_in(
         mut self,
         pack: &str,
         names: Vec<ResourceLocation>,
-        value: impl Fn(&ResourceLocation, &LoadCtx<'_>) -> Result<R::Value, String>
-        + Send
-        + Sync
-        + 'static,
+        value: impl Fn(&ResourceLocation) -> Option<V::Named> + Send + Sync + 'static,
     ) -> Self {
         self.built_in.push(BuiltInSet {
             pack: pack.to_owned(),
@@ -179,44 +141,60 @@ where
         self
     }
 
+    fn key() -> ResourceLocation {
+        <V::Registry as Registered>::REGISTRY.location().into()
+    }
+
     fn decode(
         &self,
         ctx: &LoadCtx<'_>,
         name: &ResourceLocation,
         source: &Source<'_>,
-    ) -> Result<R::Value, (Option<String>, String)> {
-        match source {
-            Source::File { bytes, .. } => R::Value::read_file(ctx, bytes),
-            Source::BuiltIn { set } => match self.built_in.get(*set) {
-                Some(set) => (set.value)(name, ctx).map_err(|message| (None, message)),
-                None => Err((None, "no built-in value is declared".to_owned())),
-            },
+    ) -> Result<V, ResolveError> {
+        let named = match source {
+            Source::File { bytes, .. } => read_json::<V::Named>(bytes)
+                .map_err(|error| ResolveError::in_field(error.field, error.message))?,
+            Source::BuiltIn { set } => (self.built_in.get(*set))
+                .and_then(|set| (set.value)(name))
+                .ok_or_else(|| ResolveError::new(format!("no built-in value is named {name}")))?,
             Source::Network(tag) => match &self.received {
-                Some(read) => read((*tag).clone(), ctx).map_err(|message| (None, message)),
-                None => mcrs_minecraft_nbt::read_tag((*tag).clone(), |tag| {
-                    R::Value::read(ctx, tag).map_err(|error| (None, error.to_string()))
-                }),
+                Some(read) => return read((*tag).clone(), ctx),
+                None => mcrs_minecraft_nbt::from_tag((*tag).clone())
+                    .map_err(|error| ResolveError::new(error.to_string()))?,
             },
-        }
+        };
+        V::resolve(named, ctx)
     }
 }
 
+fn named_nbt<T: Resolve<Named: Serialize>>(
+    value: &T,
+    registries: &Registries,
+) -> Result<NbtTag, String> {
+    let named = value.name(registries).map_err(|error| error.to_string())?;
+    mcrs_minecraft_nbt::to_nbt_tag(&named).map_err(|error| error.to_string())
+}
+
+pub(crate) enum Kind {
+    Fixed(Vec<ResourceLocation>),
+    Names,
+    Data(Box<dyn ErasedData>),
+}
+
 pub struct Declaration {
-    pub(crate) inner: Box<dyn Erased>,
+    key: ResourceLocation,
+    stage: Stage,
+    pub(crate) kind: Kind,
 }
 
 impl Declaration {
-    pub fn data<R: RegistryType>(key: ResourceLocation, stage: Stage) -> DataDeclaration<R>
-    where
-        R::Value: ReadValue,
-    {
+    /// A data registry of `V`, under the key of the registry `V` belongs to, loaded in the world
+    /// stage unless [`Declaration::in_stage`] moves it.
+    pub fn data<V: DataValue>() -> DataDeclaration<V> {
         DataDeclaration {
-            key,
-            stage,
             non_empty: false,
             validator: None,
             built_in: Vec::new(),
-            types: vec![TypeId::of::<R>()],
             synced: None,
             received: None,
         }
@@ -225,82 +203,56 @@ impl Declaration {
     /// A data registry whose entries are the names of its files, which are never read.
     pub fn names_only(key: ResourceLocation, stage: Stage) -> Declaration {
         Declaration {
-            inner: Box::new(NamesOnly { key, stage }),
+            key,
+            stage,
+            kind: Kind::Names,
         }
     }
 
-    pub fn fixed<R: RegistryType<Value = ()>>(
-        key: ResourceLocation,
-        names: Vec<ResourceLocation>,
-    ) -> Declaration {
-        Self::fixed_as(key, names, vec![TypeId::of::<R>()], |key, names| {
-            Arc::new(Registry::<R>::new(
-                key.clone(),
-                Arc::clone(names),
-                vec![(); names.len()],
-                Vec::new(),
-            ))
-        })
-    }
-
-    /// A static registry addressed by its key alone.
-    pub fn fixed_names(key: ResourceLocation, names: Vec<ResourceLocation>) -> Declaration {
-        Self::fixed_as(key, names, Vec::new(), |_, _| Arc::new(()))
-    }
-
-    fn fixed_as(
-        key: ResourceLocation,
-        names: Vec<ResourceLocation>,
-        types: Vec<TypeId>,
-        registry: MakeRegistry,
-    ) -> Declaration {
+    /// A static registry: its entries are `names`, in id order.
+    pub fn fixed(key: ResourceLocation, names: Vec<ResourceLocation>) -> Declaration {
         Declaration {
-            inner: Box::new(Fixed {
-                key,
-                names,
-                types,
-                registry,
-            }),
+            key,
+            stage: Stage::Static,
+            kind: Kind::Fixed(names),
         }
     }
-}
 
-impl<R: RegistryType> From<DataDeclaration<R>> for Declaration
-where
-    R::Value: ReadValue,
-{
-    fn from(declaration: DataDeclaration<R>) -> Self {
-        Declaration {
-            inner: Box::new(declaration),
-        }
-    }
-}
-
-impl<R: RegistryType> Erased for DataDeclaration<R>
-where
-    R::Value: ReadValue,
-{
-    fn key(&self) -> &ResourceLocation {
+    pub fn key(&self) -> &ResourceLocation {
         &self.key
     }
 
-    fn types(&self) -> &[TypeId] {
-        &self.types
-    }
-
-    fn kind(&self) -> Kind<'_> {
-        Kind::Data(self)
-    }
-}
-
-impl<R: RegistryType> ErasedData for DataDeclaration<R>
-where
-    R::Value: ReadValue,
-{
-    fn stage(&self) -> Stage {
+    pub fn stage(&self) -> Stage {
         self.stage
     }
 
+    /// Loads a data registry in `stage`. A static registry stays in [`Stage::Static`].
+    pub fn in_stage(mut self, stage: Stage) -> Self {
+        if !matches!(self.kind, Kind::Fixed(_)) {
+            self.stage = stage;
+        }
+        self
+    }
+
+    pub(crate) fn data_part(&self) -> Option<&dyn ErasedData> {
+        match &self.kind {
+            Kind::Data(data) => Some(data.as_ref()),
+            Kind::Fixed(_) | Kind::Names => None,
+        }
+    }
+}
+
+impl<V: DataValue> From<DataDeclaration<V>> for Declaration {
+    fn from(declaration: DataDeclaration<V>) -> Self {
+        Declaration {
+            key: DataDeclaration::<V>::key(),
+            stage: Stage::World,
+            kind: Kind::Data(Box::new(declaration)),
+        }
+    }
+}
+
+impl<V: DataValue> ErasedData for DataDeclaration<V> {
     fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])> {
         self.built_in
             .iter()
@@ -317,54 +269,36 @@ where
         ctx: &LoadCtx<'_>,
         names: &Arc<Names>,
         sources: Vec<EntrySource<'_>>,
-    ) -> Result<Table, Vec<EntryFailure>> {
+    ) -> Result<Erased, Vec<EntryFailure>> {
         let mut values = Vec::with_capacity(sources.len());
-        let mut origins = Vec::with_capacity(sources.len());
         let mut failures = Vec::new();
         for (name, entry) in names.all().iter().zip(sources) {
-            let before = ctx.enter(&self.key, name);
             match self.decode(ctx, name, &entry.source) {
-                Ok(value) => {
-                    ctx.settle(before, false);
-                    values.push(value);
-                    origins.push(entry.pack);
-                }
-                Err((field, message)) => failures.push(EntryFailure {
+                Ok(value) => values.push(value),
+                Err(error) => failures.push(EntryFailure {
                     entry: name.clone(),
                     pack: entry.pack,
                     file: match entry.source {
                         Source::File { path, .. } => Some(path.to_owned()),
                         Source::BuiltIn { .. } | Source::Network(_) => None,
                     },
-                    reported_as_unresolved: ctx.settle(before, true),
-                    field,
-                    message,
+                    error,
                 }),
             }
         }
         if !failures.is_empty() {
             return Err(failures);
         }
-        Ok(Table {
-            key: self.key.clone(),
-            names: Arc::clone(names),
-            registry: Arc::new(Registry::<R>::new(
-                self.key.clone(),
-                Arc::clone(names),
-                values,
-                origins,
-            )),
-        })
+        Ok(Arc::new(Registry::<V>::new(Arc::clone(names), values)))
     }
 
-    fn validate(&self, table: &Table, ctx: &LoadCtx<'_>) -> Result<(), String> {
-        let Some(validator) = &self.validator else {
-            return Ok(());
+    fn validate(&self, registry: &Erased, ctx: &LoadCtx<'_>) -> Vec<(usize, String)> {
+        let (Some(validator), Some(registry)) =
+            (&self.validator, registry.downcast_ref::<Registry<V>>())
+        else {
+            return Vec::new();
         };
-        match table.registry.downcast_ref::<Registry<R>>() {
-            Some(registry) => validator(registry, ctx),
-            None => Err("the registry table holds another value type".to_owned()),
-        }
+        validator(registry, ctx)
     }
 
     fn is_synced(&self) -> bool {
@@ -376,9 +310,9 @@ where
         registries: &'r Registries,
     ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>> {
         let project = self.synced.as_ref()?;
-        let Some(registry) = registries.registry::<R>() else {
+        let Some(registry) = registries.registry::<V>() else {
             return Some(Err(Diagnostic::Declaration {
-                registry: self.key.clone(),
+                registry: Self::key(),
                 message: "the synced registry was not loaded".to_owned(),
             }));
         };
@@ -399,7 +333,7 @@ where
             entries
                 .collect::<Result<_, (&ResourceLocation, String)>>()
                 .map_err(|(entry, message)| Diagnostic::Entry {
-                    registry: self.key.clone(),
+                    registry: Self::key(),
                     entry: entry.clone(),
                     pack: None,
                     file: None,
@@ -407,103 +341,5 @@ where
                     message: format!("cannot be sent to a client: {message}"),
                 }),
         )
-    }
-}
-
-type MakeRegistry = fn(&ResourceLocation, &Arc<Names>) -> Arc<dyn Any + Send + Sync>;
-
-pub(crate) struct Fixed {
-    key: ResourceLocation,
-    names: Vec<ResourceLocation>,
-    types: Vec<TypeId>,
-    registry: MakeRegistry,
-}
-
-impl Fixed {
-    pub(crate) fn names(&self) -> &[ResourceLocation] {
-        &self.names
-    }
-
-    pub(crate) fn assemble(&self, names: Arc<Names>) -> Table {
-        Table {
-            key: self.key.clone(),
-            registry: (self.registry)(&self.key, &names),
-            names,
-        }
-    }
-}
-
-impl Erased for Fixed {
-    fn key(&self) -> &ResourceLocation {
-        &self.key
-    }
-
-    fn types(&self) -> &[TypeId] {
-        &self.types
-    }
-
-    fn kind(&self) -> Kind<'_> {
-        Kind::Fixed(self)
-    }
-}
-
-struct NamesOnly {
-    key: ResourceLocation,
-    stage: Stage,
-}
-
-impl Erased for NamesOnly {
-    fn key(&self) -> &ResourceLocation {
-        &self.key
-    }
-
-    fn types(&self) -> &[TypeId] {
-        &[]
-    }
-
-    fn kind(&self) -> Kind<'_> {
-        Kind::Data(self)
-    }
-}
-
-impl ErasedData for NamesOnly {
-    fn stage(&self) -> Stage {
-        self.stage
-    }
-
-    fn built_ins(&self) -> Vec<(&str, &[ResourceLocation])> {
-        Vec::new()
-    }
-
-    fn must_not_be_empty(&self) -> bool {
-        false
-    }
-
-    fn build(
-        &self,
-        _: &LoadCtx<'_>,
-        names: &Arc<Names>,
-        _: Vec<EntrySource<'_>>,
-    ) -> Result<Table, Vec<EntryFailure>> {
-        Ok(Table {
-            key: self.key.clone(),
-            names: Arc::clone(names),
-            registry: Arc::new(()),
-        })
-    }
-
-    fn validate(&self, _: &Table, _: &LoadCtx<'_>) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn is_synced(&self) -> bool {
-        false
-    }
-
-    fn synced_entries<'r>(
-        &self,
-        _: &'r Registries,
-    ) -> Option<Result<Vec<SyncedEntry<'r>>, Diagnostic>> {
-        None
     }
 }

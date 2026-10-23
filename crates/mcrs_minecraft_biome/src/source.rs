@@ -1,9 +1,10 @@
+use mcrs_minecraft_core::ResourceKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_registries::{Key, Named, Refs, Resolve, Resolved, registry_value};
+use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, dispatch, registry_value};
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -85,14 +86,16 @@ pub fn beta_biome_from_climate(
 // ===========================================================================
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::BiomeSourceType, unsupported(Checkerboard))]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum BiomeSource<M: Refs = Resolved> {
     MultiNoise(MultiNoiseBiomeSource<M>),
     TheEnd,
     Fixed {
         biome: M::Id<crate::Biome>,
     },
+    #[dispatch(id = "mcrs:beta")]
     Beta {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
@@ -101,17 +104,6 @@ pub enum BiomeSource<M: Refs = Resolved> {
         #[serde(skip, default = "beta_lookup")]
         lookup: Arc<[[BetaLandBiome; 64]; 64]>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    BiomeSource<Named>, key = "type", registry = crate::keys::BiomeSourceType,
-    {
-        MultiNoise => MultiNoise,
-        TheEnd => TheEnd,
-        Fixed => Fixed,
-    }
-    unsupported { Checkerboard }
-    extend { "mcrs:beta" => Beta }
 }
 
 fn beta_lookup() -> Arc<[[BetaLandBiome; 64]; 64]> {
@@ -144,7 +136,7 @@ struct MultiNoiseFields {
     #[serde(default, deserialize_with = "distinguishable_entries")]
     biomes: Option<Vec<MultiNoiseBiomeEntry<Named>>>,
     #[serde(default)]
-    preset: Option<Key<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
+    preset: Option<ResourceKey<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
 }
 
 impl<'de> Deserialize<'de> for MultiNoiseBiomeSource<Named> {

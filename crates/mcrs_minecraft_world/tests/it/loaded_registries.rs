@@ -1,7 +1,8 @@
 use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_core::Registered;
+use mcrs_minecraft_core::ResourceKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
@@ -11,18 +12,18 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
+use mcrs_minecraft_core::{Id, RegistryValue, ResourceLocation, TagId, TagKey};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_registries::{
-    CurrentRegistries, Diagnostic, IdSet, Key, Level, Registries, RegistryOf, RegistryType,
-    Resolve, Resolver, StackedPack, VANILLA_PACK,
+    CurrentRegistries, Diagnostic, IdSet, Registries, Resolve, Resolver,
 };
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, sent_by, test_registries_arc};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, sent_by, test_registries};
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -66,7 +67,7 @@ fn the_loaded_static_registries_number_their_entries_as_the_report() {
             expected[entry.protocol_id] = name;
         }
         assert_eq!(
-            loaded_names(test_registries_arc(), &registry),
+            loaded_names(test_registries(), &registry),
             expected,
             "{registry}"
         );
@@ -151,7 +152,7 @@ fn every_registry() -> BTreeSet<String> {
 #[test]
 fn every_registry_of_the_reports_is_loaded() {
     let report = datapack_report();
-    let set = test_registries_arc();
+    let set = test_registries();
     for registry in every_registry() {
         assert!(
             set.names_of(&ResourceLocation::read(&registry).unwrap())
@@ -172,7 +173,7 @@ fn every_registry_of_the_reports_is_loaded() {
 
 #[test]
 fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
-    let names: BTreeSet<String> = loaded_names(test_registries_arc(), "minecraft:worldgen/biome")
+    let names: BTreeSet<String> = loaded_names(test_registries(), "minecraft:worldgen/biome")
         .into_iter()
         .collect();
     let built = mcrs_minecraft_worldgen_builtin::biome_names();
@@ -199,10 +200,10 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     }
 }
 
-fn from_pack<R: RegistryType>(set: &Registries, pack: &str) -> Vec<ResourceLocation> {
+fn from_pack<V: RegistryValue + 'static>(set: &Registries, pack: &str) -> Vec<ResourceLocation> {
     let registry = set
-        .registry::<R>()
-        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()));
+        .registry::<V>()
+        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<V>()));
     registry
         .iter()
         .filter(|(id, _, _)| set.origin(*id).map(StackedPack::id) == Some(pack))
@@ -210,21 +211,19 @@ fn from_pack<R: RegistryType>(set: &Registries, pack: &str) -> Vec<ResourceLocat
         .collect()
 }
 
-fn pack_of<R: RegistryType>(set: &Registries, name: &str) -> Option<String> {
-    let registry = set.registry::<R>()?;
+fn pack_of<V: RegistryValue + 'static>(set: &Registries, name: &str) -> Option<String> {
+    let registry = set.registry::<V>()?;
     let id = registry.by_name(&ResourceLocation::read(name).ok()?)?;
     set.origin(id).map(|pack| pack.id().to_owned())
 }
 
-fn key_of<R: RegistryType>(set: &Registries) -> ResourceLocation {
-    set.key_of::<R>()
-        .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()))
-        .clone()
+fn key_of<V: RegistryValue>() -> ResourceLocation {
+    <V::Registry as Registered>::REGISTRY.location().into()
 }
 
 #[test]
 fn vanilla_biomes_are_built_entries_not_files() {
-    let vanilla = from_pack::<RegistryOf<BiomeFile>>(test_registries_arc(), VANILLA_PACK);
+    let vanilla = from_pack::<BiomeFile>(test_registries(), VANILLA_PACK);
     assert_eq!(vanilla.len(), 68);
     assert!(
         mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/biome/plains.json").is_none(),
@@ -234,24 +233,19 @@ fn vanilla_biomes_are_built_entries_not_files() {
 
 #[test]
 fn vanilla_noise_settings_are_built_entries_not_files() {
-    let set = test_registries_arc();
+    let set = test_registries();
     type FromPack = fn(&Registries, &str) -> Vec<ResourceLocation>;
     let cases: [(&str, FromPack, usize, usize); 3] = [
-        (
-            "minecraft:worldgen/noise",
-            from_pack::<RegistryOf<NoiseParam>>,
-            65,
-            5,
-        ),
+        ("minecraft:worldgen/noise", from_pack::<NoiseParam>, 65, 5),
         (
             "minecraft:worldgen/density_function",
-            from_pack::<RegistryOf<DensityFunctionHolder>>,
+            from_pack::<DensityFunctionHolder>,
             55,
             10,
         ),
         (
             "minecraft:worldgen/noise_settings",
-            from_pack::<RegistryOf<NoiseGeneratorSettings>>,
+            from_pack::<NoiseGeneratorSettings>,
             7,
             1,
         ),
@@ -272,13 +266,13 @@ fn vanilla_noise_settings_are_built_entries_not_files() {
 
 #[test]
 fn vanilla_template_pools_are_built_entries_not_files() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let pools = set
-        .registry::<RegistryOf<TemplatePool>>()
+        .registry::<TemplatePool>()
         .expect("the loader parses template pools");
     assert_eq!(pools.len(), 245);
     assert_eq!(
-        from_pack::<RegistryOf<TemplatePool>>(set, VANILLA_PACK).len(),
+        from_pack::<TemplatePool>(set, VANILLA_PACK).len(),
         pools.len(),
         "a template pool comes from a pack other than the vanilla one"
     );
@@ -291,7 +285,7 @@ fn vanilla_template_pools_are_built_entries_not_files() {
 
 #[test]
 fn the_fallback_serves_only_structure_templates() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let fallback = layered_reader(
         Box::new(MemoryAssetReader {
             root: Dir::default(),
@@ -302,24 +296,24 @@ fn the_fallback_serves_only_structure_templates() {
     let mut json_paths = 0;
     let built: [(ResourceLocation, Vec<ResourceLocation>); 5] = [
         (
-            key_of::<RegistryOf<BiomeFile>>(set),
-            from_pack::<RegistryOf<BiomeFile>>(set, VANILLA_PACK),
+            key_of::<BiomeFile>(),
+            from_pack::<BiomeFile>(set, VANILLA_PACK),
         ),
         (
-            key_of::<RegistryOf<DensityFunctionHolder>>(set),
-            from_pack::<RegistryOf<DensityFunctionHolder>>(set, VANILLA_PACK),
+            key_of::<DensityFunctionHolder>(),
+            from_pack::<DensityFunctionHolder>(set, VANILLA_PACK),
         ),
         (
-            key_of::<RegistryOf<NoiseParam>>(set),
-            from_pack::<RegistryOf<NoiseParam>>(set, VANILLA_PACK),
+            key_of::<NoiseParam>(),
+            from_pack::<NoiseParam>(set, VANILLA_PACK),
         ),
         (
-            key_of::<RegistryOf<NoiseGeneratorSettings>>(set),
-            from_pack::<RegistryOf<NoiseGeneratorSettings>>(set, VANILLA_PACK),
+            key_of::<NoiseGeneratorSettings>(),
+            from_pack::<NoiseGeneratorSettings>(set, VANILLA_PACK),
         ),
         (
-            key_of::<RegistryOf<TemplatePool>>(set),
-            from_pack::<RegistryOf<TemplatePool>>(set, VANILLA_PACK),
+            key_of::<TemplatePool>(),
+            from_pack::<TemplatePool>(set, VANILLA_PACK),
         ),
     ];
     for (registry, names) in &built {
@@ -422,8 +416,8 @@ fn a_biome_placing_a_feature_outside_the_allowed_range_fails_the_load() {
 
 #[test]
 fn every_banner_pattern_is_named_after_its_asset() {
-    let patterns = test_registries_arc()
-        .registry::<RegistryOf<BannerPattern>>()
+    let patterns = test_registries()
+        .registry::<BannerPattern>()
         .expect("banner patterns are parsed by the loader");
     assert!(!patterns.is_empty());
     for (_, name, pattern) in patterns.iter() {
@@ -433,13 +427,13 @@ fn every_banner_pattern_is_named_after_its_asset() {
 
 #[test]
 fn a_local_entry_comes_from_its_pack() {
-    let set = test_registries_arc();
+    let set = test_registries();
     type PackOf = fn(&Registries, &str) -> Option<String>;
-    let dimension_type: PackOf = pack_of::<RegistryOf<DimensionTypeFile>>;
-    let preset: PackOf = pack_of::<RegistryOf<WorldPreset>>;
-    let noise_settings: PackOf = pack_of::<RegistryOf<NoiseGeneratorSettings>>;
-    let density_function: PackOf = pack_of::<RegistryOf<DensityFunctionHolder>>;
-    let noise: PackOf = pack_of::<RegistryOf<NoiseParam>>;
+    let dimension_type: PackOf = pack_of::<DimensionTypeFile>;
+    let preset: PackOf = pack_of::<WorldPreset>;
+    let noise_settings: PackOf = pack_of::<NoiseGeneratorSettings>;
+    let density_function: PackOf = pack_of::<DensityFunctionHolder>;
+    let noise: PackOf = pack_of::<NoiseParam>;
     for (pack_of, name, pack) in [
         (dimension_type, "minecraft:beta", "file/beta"),
         (dimension_type, "minecraft:overworld", "vanilla"),
@@ -484,7 +478,7 @@ fn packs_follow_vanilla_in_name_order() {
         .unwrap_or_else(|error| panic!("{error}"));
     let set = &loaded.registries;
 
-    let patterns = set.registry::<RegistryOf<BannerPattern>>().unwrap();
+    let patterns = set.registry::<BannerPattern>().unwrap();
     let entry = |name: &str| {
         let id = patterns
             .by_name(&ResourceLocation::read(name).unwrap())
@@ -538,7 +532,7 @@ fn packs_follow_vanilla_in_name_order() {
 fn the_plugin_and_the_directory_reader_load_equal_sets() {
     let app = plugin_app();
     let through_plugin: &Registries = app.world().resource::<CurrentRegistries>();
-    let through_directory: &Registries = test_registries_arc();
+    let through_directory: &Registries = test_registries();
 
     let registries = every_registry();
     assert!(registries.len() > 100, "the corpus loads few registries");
@@ -584,7 +578,7 @@ fn a_pack_directory_without_a_namespace_has_no_files() {
     assert!(
         !loaded.diagnostics.iter().any(|diagnostic| matches!(
             diagnostic,
-            Diagnostic::UnavailablePack { pack, .. } if pack == "file/zz_empty"
+            Diagnostic::Pack(PackDiagnostic::UnavailablePack { pack, .. }) if pack == "file/zz_empty"
         )),
         "{:?}",
         loaded.diagnostics
@@ -615,11 +609,11 @@ fn json_at(path: &Path) -> serde_json::Value {
 
 #[test]
 fn a_loaded_holder_set_answers_membership_through_the_tags() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let archetypes = set
-        .registry::<RegistryOf<SulfurCubeArchetype>>()
+        .registry::<SulfurCubeArchetype>()
         .expect("the archetypes are parsed by the loader");
-    let items = set.registry::<Item>().unwrap();
+    let items = set.entries::<Item>().unwrap();
     let tags = set.tags::<Item>().unwrap();
 
     let mut checked = 0;
@@ -650,7 +644,7 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
         if listed.iter().any(|value| value.starts_with('#')) {
             continue;
         }
-        for (id, item, _) in items.iter() {
+        for (id, item) in items.iter() {
             assert_eq!(
                 archetype.items.contains(&tags, id),
                 listed.contains(&item.as_str()),
@@ -667,11 +661,13 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
 
 #[test]
 fn the_local_light_tag_reaches_the_loaded_item_tags() {
-    let set = test_registries_arc();
-    let items = set.registry::<Item>().unwrap();
+    let set = test_registries();
+    let items = set.entries::<Item>().unwrap();
     let tags = set.tags::<Item>().unwrap();
     let tag = tags
-        .by_name(&ResourceLocation::read("mcrs:water_sensitive_light").unwrap())
+        .id(&TagKey::from_location(
+            ResourceLocation::read("mcrs:water_sensitive_light").unwrap(),
+        ))
         .expect("the local light tag is loaded");
     let members: Vec<&str> = tags
         .members(tag)
@@ -694,7 +690,7 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
 
 #[test]
 fn a_bare_name_takes_the_default_namespace() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let bare: InstrumentValue = read_named(set, &instrument("item.goat_horn.sound.0")).unwrap();
     let written = serde_json::to_value(write_named(set, &bare)).unwrap();
     assert_eq!(written["sound_event"], "minecraft:item.goat_horn.sound.0");
@@ -705,7 +701,7 @@ fn a_bare_name_takes_the_default_namespace() {
 
 #[test]
 fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let instrument = |extra: &str| {
         format!(
             r#"{{
@@ -850,7 +846,7 @@ fn an_empty_variant_registry_fails_the_load() {
 
 #[test]
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let (_, wolves) = sent_by(set, false)
         .0
         .into_iter()
@@ -904,7 +900,7 @@ fn a_chat_parameter_outside_the_game_set_fails() {
 }
 
 fn registered_names(registry: &str) -> BTreeSet<String> {
-    loaded_names(test_registries_arc(), registry)
+    loaded_names(test_registries(), registry)
         .into_iter()
         .collect()
 }
@@ -914,8 +910,8 @@ where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
     let value: T =
-        read_named(test_registries_arc(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
-    let text = serde_json::to_string(&write_named(test_registries_arc(), &value)).unwrap();
+        read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    let text = serde_json::to_string(&write_named(test_registries(), &value)).unwrap();
     serde_json::from_str(&text).unwrap()
 }
 
@@ -943,8 +939,8 @@ where
     T::Named: serde::de::DeserializeOwned + serde::Serialize,
 {
     let value: T =
-        read_named(test_registries_arc(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
-    mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries_arc(), &value)).unwrap()
+        read_named(test_registries(), json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    mcrs_minecraft_nbt::to_nbt_compound(&write_named(test_registries(), &value)).unwrap()
 }
 
 fn dialog_list_in(tag: &str, dialogs: &str) -> String {
@@ -1402,7 +1398,7 @@ fn an_archetype_the_game_refuses_fails_to_parse() {
             .as_object_mut()
             .unwrap()
             .insert(key.to_owned(), value);
-        let message = read_named::<SulfurCubeArchetype>(test_registries_arc(), &json.to_string())
+        let message = read_named::<SulfurCubeArchetype>(test_registries(), &json.to_string())
             .expect_err(pointer);
         assert!(message.contains(expected), "{pointer}: {message}");
     }
@@ -1450,7 +1446,7 @@ fn timeline_file(clock: &str, markers: &str) -> String {
 pub(crate) fn load_shipped_and(
     directory: &str,
     files: &[(&str, String)],
-) -> Result<Arc<Registries>, RegistryLoadError> {
+) -> Result<Registries, RegistryLoadError> {
     let files: Vec<(String, &str)> = files
         .iter()
         .map(|(name, json)| (format!("{directory}/{name}.json"), json.as_str()))
@@ -1510,13 +1506,19 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
         ],
     );
     let errors = errors_of(refused);
-    let [Diagnostic::Validation { registry, message }] = errors.as_slice() else {
-        panic!("one validation error expected: {errors:?}");
+    let [
+        Diagnostic::Entry {
+            registry,
+            entry,
+            message,
+            ..
+        },
+    ] = errors.as_slice()
+    else {
+        panic!("one entry error expected: {errors:?}");
     };
     assert_eq!(registry.as_str(), "minecraft:timeline");
-    let message = message
-        .strip_prefix("test:second: ")
-        .unwrap_or_else(|| panic!("the error names the second timeline: {message}"));
+    assert_eq!(entry.as_str(), "test:second", "the error names the second timeline");
     assert!(message.contains("test:marker"), "{message}");
     assert!(message.contains("minecraft:overworld"), "{message}");
     assert!(message.contains("more than once"), "{message}");
@@ -1554,7 +1556,7 @@ fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {
 
 #[test]
 fn trial_spawners_have_names_and_no_values() {
-    let set = test_registries_arc();
+    let set = test_registries();
     for loot in [
         "minecraft:loot_table",
         "minecraft:predicate",
@@ -1577,24 +1579,24 @@ fn trial_spawners_have_names_and_no_values() {
 }
 
 pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app: &App) {
-    fn parsed<R: RegistryType>(set: &Registries) -> (ResourceLocation, Vec<ResourceLocation>) {
+    fn parsed<R: Registered>(set: &Registries) -> (ResourceLocation, Vec<ResourceLocation>) {
         let registry = set.registry::<R>().unwrap_or_else(|| {
             panic!("{} is not parsed by the loader", std::any::type_name::<R>())
         });
         let names = registry.iter().map(|(_, name, _)| name.clone()).collect();
-        (registry.key().clone(), names)
+        (registry.key().into(), names)
     }
 
     let set: &Registries = app.world().resource::<CurrentRegistries>();
     let server = app.world().resource::<AssetServer>();
 
     let counts = [
-        (parsed::<RegistryOf<CarverConfig>>(set), 5),
-        (parsed::<RegistryOf<Feature>>(set), 262),
-        (parsed::<RegistryOf<PlacedFeature>>(set), 300),
-        (parsed::<RegistryOf<StructureProcessorList>>(set), 40),
-        (parsed::<RegistryOf<Structure>>(set), 52),
-        (parsed::<RegistryOf<StructureSet>>(set), 21),
+        (parsed::<CarverConfig>(set), 5),
+        (parsed::<Feature>(set), 262),
+        (parsed::<PlacedFeature>(set), 300),
+        (parsed::<StructureProcessorList>(set), 40),
+        (parsed::<Structure>(set), 52),
+        (parsed::<StructureSet>(set), 21),
     ];
     for ((registry, names), expected) in counts {
         assert_eq!(names.len(), expected, "{registry}");
@@ -1612,7 +1614,7 @@ pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app:
         }
     }
 
-    let carvers = set.registry::<RegistryOf<CarverConfig>>().unwrap();
+    let carvers = set.registry::<CarverConfig>().unwrap();
     assert!(
         carvers
             .by_name(&ResourceLocation::read("minecraft:beta_cave").unwrap())
@@ -1635,19 +1637,23 @@ fn overworld_dimension_type_with(
             }
         }
     }
-    read_named(test_registries_arc(), &file.to_string())
+    read_named(test_registries(), &file.to_string())
 }
 
-fn tag_in<R: RegistryType>(set: &Registries, name: &str) -> TagId<R> {
+fn tag_in<R: Registered>(set: &Registries, name: &str) -> TagId<R> {
     set.tags::<R>()
         .unwrap_or_else(|| panic!("{} has loaded tags", std::any::type_name::<R>()))
-        .by_name(&ResourceLocation::read(name).unwrap())
+        .id(&TagKey::from_location(
+            ResourceLocation::read(name).unwrap(),
+        ))
         .unwrap_or_else(|| panic!("{name} is a loaded tag"))
 }
 
-fn id_in<R: RegistryType>(set: &Registries, name: &str) -> Id<R> {
-    set.id(&Key::new(ResourceLocation::read(name).unwrap()))
-        .unwrap_or_else(|error| panic!("{error}"))
+fn id_in<R: Registered>(set: &Registries, name: &str) -> Id<R> {
+    set.id(&ResourceKey::from_location(
+        ResourceLocation::read(name).unwrap(),
+    ))
+    .unwrap_or_else(|error| panic!("{error}"))
 }
 
 #[test]
@@ -1655,7 +1661,7 @@ fn a_dimension_type_sends_has_fixed_time_only_when_set() {
     for (json, sent) in [("false", None), ("true", Some(NbtTag::Byte(1)))] {
         let read = overworld_dimension_type_with(&[("has_fixed_time", Some(json))]).unwrap();
         let nbt =
-            mcrs_minecraft_nbt::to_nbt_compound(&read.name(&**test_registries_arc()).unwrap())
+            mcrs_minecraft_nbt::to_nbt_compound(&read.name(test_registries()).unwrap())
                 .unwrap();
         assert_eq!(nbt.get("has_fixed_time").cloned(), sent, "{json}");
     }
@@ -1663,7 +1669,7 @@ fn a_dimension_type_sends_has_fixed_time_only_when_set() {
 
 #[test]
 fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let stone = Block::Stone.id();
     let overworld_clock = id_in::<WorldClock>(set, "minecraft:overworld");
 
@@ -1733,9 +1739,9 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
 
 #[test]
 fn every_preset_parses_in_registry_context() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let presets = set
-        .registry::<RegistryOf<WorldPreset>>()
+        .registry::<WorldPreset>()
         .expect("the loader parses world presets");
     let preset = |name: &str| {
         presets
@@ -1786,8 +1792,8 @@ fn every_preset_parses_in_registry_context() {
 
 #[test]
 fn a_preset_reads_its_dimensions_as_a_map_by_key() {
-    let set = test_registries_arc();
-    let presets = set.registry::<RegistryOf<WorldPreset>>().unwrap();
+    let set = test_registries();
+    let presets = set.registry::<WorldPreset>().unwrap();
     let preset = |name: &str| {
         presets
             .by_name(&ResourceLocation::read(name).unwrap())
@@ -1903,15 +1909,15 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
 
 #[test]
 fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
-    let set = test_registries_arc();
-    let items = set.registry::<Item>().unwrap();
-    let blocks = set.registry::<Block>().unwrap();
+    let set = test_registries();
+    let items = set.entries::<Item>().unwrap();
+    let blocks = set.entries::<Block>().unwrap();
     let stone = ResourceLocation::read("minecraft:stone").unwrap();
     assert_eq!(items.by_name(&stone), Some(Item::Stone.id()));
     assert_eq!(blocks.by_name(&stone), Some(Block::Stone.id()));
 
     let mut differing = 0;
-    for (item, name, _) in items.iter() {
+    for (item, name) in items.iter() {
         let Some(block) = blocks.by_name(name) else {
             continue;
         };

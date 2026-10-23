@@ -1,6 +1,6 @@
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_block_predicate::state_properties::{StatePropertiesPredicate, ValueMatcher};
-use mcrs_minecraft_registries::{KeyOr, Named};
+use mcrs_minecraft_registries::{Named, Ref};
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
@@ -508,10 +508,10 @@ pub(super) fn compile_provider(
     r: &Resolver<'_>,
 ) -> Compiled<StateProvider> {
     let direct: &DirectBlockStateProvider<Named> = match provider {
-        KeyOr::Key(key) => r.block_state_providers.get(key.location()).ok_or_else(|| {
+        Ref::Id(key) => r.block_state_providers.get(key.location()).ok_or_else(|| {
             FeatureCompileError::UnknownBlockStateProvider(key.location().clone())
         })?,
-        KeyOr::Inline(direct) => direct,
+        Ref::Inline(direct) => direct,
     };
     let typed: &TypedBlockStateProvider<Named> = match direct {
         DirectBlockStateProvider::State(state) => {

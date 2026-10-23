@@ -1,16 +1,17 @@
-use std::any::TypeId;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_datapack::{PackFiles, PackIndex, PackStack, VANILLA_PACK, Visibility};
 
 use super::ctx::{LoadCtx, Slot};
-use super::declaration::{Declaration, EntrySource, Erased, Kind, Source};
+use super::declaration::{Declaration, EntrySource, Kind, Source};
 use super::index::{self, Directories, SlotFiles};
-use super::{Registries, Stage, Table, Tables, TagTables, network, tag_build};
-use crate::diagnostics::{Diagnostic, Diagnostics, Missing};
+use super::tag_build;
+use crate::network;
+use crate::registries::{Erased, Registries, Stage, Table};
+use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 use crate::order::{entry_file_order, identifier_order};
-use crate::pack::{PackFiles, PackIndex, PackStack, StackedPack, VANILLA};
 use crate::registry::Names;
 
 pub(super) fn fail(mut diagnostics: Diagnostics, errors: Vec<Diagnostic>) -> Diagnostics {
@@ -28,19 +29,13 @@ pub(super) fn not_built(registry: &ResourceLocation) -> Diagnostic {
 pub(super) fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     let mut keys = HashSet::new();
-    let mut types = HashSet::new();
     let mut paths = HashSet::new();
     for declaration in declarations {
-        let declaration = &declaration.inner;
         let registry = declaration.key().clone();
-        let mut fresh = keys.insert(registry.clone());
-        for &registry_type in declaration.types() {
-            fresh &= types.insert(registry_type);
-        }
-        if !fresh {
+        if !keys.insert(registry.clone()) {
             errors.push(Diagnostic::Declaration {
                 registry,
-                message: "the registry or its type is declared twice".to_owned(),
+                message: "the registry is declared twice".to_owned(),
             });
             continue;
         }
@@ -51,24 +46,23 @@ pub(super) fn check_declarations(declarations: &[Declaration]) -> Vec<Diagnostic
             });
             continue;
         }
-        if let Kind::Fixed(fixed) = declaration.kind() {
-            let names = fixed.names();
-            if names.iter().collect::<HashSet<_>>().len() != names.len() {
-                errors.push(Diagnostic::Declaration {
-                    registry,
-                    message: "an entry name is listed twice".to_owned(),
-                });
-            }
+        if let Kind::Fixed(names) = &declaration.kind
+            && names.iter().collect::<HashSet<_>>().len() != names.len()
+        {
+            errors.push(Diagnostic::Declaration {
+                registry,
+                message: "an entry name is listed twice".to_owned(),
+            });
         }
     }
     errors
 }
 
-pub(super) fn slots_by_type(slots: &[Slot<'_>]) -> HashMap<TypeId, usize> {
+pub(super) fn slots_by_key(slots: &[Slot<'_>]) -> HashMap<ResourceLocation, usize> {
     slots
         .iter()
         .enumerate()
-        .flat_map(|(at, slot)| slot.declaration.types().iter().map(move |&t| (t, at)))
+        .map(|(at, slot)| (slot.key().clone(), at))
         .collect()
 }
 
@@ -90,7 +84,7 @@ pub(super) struct BuiltInPath<'d> {
 pub(super) fn entry_sources<'f>(
     built_in: &[BuiltInPath<'_>],
     files: &mut SlotFiles<'f>,
-    visibility: &index::Visibility<'_>,
+    visibility: &Visibility<'_>,
 ) -> (Vec<ResourceLocation>, Vec<EntrySource<'f>>) {
     let mut entries = std::mem::take(&mut files.entries);
     for path in built_in {
@@ -121,11 +115,11 @@ pub(super) type BuiltInPaths<'d> = Vec<Vec<BuiltInPath<'d>>>;
 pub(super) fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
     let mut slots: Vec<Slot<'_>> = declarations
         .iter()
-        .map(|d| Slot {
-            declaration: d.inner.as_ref(),
+        .map(|declaration| Slot {
+            declaration,
             names: None,
             tags: None,
-            table: None,
+            registry: None,
         })
         .collect();
     slots.sort_by(|a, b| {
@@ -139,7 +133,7 @@ pub(super) fn empty_slots(declarations: &[Declaration]) -> Vec<Slot<'_>> {
 pub(super) fn directories(slots: &[Slot<'_>]) -> Directories {
     let mut directories = Directories::default();
     for (at, slot) in slots.iter().enumerate() {
-        let has_entries = matches!(slot.declaration.kind(), Kind::Data(_));
+        let has_entries = !matches!(slot.declaration.kind, Kind::Fixed(_));
         directories.insert(slot.key(), at, has_entries);
     }
     directories
@@ -150,13 +144,13 @@ pub(super) fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> Built
         .iter()
         .map(|slot| {
             let declaration = slot.declaration;
-            let Kind::Data(data) = declaration.kind() else {
+            let Some(data) = declaration.data_part() else {
                 return Vec::new();
             };
             let directory = declaration.key().path();
             let sets = data.built_ins().into_iter().enumerate();
             sets.filter_map(|(set, (pack, names))| {
-                Some((set, stack.position(pack)?, pack == VANILLA, names))
+                Some((set, stack.position(pack)?, pack == VANILLA_PACK, names))
             })
             .flat_map(|(set, pack, replaces_own_file, names)| {
                 names.iter().map(move |name| BuiltInPath {
@@ -172,10 +166,10 @@ pub(super) fn built_in_paths<'d>(slots: &[Slot<'d>], stack: &PackStack) -> Built
         .collect()
 }
 
-fn reuse(stage: Option<Stage>, slots: &mut [Slot<'_>], previous: &Registries) -> Vec<Diagnostic> {
+fn reuse(stage: Stage, slots: &mut [Slot<'_>], previous: &Registries) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     for slot in slots.iter_mut().filter(|s| s.stage() == stage) {
-        let Some(table) = previous.table(slot.key()) else {
+        let Some(table) = previous.table(slot.key().as_str()) else {
             errors.push(Diagnostic::Declaration {
                 registry: slot.key().clone(),
                 message: "the registry is missing from the registries being reloaded".to_owned(),
@@ -183,50 +177,44 @@ fn reuse(stage: Option<Stage>, slots: &mut [Slot<'_>], previous: &Registries) ->
             continue;
         };
         slot.names = Some(Arc::clone(&table.names));
-        slot.table = Some(table.clone());
+        slot.registry = table.registry.clone();
     }
     errors
 }
 
 fn name_entries<'f>(
-    stage: Option<Stage>,
+    stage: Stage,
     slots: &mut [Slot<'_>],
     files: &mut [SlotFiles<'f>],
     built_in_paths: &BuiltInPaths<'_>,
-    visibility: &index::Visibility<'_>,
+    visibility: &Visibility<'_>,
 ) -> (Vec<(usize, Vec<EntrySource<'f>>)>, Vec<Diagnostic>) {
     let mut errors = Vec::new();
     let mut sources = Vec::new();
     let members = slots.iter_mut().zip(files.iter_mut()).enumerate();
     for (at, (slot, files)) in members.filter(|(_, (s, _))| s.stage() == stage) {
-        let declaration = slot.declaration;
-        match declaration.kind() {
-            Kind::Fixed(fixed) => match Names::new(fixed.names().to_vec()) {
-                Ok(names) => {
-                    let names = Arc::new(names);
-                    slot.table = Some(fixed.assemble(Arc::clone(&names)));
-                    slot.names = Some(names);
-                }
-                Err(count) => errors.push(too_many(slot.key(), count)),
-            },
-            Kind::Data(_) => {
+        let named = match &slot.declaration.kind {
+            Kind::Fixed(names) => Names::new(names.clone(), Vec::new()),
+            Kind::Names | Kind::Data(_) => {
                 let built_in = built_in_paths.get(at).map_or(&[][..], Vec::as_slice);
                 let (names, entry_sources) = entry_sources(built_in, files, visibility);
-                match Names::new(names) {
-                    Ok(names) => {
-                        slot.names = Some(Arc::new(names));
-                        sources.push((at, entry_sources));
-                    }
-                    Err(count) => errors.push(too_many(slot.key(), count)),
+                let origins = entry_sources.iter().map(|source| source.pack).collect();
+                if slot.declaration.data_part().is_some() {
+                    sources.push((at, entry_sources));
                 }
+                Names::new(names, origins)
             }
+        };
+        match named {
+            Ok(names) => slot.names = Some(Arc::new(names)),
+            Err(count) => errors.push(too_many(slot.key(), count)),
         }
     }
     (sources, errors)
 }
 
 fn build_tags(
-    stage: Option<Stage>,
+    stage: Stage,
     slots: &mut [Slot<'_>],
     files: &[SlotFiles<'_>],
     stack: &PackStack,
@@ -247,10 +235,10 @@ fn build_tags(
             names,
             &files.tags,
             stack,
-            previous.is_none() && stage.is_some(),
+            previous.is_none() && stage != Stage::Static,
             previous
-                .and_then(|p| p.tag_table(slot.key()))
-                .map(Arc::as_ref),
+                .and_then(|p| p.table(slot.key().as_str()))
+                .map(|table| table.tags.as_ref()),
         );
         diagnostics.extend(outcome.file_diagnostics);
         resolution.extend(outcome.resolution_diagnostics);
@@ -270,71 +258,107 @@ fn build_tags(
 }
 
 pub(super) fn decode(
-    stage: Option<Stage>,
+    stage: Stage,
     slots: &mut [Slot<'_>],
-    by_type: &HashMap<TypeId, usize>,
+    by_key: &HashMap<ResourceLocation, usize>,
     sources: Vec<(usize, Vec<EntrySource<'_>>)>,
     stack: &PackStack,
     errors: &mut Vec<Diagnostic>,
 ) -> Vec<(usize, Missing)> {
-    let ctx = LoadCtx::new(slots, by_type, stage);
-    let mut built: Vec<(usize, Table)> = Vec::new();
+    let ctx = LoadCtx::new(slots, by_key, stage);
+    let mut built: Vec<(usize, Erased)> = Vec::new();
+    let mut unresolved = Vec::new();
     for (at, entry_sources) in sources {
         let Some(slot) = slots.get(at) else {
             continue;
         };
-        let (Kind::Data(data), Some(names)) = (slot.declaration.kind(), slot.names.as_ref()) else {
+        let (Some(data), Some(names)) = (slot.declaration.data_part(), slot.names.as_ref()) else {
             errors.push(not_built(slot.key()));
             continue;
         };
-        match data.build(&ctx, names, entry_sources) {
-            Ok(table) => built.push((at, table)),
-            Err(failures) => {
-                let reported = failures.into_iter().filter(|f| !f.reported_as_unresolved);
-                errors.extend(reported.map(|failure| {
-                    Diagnostic::Entry {
-                        registry: slot.key().clone(),
-                        entry: failure.entry,
-                        pack: stack
-                            .get(failure.pack)
-                            .map(|pack| StackedPack::id(pack).to_owned()),
-                        file: failure.file,
-                        field: failure.field,
-                        message: failure.message,
-                    }
-                }));
+        let failures = match data.build(&ctx, names, entry_sources) {
+            Ok(registry) => {
+                built.push((at, registry));
+                continue;
+            }
+            Err(failures) => failures,
+        };
+        for failure in failures {
+            match failure.error.into_missing() {
+                Ok(missing) => {
+                    unresolved.extend(by_key.get(&missing.registry).map(move |&holder| {
+                        let referrer = Referrer::Entry {
+                            registry: slot.key().clone(),
+                            entry: failure.entry,
+                        };
+                        let missing = Missing {
+                            name: missing.name,
+                            tag: missing.tag,
+                            referrer,
+                        };
+                        (holder, missing)
+                    }))
+                }
+                Err(error) => errors.push(Diagnostic::Entry {
+                    registry: slot.key().clone(),
+                    entry: failure.entry,
+                    pack: stack.get(failure.pack).map(|pack| pack.id().to_owned()),
+                    file: failure.file,
+                    field: error.path().map(str::to_owned),
+                    message: error.message().to_owned(),
+                }),
             }
         }
     }
-    let unresolved = ctx.into_unresolved();
-    for (at, table) in built {
+    for (at, registry) in built {
         if let Some(slot) = slots.get_mut(at) {
-            slot.table = Some(table);
+            slot.registry = Some(registry);
         }
     }
     unresolved
 }
 
 fn validate(
-    stage: Option<Stage>,
+    stage: Stage,
     slots: &[Slot<'_>],
-    by_type: &HashMap<TypeId, usize>,
+    by_key: &HashMap<ResourceLocation, usize>,
+    stack: &PackStack,
 ) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
-    let ctx = LoadCtx::new(slots, by_type, stage);
+    let ctx = LoadCtx::new(slots, by_key, stage);
     for slot in slots.iter().filter(|s| s.stage() == stage) {
-        let Kind::Data(data) = slot.declaration.kind() else {
+        let Some(data) = slot.declaration.data_part() else {
             continue;
         };
-        let Some(table) = slot.table.as_ref() else {
+        let (Some(names), Some(registry)) = (&slot.names, &slot.registry) else {
             errors.push(not_built(slot.key()));
             continue;
         };
-        let registry = slot.key().clone();
-        if data.must_not_be_empty() && table.names.len() == 0 {
-            errors.push(Diagnostic::EmptyRegistry { registry });
-        } else if let Err(message) = data.validate(table, &ctx) {
-            errors.push(Diagnostic::Validation { registry, message });
+        if data.must_not_be_empty() && names.len() == 0 {
+            errors.push(Diagnostic::EmptyRegistry {
+                registry: slot.key().clone(),
+            });
+            continue;
+        }
+        for (at, message) in data.validate(registry, &ctx) {
+            let number = u16::try_from(at).ok();
+            let entry = number.and_then(|number| names.name(number));
+            errors.push(match entry {
+                Some(entry) => Diagnostic::Entry {
+                    registry: slot.key().clone(),
+                    entry: entry.clone(),
+                    pack: (number.and_then(|number| names.origin(number)))
+                        .and_then(|pack| stack.get(pack))
+                        .map(|pack| pack.id().to_owned()),
+                    file: None,
+                    field: None,
+                    message,
+                },
+                None => Diagnostic::Declaration {
+                    registry: slot.key().clone(),
+                    message: format!("the validator names entry {at}, which is absent: {message}"),
+                },
+            });
         }
     }
     errors
@@ -345,38 +369,31 @@ pub(super) fn assemble(
     stack: Arc<PackStack>,
     previous: Option<&Registries>,
 ) -> Result<Registries, Vec<Diagnostic>> {
-    let mut world = Tables::default();
-    let mut reloadable = Tables::default();
-    let mut tags = TagTables::default();
-    let mut keys = HashMap::new();
+    let mut tables = HashMap::new();
     let mut errors = Vec::new();
     for slot in slots {
         let stage = slot.stage();
-        let (Some(table), Some(tag_table)) = (slot.table, slot.tags) else {
-            errors.push(not_built(slot.declaration.key()));
+        let key = slot.key().clone();
+        let built = slot.registry.is_some() || slot.declaration.data_part().is_none();
+        let (Some(names), Some(tags), true) = (slot.names, slot.tags, built) else {
+            errors.push(not_built(&key));
             continue;
         };
-        let key = slot.declaration.key();
-        for &registry_type in slot.declaration.types() {
-            keys.insert(registry_type, key.clone());
-        }
-        tags.insert(key.clone(), tag_table);
-        match stage {
-            Some(Stage::Reloadable) => reloadable.insert(key.clone(), table),
-            _ => world.insert(key.clone(), table),
+        let table = Table {
+            stage,
+            names,
+            tags,
+            registry: slot.registry,
         };
+        tables.insert(key, table);
     }
     if !errors.is_empty() {
         return Err(errors);
     }
     Ok(Registries {
-        world: previous.map_or_else(|| Arc::new(world), |p| Arc::clone(&p.world)),
-        reloadable: Arc::new(reloadable),
-        tags: Arc::new(tags),
-        keys: Arc::new(keys),
+        tables: Arc::new(tables),
         world_stack: previous.map_or_else(|| Arc::clone(&stack), |p| Arc::clone(&p.world_stack)),
         reload_stack: stack,
-        generation: previous.map_or(0, |p| p.generation.saturating_add(1)),
         network: Arc::default(),
     })
 }
@@ -404,18 +421,18 @@ type Pending<'f> = (
 fn run_stage(
     stage: Stage,
     slots: &mut [Slot<'_>],
-    by_type: &HashMap<TypeId, usize>,
+    by_key: &HashMap<ResourceLocation, usize>,
     stack: &PackStack,
     (sources, mut unresolved): Pending<'_>,
 ) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
-    let missing = decode(Some(stage), slots, by_type, sources, stack, &mut errors);
+    let missing = decode(stage, slots, by_key, sources, stack, &mut errors);
     for (at, missing) in missing {
         unresolved.entry(at).or_default().push(missing);
     }
     report_unresolved(unresolved, slots, &mut errors);
     if errors.is_empty() {
-        errors = validate(Some(stage), slots, by_type);
+        errors = validate(stage, slots, by_key, stack);
     }
     errors
 }
@@ -433,7 +450,7 @@ pub fn load(
     }
 
     let mut slots = empty_slots(declarations);
-    let by_type = slots_by_type(&slots);
+    let by_key = slots_by_key(&slots);
 
     let built_in_paths = built_in_paths(&slots, &stack);
     let mut found = Vec::new();
@@ -448,18 +465,13 @@ pub fn load(
                 .map(|path| (path.pack, path.name.namespace(), path.relative.as_str())),
         )
         .collect();
-    let visibility = index::Visibility::new(&stack, &tested, &mut found);
+    let (visibility, ignored) = Visibility::new(&stack, &tested);
     let mut slot_files = index::assign(candidates, &visibility, slots.len());
     diagnostics.extend(found);
+    diagnostics.extend(ignored.into_iter().map(Diagnostic::Pack));
 
-    const STAGES: [Option<Stage>; 4] = [
-        None,
-        Some(Stage::World),
-        Some(Stage::Dimension),
-        Some(Stage::Reloadable),
-    ];
-    for stage in STAGES {
-        let reused = previous.filter(|_| stage < Some(Stage::Reloadable));
+    for stage in Stage::ALL {
+        let reused = previous.filter(|_| stage < Stage::Reloadable);
         let (sources, mut errors) = match reused {
             Some(previous) => (Vec::new(), reuse(stage, &mut slots, previous)),
             None => name_entries(
@@ -486,13 +498,14 @@ pub fn load(
         if !errors.is_empty() {
             return Err(fail(diagnostics, errors));
         }
-        match stage.filter(|_| reused.is_none()) {
-            Some(stage) => {
-                let pending = (sources, unresolved);
-                errors = run_stage(stage, &mut slots, &by_type, &stack, pending);
+        errors = match reused {
+            Some(_) => {
+                let mut errors = Vec::new();
+                report_unresolved(unresolved, &slots, &mut errors);
+                errors
             }
-            None => report_unresolved(unresolved, &slots, &mut errors),
-        }
+            None => run_stage(stage, &mut slots, &by_key, &stack, (sources, unresolved)),
+        };
         if !errors.is_empty() {
             return Err(fail(diagnostics, errors));
         }
@@ -502,13 +515,7 @@ pub fn load(
         Ok(registries) => registries,
         Err(errors) => return Err(fail(diagnostics, errors)),
     };
-    match network::snapshot(
-        &declarations
-            .iter()
-            .map(|d| &*d.inner)
-            .collect::<Vec<&dyn Erased>>(),
-        &registries,
-    ) {
+    match network::snapshot(declarations, &registries) {
         Ok(network) => {
             registries.network = Arc::new(network);
             Ok((registries, diagnostics))

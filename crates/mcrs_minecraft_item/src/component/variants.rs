@@ -1,7 +1,7 @@
 use crate::component::registry_ref::registry_key_component;
 use crate::decorated_pot_pattern::DecoratedPotPattern;
 use mcrs_minecraft_entity::keys::VillagerType;
-use mcrs_minecraft_registries::{Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 
 registry_key_component! {
     VillagerVariant(VillagerType) ["plains", "desert"],
@@ -17,5 +17,5 @@ registry_key_component! {
     FrogVariant(mcrs_minecraft_entity::variant::FrogVariant) ["temperate", "warm"],
     CatVariant(mcrs_minecraft_entity::variant::CatVariant) ["tabby", "jellie"],
     CatSoundVariant(mcrs_minecraft_entity::variant::CatSoundVariant) ["classic", "royal"],
-    ProvidesPotteryPattern(RegistryOf<DecoratedPotPattern>) ["angler", "skull"],
+    ProvidesPotteryPattern(DecoratedPotPattern) ["angler", "skull"],
 }

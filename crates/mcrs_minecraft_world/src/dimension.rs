@@ -6,7 +6,7 @@ use crate::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_registries::{Refs, Registries, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Refs, Registries, Resolved, registry_value};
 
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -15,6 +15,10 @@ pub struct DimensionEntry<M: Refs = Resolved> {
     #[serde(rename = "type")]
     pub dimension_type: M::Id<DimensionType>,
     pub generator: ChunkGenerator<M>,
+}
+
+impl mcrs_minecraft_core::RegistryValue for DimensionEntry {
+    type Registry = mcrs_minecraft_dimension::Dimension;
 }
 
 impl DimensionEntry {
@@ -81,14 +85,12 @@ fn merge(
     base: &Dimensions,
     registries: &Registries,
 ) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
-    let registry = registries
-        .registry::<RegistryOf<DimensionEntry>>()
-        .ok_or_else(|| {
-            format!(
-                "{} is not loaded",
-                mcrs_minecraft_dimension::keys::DIMENSION
-            )
-        })?;
+    let registry = registries.registry::<DimensionEntry>().ok_or_else(|| {
+        format!(
+            "{} is not loaded",
+            mcrs_minecraft_dimension::keys::DIMENSION
+        )
+    })?;
 
     let mut merged = base.clone();
     for (_, name, entry) in registry.iter() {
@@ -104,7 +106,3 @@ fn merge(
     baked.extend(merged);
     Ok(baked)
 }
-
-mcrs_minecraft_registries::declare_registries!(
-    DimensionEntry => mcrs_minecraft_dimension::keys::DIMENSION, Dimension;
-);

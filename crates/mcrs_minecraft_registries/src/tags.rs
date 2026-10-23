@@ -5,11 +5,11 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use derive_where::derive_where;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::{Id, ResourceLocation, TagId, TagKey};
 
-use crate::id::MAX_ENTRIES;
-use crate::registry::RegistryType;
+use crate::registry::MAX_ENTRIES;
 
 #[derive(Debug)]
 struct Tag {
@@ -71,12 +71,12 @@ impl TagTable {
             .filter_map(|(tag, number)| Some((number, &tag.name, tag.members.as_deref()?)))
     }
 
-    pub(crate) fn get<Q>(&self, name: &Q) -> Option<u16>
+    pub(crate) fn id<R, Q>(&self, name: &Q) -> Option<TagId<R>>
     where
         ResourceLocation: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        self.index.get(name).copied()
+        TagId::checked(*self.index.get(name)?, self.len())
     }
 
     pub(crate) fn name(&self, number: usize) -> Option<&ResourceLocation> {
@@ -98,12 +98,13 @@ impl TagTable {
     }
 }
 
+#[derive_where(Clone)]
 pub struct Tags<R> {
     table: Arc<TagTable>,
     registry: PhantomData<fn() -> R>,
 }
 
-impl<R: RegistryType> Tags<R> {
+impl<R> Tags<R> {
     pub(crate) fn new(table: Arc<TagTable>) -> Self {
         Self {
             table,
@@ -111,17 +112,9 @@ impl<R: RegistryType> Tags<R> {
         }
     }
 
-    pub fn by_name(&self, name: &ResourceLocation) -> Option<TagId<R>> {
-        self.table
-            .get(name)
-            .and_then(|number| TagId::checked(number, self.table.len()))
-    }
-
     /// An absent tag is `None`, and code that names it treats it as empty.
     pub fn id<S: AsRef<str>>(&self, key: &TagKey<R, S>) -> Option<TagId<R>> {
-        self.table
-            .get(key.as_str())
-            .and_then(|number| TagId::checked(number, self.table.len()))
+        self.table.id(key.as_str())
     }
 
     pub fn name(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
@@ -156,12 +149,14 @@ impl<R> fmt::Debug for Tags<R> {
     }
 }
 
+#[derive_where(Clone, Default, PartialEq, Debug)]
 pub enum IdSet<R> {
     Tag(TagId<R>),
+    #[derive_where(default)]
     List(Box<[Id<R>]>),
 }
 
-impl<R: RegistryType> IdSet<R> {
+impl<R> IdSet<R> {
     pub fn contains(&self, tags: &Tags<R>, id: Id<R>) -> bool {
         match self {
             IdSet::Tag(tag) => tags.contains(*tag, id),
@@ -175,39 +170,5 @@ impl<R: RegistryType> IdSet<R> {
             IdSet::List(ids) => (None, Some(ids.iter().copied())),
         };
         tag.into_iter().flatten().chain(list.into_iter().flatten())
-    }
-}
-
-impl<R> Default for IdSet<R> {
-    fn default() -> Self {
-        IdSet::List(Box::new([]))
-    }
-}
-
-impl<R> Clone for IdSet<R> {
-    fn clone(&self) -> Self {
-        match self {
-            IdSet::Tag(tag) => IdSet::Tag(*tag),
-            IdSet::List(ids) => IdSet::List(ids.clone()),
-        }
-    }
-}
-
-impl<R> PartialEq for IdSet<R> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (IdSet::Tag(a), IdSet::Tag(b)) => a == b,
-            (IdSet::List(a), IdSet::List(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<R> fmt::Debug for IdSet<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IdSet::Tag(tag) => f.debug_tuple("Tag").field(tag).finish(),
-            IdSet::List(ids) => f.debug_tuple("List").field(ids).finish(),
-        }
     }
 }

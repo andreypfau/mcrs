@@ -1,12 +1,11 @@
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_registries::{
-    Declaration, Diagnostic, Diagnostics, IdSet, Key, Missing, Namer, Ref, Referrer, Registries,
-    RegistryType, Resolver, Stage,
+    Diagnostic, Diagnostics, IdSet, Missing, Ref, Referrer, Registries,
 };
 
 use crate::support::{
-    DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, declarations_with, get,
-    report_errors, rl, value,
+    DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, get, report_errors, rl,
+    value,
 };
 
 fn load_enchantment(body: &str, extra: &[(&str, &str)]) -> Result<Registries, Diagnostics> {
@@ -18,7 +17,7 @@ fn load_enchantment(body: &str, extra: &[(&str, &str)]) -> Result<Registries, Di
 }
 
 fn e(registries: &Registries) -> &Enchant {
-    value::<Enchantment>(registries, "t:e")
+    value::<Enchant>(registries, "t:e")
 }
 
 fn fails_e(result: &Result<Registries, Diagnostics>) -> bool {
@@ -57,7 +56,9 @@ fn a_tag_of_the_same_stage_resolves_whatever_the_file_order() {
         .unwrap();
         let tags = registries.tags::<DamageType>().unwrap();
         let tag = tags
-            .by_name(&rl(&format!("{namespace}:my_damage_tag")))
+            .id(&TagKey::from_location(rl(&format!(
+                "{namespace}:my_damage_tag"
+            ))))
             .unwrap();
         let set = e(&registries).damage_types.as_ref().unwrap();
         assert_eq!(set, &IdSet::Tag(tag));
@@ -212,26 +213,4 @@ fn an_unknown_key_of_an_earlier_stage_names_the_field_that_holds_it() {
         ),
         "{errors:?}"
     );
-}
-
-#[test]
-fn a_registry_named_by_a_marker_resolves_through_it() {
-    struct Hurt;
-    impl RegistryType for Hurt {
-        type Value = ();
-    }
-
-    let declarations = declarations_with(
-        Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
-            .named_by::<Hurt>()
-            .validate(|_, ctx| ctx.id(&Key::<Hurt>::new(rl("t:a"))).map(|_| ()))
-            .into(),
-    );
-    let (registries, _) = Packs::new()
-        .world("a", &[("data/t/damage_type/a.json", &damage("a"))])
-        .load(&declarations)
-        .unwrap_or_else(|e| panic!("{e:?}"));
-    let id = get::<DamageType>(&registries, "t:a");
-    let as_hurt = Id::<Hurt>::checked(id.number(), 1).unwrap();
-    assert_eq!(registries.name(as_hurt), Some(&rl("t:a")));
 }

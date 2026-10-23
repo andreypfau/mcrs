@@ -15,9 +15,8 @@ use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::section::block_direct_bits;
-use mcrs_minecraft_registries::RegistryOf;
 use mcrs_minecraft_sound::BlockSoundSet;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();
@@ -426,8 +425,8 @@ fn every_state_is_reachable_one_property_at_a_time() {
 
 fn every_sound_set_a_state_names_is_in_the_loaded_registry() {
     let (definitions, _) = corpus();
-    let registry = test_registries_arc()
-        .registry::<RegistryOf<BlockSoundSet>>()
+    let registry = test_registries()
+        .registry::<BlockSoundSet>()
         .expect("the data pack registries hold minecraft:block_sound_set");
     let resolved = BlockSoundSets::resolve(definitions, |key| {
         let id = registry.by_name(key.location())?;

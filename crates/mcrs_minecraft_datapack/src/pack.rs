@@ -1,28 +1,11 @@
-mod filter;
-mod metadata;
-mod stack;
-
 use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
 
-pub(crate) use filter::Filter;
-pub use stack::pack_stack;
-
-pub(crate) const VANILLA: &str = VANILLA_PACK;
+use crate::filter::Filter;
 
 /// The id of the pack the game jar's data pack is loaded as.
 pub const VANILLA_PACK: &str = "vanilla";
-/// The directory below the asset root that holds one directory per local pack.
-pub const PACKS_ROOT: &str = "mcrs/datapacks";
-/// The vanilla pack's directory below a pack root. The game jar's `data/minecraft` tree fills
-/// it, never the assets root.
-pub const VANILLA_ROOT: &str = "minecraft";
-
-/// `path`, relative to a pack root, below the [`VANILLA_ROOT`] directory, if it lies there.
-pub fn below_vanilla_root(path: &std::path::Path) -> Option<&std::path::Path> {
-    path.strip_prefix(VANILLA_ROOT).ok()
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackKind {
@@ -34,15 +17,15 @@ pub(crate) enum PackKind {
 
 #[derive(Debug, Clone)]
 pub struct AvailablePack {
-    id: String,
-    kind: PackKind,
-    metadata: Option<Vec<u8>>,
+    pub(crate) id: String,
+    pub(crate) kind: PackKind,
+    pub(crate) metadata: Option<Vec<u8>>,
 }
 
 impl AvailablePack {
     pub fn vanilla() -> Self {
         Self {
-            id: VANILLA.to_owned(),
+            id: VANILLA_PACK.to_owned(),
             kind: PackKind::Vanilla,
             metadata: None,
         }
@@ -86,7 +69,7 @@ pub struct PackSelection {
 impl Default for PackSelection {
     fn default() -> Self {
         Self {
-            enabled: vec![VANILLA.to_owned()],
+            enabled: vec![VANILLA_PACK.to_owned()],
             disabled: Vec::new(),
         }
     }
@@ -106,30 +89,28 @@ pub struct KnownPack {
     pub version: String,
 }
 
+/// The position of a pack in its stack; a higher one overrides a lower one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct PackIndex(u16);
+pub struct PackIndex(u16);
 
 impl PackIndex {
-    /// The origin of an entry a server sent with its data: no pack of the stack.
-    pub(crate) const RECEIVED: PackIndex = PackIndex(u16::MAX);
-
-    pub(crate) fn new(number: u16) -> Self {
+    pub const fn new(number: u16) -> Self {
         Self(number)
     }
 
-    pub(crate) fn index(self) -> usize {
+    pub fn index(self) -> usize {
         usize::from(self.0)
     }
 }
 
 #[derive(Debug)]
 pub struct StackedPack {
-    id: String,
-    kind: PackKind,
-    known_pack: Option<KnownPack>,
-    features: Vec<ResourceLocation>,
-    overlays: Vec<String>,
-    filter: Option<Filter>,
+    pub(crate) id: String,
+    pub(crate) kind: PackKind,
+    pub(crate) known_pack: Option<KnownPack>,
+    pub(crate) features: Vec<ResourceLocation>,
+    pub(crate) overlays: Vec<String>,
+    pub(crate) filter: Option<Filter>,
 }
 
 impl StackedPack {
@@ -137,8 +118,8 @@ impl StackedPack {
         &self.id
     }
 
-    pub(crate) fn kind(&self) -> PackKind {
-        self.kind
+    pub fn is_zip(&self) -> bool {
+        self.kind == PackKind::Zip
     }
 
     pub fn known_pack(&self) -> Option<&KnownPack> {
@@ -152,16 +133,23 @@ impl StackedPack {
     pub fn overlays(&self) -> &[String] {
         &self.overlays
     }
-
-    pub(crate) fn filter(&self) -> Option<&Filter> {
-        self.filter.as_ref()
-    }
 }
 
 #[derive(Debug, Default)]
 pub struct PackStack {
-    packs: Vec<StackedPack>,
-    enabled_features: Vec<ResourceLocation>,
+    pub(crate) packs: Vec<StackedPack>,
+    pub(crate) enabled_features: Vec<ResourceLocation>,
+}
+
+/// A file a pack contributes under `data/<namespace>/`, after its overlays are applied.
+pub struct PackFile<'f> {
+    pub pack: PackIndex,
+    pub namespace: &'f str,
+    /// The path below the namespace directory.
+    pub relative: &'f str,
+    /// The path in the pack, overlay directory included.
+    pub path: &'f str,
+    pub bytes: &'f [u8],
 }
 
 impl PackStack {
@@ -169,17 +157,17 @@ impl PackStack {
         &self.packs
     }
 
-    pub(crate) fn get(&self, index: PackIndex) -> Option<&StackedPack> {
+    pub fn get(&self, index: PackIndex) -> Option<&StackedPack> {
         self.packs.get(index.index())
     }
 
-    pub(crate) fn position(&self, id: &str) -> Option<PackIndex> {
+    pub fn position(&self, id: &str) -> Option<PackIndex> {
         self.indexed()
             .find(|(_, pack)| pack.id == id)
             .map(|(index, _)| index)
     }
 
-    pub(crate) fn indexed(&self) -> impl Iterator<Item = (PackIndex, &StackedPack)> {
+    pub fn indexed(&self) -> impl Iterator<Item = (PackIndex, &StackedPack)> {
         (0..=u16::MAX).map(PackIndex::new).zip(self.packs.iter())
     }
 
@@ -189,6 +177,42 @@ impl PackStack {
 
     pub fn enabled_features(&self) -> &[ResourceLocation] {
         &self.enabled_features
+    }
+
+    /// Every file of every pack, from the bottom of the stack up. Within one pack the file of a
+    /// later overlay replaces the file of the same path below it.
+    pub fn files<'f>(&self, files: &'f PackFiles) -> Vec<PackFile<'f>> {
+        let mut out = Vec::new();
+        for (pack_index, pack) in self.indexed() {
+            let Some(contents) = files.packs.get(pack.id()) else {
+                continue;
+            };
+            let mut merged: BTreeMap<(&'f str, &'f str), (&'f str, &'f [u8])> = BTreeMap::new();
+            let roots = std::iter::once("data/".to_owned())
+                .chain(pack.overlays.iter().map(|o| format!("{o}/data/")));
+            for root in roots {
+                for (path, bytes) in contents.range(root.clone()..) {
+                    let Some(rest) = path.strip_prefix(root.as_str()) else {
+                        break;
+                    };
+                    if let Some((namespace, relative)) = rest.split_once('/') {
+                        merged.insert((namespace, relative), (path.as_str(), bytes.as_slice()));
+                    }
+                }
+            }
+            out.extend(
+                merged
+                    .into_iter()
+                    .map(|((namespace, relative), (path, bytes))| PackFile {
+                        pack: pack_index,
+                        namespace,
+                        relative,
+                        path,
+                        bytes,
+                    }),
+            );
+        }
+        out
     }
 }
 
@@ -203,9 +227,5 @@ impl PackFiles {
             .entry(pack.to_owned())
             .or_default()
             .insert(path.into(), bytes.into());
-    }
-
-    pub(crate) fn of(&self, pack: &str) -> Option<&BTreeMap<String, Vec<u8>>> {
-        self.packs.get(pack)
     }
 }

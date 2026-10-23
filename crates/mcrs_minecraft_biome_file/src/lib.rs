@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use mcrs_minecraft_biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureModifier};
+use mcrs_minecraft_biome::{BiomeEffects, GrassColorModifier, TemperatureModifier};
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
 use mcrs_minecraft_registries::{
-    DataDeclaration, Declaration, Key, KeySet, Named, Refs, RegistryOf, Resolve, Resolved, Stage,
+    DataDeclaration, Declaration, KeySet, Named, Refs, Resolve, Resolved,
 };
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -16,8 +16,8 @@ mod validate;
 
 pub use validate::check_feature_domains;
 
-pub type Carvers = RegistryOf<CarverConfig>;
-pub type PlacedFeatures = RegistryOf<PlacedFeature>;
+pub type Carvers = CarverConfig;
+pub type PlacedFeatures = PlacedFeature;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Resolve)]
 #[serde(bound(
@@ -37,6 +37,10 @@ pub struct BiomeFile<M: Refs = Resolved> {
     pub carvers: M::Set<Carvers>,
     #[serde(default, serialize_with = "serialize_steps")]
     pub features: Vec<M::Set<PlacedFeatures>>,
+}
+
+impl mcrs_minecraft_core::RegistryValue for BiomeFile {
+    type Registry = mcrs_minecraft_biome::Biome;
 }
 
 /// A decoration step writes a single entry as a list, where any other set writes it bare.
@@ -84,41 +88,33 @@ pub struct NetworkBiome {
     pub effects: BiomeEffects,
 }
 
-impl NetworkBiome {
-    /// The parts a client holds of a biome: the generation settings the network leaves out are
-    /// empty.
-    pub fn into_client_parts(self) -> (Biome, EnvironmentAttributeMap, BiomeGenerationSettings) {
-        let (biome, attributes) = self.into_parts();
-        let generation = BiomeGenerationSettings {
-            carvers: Default::default(),
-            features: Vec::new(),
-        };
-        (biome, attributes, generation)
-    }
+mcrs_minecraft_registries::resolve_as_is!(NetworkBiome);
 
-    pub fn into_parts(self) -> (Biome, EnvironmentAttributeMap) {
-        let biome = Biome {
-            temperature: self.temperature,
-            downfall: self.downfall,
-            has_precipitation: self.has_precipitation,
-            temperature_modifier: self.temperature_modifier,
-            effects: self.effects,
-        };
-        (biome, self.attributes)
-    }
-}
-
-impl From<(&Biome, &EnvironmentAttributeMap, &BiomeGenerationSettings)> for NetworkBiome {
-    fn from(
-        (biome, attributes, _): (&Biome, &EnvironmentAttributeMap, &BiomeGenerationSettings),
-    ) -> Self {
+impl From<&BiomeFile> for NetworkBiome {
+    fn from(biome: &BiomeFile) -> Self {
         NetworkBiome {
             temperature: biome.temperature,
             downfall: biome.downfall,
             has_precipitation: biome.has_precipitation,
             temperature_modifier: biome.temperature_modifier,
-            attributes: attributes.filter_syncable(),
+            attributes: biome.attributes.filter_syncable(),
             effects: biome.effects.clone(),
+        }
+    }
+}
+
+/// A client holds no generation settings: the network leaves them out.
+impl From<NetworkBiome> for BiomeFile {
+    fn from(biome: NetworkBiome) -> Self {
+        BiomeFile {
+            temperature: biome.temperature,
+            downfall: biome.downfall,
+            has_precipitation: biome.has_precipitation,
+            temperature_modifier: biome.temperature_modifier,
+            effects: biome.effects,
+            attributes: biome.attributes,
+            carvers: Default::default(),
+            features: Vec::new(),
         }
     }
 }
@@ -129,12 +125,12 @@ pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
 /// were added. A step is listed up to the last one that was given a feature.
 #[derive(Debug, Default)]
 pub struct BiomeGeneration {
-    carvers: Vec<Key<Carvers>>,
-    features: Vec<Vec<Key<PlacedFeatures>>>,
+    carvers: Vec<ResourceKey<Carvers>>,
+    features: Vec<Vec<ResourceKey<PlacedFeatures>>>,
 }
 
-fn key<R, V>(key: ResourceKey<V, &'static str>) -> Key<R> {
-    Key::new(ResourceLocation::from(*key.location()))
+fn key<R, V>(key: ResourceKey<V, &'static str>) -> ResourceKey<R> {
+    ResourceKey::from_location(ResourceLocation::from(*key.location()))
 }
 
 impl BiomeGeneration {
@@ -253,65 +249,25 @@ pub struct BiomeGenerationSettings {
 }
 
 impl BiomeFile {
-    pub fn split(&self) -> (Biome, EnvironmentAttributeMap, BiomeGenerationSettings) {
-        let biome = Biome {
-            temperature: self.temperature,
-            downfall: self.downfall,
-            has_precipitation: self.has_precipitation,
-            temperature_modifier: self.temperature_modifier,
-            effects: self.effects.clone(),
-        };
-        let generation = BiomeGenerationSettings {
-            carvers: self.carvers.clone(),
-            features: self.features.clone(),
-        };
-        (biome, self.attributes.clone(), generation)
-    }
-
-    pub fn join(
-        (biome, attributes, generation): (
-            &Biome,
-            &EnvironmentAttributeMap,
-            &BiomeGenerationSettings,
-        ),
-    ) -> Self {
-        BiomeFile {
-            temperature: biome.temperature,
-            downfall: biome.downfall,
-            has_precipitation: biome.has_precipitation,
-            temperature_modifier: biome.temperature_modifier,
-            effects: biome.effects.clone(),
-            attributes: attributes.clone(),
-            carvers: generation.carvers.clone(),
-            features: generation.features.clone(),
-        }
-    }
-}
-
-impl BiomeFile {
-    pub fn declaration() -> DataDeclaration<RegistryOf<Self>> {
-        let key = mcrs_minecraft_biome::keys::BIOME.location().into();
-        Declaration::data::<RegistryOf<Self>>(key, Stage::World)
-            .named_by::<mcrs_minecraft_biome::Biome>()
-            .validate(|registry, ctx| {
-                let placed = ctx
-                    .registry::<PlacedFeatures>()
-                    .ok_or_else(|| "the placed features are not loaded".to_owned())?;
-                let tags = ctx
-                    .tags::<PlacedFeatures>()
-                    .ok_or_else(|| "the placed feature tags are not loaded".to_owned())?;
-                let biomes = registry.values().iter().map(|biome| {
-                    biome
-                        .features
-                        .iter()
-                        .map(|step| {
-                            step.ids(&tags)
-                                .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
-                                .collect()
-                        })
-                        .collect()
-                });
-                registry.entry_failures(check_feature_domains(biomes))
-            })
+    pub fn declaration() -> DataDeclaration<Self> {
+        Declaration::data::<Self>().validate(|registry, ctx| {
+            let (Some(placed), Some(tags)) =
+                (ctx.registry::<PlacedFeatures>(), ctx.tags::<PlacedFeatures>())
+            else {
+                return Vec::new();
+            };
+            let biomes = registry.values().iter().map(|biome| {
+                biome
+                    .features
+                    .iter()
+                    .map(|step| {
+                        step.ids(&tags)
+                            .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
+                            .collect()
+                    })
+                    .collect()
+            });
+            check_feature_domains(biomes)
+        })
     }
 }

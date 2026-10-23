@@ -18,12 +18,11 @@ extern crate self as mcrs_minecraft_registries;
 mod bevy;
 mod diagnostics;
 pub mod dispatch;
-mod id;
-mod json;
 mod load;
+mod network;
 mod order;
-mod pack;
 mod refs;
+mod registries;
 mod registry;
 mod require;
 pub mod static_key;
@@ -32,52 +31,20 @@ mod text;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;
-pub use diagnostics::{Diagnostic, Diagnostics, Level, Missing, Referrer};
-pub use id::Key;
+pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 pub use load::{
-    DataDeclaration, Declaration, LoadCtx, NetworkSnapshot, Received, Registries, Stage, TagEntry,
-    ValueSeed, load, load_received,
+    DataDeclaration, Declaration, LoadCtx, Received, TagEntry, load, load_received,
 };
-pub use mcrs_minecraft_registries_derive::{Resolve, registry_value};
-pub use pack::{
-    AvailablePack, Features, KnownPack, PACKS_ROOT, PackFiles, PackSelection, PackStack,
-    StackedPack, VANILLA_PACK, VANILLA_ROOT, below_vanilla_root, pack_stack,
-};
+pub use network::NetworkSnapshot;
+pub use registries::{Registries, Stage};
+pub use mcrs_minecraft_registries_derive::{Resolve, dispatch, registry_value};
 pub use refs::{
-    Inline, KeyOr, KeySet, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
+    Inline, KeySet, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
 };
-pub use registry::{ReadValue, Registry, RegistryOf, RegistryType};
-pub use require::{require_id, require_registry, require_tag, require_tags};
+pub use registry::{DataValue, Entries, Registry};
+pub use require::{require_id, require_registry, require_tags};
 pub use static_key::StaticKey;
 pub use tags::{IdSet, Tags};
 
 #[doc(hidden)]
 pub use serde as __serde;
-
-/// Reads a value that names no registry entry as its `Deserialize` reads it.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! read_with_serde {
-    ($($value:ty),+ $(,)?) => {$(
-        impl $crate::ReadValue for $value {
-            fn read<'de, D: $crate::__serde::Deserializer<'de>>(
-                _: &$crate::LoadCtx<'_>,
-                deserializer: D,
-            ) -> ::core::result::Result<Self, D::Error> {
-                <Self as $crate::__serde::Deserialize<'de>>::deserialize(deserializer)
-            }
-        }
-    )+};
-}
-
-#[macro_export]
-macro_rules! declare_registries {
-    ($($value:ty => $key:expr, $stage:ident $(, $non_empty:ident)?;)+) => {$(
-        impl $value {
-            pub fn declaration() -> $crate::DataDeclaration<$crate::RegistryOf<$value>> {
-                $crate::Declaration::data($key.location().into(), $crate::Stage::$stage)
-                    $(.$non_empty())?
-            }
-        }
-    )+};
-}

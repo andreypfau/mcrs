@@ -106,14 +106,14 @@ impl DecodeCtx<'_> for MobEffectDetails {
     }
 }
 
-impl<R: Registered + mcrs_minecraft_registries::RegistryType> EncodeCtx for TypedEntityData<R> {
+impl<R: Registered> EncodeCtx for TypedEntityData<R> {
     fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         self.id.encode_ctx(ctx, &mut w)?;
         self.tag.encode(w)
     }
 }
 
-impl<R: Registered + mcrs_minecraft_registries::RegistryType> DecodeCtx<'_> for TypedEntityData<R> {
+impl<R: Registered> DecodeCtx<'_> for TypedEntityData<R> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = ResourceKey::decode_ctx(ctx, r)?;
         ensure!(

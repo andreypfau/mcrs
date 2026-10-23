@@ -1571,11 +1571,10 @@ mod tests {
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
     use mcrs_minecraft_network::client::ServerRegistries;
-    use mcrs_minecraft_registries::RegistryOf;
-    use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_registries_arc};
+    use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_registries};
 
     fn session(edit: impl FnOnce(&mut Collected)) -> CurrentRegistries {
-        let mut sent = sent_by(test_registries_arc(), false);
+        let mut sent = sent_by(test_registries(), false);
         edit(&mut sent);
         let (registries, tags) = sent;
         let received = ServerRegistries {
@@ -1614,10 +1613,8 @@ mod tests {
                 PackLoad::Ready(Pack::shared_corpus());
             app.update();
             let tints = app.world().resource::<BiomeTints>().clone();
-            fn biomes(
-                set: &CurrentRegistries,
-            ) -> &mcrs_minecraft_registries::Registry<RegistryOf<BiomeFile>> {
-                set.registry::<RegistryOf<BiomeFile>>().unwrap()
+            fn biomes(set: &CurrentRegistries) -> &mcrs_minecraft_registries::Registry<BiomeFile> {
+                set.registry::<BiomeFile>().unwrap()
             }
             assert_eq!(tints.len(), biomes(&first).len());
 

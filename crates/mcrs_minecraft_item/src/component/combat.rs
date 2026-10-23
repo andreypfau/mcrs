@@ -3,7 +3,7 @@ use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default}
 use std::sync::Arc;
 
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_registries::{Ref, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub struct BlocksAttacks<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "ItemDamageFunction::is_default")]
     pub item_damage: ItemDamageFunction,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bypassed_by: Option<M::Set<RegistryOf<DamageType>>>,
+    pub bypassed_by: Option<M::Set<DamageType>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_sound: Option<Sound<M>>,
     #[serde(
@@ -93,7 +93,7 @@ pub struct DamageReduction<M: Refs = Resolved> {
     )]
     pub horizontal_blocking_angle: f32,
     #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
-    pub types: Option<M::Set<RegistryOf<DamageType>>>,
+    pub types: Option<M::Set<DamageType>>,
     pub base: f32,
     pub factor: f32,
 }

@@ -1,11 +1,11 @@
+use mcrs_minecraft_core::ResourceKey;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::world_clock::WorldClock;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
-use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registries::{Key, Named, Refs, RegistryType, Resolve, Resolved};
+use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -31,14 +31,6 @@ pub struct Timeline<M: Refs = Resolved> {
     pub time_markers: TimeMarkers,
 }
 
-impl RegistryValue for Timeline {
-    type Registry = Self;
-}
-
-impl RegistryType for Timeline {
-    type Value = ();
-}
-
 impl Serialize for Timeline<Named> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
@@ -60,7 +52,7 @@ impl Serialize for Timeline<Named> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRepr {
-    clock: Key<WorldClock>,
+    clock: ResourceKey<WorldClock>,
     #[serde(default)]
     period_ticks: Option<PositiveInt>,
     #[serde(default)]

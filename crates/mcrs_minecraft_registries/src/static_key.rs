@@ -1,7 +1,9 @@
+use derive_where::derive_where;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::fmt;
 
+#[derive_where(Clone, Copy, PartialEq, Eq)]
 pub struct StaticKey<R> {
     id: Id<R>,
     location: ResourceLocation<&'static str>,
@@ -50,22 +52,6 @@ const fn same_bytes(mut left: &[u8], mut right: &[u8]) -> bool {
     }
     left.is_empty() && right.is_empty()
 }
-
-impl<R> Clone for StaticKey<R> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<R> Copy for StaticKey<R> {}
-
-impl<R> PartialEq for StaticKey<R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl<R> Eq for StaticKey<R> {}
 
 impl<R> fmt::Debug for StaticKey<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -167,10 +153,6 @@ macro_rules! static_registry {
                 let location = $crate::static_key::__ResourceLocation::read(text).ok()?;
                 Self::find(location.as_str())
             }
-        }
-
-        impl $crate::RegistryType for $name {
-            type Value = ();
         }
 
         impl From<$name> for ::mcrs_minecraft_core::Id<$name> {

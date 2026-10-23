@@ -19,7 +19,7 @@ use mcrs_minecraft_network::client::{
     ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, ServerRegistries,
     TagsReceived, close_connection_later, finish_configuration,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::registry_load::{
@@ -241,8 +241,8 @@ fn clear_derived_tables(
 
 fn derive_clock_markers(registries: Res<CurrentRegistries>, mut commands: Commands) {
     let (Some(clocks), Some(timelines)) = (
-        registries.registry::<RegistryOf<WorldClock>>(),
-        registries.registry::<RegistryOf<Timeline>>(),
+        registries.registry::<WorldClock>(),
+        registries.registry::<Timeline>(),
     ) else {
         error!(
             "the session registries hold no world clocks and timelines to read time markers from"
@@ -266,7 +266,7 @@ fn derive_clock_markers(registries: Res<CurrentRegistries>, mut commands: Comman
 fn seed_session_clocks(mut clocks: ResMut<WorldClocks>, registries: Res<CurrentRegistries>) {
     clocks.reconcile(
         registries
-            .registry::<RegistryOf<WorldClock>>()
+            .registry::<WorldClock>()
             .map_or(0, |registry| registry.len()),
     );
 }

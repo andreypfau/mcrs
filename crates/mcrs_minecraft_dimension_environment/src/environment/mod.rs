@@ -9,7 +9,7 @@
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_registries::{Registries, RegistryOf};
+use mcrs_minecraft_registries::Registries;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
@@ -173,16 +173,16 @@ impl EnvironmentAttributes {
         dimension_type: Id<DimensionType>,
     ) -> Result<Self, EnvironmentError> {
         let timelines = registries
-            .registry::<RegistryOf<Timeline>>()
+            .registry::<Timeline>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let timeline_tags = registries
             .tags::<Timeline>()
             .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
         let world_clocks = registries
-            .registry::<RegistryOf<WorldClock>>()
+            .registry::<WorldClock>()
             .ok_or(EnvironmentError::MissingRegistry("world_clock"))?;
         let dimension_types = registries
-            .registry::<RegistryOf<DimensionTypeFile>>()
+            .registry::<DimensionTypeFile>()
             .ok_or(EnvironmentError::MissingRegistry("dimension_type"))?;
         let (dimension_type, environment) =
             Id::checked(dimension_type.number(), dimension_types.len())

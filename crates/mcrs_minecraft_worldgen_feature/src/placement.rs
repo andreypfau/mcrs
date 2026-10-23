@@ -1,5 +1,5 @@
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_registries::{Named, dispatch};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
@@ -30,8 +30,8 @@ impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
 /// One placement modifier. `P` is the predicate type: the asset's
 /// `BlockPredicate` as loaded, the compiled `Predicate` once every set it names
 /// is a mask.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::PlacementModifierType)]
+#[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "P: Deserialize<'de>", serialize = "P: Serialize"))]
 pub enum PlacementModifier<P = BlockPredicate<Named>> {
@@ -109,31 +109,6 @@ pub enum PlacementModifier<P = BlockPredicate<Named>> {
         #[serde(deserialize_with = "non_empty")]
         positions: Vec<[i32; 3]>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    for<P> serialize { P: Serialize } deserialize { P: Deserialize<'de> }
-    PlacementModifier<P>, key = "type", registry = crate::keys::PlacementModifierType,
-    {
-        BlockPredicateFilter => BlockPredicateFilter,
-        RarityFilter => RarityFilter,
-        RandomChance => RandomChance,
-        SurfaceRelativeThresholdFilter => SurfaceRelativeThresholdFilter,
-        SurfaceWaterDepthFilter => SurfaceWaterDepthFilter,
-        Biome => Biome,
-        Count => Count,
-        NoiseBasedCount => NoiseBasedCount,
-        NoiseThresholdCount => NoiseThresholdCount,
-        CountOnEveryLayer => CountOnEveryLayer,
-        Cuboid => Cuboid,
-        EnvironmentScan => EnvironmentScan,
-        Heightmap => Heightmap,
-        HeightRange => HeightRange,
-        InSquare => InSquare,
-        Offset => Offset,
-        RandomlySelected => RandomlySelected,
-        FixedPlacement => FixedPlacement,
-    }
 }
 
 impl<P> PlacementModifier<P> {

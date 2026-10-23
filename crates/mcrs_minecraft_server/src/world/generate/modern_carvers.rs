@@ -3,7 +3,7 @@ use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries, RegistryOf};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
@@ -32,7 +32,7 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 /// The carvers every biome runs, in the order its file lists them, indexed by biome number.
 fn carvers_by_biome(registries: &Registries) -> Vec<Arc<[CarverConfig]>> {
     let carvers = registries.loaded::<CarverConfig>();
-    let carver_tags = registries.loaded_tags::<RegistryOf<CarverConfig>>();
+    let carver_tags = registries.loaded_tags::<CarverConfig>();
     registries
         .loaded::<BiomeFile>()
         .values()

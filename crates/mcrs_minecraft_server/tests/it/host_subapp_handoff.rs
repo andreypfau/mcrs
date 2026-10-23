@@ -584,8 +584,17 @@ fn registry_resources_changed_since(world: &World, since: Tick) -> bool {
     snapshot.is_changed(since, now) || current.is_changed(since, now)
 }
 
+/// Registries equal to the host's but from a load of their own.
+fn separate_load() -> mcrs_minecraft_registries::Registries {
+    use mcrs_minecraft_world::registry_load::{load_registries, test_packs};
+
+    load_registries(&test_packs())
+        .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
+        .registries
+}
+
 fn assert_every_dimension_holds_the_hosts_registries(app: &App) {
-    use mcrs_minecraft_registries::CurrentRegistries;
+    use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
     let host = app.world().resource::<CurrentRegistries>();
     let dimensions = &app.sub_apps().sub_apps;
@@ -593,8 +602,8 @@ fn assert_every_dimension_holds_the_hosts_registries(app: &App) {
     for dimension in dimensions.values() {
         let held = dimension.world().resource::<CurrentRegistries>();
         assert!(
-            Arc::ptr_eq(host.arc(), held.arc()),
-            "dimension holds its own copy of the registries, not the host's Arc"
+            Registries::ptr_eq(host, held),
+            "dimension holds registries of another load, not the host's"
         );
     }
 }
@@ -609,22 +618,22 @@ fn every_dimension_holds_the_hosts_registries_arc() {
 }
 
 #[test]
-#[should_panic(expected = "dimension holds its own copy of the registries, not the host's Arc")]
-fn a_dimension_holding_a_cloned_registries_fails_the_pointer_check() {
-    use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+#[should_panic(expected = "dimension holds registries of another load, not the host's")]
+fn a_dimension_holding_another_load_fails_the_pointer_check() {
+    use mcrs_minecraft_registries::CurrentRegistries;
 
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
 
-    let cloned = Registries::clone(app.world().resource::<CurrentRegistries>().arc());
+    let other = separate_load();
     app.sub_apps_mut()
         .sub_apps
         .values_mut()
         .next()
         .expect("a dimension is live")
         .world_mut()
-        .insert_resource(CurrentRegistries::new(Arc::new(cloned)));
+        .insert_resource(CurrentRegistries::new(other));
 
     assert_every_dimension_holds_the_hosts_registries(&app);
 }
@@ -662,8 +671,8 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
     let dimensions = app.sub_apps().sub_apps.len();
 
-    let old = Arc::clone(app.world().resource::<CurrentRegistries>().arc());
-    replace_registries(app.world_mut(), Registries::clone(&old));
+    let old = Registries::clone(app.world().resource::<CurrentRegistries>());
+    replace_registries(app.world_mut(), separate_load());
 
     let since = snapshot_ticks(&mut app);
     app.update();
@@ -672,7 +681,7 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     for dimension in app.sub_apps().sub_apps.values() {
         let held = dimension.world().resource::<CurrentRegistries>();
         assert!(
-            !Arc::ptr_eq(&old, held.arc()),
+            !Registries::ptr_eq(&old, held),
             "a dimension still holds the replaced registries"
         );
     }

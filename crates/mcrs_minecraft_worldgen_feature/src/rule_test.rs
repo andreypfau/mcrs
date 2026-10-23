@@ -1,15 +1,17 @@
-use serde::{Deserialize, Serialize};
+use mcrs_minecraft_registries::dispatch;
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::RuleTestType, key = "predicate_type")]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum RuleTest {
     AlwaysTrue,
     BlockMatch {
         block: ResourceLocation,
     },
+    #[dispatch(BlockstateMatch)]
     BlockStateMatch {
         block_state: BlockState,
     },
@@ -24,6 +26,7 @@ pub enum RuleTest {
         block: ResourceLocation,
         probability: f32,
     },
+    #[dispatch(RandomBlockstateMatch)]
     RandomBlockStateMatch {
         block_state: BlockState,
         probability: f32,
@@ -37,20 +40,4 @@ pub enum RuleTest {
     Not {
         rule: Box<RuleTest>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    RuleTest, key = "predicate_type", registry = crate::keys::RuleTestType,
-    {
-        AllOf => AllOf,
-        AlwaysTrue => AlwaysTrue,
-        AnyOf => AnyOf,
-        BlockMatch => BlockMatch,
-        BlockstateMatch => BlockStateMatch,
-        HeightMatch => HeightMatch,
-        Not => Not,
-        RandomBlockMatch => RandomBlockMatch,
-        RandomBlockstateMatch => RandomBlockStateMatch,
-        TagMatch => TagMatch,
-    }
 }

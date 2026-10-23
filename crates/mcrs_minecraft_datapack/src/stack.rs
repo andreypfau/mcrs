@@ -1,11 +1,12 @@
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 
-use super::filter::Filter;
-use super::metadata::{self, Metadata};
-use super::{
-    AvailablePack, Features, KnownPack, PackKind, PackSelection, PackStack, StackedPack, VANILLA,
+use crate::filter::Filter;
+use crate::metadata::{self, Metadata};
+use crate::pack::PackKind;
+use crate::{
+    AvailablePack, Features, KnownPack, PackDiagnostic, PackSelection, PackStack, StackedPack,
+    VANILLA_PACK,
 };
-use crate::diagnostics::{Diagnostic, Diagnostics};
 
 struct Candidate<'a> {
     pack: &'a AvailablePack,
@@ -39,7 +40,7 @@ fn known_pack(pack: &AvailablePack) -> Option<KnownPack> {
 fn candidates<'a>(
     available: &'a [AvailablePack],
     features: &Features,
-    diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<PackDiagnostic>,
 ) -> Vec<Candidate<'a>> {
     let mut out: Vec<Candidate<'a>> = Vec::new();
     for pack in available {
@@ -57,7 +58,7 @@ fn candidates<'a>(
         };
         match metadata {
             Ok(metadata) => out.push(Candidate { pack, metadata }),
-            Err(reason) => diagnostics.push(Diagnostic::UnavailablePack {
+            Err(reason) => diagnostics.push(PackDiagnostic::UnavailablePack {
                 pack: pack.id.clone(),
                 reason,
             }),
@@ -78,12 +79,12 @@ fn enabled<'c, 'a>(
     selection: &PackSelection,
     candidates: &'c [Candidate<'a>],
     features: &Features,
-    diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<PackDiagnostic>,
 ) -> Vec<&'c Candidate<'a>> {
     let mut chosen: Vec<&Candidate<'_>> = Vec::new();
     for id in &selection.enabled {
         let Some(candidate) = find(candidates, id) else {
-            diagnostics.push(Diagnostic::MissingPack { pack: id.clone() });
+            diagnostics.push(PackDiagnostic::MissingPack { pack: id.clone() });
             continue;
         };
         if is_chosen(&chosen, id) {
@@ -91,7 +92,7 @@ fn enabled<'c, 'a>(
         }
         let missing = disallowed(&candidate.metadata.features, features);
         if !selection.disabled.contains(id) && !missing.is_empty() {
-            diagnostics.push(Diagnostic::PackFeaturesDisabled {
+            diagnostics.push(PackDiagnostic::PackFeaturesDisabled {
                 pack: id.clone(),
                 features: missing,
             });
@@ -107,7 +108,7 @@ fn append_fresh<'c, 'a>(
     selection: &PackSelection,
     candidates: &'c [Candidate<'a>],
     features: &Features,
-    diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<PackDiagnostic>,
 ) {
     let mut fresh: Vec<&Candidate<'_>> = candidates
         .iter()
@@ -124,9 +125,9 @@ fn append_fresh<'c, 'a>(
         let missing = disallowed(&candidate.metadata.features, features);
         if missing.is_empty() {
             chosen.push(candidate);
-            diagnostics.push(Diagnostic::PackFound { pack });
+            diagnostics.push(PackDiagnostic::PackFound { pack });
         } else {
-            diagnostics.push(Diagnostic::PackNotAppended {
+            diagnostics.push(PackDiagnostic::PackNotAppended {
                 pack,
                 features: missing,
             });
@@ -138,7 +139,7 @@ fn append_feature_packs<'c, 'a>(
     chosen: &mut Vec<&'c Candidate<'a>>,
     candidates: &'c [Candidate<'a>],
     features: &Features,
-    diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<PackDiagnostic>,
 ) {
     let Some(world) = &features.world else {
         return;
@@ -162,20 +163,20 @@ fn append_feature_packs<'c, 'a>(
     feature_packs.sort_by(|a, b| a.pack.id.cmp(&b.pack.id));
     for candidate in feature_packs {
         chosen.push(candidate);
-        diagnostics.push(Diagnostic::FeaturePackAppended {
+        diagnostics.push(PackDiagnostic::FeaturePackAppended {
             pack: candidate.pack.id.clone(),
         });
     }
 }
 
-fn stacked(chosen: Vec<&Candidate<'_>>, diagnostics: &mut Vec<Diagnostic>) -> Vec<StackedPack> {
+fn stacked(chosen: Vec<&Candidate<'_>>, diagnostics: &mut Vec<PackDiagnostic>) -> Vec<StackedPack> {
     let mut packs = Vec::with_capacity(chosen.len());
     for candidate in chosen {
         let pack = candidate.pack;
         let filter = candidate.metadata.filter.as_ref().and_then(|section| {
             Filter::compile(section)
                 .map_err(|reason| {
-                    diagnostics.push(Diagnostic::FilterIgnored {
+                    diagnostics.push(PackDiagnostic::FilterIgnored {
                         pack: pack.id.clone(),
                         reason,
                     })
@@ -199,13 +200,13 @@ pub fn pack_stack(
     available: &[AvailablePack],
     features: &Features,
     safe_mode: bool,
-) -> (PackStack, Diagnostics) {
+) -> (PackStack, Vec<PackDiagnostic>) {
     let mut diagnostics = Vec::new();
     let candidates = candidates(available, features, &mut diagnostics);
     let mut chosen: Vec<&Candidate<'_>> = Vec::new();
 
     if safe_mode {
-        chosen.extend(find(&candidates, VANILLA));
+        chosen.extend(find(&candidates, VANILLA_PACK));
     } else {
         chosen = enabled(selection, &candidates, features, &mut diagnostics);
         append_fresh(
@@ -217,8 +218,8 @@ pub fn pack_stack(
         );
         append_feature_packs(&mut chosen, &candidates, features, &mut diagnostics);
         if chosen.is_empty() {
-            chosen.extend(find(&candidates, VANILLA));
-            diagnostics.push(Diagnostic::EmptyStack);
+            chosen.extend(find(&candidates, VANILLA_PACK));
+            diagnostics.push(PackDiagnostic::EmptyStack);
         }
     }
 
@@ -231,13 +232,11 @@ pub fn pack_stack(
     enabled_features.dedup();
 
     let packs = stacked(chosen, &mut diagnostics);
-    let mut out = Diagnostics::default();
-    out.extend(diagnostics);
     (
         PackStack {
             packs,
             enabled_features,
         },
-        out,
+        diagnostics,
     )
 }

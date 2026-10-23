@@ -881,11 +881,11 @@ mod tests {
             .map(|n| name(&format!("minecraft:cat{n}")))
             .collect();
         let declarations = [
-            Declaration::fixed::<DimensionType>(DIMENSION_TYPE.location().into(), types),
-            Declaration::fixed::<CatVariant>(CAT_VARIANT.location().into(), cats),
+            Declaration::fixed(DIMENSION_TYPE.location().into(), types),
+            Declaration::fixed(CAT_VARIANT.location().into(), cats),
         ];
         let (registries, _) = load_received(&declarations, &Received::default()).unwrap();
-        CurrentRegistries::new(Arc::new(registries))
+        CurrentRegistries::new(registries)
     }
 
     fn statics() -> CurrentRegistries {

@@ -183,7 +183,8 @@ impl FillContext {
                     .map(|_| (surface_ids, SurfaceStates::new(&blocks))),
                 carver_blocks: Arc::new(ModernCarverBlockIds::resolve(
                     &blocks,
-                    fill_ids.block_tags.members(fill_ids.uncarvable),
+                    (fill_ids.uncarvable.into_iter())
+                        .flat_map(|tag| fill_ids.block_tags.members(tag)),
                 )),
             },
         };

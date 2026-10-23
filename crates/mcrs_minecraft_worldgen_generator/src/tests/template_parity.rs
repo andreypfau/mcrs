@@ -661,9 +661,11 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
             mossiness: f64::from(mossiness),
         },
         StructureProcessor::ProtectedBlocks {
-            value: mcrs_minecraft_registries::KeySet::Tag(mcrs_minecraft_registries::Key::new(
-                rl!("minecraft:features_cannot_replace").to_arc(),
-            )),
+            value: mcrs_minecraft_registries::KeySet::Tag(
+                mcrs_minecraft_core::TagKey::from_location(
+                    rl!("minecraft:features_cannot_replace").to_arc(),
+                ),
+            ),
         },
         StructureProcessor::LavaSubmergedBlock,
     ];

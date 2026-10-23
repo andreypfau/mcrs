@@ -15,7 +15,6 @@ use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
-use mcrs_minecraft_item::InlineRef;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -23,7 +22,7 @@ use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::{CurrentRegistries, Ref};
 use mcrs_minecraft_world::registry_load::Collected;
 
 use crate::boot::{boot, receive_registries, received_id};
@@ -56,14 +55,14 @@ fn disc_song(items: &Items) -> Id<JukeboxSong> {
         .get(disc)
         .and_then(|entry| entry.prototype.get::<JukeboxPlayable>())
         .expect("a music disc names its song");
-    let InlineRef::Id(song) = &song.0.0 else {
+    let Ref::Id(song) = &song.0.0 else {
         panic!("the corpus names the song by reference");
     };
     *song
 }
 
 fn dimension_type(app: &App, name: &str) -> Id<DimensionType> {
-    received_id::<DimensionTypeFile, _>(app, name)
+    received_id::<DimensionTypeFile>(app, name)
 }
 
 fn current(name: &str, dimension_type: Id<DimensionType>) -> CurrentDimension {
@@ -82,7 +81,7 @@ fn markers_by_clock(app: &App) -> BTreeMap<String, usize> {
     let clocks = app
         .world()
         .resource::<CurrentRegistries>()
-        .registry::<RegistryOf<WorldClock>>()
+        .registry::<WorldClock>()
         .unwrap();
     let markers = app.world().resource::<ClockTimeMarkers>();
     clocks
@@ -290,7 +289,7 @@ fn the_session_registries_rebuild_the_item_table() {
 
     receive_registries(&mut app, connection, |_| {});
     app.update();
-    let song = |app: &App| received_id::<JukeboxSong, JukeboxSong>(app, "minecraft:13");
+    let song = |app: &App| received_id::<JukeboxSong>(app, "minecraft:13");
     let thirteen = song(&app);
     assert_eq!(disc_song(app.world().resource::<Items>()), thirteen);
 
@@ -313,11 +312,11 @@ fn the_clock_markers_follow_the_session_set() {
     assert!(app.world().get_resource::<ClockTimeMarkers>().is_none());
     assert!(app.world().resource::<WorldClocks>().is_empty());
 
-    let clock_id = |app: &App| received_id::<WorldClock, WorldClock>(app, "minecraft:overworld");
+    let clock_id = |app: &App| received_id::<WorldClock>(app, "minecraft:overworld");
     let clock_count = |app: &App| {
         app.world()
             .resource::<CurrentRegistries>()
-            .registry::<RegistryOf<WorldClock>>()
+            .registry::<WorldClock>()
             .unwrap()
             .len()
     };

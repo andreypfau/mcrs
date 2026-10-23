@@ -11,6 +11,7 @@ use bevy_tasks::TaskPoolBuilder;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -799,16 +800,16 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_registries::{Key, Named, Resolve, Resolver};
-    use mcrs_minecraft_world::registry_load::test_registries_arc;
+    use mcrs_minecraft_registries::{Named, Resolve, Resolver};
+    use mcrs_minecraft_world::registry_load::test_registries;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
-    let registries = Arc::clone(test_registries_arc());
+    let registries = test_registries().clone();
     let biomes = registries
-        .key_of::<Biome>()
-        .and_then(|key| registries.names_of(key))
+        .entries::<mcrs_minecraft_biome::Biome>()
         .expect("the loader parses the biomes");
     let ids: std::collections::HashMap<String, u16> = biomes
+        .names()
         .iter()
         .zip(0..)
         .map(|(name, id)| (name.to_string(), id))
@@ -819,17 +820,17 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
             r#"{"type":"minecraft:fixed","biome":"minecraft:desert"}"#,
         )
         .expect("a fixed biome source parses"),
-        &*registries,
+        &registries,
     )
     .expect("the loader holds desert");
     let desert = Resolver::id::<Biome>(
-        &*registries,
-        &Key::new(ResourceLocation::read("minecraft:desert").unwrap()),
+        &registries,
+        &ResourceKey::from_location(ResourceLocation::read("minecraft:desert").unwrap()),
     )
     .expect("the loader holds desert")
     .narrow::<u8>()
     .expect("a biome id the palette can store");
-    let ctx = surface_fill_context(router, material, Arc::clone(&registries), source);
+    let ctx = surface_fill_context(router, material, registries.clone(), source);
 
     let mut column = ColumnBlocks::new(&ctx.y_sections);
     let snapshot = fill_column(

@@ -1,7 +1,7 @@
 use fancy_regex::Regex;
 use serde::Deserialize;
 
-use super::metadata::Lenient;
+use crate::metadata::Lenient;
 
 #[derive(Debug)]
 pub(crate) struct Filter {

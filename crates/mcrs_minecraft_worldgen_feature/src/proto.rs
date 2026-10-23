@@ -1,5 +1,5 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_registries::{KeySet, Named};
+use mcrs_minecraft_registries::{KeySet, Named, dispatch};
 use std::fmt;
 
 use serde::de::Error as _;
@@ -21,7 +21,6 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
-use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
@@ -219,10 +218,6 @@ pub struct PlacedFeature {
     pub placement: Vec<PlacementModifier>,
 }
 
-impl RegistryValue for PlacedFeature {
-    type Registry = Self;
-}
-
 impl PlacedFeature {
     /// The horizontal range around its chunk's corner that the feature can
     /// place into.
@@ -236,14 +231,16 @@ impl PlacedFeature {
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
 /// writes its configuration into the same object as its `type`; there is no
 /// `config` wrapper.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::FeatureType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum Feature {
     Bamboo {
         probability: UnitFloat,
     },
     /// Beta's populate step. One legacy stream per chunk runs every object in
     /// it, so the step is one feature rather than one per object.
+    #[dispatch(id = "mcrs:beta_populate")]
     BetaPopulate,
     BlockBlob {
         state: BlockState,
@@ -283,6 +280,7 @@ pub enum Feature {
     CoralTree {
         feature: Holder<PlacedFeature>,
     },
+    #[dispatch(DeltaFeature)]
     Delta {
         contents: BlockState,
         rim: BlockState,
@@ -306,6 +304,7 @@ pub enum Feature {
         #[serde(default, skip_serializing_if = "is_default")]
         active: bool,
     },
+    #[dispatch(EndSpike)]
     EndSpikes {
         spikes: Vec<EndSpike>,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -547,6 +546,7 @@ pub enum Feature {
         can_place_on: BlockPredicate<Named>,
         can_replace: BlockPredicate<Named>,
     },
+    #[dispatch(SpringFeature)]
     Spring {
         state: FluidState,
         #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
@@ -585,76 +585,6 @@ pub enum Feature {
     WeightedRandomSelector {
         features: Vec<Weighted<Holder<PlacedFeature>>>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    Feature, key = "type", registry = crate::keys::FeatureType,
-    {
-        Bamboo => Bamboo,
-        BlockBlob => BlockBlob,
-        BlockColumn => BlockColumn,
-        BlockPile => BlockPile,
-        BlueIce => BlueIce,
-        BonusChest => BonusChest,
-        ChorusPlant => ChorusPlant,
-        CoralClaw => CoralClaw,
-        CoralTree => CoralTree,
-        Crevasse => Crevasse,
-        DeltaFeature => Delta,
-        Disk => Disk,
-        EndGateway => EndGateway,
-        EndIsland => EndIsland,
-        EndPlatform => EndPlatform,
-        EndPodium => EndPodium,
-        EndSpike => EndSpikes,
-        FallenTree => FallenTree,
-        FillLayer => FillLayer,
-        Fossil => Fossil,
-        FreezeTopLayer => FreezeTopLayer,
-        Geode => Geode,
-        HugeBrownMushroom => HugeBrownMushroom,
-        HugeFungus => HugeFungus,
-        HugeRedMushroom => HugeRedMushroom,
-        Iceberg => Iceberg,
-        Lake => Lake,
-        LargeSpeleothem => LargeSpeleothem,
-        MonsterRoom => MonsterRoom,
-        MultifaceGrowth => MultifaceGrowth,
-        NetherrackReplaceBlobs => NetherrackReplaceBlobs,
-        NoOp => NoOp,
-        Ore => Ore,
-        Overlay => Overlay,
-        ProjectedRandomPatchySquare => ProjectedRandomPatchySquare,
-        RandomBooleanSelector => RandomBooleanSelector,
-        RandomNeighborSpread => RandomNeighborSpread,
-        RandomSelector => RandomSelector,
-        ReplaceSingleBlock => ReplaceSingleBlock,
-        RootSystem => RootSystem,
-        ScatteredOre => ScatteredOre,
-        SculkPatch => SculkPatch,
-        Sequence => Sequence,
-        SimpleBlock => SimpleBlock,
-        SimpleRandomSelector => SimpleRandomSelector,
-        SingleBlockPillar => SingleBlockPillar,
-        Speleothem => Speleothem,
-        SpeleothemCluster => SpeleothemCluster,
-        Spike => Spike,
-        SpringFeature => Spring,
-        SteppedColumnCluster => SteppedColumnCluster,
-        Template => Template,
-        Tree => Tree,
-        UnderwaterMagma => UnderwaterMagma,
-        VegetationPatch => VegetationPatch,
-        Vines => Vines,
-        VoidStartPlatform => VoidStartPlatform,
-        WaterloggedVegetationPatch => WaterloggedVegetationPatch,
-        WeightedRandomSelector => WeightedRandomSelector,
-    }
-    extend { "mcrs:beta_populate" => BetaPopulate }
-}
-
-impl RegistryValue for Feature {
-    type Registry = Self;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -796,10 +726,6 @@ pub struct GeodeCrackSettings {
 #[serde(transparent)]
 pub struct StructureProcessorList(pub Either<WrappedProcessors, Vec<StructureProcessor>>);
 
-impl RegistryValue for StructureProcessorList {
-    type Registry = Self;
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WrappedProcessors {
@@ -813,8 +739,9 @@ pub fn processor_list(list: &StructureProcessorList) -> &[StructureProcessor] {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::StructureProcessorType, key = "processor_type")]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum StructureProcessor {
     BlackstoneReplace,
     BlockAge {
@@ -849,23 +776,6 @@ pub enum StructureProcessor {
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    StructureProcessor, key = "processor_type", registry = crate::keys::StructureProcessorType,
-    {
-        BlackstoneReplace => BlackstoneReplace,
-        BlockAge => BlockAge,
-        BlockIgnore => BlockIgnore,
-        BlockRot => BlockRot,
-        Capped => Capped,
-        Gravity => Gravity,
-        JigsawReplacement => JigsawReplacement,
-        LavaSubmergedBlock => LavaSubmergedBlock,
-        Nop => Nop,
-        ProtectedBlocks => ProtectedBlocks,
-        Rule => Rule,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessorRule {
@@ -878,8 +788,9 @@ pub struct ProcessorRule {
     pub block_entity_modifier: Option<RuleBlockEntityModifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::PosRuleTestType, key = "predicate_type")]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum PosRuleTest {
     AlwaysTrue,
     LinearPos(LinearPos),
@@ -889,15 +800,6 @@ pub enum PosRuleTest {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         axis: Option<Axis>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    PosRuleTest, key = "predicate_type", registry = crate::keys::PosRuleTestType,
-    {
-        AlwaysTrue => AlwaysTrue,
-        LinearPos => LinearPos,
-        AxisAlignedLinearPos => AxisAlignedLinearPos,
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -915,22 +817,13 @@ pub struct LinearPos {
 /// `append_static` is deliberately absent: its `data` is a `CompoundTag`, and
 /// this crate has no NBT value type to hold one. A pack that uses it fails to
 /// load naming the type, which is the wanted behaviour until templates exist.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::RuleBlockEntityModifierType, unsupported(AppendStatic))]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum RuleBlockEntityModifier {
     Clear,
     Passthrough,
     AppendLoot { loot_table: ResourceLocation },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    RuleBlockEntityModifier, key = "type", registry = crate::keys::RuleBlockEntityModifierType,
-    {
-        Clear => Clear,
-        Passthrough => Passthrough,
-        AppendLoot => AppendLoot,
-    }
-    unsupported { AppendStatic }
 }
 
 // ---------------------------------------------------------------------------

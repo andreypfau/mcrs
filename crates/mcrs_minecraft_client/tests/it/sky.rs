@@ -39,7 +39,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
 
     let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
     receive_registries(&mut app, connection, |_| {});
-    let id = |name| received_id::<DimensionTypeFile, DimensionType>(&app, name);
+    let id = |name| received_id::<DimensionTypeFile>(&app, name);
     let (overworld, nether, beta) = (
         id("minecraft:overworld"),
         id("minecraft:the_nether"),

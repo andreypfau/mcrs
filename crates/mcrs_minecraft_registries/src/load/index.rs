@@ -1,10 +1,12 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_datapack::{
+    PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack, Visibility,
+};
 
 use super::declaration::{EntrySource, Source};
 use crate::diagnostics::Diagnostic;
-use crate::pack::{PackFiles, PackIndex, PackKind, PackStack};
 
 pub(crate) struct Located<'f> {
     pub(crate) pack: PackIndex,
@@ -53,55 +55,10 @@ pub(crate) struct Candidate<'f> {
     bytes: &'f [u8],
 }
 
-pub(crate) struct Visibility<'t> {
-    hidden: HashSet<(PackIndex, &'t str, &'t str)>,
-}
-
-impl<'t> Visibility<'t> {
-    pub(crate) fn new(
-        stack: &PackStack,
-        tested: &[(PackIndex, &'t str, &'t str)],
-        diagnostics: &mut Vec<Diagnostic>,
-    ) -> Self {
-        let mut hidden = HashSet::new();
-        for (above, pack) in stack.packs().iter().enumerate() {
-            let Some(filter) = pack.filter() else {
-                continue;
-            };
-            let below = tested.iter().filter(|(at, _, _)| at.index() < above);
-            let hides: Result<Vec<_>, String> = below
-                .filter_map(
-                    |&(at, namespace, relative)| match filter.hides(namespace, relative) {
-                        Ok(true) => Some(Ok((at, namespace, relative))),
-                        Ok(false) => None,
-                        Err(reason) => Some(Err(reason)),
-                    },
-                )
-                .collect();
-            match hides {
-                Ok(keys) => hidden.extend(keys),
-                Err(reason) => diagnostics.push(Diagnostic::FilterIgnored {
-                    pack: pack.id().to_owned(),
-                    reason,
-                }),
-            }
-        }
-        Self { hidden }
-    }
-
-    pub(crate) fn hidden(&self, pack: PackIndex, namespace: &str, relative: &str) -> bool {
-        self.hidden.contains(&(pack, namespace, relative))
-    }
-}
-
 impl<'f> Candidate<'f> {
     pub(crate) fn tested(&self) -> (PackIndex, &'f str, &'f str) {
         (self.pack, self.namespace, self.relative)
     }
-}
-
-fn roots(overlays: &[String]) -> impl Iterator<Item = String> + '_ {
-    std::iter::once("data/".to_owned()).chain(overlays.iter().map(|o| format!("{o}/data/")))
 }
 
 pub(crate) fn assign<'f>(
@@ -146,54 +103,45 @@ pub(crate) fn candidates<'f>(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Candidate<'f>> {
     let mut out = Vec::new();
-    for (pack_index, pack) in stack.indexed() {
-        let Some(contents) = files.of(pack.id()) else {
+    for file in stack.files(files) {
+        let PackFile {
+            pack,
+            namespace,
+            relative,
+            path,
+            bytes,
+        } = file;
+        let (tag, inside) = match relative.strip_prefix("tags/") {
+            Some(inside) => (true, inside),
+            None => (false, relative),
+        };
+        let Some((slot, file)) = directories.find(inside, tag) else {
             continue;
         };
-        let mut merged: BTreeMap<(&'f str, &'f str), (&'f str, &'f [u8])> = BTreeMap::new();
-        for root in roots(pack.overlays()) {
-            for (path, bytes) in contents.range(root.clone()..) {
-                let Some(rest) = path.strip_prefix(root.as_str()) else {
-                    break;
-                };
-                if let Some((namespace, relative)) = rest.split_once('/') {
-                    merged.insert((namespace, relative), (path.as_str(), bytes.as_slice()));
-                }
-            }
-        }
-        for ((namespace, relative), (path, bytes)) in merged {
-            let (tag, inside) = match relative.strip_prefix("tags/") {
-                Some(inside) => (true, inside),
-                None => (false, relative),
-            };
-            let Some((slot, file)) = directories.find(inside, tag) else {
-                continue;
-            };
-            let name = match file.strip_suffix(".json") {
-                Some(stem) => ResourceLocation::new(namespace, stem).ok(),
-                None if ResourceLocation::new(namespace, relative).is_ok() => continue,
-                None => None,
-            };
-            let Some(name) = name else {
-                diagnostics.push(Diagnostic::InvalidFileName {
-                    pack: pack.id().to_owned(),
-                    zip: pack.kind() == PackKind::Zip,
-                    namespace: namespace.to_owned(),
-                    path: relative.to_owned(),
-                });
-                continue;
-            };
-            out.push(Candidate {
-                pack: pack_index,
-                namespace,
-                relative,
-                slot,
-                tag,
-                name,
-                path,
-                bytes,
-            });
-        }
+        let name = match file.strip_suffix(".json") {
+            Some(stem) => ResourceLocation::new(namespace, stem).ok(),
+            None if ResourceLocation::new(namespace, relative).is_ok() => continue,
+            None => None,
+        };
+        let Some(name) = name else {
+            diagnostics.push(Diagnostic::Pack(PackDiagnostic::InvalidFileName {
+                pack: stack.get(pack).map_or("", |pack| pack.id()).to_owned(),
+                zip: stack.get(pack).is_some_and(|pack| pack.is_zip()),
+                namespace: namespace.to_owned(),
+                path: relative.to_owned(),
+            }));
+            continue;
+        };
+        out.push(Candidate {
+            pack,
+            namespace,
+            relative,
+            slot,
+            tag,
+            name,
+            path,
+            bytes,
+        });
     }
     out
 }

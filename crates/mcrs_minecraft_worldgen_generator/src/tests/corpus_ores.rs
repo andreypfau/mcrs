@@ -77,7 +77,7 @@ pub(super) fn ore_tables() -> (FeatureTables, Vec<String>) {
 /// The one biome the tables carry, at id 0, and the three the surface stage
 /// resolves by name off whatever registry the dimension holds — without them
 /// `SurfaceIds::resolve` panics before a column is ever filled.
-pub(super) fn one_biome_registry() -> Arc<Registries> {
+pub(super) fn one_biome_registry() -> Registries {
     biome_registry(&[
         BIOME,
         "minecraft:eroded_badlands",

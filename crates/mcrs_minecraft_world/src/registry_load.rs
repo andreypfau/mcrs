@@ -3,15 +3,16 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_ROOT, below_vanilla_root};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
-use mcrs_minecraft_registries::{
-    AvailablePack, Diagnostic, Diagnostics, Features, Level, PACKS_ROOT, PackFiles, PackSelection,
-    PackStack, Received, Registries, StackedPack, VANILLA_ROOT, below_vanilla_root, load,
-    pack_stack,
+use mcrs_minecraft_datapack::{
+    AvailablePack, Features, Level, PackDiagnostic, PackFiles, PackSelection, PackStack,
+    StackedPack, pack_stack,
 };
+use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Received, Registries, load};
 
 use crate::declarations;
 use crate::packs::DATAPACK_REPORT;
@@ -151,7 +152,7 @@ impl fmt::Display for RegistryLoadError {
 impl std::error::Error for RegistryLoadError {}
 
 pub struct LoadedRegistries {
-    pub registries: Arc<Registries>,
+    pub registries: Registries,
     pub diagnostics: Diagnostics,
 }
 
@@ -195,7 +196,7 @@ struct Available {
     packs: Vec<AvailablePack>,
     features: Features,
     roots: BTreeMap<String, PackRoot>,
-    unavailable: Vec<Diagnostic>,
+    unavailable: Vec<PackDiagnostic>,
 }
 
 fn vanilla_pack() -> Result<Available, RegistryLoadError> {
@@ -221,7 +222,7 @@ fn available_packs(source: &dyn PackSource) -> Result<Available, RegistryLoadErr
         .filter(|e| e.directory)
     {
         let root = format!("{PACKS_ROOT}/{}", entry.name);
-        let unavailable = |reason| Diagnostic::UnavailablePack {
+        let unavailable = |reason| PackDiagnostic::UnavailablePack {
             pack: format!("file/{}", entry.name),
             reason,
         };
@@ -359,13 +360,14 @@ fn load_stack(
     let report = read(source, DATAPACK_REPORT)?;
     let declarations = declarations::plan(&report).map_err(RegistryLoadError::Declarations)?;
 
-    let (stack, mut diagnostics) = pack_stack(
+    let (stack, found) = pack_stack(
         &PackSelection::default(),
         &available.packs,
         &available.features,
         false,
     );
-    diagnostics.extend(available.unavailable);
+    let mut diagnostics = Diagnostics::default();
+    diagnostics.extend(found.into_iter().chain(available.unavailable).map(Diagnostic::Pack));
     let files = pack_files(source, &stack, &available.roots)?;
 
     let outcome = load(&declarations, Arc::new(stack), &files, None);
@@ -373,7 +375,7 @@ fn load_stack(
     let (registries, loaded) =
         outcome.map_err(|failed| RegistryLoadError::Load(merged(diagnostics.clone(), &failed)))?;
     Ok(LoadedRegistries {
-        registries: Arc::new(registries),
+        registries,
         diagnostics: merged(diagnostics, &loaded),
     })
 }
@@ -454,7 +456,7 @@ pub fn load_received(
         mcrs_minecraft_registries::load_received(&declarations, &received)
             .map_err(RegistryLoadError::Load)?;
     Ok(LoadedRegistries {
-        registries: Arc::new(registries),
+        registries,
         diagnostics,
     })
 }
@@ -473,7 +475,7 @@ static TEST_REGISTRIES: std::sync::LazyLock<LoadedRegistries> = std::sync::LazyL
 });
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn test_registries_arc() -> &'static Arc<Registries> {
+pub fn test_registries() -> &'static Registries {
     &TEST_REGISTRIES.registries
 }
 

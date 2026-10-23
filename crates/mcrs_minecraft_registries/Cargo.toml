@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_registries"
-description = "Registry tables, tags, the data pack stack and the registry loader"
+description = "Registry tables, tags and the registry loader"
 version.workspace = true
 edition.workspace = true
 
@@ -12,18 +12,18 @@ bevy = ["dep:bevy_ecs"]
 
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
-fancy-regex.workspace = true
+derive-where.workspace = true
 fixedbitset.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries_derive.workspace = true
 mcrs_minecraft_text.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-serde_path_to_error = "0.1.20"
 
 [dev-dependencies]
 mcrs_minecraft_fixtures.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

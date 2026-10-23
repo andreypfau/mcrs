@@ -28,7 +28,7 @@ type GeneratedSections = Vec<
     )>,
 >;
 
-pub(crate) fn build_beta_biome_source() -> (BiomeSource, Arc<Registries>) {
+pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registries) {
     let land: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();

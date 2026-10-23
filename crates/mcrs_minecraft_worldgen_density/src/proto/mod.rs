@@ -13,6 +13,7 @@ pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
 
 use crate::node::distance::DistanceMetric;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder};
 use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
 use serde::{Deserialize, Serialize};
@@ -141,8 +142,8 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
     }
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::DensityFunctionType)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {
     Constant(ConstantValue),
@@ -228,56 +229,6 @@ pub enum ProtoDensityFunction {
     },
     FindTopSurface(FindTopSurfaceArguments),
     OldBlendedNoise(BlendedNoiseArguments),
-}
-
-mcrs_minecraft_registries::dispatch! {
-    ProtoDensityFunction, key = "type", registry = crate::keys::DensityFunctionType,
-    {
-        Constant => Constant,
-        BlendAlpha => BlendAlpha,
-        BlendOffset => BlendOffset,
-        Beardifier => Beardifier,
-        Noise => Noise,
-        EndOuterIslands => EndOuterIslands,
-        DistanceToPoint => DistanceToPoint,
-        Gradient => Gradient,
-        ShiftA => ShiftA,
-        ShiftB => ShiftB,
-        Shift => Shift,
-        Abs => Abs,
-        Square => Square,
-        Cube => Cube,
-        Sqrt => Sqrt,
-        HalfNegative => HalfNegative,
-        QuarterNegative => QuarterNegative,
-        Reciprocal => Reciprocal,
-        Negate => Negate,
-        Squeeze => Squeeze,
-        Log => Log,
-        Sign => Sign,
-        Floor => Floor,
-        Round => Round,
-        Ceil => Ceil,
-        Truncate => Truncate,
-        Add => Add,
-        Sub => Sub,
-        Mul => Mul,
-        Div => Div,
-        Min => Min,
-        Max => Max,
-        Pow => Pow,
-        Spline => Spline,
-        Lerp => Lerp,
-        Clamp => Clamp,
-        RangeChoice => RangeChoice,
-        IntervalSelect => IntervalSelect,
-        Cache => Cache,
-        BlendDensity => BlendDensity,
-        Interpolated => Interpolated,
-        Slice => Slice,
-        FindTopSurface => FindTopSurface,
-        OldBlendedNoise => OldBlendedNoise,
-    }
 }
 
 fn zero_holder() -> DensityFunctionHolder {

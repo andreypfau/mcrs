@@ -1,3 +1,4 @@
+use mcrs_minecraft_registries::dispatch;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
@@ -114,8 +115,8 @@ pub struct FrozenEntity {
 // chisle: only the villager pair, which the igloo places, keeps its data.
 // The jigsaw kinds are never placed, so a cat drops its variant and a piglin
 // its sword; the upgrade is a data-carrying variant per kind that gets placed.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_entity::keys::EntityType, key = "id", only)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EntityKind {
     Allay,
     ArmorStand,
@@ -138,28 +139,6 @@ pub enum EntityKind {
         #[serde(rename = "VillagerData", default)]
         data: VillagerData,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    EntityKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
-    {
-        Allay => Allay,
-        ArmorStand => ArmorStand,
-        Camel => Camel,
-        Cat => Cat,
-        Cow => Cow,
-        Cushion => Cushion,
-        Hoglin => Hoglin,
-        Horse => Horse,
-        IronGolem => IronGolem,
-        Pig => Pig,
-        Piglin => Piglin,
-        PiglinBrute => PiglinBrute,
-        Sheep => Sheep,
-        Villager => Villager,
-        ZombieVillager => ZombieVillager,
-    }
-    wildcard unsupported
 }
 
 #[derive(Deserialize)]

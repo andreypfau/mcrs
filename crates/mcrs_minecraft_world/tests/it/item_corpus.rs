@@ -17,7 +17,7 @@ use serde::de::IgnoredAny;
 
 use crate::common::items;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/").to_owned() + CORPUS_DIRECTORY;
@@ -226,7 +226,7 @@ fn a_repeated_identifier_fails_to_load() {
         serde_json::to_vec(&stick_json).unwrap(),
     );
     let error =
-        mcrs_minecraft_world::item::definitions::from_files(files, test_registries_arc(), blocks)
+        mcrs_minecraft_world::item::definitions::from_files(files, test_registries(), blocks)
             .unwrap_err();
     assert!(
         matches!(

@@ -7,7 +7,6 @@
 )]
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::below_vanilla_root;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -24,7 +23,7 @@ pub fn assets_dir() -> PathBuf {
 /// `relative` below a pack root, with the vanilla pack's `minecraft` directory read from the
 /// game's data pack and everything else from [`assets_dir`].
 pub fn corpus_path(relative: &str) -> PathBuf {
-    match below_vanilla_root(Path::new(relative)) {
+    match Path::new(relative).strip_prefix("minecraft").ok() {
         Some(below) => vanilla_dir().join(below),
         None => assets_dir().join(relative),
     }

@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::Registries;
-use super::declaration::{Erased, Kind};
+use crate::Registries;
+use crate::load::{Declaration, Kind};
 use crate::diagnostics::Diagnostic;
 use crate::tags::TagTable;
 
@@ -46,7 +46,7 @@ pub(crate) struct SyncedEntry<'a> {
 }
 
 pub(crate) fn snapshot(
-    declarations: &[&dyn Erased],
+    declarations: &[Declaration],
     registries: &Registries,
 ) -> Result<NetworkSnapshot, Vec<Diagnostic>> {
     let mut synced = Vec::new();
@@ -55,11 +55,12 @@ pub(crate) fn snapshot(
     let mut errors = Vec::new();
     for declaration in declarations {
         let tags = registries
-            .tag_table(declaration.key())
-            .filter(|table| table.resolved().next().is_some())
-            .map(|table| (declaration.key(), &**table));
-        match declaration.kind() {
+            .table(declaration.key().as_str())
+            .filter(|table| table.tags.resolved().next().is_some())
+            .map(|table| (declaration.key(), &*table.tags));
+        match &declaration.kind {
             Kind::Fixed(_) => static_tags.extend(tags),
+            Kind::Names => {}
             Kind::Data(data) => match data.synced_entries(registries) {
                 None => {}
                 Some(Ok(entries)) => {

@@ -1,6 +1,7 @@
 //! `worldgen/carver/*.json` in full: the configuration surface the shared
 //! carver engine has to express.
 
+use mcrs_minecraft_registries::dispatch;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_value_provider::{FloatProvider, HeightProvider, IntProvider};
@@ -13,9 +14,10 @@ fn is_one(provider: &FloatProvider) -> bool {
     *provider == one()
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[dispatch(registry = crate::keys::CarverType)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(bevy_reflect::TypePath))]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(deny_unknown_fields)]
 pub enum CarverConfig {
     Cave {
         probability: f32,
@@ -39,16 +41,8 @@ pub enum CarverConfig {
     },
     /// Beta's `MapGenCaves`. Nothing about it is configurable: its draws, its
     /// seed and its abort on water are the carver.
+    #[dispatch(id = "mcrs:beta_cave")]
     BetaCave,
-}
-
-mcrs_minecraft_registries::dispatch! {
-    CarverConfig, key = "type", registry = crate::keys::CarverType,
-    {
-        Cave => Cave,
-        Canyon => Canyon,
-    }
-    extend { "mcrs:beta_cave" => BetaCave }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

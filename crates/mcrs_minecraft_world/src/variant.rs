@@ -1,14 +1,12 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_core::{RegistryValue, ResourceLocation};
 use mcrs_minecraft_entity::variant::{
     CatVariant, ChickenModel, ChickenVariant, CowModel, CowVariant, FrogVariant, PigModel,
     PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
 };
-use mcrs_minecraft_registries::{
-    Named, Refs, Registries, RegistryOf, Resolve, Resolved, registry_value,
-};
+use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
@@ -27,24 +25,28 @@ macro_rules! spawning_variant {
             pub spawn_conditions: Vec<SpawnSelector<M>>,
         }
 
+        impl mcrs_minecraft_core::RegistryValue for $file {
+            type Registry = $value;
+        }
+
         impl SpawnConditions for $file {
             fn spawn_conditions(&self) -> &[SpawnSelector] {
                 &self.spawn_conditions
             }
         }
 
-        impl $file {
-            pub fn split(file: &Self) -> ($value, Vec<SpawnSelector>) {
-                (
-                    $value { $($field: file.$field.clone(),)+ },
-                    file.spawn_conditions.clone(),
-                )
+        impl From<&$file> for $value {
+            fn from(file: &$file) -> Self {
+                $value { $($field: file.$field.clone(),)+ }
             }
+        }
 
-            pub fn join((value, spawn_conditions): (&$value, &Vec<SpawnSelector>)) -> Self {
+        /// A client never learns the spawn conditions of a variant.
+        impl From<$value> for $file {
+            fn from(value: $value) -> Self {
                 Self {
-                    $($field: value.$field.clone(),)+
-                    spawn_conditions: spawn_conditions.clone(),
+                    $($field: value.$field,)+
+                    spawn_conditions: Vec::new(),
                 }
             }
         }
@@ -111,11 +113,11 @@ pub trait SpawnConditions: Send + Sync + 'static {
 }
 
 /// A variant registry's spawn conditions by variant name.
-pub fn spawn_selectors<F: SpawnConditions>(
+pub fn spawn_selectors<F: SpawnConditions + RegistryValue + 'static>(
     registries: &Registries,
 ) -> Result<BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>, String> {
     let registry = registries
-        .registry::<RegistryOf<F>>()
+        .registry::<F>()
         .ok_or_else(|| format!("{} is not loaded", std::any::type_name::<F>()))?;
     registry
         .iter()
@@ -130,13 +132,3 @@ pub fn spawn_selectors<F: SpawnConditions>(
         })
         .collect()
 }
-
-mcrs_minecraft_registries::declare_registries!(
-    WolfVariantFile => mcrs_minecraft_entity::keys::WOLF_VARIANT, World, non_empty;
-    PigVariantFile => mcrs_minecraft_entity::keys::PIG_VARIANT, World, non_empty;
-    FrogVariantFile => mcrs_minecraft_entity::keys::FROG_VARIANT, World, non_empty;
-    CatVariantFile => mcrs_minecraft_entity::keys::CAT_VARIANT, World, non_empty;
-    CowVariantFile => mcrs_minecraft_entity::keys::COW_VARIANT, World, non_empty;
-    ChickenVariantFile => mcrs_minecraft_entity::keys::CHICKEN_VARIANT, World, non_empty;
-    ZombieNautilusVariantFile => mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT, World, non_empty;
-);

@@ -4,9 +4,9 @@ use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use serde::de::{self, IgnoredAny, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use super::filter::FilterSection;
-use crate::diagnostics::Diagnostic;
-use crate::json;
+use crate::PackDiagnostic;
+use crate::filter::FilterSection;
+use crate::json::read_json;
 
 const LAST_LEGACY_FORMAT: u32 = 81;
 
@@ -253,12 +253,12 @@ pub(crate) fn read(
     pack: &str,
     bytes: &[u8],
     known_features: &[ResourceLocation],
-    diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<PackDiagnostic>,
 ) -> Result<Metadata, String> {
-    let root: Root = json::read(bytes).map_err(|e| e.message)?;
+    let root: Root = read_json(bytes).map_err(|e| e.message)?;
 
     if let Err(reason) = pack_range(&root.pack) {
-        diagnostics.push(Diagnostic::UnknownCompatibility {
+        diagnostics.push(PackDiagnostic::UnknownCompatibility {
             pack: pack.to_owned(),
             reason,
         });
@@ -281,7 +281,7 @@ pub(crate) fn read(
                 overlays.push(entry.directory.0)
             }
             Ok(_) => {}
-            Err(reason) => diagnostics.push(Diagnostic::OverlaySkipped {
+            Err(reason) => diagnostics.push(PackDiagnostic::OverlaySkipped {
                 pack: pack.to_owned(),
                 directory: entry.directory.0,
                 reason,

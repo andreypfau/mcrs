@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::App;
@@ -9,10 +8,10 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registries::{Key, Registries, RegistryOf, Resolver};
+use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::registry_snapshot::install_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -33,20 +32,20 @@ pub fn insert_corpus(app: &mut App) {
 /// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
-    install_registries(app.world_mut(), Arc::clone(test_registries_arc()));
+    install_registries(app.world_mut(), test_registries().clone());
 }
 
 pub fn dimension_type(name: &str) -> Id<DimensionType> {
     Resolver::id(
-        &**test_registries_arc(),
-        &Key::new(ResourceLocation::read(name).unwrap()),
+        test_registries(),
+        &ResourceKey::from_location(ResourceLocation::read(name).unwrap()),
     )
     .unwrap_or_else(|error| panic!("the dimension type {name} is loaded: {error}"))
 }
 
 pub fn preset(name: &str) -> Dimensions {
-    let presets = test_registries_arc()
-        .registry::<RegistryOf<WorldPreset>>()
+    let presets = test_registries()
+        .registry::<WorldPreset>()
         .expect("the presets are loaded");
     presets
         .by_name(&ResourceLocation::read(name).unwrap())
@@ -79,7 +78,7 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
     );
     mcrs_minecraft_server::world_options::DimensionList::new(baked(
         &dimensions,
-        test_registries_arc(),
+        test_registries(),
     ))
 }
 

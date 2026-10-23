@@ -30,7 +30,7 @@ pub mod tag_serializer;
 pub use deserializer::{from_bytes, from_bytes_unnamed};
 pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
 
-pub use tag_deserializer::{from_tag, read_tag};
+pub use tag_deserializer::from_tag;
 pub use tag_serializer::{to_nbt_compound, to_nbt_tag};
 
 thread_local! {

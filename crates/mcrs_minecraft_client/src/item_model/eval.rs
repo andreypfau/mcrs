@@ -4,13 +4,13 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
-    FireworkExplosion, InlineRef, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
+    FireworkExplosion, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
     PotionContents, Trim,
 };
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
-use mcrs_minecraft_registries::{Namer, Registries, Resolve};
+use mcrs_minecraft_registries::{Namer, Ref, Registries, Resolve};
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
@@ -201,11 +201,11 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
         }
         match switch {
             SelectSwitch::TrimMaterial { cases } => match &self.stack.get::<Trim>()?.material {
-                InlineRef::Id(id) => {
+                Ref::Id(id) => {
                     let name = Namer::name(self.registries?, *id)?.clone();
                     find(cases, &ResourceKey::from_location(name))
                 }
-                InlineRef::Inline(_) => None,
+                Ref::Inline(_) => None,
             },
             SelectSwitch::DisplayContext { cases } => find(cases, &DisplayContext::Gui),
             SelectSwitch::BlockState {

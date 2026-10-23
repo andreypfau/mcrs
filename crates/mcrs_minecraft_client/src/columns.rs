@@ -33,7 +33,7 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, CurrentDimension};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryOf};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
 use crate::registries::{SessionSet, entered_configuration};
 
@@ -461,7 +461,7 @@ fn biome_ids(
 }
 
 fn extent_of(registries: &Registries, current: &CurrentDimension) -> Option<Extent> {
-    let dimension_types = registries.registry::<RegistryOf<DimensionTypeFile>>()?;
+    let dimension_types = registries.registry::<DimensionTypeFile>()?;
     let dimension_type = dimension_types.get(Id::checked(
         current.dimension_type.number(),
         dimension_types.len(),
@@ -641,7 +641,7 @@ fn receive_column_packets(
         };
         let Some(biome_count) = registries
             .as_deref()
-            .and_then(|registries| registries.registry::<RegistryOf<BiomeFile>>())
+            .and_then(|registries| registries.registry::<BiomeFile>())
             .map(|biomes| biomes.len())
         else {
             error!("a column arrived before the server's biome registry was built");
@@ -1274,10 +1274,8 @@ mod tests {
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_protocol::GameMode;
 
-        let registries = mcrs_minecraft_world::registry_load::test_registries_arc();
-        let types = registries
-            .registry::<RegistryOf<DimensionTypeFile>>()
-            .unwrap();
+        let registries = mcrs_minecraft_world::registry_load::test_registries();
+        let types = registries.registry::<DimensionTypeFile>().unwrap();
         let named = |key: &str, dimension: ResourceKey<Dimension>| {
             let id = types
                 .by_name(&mcrs_minecraft_core::ResourceLocation::read(key).unwrap())

@@ -1,8 +1,9 @@
+use mcrs_minecraft_core::ResourceKey;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registries::{Key, Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -112,7 +113,8 @@ impl<'de> Deserialize<'de> for PotionContents<Named> {
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                Key::deserialize(value::StrDeserializer::new(text)).map(PotionContents::potion)
+                ResourceKey::deserialize(value::StrDeserializer::new(text))
+                    .map(PotionContents::potion)
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {

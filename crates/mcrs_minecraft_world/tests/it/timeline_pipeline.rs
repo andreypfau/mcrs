@@ -1,4 +1,5 @@
 use bevy_app::App;
+use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
@@ -6,8 +7,7 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registries::PACKS_ROOT;
-use mcrs_minecraft_registries::{CurrentRegistries, Key, RegistryOf, Resolve, Resolver};
+use mcrs_minecraft_registries::{CurrentRegistries, Resolve, Resolver};
 
 use crate::common::tag_members;
 
@@ -16,7 +16,9 @@ const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 fn overworld_clock(app: &App) -> Id<WorldClock> {
     app.world()
         .resource::<CurrentRegistries>()
-        .id(&Key::new(OVERWORLD_CLOCK.parse().unwrap()))
+        .id(&ResourceKey::from_location(
+            OVERWORLD_CLOCK.parse().unwrap(),
+        ))
         .expect("the overworld clock is registered")
 }
 
@@ -53,7 +55,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
         EnvironmentAttributes::of_dimension(
             set,
             &dimension,
-            set.id::<DimensionType>(&Key::new(name.parse().unwrap()))
+            set.id::<DimensionType>(&ResourceKey::from_location(name.parse().unwrap()))
                 .unwrap_or_else(|error| panic!("{name}: {error}")),
         )
         .ok()
@@ -87,7 +89,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
 pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app: &App) {
     let set = app.world().resource::<CurrentRegistries>();
     let registry = set
-        .registry::<RegistryOf<DimensionTypeFile>>()
+        .registry::<DimensionTypeFile>()
         .expect("the dimension types are loaded");
 
     let mut seen = 0;

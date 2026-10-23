@@ -8,7 +8,7 @@ use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -204,8 +204,8 @@ fn build_sky_environment(
     mut commands: Commands,
 ) {
     let (Some(dimension_types), Some(world_clocks)) = (
-        registries.registry::<RegistryOf<DimensionTypeFile>>(),
-        registries.registry::<RegistryOf<WorldClock>>(),
+        registries.registry::<DimensionTypeFile>(),
+        registries.registry::<WorldClock>(),
     ) else {
         error!("the registries hold no dimension types to draw a sky from");
         return;
@@ -649,8 +649,8 @@ mod sky_regression {
     #[test]
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
         let overworld_clock = mcrs_minecraft_registries::Resolver::id(
-            &**mcrs_minecraft_world::registry_load::test_registries_arc(),
-            &mcrs_minecraft_registries::Key::new(
+            mcrs_minecraft_world::registry_load::test_registries(),
+            &mcrs_minecraft_core::ResourceKey::from_location(
                 (*mcrs_minecraft_environment::keys::world_clock::OVERWORLD.location()).into(),
             ),
         )

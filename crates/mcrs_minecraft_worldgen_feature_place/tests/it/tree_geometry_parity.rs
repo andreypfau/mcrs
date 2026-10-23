@@ -19,7 +19,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::{
     BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
 };
-use mcrs_minecraft_registries::{KeyOr, Named};
+use mcrs_minecraft_registries::{Named, Ref};
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
@@ -297,7 +297,7 @@ pub(crate) fn compiled(
         panic!("{feature} is not a tree of the corpus");
     };
     let simple = |provider: &BlockStateProvider<Named>| match provider {
-        KeyOr::Inline(direct) => match &**direct {
+        Ref::Inline(direct) => match &**direct {
             DirectBlockStateProvider::State(state) => state.name.to_string(),
             DirectBlockStateProvider::Typed(TypedBlockStateProvider::Simple { state }) => {
                 state.name.to_string()

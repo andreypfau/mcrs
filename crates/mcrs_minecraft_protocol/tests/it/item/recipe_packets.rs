@@ -14,8 +14,8 @@ use mcrs_minecraft_item::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
 use mcrs_minecraft_protocol::item::ctx::{MAX_NESTING, WireCtx};
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, InlineRef, ItemComponentValue, Raw, Template,
-    Text, TrimPattern, TrimPatternRef,
+    ComponentPatch, Damage, DecodeCtx, EncodeCtx, ItemComponentValue, Raw, Template, Text,
+    TrimPattern, TrimPatternRef,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,
@@ -29,7 +29,7 @@ use mcrs_minecraft_protocol::recipe::{
     SelectableRecipe, SlotDisplay,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registries::{IdSet, Resolved};
+use mcrs_minecraft_registries::{IdSet, Ref, Resolved};
 
 use crate::item::harness::{ctx, entry, hex, list_set, one_set, read_json, tag_set};
 
@@ -66,7 +66,7 @@ fn planks() -> IdSet<Item> {
 }
 
 fn coast() -> TrimPatternRef<Resolved> {
-    InlineRef::Id(entry("coast"))
+    Ref::Id(entry("coast"))
 }
 
 fn one(path: &str) -> IdSet<Item> {
@@ -177,7 +177,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 result: SlotDisplay::SmithingTrim {
                     base: Box::new(item("iron_chestplate")),
                     material: Box::new(item("netherite_ingot")),
-                    pattern: InlineRef::Inline(Arc::new(TrimPattern {
+                    pattern: Ref::Inline(Arc::new(TrimPattern {
                         asset_id: rl!("mcrs:wave").to_arc(),
                         description: Text::text("Wave"),
                         decal: true,

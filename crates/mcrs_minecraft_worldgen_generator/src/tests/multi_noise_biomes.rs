@@ -8,7 +8,7 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-use mcrs_minecraft_registries::{Diagnostics, RegistryOf};
+use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
@@ -304,7 +304,7 @@ fn table_of_picks_the_named_or_inline_table() {
 fn the_shipped_parameter_lists_resolve_into_preset_tables() {
     let tables = super::preset_tables();
     let lists = super::test_registries()
-        .registry::<RegistryOf<MultiNoiseBiomeSourceParameterList>>()
+        .registry::<MultiNoiseBiomeSourceParameterList>()
         .expect("the loaded registries hold the parameter lists");
     assert!(!lists.is_empty());
     for (id, name, list) in lists.iter() {

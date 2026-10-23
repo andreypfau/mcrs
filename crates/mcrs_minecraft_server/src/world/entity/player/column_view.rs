@@ -41,7 +41,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelC
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
@@ -637,7 +637,7 @@ pub(crate) fn send_column_queue(
     let block_direct_bits = block_direct_bits(block_definitions.state_count());
     let biome_direct_bits = biome_direct_bits(
         registries
-            .registry::<RegistryOf<BiomeFile>>()
+            .registry::<BiomeFile>()
             .map_or(0, |biomes| biomes.len()),
     );
     players
@@ -932,9 +932,9 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
-        world.insert_resource(CurrentRegistries::new(std::sync::Arc::new(
+        world.insert_resource(CurrentRegistries::new(
             mcrs_minecraft_world::registry_load::registries_declaring(&[]),
-        )));
+        ));
         world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 
         Fixture {

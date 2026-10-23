@@ -491,8 +491,8 @@ leading byte-order mark (expected: loads) and with a lone `0xFF` byte inside the
 `message_id` string (expected: loads, and the registry data packet carries U+FFFD
 in that string).
 
-In the game, a repeated key inside one JSON object is not malformed; REG-ENTRY-008
-states what it means and where this implementation deliberately differs.
+A repeated key inside one JSON object is not malformed; REG-ENTRY-008 states what
+it means.
 
 ### REG-ENTRY-003: Field decoding (short form)
 
@@ -524,10 +524,10 @@ the decoder families, repeat with one entry each of `wolf_variant`,
 | `a`, `a-b` | `a-b`, `a` | `-` < `.` (unconfirmed) |
 | `a`, `a.b` | `a.b`, `a` | `a.b.json` vs `a.json`: `b` < `j` (unconfirmed) |
 | `a`, `a.k` | `a`, `a.k` | `j` < `k` (unconfirmed) |
-| `z:x`, `a:y` | `z:x`, `a:y` | the path decides before the namespace |
-| `a:x`, `b:x` | `a:x`, `b:x` | equal paths, so the namespace decides |
 
   The three rows marked unconfirmed are the only cases where the suffix changes the order. No registry shipped at this version has such a pair: for every registry in `names.json`, sorting by `p` and by `p + ".json"` gives the same order. Those rows therefore rest on the reference behaviour alone until the experiment below is run, and an implementation must not be considered conforming on them before that.
+| `z:x`, `a:y` | `z:x`, `a:y` | the path decides before the namespace |
+| `a:x`, `b:x` | `a:x`, `b:x` | equal paths, so the namespace decides |
 
 - **Postconditions:**
   - Adding, removing or filtering one entry shifts the ids of every entry after it.
@@ -613,7 +613,6 @@ negotiated set: `minecraft:plains` carries the pack's value.
 - **Conformance tests:**
   - A damage type file `{"message_id": "a", "exhaustion": "bad", "scaling": "never", "exhaustion": 5.0}` loads, with `exhaustion` 5.0.
   - A tag file `{"values": ["minecraft:stone"], "values": ["minecraft:dirt"]}` gives `[dirt]`.
-- **Local deviation (deliberate).** This implementation reads pack files with `serde_json` and does not follow this rule: a repeated field of a record is a decode error. An entry file then fails to load (REG-ERR-001); a tag file is skipped as schema-invalid and the tag exists with no members (REG-TAG-004); a `pack.mcmeta` makes the pack unavailable. The conformance tests above describe the game, not this implementation, and a test of this implementation expects the outcomes stated here.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: OQ-01's experiment,
 now with the expected outcome `5.0`, plus the conformance cases above.

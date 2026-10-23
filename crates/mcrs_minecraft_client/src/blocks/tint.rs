@@ -11,7 +11,7 @@ use crate::model::{self, Pack};
 use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_registries::{Registries, RegistryOf};
+use mcrs_minecraft_registries::Registries;
 
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
@@ -81,7 +81,7 @@ impl std::ops::Deref for BiomeTints {
 }
 
 pub fn derive_tints(pack: &Pack, registries: &Registries) -> Option<(BiomeTints, Vec<String>)> {
-    let registry = registries.registry::<RegistryOf<BiomeFile>>()?;
+    let registry = registries.registry::<BiomeFile>()?;
     let mut failures = Vec::new();
     let grass_map = noted(load_colormap(pack, "grass"), &mut failures);
     let foliage_map = noted(load_colormap(pack, "foliage"), &mut failures);
@@ -220,17 +220,17 @@ mod tests {
     use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
-    use mcrs_minecraft_world::registry_load::test_registries_arc;
+    use mcrs_minecraft_world::registry_load::test_registries;
 
     fn tints_of(biome: &str) -> BiomeTint {
         static TINTS: LazyLock<BiomeTints> = LazyLock::new(|| {
-            let (tints, failures) = derive_tints(Pack::corpus(), test_registries_arc())
-                .expect("the corpus holds biomes");
+            let (tints, failures) =
+                derive_tints(Pack::corpus(), test_registries()).expect("the corpus holds biomes");
             assert!(failures.is_empty(), "{failures:?}");
             tints
         });
-        let id = test_registries_arc()
-            .registry::<RegistryOf<BiomeFile>>()
+        let id = test_registries()
+            .registry::<BiomeFile>()
             .unwrap()
             .by_name(&mcrs_minecraft_core::ResourceLocation::read(biome).unwrap())
             .unwrap_or_else(|| panic!("{biome} is a biome"));

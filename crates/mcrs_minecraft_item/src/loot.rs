@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryValue;
 
 use crate::keys::{ContextFloatProviderType, ContextIntProviderType, ContextKeySet};
 
@@ -12,10 +11,6 @@ pub struct LootTable {
     pub random_sequence: Option<ResourceLocation>,
 }
 
-impl RegistryValue for LootTable {
-    type Registry = Self;
-}
-
 /// A registered context int provider as an item names it: the type of the
 /// expression at its root. The expression is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,17 +18,9 @@ pub struct ContextIntProvider {
     pub kind: ContextIntProviderType,
 }
 
-impl RegistryValue for ContextIntProvider {
-    type Registry = Self;
-}
-
 /// A registered context float provider as an item names it: the type of the
 /// expression at its root. The expression is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContextFloatProvider {
     pub kind: ContextFloatProviderType,
-}
-
-impl RegistryValue for ContextFloatProvider {
-    type Registry = Self;
 }

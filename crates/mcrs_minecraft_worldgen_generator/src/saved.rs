@@ -10,7 +10,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registries::{Registries, Registry, RegistryOf};
+use mcrs_minecraft_registries::{Registries, Registry};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
@@ -42,7 +42,7 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
 
 /// Resolves a saved biome name against the registry the dimension runs with.
 /// Biomes carry no properties, so only the name selects the entry.
-pub struct RegistryBiomes<'a>(pub &'a Registry<RegistryOf<BiomeFile>>);
+pub struct RegistryBiomes<'a>(pub &'a Registry<BiomeFile>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
@@ -83,7 +83,7 @@ type Region = Arc<OnceLock<Option<Arc<RegionFile>>>>;
 
 pub struct Regions {
     dir: PathBuf,
-    registries: Arc<Registries>,
+    registries: Registries,
     open: Mutex<HashMap<RegionPos, Region>>,
 }
 
@@ -93,7 +93,7 @@ impl SavedColumns {
     pub fn open(
         world: &Path,
         dimension: &ResourceKey<Dimension>,
-        registries: Arc<Registries>,
+        registries: Registries,
     ) -> Option<Self> {
         let dir = region_dir(world, dimension)?;
         dir.is_dir().then(|| {
@@ -119,7 +119,7 @@ impl SavedColumns {
     /// hold no blocks, so anything short of `full` is absent too and the
     /// generator fills the column instead of the save handing back a hole.
     pub fn read(&self, pos: ColumnPos, blocks: &BlockDefinitions) -> Option<Chunk> {
-        let Some(biomes) = self.0.registries.registry::<RegistryOf<BiomeFile>>() else {
+        let Some(biomes) = self.0.registries.registry::<BiomeFile>() else {
             error!(?pos, "the dimension's registries hold no biomes");
             return None;
         };

@@ -37,8 +37,4 @@ pub trait Noise {
     );
 }
 
-mcrs_minecraft_registries::read_with_serde!(crate::proto::NoiseParam);
-
-mcrs_minecraft_registries::declare_registries!(
-    crate::proto::NoiseParam => crate::keys::NOISE, World;
-);
+mcrs_minecraft_registries::resolve_as_is!(crate::proto::NoiseParam);

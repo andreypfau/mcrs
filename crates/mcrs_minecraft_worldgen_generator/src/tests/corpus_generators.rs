@@ -187,7 +187,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
     use mcrs_minecraft_block_predicate::provider::{
         DirectBlockStateProvider, TypedBlockStateProvider,
     };
-    use mcrs_minecraft_registries::KeyOr;
+    use mcrs_minecraft_registries::Ref;
     use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 
     let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
@@ -203,7 +203,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
         ("minecraft:flower_meadow", 2),
     ] {
         let proto = resolve(name);
-        let KeyOr::Key(provider) = &proto else {
+        let Ref::Id(provider) = &proto else {
             panic!("{name} carries {proto:?}");
         };
         let shape = match corpus_features()

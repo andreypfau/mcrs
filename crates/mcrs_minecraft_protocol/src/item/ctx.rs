@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::Registered;
 use std::cell::Cell;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -6,12 +7,10 @@ use std::sync::Arc;
 use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::component::{InlineRef, WireRef};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, TagKey};
+use mcrs_minecraft_item::component::WireRef;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registries::{
-    IdSet, Key, Namer, Ref, Registries, RegistryType, Resolve, Resolved, Resolver,
-};
+use mcrs_minecraft_registries::{IdSet, Namer, Ref, Registries, Resolve, Resolved, Resolver};
 use uuid::Uuid;
 
 use crate::registry::{decode_holder_id, decode_registry_id, encode_holder_id, encode_registry_id};
@@ -301,15 +300,14 @@ impl<'a, K: DecodeCtx<'a> + PartialEq, V: DecodeCtx<'a>> DecodeCtx<'a> for Vec<(
     }
 }
 
-impl<R: RegistryType> EncodeCtx for ResourceKey<R> {
+impl<R: Registered> EncodeCtx for ResourceKey<R> {
     fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        let id: Id<R> = Resolver::id(registries(ctx)?, &Key::new(self.location().clone()))
-            .map_err(anyhow::Error::msg)?;
+        let id: Id<R> = Resolver::id(registries(ctx)?, self).map_err(anyhow::Error::msg)?;
         encode_registry_id(id.number(), w)
     }
 }
 
-impl<'a, R: RegistryType> DecodeCtx<'a> for ResourceKey<R> {
+impl<'a, R: Registered> DecodeCtx<'a> for ResourceKey<R> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let id = local_id::<R>(decode_registry_id(r)?, ctx)?;
         if ctx.walking() {
@@ -322,36 +320,33 @@ impl<'a, R: RegistryType> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
-fn wire_number<R: RegistryType>(id: Id<R>) -> u16 {
+fn wire_number<R: Registered>(id: Id<R>) -> u16 {
     id.number()
 }
 
-fn local_id<R: RegistryType>(wire: u16, ctx: &WireCtx<'_>) -> anyhow::Result<Id<R>> {
+fn local_id<R: Registered>(wire: u16, ctx: &WireCtx<'_>) -> anyhow::Result<Id<R>> {
     if ctx.walking() {
         return Id::checked(0, 1).context("a placeholder id");
     }
     let registries = registries(ctx)?;
-    let registry = registries
-        .key_of::<R>()
-        .with_context(|| format!("no registry is bound to {}", std::any::type_name::<R>()))?;
     Id::checked(wire, usize::from(u16::MAX) + 1)
         .filter(|&id| Namer::name(registries, id).is_some())
-        .with_context(|| format!("registry {registry} has no id {wire}"))
+        .with_context(|| format!("registry {} has no id {wire}", R::REGISTRY))
 }
 
-impl<R: RegistryType> EncodeCtx for Id<R> {
+impl<R: Registered> EncodeCtx for Id<R> {
     fn encode_ctx(&self, _: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         encode_registry_id(wire_number(*self), w)
     }
 }
 
-impl<'a, R: RegistryType> DecodeCtx<'a> for Id<R> {
+impl<'a, R: Registered> DecodeCtx<'a> for Id<R> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         local_id(decode_registry_id(r)?, ctx)
     }
 }
 
-fn encode_ref<R: RegistryType, V: EncodeCtx>(
+fn encode_ref<R: Registered, V: EncodeCtx>(
     reference: Result<Id<R>, &V>,
     ctx: &WireCtx<'_>,
     mut w: impl Write,
@@ -365,7 +360,7 @@ fn encode_ref<R: RegistryType, V: EncodeCtx>(
     }
 }
 
-fn decode_ref<'a, R: RegistryType, V: DecodeCtx<'a>>(
+fn decode_ref<'a, R: Registered, V: DecodeCtx<'a>>(
     ctx: &WireCtx<'_>,
     r: &mut &'a [u8],
 ) -> anyhow::Result<Result<Id<R>, V>> {
@@ -375,7 +370,7 @@ fn decode_ref<'a, R: RegistryType, V: DecodeCtx<'a>>(
     }
 }
 
-impl<R: RegistryType, V: EncodeCtx> EncodeCtx for Ref<R, V> {
+impl<R: Registered, V: EncodeCtx> EncodeCtx for Ref<Resolved, R, V> {
     fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         match self {
             Ref::Id(id) => encode_ref::<R, V>(Ok(*id), ctx, w),
@@ -384,7 +379,7 @@ impl<R: RegistryType, V: EncodeCtx> EncodeCtx for Ref<R, V> {
     }
 }
 
-impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for Ref<R, V> {
+impl<'a, R: Registered, V: DecodeCtx<'a>> DecodeCtx<'a> for Ref<Resolved, R, V> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         Ok(match decode_ref::<R, V>(ctx, r)? {
             Ok(id) => Ref::Id(id),
@@ -393,37 +388,19 @@ impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for Ref<R, V> {
     }
 }
 
-impl<R: RegistryType, V: EncodeCtx> EncodeCtx for InlineRef<Resolved, R, V> {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        match self {
-            InlineRef::Id(id) => encode_ref::<R, V>(Ok(*id), ctx, w),
-            InlineRef::Inline(value) => encode_ref::<R, V>(Err(value), ctx, w),
-        }
-    }
-}
-
-impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for InlineRef<Resolved, R, V> {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(match decode_ref::<R, V>(ctx, r)? {
-            Ok(id) => InlineRef::Id(id),
-            Err(value) => InlineRef::Inline(Arc::new(value)),
-        })
-    }
-}
-
-impl<R: RegistryType, V: EncodeCtx> EncodeCtx for WireRef<Resolved, R, V> {
+impl<R: Registered, V: EncodeCtx> EncodeCtx for WireRef<Resolved, R, V> {
     fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
         self.0.encode_ctx(ctx, w)
     }
 }
 
-impl<'a, R: RegistryType, V: DecodeCtx<'a>> DecodeCtx<'a> for WireRef<Resolved, R, V> {
+impl<'a, R: Registered, V: DecodeCtx<'a>> DecodeCtx<'a> for WireRef<Resolved, R, V> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        InlineRef::decode_ctx(ctx, r).map(WireRef)
+        Ref::decode_ctx(ctx, r).map(WireRef)
     }
 }
 
-impl<R: RegistryType> EncodeCtx for IdSet<R> {
+impl<R: Registered> EncodeCtx for IdSet<R> {
     fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             IdSet::Tag(tag) => {
@@ -444,7 +421,7 @@ impl<R: RegistryType> EncodeCtx for IdSet<R> {
     }
 }
 
-impl<'a, R: RegistryType> DecodeCtx<'a> for IdSet<R> {
+impl<'a, R: Registered> DecodeCtx<'a> for IdSet<R> {
     fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         ensure!(raw >= 0, "holder set with negative length");
@@ -454,7 +431,7 @@ impl<'a, R: RegistryType> DecodeCtx<'a> for IdSet<R> {
                 return Ok(IdSet::List(Box::new([])));
             }
             return registries(ctx)?
-                .tag(&Key::new(name))
+                .tag(&TagKey::from_location(name))
                 .map(IdSet::Tag)
                 .map_err(anyhow::Error::msg);
         }

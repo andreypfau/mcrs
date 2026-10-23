@@ -21,11 +21,10 @@ pub fn from_files(
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
     let items: Vec<ResourceLocation> = registries
-        .registry::<Item>()
+        .entries::<Item>()
         .ok_or(ItemCorpusError::NoItemRegistry)?
-        .iter()
-        .map(|(_, name, ())| name.clone())
-        .collect();
+        .names()
+        .to_vec();
     let mut entries = Vec::new();
     let mut paths = Vec::new();
     for (path, bytes) in files {
@@ -47,7 +46,7 @@ pub fn from_files(
         let found = item.description.protocol_id;
         let reported = Resolver::id::<Item>(
             registries,
-            &mcrs_minecraft_registries::Key::new(item.description.identifier.clone()),
+            &mcrs_minecraft_core::ResourceKey::from_location(item.description.identifier.clone()),
         )
         .map_err(|_| ItemTableError::Unknown(item.description.identifier.clone()))?;
         if found != reported.number() {

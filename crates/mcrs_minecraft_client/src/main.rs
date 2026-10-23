@@ -25,7 +25,7 @@ use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::registry_load::DirectoryPacks;
 #[cfg(not(target_family = "wasm"))]
@@ -496,7 +496,7 @@ fn apply_saved_clocks(
     mut clocks: ResMut<WorldClocks>,
     mut commands: Commands,
 ) {
-    if let Some(registry) = registries.registry::<RegistryOf<WorldClock>>() {
+    if let Some(registry) = registries.registry::<WorldClock>() {
         for (name, state) in &saved.0 {
             match registry
                 .by_name(name)
@@ -513,9 +513,11 @@ fn apply_saved_clocks(
 }
 
 fn log_registry_counts(registries: Res<CurrentRegistries>) {
-    fn count<V: Send + Sync + 'static>(registries: &CurrentRegistries) -> usize {
+    fn count<V: mcrs_minecraft_core::RegistryValue + Send + Sync + 'static>(
+        registries: &CurrentRegistries,
+    ) -> usize {
         registries
-            .registry::<RegistryOf<V>>()
+            .registry::<V>()
             .map_or(0, |registry| registry.len())
     }
     info!(
@@ -547,7 +549,7 @@ fn log_seeded_resources(
     advance_time: Res<AdvanceTime>,
     weather: Res<Weather>,
 ) {
-    let names = registries.registry::<RegistryOf<WorldClock>>();
+    let names = registries.registry::<WorldClock>();
     info!(
         clocks = ?clocks
             .iter()

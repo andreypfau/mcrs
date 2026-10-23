@@ -11,7 +11,6 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_registries.workspace = true
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_fixtures.workspace = true

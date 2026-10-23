@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::ResourceKey;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -14,8 +15,7 @@ use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registries::{
-    IdSet, Key, Named, Namer, Refs, RegistryOf, Resolve, ResolveError, Resolved, Resolver,
-    registry_value,
+    IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
 };
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -48,8 +48,8 @@ macro_rules! registry_key_component {
 pub(crate) use registry_key_component;
 
 registry_key_component! {
-    DamageTypeRef(RegistryOf<DamageType>) ["in_fire", "lava"],
-    BlockTransformerRef(RegistryOf<BlockTransformer>) ["axe", "shovel"],
+    DamageTypeRef(DamageType) ["in_fire", "lava"],
+    BlockTransformerRef(BlockTransformer) ["axe", "shovel"],
 }
 
 /// JSON's `null` reads as an absent field.
@@ -165,7 +165,9 @@ impl<'de> Deserialize<'de> for Enchantments<Named> {
                         entry.2 = level;
                         continue;
                     }
-                    let key = Key::new(ResourceLocation::read(&raw).map_err(A::Error::custom)?);
+                    let key = ResourceKey::from_location(
+                        ResourceLocation::read(&raw).map_err(A::Error::custom)?,
+                    );
                     if entries.iter().any(|(_, k, _)| *k == key) {
                         return Err(A::Error::custom(format_args!(
                             "Duplicate entry for key: {}",
@@ -227,7 +229,7 @@ impl Sample for StoredEnchantments {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant<M: Refs = Resolved> {
-    pub types: M::Set<RegistryOf<DamageType>>,
+    pub types: M::Set<DamageType>,
 }
 
 impl Sample for DamageResistant {
@@ -446,7 +448,7 @@ impl Sample for MobVisibility {
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ProvidesBannerPatterns<M: Refs = Resolved>(pub M::Set<RegistryOf<BannerPattern>>);
+pub struct ProvidesBannerPatterns<M: Refs = Resolved>(pub M::Set<BannerPattern>);
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

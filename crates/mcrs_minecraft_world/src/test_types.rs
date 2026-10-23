@@ -7,57 +7,47 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
-use mcrs_minecraft_item::component::common::InlineRef;
-use mcrs_minecraft_registries::{Named, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub type EnvironmentRef<M = Resolved> =
-    InlineRef<M, RegistryOf<TestEnvironment>, TestEnvironment<M>>;
+pub type EnvironmentRef<M = Resolved> = Ref<M, TestEnvironment, TestEnvironment<M>>;
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TestEnvironment<M: Refs = Resolved> {
     AllOf {
         definitions: Vec<EnvironmentRef<M>>,
     },
     ClockTime {
-        clock: M::Id<RegistryOf<WorldClock>>,
+        clock: M::Id<WorldClock>,
         time: Bounded<0, { i32::MAX }>,
     },
+    #[dispatch(Difficulty)]
     SetDifficulty {
         difficulty: Difficulty,
     },
+    #[dispatch(Function)]
     Functions {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         setup: Option<ResourceLocation>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         teardown: Option<ResourceLocation>,
     },
+    #[dispatch(GameRules)]
     SetGameRules {
         rules: GameRuleMap,
     },
+    #[dispatch(TimelineAttributes)]
     Timelines {
-        timelines: Vec<M::Id<RegistryOf<Timeline>>>,
+        timelines: Vec<M::Id<Timeline>>,
     },
     Weather {
         weather: Weather,
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    TestEnvironment<Named>, key = "type", registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType,
-    {
-        AllOf => AllOf,
-        ClockTime => ClockTime,
-        Difficulty => SetDifficulty,
-        Function => Functions,
-        GameRules => SetGameRules,
-        TimelineAttributes => Timelines,
-        Weather => Weather,
-    }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Difficulty {
@@ -207,22 +197,9 @@ test_instance!(FunctionTest {
 });
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_environment::keys::TestInstanceType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TestInstance<M: Refs = Resolved> {
     BlockBased(BlockBasedTest<M>),
     Function(FunctionTest<M>),
 }
-
-mcrs_minecraft_registries::dispatch! {
-    TestInstance<Named>, key = "type", registry = mcrs_minecraft_environment::keys::TestInstanceType,
-    {
-        BlockBased => BlockBased,
-        Function => Function,
-    }
-}
-
-mcrs_minecraft_registries::declare_registries!(
-    TestEnvironment => crate::keys::TEST_ENVIRONMENT, World;
-    TestInstance => crate::keys::TEST_INSTANCE, World;
-);

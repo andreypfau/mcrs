@@ -2,17 +2,17 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_datapack::{PackIndex, PackStack};
 use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::ctx::Slot;
 use super::declaration::{Declaration, EntrySource, Kind, Source};
 use super::loader::{
-    assemble, check_declarations, decode, empty_slots, fail, report_unresolved, slots_by_type,
+    assemble, check_declarations, decode, empty_slots, fail, report_unresolved, slots_by_key,
     too_many,
 };
-use super::{Registries, Stage};
+use crate::registries::{Registries, Stage};
 use crate::diagnostics::{Diagnostic, Diagnostics};
-use crate::pack::{PackIndex, PackStack};
 use crate::registry::Names;
 use crate::tags::TagTable;
 
@@ -41,7 +41,7 @@ pub fn load_received(
         return Err(fail(diagnostics, errors));
     }
     let mut slots = empty_slots(declarations);
-    let by_type = slots_by_type(&slots);
+    let by_key = slots_by_key(&slots);
 
     let (sources, mut errors) = name_slots(&mut slots, received);
     if !errors.is_empty() {
@@ -50,9 +50,9 @@ pub fn load_received(
 
     let stack = Arc::new(PackStack::default());
     let missing = decode(
-        Some(Stage::Reloadable),
+        Stage::Reloadable,
         &mut slots,
-        &by_type,
+        &by_key,
         sources,
         &stack,
         &mut errors,
@@ -63,10 +63,10 @@ pub fn load_received(
     }
     report_unresolved(unresolved, &slots, &mut errors);
     for slot in &slots {
-        if let (Kind::Data(data), Some(table)) = (slot.declaration.kind(), &slot.table)
+        if let (Some(data), Some(names)) = (slot.declaration.data_part(), &slot.names)
             && data.is_synced()
             && data.must_not_be_empty()
-            && table.names.len() == 0
+            && names.len() == 0
         {
             errors.push(Diagnostic::EmptyRegistry {
                 registry: slot.key().clone(),
@@ -84,6 +84,9 @@ pub fn load_received(
 
 type Sources<'f> = Vec<(usize, Vec<EntrySource<'f>>)>;
 
+/// The origin of an entry a server sent with its data: no pack of the stack.
+const RECEIVED: PackIndex = PackIndex::new(u16::MAX);
+
 /// Names every slot: a static registry from its declaration, a synced one from the entries sent,
 /// and the tags of each from the received tags.
 fn name_slots<'f>(
@@ -98,13 +101,10 @@ fn name_slots<'f>(
     let mut errors = Vec::new();
     let mut sources = Vec::new();
     for (at, slot) in slots.iter_mut().enumerate() {
-        let names = match slot.declaration.kind() {
-            Kind::Fixed(fixed) => Names::new(fixed.names().to_vec()).map(|names| {
-                let names = Arc::new(names);
-                slot.table = Some(fixed.assemble(Arc::clone(&names)));
-                names
-            }),
-            Kind::Data(data) => {
+        let names = match (&slot.declaration.kind, slot.declaration.data_part()) {
+            (Kind::Fixed(names), _) => Names::new(names.clone(), Vec::new()).map(Arc::new),
+            (Kind::Names, _) => Names::new(Vec::new(), Vec::new()).map(Arc::new),
+            (Kind::Data(_), Some(data)) => {
                 let entries = sent
                     .get(slot.key())
                     .filter(|_| data.is_synced())
@@ -127,13 +127,15 @@ fn name_slots<'f>(
                     }
                     names.push(name.clone());
                     entry_sources.push(EntrySource {
-                        pack: PackIndex::RECEIVED,
+                        pack: RECEIVED,
                         source: Source::Network(tag),
                     });
                 }
+                let origins = vec![RECEIVED; entry_sources.len()];
                 sources.push((at, entry_sources));
-                Names::new(names).map(Arc::new)
+                Names::new(names, origins).map(Arc::new)
             }
+            (Kind::Data(_), None) => Names::new(Vec::new(), Vec::new()).map(Arc::new),
         };
         let names = match names {
             Ok(names) => names,

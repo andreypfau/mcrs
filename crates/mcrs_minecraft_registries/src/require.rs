@@ -1,13 +1,13 @@
-use crate::{Diagnostic, Diagnostics, Registries, Registry, RegistryType, Tags};
-use mcrs_minecraft_core::{Id, RegistryKey, ResourceKey, ResourceLocation, TagId, TagKey};
+use crate::{Diagnostic, Diagnostics, Registries, Registry, Resolver, Tags};
+use mcrs_minecraft_core::{Id, Registered, RegistryValue, ResourceKey};
 
-pub fn require_registry<'a, K, R: RegistryType>(
+pub fn require_registry<'a, V: RegistryValue + 'static>(
     registries: &'a Registries,
-    key: RegistryKey<K>,
     diagnostics: &mut Diagnostics,
-) -> Option<&'a Registry<R>> {
-    let registry = registries.registry::<R>();
+) -> Option<&'a Registry<V>> {
+    let registry = registries.registry::<V>();
     if registry.is_none() {
+        let key = <V::Registry as Registered>::REGISTRY;
         diagnostics.extend([Diagnostic::Declaration {
             registry: key.location().into(),
             message: format!("registry {key} is absent from the loaded set"),
@@ -16,55 +16,38 @@ pub fn require_registry<'a, K, R: RegistryType>(
     registry
 }
 
-pub fn require_tags<R: RegistryType>(
+pub fn require_tags<R: Registered>(
     registries: &Registries,
-    key: RegistryKey<R>,
     diagnostics: &mut Diagnostics,
 ) -> Option<Tags<R>> {
     let tags = registries.tags::<R>();
     if tags.is_none() {
         diagnostics.extend([Diagnostic::Declaration {
-            registry: key.location().into(),
-            message: format!("tags of registry {key} are absent from the loaded set"),
+            registry: R::REGISTRY.location().into(),
+            message: format!(
+                "tags of registry {} are absent from the loaded set",
+                R::REGISTRY
+            ),
         }]);
     }
     tags
 }
 
-pub fn require_id<K, R: RegistryType>(
-    registry: &Registry<R>,
-    name: ResourceKey<K, &'static str>,
+pub fn require_id<R: Registered>(
+    registries: &Registries,
+    name: ResourceKey<R, &'static str>,
     diagnostics: &mut Diagnostics,
-) -> Option<Id<K>> {
-    let entry: ResourceLocation = (*name.location()).into();
-    let found = registry.by_name(&entry);
-    if found.is_none() {
+) -> Option<Id<R>> {
+    let found = registries.id(&name.into());
+    if let Err(message) = &found {
         diagnostics.extend([Diagnostic::Entry {
-            registry: registry.key().clone(),
-            message: format!("registry {} holds no entry named {entry}", registry.key()),
-            entry,
+            registry: R::REGISTRY.location().into(),
+            entry: (*name.location()).into(),
+            message: message.to_string(),
             pack: None,
             file: None,
             field: None,
         }]);
     }
-    // The numbering of an entry in the registry is the numbering the key type uses.
-    found.and_then(|id| Id::checked(id.number(), registry.len()))
-}
-
-pub fn require_tag<R: RegistryType>(
-    tags: &Tags<R>,
-    registry: RegistryKey<R>,
-    tag: &TagKey<R, &'static str>,
-    diagnostics: &mut Diagnostics,
-) -> Option<TagId<R>> {
-    let name: ResourceLocation = (*tag.location()).into();
-    let found = tags.by_name(&name);
-    if found.is_none() {
-        diagnostics.extend([Diagnostic::MissingTag {
-            registry: registry.location().into(),
-            tag: name,
-        }]);
-    }
-    found
+    found.ok()
 }

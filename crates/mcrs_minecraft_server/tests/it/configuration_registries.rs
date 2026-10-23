@@ -4,6 +4,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::packs::VANILLA_ROOT;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -17,22 +18,20 @@ use mcrs_minecraft_protocol::packets::configuration::{
 };
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
-use mcrs_minecraft_registries::{
-    CurrentRegistries, Registries, RegistryOf, VANILLA_PACK, VANILLA_ROOT,
-};
+use mcrs_minecraft_datapack::VANILLA_PACK;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
     KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
 };
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn served(root: &Path) -> Arc<Registries> {
+fn served(root: &Path) -> Registries {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
         asset_path: Some(root.to_str().unwrap().to_owned()),
@@ -41,7 +40,7 @@ fn served(root: &Path) -> Arc<Registries> {
     });
     app.finish();
     app.cleanup();
-    Arc::clone(app.world().resource::<CurrentRegistries>().arc())
+    Registries::clone(app.world().resource::<CurrentRegistries>())
 }
 
 /// The registry data packets the load encoded, decoded as a client reads them.
@@ -129,7 +128,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
     let registries = served(&root.0);
 
     let registry = "minecraft:damage_type";
-    let damage_types = registries.registry::<RegistryOf<DamageType>>().unwrap();
+    let damage_types = registries.registry::<DamageType>().unwrap();
     let arrow = damage_types
         .by_name(&ResourceLocation::read("minecraft:arrow").unwrap())
         .unwrap();
@@ -243,7 +242,7 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
 #[test]
 fn the_registry_packets_list_the_entries_the_packs_ship() {
     for known in [false, true] {
-        for packet in sent(test_registries_arc(), known) {
+        for packet in sent(test_registries(), known) {
             let registry = packet.registry.as_str();
             let shipped = shipped_entries(registry);
             let sent: Vec<&str> = packet
@@ -269,8 +268,8 @@ fn the_registry_packets_list_the_entries_the_packs_ship() {
 
 #[test]
 fn the_registry_packets_carry_each_synced_registry_in_id_order() {
-    let registries = test_registries_arc();
-    let packets = sent(test_registries_arc(), false);
+    let registries = test_registries();
+    let packets = sent(test_registries(), false);
 
     let sent: Vec<&str> = packets
         .iter()
@@ -300,7 +299,7 @@ fn the_registry_packets_carry_each_synced_registry_in_id_order() {
         );
     }
 
-    let bytes: usize = test_registries_arc()
+    let bytes: usize = test_registries()
         .network()
         .registry_data(false)
         .map(<[u8]>::len)
@@ -320,7 +319,7 @@ const OTHER_PACK: KnownPack<'static> = KnownPack {
 #[test]
 fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
     let mut from_other_packs = 0;
-    for packet in sent(test_registries_arc(), true) {
+    for packet in sent(test_registries(), true) {
         let registry = packet.registry.as_str();
         let shipped: BTreeMap<String, String> = shipped_entries(registry).into_iter().collect();
         for entry in &packet.entries {
@@ -339,7 +338,7 @@ fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
         "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
     );
     assert!(
-        sent(test_registries_arc(), false)
+        sent(test_registries(), false)
             .iter()
             .flat_map(|packet| &packet.entries)
             .all(|entry| entry.data.is_some())
@@ -348,7 +347,7 @@ fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
 
 #[test]
 fn only_a_reply_that_repeats_the_offer_negotiates_its_packs() {
-    let offer = known_pack_offer(true, test_registries_arc());
+    let offer = known_pack_offer(true, test_registries());
     let exactly: Vec<KnownPack> = offer.iter().map(offered_pack).collect();
     let core = |version| KnownPack {
         namespace: "minecraft",
@@ -378,7 +377,7 @@ fn only_a_reply_that_repeats_the_offer_negotiates_its_packs() {
 
 #[test]
 fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
-    let offered = known_pack_offer(true, test_registries_arc());
+    let offered = known_pack_offer(true, test_registries());
     let offered: Vec<KnownPack> = offered.iter().map(offered_pack).collect();
     assert_eq!(
         offered,
@@ -388,12 +387,12 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
             version: VERSION.id.as_str(),
         }]
     );
-    assert!(known_pack_offer(false, test_registries_arc()).is_empty());
+    assert!(known_pack_offer(false, test_registries()).is_empty());
 
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
-        .insert_resource(CurrentRegistries::new(Arc::clone(test_registries_arc())))
+        .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource(KnownPackOffer(true))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
@@ -413,7 +412,7 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
 
     app.world_mut().insert_resource(KnownPackOffer(false));
     let mut reply = Vec::new();
-    let offered = known_pack_offer(true, test_registries_arc());
+    let offered = known_pack_offer(true, test_registries());
     ServerboundSelectKnownPacks {
         known_packs: offered.iter().map(offered_pack).collect(),
     }
@@ -456,11 +455,11 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
 
 #[test]
 fn every_join_writes_the_registry_bytes_the_load_encoded() {
-    let registries = test_registries_arc();
+    let registries = test_registries();
     let mut app = App::new();
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
-        .insert_resource(CurrentRegistries::new(Arc::clone(registries)))
+        .insert_resource(CurrentRegistries::new(registries.clone()))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
     let offer = known_pack_offer(true, registries);

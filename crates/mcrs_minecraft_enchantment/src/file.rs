@@ -31,6 +31,10 @@ pub struct EnchantmentFile<M: Refs = Resolved> {
     pub effects: Option<NbtTag>,
 }
 
+impl mcrs_minecraft_core::RegistryValue for EnchantmentFile {
+    type Registry = EnchantmentData;
+}
+
 impl EnchantmentFile {
     pub fn split(&self) -> (EnchantmentData, Option<NbtTag>) {
         let data = EnchantmentData {

@@ -1,16 +1,14 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::{
-    Declaration, Diagnostic, Received, Registries, Stage, load_received,
-};
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Received, Registries, load_received};
 
 use crate::support::{
-    DamageType, Packs, damage, declarations_with, names, report_errors, rl, tag, value,
+    Damage, DamageType, Packs, damage, declarations_with, names, report_errors, rl, tag, value,
 };
 
 fn synced_damage() -> Vec<Declaration> {
     declarations_with(
-        Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
-            .synced(|damage, _| match damage.message_id.as_str() {
+        Declaration::data::<Damage>()
+            .synced_as(|damage, _| match damage.message_id.as_str() {
                 "t:huge" => Err("the value is too large".to_owned()),
                 id => Ok(NbtTag::String(id.to_owned())),
             })
@@ -46,9 +44,7 @@ fn only_synced_registries_have_registry_data() {
     let (synced, _) = packs.load(&synced_damage()).unwrap();
     assert_eq!(synced.network().registry_data(false).count(), 1);
     let (unsynced, _) = packs
-        .load(&declarations_with(
-            Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
-        ))
+        .load(&declarations_with(Declaration::data::<Damage>().into()))
         .unwrap();
     assert_eq!(unsynced.network().registry_data(false).count(), 0);
 }
@@ -78,7 +74,7 @@ fn a_client_numbers_received_entries_in_the_order_sent() {
     };
     let registries = receive(&received).unwrap();
     assert_eq!(names::<DamageType>(&registries), ["t:z", "t:a"]);
-    assert_eq!(value::<DamageType>(&registries, "t:a").message_id, "t:a");
+    assert_eq!(value::<Damage>(&registries, "t:a").message_id, "t:a");
     assert_eq!(
         tag::<DamageType>(&registries, "t:hot"),
         Some(vec!["t:a".into(), "t:z".into()])

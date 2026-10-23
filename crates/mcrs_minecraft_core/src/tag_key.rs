@@ -73,6 +73,12 @@ impl<R> TagKey<R, Arc<str>> {
     }
 }
 
+impl<R> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
+    fn from(key: TagKey<R, &'static str>) -> Self {
+        TagKey::from_location(key.rl.into())
+    }
+}
+
 // ── Generic accessors (any S: AsRef<str>) ──
 
 impl<R, S: AsRef<str>> TagKey<R, S> {

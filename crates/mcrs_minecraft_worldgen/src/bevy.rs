@@ -3,8 +3,9 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetApp, AssetLoader, LoadContext};
 use bevy_reflect::TypePath;
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_core::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_registries::{Registries, RegistryOf};
+use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_feature::template::Template;
@@ -29,9 +30,11 @@ pub struct MissingColumn {
     pub registry: &'static str,
 }
 
-fn column<T: Send + Sync + 'static>(registries: &Registries) -> Result<&[T], MissingColumn> {
+fn column<T: RegistryValue + Send + Sync + 'static>(
+    registries: &Registries,
+) -> Result<&[T], MissingColumn> {
     registries
-        .registry::<RegistryOf<T>>()
+        .registry::<T>()
         .map(|registry| &registry.values()[..])
         .ok_or(MissingColumn {
             registry: std::any::type_name::<T>(),

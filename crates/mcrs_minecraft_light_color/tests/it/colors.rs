@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::corpus::{asset_server, blocks};
@@ -35,7 +35,7 @@ fn load(files: &[(&str, &str)]) -> Result<LightColors, LightColorError> {
     LightColors::from_files(
         files,
         blocks(),
-        &test_registries_arc()
+        &test_registries()
             .tags::<Block>()
             .expect("the load builds the block tags"),
     )
@@ -72,7 +72,7 @@ fn the_plugin_holds_the_colour_table_and_item_lights_after_the_first_update() {
     ));
     app.insert_resource(blocks().clone());
     app.insert_resource(crate::corpus::items().clone());
-    app.insert_resource(CurrentRegistries::new(test_registries_arc().clone()));
+    app.insert_resource(CurrentRegistries::new(test_registries().clone()));
     app.add_plugins(LightColorPlugin);
     app.update();
     let colors = app
@@ -90,7 +90,7 @@ fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {
     let colours = LightColors::load(
         asset_server(),
         blocks(),
-        &test_registries_arc()
+        &test_registries()
             .tags::<Block>()
             .expect("the load builds the block tags"),
     )

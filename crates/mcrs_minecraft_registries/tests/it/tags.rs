@@ -1,9 +1,11 @@
+use mcrs_minecraft_core::TagKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
+use mcrs_minecraft_core::Id;
 use mcrs_minecraft_fixtures::vanilla_dir;
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Stage};
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer};
 use serde::Deserialize;
 
 use crate::support::{
@@ -52,7 +54,7 @@ mod exhaustive {
     fn a_registry_at_the_end_of_the_tag_range_loads() {
         let (registries, _) = block_tag_files(65_536).load(&declarations()).unwrap();
         let tags = registries.tags::<Block>().unwrap();
-        let last = tags.by_name(&rl("t:e65535")).unwrap();
+        let last = tags.id(&TagKey::from_location(rl("t:e65535"))).unwrap();
         assert_eq!(last.number(), u16::MAX);
         assert_eq!(
             tags.members(last).collect::<Vec<_>>(),
@@ -459,7 +461,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
         .collect();
     entries.sort_by_key(|e| e.1);
     let names = entries.into_iter().map(|(name, _)| rl(name)).collect();
-    let declarations = [Declaration::fixed::<Block>(rl("block"), names)];
+    let declarations = [Declaration::fixed(rl("block"), names)];
 
     let mut packs = Packs::new();
     files_under(
@@ -471,7 +473,12 @@ fn shipped_block_tags_load_as_the_reported_set() {
     let (registries, diagnostics) = packs.load(&declarations).unwrap();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 
-    let registry = registries.registry::<Block>().unwrap();
+    let ids: Vec<Id<Block>> = registries
+        .entries::<Block>()
+        .unwrap()
+        .iter()
+        .map(|(id, _)| id)
+        .collect();
     let tags = registries.tags::<Block>().unwrap();
 
     #[derive(Deserialize)]
@@ -486,7 +493,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
 
     for (tag_id, _) in tags.iter() {
         let members: BTreeSet<_> = tags.members(tag_id).collect();
-        for (id, _, _) in registry.iter() {
+        for &id in &ids {
             assert_eq!(tags.contains(tag_id, id), members.contains(&id));
         }
     }
@@ -494,8 +501,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
 
 #[test]
 fn a_replacing_feature_pack_tag_holds_only_its_own_members() {
-    let declarations: Vec<Declaration> =
-        vec![Declaration::data::<VillagerTrade>(rl("villager_trade"), Stage::World).into()];
+    let declarations: Vec<Declaration> = vec![Declaration::data::<VillagerTrade>().into()];
     let trade = vanilla_dir().join("datapacks/trade_rebalance");
     let mut packs = Packs::new().feature(
         "trade_rebalance",

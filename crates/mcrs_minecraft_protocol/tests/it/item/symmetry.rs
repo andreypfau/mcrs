@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol::item::{
     SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registries::{Named, Ref, RegistryOf};
+use mcrs_minecraft_registries::{Named, Ref, Resolved};
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
@@ -246,7 +246,7 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
 
 #[test]
 fn inline_holders_are_a_zero_prefix_and_a_bare_prefix_fails() {
-    type Pattern = Ref<RegistryOf<BannerPattern>, BannerPattern>;
+    type Pattern = Ref<Resolved, BannerPattern, BannerPattern>;
     let lookup = ctx();
     let direct = Pattern::Inline(Arc::new(BannerPattern {
         asset_id: rl!("minecraft:globe").to_arc(),

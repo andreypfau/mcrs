@@ -1,8 +1,8 @@
 use bytes::Buf;
+use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_entity::keys::{Attribute, VillagerProfession};
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_registries::RegistryType;
 use mcrs_minecraft_worldgen_testing::dump_string;
 use std::collections::HashMap;
 
@@ -43,12 +43,12 @@ fn read_census() -> Census {
     Census { ids, attributes }
 }
 
-fn loaded_names<R: RegistryType>() -> Vec<String> {
-    let registries = crate::registry_load::test_registries_arc();
+fn loaded_names<R: Registered>() -> Vec<String> {
+    let registries = crate::registry_load::test_registries();
     registries
-        .key_of::<R>()
-        .and_then(|key| registries.names_of(key))
+        .entries::<R>()
         .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<R>()))
+        .names()
         .iter()
         .map(ToString::to_string)
         .collect()

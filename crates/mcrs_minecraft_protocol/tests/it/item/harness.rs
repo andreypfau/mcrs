@@ -1,3 +1,5 @@
+use mcrs_minecraft_core::Registered;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::fmt;
@@ -15,14 +17,14 @@ use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemDataComponent};
-use mcrs_minecraft_registries::{IdSet, Key, Named, Registries, RegistryType, Resolve, Resolver};
+use mcrs_minecraft_registries::{IdSet, Named, Registries, Resolve, Resolver};
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 pub use crate::common::{hex, nbt_tree};
 
 pub fn registries() -> &'static Registries {
-    test_registries_arc()
+    test_registries()
 }
 
 pub fn ctx() -> WireCtx<'static> {
@@ -59,23 +61,25 @@ fn in_registries(sample: ItemComponentValue) -> ItemComponentValue {
     resolved(name).unwrap_or_else(|e| panic!("{sample:?}: resolve: {e}"))
 }
 
-fn key<R>(path: &str) -> Key<R> {
-    Key::new(ResourceLocation::minecraft(path).unwrap())
+fn key<R>(path: &str) -> ResourceKey<R> {
+    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
-pub fn entry<R: RegistryType>(path: &str) -> Id<R> {
+pub fn entry<R: Registered>(path: &str) -> Id<R> {
     registries().id(&key(path)).unwrap()
 }
 
-pub fn tag_set<R: RegistryType>(path: &str) -> IdSet<R> {
-    IdSet::Tag(registries().tag(&key(path)).unwrap())
+pub fn tag_set<R: Registered>(path: &str) -> IdSet<R> {
+    let tag =
+        mcrs_minecraft_core::TagKey::from_location(ResourceLocation::minecraft(path).unwrap());
+    IdSet::Tag(registries().tag(&tag).unwrap())
 }
 
-pub fn one_set<R: RegistryType>(path: &str) -> IdSet<R> {
+pub fn one_set<R: Registered>(path: &str) -> IdSet<R> {
     list_set(&[path])
 }
 
-pub fn list_set<R: RegistryType>(paths: &[&str]) -> IdSet<R> {
+pub fn list_set<R: Registered>(paths: &[&str]) -> IdSet<R> {
     IdSet::List(paths.iter().map(|path| entry(path)).collect())
 }
 

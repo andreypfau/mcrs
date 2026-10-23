@@ -1,4 +1,4 @@
-use mcrs_minecraft_registries::{KeyOr, KeySet};
+use mcrs_minecraft_registries::{KeySet, Named, Ref};
 
 use crate::support::{Damage, Item};
 
@@ -25,7 +25,7 @@ fn a_reference_is_written_in_the_normal_form() {
         ),
     ];
     for (file, written) in refs {
-        let value: KeyOr<Item, Damage> =
+        let value: Ref<Named, Item, Damage> =
             serde_json::from_str(file).unwrap_or_else(|e| panic!("{file}: {e}"));
         assert_eq!(serde_json::to_string(&value).unwrap(), written, "{file}");
     }
@@ -34,5 +34,5 @@ fn a_reference_is_written_in_the_normal_form() {
 #[test]
 fn a_string_that_is_not_a_key_is_refused_rather_than_read_another_way() {
     assert!(serde_json::from_str::<KeySet<Item>>(r##"["#logs"]"##).is_err());
-    assert!(serde_json::from_str::<KeyOr<Item, Damage>>(r#""Not A Key""#).is_err());
+    assert!(serde_json::from_str::<Ref<Named, Item, Damage>>(r#""Not A Key""#).is_err());
 }

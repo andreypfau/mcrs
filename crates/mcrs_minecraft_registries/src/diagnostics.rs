@@ -3,15 +3,9 @@ use std::fmt;
 use std::ops::Deref;
 
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_datapack::{Level, PackDiagnostic};
 
 use crate::order::identifier_order;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Level {
-    Info,
-    Warning,
-    Error,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Referrer {
@@ -35,47 +29,7 @@ pub struct Missing {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Diagnostic {
-    MissingPack {
-        pack: String,
-    },
-    UnavailablePack {
-        pack: String,
-        reason: String,
-    },
-    UnknownCompatibility {
-        pack: String,
-        reason: String,
-    },
-    OverlaySkipped {
-        pack: String,
-        directory: String,
-        reason: String,
-    },
-    PackFeaturesDisabled {
-        pack: String,
-        features: Vec<ResourceLocation>,
-    },
-    PackFound {
-        pack: String,
-    },
-    PackNotAppended {
-        pack: String,
-        features: Vec<ResourceLocation>,
-    },
-    FeaturePackAppended {
-        pack: String,
-    },
-    EmptyStack,
-    FilterIgnored {
-        pack: String,
-        reason: String,
-    },
-    InvalidFileName {
-        pack: String,
-        zip: bool,
-        namespace: String,
-        path: String,
-    },
+    Pack(PackDiagnostic),
     TagFileSkipped {
         registry: ResourceLocation,
         tag: ResourceLocation,
@@ -111,33 +65,16 @@ pub enum Diagnostic {
         registry: ResourceLocation,
         count: usize,
     },
-    Validation {
-        registry: ResourceLocation,
-        message: String,
-    },
     Declaration {
         registry: ResourceLocation,
         message: String,
-    },
-    MissingTag {
-        registry: ResourceLocation,
-        tag: ResourceLocation,
     },
 }
 
 impl Diagnostic {
     pub fn level(&self) -> Level {
         match self {
-            Diagnostic::PackFound { .. }
-            | Diagnostic::PackNotAppended { .. }
-            | Diagnostic::FeaturePackAppended { .. }
-            | Diagnostic::EmptyStack => Level::Info,
-            Diagnostic::MissingPack { .. }
-            | Diagnostic::UnavailablePack { .. }
-            | Diagnostic::UnknownCompatibility { .. }
-            | Diagnostic::OverlaySkipped { .. }
-            | Diagnostic::PackFeaturesDisabled { .. } => Level::Warning,
-            Diagnostic::InvalidFileName { zip: true, .. } => Level::Warning,
+            Diagnostic::Pack(pack) => pack.level(),
             _ => Level::Error,
         }
     }
@@ -151,7 +88,6 @@ impl Diagnostic {
             | Diagnostic::EmptyRegistry { registry }
             | Diagnostic::TooManyEntries { registry, .. }
             | Diagnostic::TooManyTags { registry, .. }
-            | Diagnostic::Validation { registry, .. }
             | Diagnostic::Declaration { registry, .. } => Some((ROOT.into(), registry.clone())),
             _ => None,
         }
@@ -168,6 +104,12 @@ fn list<T: fmt::Display>(f: &mut fmt::Formatter<'_>, items: &[T]) -> fmt::Result
         write!(f, "{item}")?;
     }
     Ok(())
+}
+
+impl From<PackDiagnostic> for Diagnostic {
+    fn from(diagnostic: PackDiagnostic) -> Self {
+        Diagnostic::Pack(diagnostic)
+    }
 }
 
 impl fmt::Display for Missing {
@@ -187,52 +129,7 @@ impl fmt::Display for Diagnostic {
             write!(f, "{registry}/{key}: ")?;
         }
         match self {
-            Diagnostic::MissingPack { pack } => write!(f, "missing data pack {pack}"),
-            Diagnostic::UnavailablePack { pack, reason } => {
-                write!(f, "data pack {pack} is not available: {reason}")
-            }
-            Diagnostic::UnknownCompatibility { pack, reason } => {
-                write!(f, "data pack {pack} has unknown compatibility: {reason}")
-            }
-            Diagnostic::OverlaySkipped {
-                pack,
-                directory,
-                reason,
-            } => write!(
-                f,
-                "overlay {directory} of data pack {pack} skipped: {reason}"
-            ),
-            Diagnostic::PackFeaturesDisabled { pack, features } => {
-                write!(
-                    f,
-                    "data pack {pack} removed: it requests disabled features "
-                )?;
-                list(f, features)
-            }
-            Diagnostic::PackFound { pack } => write!(f, "found new data pack {pack}"),
-            Diagnostic::PackNotAppended { pack, features } => {
-                write!(
-                    f,
-                    "new data pack {pack} not enabled: it requests disabled features "
-                )?;
-                list(f, features)
-            }
-            Diagnostic::FeaturePackAppended { pack } => {
-                write!(f, "enabled feature pack {pack} for the world's features")
-            }
-            Diagnostic::EmptyStack => f.write_str("no data pack selected, using vanilla"),
-            Diagnostic::FilterIgnored { pack, reason } => {
-                write!(f, "filter of data pack {pack} ignored: {reason}")
-            }
-            Diagnostic::InvalidFileName {
-                pack,
-                namespace,
-                path,
-                ..
-            } => write!(
-                f,
-                "file {path} in namespace {namespace} of data pack {pack} ignored: not a valid identifier"
-            ),
+            Diagnostic::Pack(pack) => write!(f, "{pack}"),
             Diagnostic::TagFileSkipped {
                 registry,
                 tag,
@@ -277,23 +174,9 @@ impl fmt::Display for Diagnostic {
             Diagnostic::EmptyRegistry { .. } => f.write_str("the registry must not be empty"),
             Diagnostic::TooManyEntries { count, .. } => over_range(f, *count, "entries"),
             Diagnostic::TooManyTags { count, .. } => over_range(f, *count, "tags"),
-            Diagnostic::Validation { message, .. } | Diagnostic::Declaration { message, .. } => {
-                f.write_str(message)
-            }
-            Diagnostic::MissingTag { registry, tag } => missing_tag(f, registry, tag),
+            Diagnostic::Declaration { message, .. } => f.write_str(message),
         }
     }
-}
-
-fn missing_tag(
-    f: &mut fmt::Formatter<'_>,
-    registry: &ResourceLocation,
-    tag: &ResourceLocation,
-) -> fmt::Result {
-    write!(
-        f,
-        "{registry}/#{tag}: registry {registry} holds no tag named {tag}"
-    )
 }
 
 fn over_range(f: &mut fmt::Formatter<'_>, count: usize, what: &str) -> fmt::Result {

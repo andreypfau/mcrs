@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol::item::{
     ProtoStack, RawDelimitedStack, RawStack, Template, Text, Unbreakable, hash_ops,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registries::{IdSet, Key, Named, Ref};
+use mcrs_minecraft_registries::{IdSet, Named, Ref, Resolved};
 
 use crate::item::harness::{
     ctx, custom_data, entry, json_of, list_set, named, one_set, read_json, registries, resolved,
@@ -265,8 +265,8 @@ fn a_hashed_patch_matches_through_hash_ops() {
     );
 }
 
-fn stone() -> Key<Item> {
-    Key::new(rl!("minecraft:stone").to_arc())
+fn stone() -> ResourceKey<Item> {
+    ResourceKey::from_location(rl!("minecraft:stone").to_arc())
 }
 
 #[test]
@@ -424,7 +424,7 @@ fn a_holder_set_naming_what_the_receiver_lacks_fails_the_packet() {
     let mut unknown_tag = vec![0, 13];
     unknown_tag.extend(b"minecraft:zzz");
     let mut unassigned = vec![2];
-    let blocks = registries().registry::<Block>().unwrap().len();
+    let blocks = registries().entries::<Block>().unwrap().len();
     VarInt(i32::try_from(blocks).unwrap())
         .encode(&mut unassigned)
         .unwrap();
@@ -467,7 +467,7 @@ fn a_kind_is_a_var_int_on_the_wire() {
 #[test]
 fn a_holder_id_below_zero_is_an_error_not_a_panic() {
     use mcrs_minecraft_sound::SoundEvent;
-    type Sound = Ref<SoundEvent, SoundEvent>;
+    type Sound = Ref<Resolved, SoundEvent, SoundEvent>;
     let lookup = ctx();
     let min_var_int = [0x80, 0x80, 0x80, 0x80, 0x08];
     let error = Sound::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
@@ -534,7 +534,7 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
     use mcrs_minecraft_entity::keys::EntityType;
     use mcrs_minecraft_protocol::item::{ResolvableFloat, ResolvableInt, TypedEntityData};
     use mcrs_minecraft_sound::SoundEvent;
-    let sound: Ref<SoundEvent, SoundEvent> = read_json(r#""entity.item.break""#).unwrap();
+    let sound: Ref<Resolved, SoundEvent, SoundEvent> = read_json(r#""entity.item.break""#).unwrap();
     assert_eq!(
         sound,
         Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id())

@@ -8,6 +8,7 @@ use crate::{Direction, GlobalPos, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_entity::keys::{VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
@@ -17,7 +18,7 @@ pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registries::{Namer, Registries, RegistryType};
+use mcrs_minecraft_registries::{Namer, Registries};
 use std::io::Write;
 use uuid::Uuid;
 
@@ -85,7 +86,7 @@ impl<'a> crate::Decode<'a> for Metadata<'a> {
 impl Metadata<'_> {
     /// Whether every registry id the entries hold numbers an entry of `registries`.
     pub fn names_entries_of(&self, registries: &Registries) -> bool {
-        fn named<R: RegistryType>(registries: &Registries, id: Id<R>) -> bool {
+        fn named<R: Registered>(registries: &Registries, id: Id<R>) -> bool {
             Namer::name(registries, id).is_some()
         }
         self.0.iter().all(|entry| match entry.value {

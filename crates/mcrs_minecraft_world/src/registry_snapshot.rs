@@ -9,14 +9,14 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RegistrySnapshot {
-    registries: Arc<Registries>,
+    registries: Registries,
     blocks: Blocks,
     items: Items,
 }
 
 impl RegistrySnapshot {
     fn insert_into(&self, world: &mut World) {
-        world.insert_resource(CurrentRegistries::new(Arc::clone(&self.registries)));
+        world.insert_resource(CurrentRegistries::new(self.registries.clone()));
         world.insert_resource(self.blocks.clone());
         world.insert_resource(self.items.clone());
     }
@@ -29,13 +29,13 @@ fn held<T: Resource + Clone>(world: &World) -> T {
         .unwrap_or_else(|| panic!("{} is missing from the main world", type_name::<T>()))
 }
 
-pub fn install_registries(world: &mut World, registries: Arc<Registries>) {
+pub fn install_registries(world: &mut World, registries: Registries) {
     let snapshot = RegistrySnapshot {
         blocks: held(world),
         items: held(world),
         registries,
     };
-    world.insert_resource(CurrentRegistries::new(Arc::clone(&snapshot.registries)));
+    world.insert_resource(CurrentRegistries::new(snapshot.registries.clone()));
     world.insert_resource(Versioned::new(Arc::new(snapshot)));
 }
 
@@ -50,10 +50,9 @@ pub fn extract_registries(main: &World, sub: &mut World) {
 /// tests only.
 #[cfg(feature = "test-support")]
 pub fn replace_registries(world: &mut World, registries: Registries) {
-    let registries = Arc::new(registries);
     let mut snapshot =
         RegistrySnapshot::clone(world.resource::<Versioned<RegistrySnapshot>>().value());
-    snapshot.registries = Arc::clone(&registries);
+    snapshot.registries = registries.clone();
     world.insert_resource(CurrentRegistries::new(registries));
     world
         .resource_mut::<Versioned<RegistrySnapshot>>()

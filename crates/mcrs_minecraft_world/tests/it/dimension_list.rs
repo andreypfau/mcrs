@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_registries::{Key, Registries, RegistryOf, Resolver};
+use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -11,8 +11,8 @@ fn key(name: &str) -> ResourceKey<Dimension> {
 }
 
 fn normal() -> Dimensions {
-    let presets = test_registries_arc()
-        .registry::<RegistryOf<WorldPreset>>()
+    let presets = test_registries()
+        .registry::<WorldPreset>()
         .expect("the presets are loaded");
     let id = presets
         .by_name(
@@ -27,7 +27,7 @@ fn normal() -> Dimensions {
 fn debug_dimension(set: &Registries, dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
         dimension_type: set
-            .id(&Key::new(dimension_type.parse().unwrap()))
+            .id(&ResourceKey::from_location(dimension_type.parse().unwrap()))
             .expect("the dimension type is loaded"),
         generator: ChunkGenerator::Debug,
     }
@@ -43,7 +43,7 @@ fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
 
 #[test]
 fn an_empty_dimension_list_from_the_plugin_is_refused() {
-    let text = bake_list(&Dimensions::new(), test_registries_arc()).unwrap_err();
+    let text = bake_list(&Dimensions::new(), test_registries()).unwrap_err();
     assert!(text.contains("minecraft:dimension"), "{text}");
 }
 
@@ -55,7 +55,7 @@ fn a_dimension_list_without_the_overworld_is_refused() {
         ("without the overworld", without_overworld),
         ("empty", Dimensions::new()),
     ] {
-        let text = bake(&base, test_registries_arc()).unwrap_err();
+        let text = bake(&base, test_registries()).unwrap_err();
         assert!(text.contains("minecraft:dimension"), "{case}: {text}");
         assert!(text.contains("minecraft:overworld"), "{case}: {text}");
     }
@@ -63,7 +63,7 @@ fn a_dimension_list_without_the_overworld_is_refused() {
 
 #[test]
 fn the_baked_order_ignores_input_order() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let entry = debug_dimension(set, "minecraft:overworld");
     let mut base = normal();
     base.remove("minecraft:the_end");

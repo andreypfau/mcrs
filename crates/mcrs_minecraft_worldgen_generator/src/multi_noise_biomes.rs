@@ -8,7 +8,7 @@ use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
 use mcrs_minecraft_registries::require_registry;
-use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, RegistryOf};
+use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -35,14 +35,14 @@ pub trait BiomeNames {
     fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry>;
 }
 
-impl BiomeNames for mcrs_minecraft_registries::Registry<RegistryOf<BiomeFile>> {
+impl BiomeNames for mcrs_minecraft_registries::Registry<BiomeFile> {
     fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
         ResourceLocation::read(name)
             .ok()
             .and_then(|name| self.by_name(&name))
             .and_then(|id| Id::checked(id.number(), self.len()))
             .ok_or_else(|| UnknownEntry {
-                registry: self.key().clone(),
+                registry: self.key().into(),
                 name: name.to_owned(),
             })
     }
@@ -197,12 +197,8 @@ impl PresetBiomeTables {
     }
 
     pub fn resolve(registries: &Registries, diagnostics: &mut Diagnostics) -> Option<Self> {
-        let lists = require_registry::<_, RegistryOf<MultiNoiseBiomeSourceParameterList>>(
-            registries,
-            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-            diagnostics,
-        );
-        let biomes = require_registry::<_, RegistryOf<BiomeFile>>(registries, BIOME, diagnostics);
+        let lists = require_registry::<MultiNoiseBiomeSourceParameterList>(registries, diagnostics);
+        let biomes = require_registry::<BiomeFile>(registries, diagnostics);
         let (lists, biomes) = (lists?, biomes?);
         Self::build(
             lists.iter().map(|(_, name, list)| (name, list.preset)),

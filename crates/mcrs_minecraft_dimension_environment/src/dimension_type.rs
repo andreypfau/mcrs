@@ -87,6 +87,10 @@ pub struct DimensionTypeFile<M: Refs = Resolved> {
     pub default_clock: Option<M::Id<WorldClock>>,
 }
 
+impl mcrs_minecraft_core::RegistryValue for DimensionTypeFile {
+    type Registry = mcrs_minecraft_dimension::DimensionType;
+}
+
 impl<'de> Deserialize<'de> for DimensionTypeFile<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let dimension_type = DimensionTypeFile::deserialize(d)?;

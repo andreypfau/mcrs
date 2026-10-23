@@ -4,10 +4,9 @@ use crate::keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::nbt_flag;
-use mcrs_minecraft_registries::{Named, Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_sound::keys::sound_event;
-use serde::ser::SerializeMap;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::harness::Sample;
@@ -58,15 +57,19 @@ float_default! {
     consume_seconds_default / is_consume_seconds_default = 1.6f32,
 }
 
-/// The map buffers on read, so the bools inside go through `nbt_flag`;
-/// vanilla writes the dispatch key last, so `Serialize` is by hand.
+/// The map buffers on read, so the bools inside go through `nbt_flag`.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::ConsumeEffectType, key_last)]
+#[derive(Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum ConsumeEffect<M: Refs = Resolved> {
     ApplyEffects {
         effects: Vec<MobEffectInstance<M>>,
-        #[serde(default = "one", deserialize_with = "unit_float")]
+        #[serde(
+            default = "one",
+            deserialize_with = "unit_float",
+            skip_serializing_if = "is_one"
+        )]
         probability: f32,
     },
     RemoveEffects {
@@ -74,71 +77,22 @@ pub enum ConsumeEffect<M: Refs = Resolved> {
     },
     ClearAllEffects,
     TeleportRandomly {
-        #[serde(default = "sixteen", deserialize_with = "positive_float")]
+        #[serde(
+            default = "sixteen",
+            deserialize_with = "positive_float",
+            skip_serializing_if = "is_sixteen"
+        )]
         diameter: f32,
-        #[serde(default = "default_true", deserialize_with = "nbt_flag")]
+        #[serde(
+            default = "default_true",
+            deserialize_with = "nbt_flag",
+            skip_serializing_if = "std::clone::Clone::clone"
+        )]
         directional_particles: bool,
     },
     PlaySound {
         sound: Sound<M>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    reads_only ConsumeEffect<Named>, key = "type", registry = crate::keys::ConsumeEffectType,
-    {
-        ApplyEffects => ApplyEffects,
-        RemoveEffects => RemoveEffects,
-        ClearAllEffects => ClearAllEffects,
-        TeleportRandomly => TeleportRandomly,
-        PlaySound => PlaySound,
-    }
-}
-
-impl ConsumeEffect {
-    pub fn kind(&self) -> crate::keys::ConsumeEffectType {
-        use crate::keys::ConsumeEffectType as Kind;
-        match self {
-            Self::ApplyEffects { .. } => Kind::ApplyEffects,
-            Self::RemoveEffects { .. } => Kind::RemoveEffects,
-            Self::ClearAllEffects => Kind::ClearAllEffects,
-            Self::TeleportRandomly { .. } => Kind::TeleportRandomly,
-            Self::PlaySound { .. } => Kind::PlaySound,
-        }
-    }
-}
-
-impl Serialize for ConsumeEffect<Named> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(None)?;
-        match self {
-            Self::ApplyEffects {
-                effects,
-                probability,
-            } => {
-                map.serialize_entry("effects", effects)?;
-                if !is_one(probability) {
-                    map.serialize_entry("probability", probability)?;
-                }
-            }
-            Self::RemoveEffects { effects } => map.serialize_entry("effects", effects)?,
-            Self::ClearAllEffects => {}
-            Self::TeleportRandomly {
-                diameter,
-                directional_particles,
-            } => {
-                if !is_sixteen(diameter) {
-                    map.serialize_entry("diameter", diameter)?;
-                }
-                if !directional_particles {
-                    map.serialize_entry("directional_particles", directional_particles)?;
-                }
-            }
-            Self::PlaySound { sound } => map.serialize_entry("sound", sound)?,
-        }
-        map.serialize_entry("type", &self.kind())?;
-        map.end()
-    }
 }
 
 #[registry_value]
@@ -176,7 +130,7 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
 }
 
 fn generic_eat<M: Refs>() -> Sound<M> {
-    M::ref_of(sound_event::ENTITY_GENERIC_EAT)
+    Ref::of(sound_event::ENTITY_GENERIC_EAT)
 }
 
 fn is_generic_eat<M: Refs>(sound: &Sound<M>) -> bool {

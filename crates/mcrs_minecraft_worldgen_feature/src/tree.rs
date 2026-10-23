@@ -1,6 +1,6 @@
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::provider::{BlockStateProvider, UnitFloat};
-use mcrs_minecraft_registries::{KeySet, Named};
+use mcrs_minecraft_registries::{KeySet, Named, dispatch};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -63,9 +63,11 @@ impl Default for TrunkWidth {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::TrunkPlacerType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum TrunkPlacer {
+    #[dispatch(StraightTrunkPlacer)]
     Straight {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
@@ -73,31 +75,37 @@ pub enum TrunkPlacer {
         #[serde(default, skip_serializing_if = "is_default")]
         trunk_width: TrunkWidth,
     },
+    #[dispatch(ForkingTrunkPlacer)]
     Forking {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
     },
+    #[dispatch(GiantTrunkPlacer)]
     Giant {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
     },
+    #[dispatch(MegaJungleTrunkPlacer)]
     MegaJungle {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
     },
+    #[dispatch(DarkOakTrunkPlacer)]
     DarkOak {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
     },
+    #[dispatch(FancyTrunkPlacer)]
     Fancy {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
     },
+    #[dispatch(BendingTrunkPlacer)]
     Bending {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
@@ -106,6 +114,7 @@ pub enum TrunkPlacer {
         min_height_for_leaves: Bounded<1, { i32::MAX }, 1>,
         bend_length: IntProvider,
     },
+    #[dispatch(UpwardsBranchingTrunkPlacer)]
     UpwardsBranching {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
@@ -115,6 +124,7 @@ pub enum TrunkPlacer {
         extra_branch_length: IntProvider,
         can_grow_through: KeySet<Block>,
     },
+    #[dispatch(CherryTrunkPlacer)]
     Cherry {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
@@ -125,6 +135,7 @@ pub enum TrunkPlacer {
         branch_start_offset_from_top: UniformIntRange,
         branch_end_offset_from_top: IntProvider,
     },
+    #[dispatch(PoplarTrunkPlacer)]
     Poplar {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
@@ -134,74 +145,70 @@ pub enum TrunkPlacer {
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    TrunkPlacer, key = "type", registry = crate::keys::TrunkPlacerType,
-    {
-        StraightTrunkPlacer => Straight,
-        ForkingTrunkPlacer => Forking,
-        GiantTrunkPlacer => Giant,
-        MegaJungleTrunkPlacer => MegaJungle,
-        DarkOakTrunkPlacer => DarkOak,
-        FancyTrunkPlacer => Fancy,
-        BendingTrunkPlacer => Bending,
-        UpwardsBranchingTrunkPlacer => UpwardsBranching,
-        CherryTrunkPlacer => Cherry,
-        PoplarTrunkPlacer => Poplar,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::FoliagePlacerType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum FoliagePlacer {
+    #[dispatch(BlobFoliagePlacer)]
     Blob {
         radius: IntProvider,
         offset: IntProvider,
         height: Bounded<0, 16>,
     },
+    #[dispatch(BushFoliagePlacer)]
     Bush {
         radius: IntProvider,
         offset: IntProvider,
         height: Bounded<0, 16>,
     },
+    #[dispatch(FancyFoliagePlacer)]
     Fancy {
         radius: IntProvider,
         offset: IntProvider,
         height: Bounded<0, 16>,
     },
+    #[dispatch(SpruceFoliagePlacer)]
     Spruce {
         radius: IntProvider,
         offset: IntProvider,
         trunk_height: IntProvider,
     },
+    #[dispatch(PineFoliagePlacer)]
     Pine {
         radius: IntProvider,
         offset: IntProvider,
         height: IntProvider,
     },
+    #[dispatch(AcaciaFoliagePlacer)]
     Acacia {
         radius: IntProvider,
         offset: IntProvider,
     },
+    #[dispatch(DarkOakFoliagePlacer)]
     DarkOak {
         radius: IntProvider,
         offset: IntProvider,
     },
+    #[dispatch(JungleFoliagePlacer)]
     MegaJungle {
         radius: IntProvider,
         offset: IntProvider,
         height: Bounded<0, 16>,
     },
+    #[dispatch(MegaPineFoliagePlacer)]
     MegaPine {
         radius: IntProvider,
         offset: IntProvider,
         crown_height: IntProvider,
     },
+    #[dispatch(RandomSpreadFoliagePlacer)]
     RandomSpread {
         radius: IntProvider,
         offset: IntProvider,
         foliage_height: IntProvider,
         leaf_placement_attempts: Bounded<0, 256>,
     },
+    #[dispatch(CherryFoliagePlacer)]
     Cherry {
         radius: IntProvider,
         offset: IntProvider,
@@ -211,6 +218,7 @@ pub enum FoliagePlacer {
         hanging_leaves_chance: UnitFloat,
         hanging_leaves_extension_chance: UnitFloat,
     },
+    #[dispatch(PoplarFoliagePlacer)]
     Poplar {
         radius: IntProvider,
         offset: IntProvider,
@@ -219,28 +227,11 @@ pub enum FoliagePlacer {
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    FoliagePlacer, key = "type", registry = crate::keys::FoliagePlacerType,
-    {
-        BlobFoliagePlacer => Blob,
-        SpruceFoliagePlacer => Spruce,
-        PineFoliagePlacer => Pine,
-        AcaciaFoliagePlacer => Acacia,
-        BushFoliagePlacer => Bush,
-        FancyFoliagePlacer => Fancy,
-        JungleFoliagePlacer => MegaJungle,
-        MegaPineFoliagePlacer => MegaPine,
-        DarkOakFoliagePlacer => DarkOak,
-        RandomSpreadFoliagePlacer => RandomSpread,
-        CherryFoliagePlacer => Cherry,
-        PoplarFoliagePlacer => Poplar,
-    }
-}
-
 /// `P` is the block state provider four decorators carry: the datapack's
 /// [`BlockStateProvider`] as loaded, or whatever a freeze resolves it into.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::TreeDecoratorType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum TreeDecorator<P = BlockStateProvider<Named>> {
     TrunkVine {},
     LeaveVine {
@@ -290,24 +281,6 @@ pub enum TreeDecorator<P = BlockStateProvider<Named>> {
         #[serde(deserialize_with = "non_empty")]
         directions: Vec<Direction>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    for<P> serialize { P: Serialize } deserialize { P: Deserialize<'de> }
-    TreeDecorator<P>, key = "type", registry = crate::keys::TreeDecoratorType,
-    {
-        TrunkVine => TrunkVine,
-        LeaveVine => LeaveVine,
-        PaleMoss => PaleMoss,
-        CreakingHeart => CreakingHeart,
-        Cocoa => Cocoa,
-        ShelfMushroom => ShelfMushroom,
-        Beehive => Beehive,
-        AlterGround => AlterGround,
-        AttachedToLeaves => AttachedToLeaves,
-        PlaceOnGround => PlaceOnGround,
-        AttachedToLogs => AttachedToLogs,
-    }
 }
 
 impl<P> TreeDecorator<P> {
@@ -385,9 +358,11 @@ impl<P> TreeDecorator<P> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::FeatureSizeType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum FeatureSize {
+    #[dispatch(TwoLayersFeatureSize)]
     TwoLayers {
         #[serde(default, skip_serializing_if = "is_default")]
         limit: Bounded<0, 81, 1>,
@@ -398,6 +373,7 @@ pub enum FeatureSize {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         min_clipped_height: Option<Bounded<0, 80>>,
     },
+    #[dispatch(ThreeLayersFeatureSize)]
     ThreeLayers {
         #[serde(default, skip_serializing_if = "is_default")]
         limit: Bounded<0, 80, 1>,
@@ -414,17 +390,11 @@ pub enum FeatureSize {
     },
 }
 
-mcrs_minecraft_registries::dispatch! {
-    FeatureSize, key = "type", registry = crate::keys::FeatureSizeType,
-    {
-        TwoLayersFeatureSize => TwoLayers,
-        ThreeLayersFeatureSize => ThreeLayers,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::RootPlacerType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum RootPlacer {
+    #[dispatch(MangroveRootPlacer)]
     Mangrove {
         trunk_offset_y: IntProvider,
         root_provider: BlockStateProvider<Named>,
@@ -432,13 +402,6 @@ pub enum RootPlacer {
         above_root_placement: Option<AboveRootPlacement>,
         mangrove_root_placement: MangroveRootPlacement,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    RootPlacer, key = "type", registry = crate::keys::RootPlacerType,
-    {
-        MangroveRootPlacer => Mangrove,
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

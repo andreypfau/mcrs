@@ -8,6 +8,7 @@ pub mod keys;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_registries::dispatch::Buffered;
 use serde::de::{self, Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -274,8 +275,9 @@ impl DispatchedIntProvider {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::IntProviderType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum DispatchedIntProvider {
     Constant {
         value: i32,
@@ -312,20 +314,6 @@ pub enum DispatchedIntProvider {
         max: i32,
         plateau: i32,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DispatchedIntProvider, key = "type", registry = crate::keys::IntProviderType,
-    {
-        Constant => Constant,
-        Uniform => Uniform,
-        BiasedToBottom => BiasedToBottom,
-        VeryBiasedToBottom => VeryBiasedToBottom,
-        Clamped => Clamped,
-        WeightedList => WeightedList,
-        ClampedNormal => ClampedNormal,
-        Trapezoid => Trapezoid,
-    }
 }
 
 /// A provider whose whole range must sit inside `[MIN, MAX]`, refused at load
@@ -524,8 +512,9 @@ impl DispatchedFloatProvider {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::FloatProviderType)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum DispatchedFloatProvider {
     Constant {
         value: f32,
@@ -545,16 +534,6 @@ pub enum DispatchedFloatProvider {
         max: f32,
         plateau: f32,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DispatchedFloatProvider, key = "type", registry = crate::keys::FloatProviderType,
-    {
-        Constant => Constant,
-        Uniform => Uniform,
-        ClampedNormal => ClampedNormal,
-        Trapezoid => Trapezoid,
-    }
 }
 
 impl FloatProvider {
@@ -600,8 +579,9 @@ impl<'de> Deserialize<'de> for HeightProvider {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::HeightProviderType, unsupported(BiasedToBottom, WeightedList))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub enum DispatchedHeightProvider {
     Constant {
         value: VerticalAnchor,
@@ -622,17 +602,6 @@ pub enum DispatchedHeightProvider {
         #[serde(default, skip_serializing_if = "is_default")]
         plateau: i32,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DispatchedHeightProvider, key = "type", registry = crate::keys::HeightProviderType,
-    {
-        Constant => Constant,
-        Uniform => Uniform,
-        VeryBiasedToBottom => VeryBiasedToBottom,
-        Trapezoid => Trapezoid,
-    }
-    unsupported { BiasedToBottom, WeightedList }
 }
 
 impl HeightProvider {

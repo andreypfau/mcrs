@@ -4,7 +4,7 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::configuration_registries::{json_files, sent_update_tags, shipped_packs};
 
@@ -88,9 +88,9 @@ fn shipped_tags(registry: &str) -> BTreeMap<String, ShippedTag> {
 
 #[test]
 fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
-    let packet = sent_update_tags(test_registries_arc());
+    let packet = sent_update_tags(test_registries());
     let mut checked = 0;
-    for (registry, sent) in sent_tags(test_registries_arc(), &packet) {
+    for (registry, sent) in sent_tags(test_registries(), &packet) {
         let shipped = shipped_tags(&registry);
         assert_eq!(
             sent.keys().collect::<BTreeSet<_>>(),
@@ -113,7 +113,7 @@ fn the_tags_packet_names_the_shipped_tags_with_their_listed_members() {
 
 #[test]
 fn the_server_sends_tag_members_in_tag_order() {
-    let registries = test_registries_arc();
+    let registries = test_registries();
     let packet = sent_update_tags(registries);
 
     let blocks = registries
@@ -127,7 +127,9 @@ fn the_server_sends_tag_members_in_tag_order() {
     let mut out_of_id_order = Vec::new();
     for group in &sent_blocks.tags {
         let id = blocks
-            .by_name(&key(group.name.as_str()))
+            .id(&mcrs_minecraft_core::TagKey::from_location(key(group
+                .name
+                .as_str())))
             .expect("a sent block tag is in the set");
         let in_tag_order: Vec<u16> = blocks.members(id).map(|member| member.number()).collect();
         let sent: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
@@ -159,8 +161,8 @@ fn the_server_sends_tag_members_in_tag_order() {
 
 #[test]
 fn the_tags_packet_follows_the_static_registry_order() {
-    let packet = sent_update_tags(test_registries_arc());
-    let data = crate::configuration_registries::sent(test_registries_arc(), false);
+    let packet = sent_update_tags(test_registries());
+    let data = crate::configuration_registries::sent(test_registries(), false);
     let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
     let statics_sent: Vec<&str> = packet
         .registries
@@ -197,8 +199,8 @@ fn the_tags_packet_follows_the_static_registry_order() {
 
 #[test]
 fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
-    let registries = test_registries_arc();
-    let packet = sent_update_tags(test_registries_arc());
+    let registries = test_registries();
+    let packet = sent_update_tags(test_registries());
     let sent: Vec<&str> = packet
         .registries
         .iter()
@@ -214,7 +216,7 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
         "a registry is sent twice: {sent:?}"
     );
 
-    let data = crate::configuration_registries::sent(test_registries_arc(), false);
+    let data = crate::configuration_registries::sent(test_registries(), false);
     let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
     let has_tags = |registry: &str| {
         registries

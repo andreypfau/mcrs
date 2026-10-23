@@ -1,11 +1,16 @@
+use mcrs_minecraft_core::TagKey;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{Id, ResourceLocation};
+use mcrs_minecraft_core::{
+    Id, Registered, RegistryKey, RegistryValue, ResourceKey, ResourceLocation, rl,
+};
+use mcrs_minecraft_datapack::{
+    AvailablePack, Features, PackDiagnostic, PackFiles, PackSelection, PackStack, pack_stack,
+};
 use mcrs_minecraft_registries::{
-    AvailablePack, Declaration, Diagnostic, Diagnostics, Features, IdSet, Key, KeyOr, KeySet,
-    Namer, PackFiles, PackSelection, PackStack, Ref, Registries, RegistryType, Resolve,
-    ResolveError, Resolver, Stage, load, pack_stack,
+    Declaration, Diagnostic, Diagnostics, IdSet, KeySet, Named, Namer, Ref, Registries, Resolve,
+    ResolveError, Resolved, Resolver, Stage, load,
 };
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -20,20 +25,22 @@ pub fn assets() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
 }
 
-pub struct Block;
-impl RegistryType for Block {
-    type Value = ();
+macro_rules! registries {
+    ($($marker:ident = $key:literal),+ $(,)?) => {$(
+        pub struct $marker;
+
+        impl Registered for $marker {
+            const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!($key));
+        }
+    )+};
 }
 
-pub struct Item;
-impl RegistryType for Item {
-    type Value = ();
-}
-
-pub struct DamageType;
-impl RegistryType for DamageType {
-    type Value = Damage;
-}
+registries!(
+    Block = "minecraft:block",
+    Item = "minecraft:item",
+    DamageType = "minecraft:damage_type",
+    Enchantment = "minecraft:enchantment",
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Damage {
@@ -41,44 +48,44 @@ pub struct Damage {
     pub exhaustion: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Opaque;
-
-impl<'de> Deserialize<'de> for Opaque {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        IgnoredAny::deserialize(d).map(|_| Opaque)
-    }
+impl RegistryValue for Damage {
+    type Registry = DamageType;
 }
 
-mcrs_minecraft_registries::resolve_as_is!(Damage, Opaque);
+/// A registry whose values the tests never look into.
+macro_rules! opaque_registries {
+    ($($name:ident = $key:literal),+ $(,)?) => {$(
+        #[derive(Debug, Clone, PartialEq)]
+        pub struct $name;
 
-pub struct LootTable;
-impl RegistryType for LootTable {
-    type Value = Opaque;
+        impl Registered for $name {
+            const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!($key));
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                IgnoredAny::deserialize(d).map(|_| $name)
+            }
+        }
+    )+};
 }
 
-pub struct Predicate;
-impl RegistryType for Predicate {
-    type Value = Opaque;
-}
+opaque_registries!(
+    LootTable = "minecraft:loot_table",
+    Predicate = "minecraft:predicate",
+    VillagerTrade = "minecraft:villager_trade",
+    Things = "t:things",
+);
 
-pub struct VillagerTrade;
-impl RegistryType for VillagerTrade {
-    type Value = Opaque;
-}
-
-pub struct Enchantment;
-impl RegistryType for Enchantment {
-    type Value = Enchant;
-}
+mcrs_minecraft_registries::resolve_as_is!(Damage, LootTable, Predicate, VillagerTrade, Things);
 
 #[derive(Debug)]
 pub struct Enchant {
     pub supported_items: Option<IdSet<Item>>,
     pub exclusive_set: Option<IdSet<Enchantment>>,
     pub damage_types: Option<IdSet<DamageType>>,
-    pub merchant_predicate: Option<Ref<Predicate>>,
-    pub damage: Option<Ref<DamageType>>,
+    pub merchant_predicate: Option<Ref<Resolved, Predicate, Predicate>>,
+    pub damage: Option<Ref<Resolved, DamageType, Damage>>,
     pub preferred: Option<Id<Enchantment>>,
 }
 
@@ -87,9 +94,13 @@ pub struct NamedEnchant {
     supported_items: Option<KeySet<Item>>,
     exclusive_set: Option<KeySet<Enchantment>>,
     damage_types: Option<KeySet<DamageType>>,
-    merchant_predicate: Option<KeyOr<Predicate, Opaque>>,
-    damage: Option<KeyOr<DamageType, Damage>>,
-    preferred: Option<Key<Enchantment>>,
+    merchant_predicate: Option<Ref<Named, Predicate, Predicate>>,
+    damage: Option<Ref<Named, DamageType, Damage>>,
+    preferred: Option<ResourceKey<Enchantment>>,
+}
+
+impl RegistryValue for Enchant {
+    type Registry = Enchantment;
 }
 
 // `preferred` drops a name it cannot resolve, so a miss the value recovers from can be observed.
@@ -117,22 +128,22 @@ impl Resolve for Enchant {
 }
 
 pub fn declarations() -> Vec<Declaration> {
-    declarations_with(Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into())
+    declarations_with(Declaration::data::<Damage>().into())
 }
 
 pub fn declarations_with(damage_type: Declaration) -> Vec<Declaration> {
     vec![
-        Declaration::fixed::<Block>(
+        Declaration::fixed(
             rl("block"),
             ["stone", "dirt", "a", "b", "c", "d", "x", "y"]
                 .map(rl)
                 .to_vec(),
         ),
-        Declaration::fixed::<Item>(rl("item"), vec![rl("stone"), rl("dirt")]),
+        Declaration::fixed(rl("item"), vec![rl("stone"), rl("dirt")]),
         damage_type,
-        Declaration::data::<Enchantment>(rl("enchantment"), Stage::World).into(),
-        Declaration::data::<LootTable>(rl("loot_table"), Stage::Reloadable).into(),
-        Declaration::data::<Predicate>(rl("predicate"), Stage::Reloadable).into(),
+        Declaration::data::<Enchant>().into(),
+        Declaration::from(Declaration::data::<LootTable>()).in_stage(Stage::Reloadable),
+        Declaration::from(Declaration::data::<Predicate>()).in_stage(Stage::Reloadable),
     ]
 }
 
@@ -205,7 +216,7 @@ impl Packs {
         &mut self.files
     }
 
-    pub fn stack(&self) -> (PackStack, Diagnostics) {
+    pub fn stack(&self) -> (PackStack, Vec<PackDiagnostic>) {
         pack_stack(&self.selection, &self.available, &self.features, false)
     }
 
@@ -226,39 +237,32 @@ impl Packs {
     }
 }
 
-pub fn names<R: RegistryType>(registries: &Registries) -> Vec<String> {
-    registries
-        .registry::<R>()
-        .expect("the registry is loaded")
-        .iter()
-        .map(|(_, name, _)| name.to_string())
-        .collect()
+pub fn names<R: Registered>(registries: &Registries) -> Vec<String> {
+    let entries = registries.entries::<R>().expect("the registry is loaded");
+    entries.names().iter().map(ToString::to_string).collect()
 }
 
-pub fn tag<R: RegistryType>(registries: &Registries, tag: &str) -> Option<Vec<String>> {
-    let registry = registries.registry::<R>().expect("the registry is loaded");
+pub fn tag<R: Registered>(registries: &Registries, tag: &str) -> Option<Vec<String>> {
     let tags = registries.tags::<R>().expect("every registry has tags");
-    let id = tags.by_name(&rl(tag))?;
+    let id = tags.id(&TagKey::from_location(rl(tag)))?;
     Some(
         tags.members(id)
-            .map(|member| registry.name(member).unwrap().to_string())
+            .map(|member| registries.name(member).unwrap().to_string())
             .collect(),
     )
 }
 
-pub fn get<R: RegistryType>(registries: &Registries, name: &str) -> Id<R> {
+pub fn get<R: Registered>(registries: &Registries, name: &str) -> Id<R> {
     registries
-        .registry::<R>()
-        .expect("the registry is loaded")
-        .by_name(&rl(name))
-        .unwrap_or_else(|| panic!("{name} is an entry"))
+        .id(&ResourceKey::from_location(rl(name)))
+        .unwrap_or_else(|e| panic!("{name} is an entry: {e}"))
 }
 
-pub fn value<'r, R: RegistryType>(registries: &'r Registries, name: &str) -> &'r R::Value {
+pub fn value<'r, V: RegistryValue + 'static>(registries: &'r Registries, name: &str) -> &'r V {
     registries
-        .registry::<R>()
+        .registry::<V>()
         .expect("the registry is loaded")
-        .get(get::<R>(registries, name))
+        .get(get::<V::Registry>(registries, name))
         .unwrap()
 }
 

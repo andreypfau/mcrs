@@ -13,8 +13,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, forward_to_deseria
 
 #[doc(hidden)]
 pub use mcrs_minecraft_core as __core;
-#[doc(hidden)]
-pub use serde as __serde;
 
 /// A value read once and kept at the width and shape its format delivered, so
 /// a codec can look at a map's keys before choosing how to read its values.
@@ -729,51 +727,86 @@ fn refusal<E: ser::Error>() -> E {
     E::custom("the body of a dispatched value must write as a map")
 }
 
-fn begin<S: Serializer>(
-    serializer: S,
-    key: &'static str,
-    location: &'static str,
-    length: Option<usize>,
-) -> Result<S::SerializeMap, S::Error> {
-    let length = length
-        .map(|length| {
-            length
-                .checked_add(1)
-                .ok_or_else(|| <S::Error as ser::Error>::custom("the body has too many fields"))
-        })
-        .transpose()?;
-    let mut map = serializer.serialize_map(length)?;
-    map.serialize_entry(key, location)?;
-    Ok(map)
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub struct Tag {
+    pub key: &'static str,
+    pub location: &'static str,
+    /// Writes the key after the body, where vanilla's codec puts it for a few types.
+    pub last: bool,
+}
+
+impl Tag {
+    fn begin<S: Serializer>(
+        self,
+        serializer: S,
+        length: Option<usize>,
+    ) -> Result<TaggedFields<S::SerializeMap>, S::Error> {
+        let length = length
+            .map(|length| {
+                length
+                    .checked_add(1)
+                    .ok_or_else(|| <S::Error as ser::Error>::custom("the body has too many fields"))
+            })
+            .transpose()?;
+        let mut map = serializer.serialize_map(length)?;
+        if !self.last {
+            map.serialize_entry(self.key, self.location)?;
+        }
+        Ok(TaggedFields { map, tag: self })
+    }
 }
 
 /// Runs a data type's derive so that what it writes as an externally tagged
-/// enum comes out as one map with the type key first and the body after it.
+/// enum comes out as one map holding the type key and the body.
 #[doc(hidden)]
 pub struct Tagging<S> {
     serializer: S,
-    key: &'static str,
-    location: &'static str,
+    tag: Tag,
 }
 
 impl<S> Tagging<S> {
-    pub fn new(serializer: S, key: &'static str, location: &'static str) -> Self {
-        Tagging {
-            serializer,
-            key,
-            location,
-        }
+    pub fn new(serializer: S, tag: Tag) -> Self {
+        Tagging { serializer, tag }
     }
 }
 
 struct Payload<S> {
     serializer: S,
-    key: &'static str,
-    location: &'static str,
+    tag: Tag,
 }
 
 #[doc(hidden)]
-pub struct TaggedFields<M>(M);
+pub struct TaggedFields<M> {
+    map: M,
+    tag: Tag,
+}
+
+impl<M: SerializeMap> TaggedFields<M> {
+    fn finish(mut self) -> Result<M::Ok, M::Error> {
+        if self.tag.last {
+            self.map.serialize_entry(self.tag.key, self.tag.location)?;
+        }
+        self.map.end()
+    }
+}
+
+impl<M: SerializeMap> SerializeMap for TaggedFields<M> {
+    type Ok = M::Ok;
+    type Error = M::Error;
+
+    fn serialize_key<T: ?Sized + Serialize>(&mut self, key: &T) -> Result<(), M::Error> {
+        self.map.serialize_key(key)
+    }
+
+    fn serialize_value<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), M::Error> {
+        self.map.serialize_value(value)
+    }
+
+    fn end(self) -> Result<M::Ok, M::Error> {
+        self.finish()
+    }
+}
 
 impl<M: SerializeMap> SerializeStruct for TaggedFields<M> {
     type Ok = M::Ok;
@@ -784,11 +817,11 @@ impl<M: SerializeMap> SerializeStruct for TaggedFields<M> {
         key: &'static str,
         value: &T,
     ) -> Result<(), M::Error> {
-        self.0.serialize_entry(key, value)
+        self.map.serialize_entry(key, value)
     }
 
     fn end(self) -> Result<M::Ok, M::Error> {
-        self.0.end()
+        self.finish()
     }
 }
 
@@ -801,11 +834,11 @@ impl<M: SerializeMap> SerializeStructVariant for TaggedFields<M> {
         key: &'static str,
         value: &T,
     ) -> Result<(), M::Error> {
-        self.0.serialize_entry(key, value)
+        self.map.serialize_entry(key, value)
     }
 
     fn end(self) -> Result<M::Ok, M::Error> {
-        self.0.end()
+        self.finish()
     }
 }
 
@@ -935,7 +968,7 @@ impl<S: Serializer> Serializer for Tagging<S> {
         _: u32,
         _: &'static str,
     ) -> Result<S::Ok, S::Error> {
-        begin(self.serializer, self.key, self.location, Some(0))?.end()
+        self.tag.begin(self.serializer, Some(0))?.finish()
     }
 
     fn serialize_newtype_struct<T: ?Sized + Serialize>(
@@ -955,8 +988,7 @@ impl<S: Serializer> Serializer for Tagging<S> {
     ) -> Result<S::Ok, S::Error> {
         value.serialize(Payload {
             serializer: self.serializer,
-            key: self.key,
-            location: self.location,
+            tag: self.tag,
         })
     }
 
@@ -979,21 +1011,21 @@ impl<S: Serializer> Serializer for Tagging<S> {
         _: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, S::Error> {
-        begin(self.serializer, self.key, self.location, Some(length)).map(TaggedFields)
+        self.tag.begin(self.serializer, Some(length))
     }
 }
 
 impl<S: Serializer> Serializer for Payload<S> {
     type Ok = S::Ok;
     type Error = S::Error;
-    type SerializeMap = S::SerializeMap;
+    type SerializeMap = TaggedFields<S::SerializeMap>;
     type SerializeStruct = TaggedFields<S::SerializeMap>;
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
 
     refuse_scalars!();
 
     fn serialize_unit(self) -> Result<S::Ok, S::Error> {
-        begin(self.serializer, self.key, self.location, Some(0))?.end()
+        self.tag.begin(self.serializer, Some(0))?.finish()
     }
 
     fn serialize_unit_struct(self, _: &'static str) -> Result<S::Ok, S::Error> {
@@ -1028,7 +1060,7 @@ impl<S: Serializer> Serializer for Payload<S> {
     }
 
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, S::Error> {
-        begin(self.serializer, self.key, self.location, length)
+        self.tag.begin(self.serializer, length)
     }
 
     fn serialize_struct(
@@ -1036,7 +1068,7 @@ impl<S: Serializer> Serializer for Payload<S> {
         _: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStruct, S::Error> {
-        begin(self.serializer, self.key, self.location, Some(length)).map(TaggedFields)
+        self.tag.begin(self.serializer, Some(length))
     }
 
     fn serialize_struct_variant(
@@ -1048,239 +1080,6 @@ impl<S: Serializer> Serializer for Payload<S> {
     ) -> Result<Self::SerializeStructVariant, S::Error> {
         Err(refusal())
     }
-}
-
-/// Reads and writes a data enum through the generated enum of the static
-/// registry its type key names.
-///
-/// The data type is derived with `#[serde(remote = "Self")]` and no tag or
-/// renames; this implements the real `Serialize` and `Deserialize` around the
-/// derive. Both directions match exhaustively, over the generated enum when
-/// reading and over the data type when writing, so an entry or a variant with
-/// no arm does not compile. `unsupported` lists entries the data type does not
-/// model, `extend` adds names outside the registry, and `wildcard unsupported`
-/// refuses every entry not listed, for a deliberate subset. A leading
-/// `reads_only` leaves `Serialize` to the type, for one that writes its type
-/// key somewhere else than first. A leading
-/// `validated` runs the type's `Validate` after the read, and a leading
-/// `for<P> serialize { .. } deserialize { .. }` carries the generics and the
-/// bounds of the two impls.
-#[macro_export]
-macro_rules! dispatch {
-    (@check true $value:ident) => {
-        $crate::dispatch::__core::codec::Validate::validate(&$value)
-            .map_err(<D::Error as $crate::dispatch::__serde::de::Error>::custom)?;
-    };
-    (@check false $value:ident) => {};
-    (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], []) => {
-        impl<$($gp),*> $ty {
-            pub const KINDS: &[$gen] = &[$(<$gen>::$g),+];
-
-            pub fn kind(&self) -> $gen {
-                match self {
-                    $( Self::$d { .. } => <$gen>::$g, )+
-                }
-            }
-        }
-    };
-    (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], [$($ext:literal)+]) => {};
-    // A type without generics reads its body in a function of its own, which
-    // is compiled once in the type's crate instead of in every crate that
-    // reads the type.
-    (@body [] $ty:ty) => {{
-        fn body(
-            chosen: $crate::dispatch::Chosen<'_>,
-        ) -> ::core::result::Result<$ty, $crate::dispatch::Error> {
-            <$ty>::deserialize(chosen)
-        }
-        body
-    }};
-    (@body [$($gp:ident),+] $ty:ty) => {
-        |chosen| <$ty>::deserialize(chosen)
-    };
-    (@write true { $($item:item)* }) => { $($item)* };
-    (@write false { $($item:item)* }) => {};
-    (@build $flags:tt $gps:tt $sb:tt $db:tt $ty:ty,
-        key = $key:literal, registry = $gen:ty,
-        { $($g:ident),+ $(,)? }
-        $($tail:tt)*
-    ) => {
-        $crate::dispatch!(@build $flags $gps $sb $db $ty,
-            key = $key, registry = $gen, { $($g => $g),+ } $($tail)*);
-    };
-    (@build [$validated:tt $write:tt] [$($gp:ident),*] [$($sb:tt)*] [$($db:tt)*] $ty:ty,
-        key = $key:literal, registry = $gen:ty,
-        { $($g:ident => $d:ident),+ $(,)? }
-        $(unsupported { $($u:ident),* $(,)? })?
-        $(extend { $($ext:literal => $ed:ident),+ $(,)? })?
-        $(wildcard $wild:ident)?
-    ) => {
-        impl<'de $(, $gp)*> $crate::dispatch::__serde::Deserialize<'de> for $ty
-        where
-            $($db)*
-        {
-            fn deserialize<D: $crate::dispatch::__serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> ::core::result::Result<Self, D::Error> {
-                fn pick(location: &str) -> $crate::dispatch::Pick {
-                    use $crate::dispatch::Pick;
-                    match <$gen>::find(location) {
-                        ::core::option::Option::Some(entry) => match entry {
-                            $( <$gen>::$g => Pick::Variant(stringify!($d)), )+
-                            $($( <$gen>::$u => Pick::Unsupported, )*)?
-                            $( _ => {
-                                let _ = stringify!($wild);
-                                Pick::Unsupported
-                            } )?
-                        },
-                        ::core::option::Option::None => match location {
-                            $($( $ext => Pick::Variant(stringify!($ed)), )+)?
-                            _ => Pick::Unknown,
-                        },
-                    }
-                }
-
-                let value = $crate::dispatch::read(
-                    deserializer,
-                    $key,
-                    <$gen as $crate::dispatch::__core::Registered>::REGISTRY.location().as_static_str(),
-                    pick,
-                    $crate::dispatch!(@body [$($gp),*] $ty),
-                )?;
-                $crate::dispatch!(@check $validated value);
-                ::core::result::Result::Ok(value)
-            }
-        }
-
-        $crate::dispatch!(@write $write {
-        impl<$($gp),*> $crate::dispatch::__serde::Serialize for $ty
-        where
-            $($sb)*
-        {
-            fn serialize<S: $crate::dispatch::__serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> ::core::result::Result<S::Ok, S::Error> {
-                let location: &'static str = match self {
-                    $( Self::$d { .. } => <$gen>::$g.as_static_str(), )+
-                    $($( Self::$ed { .. } => $ext, )+)?
-                };
-                <$ty>::serialize(
-                    self,
-                    $crate::dispatch::Tagging::new(serializer, $key, location),
-                )
-            }
-        }
-        });
-
-        $crate::dispatch!(@kind [$($gp),*] $ty, $gen, [$($g => $d),+], [$($($ext)+)?]);
-    };
-    (for<$($gp:ident),+> serialize { $($sb:tt)* } deserialize { $($db:tt)* } $ty:ty, $($rest:tt)+) => {
-        $crate::dispatch!(@build [false true] [$($gp),+] [$($sb)*] [$($db)*] $ty, $($rest)+);
-    };
-    (validated $ty:ty, $($rest:tt)+) => {
-        $crate::dispatch!(@build [true true] [] [] [] $ty, $($rest)+);
-    };
-    (reads_only $ty:ty, $($rest:tt)+) => {
-        $crate::dispatch!(@build [false false] [] [] [] $ty, $($rest)+);
-    };
-    ($ty:ty, $($rest:tt)+) => {
-        $crate::dispatch!(@build [false true] [] [] [] $ty, $($rest)+);
-    };
-}
-
-/// A map whose key selects both the field and the type of its value, the way
-/// `Codec.dispatchedMap` does. The key is read as the generated enum of the
-/// registry, so an entry with no arm does not compile; `unsupported` lists the
-/// entries the type does not model, which a pack must not state.
-#[macro_export]
-macro_rules! dispatched_map {
-    (
-        $(#[$meta:meta])*
-        $name:ident on $gen:ty {
-            $($g:ident => $field:ident : $ty:ty),+ $(,)?
-        }
-        $(unsupported { $($u:ident),* $(,)? })?
-    ) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, Default, PartialEq)]
-        pub struct $name {
-            $(pub $field: Option<$ty>,)+
-        }
-
-        impl $name {
-            pub fn is_empty(&self) -> bool {
-                true $(&& self.$field.is_none())+
-            }
-        }
-
-        impl<'de> $crate::dispatch::__serde::Deserialize<'de> for $name {
-            fn deserialize<D: $crate::dispatch::__serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> ::core::result::Result<Self, D::Error> {
-                struct V;
-
-                impl<'de> $crate::dispatch::__serde::de::Visitor<'de> for V {
-                    type Value = $name;
-
-                    fn expecting(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                        f.write_str(concat!("a ", stringify!($name), " map"))
-                    }
-
-                    fn visit_map<A: $crate::dispatch::__serde::de::MapAccess<'de>>(
-                        self,
-                        mut map: A,
-                    ) -> ::core::result::Result<$name, A::Error> {
-                        use $crate::dispatch::__serde::de::Error as _;
-                        let mut out = <$name>::default();
-                        while let ::core::option::Option::Some(key) = map.next_key::<String>()? {
-                            let entry = <$gen as $crate::dispatch::__serde::Deserialize>::deserialize(
-                                $crate::dispatch::__serde::de::value::StrDeserializer::<A::Error>::new(&key),
-                            )?;
-                            match entry {
-                                $( <$gen>::$g => {
-                                    if out.$field.is_some() {
-                                        return Err(A::Error::custom(format_args!(
-                                            "Duplicate key '{}'",
-                                            entry.as_static_str()
-                                        )));
-                                    }
-                                    out.$field = Some(map.next_value().map_err(|e| {
-                                        A::Error::custom(format_args!("{}: {e}", entry.as_static_str()))
-                                    })?);
-                                } )+
-                                $($( <$gen>::$u => {
-                                    return Err(A::Error::custom(format_args!(
-                                        "{} is not supported by {}",
-                                        entry.as_static_str(),
-                                        <$gen as $crate::dispatch::__core::Registered>::REGISTRY.location()
-                                    )));
-                                } )*)?
-                            }
-                        }
-                        Ok(out)
-                    }
-                }
-
-                deserializer.deserialize_map(V)
-            }
-        }
-
-        impl $crate::dispatch::__serde::Serialize for $name {
-            fn serialize<S: $crate::dispatch::__serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> ::core::result::Result<S::Ok, S::Error> {
-                use $crate::dispatch::__serde::ser::SerializeMap as _;
-                let length = 0usize $(+ self.$field.is_some() as usize)+;
-                let mut map = serializer.serialize_map(Some(length))?;
-                $(if let Some(value) = &self.$field {
-                    map.serialize_entry(<$gen>::$g.as_static_str(), value)?;
-                })+
-                map.end()
-            }
-        }
-    };
 }
 
 #[cfg(test)]
@@ -1313,8 +1112,9 @@ mod tests {
         length: u32,
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    #[serde(remote = "Self", deny_unknown_fields)]
+    #[crate::dispatch(registry = Shape, unsupported(Blob))]
+    #[derive(Debug, Clone, PartialEq)]
+    #[serde(deny_unknown_fields)]
     enum Figure {
         Circle,
         Square(Side),
@@ -1323,20 +1123,10 @@ mod tests {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             label: Option<String>,
         },
+        #[dispatch(id = "mcrs:wobbly")]
         Wobbly {
             jitter: f32,
         },
-    }
-
-    crate::dispatch! {
-        Figure, key = "type", registry = Shape,
-        {
-            Circle => Circle,
-            Square => Square,
-            Hexagon => Hexagon,
-        }
-        unsupported { Blob }
-        extend { "mcrs:wobbly" => Wobbly }
     }
 
     const UNKNOWN: &str = "Unknown registry key in ResourceKey[minecraft:root / minecraft:shape]";
@@ -1412,8 +1202,8 @@ mod tests {
         assert_eq!(Wide::KINDS, [Shape::Circle, Shape::Square, Shape::Hexagon]);
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    #[serde(remote = "Self")]
+    #[crate::dispatch(registry = Shape, unsupported(Blob))]
+    #[derive(Debug, Clone, PartialEq)]
     enum Wide {
         Circle {
             byte: i8,
@@ -1431,16 +1221,6 @@ mod tests {
         },
         Square,
         Hexagon,
-    }
-
-    crate::dispatch! {
-        Wide, key = "type", registry = Shape,
-        {
-            Circle => Circle,
-            Square => Square,
-            Hexagon => Hexagon,
-        }
-        unsupported { Blob }
     }
 
     #[test]

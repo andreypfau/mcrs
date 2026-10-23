@@ -3,8 +3,9 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::RegistryValue;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registries::{IdSet, KeySet, Registries, RegistryOf, Resolve};
+use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Resolve};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
@@ -18,11 +19,11 @@ use std::collections::BTreeMap;
 // chisle: the compiler takes its registries keyed by name, so every entry of
 // each is cloned once per dimension at start. A compiler that takes ids and
 // reads the registries lifts it.
-fn named<T: Clone + Send + Sync + 'static>(
+fn named<T: RegistryValue + Clone + Send + Sync + 'static>(
     registries: &Registries,
 ) -> BTreeMap<ResourceLocation, T> {
     registries
-        .registry::<RegistryOf<T>>()
+        .registry::<T>()
         .into_iter()
         .flat_map(|registry| registry.iter())
         .map(|(_, name, value)| (name.clone(), value.clone()))

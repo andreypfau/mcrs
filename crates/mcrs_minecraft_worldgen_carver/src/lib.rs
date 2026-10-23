@@ -113,8 +113,4 @@ pub fn carve_ellipsoid(
     true
 }
 
-mcrs_minecraft_registries::read_with_serde!(crate::config::CarverConfig);
-
-mcrs_minecraft_registries::declare_registries!(
-    crate::config::CarverConfig => crate::keys::CARVER, World;
-);
+mcrs_minecraft_registries::resolve_as_is!(crate::config::CarverConfig);

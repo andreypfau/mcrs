@@ -1,11 +1,10 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registries::{Refs, RegistryType, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{InlineRef, WireRef};
+use crate::component::common::WireRef;
 use crate::harness::Sample;
 use crate::harness::entry;
 
@@ -20,14 +19,6 @@ pub struct PaintingVariantValue<M: Refs = Resolved> {
     pub title: Option<Text<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<Text<M>>,
-}
-
-impl RegistryValue for PaintingVariantValue {
-    type Registry = Self;
-}
-
-impl RegistryType for PaintingVariantValue {
-    type Value = ();
 }
 
 /// The persistent form is the registry id alone; the wire form carries the
@@ -45,6 +36,6 @@ impl Sample for PaintingVariant {
     }
 
     fn samples() -> Vec<Self> {
-        vec![PaintingVariant(WireRef(InlineRef::Id(entry("kebab"))))]
+        vec![PaintingVariant(WireRef(Ref::Id(entry("kebab"))))]
     }
 }

@@ -137,17 +137,17 @@ pub fn corpus_features() -> &'static LoadedFeatures {
 }
 
 fn placed_feature_tags() -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
-    use mcrs_minecraft_registries::{Namer, RegistryOf};
+    use mcrs_minecraft_registries::Namer;
 
     let registries = test_registries();
     let tags = registries
-        .tags::<RegistryOf<PlacedFeature>>()
+        .tags::<PlacedFeature>()
         .expect("the loaded registries hold the placed feature tags");
     tags.iter()
         .map(|(tag, name)| {
             let members = tags
                 .members(tag)
-                .filter_map(|id| Namer::name(registries.as_ref(), id).cloned())
+                .filter_map(|id| Namer::name(registries, id).cloned())
                 .collect();
             (name.clone(), members)
         })
@@ -252,7 +252,7 @@ pub fn fill_context_with(
 
 /// The loaded registries with the biomes of `names` numbered first, in name order: the feature
 /// tables only need the ids to resolve, and the surface stage only needs its own three to exist.
-pub fn biome_registry(names: &[&str]) -> Arc<Registries> {
+pub fn biome_registry(names: &[&str]) -> Registries {
     let mut names = names.to_vec();
     names.sort_unstable();
     registries_over(&names)
@@ -280,10 +280,10 @@ pub fn parameter_list_id(
     name: &str,
 ) -> mcrs_minecraft_core::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>
 {
-    let key = mcrs_minecraft_registries::Key::new(
+    let key = mcrs_minecraft_core::ResourceKey::from_location(
         ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
     );
-    mcrs_minecraft_registries::Resolver::id(test_registries().as_ref(), &key)
+    mcrs_minecraft_registries::Resolver::id(test_registries(), &key)
         .unwrap_or_else(|e| panic!("{e}"))
 }
 

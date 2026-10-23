@@ -1,16 +1,17 @@
 use std::borrow::Cow;
-use std::marker::PhantomData;
 
-use serde::de::{DeserializeOwned, DeserializeSeed};
+use serde::de::DeserializeOwned;
 use serde_json::error::Category;
 
-pub(crate) struct ReadError {
-    pub(crate) malformed: bool,
-    pub(crate) field: Option<String>,
-    pub(crate) message: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonError {
+    /// The file is not JSON at all, as opposed to JSON of the wrong shape.
+    pub malformed: bool,
+    pub field: Option<String>,
+    pub message: String,
 }
 
-impl ReadError {
+impl JsonError {
     fn new(error: &serde_json::Error, field: Option<String>) -> Self {
         Self {
             malformed: !matches!(error.classify(), Category::Data),
@@ -25,13 +26,12 @@ fn text(bytes: &[u8]) -> Cow<'_, str> {
     String::from_utf8_lossy(bytes)
 }
 
-pub(crate) fn read_seed<V, S: for<'de> DeserializeSeed<'de, Value = V>>(
-    bytes: &[u8],
-    seed: S,
-) -> Result<V, ReadError> {
+/// Reads one data pack file as the game does: a byte order mark is skipped, an empty file is an
+/// error of its shape, and anything after the value fails.
+pub fn read_json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, JsonError> {
     let text = text(bytes);
     if text.trim_matches([' ', '\t', '\n', '\r']).is_empty() {
-        return Err(ReadError {
+        return Err(JsonError {
             malformed: false,
             field: None,
             message: "the file holds no value".to_owned(),
@@ -39,18 +39,14 @@ pub(crate) fn read_seed<V, S: for<'de> DeserializeSeed<'de, Value = V>>(
     }
     let mut json = serde_json::Deserializer::from_str(&text);
     let mut track = serde_path_to_error::Track::new();
-    let value = seed.deserialize(serde_path_to_error::Deserializer::new(
+    let value = T::deserialize(serde_path_to_error::Deserializer::new(
         &mut json, &mut track,
     ));
     let value = value.map_err(|error| {
         let path = track.path();
         let field = path.iter().next().is_some().then(|| path.to_string());
-        ReadError::new(&error, field)
+        JsonError::new(&error, field)
     })?;
-    json.end().map_err(|error| ReadError::new(&error, None))?;
+    json.end().map_err(|error| JsonError::new(&error, None))?;
     Ok(value)
-}
-
-pub(crate) fn read<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, ReadError> {
-    read_seed(bytes, PhantomData::<T>)
 }

@@ -25,6 +25,8 @@ repository = "https://github.com/andreypfau/mcrs"
 [workspace.dependencies]
 fixedbitset = "0.5.7"
 fancy-regex = "0.16"
+derive-where = "1.6.1"
+serde_path_to_error = "0.1.20"
 bevy_ecs = { version = "0.19.1", features = ["debug"] }
 bevy_app = { version = "0.19.1" }
 bevy_math = "0.19.1"
@@ -74,6 +76,7 @@ mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
+mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }

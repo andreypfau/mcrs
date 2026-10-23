@@ -3,7 +3,7 @@ use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registries::{Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_value_provider::{DispatchedFloatProvider, FloatProvider};
 use serde::de::Error as _;
@@ -39,7 +39,7 @@ pub struct AttributeEntry<M: Refs = Resolved> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContactDamage<M: Refs = Resolved> {
-    pub damage_type: M::Id<RegistryOf<mcrs_minecraft_item::damage_type::DamageType>>,
+    pub damage_type: M::Id<mcrs_minecraft_item::damage_type::DamageType>,
     #[serde(deserialize_with = "non_negative_float_provider")]
     pub amount: FloatProvider,
     pub attribute_to_source: bool,
@@ -92,7 +92,3 @@ fn non_negative_float_provider<'de, D: Deserializer<'de>>(
     }
     Ok(provider)
 }
-
-mcrs_minecraft_registries::declare_registries!(
-    SulfurCubeArchetype => crate::keys::SULFUR_CUBE_ARCHETYPE, World;
-);

@@ -2,7 +2,8 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{Id, ResourceLocation, TagId};
+use derive_where::derive_where;
+use mcrs_minecraft_core::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
     SeqAccessDeserializer, U64Deserializer,
@@ -10,8 +11,6 @@ use serde::de::value::{
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 
-use crate::id::Key;
-use crate::registry::RegistryType;
 use crate::static_key::StaticKey;
 use crate::tags::IdSet;
 
@@ -22,13 +21,10 @@ impl<T: Clone + fmt::Debug + PartialEq + Send + Sync + 'static> Inline for T {}
 /// The form a value holds its references in: [`Named`] is the form of a data pack file and of
 /// the registry data packet, [`Resolved`] the numbered form a loaded registry holds.
 pub trait Refs: Inline + Copy + Eq {
-    type Id<R: RegistryType>: Inline;
-    type Set<R: RegistryType>: Inline;
-    type Ref<R: RegistryType, V: Inline>: Inline;
+    type Id<R: Registered>: Inline;
+    type Set<R: Registered>: Inline;
 
-    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Self::Id<R>;
-
-    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> Self::Ref<R, V>;
+    fn id_of<R: Registered>(key: StaticKey<R>) -> Self::Id<R>;
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -38,78 +34,34 @@ pub struct Named;
 pub struct Resolved;
 
 impl Refs for Named {
-    type Id<R: RegistryType> = Key<R>;
-    type Set<R: RegistryType> = KeySet<R>;
-    type Ref<R: RegistryType, V: Inline> = KeyOr<R, V>;
+    type Id<R: Registered> = ResourceKey<R>;
+    type Set<R: Registered> = KeySet<R>;
 
-    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Key<R> {
-        Key::new(key.location().to_arc())
-    }
-
-    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> KeyOr<R, V> {
-        KeyOr::Key(Self::id_of(key))
+    fn id_of<R: Registered>(key: StaticKey<R>) -> ResourceKey<R> {
+        ResourceKey::from_location(key.location().to_arc())
     }
 }
 
 impl Refs for Resolved {
-    type Id<R: RegistryType> = Id<R>;
-    type Set<R: RegistryType> = IdSet<R>;
-    type Ref<R: RegistryType, V: Inline> = Ref<R, V>;
+    type Id<R: Registered> = Id<R>;
+    type Set<R: Registered> = IdSet<R>;
 
-    fn id_of<R: RegistryType>(key: StaticKey<R>) -> Id<R> {
+    fn id_of<R: Registered>(key: StaticKey<R>) -> Id<R> {
         key.id()
     }
-
-    fn ref_of<R: RegistryType, V: Inline>(key: StaticKey<R>) -> Ref<R, V> {
-        Ref::Id(key.id())
-    }
 }
 
+#[derive_where(Clone, Default, PartialEq, Eq, Hash)]
 pub enum KeySet<R> {
-    Tag(Key<R>),
-    List(Box<[Key<R>]>),
-}
-
-impl<R> Default for KeySet<R> {
-    fn default() -> Self {
-        KeySet::List(Box::new([]))
-    }
-}
-
-impl<R> Clone for KeySet<R> {
-    fn clone(&self) -> Self {
-        match self {
-            KeySet::Tag(tag) => KeySet::Tag(tag.clone()),
-            KeySet::List(keys) => KeySet::List(keys.clone()),
-        }
-    }
-}
-
-impl<R> PartialEq for KeySet<R> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (KeySet::Tag(a), KeySet::Tag(b)) => a == b,
-            (KeySet::List(a), KeySet::List(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<R> Eq for KeySet<R> {}
-
-impl<R> std::hash::Hash for KeySet<R> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            KeySet::Tag(tag) => tag.hash(state),
-            KeySet::List(keys) => keys.hash(state),
-        }
-    }
+    Tag(TagKey<R>),
+    #[derive_where(default)]
+    List(Box<[ResourceKey<R>]>),
 }
 
 impl<R> fmt::Debug for KeySet<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            KeySet::Tag(tag) => write!(f, "#{}", tag.location()),
+            KeySet::Tag(tag) => write!(f, "#{}", tag.as_str()),
             KeySet::List(keys) => f.debug_list().entries(keys.iter()).finish(),
         }
     }
@@ -118,7 +70,7 @@ impl<R> fmt::Debug for KeySet<R> {
 impl<R> Serialize for KeySet<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
-            KeySet::Tag(tag) => serializer.collect_str(&format_args!("#{}", tag.location())),
+            KeySet::Tag(tag) => serializer.collect_str(&format_args!("#{}", tag.as_str())),
             KeySet::List(keys) => match &**keys {
                 [key] => key.serialize(serializer),
                 keys => {
@@ -133,10 +85,8 @@ impl<R> Serialize for KeySet<R> {
     }
 }
 
-fn key<R, E: de::Error>(text: &str) -> Result<Key<R>, E> {
-    ResourceLocation::read(text)
-        .map(Key::new)
-        .map_err(E::custom)
+fn location<E: de::Error>(text: &str) -> Result<ResourceLocation, E> {
+    ResourceLocation::read(text).map_err(E::custom)
 }
 
 impl<'de, R> Deserialize<'de> for KeySet<R> {
@@ -152,13 +102,14 @@ impl<'de, R> Deserialize<'de> for KeySet<R> {
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<KeySet<R>, E> {
                 match text.strip_prefix('#') {
-                    Some(tag) => key(tag).map(KeySet::Tag),
-                    None => key(text).map(|key| KeySet::List(Box::new([key]))),
+                    Some(tag) => location(tag).map(|tag| KeySet::Tag(TagKey::from_location(tag))),
+                    None => location(text)
+                        .map(|key| KeySet::List(Box::new([ResourceKey::from_location(key)]))),
                 }
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<KeySet<R>, A::Error> {
-                let keys = Vec::<Key<R>>::deserialize(SeqAccessDeserializer::new(seq))?;
+                let keys = Vec::<ResourceKey<R>>::deserialize(SeqAccessDeserializer::new(seq))?;
                 Ok(KeySet::List(keys.into_boxed_slice()))
             }
         }
@@ -167,149 +118,109 @@ impl<'de, R> Deserialize<'de> for KeySet<R> {
     }
 }
 
-pub enum KeyOr<R, V> {
-    Key(Key<R>),
-    Inline(Box<V>),
+/// An entry of the registry `R`, or a value of it written in place. The value carries no bound
+/// here: a value that holds text can hold an item that holds the value again.
+#[derive_where(Clone)]
+#[derive_where(PartialEq, Debug; V)]
+pub enum Ref<M: Refs, R: Registered, V> {
+    Id(M::Id<R>),
+    Inline(Arc<V>),
 }
 
-impl<R, V: Clone> Clone for KeyOr<R, V> {
-    fn clone(&self) -> Self {
-        match self {
-            KeyOr::Key(key) => KeyOr::Key(key.clone()),
-            KeyOr::Inline(value) => KeyOr::Inline(value.clone()),
-        }
+impl<M: Refs, R: Registered, V> Ref<M, R, V> {
+    pub fn of(key: StaticKey<R>) -> Self {
+        Ref::Id(M::id_of(key))
     }
 }
 
-impl<R, V: PartialEq> PartialEq for KeyOr<R, V> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (KeyOr::Key(a), KeyOr::Key(b)) => a == b,
-            (KeyOr::Inline(a), KeyOr::Inline(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<R, V: fmt::Debug> fmt::Debug for KeyOr<R, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            KeyOr::Key(key) => key.fmt(f),
-            KeyOr::Inline(value) => f.debug_tuple("Inline").field(value).finish(),
-        }
-    }
-}
-
-impl<R, V: Serialize> Serialize for KeyOr<R, V> {
+impl<R: Registered, V: Serialize> Serialize for Ref<Named, R, V> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
-            KeyOr::Key(key) => key.serialize(serializer),
-            KeyOr::Inline(value) => value.serialize(serializer),
+            Ref::Id(key) => key.serialize(serializer),
+            Ref::Inline(value) => value.serialize(serializer),
         }
     }
 }
 
 // A string is always a key, never an inline value: an unknown key fails rather than becoming a
 // value of its own.
-impl<'de, R, V: Deserialize<'de>> Deserialize<'de> for KeyOr<R, V> {
+impl<'de, R: Registered, V: Deserialize<'de>> Deserialize<'de> for Ref<Named, R, V> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct OrVisitor<R, V>(PhantomData<fn() -> (R, V)>);
+        struct RefVisitor<R, V>(PhantomData<fn() -> (R, V)>);
 
-        impl<'de, R, V: Deserialize<'de>> OrVisitor<R, V> {
-            fn inline<D: Deserializer<'de>>(deserializer: D) -> Result<KeyOr<R, V>, D::Error> {
-                V::deserialize(deserializer).map(|value| KeyOr::Inline(Box::new(value)))
+        impl<'de, R: Registered, V: Deserialize<'de>> RefVisitor<R, V> {
+            fn inline<D: Deserializer<'de>>(
+                deserializer: D,
+            ) -> Result<Ref<Named, R, V>, D::Error> {
+                V::deserialize(deserializer).map(|value| Ref::Inline(Arc::new(value)))
             }
         }
 
-        impl<'de, R, V: Deserialize<'de>> Visitor<'de> for OrVisitor<R, V> {
-            type Value = KeyOr<R, V>;
+        impl<'de, R: Registered, V: Deserialize<'de>> Visitor<'de> for RefVisitor<R, V> {
+            type Value = Ref<Named, R, V>;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str("an identifier or an inline value")
             }
 
-            fn visit_str<E: de::Error>(self, text: &str) -> Result<KeyOr<R, V>, E> {
-                key(text).map(KeyOr::Key)
+            fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
+                location(text).map(|key| Ref::Id(ResourceKey::from_location(key)))
             }
 
-            fn visit_bool<E: de::Error>(self, v: bool) -> Result<KeyOr<R, V>, E> {
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
                 Self::inline(BoolDeserializer::new(v))
             }
 
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<KeyOr<R, V>, E> {
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
                 Self::inline(U64Deserializer::new(v))
             }
 
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<KeyOr<R, V>, E> {
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
                 Self::inline(I64Deserializer::new(v))
             }
 
-            fn visit_f64<E: de::Error>(self, v: f64) -> Result<KeyOr<R, V>, E> {
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Self::Value, E> {
                 Self::inline(F64Deserializer::new(v))
             }
 
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<KeyOr<R, V>, A::Error> {
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
                 Self::inline(SeqAccessDeserializer::new(seq))
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<KeyOr<R, V>, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 Self::inline(MapAccessDeserializer::new(map))
             }
         }
 
-        deserializer.deserialize_any(OrVisitor(PhantomData))
-    }
-}
-
-pub enum Ref<R: RegistryType, V = <R as RegistryType>::Value> {
-    Id(Id<R>),
-    Inline(Arc<V>),
-}
-
-impl<R: RegistryType, V> Clone for Ref<R, V> {
-    fn clone(&self) -> Self {
-        match self {
-            Ref::Id(id) => Ref::Id(*id),
-            Ref::Inline(value) => Ref::Inline(Arc::clone(value)),
-        }
-    }
-}
-
-impl<R: RegistryType, V: PartialEq> PartialEq for Ref<R, V> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Ref::Id(a), Ref::Id(b)) => a == b,
-            (Ref::Inline(a), Ref::Inline(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<R: RegistryType, V: fmt::Debug> fmt::Debug for Ref<R, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ref::Id(id) => f.debug_tuple("Id").field(id).finish(),
-            Ref::Inline(value) => f.debug_tuple("Inline").field(value).finish(),
-        }
+        deserializer.deserialize_any(RefVisitor(PhantomData))
     }
 }
 
 pub trait Resolver {
-    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String>;
+    fn id<R: Registered>(&self, key: &ResourceKey<R>) -> Result<Id<R>, ResolveError>;
 
-    fn tag<R: RegistryType>(&self, tag: &Key<R>) -> Result<TagId<R>, String>;
+    fn tag<R: Registered>(&self, tag: &TagKey<R>) -> Result<TagId<R>, ResolveError>;
 }
 
 pub trait Namer {
-    fn name<R: RegistryType>(&self, id: Id<R>) -> Option<&ResourceLocation>;
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation>;
 
-    fn tag_name<R: RegistryType>(&self, tag: TagId<R>) -> Option<&ResourceLocation>;
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolveError {
     path: String,
     message: String,
+    missing: Option<Box<MissingRef>>,
+}
+
+/// A name the registry it refers to does not hold, in a registry of the stage being loaded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MissingRef {
+    pub(crate) registry: ResourceLocation,
+    pub(crate) name: ResourceLocation,
+    pub(crate) tag: bool,
 }
 
 impl ResolveError {
@@ -317,6 +228,28 @@ impl ResolveError {
         Self {
             path: String::new(),
             message: message.into(),
+            missing: None,
+        }
+    }
+
+    pub(crate) fn missing(missing: MissingRef, message: String) -> Self {
+        Self {
+            missing: Some(Box::new(missing)),
+            ..Self::new(message)
+        }
+    }
+
+    pub(crate) fn in_field(field: Option<String>, message: String) -> Self {
+        Self {
+            path: field.unwrap_or_default(),
+            ..Self::new(message)
+        }
+    }
+
+    pub(crate) fn into_missing(self) -> Result<MissingRef, Self> {
+        match self.missing {
+            Some(missing) => Ok(*missing),
+            None => Err(self),
         }
     }
 
@@ -336,8 +269,8 @@ impl ResolveError {
         self
     }
 
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn path(&self) -> Option<&str> {
+        (!self.path.is_empty()).then_some(self.path.as_str())
     }
 
     pub fn message(&self) -> &str {
@@ -356,6 +289,12 @@ impl fmt::Display for ResolveError {
 
 impl std::error::Error for ResolveError {}
 
+impl From<String> for ResolveError {
+    fn from(message: String) -> Self {
+        Self::new(message)
+    }
+}
+
 pub trait Resolve: Sized {
     type Named;
 
@@ -368,31 +307,31 @@ fn unnamed<R>(id: Id<R>) -> ResolveError {
     ResolveError::new(format!("no entry is numbered {}", id.number()))
 }
 
-impl<R: RegistryType> Resolve for Id<R> {
-    type Named = Key<R>;
+impl<R: Registered> Resolve for Id<R> {
+    type Named = ResourceKey<R>;
 
-    fn resolve<C: Resolver>(named: Key<R>, ctx: &C) -> Result<Self, ResolveError> {
-        ctx.id(&named).map_err(ResolveError::new)
+    fn resolve<C: Resolver>(named: ResourceKey<R>, ctx: &C) -> Result<Self, ResolveError> {
+        ctx.id(&named)
     }
 
-    fn name<C: Namer>(&self, names: &C) -> Result<Key<R>, ResolveError> {
+    fn name<C: Namer>(&self, names: &C) -> Result<ResourceKey<R>, ResolveError> {
         names
             .name(*self)
-            .map(|name| Key::new(name.clone()))
+            .map(|name| ResourceKey::from_location(name.clone()))
             .ok_or_else(|| unnamed(*self))
     }
 }
 
-impl<R: RegistryType> Resolve for IdSet<R> {
+impl<R: Registered> Resolve for IdSet<R> {
     type Named = KeySet<R>;
 
     fn resolve<C: Resolver>(named: KeySet<R>, ctx: &C) -> Result<Self, ResolveError> {
         match named {
-            KeySet::Tag(tag) => ctx.tag(&tag).map(IdSet::Tag).map_err(ResolveError::new),
+            KeySet::Tag(tag) => ctx.tag(&tag).map(IdSet::Tag),
             KeySet::List(keys) => keys
                 .iter()
                 .enumerate()
-                .map(|(at, key)| ctx.id(key).map_err(|e| ResolveError::new(e).at_index(at)))
+                .map(|(at, key)| ctx.id(key).map_err(|e| e.at_index(at)))
                 .collect::<Result<_, _>>()
                 .map(IdSet::List),
         }
@@ -402,7 +341,7 @@ impl<R: RegistryType> Resolve for IdSet<R> {
         match self {
             IdSet::Tag(tag) => names
                 .tag_name(*tag)
-                .map(|name| KeySet::Tag(Key::new(name.clone())))
+                .map(|name| KeySet::Tag(TagKey::from_location(name.clone())))
                 .ok_or_else(|| ResolveError::new(format!("no tag is numbered {}", tag.number()))),
             IdSet::List(ids) => ids
                 .iter()
@@ -414,24 +353,23 @@ impl<R: RegistryType> Resolve for IdSet<R> {
     }
 }
 
-impl<R: RegistryType, V: Resolve> Resolve for Ref<R, V> {
-    type Named = KeyOr<R, V::Named>;
+impl<R: Registered, V: Resolve<Named: Clone>> Resolve for Ref<Resolved, R, V> {
+    type Named = Ref<Named, R, V::Named>;
 
     fn resolve<C: Resolver>(named: Self::Named, ctx: &C) -> Result<Self, ResolveError> {
         match named {
-            KeyOr::Key(key) => Id::resolve(key, ctx).map(Ref::Id),
-            KeyOr::Inline(value) => {
-                V::resolve(*value, ctx).map(|value| Ref::Inline(Arc::new(value)))
-            }
+            Ref::Id(key) => Id::resolve(key, ctx).map(Ref::Id),
+            Ref::Inline(value) => V::resolve(Arc::unwrap_or_clone(value), ctx)
+                .map(|value| Ref::Inline(Arc::new(value))),
         }
     }
 
     fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
         match self {
-            Ref::Id(id) => id.name(names).map(KeyOr::Key),
+            Ref::Id(id) => id.name(names).map(Ref::Id),
             Ref::Inline(value) => value
                 .name(names)
-                .map(|value| KeyOr::Inline(Box::new(value))),
+                .map(|value| Ref::Inline(Arc::new(value))),
         }
     }
 }

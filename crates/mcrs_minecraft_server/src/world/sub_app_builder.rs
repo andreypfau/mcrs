@@ -88,8 +88,7 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_registries::RegistryOf;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
@@ -169,7 +168,7 @@ pub fn spawn_dim_subapp(
         let file = app
             .world()
             .get_resource::<CurrentRegistries>()
-            .and_then(|registries| registries.registry::<RegistryOf<DimensionTypeFile>>())
+            .and_then(|registries| registries.registry::<DimensionTypeFile>())
             .and_then(|types| {
                 let id =
                     mcrs_minecraft_core::Id::checked(request.dimension_type.number(), types.len())?;
@@ -455,11 +454,8 @@ pub fn spawn_dim_subapp(
                 &preset_tables,
                 registries.heightmap_predicates.clone(),
                 registries.world_save.as_ref().and_then(|save| {
-                    let registries = sub_app
-                        .world()
-                        .resource::<CurrentRegistries>()
-                        .arc()
-                        .clone();
+                    let registries =
+                        Registries::clone(sub_app.world().resource::<CurrentRegistries>());
                     SavedColumns::open(&save.0, &request.dimension, registries)
                 }),
                 registries

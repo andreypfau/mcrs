@@ -1,3 +1,5 @@
+use mcrs_minecraft_core::Registered;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::mth::wrap_degrees;
 
 use serde::de::DeserializeOwned;
@@ -5,7 +7,7 @@ use serde_json::json;
 
 use super::*;
 use mcrs_minecraft_core::TagId;
-use mcrs_minecraft_registries::{Key, Named, RegistryType, Resolve, Resolver};
+use mcrs_minecraft_registries::{Named, Resolve, Resolver};
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
@@ -36,16 +38,22 @@ impl ShippedClocks {
 }
 
 impl Resolver for ShippedClocks {
-    fn id<R: RegistryType>(&self, key: &Key<R>) -> Result<Id<R>, String> {
+    fn id<R: Registered>(
+        &self,
+        key: &ResourceKey<R>,
+    ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let at = self
             .0
             .iter()
             .position(|name| name == key.location().as_str());
         at.and_then(|at| Id::checked(at as u16, self.0.len()))
-            .ok_or_else(|| format!("{} is not a shipped clock", key.location()))
+            .ok_or_else(|| format!("{} is not a shipped clock", key.location()).into())
     }
 
-    fn tag<R: RegistryType>(&self, _: &Key<R>) -> Result<TagId<R>, String> {
+    fn tag<R: Registered>(
+        &self,
+        _: &mcrs_minecraft_core::TagKey<R>,
+    ) -> Result<TagId<R>, mcrs_minecraft_registries::ResolveError> {
         Ok(TagId::checked(0, 1).unwrap())
     }
 }

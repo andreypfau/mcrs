@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::{Registered, TagKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -10,7 +11,7 @@ use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registries::{Namer, Registries, RegistryType, Resolve};
+use mcrs_minecraft_registries::{Namer, Registries, Resolve};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{
@@ -91,12 +92,12 @@ pub fn loaded_names(set: &Registries, registry: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn tag_members<R: RegistryType>(set: &Registries, tag: &str) -> Vec<String> {
+pub fn tag_members<R: Registered>(set: &Registries, tag: &str) -> Vec<String> {
     let tags = set
         .tags::<R>()
         .unwrap_or_else(|| panic!("the load builds the tags of {}", std::any::type_name::<R>()));
     let id = tags
-        .by_name(&ResourceLocation::read(tag).unwrap())
+        .id(&TagKey::from_location(ResourceLocation::read(tag).unwrap()))
         .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", std::any::type_name::<R>()));
     tags.members(id)
         .map(|member| set.name(member).unwrap().as_str().to_owned())

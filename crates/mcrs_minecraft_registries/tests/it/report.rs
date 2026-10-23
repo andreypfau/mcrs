@@ -1,8 +1,7 @@
-use mcrs_minecraft_registries::{Declaration, Diagnostic, Key, Missing, Referrer, Resolver, Stage};
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Resolver};
 
-use crate::support::{
-    Block, DamageType, LootTable, Packs, damage, declarations, report, report_errors, rl,
-};
+use crate::support::{Damage, DamageType, Packs, damage, declarations, report, report_errors, rl};
 
 #[test]
 fn a_failed_load_lists_errors_by_registry_then_entry_path_then_namespace() {
@@ -58,36 +57,36 @@ fn a_failed_load_lists_errors_by_registry_then_entry_path_then_namespace() {
 }
 
 fn validated() -> Declaration {
-    Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
+    Declaration::data::<Damage>()
         .validate(|registry, ctx| {
-            let seen = ctx.registry::<DamageType>().map(|r| r.len());
+            let seen = ctx.registry::<Damage>().map(|r| r.len());
             if seen != Some(registry.len()) {
-                return Err(format!("the context sees {seen:?} entries"));
+                return vec![(0, format!("the context sees {seen:?} entries"))];
             }
-            match registry
-                .iter()
-                .any(|(_, _, value)| value.message_id == "dup")
-            {
-                true => Err("a message id is used twice".to_owned()),
-                false => Ok(()),
-            }
+            (registry.values().iter().enumerate())
+                .filter(|(_, value)| value.message_id == "dup")
+                .map(|(at, _)| (at, "a message id is used twice".to_owned()))
+                .collect()
         })
         .into()
 }
 
 fn resolving() -> Declaration {
-    Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
-        .validate(|_, ctx| ctx.id(&Key::<DamageType>::new(rl("t:missing"))).map(|_| ()))
+    Declaration::data::<Damage>()
+        .validate(|_, ctx| {
+            let missing = ResourceKey::<DamageType>::from_location(rl("t:missing"));
+            ctx.id(&missing)
+                .err()
+                .map(|error| (0, error.to_string()))
+                .into_iter()
+                .collect()
+        })
         .into()
 }
 
 #[test]
 fn registry_wide_checks_run_only_after_a_stage_without_entry_errors() {
-    let non_empty = || -> Declaration {
-        Declaration::data::<DamageType>(rl("damage_type"), Stage::World)
-            .non_empty()
-            .into()
-    };
+    let non_empty = || -> Declaration { Declaration::data::<Damage>().non_empty().into() };
     let dup = damage("dup");
     let ok = damage("ok");
     enum Expected {
@@ -138,8 +137,12 @@ fn registry_wide_checks_run_only_after_a_stage_without_entry_errors() {
             "validation fails",
             validated(),
             &[("data/t/damage_type/x.json", &dup)],
-            Expected::Only(Diagnostic::Validation {
+            Expected::Only(Diagnostic::Entry {
                 registry: rl("damage_type"),
+                entry: rl("t:x"),
+                pack: Some("file/a".into()),
+                file: None,
+                field: None,
                 message: "a message id is used twice".into(),
             }),
         ),
@@ -161,7 +164,7 @@ fn registry_wide_checks_run_only_after_a_stage_without_entry_errors() {
                 "{name}: {errors:?}"
             ),
             Expected::ValidationOnly => assert!(
-                matches!(errors.as_slice(), [Diagnostic::Validation { registry, .. }] if *registry == rl("damage_type")),
+                matches!(errors.as_slice(), [Diagnostic::Entry { registry, entry, .. }] if *registry == rl("damage_type") && *entry == rl("t:x")),
                 "{name}: {errors:?}"
             ),
         }
@@ -169,27 +172,27 @@ fn registry_wide_checks_run_only_after_a_stage_without_entry_errors() {
 }
 
 #[test]
-fn a_registry_or_type_declared_twice_is_refused() {
+fn a_registry_declared_twice_is_refused() {
     let cases: [(&str, Vec<Declaration>, &str); 4] = [
         (
-            "one type under two keys",
+            "one value type declared twice",
             vec![
-                Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
-                Declaration::data::<DamageType>(rl("other"), Stage::World).into(),
+                Declaration::data::<Damage>().into(),
+                Declaration::data::<Damage>().into(),
             ],
-            "minecraft:root/minecraft:other: the registry or its type is declared twice",
+            "minecraft:root/minecraft:damage_type: the registry is declared twice",
         ),
         (
-            "one key for two types",
+            "one key declared as data and as fixed",
             vec![
-                Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
-                Declaration::data::<LootTable>(rl("damage_type"), Stage::Reloadable).into(),
+                Declaration::data::<Damage>().into(),
+                Declaration::fixed(rl("damage_type"), vec![]),
             ],
-            "minecraft:root/minecraft:damage_type: the registry or its type is declared twice",
+            "minecraft:root/minecraft:damage_type: the registry is declared twice",
         ),
         (
             "a fixed registry naming an entry twice",
-            vec![Declaration::fixed::<Block>(
+            vec![Declaration::fixed(
                 rl("block"),
                 vec![rl("stone"), rl("dirt"), rl("stone")],
             )],
@@ -198,8 +201,8 @@ fn a_registry_or_type_declared_twice_is_refused() {
         (
             "two keys sharing a path",
             vec![
-                Declaration::data::<DamageType>(rl("damage_type"), Stage::World).into(),
-                Declaration::fixed::<Block>(rl("t:damage_type"), vec![]),
+                Declaration::data::<Damage>().into(),
+                Declaration::fixed(rl("t:damage_type"), vec![]),
             ],
             "minecraft:root/t:damage_type: another registry is declared with the same path",
         ),

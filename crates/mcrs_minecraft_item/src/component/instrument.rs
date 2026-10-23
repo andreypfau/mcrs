@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
-use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_registries::{Ref, Refs, RegistryType, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{InlineRef, WireRef};
+use crate::component::common::WireRef;
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::harness::Sample;
 use crate::harness::entry;
@@ -27,18 +26,10 @@ pub struct InstrumentValue<M: Refs = Resolved> {
     pub description: Text<M>,
 }
 
-impl RegistryValue for InstrumentValue {
-    type Registry = Self;
-}
-
-impl RegistryType for InstrumentValue {
-    type Value = ();
-}
-
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Instrument<M: Refs = Resolved>(pub InlineRef<M, InstrumentValue, InstrumentValue<M>>);
+pub struct Instrument<M: Refs = Resolved>(pub Ref<M, InstrumentValue, InstrumentValue<M>>);
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -49,14 +40,6 @@ pub struct JukeboxSong<M: Refs = Resolved> {
     #[serde(deserialize_with = "positive_float")]
     pub length_in_seconds: f32,
     pub comparator_output: codec::Bounded<0, 15>,
-}
-
-impl RegistryValue for JukeboxSong {
-    type Registry = Self;
-}
-
-impl RegistryType for JukeboxSong {
-    type Value = ();
 }
 
 /// The persistent form is the registry id alone; the wire form carries the
@@ -70,8 +53,8 @@ impl Sample for Instrument {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, STRING_ID};
         match &self.0 {
-            InlineRef::Id(_) => vec![("", STRING_ID)],
-            InlineRef::Inline(value) => {
+            Ref::Id(_) => vec![("", STRING_ID)],
+            Ref::Inline(value) => {
                 let mut tags = vec![
                     ("", COMPOUND_ID),
                     ("use_duration", FLOAT_ID),
@@ -87,8 +70,8 @@ impl Sample for Instrument {
 
     fn samples() -> Vec<Self> {
         vec![
-            Instrument(InlineRef::Id(entry("ponder_goat_horn"))),
-            Instrument(InlineRef::Inline(Arc::new(InstrumentValue {
+            Instrument(Ref::Id(entry("ponder_goat_horn"))),
+            Instrument(Ref::Inline(Arc::new(InstrumentValue {
                 sound_event: Ref::Id(
                     mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
                 ),
@@ -97,7 +80,7 @@ impl Sample for Instrument {
                 durability_damage: codec::Bounded(0),
                 description: Text::text("Horn"),
             }))),
-            Instrument(InlineRef::Inline(Arc::new(InstrumentValue {
+            Instrument(Ref::Inline(Arc::new(InstrumentValue {
                 sound_event: Ref::Inline(Arc::new(SoundEvent {
                     sound_id: rl!("mcrs:toot").to_arc(),
                     range: Some(16.0),
@@ -117,6 +100,6 @@ impl Sample for JukeboxPlayable {
     }
 
     fn samples() -> Vec<Self> {
-        vec![JukeboxPlayable(WireRef(InlineRef::Id(entry("pigstep"))))]
+        vec![JukeboxPlayable(WireRef(Ref::Id(entry("pigstep"))))]
     }
 }

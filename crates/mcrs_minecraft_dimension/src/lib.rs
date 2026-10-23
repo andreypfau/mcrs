@@ -7,10 +7,6 @@ use mcrs_minecraft_registries::IdSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
-impl mcrs_minecraft_registries::RegistryType for DimensionType {
-    type Value = ();
-}
-
 /// The part of a dimension type every crate that names one can hold. Its
 /// environment attributes, timelines and default clock are a column beside the
 /// registry.

@@ -29,6 +29,7 @@ mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }
+mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }

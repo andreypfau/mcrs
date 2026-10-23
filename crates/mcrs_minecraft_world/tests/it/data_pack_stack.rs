@@ -1,6 +1,7 @@
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_registries::{Diagnostic, Level, Registries, RegistryOf, StackedPack};
+use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack};
+use mcrs_minecraft_registries::{Diagnostic, Registries};
 
 use crate::common::{TEST_PACK, WithFiles};
 
@@ -14,7 +15,7 @@ fn a_pack_that_ships_a_built_in_biome_replaces_the_built_in_entry() {
     .unwrap_or_else(|error| panic!("{error}"));
     let set = &loaded.registries;
 
-    let biomes = set.registry::<RegistryOf<BiomeFile>>().unwrap();
+    let biomes = set.registry::<BiomeFile>().unwrap();
     let plains = biomes
         .by_name(&"minecraft:plains".parse().unwrap())
         .unwrap();
@@ -70,7 +71,7 @@ fn a_pack_directory_the_loader_cannot_read_is_reported_and_not_loaded() {
             .diagnostics
             .iter()
             .filter(|diagnostic| {
-                matches!(diagnostic, Diagnostic::UnavailablePack { pack, .. } if pack == "file/zz_test")
+                matches!(diagnostic, Diagnostic::Pack(PackDiagnostic::UnavailablePack { pack, .. }) if pack == "file/zz_test")
             })
             .collect();
         assert_eq!(reported.len(), 1, "{case}: {:?}", loaded.diagnostics);

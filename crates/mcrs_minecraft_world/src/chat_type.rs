@@ -29,7 +29,3 @@ pub enum ChatParameter {
     Target,
     Content,
 }
-
-mcrs_minecraft_registries::declare_registries!(
-    ChatType => crate::keys::CHAT_TYPE, World;
-);

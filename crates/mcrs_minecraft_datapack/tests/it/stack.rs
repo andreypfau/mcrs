@@ -2,13 +2,13 @@ use std::collections::BTreeSet;
 use std::fs;
 
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_registries::{
-    AvailablePack, Diagnostic, Features, KnownPack, Level, PackSelection, pack_stack,
+use mcrs_minecraft_datapack::{
+    AvailablePack, Features, KnownPack, Level, PackDiagnostic, PackSelection, pack_stack,
 };
 
 use mcrs_minecraft_fixtures::vanilla_dir;
 
-use crate::support::{META, rl};
+use crate::{META, rl};
 
 fn features(world: Option<&[&str]>) -> Features {
     Features {
@@ -34,7 +34,7 @@ struct Case {
     world_features: Option<&'static [&'static str]>,
     safe_mode: bool,
     stack: &'static [&'static str],
-    diagnostics: Vec<(Diagnostic, Level)>,
+    diagnostics: Vec<(PackDiagnostic, Level)>,
 }
 
 fn assert_stacks(cases: Vec<Case>) {
@@ -47,7 +47,7 @@ fn assert_stacks(cases: Vec<Case>) {
         );
         let ids: Vec<&str> = stack.packs().iter().map(|p| p.id()).collect();
         assert_eq!(ids, case.stack, "{}", case.name);
-        let found: Vec<(Diagnostic, Level)> =
+        let found: Vec<(PackDiagnostic, Level)> =
             diagnostics.iter().map(|d| (d.clone(), d.level())).collect();
         assert_eq!(found, case.diagnostics, "{}", case.name);
     }
@@ -68,7 +68,7 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             safe_mode: false,
             stack: &["vanilla", "file/b", "file/a"],
             diagnostics: vec![(
-                Diagnostic::PackFound {
+                PackDiagnostic::PackFound {
                     pack: "file/a".into(),
                 },
                 Level::Info,
@@ -87,13 +87,13 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             stack: &["vanilla", "file/a.zip", "file/b"],
             diagnostics: vec![
                 (
-                    Diagnostic::PackFound {
+                    PackDiagnostic::PackFound {
                         pack: "file/a.zip".into(),
                     },
                     Level::Info,
                 ),
                 (
-                    Diagnostic::PackFound {
+                    PackDiagnostic::PackFound {
                         pack: "file/b".into(),
                     },
                     Level::Info,
@@ -108,7 +108,7 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             safe_mode: false,
             stack: &["vanilla"],
             diagnostics: vec![(
-                Diagnostic::MissingPack {
+                PackDiagnostic::MissingPack {
                     pack: "file/gone".into(),
                 },
                 Level::Warning,
@@ -136,7 +136,7 @@ fn stack_is_built_from_the_selection_then_new_packs_in_id_order() {
             world_features: None,
             safe_mode: false,
             stack: &["vanilla"],
-            diagnostics: vec![(Diagnostic::EmptyStack, Level::Info)],
+            diagnostics: vec![(PackDiagnostic::EmptyStack, Level::Info)],
         },
     ]);
 }
@@ -157,14 +157,14 @@ fn world_features_gate_which_packs_join_the_stack() {
             stack: &["vanilla"],
             diagnostics: vec![
                 (
-                    Diagnostic::PackFeaturesDisabled {
+                    PackDiagnostic::PackFeaturesDisabled {
                         pack: "file/sel".into(),
                         features: vec![rl("t:extra")],
                     },
                     Level::Warning,
                 ),
                 (
-                    Diagnostic::PackNotAppended {
+                    PackDiagnostic::PackNotAppended {
                         pack: "file/new".into(),
                         features: vec![rl("t:extra")],
                     },
@@ -203,7 +203,7 @@ fn feature_packs_join_only_for_a_world_feature_no_pack_provides() {
             safe_mode: false,
             stack: &["vanilla", "trade_rebalance"],
             diagnostics: vec![(
-                Diagnostic::FeaturePackAppended {
+                PackDiagnostic::FeaturePackAppended {
                     pack: "trade_rebalance".into(),
                 },
                 Level::Info,
@@ -221,7 +221,7 @@ fn feature_packs_join_only_for_a_world_feature_no_pack_provides() {
             safe_mode: false,
             stack: &["vanilla", "trade_rebalance", "t_extra"],
             diagnostics: vec![(
-                Diagnostic::FeaturePackAppended {
+                PackDiagnostic::FeaturePackAppended {
                     pack: "t_extra".into(),
                 },
                 Level::Info,
@@ -299,20 +299,20 @@ fn assert_metadata_outcomes(cases: &[(&str, Option<&str>, Outcome)]) {
             false,
         );
         let available = stack.packs().iter().any(|pack| pack.id() == "file/p.zip");
-        let about_pack: Vec<&Diagnostic> = diagnostics
+        let about_pack: Vec<&PackDiagnostic> = diagnostics
             .iter()
             .filter(|d| {
                 matches!(d,
-                    Diagnostic::UnknownCompatibility { pack, .. }
-                    | Diagnostic::UnavailablePack { pack, .. }
-                    | Diagnostic::OverlaySkipped { pack, .. } if pack == "file/p.zip")
+                    PackDiagnostic::UnknownCompatibility { pack, .. }
+                    | PackDiagnostic::UnavailablePack { pack, .. }
+                    | PackDiagnostic::OverlaySkipped { pack, .. } if pack == "file/p.zip")
             })
             .collect();
         let observed = match (available, about_pack.as_slice()) {
             (true, []) => Outcome::Available,
-            (true, [Diagnostic::UnknownCompatibility { .. }]) => Outcome::AvailableWithWarning,
-            (true, [Diagnostic::OverlaySkipped { .. }]) => Outcome::OverlaySkipped,
-            (false, [Diagnostic::UnavailablePack { .. }]) => Outcome::Unavailable,
+            (true, [PackDiagnostic::UnknownCompatibility { .. }]) => Outcome::AvailableWithWarning,
+            (true, [PackDiagnostic::OverlaySkipped { .. }]) => Outcome::OverlaySkipped,
+            (false, [PackDiagnostic::UnavailablePack { .. }]) => Outcome::Unavailable,
             other => panic!("{name}: unexpected {other:?}"),
         };
         assert!(

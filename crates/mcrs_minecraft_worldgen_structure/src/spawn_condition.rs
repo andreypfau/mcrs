@@ -5,7 +5,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registries::{KeySet, Named, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolved, dispatch, registry_value};
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
@@ -20,11 +20,12 @@ pub struct SpawnSelector<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::SpawnConditionType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum SpawnCondition<M: Refs = Resolved> {
     Structure {
-        structures: M::Set<RegistryOf<crate::Structure>>,
+        structures: M::Set<crate::Structure>,
     },
     Biome {
         biomes: M::Set<mcrs_minecraft_biome::Biome>,
@@ -32,15 +33,6 @@ pub enum SpawnCondition<M: Refs = Resolved> {
     MoonBrightness {
         range: MinMaxBounds<f64>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    SpawnCondition<Named>, key = "type", registry = crate::keys::SpawnConditionType,
-    {
-        Structure => Structure,
-        MoonBrightness => MoonBrightness,
-        Biome => Biome,
-    }
 }
 
 /// The ids a resolved holder set names, over a registry's index.
@@ -95,7 +87,7 @@ impl VariantTable {
     /// set into the id set a condition tests.
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector<Named>])>,
-        structures: &dyn Fn(&KeySet<RegistryOf<crate::Structure>>) -> Result<IdSet, String>,
+        structures: &dyn Fn(&KeySet<crate::Structure>) -> Result<IdSet, String>,
         biomes: &dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();

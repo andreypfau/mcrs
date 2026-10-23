@@ -10,7 +10,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registries::{
-    Named, Namer, Refs, RegistryType, Resolve, ResolveError, Resolved, Resolver, registry_value,
+    Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, dispatch, registry_value,
 };
 type ClickEvent<M> = mcrs_minecraft_text::ClickEvent<Template<M>>;
 use crate::keys::DialogActionType;
@@ -113,19 +113,11 @@ pub struct ItemBody<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::DialogBodyType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DialogBody<M: Refs = Resolved> {
     Item(ItemBody<M>),
     PlainMessage(PlainMessage<M>),
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DialogBody<Named>, key = "type", registry = crate::keys::DialogBodyType,
-    {
-        Item => Item,
-        PlainMessage => PlainMessage,
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -314,23 +306,13 @@ impl<M: Refs> Validate for TextInput<M> {
 }
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::InputControlType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Input<M: Refs = Resolved> {
     Boolean(BooleanInput<M>),
     NumberRange(NumberRangeInput<M>),
     SingleOption(SingleOptionInput<M>),
     Text(TextInput<M>),
-}
-
-mcrs_minecraft_registries::dispatch! {
-    Input<Named>, key = "type", registry = crate::keys::InputControlType,
-    {
-        Boolean => Boolean,
-        NumberRange => NumberRange,
-        SingleOption => SingleOption,
-        Text => Text,
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -373,26 +355,18 @@ impl<'de> Deserialize<'de> for CommandTemplate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::DialogActionType, unsupported(OpenUrl, RunCommand, SuggestCommand, ShowDialog, ChangePage, CopyToClipboard, Custom))]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum DynamicAction {
-    RunCommand {
-        template: CommandTemplate,
-    },
+    #[dispatch(DynamicRunCommand)]
+    RunCommand { template: CommandTemplate },
+    #[dispatch(DynamicCustom)]
     Custom {
         id: ResourceLocation,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         additions: Option<NbtCompound>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DynamicAction, key = "type", registry = crate::keys::DialogActionType,
-    {
-        DynamicRunCommand => RunCommand,
-        DynamicCustom => Custom,
-    }
-    unsupported { OpenUrl, RunCommand, SuggestCommand, ShowDialog, ChangePage, CopyToClipboard, Custom }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -610,8 +584,8 @@ dialog_type!(DialogList {
 });
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::DialogType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Dialog<M: Refs = Resolved> {
     Notice(Notice<M>),
     Confirmation(Confirmation<M>),
@@ -620,19 +594,4 @@ pub enum Dialog<M: Refs = Resolved> {
     DialogList(DialogList<M>),
 }
 
-mcrs_minecraft_registries::dispatch! {
-    Dialog<Named>, key = "type", registry = crate::keys::DialogType,
-    {
-        Notice => Notice,
-        ServerLinks => ServerLinks,
-        DialogList => DialogList,
-        MultiAction => MultiAction,
-        Confirmation => Confirmation,
-    }
-}
-
-impl RegistryType for Dialog {
-    type Value = ();
-}
-
-pub type DialogRef<M = Resolved> = crate::component::common::InlineRef<M, Dialog, Dialog<M>>;
+pub type DialogRef<M = Resolved> = mcrs_minecraft_registries::Ref<M, Dialog, Dialog<M>>;

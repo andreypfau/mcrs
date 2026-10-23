@@ -9,15 +9,15 @@ use std::io::Cursor;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
+#[cfg(test)]
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
-#[cfg(test)]
-use mcrs_minecraft_registries::Key;
-use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_registries::{Named, dispatch};
 use mcrs_minecraft_value_provider::Weighted;
 use mcrs_minecraft_worldgen_feature::template::{EMPTY_LABEL, Joint};
 use serde::{Deserialize, Serialize};
@@ -38,8 +38,8 @@ fn air_id() -> String {
 
 /// A block entity a generator produced, in the compound the save, the chunk
 /// packet and the anvil reader all encode.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_block::keys::BlockEntityType, key = "id", only)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GeneratedBlockEntity {
     Beehive {
         x: i32,
@@ -347,41 +347,6 @@ pub enum GeneratedBlockEntity {
         components: Option<NbtCompound>,
     },
     EndGateway(EndGatewayData),
-}
-
-mcrs_minecraft_registries::dispatch! {
-    GeneratedBlockEntity, key = "id", registry = mcrs_minecraft_block::keys::BlockEntityType,
-    {
-        Furnace => Furnace,
-        Chest => Chest,
-        TrappedChest => TrappedChest,
-        EnderChest => EnderChest,
-        Dispenser => Dispenser,
-        Sign => Sign,
-        MobSpawner => MobSpawner,
-        CreakingHeart => CreakingHeart,
-        BrewingStand => BrewingStand,
-        Skull => Skull,
-        Hopper => Hopper,
-        Comparator => Comparator,
-        Banner => Banner,
-        EndGateway => EndGateway,
-        Barrel => Barrel,
-        Smoker => Smoker,
-        BlastFurnace => BlastFurnace,
-        Lectern => Lectern,
-        Bell => Bell,
-        Jigsaw => Jigsaw,
-        Campfire => Campfire,
-        Beehive => Beehive,
-        SculkSensor => SculkSensor,
-        BrushableBlock => BrushableBlock,
-        DecoratedPot => DecoratedPot,
-        TrialSpawner => TrialSpawner,
-        Vault => Vault,
-        CopperGolemStatue => CopperGolemStatue,
-    }
-    wildcard unsupported
 }
 
 pub(crate) use mcrs_minecraft_nbt::nbt_flag;
@@ -833,7 +798,7 @@ mod tests {
             items: vec![ItemStackWithSlot {
                 slot: 4,
                 stack: ItemStackValue {
-                    item: Key::new(rl!("minecraft:bread").to_arc()),
+                    item: ResourceKey::from_location(rl!("minecraft:bread").to_arc()),
                     count: Bounded(2),
                     components: ComponentPatch::EMPTY,
                 },

@@ -1,6 +1,5 @@
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_registries::RegistryOf;
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen::router::{build_dimension_router, dimension_beardifier_placement};
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use std::cell::RefCell;
@@ -8,9 +7,9 @@ use std::collections::BTreeMap;
 
 #[test]
 fn every_noise_settings_compiles_into_a_router_from_the_loaded_set() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let registry = set
-        .registry::<RegistryOf<NoiseGeneratorSettings>>()
+        .registry::<NoiseGeneratorSettings>()
         .expect("the set holds the noise settings registry");
     assert_eq!(registry.len(), 8);
 

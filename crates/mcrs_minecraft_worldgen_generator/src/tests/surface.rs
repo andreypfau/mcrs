@@ -29,7 +29,6 @@ use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_surface::{MaterialScratch, NO_WATER};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[cfg(test)]
 const AIR: VoxelId = VoxelId(0);
@@ -151,7 +150,7 @@ pub(super) fn biome_ids() -> HashMap<String, u16> {
 
 /// The corpus read with the biomes numbered as `ids` does and every biome it
 /// leaves out after them, which no cell of the preset's grid holds.
-fn corpus_over(ids: &HashMap<String, u16>) -> Arc<Registries> {
+fn corpus_over(ids: &HashMap<String, u16>) -> Registries {
     let mut named: Vec<(u16, &str)> = ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
     named.sort();
     let names: Vec<&str> = named.into_iter().map(|(_, name)| name).collect();
@@ -458,7 +457,7 @@ fn grid_biomes(
 }
 
 /// The preset's biomes as a registry, and the ids it gave them.
-pub fn overworld_biome_registry() -> (Arc<Registries>, HashMap<String, u16>) {
+pub fn overworld_biome_registry() -> (Registries, HashMap<String, u16>) {
     let mut names: Vec<&str> = Vec::new();
     for (_, biome) in overworld_parameter_list().values() {
         if !names.contains(biome) {
@@ -482,7 +481,7 @@ pub fn overworld_biome_registry() -> (Arc<Registries>, HashMap<String, u16>) {
 pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,
-    registry: Arc<Registries>,
+    registry: Registries,
     source: mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::stages::FillContext {
     use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};

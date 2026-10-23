@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registries::{Ref, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::component::enums::DyeColor;
@@ -16,17 +15,13 @@ pub struct BannerPattern {
     pub translation_key: String,
 }
 
-impl RegistryValue for BannerPattern {
-    type Registry = Self;
-}
-
 mcrs_minecraft_registries::resolve_as_is!(BannerPattern);
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BannerLayer<M: Refs = Resolved> {
-    pub pattern: M::Ref<RegistryOf<BannerPattern>, BannerPattern>,
+    pub pattern: Ref<M, BannerPattern, BannerPattern>,
     pub color: DyeColor,
 }
 

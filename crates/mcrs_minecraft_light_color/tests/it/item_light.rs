@@ -10,7 +10,7 @@ use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
 };
 
-use mcrs_minecraft_world::registry_load::test_registries_arc;
+use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
@@ -22,7 +22,7 @@ fn colours() -> &'static LightColors {
         LightColors::load(
             asset_server(),
             blocks(),
-            &test_registries_arc()
+            &test_registries()
                 .tags::<Block>()
                 .expect("the load builds the block tags"),
         )
@@ -33,7 +33,7 @@ fn colours() -> &'static LightColors {
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), test_registries_arc())
+        ItemLights::load(asset_server(), blocks(), items(), test_registries())
             .unwrap_or_else(|e| panic!("{e}"))
     })
 }
@@ -120,7 +120,7 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
 }
 
 fn water_sensitive() -> Vec<Id<Item>> {
-    let tags = test_registries_arc()
+    let tags = test_registries()
         .tags::<Item>()
         .expect("the load builds the item tags");
     let tag = tags
@@ -219,7 +219,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items(), test_registries_arc())
+    ItemLights::from_files(files, blocks(), items(), test_registries())
 }
 
 fn an_item_in_two_files_fails() {

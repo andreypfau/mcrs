@@ -2308,6 +2308,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 
 [[package]]
+name = "derive-where"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e2b94854e8576378ccda7c8de8a66ed8b4e8acbd2c50ec3418ea6c8aaf4b567"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "derive_more"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3488,7 +3499,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_state",
  "bevy_tasks",
- "mcrs_minecraft_registries",
  "piper",
  "thiserror 2.0.18",
 ]
@@ -3647,6 +3657,18 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_datapack"
+version = "0.5.8"
+dependencies = [
+ "fancy-regex",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
 ]
 
 [[package]]
@@ -3986,16 +4008,16 @@ name = "mcrs_minecraft_registries"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "fancy-regex",
+ "derive-where",
  "fixedbitset",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries_derive",
  "mcrs_minecraft_text",
  "serde",
  "serde_json",
- "serde_path_to_error",
 ]
 
 [[package]]
@@ -4095,6 +4117,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_entity",
@@ -4215,6 +4238,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
@@ -4536,7 +4560,6 @@ dependencies = [
  "bytes",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
- "mcrs_minecraft_registries",
  "mcrs_minecraft_worldgen_builtin",
  "serde",
  "serde_json",

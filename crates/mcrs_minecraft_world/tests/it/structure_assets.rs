@@ -1,6 +1,6 @@
 use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
-use mcrs_minecraft_registries::{CurrentRegistries, RegistryOf};
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
 use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
@@ -14,25 +14,25 @@ pub fn the_structure_registries_land_before_playing(app: &App) {
 
     let set = world.resource::<CurrentRegistries>();
     assert_eq!(
-        set.registry::<RegistryOf<StructureSet>>()
+        set.registry::<StructureSet>()
             .expect("the structure sets are parsed by the loader")
             .len(),
         21
     );
     assert_eq!(
-        set.registry::<RegistryOf<Structure>>()
+        set.registry::<Structure>()
             .expect("the structures are parsed by the loader")
             .len(),
         52
     );
     assert_eq!(
-        set.registry::<RegistryOf<StructureProcessorList>>()
+        set.registry::<StructureProcessorList>()
             .expect("the processor lists are parsed by the loader")
             .len(),
         40
     );
     let pools = set
-        .registry::<RegistryOf<TemplatePool>>()
+        .registry::<TemplatePool>()
         .expect("the template pools are parsed by the loader");
     assert_eq!(pools.len(), 245);
 

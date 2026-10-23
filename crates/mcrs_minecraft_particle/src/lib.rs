@@ -8,32 +8,17 @@ use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
-use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! particle_types {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         #[registry_value]
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(remote = "Self")]
+        #[dispatch(registry = crate::keys::ParticleType)]
+        #[derive(Clone, Debug, PartialEq)]
         pub enum ParticleOptions<M: Refs = Resolved> {
             $($variant $(($payload))?),*
-        }
-
-        mcrs_minecraft_registries::dispatch! {
-            ParticleOptions<Named>, key = "type", registry = crate::keys::ParticleType,
-            {
-                $($variant),*
-            }
-        }
-
-        impl ParticleOptions {
-            pub fn kind(&self) -> crate::keys::ParticleType {
-                match self {
-                    $(Self::$variant { .. } => crate::keys::ParticleType::$variant,)*
-                }
-            }
         }
     };
 }
@@ -362,36 +347,23 @@ pub enum PositionSource {
     Entity { entity_id: i32, y_offset: f32 },
 }
 
-#[derive(Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::PositionSourceType, key_last)]
 enum PositionSourceRepr {
     Block { pos: [i32; 3] },
     Entity {},
 }
 
-mcrs_minecraft_registries::dispatch! {
-    reads_only PositionSourceRepr, key = "type", registry = crate::keys::PositionSourceType,
-    {
-        Block,
-        Entity,
-    }
-}
-
 impl Serialize for PositionSource {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
         let Self::Block { pos } = self else {
             return Err(serde::ser::Error::custom(
                 "Entity position sources are not allowed",
             ));
         };
-        let mut map = s.serialize_map(Some(2))?;
-        map.serialize_entry("pos", &[pos.x, pos.y, pos.z])?;
-        map.serialize_entry(
-            "type",
-            crate::keys::PositionSourceType::Block.as_static_str(),
-        )?;
-        map.end()
+        PositionSourceRepr::Block {
+            pos: [pos.x, pos.y, pos.z],
+        }
+        .serialize(s)
     }
 }
 

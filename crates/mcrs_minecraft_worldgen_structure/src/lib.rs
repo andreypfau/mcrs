@@ -26,7 +26,7 @@ use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, PositiveFloat, PositiveInt, is_default, non_empty,
 };
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
-use mcrs_minecraft_registries::KeySet;
+use mcrs_minecraft_registries::{KeySet, dispatch};
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -45,8 +45,9 @@ pub struct StructureSelectionEntry {
     pub weight: PositiveInt,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::StructurePlacementType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum StructurePlacement {
     RandomSpread {
         #[serde(flatten)]
@@ -66,15 +67,6 @@ pub enum StructurePlacement {
     },
     // An empty struct variant, not a unit one: only the former refuses extra keys.
     DimensionOrigin {},
-}
-
-mcrs_minecraft_registries::dispatch! {
-    StructurePlacement, key = "type", registry = crate::keys::StructurePlacementType,
-    {
-        ConcentricRings => ConcentricRings,
-        DimensionOrigin => DimensionOrigin,
-        RandomSpread => RandomSpread,
-    }
 }
 
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
@@ -119,8 +111,9 @@ pub enum SpreadType {
     Triangular,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::StructureType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum Structure {
     BuriedTreasure {
         #[serde(flatten)]
@@ -196,28 +189,6 @@ pub enum Structure {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    Structure, key = "type", registry = crate::keys::StructureType,
-    {
-        BuriedTreasure => BuriedTreasure,
-        DesertPyramid => DesertPyramid,
-        EndCity => EndCity,
-        Fortress => Fortress,
-        Igloo => Igloo,
-        Jigsaw => Jigsaw,
-        JungleTemple => JungleTemple,
-        Mineshaft => Mineshaft,
-        NetherFossil => NetherFossil,
-        OceanMonument => OceanMonument,
-        OceanRuin => OceanRuin,
-        RuinedPortal => RuinedPortal,
-        Shipwreck => Shipwreck,
-        Stronghold => Stronghold,
-        SwampHut => SwampHut,
-        WoodlandMansion => WoodlandMansion,
-    }
 }
 
 impl Structure {
@@ -426,8 +397,9 @@ fn is_unit_1_0(value: &UnitFloat) -> bool {
     *value == UnitFloat(1.0)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::PoolAliasBindingType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum PoolAlias {
     Direct {
         alias: ResourceLocation,
@@ -442,15 +414,6 @@ pub enum PoolAlias {
         #[serde(deserialize_with = "non_empty")]
         groups: Vec<Weighted<Vec<PoolAlias>>>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    PoolAlias, key = "type", registry = crate::keys::PoolAliasBindingType,
-    {
-        Random => Random,
-        RandomGroup => RandomGroup,
-        Direct => Direct,
-    }
 }
 
 #[cfg(test)]
@@ -574,9 +537,4 @@ mod tests {
     }
 }
 
-mcrs_minecraft_registries::read_with_serde!(crate::Structure, crate::StructureSet);
-
-mcrs_minecraft_registries::declare_registries!(
-    crate::Structure => crate::keys::STRUCTURE, World;
-    crate::StructureSet => crate::keys::STRUCTURE_SET, World;
-);
+mcrs_minecraft_registries::resolve_as_is!(crate::Structure, crate::StructureSet);

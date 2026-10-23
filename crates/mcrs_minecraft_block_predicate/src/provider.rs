@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
-use mcrs_minecraft_registries::{Named, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use serde::de::Error as _;
@@ -123,7 +123,7 @@ impl<T: Serialize> Serialize for Holder<T> {
 }
 
 pub type BlockStateProvider<M = Resolved> =
-    <M as Refs>::Ref<RegistryOf<DirectBlockStateProvider>, DirectBlockStateProvider<M>>;
+    Ref<M, DirectBlockStateProvider, DirectBlockStateProvider<M>>;
 
 /// `Codec.xor(BlockState.FULL_CODEC, TYPED_CODEC)`: a state object or a typed
 /// provider, never a bare id, which the holder around it reads as a reference.
@@ -136,8 +136,9 @@ pub enum DirectBlockStateProvider<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::BlockStateProviderType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum TypedBlockStateProvider<M: Refs = Resolved> {
     Simple {
         state: BlockState,
@@ -197,22 +198,6 @@ pub enum TypedBlockStateProvider<M: Refs = Resolved> {
         #[serde(deserialize_with = "non_empty")]
         states: Vec<BlockState>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    TypedBlockStateProvider<Named>, key = "type", registry = crate::keys::BlockStateProviderType,
-    {
-        CopyProperties => CopyProperties,
-        DualNoise => DualNoise,
-        Noise => Noise,
-        NoiseThreshold => NoiseThreshold,
-        RandomBlock => RandomBlock,
-        RandomizedInt => RandomizedInt,
-        Rotated => Rotated,
-        RuleBased => RuleBased,
-        Simple => Simple,
-        Weighted => Weighted,
-    }
 }
 
 #[registry_value]

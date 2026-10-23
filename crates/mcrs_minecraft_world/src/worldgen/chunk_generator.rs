@@ -2,25 +2,16 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_registries::{Named, Refs, RegistryOf, Resolved, registry_value};
+use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = mcrs_minecraft_dimension::keys::ChunkGeneratorType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChunkGenerator<M: Refs = Resolved> {
     Noise(NoiseChunkGenerator<M>),
     Flat(FlatChunkGenerator),
     Debug,
-}
-
-mcrs_minecraft_registries::dispatch! {
-    ChunkGenerator<Named>, key = "type", registry = mcrs_minecraft_dimension::keys::ChunkGeneratorType,
-    {
-        Noise => Noise,
-        Flat => Flat,
-        Debug => Debug,
-    }
 }
 
 // chisle: the vanilla pack ships flat presets, so a flat generator must load, but nothing
@@ -35,5 +26,5 @@ pub struct FlatChunkGenerator {
 #[serde(deny_unknown_fields)]
 pub struct NoiseChunkGenerator<M: Refs = Resolved> {
     pub biome_source: BiomeSource<M>,
-    pub settings: M::Id<RegistryOf<NoiseGeneratorSettings>>,
+    pub settings: M::Id<NoiseGeneratorSettings>,
 }

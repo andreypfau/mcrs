@@ -29,10 +29,6 @@ pub struct Biome {
     pub effects: BiomeEffects,
 }
 
-impl mcrs_minecraft_registries::RegistryType for Biome {
-    type Value = ();
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrassColorModifier {
@@ -56,11 +52,6 @@ pub struct BiomeEffects {
     pub dry_foliage_color: Option<HexRgb>,
 }
 
-mcrs_minecraft_registries::read_with_serde!(
+mcrs_minecraft_registries::resolve_as_is!(
     crate::parameter_list::MultiNoiseBiomeSourceParameterList
-);
-
-mcrs_minecraft_registries::declare_registries!(
-    crate::parameter_list::MultiNoiseBiomeSourceParameterList
-        => crate::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST, World;
 );

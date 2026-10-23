@@ -9,9 +9,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryOf};
+use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::variant::{
     CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
@@ -117,10 +118,10 @@ pub(crate) fn build_dimension_structures(
     .unwrap_or_else(|error| {
         panic!("the loaded registries cannot list their spawn conditions: {error}")
     });
-    fn names<V: Send + Sync + 'static>(registries: &Registries) -> Vec<ResourceLocation> {
+    fn names<R: Registered>(registries: &Registries) -> Vec<ResourceLocation> {
         registries
-            .registry::<RegistryOf<V>>()
-            .map(|registry| registry.iter().map(|(_, name, _)| name.clone()).collect())
+            .entries::<R>()
+            .map(|entries| entries.names().to_vec())
             .unwrap_or_default()
     }
     let cat_sounds = names::<CatSoundVariant>(&registries);

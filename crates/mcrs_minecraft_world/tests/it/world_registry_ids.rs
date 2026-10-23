@@ -8,9 +8,9 @@ use mcrs_minecraft_protocol::item::ctx::WireCtx;
 use mcrs_minecraft_protocol::item::{DecodeCtx, EncodeCtx};
 use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registries::Ref;
+use mcrs_minecraft_registries::{Ref, Resolved};
 use mcrs_minecraft_sound::SoundEvent;
-use mcrs_minecraft_world::registry_load::{sent_by, test_registries_arc};
+use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 use crate::common::{declared_registries, loaded_names};
 
@@ -62,7 +62,7 @@ fn recorded_by_registry(text: &str) -> BTreeMap<String, Vec<String>> {
 
 #[test]
 fn the_loader_keeps_every_recorded_world_registry_id() {
-    let set = test_registries_arc();
+    let set = test_registries();
     let changed: BTreeSet<String> =
         std::fs::read_to_string(crate_path("tests/fixtures/world_registry_id_changes.txt"))
             .unwrap_or_default()
@@ -92,13 +92,13 @@ fn the_loader_keeps_every_recorded_world_registry_id() {
 
 #[test]
 fn a_world_registry_without_files_is_empty() {
-    let names = loaded_names(test_registries_arc(), "minecraft:dimension");
+    let names = loaded_names(test_registries(), "minecraft:dimension");
     assert!(names.is_empty(), "{names:?}");
 }
 
 #[test]
 fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_trips() {
-    let registries = test_registries_arc();
+    let registries = test_registries();
     let ctx = WireCtx::new(registries);
     let past = |registry: &str, offset: usize| {
         let len = loaded_names(registries, registry).len();
@@ -117,7 +117,7 @@ fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_tr
         "{error:#}"
     );
 
-    type Sound = Ref<SoundEvent, SoundEvent>;
+    type Sound = Ref<Resolved, SoundEvent, SoundEvent>;
     let error = Sound::decode_ctx(&ctx, &mut &past("minecraft:sound_event", 1)[..]).unwrap_err();
     assert!(
         format!("{error:#}").contains("minecraft:sound_event"),

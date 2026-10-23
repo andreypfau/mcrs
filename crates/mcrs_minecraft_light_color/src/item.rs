@@ -183,7 +183,7 @@ impl ItemLights {
         }
         let undeclared = |registry| ItemLightError::Undeclared { registry };
         let fluids = registries
-            .registry::<Fluid>()
+            .entries::<Fluid>()
             .ok_or_else(|| undeclared("fluid"))?;
         let item_tags = registries
             .tags::<Item>()
@@ -201,7 +201,7 @@ impl ItemLights {
                 .collect(),
             water: fluids
                 .iter()
-                .map(|(fluid, _, _)| water.is_some_and(|tag| fluid_tags.contains(tag, fluid)))
+                .map(|(fluid, _)| water.is_some_and(|tag| fluid_tags.contains(tag, fluid)))
                 .collect(),
         })
     }

@@ -6,7 +6,6 @@ use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registries::RegistryOf;
 use mcrs_minecraft_worldgen_generator::saved::{
     CorpusBlockStates, RegistryBiomes, column_sections,
 };
@@ -111,8 +110,8 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
         &bytes,
         &CorpusBlockStates(corpus()),
         &RegistryBiomes(
-            mcrs_minecraft_world::registry_load::test_registries_arc()
-                .registry::<RegistryOf<BiomeFile>>()
+            mcrs_minecraft_world::registry_load::test_registries()
+                .registry::<BiomeFile>()
                 .expect("the biomes are loaded"),
         ),
     )

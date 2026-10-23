@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{codec::Validate, validated};
-use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_registries::{Named, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
 /// `Vec3i.offsetCodec(16)`.
@@ -42,8 +42,8 @@ impl<'de> Deserialize<'de> for Offset {
 use mcrs_minecraft_core::Direction;
 
 #[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self")]
+#[dispatch(registry = crate::keys::BlockPredicateType)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockPredicate<M: Refs = Resolved> {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -110,29 +110,6 @@ pub enum BlockPredicate<M: Refs = Resolved> {
     BelowHeightmap {
         heightmap: HeightmapName,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    BlockPredicate<Named>, key = "type", registry = crate::keys::BlockPredicateType,
-    {
-        MatchingBlocks => MatchingBlocks,
-        MatchingBlockTag => MatchingBlockTag,
-        MatchingFluids => MatchingFluids,
-        MatchingBiomes => MatchingBiomes,
-        HasSturdyFace => HasSturdyFace,
-        Solid => Solid,
-        Replaceable => Replaceable,
-        WouldSurvive => WouldSurvive,
-        InsideWorldBounds => InsideWorldBounds,
-        AnyOf => AnyOf,
-        AllOf => AllOf,
-        Not => Not,
-        True => True,
-        Unobstructed => Unobstructed,
-        HeightRange => HeightRange,
-        VolumeMatch => VolumeMatch,
-        BelowHeightmap => BelowHeightmap,
-    }
 }
 
 #[registry_value]

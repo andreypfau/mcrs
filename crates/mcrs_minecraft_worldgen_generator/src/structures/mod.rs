@@ -8,11 +8,10 @@ use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
-use mcrs_minecraft_registries::{
-    IdSet as Ids, Key, KeySet, Named, Namer, Registries, RegistryOf, RegistryType, Resolve, Tags,
-};
+use mcrs_minecraft_registries::{IdSet as Ids, KeySet, Named, Namer, Registries, Resolve, Tags};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
@@ -133,7 +132,7 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
 fn structure_id_set(
     inputs: &StructureInputs<'_>,
     frozen: &FrozenStructures,
-    keys: &KeySet<RegistryOf<Structure>>,
+    keys: &KeySet<Structure>,
 ) -> Result<IdSet, String> {
     let (set, tags) = resolved(inputs.registries, keys)?;
     let mut mask = FixedBitSet::with_capacity(frozen.structures.len());
@@ -197,7 +196,7 @@ fn freeze_variants(
     Ok(())
 }
 
-fn resolved<R: RegistryType>(
+fn resolved<R: Registered>(
     registries: &Registries,
     keys: &KeySet<R>,
 ) -> Result<(Ids<R>, Tags<R>), String> {
@@ -221,7 +220,7 @@ fn biome_tag_mask(
     owner: &dyn std::fmt::Display,
     key: TagKey<Biome, &'static str>,
 ) -> Result<BiomeMask, String> {
-    biome_mask(inputs, &KeySet::Tag(Key::new((*key.location()).into()))).map_err(|_| {
+    biome_mask(inputs, &KeySet::Tag(key.into())).map_err(|_| {
         format!(
             "{owner}: names the biome tag #{}, which is not loaded",
             key.as_str()

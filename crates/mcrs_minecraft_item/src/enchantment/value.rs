@@ -1,3 +1,4 @@
+use mcrs_minecraft_registries::dispatch;
 use std::fmt;
 
 use serde::de::{self, MapAccess, Visitor};
@@ -47,8 +48,9 @@ impl LevelBasedValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[dispatch(registry = crate::keys::EnchantmentLevelBasedValueType)]
+#[derive(Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub enum DispatchedLevelBasedValue {
     Clamped {
         value: Box<LevelBasedValue>,
@@ -74,18 +76,6 @@ pub enum DispatchedLevelBasedValue {
         values: Vec<f32>,
         fallback: Box<LevelBasedValue>,
     },
-}
-
-mcrs_minecraft_registries::dispatch! {
-    DispatchedLevelBasedValue, key = "type", registry = crate::keys::EnchantmentLevelBasedValueType,
-    {
-        Clamped => Clamped,
-        Fraction => Fraction,
-        LevelsSquared => LevelsSquared,
-        Linear => Linear,
-        Exponent => Exponent,
-        Lookup => Lookup,
-    }
 }
 
 impl<'de> Deserialize<'de> for LevelBasedValue {
