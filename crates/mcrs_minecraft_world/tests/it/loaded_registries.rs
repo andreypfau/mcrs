@@ -869,7 +869,7 @@ fn an_empty_variant_registry_fails_the_load() {
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
     let set = test_registries();
     let (_, wolves) = sent_by(set, false)
-        .0
+        .registries
         .into_iter()
         .find(|(registry, _)| registry.as_str() == "minecraft:wolf_variant")
         .expect("the wolf variants are synced");

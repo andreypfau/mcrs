@@ -199,13 +199,12 @@ pub(super) fn decode(
     stage: Stage,
     slots: &mut [Slot<'_>],
     by_key: &HashMap<ResourceLocation, usize>,
-    sources: Vec<(usize, Vec<EntrySource<'_>>)>,
     stack: &PackStack,
-    errors: &mut Vec<Diagnostic>,
-) -> Vec<(usize, Missing)> {
+    (sources, mut unresolved): Pending<'_>,
+) -> Vec<Diagnostic> {
+    let mut errors = Vec::new();
     let ctx = LoadCtx::new(slots, by_key, stage);
     let mut built: Vec<(usize, Erased)> = Vec::new();
-    let mut unresolved = Vec::new();
     for (at, entry_sources) in sources {
         let Some(slot) = slots.get(at) else {
             continue;
@@ -224,18 +223,16 @@ pub(super) fn decode(
         for failure in failures {
             match failure.error.into_missing() {
                 Ok(missing) => {
-                    unresolved.extend(by_key.get(&missing.registry).map(move |&holder| {
-                        let referrer = Referrer::Entry {
-                            registry: slot.key().clone(),
-                            entry: failure.entry,
-                        };
-                        let missing = Missing {
+                    if let Some(&holder) = by_key.get(&missing.registry) {
+                        unresolved.entry(holder).or_default().push(Missing {
                             name: missing.name,
                             tag: missing.tag,
-                            referrer,
-                        };
-                        (holder, missing)
-                    }))
+                            referrer: Referrer::Entry {
+                                registry: slot.key().clone(),
+                                entry: failure.entry,
+                            },
+                        });
+                    }
                 }
                 Err(error) => errors.push(Diagnostic::Entry {
                     registry: slot.key().clone(),
@@ -253,7 +250,15 @@ pub(super) fn decode(
             slot.registry = Some(registry);
         }
     }
-    unresolved
+    report_unresolved(unresolved, slots, &mut errors);
+    errors
+}
+
+pub(super) fn empty_registry(slot: &Slot<'_>) -> Option<Diagnostic> {
+    let (data, names) = (slot.declaration.data_part()?, slot.names.as_ref()?);
+    (data.must_not_be_empty() && names.len() == 0).then(|| Diagnostic::EmptyRegistry {
+        registry: slot.key().clone(),
+    })
 }
 
 fn validate(
@@ -272,10 +277,8 @@ fn validate(
             errors.push(not_built(slot.key()));
             continue;
         };
-        if data.must_not_be_empty() && names.len() == 0 {
-            errors.push(Diagnostic::EmptyRegistry {
-                registry: slot.key().clone(),
-            });
+        if let Some(empty) = empty_registry(slot) {
+            errors.push(empty);
             continue;
         }
         for (at, message) in data.validate(registry, &ctx) {
@@ -336,7 +339,7 @@ pub(super) fn assemble(
     })
 }
 
-pub(super) fn report_unresolved(
+fn report_unresolved(
     unresolved: BTreeMap<usize, Vec<Missing>>,
     slots: &[Slot<'_>],
     errors: &mut Vec<Diagnostic>,
@@ -351,7 +354,7 @@ pub(super) fn report_unresolved(
     }
 }
 
-type Pending<'f> = (
+pub(super) type Pending<'f> = (
     Vec<(usize, Vec<EntrySource<'f>>)>,
     BTreeMap<usize, Vec<Missing>>,
 );
@@ -361,18 +364,14 @@ fn run_stage(
     slots: &mut [Slot<'_>],
     by_key: &HashMap<ResourceLocation, usize>,
     stack: &PackStack,
-    (sources, mut unresolved): Pending<'_>,
+    pending: Pending<'_>,
 ) -> Vec<Diagnostic> {
-    let mut errors = Vec::new();
-    let missing = decode(stage, slots, by_key, sources, stack, &mut errors);
-    for (at, missing) in missing {
-        unresolved.entry(at).or_default().push(missing);
-    }
-    report_unresolved(unresolved, slots, &mut errors);
+    let errors = decode(stage, slots, by_key, stack, pending);
     if errors.is_empty() {
-        errors = validate(stage, slots, by_key, stack);
+        validate(stage, slots, by_key, stack)
+    } else {
+        errors
     }
-    errors
 }
 
 /// Loads `declarations` over `stack` from `files`, whose values move into the registries.

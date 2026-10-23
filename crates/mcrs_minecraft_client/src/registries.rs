@@ -9,7 +9,7 @@ use bevy::log::{error, info};
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_datapack::{DirectoryPacks, PackSource};
+use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
     ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
@@ -17,13 +17,13 @@ use mcrs_minecraft_environment::world_clock::{
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, ServerRegistries,
-    TagsReceived, close_connection_later, finish_configuration,
+    ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, TagsReceived,
+    close_connection_later, finish_configuration,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registry_load::{
-    KnownEntries, RegistryLoadError, load_received, load_vanilla_registries,
+    RegistryLoadError, load_received, load_vanilla_registries,
 };
 
 use crate::blocks::BiomeTints;
@@ -33,14 +33,17 @@ const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/reports/datapack.json"
 ));
 
-/// The network form of the client's own vanilla pack, which fills the entries a server leaves out.
+/// The registries of the client's own vanilla pack, which fill the entries a server leaves out.
 #[derive(Resource)]
-pub(crate) struct VanillaEntries(KnownEntries);
+pub(crate) struct VanillaRegistries(Registries);
 
 /// What the server sent in its last configuration. A tag update in play replaces the tags of the
 /// registries it names and loads the registries again from it.
 #[derive(Component)]
-struct LastConfiguration(ServerRegistries);
+struct LastConfiguration {
+    received: Received,
+    vanilla_known: bool,
+}
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionSet {
@@ -82,7 +85,7 @@ impl Plugin for ClientRegistriesPlugin {
 
     fn finish(&self, app: &mut App) {
         let assets = app.world().resource::<AssetServer>().clone();
-        check_corpus_version(&assets);
+        check_corpus_version(&assets).unwrap_or_else(|error| refuse(&error));
         let (definitions, report) =
             load_block_definitions(&assets).unwrap_or_else(|error| refuse(&error));
         info!(
@@ -96,16 +99,12 @@ impl Plugin for ClientRegistriesPlugin {
         );
         app.insert_resource(Blocks(Arc::new(definitions)));
         if let Some(corpus) = &self.local_corpus {
-            app.insert_resource(VanillaEntries(vanilla_entries(corpus)))
+            let (vanilla, _) =
+                load_vanilla_registries(corpus, Vec::new()).unwrap_or_else(|error| refuse(&error));
+            app.insert_resource(VanillaRegistries(vanilla))
                 .insert_resource(HoldsVanillaPack);
         }
     }
-}
-
-fn vanilla_entries(source: &dyn PackSource) -> KnownEntries {
-    load_vanilla_registries(source, Vec::new())
-        .and_then(|(vanilla, _)| KnownEntries::of(&vanilla))
-        .unwrap_or_else(|error| refuse(&error))
 }
 
 fn refuse<E: std::fmt::Display>(error: &E) -> ! {
@@ -114,17 +113,12 @@ fn refuse<E: std::fmt::Display>(error: &E) -> ! {
 }
 
 pub(crate) fn load_registries(
-    received: &ServerRegistries,
-    vanilla: Option<&VanillaEntries>,
+    received: &Received,
+    vanilla_known: bool,
+    vanilla: Option<&VanillaRegistries>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let known = vanilla
-        .filter(|_| received.vanilla_known)
-        .map(|vanilla| &vanilla.0);
-    load_received(
-        DATAPACK_REPORT,
-        known,
-        (received.registries.clone(), received.tags.clone()),
-    )
+    let known = vanilla.filter(|_| vanilla_known).map(|vanilla| &vanilla.0);
+    load_received(DATAPACK_REPORT, received, known)
 }
 
 /// The item table is derived from the loaded registries as they are installed, so no frame sees
@@ -152,17 +146,18 @@ fn install(
 
 fn load_server_registries(
     event: On<RegistriesReceived>,
-    vanilla: Option<Res<VanillaEntries>>,
+    vanilla: Option<Res<VanillaRegistries>>,
     assets: Res<AssetServer>,
     blocks: Res<Blocks>,
     mut commands: Commands,
 ) {
-    match load_registries(&event.registries, vanilla.as_deref()) {
+    match load_registries(&event.registries, event.vanilla_known, vanilla.as_deref()) {
         Ok(loaded) => {
             install(loaded, (&assets, &blocks), &mut commands);
-            commands
-                .entity(event.entity)
-                .insert(LastConfiguration(event.registries.clone()));
+            commands.entity(event.entity).insert(LastConfiguration {
+                received: event.registries.clone(),
+                vanilla_known: event.vanilla_known,
+            });
             finish_configuration(&mut commands, event.entity);
         }
         Err(error) => close_connection_later(
@@ -176,7 +171,7 @@ fn load_server_registries(
 fn replace_server_tags(
     event: On<TagsReceived>,
     mut connections: Query<&mut LastConfiguration>,
-    vanilla: Option<Res<VanillaEntries>>,
+    vanilla: Option<Res<VanillaRegistries>>,
     assets: Res<AssetServer>,
     blocks: Res<Blocks>,
     mut commands: Commands,
@@ -189,8 +184,8 @@ fn replace_server_tags(
         );
         return;
     };
-    last.0.replace_tags(event.tags.clone());
-    match load_registries(&last.0, vanilla.as_deref()) {
+    last.received.replace_tags(event.tags.clone());
+    match load_registries(&last.received, last.vanilla_known, vanilla.as_deref()) {
         Ok(loaded) => install(loaded, (&assets, &blocks), &mut commands),
         Err(error) => close_connection_later(
             &mut commands,
@@ -200,18 +195,18 @@ fn replace_server_tags(
     }
 }
 
-fn check_corpus_version(assets: &AssetServer) {
+fn check_corpus_version(assets: &AssetServer) -> Result<(), String> {
     let source = assets
         .get_source(AssetSourceId::Default)
-        .expect("default AssetSource missing");
+        .map_err(|error| error.to_string())?;
     let path = Path::new("minecraft/version.json");
     let bytes = bevy::tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
         source.reader(),
         path,
     ))
-    .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    .map_err(|error| format!("{}: {error}", path.display()))?;
     mcrs_minecraft_core::check_corpus_version(&bytes)
-        .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        .map_err(|error| format!("{}: {error}", path.display()))
 }
 
 /// True once a connection has entered configuration, from play or at its start. The server

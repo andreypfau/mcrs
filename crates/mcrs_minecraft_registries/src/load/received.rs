@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -8,32 +9,48 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use super::ctx::Slot;
 use super::declaration::{Declaration, EntrySource, Kind, Source};
 use super::loader::{
-    assemble, check_declarations, decode, empty_slots, fail, report_unresolved, slots_by_key,
-    too_many,
+    assemble, check_declarations, decode, empty_registry, empty_slots, fail, slots_by_key, too_many,
 };
 use crate::registries::{Registries, Stage};
 use crate::diagnostics::{Diagnostic, Diagnostics};
 use crate::registry::Names;
 use crate::tags::TagTable;
 
-/// What a server sent of its registries during one configuration, with the data of every entry:
-/// an entry the server sent without data is filled in by the client before it is loaded.
+/// What a server sent of its registries during one configuration.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Received {
-    /// Each synced registry's entries in the order sent, a registry sent in several packets
-    /// already joined.
-    pub registries: Vec<(ResourceLocation, Vec<(ResourceLocation, NbtTag)>)>,
+    /// Each registry's entries in the order sent, a registry sent in several packets already
+    /// joined. An entry's data is absent where the server left it to a pack the client knows.
+    pub registries: Vec<(ResourceLocation, Vec<(ResourceLocation, Option<NbtTag>)>)>,
     /// The tags of each registry, as numbers of the entries the registry holds.
     pub tags: Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>,
 }
 
+impl Received {
+    /// Replaces the tags of each registry `update` names.
+    pub fn replace_tags(
+        &mut self,
+        update: Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>,
+    ) {
+        for (registry, tags) in update {
+            match self.tags.iter_mut().find(|(held, _)| *held == registry) {
+                Some((_, held)) => *held = tags,
+                None => self.tags.push((registry, tags)),
+            }
+        }
+    }
+}
+
 /// Builds the registries a client holds from what a server sent. A synced registry holds the
-/// entries sent, numbered in their order; every tag comes from the received tags, and every other
-/// data registry is empty. Declaration validators do not run: they check what a data pack load
-/// needs, such as the features a biome places, which a server never sends.
+/// entries sent, numbered in their order, and an entry sent without data takes the data of the
+/// same entry of `known`. A registry read by its names alone holds the names sent. Every tag comes
+/// from the received tags, and every other data registry is empty. Declaration validators do not
+/// run: they check what a data pack load needs, such as the features a biome places, which a
+/// server never sends.
 pub fn load_received(
     declarations: &[Declaration],
     received: &Received,
+    known: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
     let diagnostics = Diagnostics::default();
     let errors = check_declarations(declarations);
@@ -43,36 +60,25 @@ pub fn load_received(
     let mut slots = empty_slots(declarations);
     let by_key = slots_by_key(&slots);
 
-    let (sources, mut errors) = name_slots(&mut slots, received);
+    let (sources, errors) = name_slots(&mut slots, received, known);
     if !errors.is_empty() {
         return Err(fail(diagnostics, errors));
     }
 
     let stack = Arc::new(PackStack::default());
-    let missing = decode(
+    let mut errors = decode(
         Stage::Reloadable,
         &mut slots,
         &by_key,
-        sources,
         &stack,
-        &mut errors,
+        (sources, BTreeMap::new()),
     );
-    let mut unresolved = BTreeMap::new();
-    for (at, missing) in missing {
-        unresolved.entry(at).or_insert_with(Vec::new).push(missing);
-    }
-    report_unresolved(unresolved, &slots, &mut errors);
-    for slot in &slots {
-        if let (Some(data), Some(names)) = (slot.declaration.data_part(), &slot.names)
-            && data.is_synced()
-            && data.must_not_be_empty()
-            && names.len() == 0
-        {
-            errors.push(Diagnostic::EmptyRegistry {
-                registry: slot.key().clone(),
-            });
-        }
-    }
+    let synced = |slot: &&Slot<'_>| {
+        slot.declaration
+            .data_part()
+            .is_some_and(|data| data.is_synced())
+    };
+    errors.extend(slots.iter().filter(synced).filter_map(empty_registry));
     if !errors.is_empty() {
         return Err(fail(diagnostics, errors));
     }
@@ -84,16 +90,19 @@ pub fn load_received(
 
 type Sources<'f> = Vec<(usize, Vec<EntrySource<'f>>)>;
 
-/// The origin of an entry a server sent with its data: no pack of the stack.
+/// The origin of an entry a server sent: no pack of the stack.
 const RECEIVED: PackIndex = PackIndex::new(u16::MAX);
 
-/// Names every slot: a static registry from its declaration, a synced one from the entries sent,
-/// and the tags of each from the received tags.
+type Sent = [(ResourceLocation, Option<NbtTag>)];
+
+/// Names every slot: a static registry from its declaration, a synced one and one read by its
+/// names alone from the entries sent, and the tags of each from the received tags.
 fn name_slots<'f>(
     slots: &mut [Slot<'_>],
     received: &'f Received,
+    known: Option<&Registries>,
 ) -> (Sources<'f>, Vec<Diagnostic>) {
-    let sent: HashMap<&ResourceLocation, &[(ResourceLocation, NbtTag)]> = received
+    let sent: HashMap<&ResourceLocation, &Sent> = received
         .registries
         .iter()
         .map(|(key, entries)| (key, entries.as_slice()))
@@ -101,13 +110,13 @@ fn name_slots<'f>(
     let mut errors = Vec::new();
     let mut sources = Vec::new();
     for (at, slot) in slots.iter_mut().enumerate() {
-        let names = match (&slot.declaration.kind, slot.declaration.data_part()) {
-            (Kind::Fixed(names), _) => Names::new(names.clone(), Vec::new()).map(Arc::new),
-            (Kind::Names, _) => Names::new(Vec::new(), Vec::new()).map(Arc::new),
-            (Kind::Data(_), Some(data)) => {
+        let data = slot.declaration.data_part();
+        let names = match &slot.declaration.kind {
+            Kind::Fixed(names) => Names::new(names.clone(), Vec::new()),
+            Kind::Names | Kind::Data(_) => {
                 let entries = sent
                     .get(slot.key())
-                    .filter(|_| data.is_synced())
+                    .filter(|_| data.is_none_or(|data| data.is_synced()))
                     .copied()
                     .unwrap_or_default();
                 let mut seen = HashSet::new();
@@ -115,30 +124,45 @@ fn name_slots<'f>(
                 let mut entry_sources = Vec::with_capacity(entries.len());
                 for (name, tag) in entries {
                     if !seen.insert(name) {
-                        errors.push(Diagnostic::Entry {
-                            registry: slot.key().clone(),
-                            entry: name.clone(),
-                            pack: None,
-                            file: None,
-                            field: None,
-                            message: "the entry is sent twice".to_owned(),
-                        });
+                        errors.push(entry_error(slot.key(), name, "the entry is sent twice"));
                         continue;
                     }
                     names.push(name.clone());
+                    let Some(data) = data else {
+                        continue;
+                    };
+                    let tag = match tag {
+                        Some(tag) => Cow::Borrowed(tag),
+                        None => match known.and_then(|known| data.project(known, name)) {
+                            Some(Ok(tag)) => Cow::Owned(tag),
+                            Some(Err(message)) => {
+                                errors.push(entry_error(slot.key(), name, &message));
+                                continue;
+                            }
+                            None => {
+                                errors.push(entry_error(
+                                    slot.key(),
+                                    name,
+                                    "the entry is sent without data and no local pack holds it",
+                                ));
+                                continue;
+                            }
+                        },
+                    };
                     entry_sources.push(EntrySource {
                         pack: RECEIVED,
                         source: Source::Network(tag),
                     });
                 }
-                let origins = vec![RECEIVED; entry_sources.len()];
-                sources.push((at, entry_sources));
-                Names::new(names, origins).map(Arc::new)
+                if data.is_some() {
+                    sources.push((at, entry_sources));
+                }
+                let origins = vec![RECEIVED; names.len()];
+                Names::new(names, origins)
             }
-            (Kind::Data(_), None) => Names::new(Vec::new(), Vec::new()).map(Arc::new),
         };
         let names = match names {
-            Ok(names) => names,
+            Ok(names) => Arc::new(names),
             Err(count) => {
                 errors.push(too_many(slot.key(), count));
                 continue;
@@ -154,6 +178,17 @@ fn name_slots<'f>(
         slot.names = Some(names);
     }
     (sources, errors)
+}
+
+fn entry_error(registry: &ResourceLocation, entry: &ResourceLocation, message: &str) -> Diagnostic {
+    Diagnostic::Entry {
+        registry: registry.clone(),
+        entry: entry.clone(),
+        pack: None,
+        file: None,
+        field: None,
+        message: message.to_owned(),
+    }
 }
 
 /// Members numbered outside the registry are dropped, as the game drops them.

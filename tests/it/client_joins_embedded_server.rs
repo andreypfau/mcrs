@@ -73,13 +73,19 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
             if std::mem::replace(&mut *sent, true) {
                 return;
             }
-            let (data, tags) = sent_by(&registries, false);
-            let named: Vec<String> = data
+            let received = sent_by(&registries, false);
+            let named: Vec<String> = received
+                .registries
                 .iter()
                 .map(|(registry, _)| registry.to_string())
-                .chain(tags.iter().map(|(registry, _)| registry.to_string()))
+                .chain(
+                    received
+                        .tags
+                        .iter()
+                        .map(|(registry, _)| registry.to_string()),
+                )
                 .collect();
-            let synced = data.len();
+            let synced = received.registries.len();
             synced_send
                 .send((synced, contents(&registries, &named), named))
                 .ok();

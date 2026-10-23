@@ -28,7 +28,7 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
 
     let mut snapshots = 0;
     for (registry, entries) in sent_by(set, false)
-        .0
+        .registries
         .into_iter()
         .filter(|(registry, _)| world_registries.contains(registry.as_str()))
     {

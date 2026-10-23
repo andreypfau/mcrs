@@ -33,7 +33,7 @@ pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &Ap
         .names_of(&ResourceLocation::read("minecraft:worldgen/biome").unwrap())
         .expect("the loaded set holds the biomes");
     let (_, sent) = sent_by(set, false)
-        .0
+        .registries
         .into_iter()
         .find(|(registry, _)| registry.as_str() == "minecraft:worldgen/biome")
         .expect("the biomes are synced");

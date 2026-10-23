@@ -256,13 +256,14 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    use mcrs_minecraft_world::registry_load::{Collected, load_received, sent_by};
+    use mcrs_minecraft_registries::Received;
+    use mcrs_minecraft_world::registry_load::{load_received, sent_by};
 
     const REPORT: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../assets/mcrs/reports/datapack.json"
     ));
-    static SENT: OnceLock<Collected> = OnceLock::new();
+    static SENT: OnceLock<Received> = OnceLock::new();
     static OVER: OnceLock<Mutex<HashMap<Vec<String>, Registries>>> = OnceLock::new();
 
     let key: Vec<String> = leading.iter().map(|name| (*name).to_owned()).collect();
@@ -273,11 +274,12 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     if let Some(registries) = over.get(&key) {
         return registries.clone();
     }
-    let (mut registries, mut tags) = SENT
+    let mut received = SENT
         .get_or_init(|| sent_by(test_registries(), false))
         .clone();
     let biome_key = mcrs_minecraft_biome::keys::BIOME.location().to_arc();
-    let (_, entries) = registries
+    let (_, entries) = received
+        .registries
         .iter_mut()
         .find(|(registry, _)| *registry == biome_key)
         .expect("the server sends its biomes");
@@ -308,7 +310,8 @@ pub fn registries_over(leading: &[&str]) -> Registries {
         }
     }
     *entries = order.iter().map(|&index| entries[index].clone()).collect();
-    for (_, biome_tags) in tags
+    for (_, biome_tags) in received
+        .tags
         .iter_mut()
         .filter(|(registry, _)| *registry == biome_key)
     {
@@ -318,7 +321,7 @@ pub fn registries_over(leading: &[&str]) -> Registries {
             }
         }
     }
-    let (loaded, _) = load_received(REPORT, None, (registries, tags))
+    let (loaded, _) = load_received(REPORT, &received, None)
         .unwrap_or_else(|error| panic!("the renumbered biomes do not load: {error}"));
     over.insert(key, loaded.clone());
     loaded

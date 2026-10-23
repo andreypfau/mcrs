@@ -9,9 +9,9 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{HoldsVanillaPack, RegistriesReceived, ServerRegistries};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_packs, test_registries};
+use mcrs_minecraft_network::client::{HoldsVanillaPack, RegistriesReceived};
+use mcrs_minecraft_registries::{CurrentRegistries, Received, Registries};
+use mcrs_minecraft_world::registry_load::{sent_by, test_packs, test_registries};
 use std::collections::BTreeMap;
 
 pub fn boot(extra: impl FnOnce(&mut App)) -> App {
@@ -44,17 +44,13 @@ pub fn boot(extra: impl FnOnce(&mut App)) -> App {
 
 /// Hands the client what a server holding the local corpus sends at the end of configuration:
 /// the vanilla entries arrive without data. `edit` changes it on the way.
-pub fn receive_registries(app: &mut App, connection: Entity, edit: impl FnOnce(&mut Collected)) {
-    let mut sent = sent_by(test_registries(), true);
-    edit(&mut sent);
-    let (registries, tags) = sent;
+pub fn receive_registries(app: &mut App, connection: Entity, edit: impl FnOnce(&mut Received)) {
+    let mut registries = sent_by(test_registries(), true);
+    edit(&mut registries);
     app.world_mut().trigger(RegistriesReceived {
         entity: connection,
-        registries: ServerRegistries {
-            registries,
-            tags,
-            vanilla_known: true,
-        },
+        registries,
+        vanilla_known: true,
     });
     app.world_mut().flush();
 }
@@ -111,11 +107,12 @@ fn a_client_ends_configuration_with_the_registries_the_server_holds() {
         app.world().get::<ConnectionState>(connection),
         Some(&ConnectionState::Game)
     );
-    let (registries, tags) = sent_by(test_registries(), true);
-    let sent: Vec<String> = registries
+    let received = sent_by(test_registries(), true);
+    let sent: Vec<String> = received
+        .registries
         .iter()
         .map(|(key, _)| key.to_string())
-        .chain(tags.iter().map(|(key, _)| key.to_string()))
+        .chain(received.tags.iter().map(|(key, _)| key.to_string()))
         .collect();
     assert_eq!(
         contents(app.world().resource::<CurrentRegistries>(), &sent),

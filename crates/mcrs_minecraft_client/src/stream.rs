@@ -1570,19 +1570,13 @@ mod tests {
     use mcrs_minecraft_biome_file::BiomeFile;
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
-    use mcrs_minecraft_network::client::ServerRegistries;
-    use mcrs_minecraft_world::registry_load::{Collected, sent_by, test_registries};
+    use mcrs_minecraft_registries::Received;
+    use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
-    fn session(edit: impl FnOnce(&mut Collected)) -> CurrentRegistries {
-        let mut sent = sent_by(test_registries(), false);
-        edit(&mut sent);
-        let (registries, tags) = sent;
-        let received = ServerRegistries {
-            registries,
-            tags,
-            vanilla_known: false,
-        };
-        let (registries, _) = crate::registries::load_registries(&received, None)
+    fn session(edit: impl FnOnce(&mut Received)) -> CurrentRegistries {
+        let mut received = sent_by(test_registries(), false);
+        edit(&mut received);
+        let (registries, _) = crate::registries::load_registries(&received, false, None)
             .unwrap_or_else(|error| panic!("{error}"));
         CurrentRegistries::new(registries)
     }
@@ -1618,8 +1612,9 @@ mod tests {
             }
             assert_eq!(tints.len(), biomes(&first).len());
 
-            let second = session(|(registries, _)| {
-                registries
+            let second = session(|received| {
+                received
+                    .registries
                     .iter_mut()
                     .find(|(sent, _)| sent.as_str() == "minecraft:worldgen/biome")
                     .expect("a server syncs its biomes")

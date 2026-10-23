@@ -1,4 +1,5 @@
 use std::any::{Any, type_name};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{Registered, ResourceLocation};
@@ -21,8 +22,8 @@ pub(crate) enum Source<'f> {
         bytes: &'f [u8],
     },
     Value(Box<dyn Any + Send + Sync>),
-    /// An entry a server sent with its data.
-    Network(&'f NbtTag),
+    /// An entry a server sent, with its data or with the data of a local pack.
+    Network(Cow<'f, NbtTag>),
 }
 
 pub(crate) struct EntrySource<'f> {
@@ -48,6 +49,13 @@ pub(crate) trait ErasedData: Send + Sync {
     /// The entries the validator refuses, by their position in the registry.
     fn validate(&self, registry: &Erased, ctx: &LoadCtx<'_>) -> Vec<(usize, String)>;
     fn is_synced(&self) -> bool;
+    /// The entry `name` of `registries` as it is sent to clients, `None` for a registry that is
+    /// not sent or an entry `registries` lacks.
+    fn project(
+        &self,
+        registries: &Registries,
+        name: &ResourceLocation,
+    ) -> Option<Result<NbtTag, String>>;
     /// `None` for a registry that is not sent to clients.
     fn synced_entries<'r>(
         &self,
@@ -127,8 +135,8 @@ impl<V: DataValue> DataDeclaration<V> {
                 ResolveError::new(format!("the value is not a {}", type_name::<V::Named>()))
             })?,
             Source::Network(tag) => match &self.received {
-                Some(read) => return read(tag.clone(), ctx),
-                None => mcrs_minecraft_nbt::from_tag(tag.clone())
+                Some(read) => return read(tag.into_owned(), ctx),
+                None => mcrs_minecraft_nbt::from_tag(tag.into_owned())
                     .map_err(|error| ResolveError::new(error.to_string()))?,
             },
         };
@@ -285,6 +293,17 @@ impl<V: DataValue> ErasedData for DataDeclaration<V> {
 
     fn is_synced(&self) -> bool {
         self.synced.is_some()
+    }
+
+    fn project(
+        &self,
+        registries: &Registries,
+        name: &ResourceLocation,
+    ) -> Option<Result<NbtTag, String>> {
+        let project = self.synced.as_ref()?;
+        let registry = registries.registry::<V>()?;
+        let value = registry.get(registry.by_name(name)?)?;
+        Some(project(value, registries))
     }
 
     fn synced_entries<'r>(

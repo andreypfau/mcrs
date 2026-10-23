@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_world::registry_load::{
-    KnownEntries, load_received, load_vanilla_registries, sent_by, test_packs, test_registries,
+    load_received, load_vanilla_registries, sent_by, test_packs, test_registries,
 };
 
 const REPORT: &[u8] = include_bytes!(concat!(
@@ -37,16 +37,15 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
 #[test]
 fn a_client_holds_the_synced_registries_and_tags_the_server_holds() {
     let (vanilla, _) = load_vanilla_registries(&test_packs(), Vec::new()).unwrap();
-    let local = KnownEntries::of(&vanilla).unwrap();
-    for (known, local) in [(true, Some(&local)), (false, None)] {
+    for (known, local) in [(true, Some(&vanilla)), (false, None)] {
         let received = sent_by(test_registries(), known);
         let sent: Vec<String> = received
-            .0
+            .registries
             .iter()
             .map(|(key, _)| key.to_string())
-            .chain(received.1.iter().map(|(key, _)| key.to_string()))
+            .chain(received.tags.iter().map(|(key, _)| key.to_string()))
             .collect();
-        let (client, _) = load_received(REPORT, local, received)
+        let (client, _) = load_received(REPORT, &received, local)
             .unwrap_or_else(|error| panic!("known {known}: {error}"));
         assert_eq!(
             contents(&client, &sent),

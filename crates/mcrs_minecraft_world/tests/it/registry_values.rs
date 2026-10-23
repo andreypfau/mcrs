@@ -153,7 +153,7 @@ const SECTION_OTHERS: &str = "[other compared registries]";
 fn vanilla_entries(registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let sent = |known| {
         sent_by(test_registries(), known)
-            .0
+            .registries
             .into_iter()
             .find(|(sent, _)| sent.as_str() == registry)
             .map(|(_, entries)| entries)

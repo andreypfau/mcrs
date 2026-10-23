@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -8,9 +8,6 @@ use mcrs_minecraft_datapack::{
     Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, VANILLA_PACK,
     pack_stack,
 };
-use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::Decode;
-use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
 use mcrs_minecraft_registries::{
     DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry, load,
 };
@@ -71,7 +68,6 @@ impl PackSource for AssetReaderPacks<'_> {
 pub enum RegistryLoadError {
     Read(ReadError),
     Declarations(String),
-    Packet(String),
     Load(Diagnostics),
 }
 
@@ -79,9 +75,7 @@ impl fmt::Display for RegistryLoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RegistryLoadError::Read(error) => write!(f, "cannot read {error}"),
-            RegistryLoadError::Declarations(message) | RegistryLoadError::Packet(message) => {
-                f.write_str(message)
-            }
+            RegistryLoadError::Declarations(message) => f.write_str(message),
             RegistryLoadError::Load(diagnostics) => {
                 let errors = diagnostics.iter().filter(|d| d.level() == Level::Error);
                 write!(f, "registry load failed: {} errors", errors.count())?;
@@ -191,79 +185,15 @@ fn insert_all<V: DataValue>(
     }
 }
 
-/// The network form of every synced entry of a load: what a server that holds the same pack
-/// would send. A client fills an entry the server sent without data from it.
-pub struct KnownEntries(HashMap<(ResourceLocation, ResourceLocation), NbtTag>);
-
-impl KnownEntries {
-    pub fn of(registries: &Registries) -> Result<Self, RegistryLoadError> {
-        let mut entries = HashMap::new();
-        for body in registries.network().registry_data(false) {
-            let packet = ClientboundRegistryData::decode(&mut &body[..])
-                .map_err(|error| RegistryLoadError::Packet(error.to_string()))?;
-            let registry: ResourceLocation = packet.registry.into();
-            for entry in packet.entries {
-                if let Some(data) = entry.data {
-                    entries.insert((registry.clone(), entry.id.into()), data.into_owned());
-                }
-            }
-        }
-        Ok(Self(entries))
-    }
-}
-
-/// What a client collected of a server's registries in one configuration: each synced
-/// registry's entries in the order sent, data absent where the server left it out, and the tags.
-pub type Collected = (
-    Vec<(ResourceLocation, Vec<(ResourceLocation, Option<NbtTag>)>)>,
-    Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>,
-);
-
-/// The registries a client holds after a server's configuration. An entry sent without data is
-/// filled from `known`; without `known`, every entry must carry its data.
+/// The registries a client holds after a server's configuration, over the vanilla declarations.
+/// An entry sent without data takes the data of the same entry of `known`.
 pub fn load_received(
     report: &[u8],
-    known: Option<&KnownEntries>,
-    (registries, tags): Collected,
+    received: &Received,
+    known: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let mut missing = Vec::new();
-    let registries = registries
-        .into_iter()
-        .map(|(registry, entries)| {
-            let entries = entries
-                .into_iter()
-                .filter_map(|(name, data)| {
-                    let data = data.or_else(|| {
-                        known.and_then(|known| {
-                            known.0.get(&(registry.clone(), name.clone())).cloned()
-                        })
-                    });
-                    if data.is_none() {
-                        missing.push(Diagnostic::Entry {
-                            registry: registry.clone(),
-                            entry: name.clone(),
-                            pack: None,
-                            file: None,
-                            field: None,
-                            message: "the entry is sent without data and no local pack holds it"
-                                .to_owned(),
-                        });
-                    }
-                    Some((name, data?))
-                })
-                .collect();
-            (registry, entries)
-        })
-        .collect();
-    if !missing.is_empty() {
-        let mut report = Diagnostics::default();
-        report.extend(missing);
-        return Err(RegistryLoadError::Load(report));
-    }
-    let received = Received { registries, tags };
-
     let declarations = declarations(report, Vec::new())?;
-    mcrs_minecraft_registries::load_received(&declarations, &received)
+    mcrs_minecraft_registries::load_received(&declarations, received, known)
         .map_err(RegistryLoadError::Load)
 }
 
@@ -292,8 +222,11 @@ pub fn test_registries() -> &'static Registries {
 /// What a client collects from the payloads `registries` encoded; entries of the vanilla pack go
 /// without data when the client is `known` to hold it.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn sent_by(registries: &Registries, known: bool) -> Collected {
-    use mcrs_minecraft_protocol::packets::configuration::ClientboundUpdateTags;
+pub fn sent_by(registries: &Registries, known: bool) -> Received {
+    use mcrs_minecraft_protocol::Decode;
+    use mcrs_minecraft_protocol::packets::configuration::{
+        ClientboundRegistryData, ClientboundUpdateTags,
+    };
 
     let network = registries.network();
     let registries = network
@@ -322,7 +255,7 @@ pub fn sent_by(registries: &Registries, known: bool) -> Collected {
             (registry.registry.into(), tags)
         })
         .collect();
-    (registries, tags)
+    Received { registries, tags }
 }
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.

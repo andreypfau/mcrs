@@ -16,7 +16,6 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::handshake::Intent;
@@ -53,7 +52,7 @@ use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, Pa
 use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, Namer};
+use mcrs_minecraft_registries::{CurrentRegistries, Namer, Received};
 use md5::{Digest, Md5};
 use std::borrow::Cow;
 use std::net::SocketAddr;
@@ -103,44 +102,19 @@ pub struct HoldsVanillaPack;
 /// Each registry's tags as sent: the tag names with the numbers of their members.
 pub type ReceivedTags = Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>;
 
-/// The registries and tags a server sent in one configuration. Each registry keeps its entries in
-/// the order sent, which numbers them; an entry's data is absent where the server left it to the
-/// vanilla pack.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ServerRegistries {
-    pub registries: Vec<(ResourceLocation, Vec<(ResourceLocation, Option<NbtTag>)>)>,
-    pub tags: ReceivedTags,
-    pub vanilla_known: bool,
-}
-
-impl ServerRegistries {
-    fn collect_registry(&mut self, data: ClientboundRegistryData<'_>) {
-        let registry: ResourceLocation = data.registry.into();
-        let entries = data
-            .entries
-            .into_iter()
-            .map(|entry| (entry.id.into(), entry.data.map(Cow::into_owned)));
-        match self
-            .registries
-            .iter_mut()
-            .find(|(collected, _)| *collected == registry)
-        {
-            Some((_, collected)) => collected.extend(entries),
-            None => self.registries.push((registry, entries.collect())),
-        }
-    }
-
-    pub fn replace_tags(&mut self, update: ReceivedTags) {
-        for (registry, tags) in update {
-            match self
-                .tags
-                .iter_mut()
-                .find(|(collected, _)| *collected == registry)
-            {
-                Some((_, collected)) => *collected = tags,
-                None => self.tags.push((registry, tags)),
-            }
-        }
+fn collect_registry(received: &mut Received, data: ClientboundRegistryData<'_>) {
+    let registry: ResourceLocation = data.registry.into();
+    let entries = data
+        .entries
+        .into_iter()
+        .map(|entry| (entry.id.into(), entry.data.map(Cow::into_owned)));
+    match received
+        .registries
+        .iter_mut()
+        .find(|(collected, _)| *collected == registry)
+    {
+        Some((_, collected)) => collected.extend(entries),
+        None => received.registries.push((registry, entries.collect())),
     }
 }
 
@@ -162,14 +136,19 @@ fn received_tags(update: Vec<RegistryTags<'_>>) -> ReceivedTags {
 }
 
 #[derive(Component, Default)]
-struct ConfigurationPackets(ServerRegistries);
+struct ConfigurationPackets {
+    received: Received,
+    vanilla_known: bool,
+}
 
 /// A server ended its configuration. The connection stays in configuration until an observer
 /// answers with [`finish_configuration`] or drops it with [`close_connection_later`].
 #[derive(EntityEvent, Debug)]
 pub struct RegistriesReceived {
     pub entity: Entity,
-    pub registries: ServerRegistries,
+    pub registries: Received,
+    /// The client accepted the vanilla pack, so the server may leave its entries' data out.
+    pub vanilla_known: bool,
 }
 
 /// A server replaced the tags of the registries it names during play.
@@ -559,20 +538,27 @@ fn handle_configuration_packet(
         } else {
             Vec::new()
         };
-        collected.0.vanilla_known = !known_packs.is_empty();
+        collected.vanilla_known = !known_packs.is_empty();
         connection.write_packet(&ServerboundSelectKnownPacks { known_packs });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
-        collected.0.collect_registry(data);
+        collect_registry(&mut collected.received, data);
     } else if let Some(update) = event.decode::<ClientboundUpdateTags>() {
-        collected.0.replace_tags(received_tags(update.registries));
+        collected
+            .received
+            .replace_tags(received_tags(update.registries));
     } else if let Some(keep_alive) = event.decode::<ConfigurationKeepAlive>() {
         connection.write_packet(&ServerboundConfigurationKeepAlive(KeepAlive {
             payload: keep_alive.0.payload,
         }));
     } else if event.decode::<ClientboundFinishConfiguration>().is_some() {
+        let ConfigurationPackets {
+            received,
+            vanilla_known,
+        } = std::mem::take(&mut *collected);
         commands.trigger(RegistriesReceived {
             entity: event.entity,
-            registries: std::mem::take(&mut collected.0),
+            registries: received,
+            vanilla_known,
         });
     }
 }
@@ -719,6 +705,7 @@ mod tests {
     use mcrs_minecraft_dimension::{Dimension, DimensionType};
     use mcrs_minecraft_entity::keys::CAT_VARIANT;
     use mcrs_minecraft_entity::variant::CatVariant;
+    use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_protocol::GameMode;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
@@ -730,7 +717,7 @@ mod tests {
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::text::Text;
-    use mcrs_minecraft_registries::{Declaration, Received, load_received};
+    use mcrs_minecraft_registries::{Declaration, load_received};
     use serde::{Deserialize, Serialize};
     use std::borrow::Cow;
     use std::sync::Arc;
@@ -884,7 +871,7 @@ mod tests {
             Declaration::fixed(DIMENSION_TYPE.location().into(), types),
             Declaration::fixed(CAT_VARIANT.location().into(), cats),
         ];
-        let (registries, _) = load_received(&declarations, &Received::default()).unwrap();
+        let (registries, _) = load_received(&declarations, &Received::default(), None).unwrap();
         CurrentRegistries::new(registries)
     }
 
@@ -937,7 +924,7 @@ mod tests {
 
     #[derive(Resource, Default)]
     struct Handed {
-        registries: Vec<ServerRegistries>,
+        registries: Vec<(Received, bool)>,
         tags: Vec<ReceivedTags>,
     }
 
@@ -948,7 +935,9 @@ mod tests {
         mut handed: bevy_ecs::prelude::ResMut<Handed>,
         mut commands: Commands,
     ) {
-        handed.registries.push(event.registries.clone());
+        handed
+            .registries
+            .push((event.registries.clone(), event.vanilla_known));
         commands.insert_resource(statics());
         finish_configuration(&mut commands, event.entity);
     }
@@ -1091,18 +1080,20 @@ mod tests {
 
         assert_eq!(
             client.handed().registries,
-            [ServerRegistries {
-                registries: vec![(
-                    name(PROBE_NAME),
-                    vec![
-                        (name("minecraft:zeta"), Some(probe(0))),
-                        (name("minecraft:alpha"), None),
-                        (name("minecraft:beta"), Some(probe(2))),
-                    ]
-                )],
-                tags: received(PROBE_NAME, &[("minecraft:t", &[2, 0])]),
-                vanilla_known: false,
-            }]
+            [(
+                Received {
+                    registries: vec![(
+                        name(PROBE_NAME),
+                        vec![
+                            (name("minecraft:zeta"), Some(probe(0))),
+                            (name("minecraft:alpha"), None),
+                            (name("minecraft:beta"), Some(probe(2))),
+                        ]
+                    )],
+                    tags: received(PROBE_NAME, &[("minecraft:t", &[2, 0])]),
+                },
+                false
+            )]
         );
         assert_eq!(client.state(), ConnectionState::Game);
         assert_eq!(client.sent_ids(), [ServerboundFinishConfiguration::ID]);
@@ -1142,7 +1133,7 @@ mod tests {
                 .unwrap()
                 .known_packs
                 .len();
-            (answered, client.handed().registries[0].vanilla_known)
+            (answered, client.handed().registries[0].1)
         };
 
         assert_eq!(answer(false, vec![vanilla()]), (0, false));
@@ -1269,7 +1260,7 @@ mod tests {
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.app.update();
         assert_eq!(
-            client.handed().registries[1].registries,
+            client.handed().registries[1].0.registries,
             [(
                 name(PROBE_NAME),
                 vec![(name("minecraft:c"), Some(probe(1)))]

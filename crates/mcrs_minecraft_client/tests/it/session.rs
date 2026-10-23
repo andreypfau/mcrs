@@ -22,8 +22,7 @@ use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
-use mcrs_minecraft_registries::{CurrentRegistries, Ref};
-use mcrs_minecraft_world::registry_load::Collected;
+use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
 
 use crate::boot::{boot, receive_registries, received_id};
 
@@ -36,9 +35,10 @@ fn play_app() -> App {
     })
 }
 
-fn reversed(registry: &'static str) -> impl FnOnce(&mut Collected) {
-    move |(registries, _)| {
-        registries
+fn reversed(registry: &'static str) -> impl FnOnce(&mut Received) {
+    move |received| {
+        received
+            .registries
             .iter_mut()
             .find(|(sent, _)| sent.as_str() == registry)
             .unwrap_or_else(|| panic!("a server syncs {registry}"))
