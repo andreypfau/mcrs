@@ -257,7 +257,7 @@ sample_registries_table! {
 }
 
 fn build_sample_registries() -> SampleRegistries {
-    let sounds = mcrs_minecraft_sound::keys::sound_event::ENTRIES
+    let sounds = mcrs_minecraft_sound::keys::SoundEvent::ENTRIES
         .iter()
         .map(|&name| name.into())
         .collect();

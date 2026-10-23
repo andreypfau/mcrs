@@ -1,7 +1,7 @@
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_sound::SoundEventValue;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
@@ -11,8 +11,8 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, DecodeCtx, ItemComponentValue, JukeboxPlayable,
-    JukeboxSong, PaintingVariant, PaintingVariantValue, Text, WireRef, hash_ops,
+    Consumable, ConsumeEffect, DecodeCtx, ItemComponentValue, JukeboxPlayable, JukeboxSong,
+    PaintingVariant, PaintingVariantValue, Text, WireRef, hash_ops,
 };
 use mcrs_minecraft_registries::{Named, Ref};
 
@@ -115,7 +115,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct",
         JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
-            sound_event: Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
+            sound_event: Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
             description: Text::text("Song"),
             length_in_seconds: 12.5,
             comparator_output: Bounded(7),
@@ -124,7 +124,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct_sound",
         JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
-            sound_event: Ref::Inline(Arc::new(SoundEvent {
+            sound_event: Ref::Inline(Arc::new(SoundEventValue {
                 sound_id: rl!("mcrs:song").to_arc(),
                 range: None,
             })),
@@ -236,13 +236,13 @@ fn lenient_range_reads_any_nbt_number_and_no_json_non_number() {
         .child_tags
         .push(("sound_id".into(), NbtTag::String("mcrs:custom".into())));
     compound.child_tags.push(("range".into(), NbtTag::Byte(1)));
-    let event: SoundEvent = mcrs_minecraft_nbt::from_tag(NbtTag::Compound(compound)).unwrap();
+    let event: SoundEventValue = mcrs_minecraft_nbt::from_tag(NbtTag::Compound(compound)).unwrap();
     assert_eq!(event.range, Some(1.0));
     for input in [
         r#"{"sound_id":"mcrs:custom","range":false}"#,
         r#"{"sound_id":"mcrs:custom","range":{"deep":[1,[2]]}}"#,
     ] {
-        let event: SoundEvent = serde_json::from_str(input).unwrap();
+        let event: SoundEventValue = serde_json::from_str(input).unwrap();
         assert_eq!(event.range, None, "{input}");
     }
 }

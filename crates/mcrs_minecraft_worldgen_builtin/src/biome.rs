@@ -13,9 +13,7 @@ use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_registries::StaticKey;
-use mcrs_minecraft_sound::SoundEvent;
-use mcrs_minecraft_sound::keys::sound_event;
+use mcrs_minecraft_sound::keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_carver::keys::carver;
 use mcrs_minecraft_worldgen_feature::keys::placed_feature;
@@ -164,7 +162,7 @@ pub struct Music {
 }
 
 impl Music {
-    pub fn game(sound: StaticKey<SoundEvent>) -> Self {
+    pub fn game(sound: SoundEvent) -> Self {
         Music {
             sound: sound.as_static_str(),
             min_delay: 12000,
@@ -184,7 +182,7 @@ pub struct BackgroundMusic {
 }
 
 impl BackgroundMusic {
-    pub fn of(sound: StaticKey<SoundEvent>) -> Self {
+    pub fn of(sound: SoundEvent) -> Self {
         BackgroundMusic {
             default: Some(Music::game(sound)),
             ..Default::default()
@@ -193,9 +191,9 @@ impl BackgroundMusic {
 
     pub fn overworld_with_underwater() -> Self {
         BackgroundMusic {
-            default: Some(Music::game(sound_event::MUSIC_GAME)),
-            creative: Some(Music::game(sound_event::MUSIC_CREATIVE)),
-            underwater: Some(Music::game(sound_event::MUSIC_UNDER_WATER)),
+            default: Some(Music::game(SoundEvent::MusicGame)),
+            creative: Some(Music::game(SoundEvent::MusicCreative)),
+            underwater: Some(Music::game(SoundEvent::MusicUnderWater)),
         }
     }
 }
@@ -203,7 +201,7 @@ impl BackgroundMusic {
 pub trait BiomeMusic: Sized {
     fn background_music(self, music: BackgroundMusic) -> Self;
 
-    fn music(self, sound: StaticKey<SoundEvent>) -> Self {
+    fn music(self, sound: SoundEvent) -> Self {
         self.background_music(BackgroundMusic::of(sound))
     }
 }
@@ -255,8 +253,8 @@ const BIOMES: &[BiomeRow] = {
         (biome::CHERRY_GROVE, || o::meadow_or_cherry_grove(true)),
         (biome::GROVE, o::grove),
         (biome::SNOWY_SLOPES, o::snowy_slopes),
-        (biome::FROZEN_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_FROZEN_PEAKS, 25)),
-        (biome::JAGGED_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_JAGGED_PEAKS, 10)),
+        (biome::FROZEN_PEAKS, || o::peaks(SoundEvent::MusicOverworldFrozenPeaks, 25)),
+        (biome::JAGGED_PEAKS, || o::peaks(SoundEvent::MusicOverworldJaggedPeaks, 10)),
         (biome::STONY_PEAKS, o::stony_peaks),
         (biome::RIVER, || o::river(false)),
         (biome::FROZEN_RIVER, || o::river(true)),

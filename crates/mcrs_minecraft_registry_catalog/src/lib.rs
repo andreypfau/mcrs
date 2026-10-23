@@ -9,7 +9,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     ),
     (
         mcrs_minecraft_sound::keys::SOUND_EVENT.location(),
-        mcrs_minecraft_sound::keys::sound_event::ENTRIES,
+        mcrs_minecraft_sound::keys::SoundEvent::ENTRIES,
     ),
     (
         mcrs_minecraft_block::keys::FLUID.location(),

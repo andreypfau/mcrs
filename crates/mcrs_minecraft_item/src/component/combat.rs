@@ -5,7 +5,7 @@ use std::sync::Arc;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use mcrs_minecraft_sound::Sound;
-use mcrs_minecraft_sound::keys::sound_event;
+use mcrs_minecraft_sound::keys::SoundEvent;
 use serde::{Deserialize, Serialize};
 
 use crate::component::consume::{
@@ -13,7 +13,7 @@ use crate::component::consume::{
 };
 use crate::harness::Sample;
 use crate::harness::{list_set, one_set, tag_set};
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_sound::SoundEventValue;
 
 float_default! {
     ninety / is_ninety = 90.0f32,
@@ -221,7 +221,7 @@ pub struct KineticCondition {
 }
 
 fn item_break() -> Sound<Resolved> {
-    Ref::Id(sound_event::ENTITY_ITEM_BREAK.id())
+    Ref::Id(SoundEvent::EntityItemBreak.id())
 }
 
 impl Sample for BlocksAttacks {
@@ -277,7 +277,7 @@ impl Sample for BlocksAttacks {
                 },
                 bypassed_by: Some(one_set("in_fire")),
                 block_sound: Some(item_break()),
-                disable_sound: Some(Ref::Inline(Arc::new(SoundEvent {
+                disable_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:off").to_arc(),
                     range: None,
                 }))),
@@ -302,7 +302,7 @@ impl Sample for PiercingWeapon {
                 deals_knockback: false,
                 dismounts: true,
                 sound: Some(item_break()),
-                hit_sound: Some(Ref::Inline(Arc::new(SoundEvent {
+                hit_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:hit").to_arc(),
                     range: Some(4.0),
                 }))),
@@ -352,7 +352,7 @@ impl Sample for KineticWeapon {
                 forward_movement: 0.5,
                 damage_multiplier: 2.0,
                 sound: Some(item_break()),
-                hit_sound: Some(Ref::Id(sound_event::ITEM_ARMOR_EQUIP_GENERIC.id())),
+                hit_sound: Some(Ref::Id(SoundEvent::ItemArmorEquipGeneric.id())),
             },
         ]
     }

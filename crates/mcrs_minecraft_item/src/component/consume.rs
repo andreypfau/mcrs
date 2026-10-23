@@ -5,13 +5,13 @@ use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
-use mcrs_minecraft_sound::keys::sound_event;
+use mcrs_minecraft_sound::keys::SoundEvent;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set};
-use mcrs_minecraft_sound::{Sound, SoundEvent};
+use mcrs_minecraft_sound::{Sound, SoundEventValue};
 
 /// A ranged float field with vanilla's error wording; the bounds order `-0.0`
 /// below `0.0` and NaN outside every range.
@@ -130,7 +130,7 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
 }
 
 fn generic_eat<M: Refs>() -> Sound<M> {
-    Ref::of(sound_event::ENTITY_GENERIC_EAT)
+    Ref::of(SoundEvent::EntityGenericEat)
 }
 
 fn is_generic_eat<M: Refs>(sound: &Sound<M>) -> bool {
@@ -202,10 +202,10 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
             directional_particles: false,
         },
         ConsumeEffect::PlaySound {
-            sound: Ref::Id(sound_event::ENTITY_ITEM_BREAK.id()),
+            sound: Ref::Id(SoundEvent::EntityItemBreak.id()),
         },
         ConsumeEffect::PlaySound {
-            sound: Ref::Inline(Arc::new(SoundEvent {
+            sound: Ref::Inline(Arc::new(SoundEventValue {
                 sound_id: rl!("mcrs:ding").to_arc(),
                 range: None,
             })),
@@ -238,7 +238,7 @@ impl Sample for Consumable {
             Consumable {
                 consume_seconds: 2.5,
                 animation: ItemUseAnimation::Drink,
-                sound: Ref::Inline(Arc::new(SoundEvent {
+                sound: Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:sip").to_arc(),
                     range: Some(8.0),
                 })),

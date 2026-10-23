@@ -142,10 +142,8 @@ enum the generator writes. An owned registry is keyed in `src/keys` of its
 owner, which holds the `RegistryKey`, its `Registered` implementation and one
 module per registry:
 
-- a static registry keyed by an enum is a `mcrs_minecraft_registries::static_registry!` enum of its
+- a static registry with entries is a `mcrs_minecraft_registries::static_registry!` enum of its
   entries, numbered by protocol id, with their locations in `ENTRIES`;
-- another static registry is a `mcrs_minecraft_registries::static_keys!` module of constants and
-  `ENTRIES`, in protocol id order;
 - a data registry with entries in `names.json` is a module of `ResourceKey`
   constants, except `minecraft:recipe` and `minecraft:advancement`.
 

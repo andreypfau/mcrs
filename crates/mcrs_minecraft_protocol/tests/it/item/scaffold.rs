@@ -394,8 +394,7 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
 
 #[test]
 fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
-    use mcrs_minecraft_sound::SoundEvent;
-    use mcrs_minecraft_sound::keys::sound_event::ENTRIES;
+    use mcrs_minecraft_sound::keys::SoundEvent;
 
     assert!(
         registries()
@@ -404,7 +403,7 @@ fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
     );
     let lookup = ctx();
     let id = |n: usize| {
-        let name = ENTRIES[n].as_static_str();
+        let name = SoundEvent::ENTRIES[n].as_static_str();
         entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
     };
     let (first, fourth) = (id(1), id(4));
@@ -466,8 +465,7 @@ fn a_kind_is_a_var_int_on_the_wire() {
 
 #[test]
 fn a_holder_id_below_zero_is_an_error_not_a_panic() {
-    use mcrs_minecraft_sound::SoundEvent;
-    type Sound = Ref<Resolved, SoundEvent, SoundEvent>;
+    type Sound = mcrs_minecraft_sound::Sound<Resolved>;
     let lookup = ctx();
     let min_var_int = [0x80, 0x80, 0x80, 0x80, 0x08];
     let error = Sound::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
@@ -533,11 +531,10 @@ fn a_patch_compares_as_a_map() {
 fn identifiers_read_with_the_default_namespace_everywhere() {
     use mcrs_minecraft_entity::keys::EntityType;
     use mcrs_minecraft_protocol::item::{ResolvableFloat, ResolvableInt, TypedEntityData};
-    use mcrs_minecraft_sound::SoundEvent;
-    let sound: Ref<Resolved, SoundEvent, SoundEvent> = read_json(r#""entity.item.break""#).unwrap();
+    let sound: mcrs_minecraft_sound::Sound<Resolved> = read_json(r#""entity.item.break""#).unwrap();
     assert_eq!(
         sound,
-        Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id())
+        Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id())
     );
     let logs: IdSet<Block> = read_json("\"#logs\"").unwrap();
     assert_eq!(logs, tag_set("logs"));

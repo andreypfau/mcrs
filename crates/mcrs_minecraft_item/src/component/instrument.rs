@@ -10,7 +10,7 @@ use crate::component::common::WireRef;
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::harness::Sample;
 use crate::harness::entry;
-use mcrs_minecraft_sound::{Sound, SoundEvent};
+use mcrs_minecraft_sound::{Sound, SoundEventValue};
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -72,16 +72,14 @@ impl Sample for Instrument {
         vec![
             Instrument(Ref::Id(entry("ponder_goat_horn"))),
             Instrument(Ref::Inline(Arc::new(InstrumentValue {
-                sound_event: Ref::Id(
-                    mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
-                ),
+                sound_event: Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),
                 description: Text::text("Horn"),
             }))),
             Instrument(Ref::Inline(Arc::new(InstrumentValue {
-                sound_event: Ref::Inline(Arc::new(SoundEvent {
+                sound_event: Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:toot").to_arc(),
                     range: Some(16.0),
                 })),

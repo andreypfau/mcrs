@@ -11,7 +11,7 @@ use serde::de::value::{
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
 
-use crate::static_key::StaticKey;
+use crate::static_key::StaticEntry;
 use crate::tags::IdSet;
 
 pub trait Inline: Clone + fmt::Debug + PartialEq + Send + Sync + 'static {}
@@ -24,7 +24,7 @@ pub trait Refs: Inline + Copy + Eq {
     type Id<R: Registered>: Inline;
     type Set<R: Registered>: Inline;
 
-    fn id_of<R: Registered>(key: StaticKey<R>) -> Self::Id<R>;
+    fn id_of<R: StaticEntry>(entry: R) -> Self::Id<R>;
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -37,8 +37,8 @@ impl Refs for Named {
     type Id<R: Registered> = ResourceKey<R>;
     type Set<R: Registered> = KeySet<R>;
 
-    fn id_of<R: Registered>(key: StaticKey<R>) -> ResourceKey<R> {
-        ResourceKey::from_location(key.location().to_arc())
+    fn id_of<R: StaticEntry>(entry: R) -> ResourceKey<R> {
+        ResourceKey::from_location(entry.location().to_arc())
     }
 }
 
@@ -46,8 +46,8 @@ impl Refs for Resolved {
     type Id<R: Registered> = Id<R>;
     type Set<R: Registered> = IdSet<R>;
 
-    fn id_of<R: Registered>(key: StaticKey<R>) -> Id<R> {
-        key.id()
+    fn id_of<R: StaticEntry>(entry: R) -> Id<R> {
+        entry.id()
     }
 }
 
@@ -127,9 +127,9 @@ pub enum Ref<M: Refs, R: Registered, V> {
     Inline(Arc<V>),
 }
 
-impl<M: Refs, R: Registered, V> Ref<M, R, V> {
-    pub fn of(key: StaticKey<R>) -> Self {
-        Ref::Id(M::id_of(key))
+impl<M: Refs, R: StaticEntry, V> Ref<M, R, V> {
+    pub fn of(entry: R) -> Self {
+        Ref::Id(M::id_of(entry))
     }
 }
 

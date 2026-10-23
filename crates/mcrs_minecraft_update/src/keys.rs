@@ -136,15 +136,17 @@ pub fn generate(
         }
 
         let owner = owner_of.get(registry.as_str());
+        let static_entries = report.is_some_and(|report| !report.entries.is_empty());
         let enumerated = match owner.map(|owner| &owner.value) {
-            Some(ValueType::Enum(name))
-                if report.is_some_and(|report| !report.entries.is_empty()) =>
-            {
-                Some(*name)
-            }
+            Some(ValueType::Enum(name)) if static_entries => Some(*name),
             Some(ValueType::Enum(_)) => {
                 return Err(format!(
                     "{registry}: only a static registry with entries is keyed by an enum of them"
+                ));
+            }
+            Some(ValueType::Defined(_)) if static_entries => {
+                return Err(format!(
+                    "{registry}: a static registry with entries is keyed by an enum of them"
                 ));
             }
             _ => None,
@@ -166,8 +168,6 @@ pub fn generate(
                 if let Some(name) = enumerated {
                     target.enums.push((module.clone(), name.to_owned()));
                     Some(enum_module(registry, name, report)?)
-                } else if let Some(value) = value {
-                    Some(static_module(registry, value, report)?)
                 } else {
                     Some(static_names_module(registry, report)?)
                 }
@@ -486,21 +486,6 @@ fn by_protocol_id<'r>(
     }
 
     Ok(by_id.into_iter().flatten().collect())
-}
-
-fn static_module(
-    registry: &str,
-    value: &str,
-    report: &registries::Registry,
-) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nmcrs_minecraft_registries::static_keys! {{\n    {value};\n");
-    let names = by_protocol_id(registry, report)?;
-    let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
-    for (position, (constant, name)) in constants.into_iter().enumerate() {
-        out.push_str(&format!("    {position}: {constant} = \"{name}\",\n"));
-    }
-    out.push_str("}\n");
-    Ok(out)
 }
 
 /// The entries of a static registry no crate keys by a type: one location
@@ -1383,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_static_registry_with_entries_is_an_enum() {
+    fn a_registry_is_an_enum_exactly_when_it_is_static_with_entries() {
         let owner = |registry, value| Owner {
             registry,
             krate: "mcrs_minecraft_food",
@@ -1394,6 +1379,7 @@ mod tests {
         for (registry, value) in [
             ("minecraft:none", ValueType::Enum("Fruit")),
             ("minecraft:worldgen/biome", ValueType::Enum("Fruit")),
+            ("minecraft:block", ValueType::Defined("crate::Block")),
         ] {
             assert_refused(owned(statics, data, &[owner(registry, value)]), &[registry]);
         }

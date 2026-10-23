@@ -43,7 +43,7 @@ pub use refs::{
 };
 pub use registry::{DataValue, Entries, Registry};
 pub use require::{require_id, require_registry, require_tags};
-pub use static_key::StaticKey;
+pub use static_key::StaticEntry;
 pub use tags::{IdSet, Tags};
 
 #[doc(hidden)]

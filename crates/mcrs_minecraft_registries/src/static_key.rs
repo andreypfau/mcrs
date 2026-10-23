@@ -1,97 +1,16 @@
-use derive_where::derive_where;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::{Id, Registered, StaticResourceLocation};
 use std::fmt;
 
-#[derive_where(Clone, Copy, PartialEq, Eq)]
-pub struct StaticKey<R> {
-    id: Id<R>,
-    location: ResourceLocation<&'static str>,
-}
+pub trait StaticEntry: Registered + Copy {
+    fn id(self) -> Id<Self>;
 
-impl<R> StaticKey<R> {
-    #[doc(hidden)]
-    pub const fn at(
-        entries: &[ResourceLocation<&'static str>],
-        position: u16,
-        location: ResourceLocation<&'static str>,
-    ) -> Option<Self> {
-        let Some((_, [entry, ..])) = entries.split_at_checked(position as usize) else {
-            return None;
-        };
-        if same_bytes(
-            entry.as_static_str().as_bytes(),
-            location.as_static_str().as_bytes(),
-        ) && let Some(id) = Id::checked(position, entries.len())
-        {
-            return Some(StaticKey { id, location });
-        }
-        None
-    }
-
-    pub const fn id(self) -> Id<R> {
-        self.id
-    }
-
-    pub const fn location(self) -> ResourceLocation<&'static str> {
-        self.location
-    }
-
-    pub const fn as_static_str(self) -> &'static str {
-        self.location.as_static_str()
-    }
-}
-
-const fn same_bytes(mut left: &[u8], mut right: &[u8]) -> bool {
-    while let ([a, left_rest @ ..], [b, right_rest @ ..]) = (left, right) {
-        if *a != *b {
-            return false;
-        }
-        left = left_rest;
-        right = right_rest;
-    }
-    left.is_empty() && right.is_empty()
-}
-
-impl<R> fmt::Debug for StaticKey<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StaticKey({}, {})", self.id.number(), self.location)
-    }
-}
-
-impl<R> From<StaticKey<R>> for Id<R> {
-    fn from(key: StaticKey<R>) -> Self {
-        key.id
-    }
+    fn location(self) -> StaticResourceLocation;
 }
 
 #[doc(hidden)]
 pub use mcrs_minecraft_core::resource_location::ResourceLocation as __ResourceLocation;
 #[doc(hidden)]
 pub use mcrs_minecraft_core::rl as __rl;
-#[macro_export]
-macro_rules! static_keys {
-    ($registry:ty; $($position:literal: $name:ident = $location:literal,)*) => {
-        pub const ENTRIES: &[$crate::static_key::StaticLocation] =
-            &[$($crate::static_key::__rl!($location)),*];
-
-        // The position is written out rather than searched for: a search per
-        // key in const eval is quadratic, a minute of compile time at 2000 keys.
-        $(
-            pub const $name: $crate::StaticKey<$registry> = match $crate::StaticKey::at(
-                ENTRIES,
-                $position,
-                $crate::static_key::__rl!($location),
-            ) {
-                Some(key) => key,
-                None => panic!("a static key's location is not the entry at its position"),
-            };
-        )*
-    };
-}
-
-#[doc(hidden)]
-pub type StaticLocation = ResourceLocation<&'static str>;
 
 #[doc(hidden)]
 pub fn unknown_entry(registry: impl fmt::Display, location: impl fmt::Display) -> String {
@@ -111,7 +30,7 @@ macro_rules! static_registry {
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant,)+];
 
-            pub const ENTRIES: &'static [$crate::static_key::StaticLocation] =
+            pub const ENTRIES: &'static [::mcrs_minecraft_core::StaticResourceLocation] =
                 &[$($crate::static_key::__rl!($location),)+];
 
             pub const fn id(self) -> ::mcrs_minecraft_core::Id<$name> {
@@ -121,7 +40,7 @@ macro_rules! static_registry {
                 }
             }
 
-            pub const fn location(self) -> $crate::static_key::StaticLocation {
+            pub const fn location(self) -> ::mcrs_minecraft_core::StaticResourceLocation {
                 match self {
                     $($name::$variant => $crate::static_key::__rl!($location),)+
                 }
@@ -152,6 +71,16 @@ macro_rules! static_registry {
             pub fn read(text: &str) -> Option<$name> {
                 let location = $crate::static_key::__ResourceLocation::read(text).ok()?;
                 Self::find(location.as_str())
+            }
+        }
+
+        impl $crate::StaticEntry for $name {
+            fn id(self) -> ::mcrs_minecraft_core::Id<$name> {
+                $name::id(self)
+            }
+
+            fn location(self) -> ::mcrs_minecraft_core::StaticResourceLocation {
+                $name::location(self)
             }
         }
 

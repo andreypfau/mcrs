@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_sound::keys::sound_event;
-use mcrs_minecraft_sound::{Sound, SoundEvent};
+use mcrs_minecraft_sound::keys::SoundEvent;
+use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::registry_ref::null_as_default;
@@ -153,7 +153,7 @@ where
 }
 
 fn equip_generic<M: Refs>() -> Sound<M> {
-    Ref::of(sound_event::ITEM_ARMOR_EQUIP_GENERIC)
+    Ref::of(SoundEvent::ItemArmorEquipGeneric)
 }
 
 fn is_equip_generic<M: Refs>(sound: &Sound<M>) -> bool {
@@ -161,7 +161,7 @@ fn is_equip_generic<M: Refs>(sound: &Sound<M>) -> bool {
 }
 
 fn shears_snip<M: Refs>() -> Sound<M> {
-    Ref::of(sound_event::ITEM_SHEARS_SNIP)
+    Ref::of(SoundEvent::ItemShearsSnip)
 }
 
 fn is_shears_snip<M: Refs>(sound: &Sound<M>) -> bool {
@@ -205,7 +205,7 @@ impl Sample for Equippable {
                 ("shearing_sound.range", FLOAT_ID),
             ]),
             Ref::Inline(_) => tags.push(("shearing_sound", COMPOUND_ID)),
-            Ref::Id(id) if *id != sound_event::ITEM_SHEARS_SNIP.id() => {
+            Ref::Id(id) if *id != SoundEvent::ItemShearsSnip.id() => {
                 tags.push(("shearing_sound", STRING_ID))
             }
             Ref::Id(_) => {}
@@ -218,7 +218,7 @@ impl Sample for Equippable {
             Equippable::new(EquipmentSlot::Head),
             Equippable {
                 slot: EquipmentSlot::OffHand,
-                equip_sound: Ref::Id(sound_event::ITEM_ARMOR_EQUIP_IRON.id()),
+                equip_sound: Ref::Id(SoundEvent::ItemArmorEquipIron.id()),
                 asset_id: Some(rl!("minecraft:iron").to_arc()),
                 camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_arc()),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),
@@ -227,7 +227,7 @@ impl Sample for Equippable {
                 damage_on_hurt: false,
                 equip_on_interact: true,
                 can_be_sheared: true,
-                shearing_sound: Ref::Inline(Arc::new(SoundEvent {
+                shearing_sound: Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:snip").to_arc(),
                     range: Some(3.5),
                 })),
@@ -237,7 +237,7 @@ impl Sample for Equippable {
                 ..Equippable::new(EquipmentSlot::Saddle)
             },
             Equippable {
-                equip_sound: Ref::Inline(Arc::new(SoundEvent {
+                equip_sound: Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:equip").to_arc(),
                     range: None,
                 })),

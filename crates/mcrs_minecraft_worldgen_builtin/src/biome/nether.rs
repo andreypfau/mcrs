@@ -39,11 +39,7 @@ struct Particle {
     kind: &'static str,
 }
 
-fn ambient_sounds(
-    looped: StaticKey<SoundEvent>,
-    mood: StaticKey<SoundEvent>,
-    additions: StaticKey<SoundEvent>,
-) -> AmbientSounds {
+fn ambient_sounds(looped: SoundEvent, mood: SoundEvent, additions: SoundEvent) -> AmbientSounds {
     AmbientSounds {
         looped: looped.as_static_str(),
         mood: AmbientMood {
@@ -72,14 +68,14 @@ macro_rules! nether_biome {
     ($music:ident, $looped:ident, $mood:ident, $additions:ident, $fog_color:expr, $mobs:expr, $generation:expr) => {
         base_biome($mobs, $generation)
             .with(FOG_COLOR, HexRgb::of($fog_color))
-            .music(sound_event::$music)
+            .music(SoundEvent::$music)
             .modified(
                 AMBIENT_SOUNDS,
                 Operation::Override,
                 ambient_sounds(
-                    sound_event::$looped,
-                    sound_event::$mood,
-                    sound_event::$additions,
+                    SoundEvent::$looped,
+                    SoundEvent::$mood,
+                    SoundEvent::$additions,
                 ),
             )
     };
@@ -138,10 +134,10 @@ pub fn nether_wastes() -> Draft {
     );
     default_mushrooms(&mut g);
     nether_biome!(
-        MUSIC_NETHER_NETHER_WASTES,
-        AMBIENT_NETHER_WASTES_LOOP,
-        AMBIENT_NETHER_WASTES_MOOD,
-        AMBIENT_NETHER_WASTES_ADDITIONS,
+        MusicNetherNetherWastes,
+        AmbientNetherWastesLoop,
+        AmbientNetherWastesMood,
+        AmbientNetherWastesAdditions,
         -13432824,
         m,
         g
@@ -164,10 +160,10 @@ pub fn soul_sand_valley() -> Draft {
     );
     g.feature(LocalModifications, placed_feature::BASALT_PILLAR);
     nether_biome!(
-        MUSIC_NETHER_SOUL_SAND_VALLEY,
-        AMBIENT_SOUL_SAND_VALLEY_LOOP,
-        AMBIENT_SOUL_SAND_VALLEY_MOOD,
-        AMBIENT_SOUL_SAND_VALLEY_ADDITIONS,
+        MusicNetherSoulSandValley,
+        AmbientSoulSandValleyLoop,
+        AmbientSoulSandValleyMood,
+        AmbientSoulSandValleyAdditions,
         -14989499,
         m,
         g
@@ -214,10 +210,10 @@ pub fn basalt_deltas() -> Draft {
         );
     ancient_debris(&mut g);
     nether_biome!(
-        MUSIC_NETHER_BASALT_DELTAS,
-        AMBIENT_BASALT_DELTAS_LOOP,
-        AMBIENT_BASALT_DELTAS_MOOD,
-        AMBIENT_BASALT_DELTAS_ADDITIONS,
+        MusicNetherBasaltDeltas,
+        AmbientBasaltDeltasLoop,
+        AmbientBasaltDeltasMood,
+        AmbientBasaltDeltasAdditions,
         -9937040,
         m,
         g
@@ -246,10 +242,10 @@ pub fn crimson_forest() -> Draft {
         ],
     );
     nether_biome!(
-        MUSIC_NETHER_CRIMSON_FOREST,
-        AMBIENT_CRIMSON_FOREST_LOOP,
-        AMBIENT_CRIMSON_FOREST_MOOD,
-        AMBIENT_CRIMSON_FOREST_ADDITIONS,
+        MusicNetherCrimsonForest,
+        AmbientCrimsonForestLoop,
+        AmbientCrimsonForestMood,
+        AmbientCrimsonForestAdditions,
         -13434109,
         m,
         g
@@ -278,10 +274,10 @@ pub fn warped_forest() -> Draft {
         ],
     );
     nether_biome!(
-        MUSIC_NETHER_WARPED_FOREST,
-        AMBIENT_WARPED_FOREST_LOOP,
-        AMBIENT_WARPED_FOREST_MOOD,
-        AMBIENT_WARPED_FOREST_ADDITIONS,
+        MusicNetherWarpedForest,
+        AmbientWarpedForestLoop,
+        AmbientWarpedForestMood,
+        AmbientWarpedForestAdditions,
         -15071974,
         m,
         g

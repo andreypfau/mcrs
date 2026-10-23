@@ -67,26 +67,3 @@ fn an_entry_reads_and_writes_as_its_location() {
         }
     }
 }
-
-struct Fixed;
-
-mod fixed {
-    mcrs_minecraft_registries::static_keys! {
-        super::Fixed;
-        0: AIR = "minecraft:air",
-        1: STONE = "minecraft:stone",
-        2: STONE_SLAB = "minecraft:stone_slab",
-    }
-}
-
-#[test]
-fn a_key_is_numbered_by_its_position_and_names_its_location() {
-    assert_eq!(fixed::AIR.id().number(), 0);
-    assert_eq!(fixed::STONE.id().number(), 1);
-    assert_eq!(fixed::STONE_SLAB.id().number(), 2);
-    assert_eq!(fixed::STONE.as_static_str(), "minecraft:stone");
-    assert_eq!(
-        fixed::ENTRIES[fixed::STONE.id().index()],
-        fixed::STONE.location()
-    );
-}

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_sound::{Sound, SoundEvent};
+use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use serde::{Deserialize, Serialize};
 
 use crate::harness::Sample;
@@ -28,12 +28,12 @@ pub fn sound_holder_tags(sound: &Sound<Resolved>) -> Vec<(&'static str, u8)> {
 
 pub fn sound_holder_samples() -> Vec<Sound<Resolved>> {
     vec![
-        Ref::Id(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
-        Ref::Inline(Arc::new(SoundEvent {
+        Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
+        Ref::Inline(Arc::new(SoundEventValue {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: None,
         })),
-        Ref::Inline(Arc::new(SoundEvent {
+        Ref::Inline(Arc::new(SoundEventValue {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: Some(12.5),
         })),

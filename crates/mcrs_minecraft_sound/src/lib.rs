@@ -10,10 +10,10 @@ use mcrs_minecraft_registries::Ref;
 use serde::{Deserialize, Serialize};
 
 /// A sound event named by its key, or written out in place.
-pub type Sound<M> = Ref<M, SoundEvent, SoundEvent>;
+pub type Sound<M> = Ref<M, keys::SoundEvent, SoundEventValue>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SoundEvent {
+pub struct SoundEventValue {
     pub sound_id: ResourceLocation,
     #[serde(
         default,
@@ -23,4 +23,4 @@ pub struct SoundEvent {
     pub range: Option<f32>,
 }
 
-mcrs_minecraft_registries::resolve_as_is!(SoundEvent);
+mcrs_minecraft_registries::resolve_as_is!(SoundEventValue);
