@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::chat_type::ChatType;
 use crate::dimension::DimensionEntry;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
@@ -10,6 +12,7 @@ use crate::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
 use mcrs_minecraft_entity::variant::{
@@ -25,7 +28,7 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_registries::{Declaration, Resolve};
+use mcrs_minecraft_registries::{Declaration, Resolve, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -35,6 +38,11 @@ use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructurePr
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRuleHolder};
+use serde::Deserialize;
+
+use crate::registry_load::RegistryLoadError;
+
+const DIMENSION: &str = "minecraft:dimension";
 
 macro_rules! spawning_variants {
     ($($file:ident as $value:ident),+ $(,)?) => {
@@ -47,8 +55,8 @@ macro_rules! spawning_variants {
     };
 }
 
-/// Every data registry whose values this crate reads; the data pack report stages each one.
-pub(crate) fn typed_declarations() -> Vec<Declaration> {
+/// Every data registry whose values this crate reads.
+fn typed_declarations() -> Vec<Declaration> {
     let mut declarations: Vec<Declaration> = vec![
         BiomeFile::declaration().synced_via::<NetworkBiome>().into(),
         Declaration::data::<Feature>().into(),
@@ -132,7 +140,63 @@ pub(crate) fn typed_declarations() -> Vec<Declaration> {
     declarations
 }
 
-pub fn refuse<E: std::fmt::Display>(error: &E) -> ! {
-    tracing::error!("the registries are unusable:\n{error}");
-    std::process::exit(1)
+#[derive(Deserialize)]
+struct DatapackReport {
+    registries: BTreeMap<ResourceLocation, Flags>,
+}
+
+#[derive(Deserialize)]
+struct Flags {
+    elements: bool,
+    stable: bool,
+}
+
+/// The stage of every data registry the data pack report lists: one whose entries a reload may
+/// change is reloadable.
+fn data_registries(report: &[u8]) -> Result<BTreeMap<ResourceLocation, Stage>, RegistryLoadError> {
+    let report: DatapackReport = serde_json::from_slice(report).map_err(|error| {
+        RegistryLoadError::Declarations(format!("the data pack report: {error}"))
+    })?;
+    Ok(report
+        .registries
+        .into_iter()
+        .filter(|(_, flags)| flags.elements)
+        .map(|(key, flags)| {
+            let stage = match (flags.stable, key.as_str()) {
+                (true, _) => Stage::Reloadable,
+                (false, DIMENSION) => Stage::Dimension,
+                (false, _) => Stage::World,
+            };
+            (key, stage)
+        })
+        .collect())
+}
+
+/// Every registry a load declares: the static registries, the data registries this crate reads,
+/// `extra`, and every other data registry of the data pack `report` by its names alone. A data
+/// registry that the report lists loads in the stage of the report; any other keeps its own.
+pub fn declarations(
+    report: &[u8],
+    extra: Vec<Declaration>,
+) -> Result<Vec<Declaration>, RegistryLoadError> {
+    let mut declarations = Vec::new();
+    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES {
+        let names = names.iter().map(|&name| name.into()).collect();
+        declarations.push(Declaration::fixed((*key).into(), names));
+    }
+
+    let mut stages = data_registries(report)?;
+    for declaration in typed_declarations().into_iter().chain(extra) {
+        declarations.push(match stages.remove(declaration.key()) {
+            Some(stage) => declaration.in_stage(stage),
+            None => declaration,
+        });
+    }
+
+    declarations.extend(
+        stages
+            .into_iter()
+            .map(|(key, stage)| Declaration::names_only(key, stage)),
+    );
+    Ok(declarations)
 }

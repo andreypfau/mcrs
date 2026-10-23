@@ -22,7 +22,6 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
-use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::registry_load::{
     KnownEntries, RegistryLoadError, load_received, load_vanilla_registries,
 };
@@ -104,9 +103,14 @@ impl Plugin for ClientRegistriesPlugin {
 }
 
 fn vanilla_entries(source: &dyn PackSource) -> KnownEntries {
-    load_vanilla_registries(source)
+    load_vanilla_registries(source, Vec::new())
         .and_then(|(vanilla, _)| KnownEntries::of(&vanilla))
         .unwrap_or_else(|error| refuse(&error))
+}
+
+fn refuse<E: std::fmt::Display>(error: &E) -> ! {
+    error!("the registries are unusable:\n{error}");
+    std::process::exit(1)
 }
 
 pub(crate) fn load_registries(

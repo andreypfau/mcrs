@@ -2,7 +2,6 @@
 // projection keeps that cycle from being coinductive, so it goes deeper than the default limit.
 #![recursion_limit = "256"]
 pub mod chat_type;
-mod declarations;
 #[rustfmt::skip]
 pub mod keys;
 #[cfg(feature = "bevy")]

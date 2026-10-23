@@ -3,7 +3,7 @@ use crate::world::bridge::OutboundFlush;
 use crate::world::sub_app_builder::{
     ColumnDrain, DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
 };
-use bevy_app::App;
+use bevy_app::{App, AppExit};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
@@ -14,7 +14,7 @@ pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
     None => unreachable!(),
 };
 
-pub fn run_server_loop(app: App) {
+pub fn run_server_loop(app: App) -> AppExit {
     mcrs_minecraft_level::server_loop::run_server_loop(
         app,
         DEFAULT_TPS,
@@ -25,7 +25,7 @@ pub fn run_server_loop(app: App) {
             drain_dim_despawn_queue(app);
         },
         drain_columns,
-    );
+    )
 }
 
 /// Passes on what landed since the tick: every dimension sends the columns whose sections

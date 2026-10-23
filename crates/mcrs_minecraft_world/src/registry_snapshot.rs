@@ -1,10 +1,8 @@
-use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use std::any::type_name;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -22,20 +20,13 @@ impl RegistrySnapshot {
     }
 }
 
-fn held<T: Resource + Clone>(world: &World) -> T {
-    world
-        .get_resource::<T>()
-        .cloned()
-        .unwrap_or_else(|| panic!("{} is missing from the main world", type_name::<T>()))
-}
-
-pub fn install_registries(world: &mut World, registries: Registries) {
+pub fn install_registries(world: &mut World, registries: Registries, blocks: Blocks, items: Items) {
     let snapshot = RegistrySnapshot {
-        blocks: held(world),
-        items: held(world),
         registries,
+        blocks,
+        items,
     };
-    world.insert_resource(CurrentRegistries::new(snapshot.registries.clone()));
+    snapshot.insert_into(world);
     world.insert_resource(Versioned::new(Arc::new(snapshot)));
 }
 

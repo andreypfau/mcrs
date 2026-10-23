@@ -249,7 +249,8 @@ mod tests {
                 ),
             ],
         };
-        let (registries, _) = load_registries(&source).unwrap_or_else(|error| panic!("{error}"));
+        let (registries, _) =
+            load_registries(&source, Vec::new()).unwrap_or_else(|error| panic!("{error}"));
 
         let root = Dir::default();
         root.insert_asset(Path::new("minecraft/structure/listed.nbt"), Vec::new());

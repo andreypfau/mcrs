@@ -1,4 +1,4 @@
-use bevy_app::{App, AppExit};
+use bevy_app::{App, AppExit, Plugin, Startup};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 use mcrs_minecraft_server::{run_server_loop, spawn_server_thread};
@@ -28,4 +28,23 @@ fn run_server_loop_exits_on_app_exit() {
         }
         Err(_) => panic!("run_server_loop did not exit within 5s after AppExit was written"),
     }
+}
+
+struct ExitsWhileFinishing;
+
+impl Plugin for ExitsWhileFinishing {
+    fn build(&self, _: &mut App) {}
+
+    fn finish(&self, app: &mut App) {
+        app.world_mut().write_message(AppExit::error());
+    }
+}
+
+#[test]
+fn an_exit_asked_for_while_finishing_stops_the_loop_before_the_first_tick() {
+    let mut app = App::new();
+    app.add_plugins(ExitsWhileFinishing);
+    app.add_systems(Startup, || panic!("the app ticked"));
+
+    assert_eq!(run_server_loop(app), AppExit::error());
 }

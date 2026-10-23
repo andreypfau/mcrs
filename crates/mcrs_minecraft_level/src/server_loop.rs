@@ -82,22 +82,26 @@ const IDLE_STEP: Duration = Duration::from_millis(2);
 /// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick; `idle` runs then
 /// and again every `IDLE_STEP` until the next tick is due, which is where work that finished
 /// off the tick, a column read from the save above all, is passed on without waiting for the
-/// tick to come round.
+/// tick to come round. A plugin that asks the app to exit while it finishes stops the loop before
+/// the first tick.
 pub fn run_server_loop(
     mut app: App,
     tick_rate: NonZeroU32,
     mut between_ticks: impl FnMut(&mut App),
     mut idle: impl FnMut(&mut App),
-) {
+) -> AppExit {
     let tick = Duration::from_secs_f64(1.0 / tick_rate.get() as f64);
     app.finish();
     app.cleanup();
+    if let Some(exit) = app.should_exit() {
+        return exit;
+    }
     loop {
         let start = Instant::now();
         app.update();
         between_ticks(&mut app);
-        if app.should_exit().is_some() {
-            break;
+        if let Some(exit) = app.should_exit() {
+            return exit;
         }
         loop {
             idle(&mut app);

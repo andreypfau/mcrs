@@ -12,7 +12,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{Id, RegistryValue, ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_core::{Id, RegistryValue, ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -21,7 +21,7 @@ use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_registries::{
-    CurrentRegistries, Diagnostic, IdSet, Registries, Resolve, Resolver,
+    CurrentRegistries, Declaration, Diagnostic, IdSet, Registries, Resolve, Resolver, Stage,
 };
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, sent_by, test_registries};
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
@@ -595,6 +595,32 @@ fn an_unreadable_registry_file_is_a_report_entry_naming_its_path() {
         message.contains("broken/minecraft/worldgen/biome/ghost.json"),
         "{message}"
     );
+}
+
+#[test]
+fn an_extra_declaration_takes_the_stage_the_report_gives_its_key_or_keeps_its_own() {
+    let report = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/reports/datapack.json"
+    ));
+    let declarations = mcrs_minecraft_world::registries::declarations(
+        report,
+        vec![
+            Declaration::names_only(rl!("minecraft:trade_set").into(), Stage::Reloadable),
+            Declaration::names_only(rl!("test:extra").into(), Stage::Reloadable),
+        ],
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
+
+    let stages = |key: &str| -> Vec<Stage> {
+        let key = ResourceLocation::read(key).unwrap();
+        let declared = declarations
+            .iter()
+            .filter(|declaration| *declaration.key() == key);
+        declared.map(Declaration::stage).collect()
+    };
+    assert_eq!(stages("minecraft:trade_set"), [Stage::World]);
+    assert_eq!(stages("test:extra"), [Stage::Reloadable]);
 }
 
 fn json_at(path: &Path) -> serde_json::Value {

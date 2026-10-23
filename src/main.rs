@@ -6,14 +6,14 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use bevy_app::App;
+use bevy_app::{App, AppExit};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_server::{GameMode, Lighting, MinecraftServerPlugin};
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> AppExit {
     let mut app = App::new();
     app.add_plugins(LogPlugin {
         filter: LOG_FILTER.to_string(),
@@ -46,7 +46,7 @@ async fn main() {
         slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
         ..Default::default()
     });
-    mcrs_minecraft_server::run_server_loop(app);
+    mcrs_minecraft_server::run_server_loop(app)
 }
 
 fn variable(name: &str) -> Option<String> {

@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::registries::refuse;
+use crate::refuse;
 use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use std::sync::Arc;

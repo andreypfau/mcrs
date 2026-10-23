@@ -36,7 +36,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
 
 #[test]
 fn a_client_holds_the_synced_registries_and_tags_the_server_holds() {
-    let (vanilla, _) = load_vanilla_registries(&test_packs()).unwrap();
+    let (vanilla, _) = load_vanilla_registries(&test_packs(), Vec::new()).unwrap();
     let local = KnownEntries::of(&vanilla).unwrap();
     for (known, local) in [(true, Some(&local)), (false, None)] {
         let received = sent_by(test_registries(), known);

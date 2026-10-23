@@ -370,7 +370,12 @@ fn host_integrated_server(
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;
-    mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
+    mcrs_minecraft_server::spawn_server_thread(server, |app| {
+        if let AppExit::Error(code) = mcrs_minecraft_server::run_server_loop(app) {
+            error!("the integrated server stopped with an error");
+            std::process::exit(i32::from(code.get()));
+        }
+    });
     match world {
         Some(world) => info!(
             world = %world.display(),

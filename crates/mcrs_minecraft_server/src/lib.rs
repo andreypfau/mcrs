@@ -180,12 +180,17 @@ impl MinecraftServerPlugin {
     }
 }
 
+pub(crate) fn refuse<E: std::fmt::Display>(error: &E) -> ! {
+    tracing::error!("the registries are unusable:\n{error}");
+    std::process::exit(1)
+}
+
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
         let vanilla = self
             .data_pack
             .resolve()
-            .unwrap_or_else(|error| mcrs_minecraft_world::registries::refuse(&error));
+            .unwrap_or_else(|error| refuse(&error));
         let roots = mcrs_minecraft_assets::packs::PackRoots {
             assets: self
                 .asset_path

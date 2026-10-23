@@ -226,7 +226,7 @@ impl WithFiles {
     }
 
     pub fn load(&self) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-        load_registries(self)
+        load_registries(self, Vec::new())
     }
 }
 

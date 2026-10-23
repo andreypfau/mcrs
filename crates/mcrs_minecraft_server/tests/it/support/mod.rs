@@ -22,17 +22,16 @@ pub fn standalone_corpus() -> &'static (Blocks, Items) {
     test_corpus()
 }
 
-pub fn insert_corpus(app: &mut App) {
-    let (blocks, items) = standalone_corpus();
-    app.insert_resource(blocks.clone());
-    app.insert_resource(items.clone());
-}
-
 /// The host holds the loaded set, dimension types included, because a
 /// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
-    insert_corpus(app);
-    install_registries(app.world_mut(), test_registries().clone());
+    let (blocks, items) = standalone_corpus();
+    install_registries(
+        app.world_mut(),
+        test_registries().clone(),
+        blocks.clone(),
+        items.clone(),
+    );
 }
 
 pub fn dimension_type(name: &str) -> Id<DimensionType> {
@@ -76,10 +75,7 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
             generator: ChunkGenerator::Debug,
         },
     );
-    mcrs_minecraft_server::world_options::DimensionList::new(baked(
-        &dimensions,
-        test_registries(),
-    ))
+    mcrs_minecraft_server::world_options::DimensionList::new(baked(&dimensions, test_registries()))
 }
 
 pub fn update_until_playing(app: &mut App) {

@@ -12,7 +12,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::ClientboundRegistryData;
 use mcrs_minecraft_registries::{
-    DataValue, Diagnostic, Diagnostics, Received, Registries, insert_entry, load,
+    DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry, load,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -20,8 +20,8 @@ use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
-use crate::declarations;
 use crate::packs::DATAPACK_REPORT;
+use crate::registries::declarations;
 
 #[cfg(feature = "bevy")]
 pub(crate) struct AssetReaderPacks<'a>(pub &'a dyn bevy_asset::io::ErasedAssetReader);
@@ -113,24 +113,29 @@ pub(crate) fn log_diagnostics(diagnostics: &Diagnostics) {
     }
 }
 
+/// The registries of every pack of `source`, over the vanilla declarations and `extra`.
 pub fn load_registries(
     source: &dyn PackSource,
+    extra: Vec<Declaration>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    load_stack(source, RootPacks::read(source)?)
+    load_stack(source, RootPacks::read(source)?, extra)
 }
 
+/// The registries of the vanilla pack of `source` alone, over the vanilla declarations and
+/// `extra`.
 pub fn load_vanilla_registries(
     source: &dyn PackSource,
+    extra: Vec<Declaration>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    load_stack(source, RootPacks::vanilla())
+    load_stack(source, RootPacks::vanilla(), extra)
 }
 
 fn load_stack(
     source: &dyn PackSource,
     packs: RootPacks,
+    extra: Vec<Declaration>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let report = source.read(DATAPACK_REPORT)?;
-    let declarations = declarations::plan(&report).map_err(RegistryLoadError::Declarations)?;
+    let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
     let (stack, found) = pack_stack(
         &PackSelection::default(),
@@ -257,7 +262,7 @@ pub fn load_received(
     }
     let received = Received { registries, tags };
 
-    let declarations = declarations::plan(report).map_err(RegistryLoadError::Declarations)?;
+    let declarations = declarations(report, Vec::new())?;
     mcrs_minecraft_registries::load_received(&declarations, &received)
         .map_err(RegistryLoadError::Load)
 }
@@ -274,7 +279,7 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 static TEST_REGISTRIES: std::sync::LazyLock<Registries> = std::sync::LazyLock::new(|| {
-    load_registries(&test_packs())
+    load_registries(&test_packs(), Vec::new())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });
@@ -322,7 +327,7 @@ pub fn sent_by(registries: &Registries, known: bool) -> Collected {
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn registries_declaring(declarations: &[mcrs_minecraft_registries::Declaration]) -> Registries {
+pub fn registries_declaring(declarations: &[Declaration]) -> Registries {
     let (stack, _) = pack_stack(
         &PackSelection::default(),
         RootPacks::vanilla().available(),

@@ -588,7 +588,7 @@ fn registry_resources_changed_since(world: &World, since: Tick) -> bool {
 fn separate_load() -> mcrs_minecraft_registries::Registries {
     use mcrs_minecraft_world::registry_load::{load_registries, test_packs};
 
-    load_registries(&test_packs())
+    load_registries(&test_packs(), Vec::new())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 }
