@@ -22,9 +22,7 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
-use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, load_received, load_vanilla_registries,
-};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_received};
 
 use crate::blocks::BiomeTints;
 
@@ -33,9 +31,9 @@ const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/reports/datapack.json"
 ));
 
-/// The registries of the client's own vanilla pack, which fill the entries a server leaves out.
+/// The packs of the client's own vanilla pack, whose files fill the entries a server leaves out.
 #[derive(Resource)]
-pub(crate) struct VanillaRegistries(Registries);
+pub(crate) struct LocalCorpus(DirectoryPacks);
 
 /// What the server sent in its last configuration. A tag update in play replaces the tags of the
 /// registries it names and loads the registries again from it.
@@ -99,9 +97,7 @@ impl Plugin for ClientRegistriesPlugin {
         );
         app.insert_resource(Blocks(Arc::new(definitions)));
         if let Some(corpus) = &self.local_corpus {
-            let (vanilla, _) =
-                load_vanilla_registries(corpus, Vec::new()).unwrap_or_else(|error| refuse(&error));
-            app.insert_resource(VanillaRegistries(vanilla))
+            app.insert_resource(LocalCorpus(corpus.clone()))
                 .insert_resource(HoldsVanillaPack);
         }
     }
@@ -115,10 +111,14 @@ fn refuse<E: std::fmt::Display>(error: &E) -> ! {
 pub(crate) fn load_registries(
     received: &Received,
     vanilla_known: bool,
-    vanilla: Option<&VanillaRegistries>,
+    corpus: Option<&LocalCorpus>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let known = vanilla.filter(|_| vanilla_known).map(|vanilla| &vanilla.0);
-    load_received(DATAPACK_REPORT, received, known)
+    let vanilla = corpus.filter(|_| vanilla_known);
+    load_received(
+        DATAPACK_REPORT,
+        received,
+        vanilla.map(|corpus| &corpus.0 as _),
+    )
 }
 
 /// The item table is derived from the loaded registries as they are installed, so no frame sees
@@ -146,12 +146,12 @@ fn install(
 
 fn load_server_registries(
     event: On<RegistriesReceived>,
-    vanilla: Option<Res<VanillaRegistries>>,
+    corpus: Option<Res<LocalCorpus>>,
     assets: Res<AssetServer>,
     blocks: Res<Blocks>,
     mut commands: Commands,
 ) {
-    match load_registries(&event.registries, event.vanilla_known, vanilla.as_deref()) {
+    match load_registries(&event.registries, event.vanilla_known, corpus.as_deref()) {
         Ok(loaded) => {
             install(loaded, (&assets, &blocks), &mut commands);
             commands.entity(event.entity).insert(LastConfiguration {
@@ -171,7 +171,7 @@ fn load_server_registries(
 fn replace_server_tags(
     event: On<TagsReceived>,
     mut connections: Query<&mut LastConfiguration>,
-    vanilla: Option<Res<VanillaRegistries>>,
+    corpus: Option<Res<LocalCorpus>>,
     assets: Res<AssetServer>,
     blocks: Res<Blocks>,
     mut commands: Commands,
@@ -185,7 +185,7 @@ fn replace_server_tags(
         return;
     };
     last.received.replace_tags(event.tags.clone());
-    match load_registries(&last.received, last.vanilla_known, vanilla.as_deref()) {
+    match load_registries(&last.received, last.vanilla_known, corpus.as_deref()) {
         Ok(loaded) => install(loaded, (&assets, &blocks), &mut commands),
         Err(error) => close_connection_later(
             &mut commands,

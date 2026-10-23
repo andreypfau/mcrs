@@ -99,7 +99,7 @@ pub(crate) struct Filled<'f> {
     pub(crate) sources: Option<Vec<Source<'f>>>,
 }
 
-pub(crate) fn check(declarations: &[Declaration]) -> Result<(), Diagnostics> {
+fn check(declarations: &[Declaration]) -> Result<(), Diagnostics> {
     let mut errors = Vec::new();
     let mut keys = HashSet::new();
     let mut paths = HashSet::new();
@@ -136,6 +136,7 @@ pub(crate) fn stages<'f>(
     mut diagnostics: Diagnostics,
     mut fill: impl FnMut(&mut Declaration, &mut Report) -> Option<Filled<'f>>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
+    check(&declarations)?;
     for stage in Stage::ALL {
         let mut report = Report::default();
         let mut decoding = Vec::new();
@@ -310,7 +311,6 @@ fn read(
     mut files: PackFiles,
     previous: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), Diagnostics> {
-    check(&declarations)?;
     let stack = Arc::clone(&registries.reload_stack);
     let mut diagnostics = Diagnostics::default();
     let (visible, ignored) = stack.files(&mut files);

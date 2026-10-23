@@ -1,3 +1,4 @@
+mod root;
 mod stack;
 
 use mcrs_minecraft_core::ResourceLocation;

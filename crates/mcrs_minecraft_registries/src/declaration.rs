@@ -12,18 +12,19 @@ use crate::registries::{Erased, Kind, Registries, Stage};
 use crate::registry::{DataValue, Names, Registry};
 
 /// Where one entry is decoded from: a pack file or a value built in its place, both in the file
-/// form, or what a server sent, in the network form.
+/// form, or what a server sent and the file of a known pack it stands for, in the network form.
 pub(crate) enum Source<'f> {
     File { path: &'f str, bytes: &'f [u8] },
     Value(Box<dyn Any + Send + Sync>),
-    Sent(NbtTag),
+    Sent(&'f NbtTag),
+    Known(Vec<u8>),
 }
 
 impl<'f> Source<'f> {
     pub(crate) fn file(&self) -> Option<&'f str> {
         match self {
             Source::File { path, .. } => Some(path),
-            Source::Value(_) | Source::Sent(_) => None,
+            Source::Value(_) | Source::Sent(_) | Source::Known(_) => None,
         }
     }
 }
@@ -34,12 +35,12 @@ fn decode<T: Resolve<Named: DeserializeOwned + 'static>>(
     registries: &Registries,
 ) -> Result<T, ResolveError> {
     let named = match source {
-        Source::File { bytes, .. } => read_json::<T::Named>(bytes)
-            .map_err(|error| ResolveError::in_field(error.field, error.message))?,
+        Source::File { bytes, .. } => read_json::<T::Named>(bytes).map_err(ResolveError::json)?,
         Source::Value(value) => *value.downcast::<T::Named>().map_err(|_| {
             ResolveError::new(format!("the value is not a {}", type_name::<T::Named>()))
         })?,
-        Source::Sent(tag) => mcrs_minecraft_nbt::from_tag(tag)
+        Source::Known(bytes) => read_json::<T::Named>(&bytes).map_err(ResolveError::json)?,
+        Source::Sent(tag) => mcrs_minecraft_nbt::from_tag(tag.clone())
             .map_err(|error| ResolveError::new(error.to_string()))?,
     };
     T::resolve(named, registries)
@@ -146,7 +147,9 @@ impl<V: DataValue> Codec for DataDeclaration<V> {
         let mut failures = Vec::new();
         for (at, source) in sources.into_iter().enumerate() {
             let decoded = match (&self.network, source) {
-                (Some(network), source @ Source::Sent(_)) => (network.decode)(source, registries),
+                (Some(network), source @ (Source::Sent(_) | Source::Known(_))) => {
+                    (network.decode)(source, registries)
+                }
                 (_, source) => decode::<V>(source, registries),
             };
             match decoded {

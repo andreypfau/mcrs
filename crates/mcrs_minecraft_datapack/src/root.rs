@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::{AvailablePack, PackDiagnostic, PackFiles, PackStack, StackedPack};
 
@@ -17,6 +17,21 @@ const STANDARD_DATA: &str = "data";
 /// `path`, relative to a pack root, below the [`VANILLA_ROOT`] directory, if it lies there.
 pub fn below_vanilla_root(path: &Path) -> Option<&Path> {
     path.strip_prefix(VANILLA_ROOT).ok()
+}
+
+/// Reads the file of the vanilla pack of `source` at `path` in the pack, such as
+/// `data/minecraft/tags/block/logs.json`. A server names the path, so a `..` never leaves the pack.
+pub fn read_vanilla(source: &dyn PackSource, path: &str) -> Result<Vec<u8>, ReadError> {
+    let below = (path.strip_prefix(STANDARD_DATA))
+        .and_then(|below| below.strip_prefix('/'))
+        .map(Path::new)
+        .filter(|below| below.components().all(|c| matches!(c, Component::Normal(_))))
+        .filter(|below| below_vanilla_root(below).is_some())
+        .and_then(Path::to_str);
+    match below {
+        Some(below) => source.read(below),
+        None => Err(ReadError::new(path, "the vanilla pack holds no such file")),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +73,7 @@ pub trait PackSource {
 
 /// The packs under `assets`, with the vanilla pack's directory read from `vanilla`, which holds
 /// the game jar's `data/minecraft` tree.
+#[derive(Clone)]
 pub struct DirectoryPacks {
     assets: PathBuf,
     vanilla: PathBuf,

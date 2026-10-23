@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_datapack::PackStack;
+use mcrs_minecraft_datapack::ReadError;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use crate::declaration::{Declaration, Source};
+use crate::declaration::{Declaration, Source, entry_path};
 use crate::diagnostics::{Diagnostic, Diagnostics};
-use crate::load::{Filled, check, stages};
+use crate::load::{Filled, stages};
 use crate::registries::{Kind, Registries};
 
 /// Each registry's tags as sent: the tag names with the numbers of their members.
@@ -37,26 +37,24 @@ impl Received {
 
 impl Registries {
     /// Builds the registries a client holds from what a server sent. A synced registry holds the
-    /// entries sent, numbered in their order, and an entry sent without data takes the data of the
-    /// same entry of `known`. A registry read by its names alone holds the names sent. Every tag
-    /// comes from the received tags, and every other data registry is empty. Declaration
-    /// validators do not run: they check what a data pack load needs, such as the features a
-    /// biome places, which a server never sends.
+    /// entries sent, numbered in their order. An entry sent without data is decoded in the network
+    /// form from the file `known` reads at the path of the entry's file in the packs the server
+    /// negotiated. A registry read by its names alone holds the names sent. Every tag comes from
+    /// the received tags, and every other data registry is empty. Declaration validators do not
+    /// run: they check what a data pack load needs, such as the features a biome places, which a
+    /// server never sends.
     pub fn receive(
         declarations: Vec<Declaration>,
         received: &Received,
-        known: Option<&Registries>,
+        known: Option<&dyn Fn(&str) -> Result<Vec<u8>, ReadError>>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
-        check(&declarations)?;
         let sent: HashMap<&ResourceLocation, &[(ResourceLocation, Option<NbtTag>)]> =
             (received.registries.iter())
                 .map(|(key, entries)| (key, entries.as_slice()))
                 .collect();
-        let stack = Arc::new(PackStack::default());
-        let loading = Registries::new(Vec::new(), Arc::clone(&stack), stack);
         stages(
             declarations,
-            loading,
+            Registries::new(Vec::new(), Arc::default(), Arc::default()),
             true,
             Diagnostics::default(),
             |declaration, report| {
@@ -72,22 +70,26 @@ impl Registries {
                 let mut seen = HashSet::new();
                 for (name, data) in entries {
                     if !seen.insert(name) {
-                        report
-                            .errors
-                            .push(entry_error(key, name, "the entry is sent twice"));
+                        let error = Diagnostic::entry(key, name, "the entry is sent twice");
+                        report.errors.push(error);
                         continue;
                     }
                     names.push(name.clone());
                     if !decoded {
                         continue;
                     }
-                    let data = match data {
-                        Some(data) => Ok(data.clone()),
-                        None => known_entry(known, key, name),
+                    let source = match (data, known) {
+                        (Some(data), _) => Ok(Source::Sent(data)),
+                        (None, Some(read)) => read(&entry_path(key.path(), name))
+                            .map(Source::Known)
+                            .map_err(|error| error.to_string()),
+                        (None, None) => Err("the entry is sent without data and no known pack \
+                                             is negotiated"
+                            .to_owned()),
                     };
-                    match data {
-                        Ok(data) => sources.push(Source::Sent(data)),
-                        Err(message) => report.errors.push(entry_error(key, name, &message)),
+                    match source {
+                        Ok(source) => sources.push(source),
+                        Err(message) => report.errors.push(Diagnostic::entry(key, name, message)),
                     }
                 }
                 let names = report.names(key, names, Vec::new())?;
@@ -100,34 +102,6 @@ impl Registries {
                 })
             },
         )
-    }
-}
-
-fn known_entry(
-    known: Option<&Registries>,
-    registry: &ResourceLocation,
-    name: &ResourceLocation,
-) -> Result<NbtTag, String> {
-    let absent = || "the entry is sent without data and no local pack holds it".to_owned();
-    let table = known.and_then(|known| known.table(registry.as_str()));
-    let (Some(known), Some(table)) = (known, table) else {
-        return Err(absent());
-    };
-    let (Kind::Data(codec), Some(values)) = (&table.kind, &table.registry) else {
-        return Err(absent());
-    };
-    let at = table.names.get(name).ok_or_else(absent)?;
-    codec.encode(values, usize::from(at), known)
-}
-
-fn entry_error(registry: &ResourceLocation, entry: &ResourceLocation, message: &str) -> Diagnostic {
-    Diagnostic::Entry {
-        registry: registry.clone(),
-        entry: entry.clone(),
-        pack: None,
-        file: None,
-        field: None,
-        message: message.to_owned(),
     }
 }
 

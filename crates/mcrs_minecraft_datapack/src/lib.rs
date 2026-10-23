@@ -28,6 +28,6 @@ pub use pack::{
 };
 pub use root::{
     DirectoryEntry, DirectoryPacks, PACKS_ROOT, PackSource, ReadError, RootPacks, VANILLA_ROOT,
-    below_vanilla_root,
+    below_vanilla_root, read_vanilla,
 };
 pub use stack::pack_stack;

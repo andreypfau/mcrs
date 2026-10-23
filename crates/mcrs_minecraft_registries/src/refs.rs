@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 use mcrs_minecraft_core::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_datapack::JsonError;
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
     SeqAccessDeserializer, U64Deserializer,
@@ -237,10 +238,10 @@ impl ResolveError {
         }
     }
 
-    pub(crate) fn in_field(field: Option<String>, message: String) -> Self {
+    pub(crate) fn json(error: JsonError) -> Self {
         Self {
-            path: field.unwrap_or_default(),
-            ..Self::new(message)
+            path: error.field.unwrap_or_default(),
+            ..Self::new(error.message)
         }
     }
 

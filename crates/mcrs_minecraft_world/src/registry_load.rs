@@ -6,7 +6,7 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
     Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks, VANILLA_PACK,
-    pack_stack,
+    pack_stack, read_vanilla,
 };
 use mcrs_minecraft_registries::{
     DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry,
@@ -112,23 +112,7 @@ pub fn load_registries(
     source: &dyn PackSource,
     extra: Vec<Declaration>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    load_stack(source, RootPacks::read(source)?, extra)
-}
-
-/// The registries of the vanilla pack of `source` alone, over the vanilla declarations and
-/// `extra`.
-pub fn load_vanilla_registries(
-    source: &dyn PackSource,
-    extra: Vec<Declaration>,
-) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    load_stack(source, RootPacks::vanilla(), extra)
-}
-
-fn load_stack(
-    source: &dyn PackSource,
-    packs: RootPacks,
-    extra: Vec<Declaration>,
-) -> Result<(Registries, Diagnostics), RegistryLoadError> {
+    let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
     let (stack, found) = pack_stack(
@@ -182,14 +166,19 @@ fn insert_all<V: DataValue>(
 }
 
 /// The registries a client holds after a server's configuration, over the vanilla declarations.
-/// An entry sent without data takes the data of the same entry of `known`.
+/// An entry sent without data is read from the vanilla pack of `vanilla`, a pack root the client
+/// holds, when the server negotiated that pack.
 pub fn load_received(
     report: &[u8],
     received: &Received,
-    known: Option<&Registries>,
+    vanilla: Option<&dyn PackSource>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    Registries::receive(declarations(report, Vec::new())?, received, known)
-        .map_err(RegistryLoadError::Load)
+    let declarations = declarations(report, Vec::new())?;
+    let read = vanilla.map(|source| move |path: &str| read_vanilla(source, path));
+    let known = read
+        .as_ref()
+        .map(|read| read as &dyn Fn(&str) -> Result<Vec<u8>, ReadError>);
+    Registries::receive(declarations, received, known).map_err(RegistryLoadError::Load)
 }
 
 /// The repository's assets over the pinned client jar's data pack, which must be installed.

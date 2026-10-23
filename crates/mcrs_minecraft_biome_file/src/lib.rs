@@ -77,15 +77,19 @@ pub type BiomeDraft = BiomeFile<Named>;
 /// Sent to clients during Configuration; excludes carvers, features, and the
 /// attributes the client is not allowed to see.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct NetworkBiome {
     pub temperature: f32,
     pub downfall: f32,
     pub has_precipitation: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_modifier: Option<TemperatureModifier>,
+    #[serde(deserialize_with = "syncable")]
     pub attributes: EnvironmentAttributeMap,
     pub effects: BiomeEffects,
+}
+
+fn syncable<'de, D: serde::Deserializer<'de>>(d: D) -> Result<EnvironmentAttributeMap, D::Error> {
+    EnvironmentAttributeMap::deserialize(d).map(|attributes| attributes.filter_syncable())
 }
 
 mcrs_minecraft_registries::resolve_as_is!(NetworkBiome);

@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use mcrs_minecraft_datapack::ReadError;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
     Declaration, Diagnostic, Namer, NetworkSnapshot, Received, Registries, Resolve, ResolveError,
@@ -143,16 +144,11 @@ fn an_entry_sent_twice_fails_the_load() {
 #[test]
 fn an_entry_sent_without_data_takes_the_data_of_the_known_entry() {
     let declarations = || declarations_with(Declaration::data::<Damage>().synced().into());
-    let (known, _) = Packs::new()
-        .world(
-            "a",
-            &[
-                ("data/t/damage_type/a.json", &damage("t:known_a")),
-                ("data/t/damage_type/b.json", &damage("t:known_b")),
-            ],
-        )
-        .load(declarations())
-        .unwrap();
+    let known_b = damage("t:known_b");
+    let known = |path: &str| match path {
+        "data/t/damage_type/b.json" => Ok(known_b.clone().into_bytes()),
+        _ => Err(ReadError::new(path, "absent")),
+    };
     let received = Received {
         registries: vec![(
             rl("damage_type"),

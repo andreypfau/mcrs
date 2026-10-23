@@ -5,7 +5,6 @@ use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct WolfVariantAssets {
     pub wild: ResourceLocation,
     pub tame: ResourceLocation,
@@ -13,14 +12,12 @@ pub struct WolfVariantAssets {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct WolfVariant {
     pub assets: WolfVariantAssets,
     pub baby_assets: WolfVariantAssets,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PigVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: PigModel,
@@ -29,7 +26,6 @@ pub struct PigVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CowVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: CowModel,
@@ -38,7 +34,6 @@ pub struct CowVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ChickenVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: ChickenModel,
@@ -47,7 +42,6 @@ pub struct ChickenVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ZombieNautilusVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: ZombieNautilusModel,
@@ -55,14 +49,12 @@ pub struct ZombieNautilusVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CatVariant {
     pub asset_id: ResourceLocation,
     pub baby_asset_id: ResourceLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct FrogVariant {
     pub asset_id: ResourceLocation,
 }
