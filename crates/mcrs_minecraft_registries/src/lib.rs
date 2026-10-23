@@ -26,7 +26,6 @@ mod receive;
 mod refs;
 mod registries;
 mod registry;
-mod require;
 pub mod static_key;
 mod tag_file;
 mod tags;
@@ -44,7 +43,6 @@ pub use refs::{
 };
 pub use registries::{Registries, Stage};
 pub use registry::{DataValue, Entries, Registry};
-pub use require::{require_id, require_registry, require_tags};
 pub use static_key::StaticEntry;
 pub use tag_file::TagEntry;
 pub use tags::{IdSet, Tags};

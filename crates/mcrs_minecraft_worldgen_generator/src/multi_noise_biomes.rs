@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::ids::require_registry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::keys::{BIOME, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST};
@@ -7,7 +8,6 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
-use mcrs_minecraft_registries::require_registry;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
