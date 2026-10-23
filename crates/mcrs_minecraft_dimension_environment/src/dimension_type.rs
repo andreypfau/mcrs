@@ -189,6 +189,34 @@ impl<M: Refs> DimensionTypeFile<M> {
     }
 }
 
+/// A dimension type as the client receives it: only the attributes it is allowed to see.
+#[derive(Debug, Clone, Resolve)]
+pub struct NetworkDimensionType<M: Refs = Resolved>(DimensionTypeFile<M>);
+
+impl Serialize for NetworkDimensionType<Named> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for NetworkDimensionType<Named> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        DimensionTypeFile::<Named>::deserialize(d).map(|file| NetworkDimensionType(file.synced()))
+    }
+}
+
+impl From<NetworkDimensionType> for DimensionTypeFile {
+    fn from(dimension_type: NetworkDimensionType) -> Self {
+        dimension_type.0
+    }
+}
+
+impl From<&DimensionTypeFile> for NetworkDimensionType {
+    fn from(file: &DimensionTypeFile) -> Self {
+        NetworkDimensionType(file.clone().synced())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

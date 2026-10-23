@@ -10,7 +10,7 @@ use mcrs_minecraft_datapack::{
 };
 use mcrs_minecraft_registries::{
     Declaration, Diagnostic, Diagnostics, IdSet, KeySet, Named, Namer, Ref, Registries, Resolve,
-    ResolveError, Resolved, Resolver, Stage, load,
+    ResolveError, Resolved, Resolver, Stage,
 };
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -220,18 +220,19 @@ impl Packs {
 
     pub fn load(
         self,
-        declarations: &[Declaration],
-    ) -> Result<(Registries, Diagnostics), Diagnostics> {
-        self.load_after(declarations, None)
-    }
-
-    pub fn load_after(
-        self,
-        declarations: &[Declaration],
-        previous: Option<&Registries>,
+        declarations: impl IntoIterator<Item = Declaration>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
         let (stack, _) = self.stack();
-        load(declarations, Arc::new(stack), self.files, previous)
+        Registries::load(
+            declarations.into_iter().collect(),
+            Arc::new(stack),
+            self.files,
+        )
+    }
+
+    pub fn reload(self, previous: &Registries) -> Result<(Registries, Diagnostics), Diagnostics> {
+        let (stack, _) = self.stack();
+        previous.reload(Arc::new(stack), self.files)
     }
 }
 

@@ -15,7 +15,7 @@ fn biomes_without(skipped: &str) -> Registries {
         .filter(|name| name.as_str() != skipped)
         .cloned()
         .collect();
-    registries_declaring(&[Declaration::fixed(
+    registries_declaring(vec![Declaration::fixed(
         mcrs_minecraft_biome::keys::BIOME.location().into(),
         names,
     )])
@@ -52,7 +52,7 @@ fn a_biome_the_surface_names_and_the_registry_lacks_is_the_only_line_reported() 
 #[test]
 fn a_block_tag_the_packs_leave_out_is_empty_rather_than_an_error() {
     let blocks = Block::ENTRIES.iter().map(|&name| name.into()).collect();
-    let registries = registries_declaring(&[
+    let registries = registries_declaring(vec![
         Declaration::fixed(Block::REGISTRY.location().into(), blocks),
         Declaration::fixed(
             mcrs_minecraft_biome::keys::BIOME.location().into(),

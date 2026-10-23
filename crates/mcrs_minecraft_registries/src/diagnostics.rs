@@ -72,6 +72,21 @@ pub enum Diagnostic {
 }
 
 impl Diagnostic {
+    pub(crate) fn entry(
+        registry: &ResourceLocation,
+        entry: &ResourceLocation,
+        message: impl Into<String>,
+    ) -> Self {
+        Diagnostic::Entry {
+            registry: registry.clone(),
+            entry: entry.clone(),
+            pack: None,
+            file: None,
+            field: None,
+            message: message.into(),
+        }
+    }
+
     pub fn level(&self) -> Level {
         match self {
             Diagnostic::Pack(pack) => pack.level(),
@@ -210,7 +225,7 @@ impl Extend<Diagnostic> for Diagnostics {
 }
 
 impl Diagnostics {
-    pub(crate) fn push_report(&mut self, errors: Vec<Diagnostic>) {
+    pub(crate) fn with_report(mut self, errors: Vec<Diagnostic>) -> Self {
         let mut keyed: Vec<_> = errors.into_iter().map(|d| (d.report_key(), d)).collect();
         keyed.sort_by(|(a, _), (b, _)| match (a, b) {
             (Some(a), Some(b)) => {
@@ -222,5 +237,6 @@ impl Diagnostics {
         });
         self.0
             .extend(keyed.into_iter().map(|(_, diagnostic)| diagnostic));
+        self
     }
 }

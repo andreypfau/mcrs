@@ -19,8 +19,8 @@ mcrs_minecraft_registries::resolve_as_is!(crate::world_clock::WorldClock);
 
 impl crate::timeline::Timeline {
     pub fn declaration() -> DataDeclaration<Self> {
-        Declaration::data::<Self>().validate(|registry, ctx| {
-            match ctx.registry::<crate::world_clock::WorldClock>() {
+        Declaration::data::<Self>().validate(|registry, registries| {
+            match registries.registry::<crate::world_clock::WorldClock>() {
                 Some(clocks) => crate::world_clock::check_time_markers(registry.values(), clocks),
                 None => Vec::new(),
             }

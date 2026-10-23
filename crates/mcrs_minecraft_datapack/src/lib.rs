@@ -19,7 +19,6 @@ mod metadata;
 mod pack;
 mod root;
 mod stack;
-mod visibility;
 
 pub use diagnostic::{Level, PackDiagnostic};
 pub use json::{JsonError, read_json};
@@ -32,4 +31,3 @@ pub use root::{
     below_vanilla_root,
 };
 pub use stack::pack_stack;
-pub use visibility::Visibility;

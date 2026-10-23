@@ -12,7 +12,7 @@ fn load_enchantment(body: &str, extra: &[(&str, &str)]) -> Result<Registries, Di
     let files = [&[("data/t/enchantment/e.json", body)][..], extra].concat();
     Packs::new()
         .world("a", &files)
-        .load(&declarations())
+        .load(declarations())
         .map(|(registries, _)| registries)
 }
 

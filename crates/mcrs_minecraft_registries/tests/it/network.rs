@@ -2,20 +2,48 @@ use std::collections::BTreeSet;
 
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
-    Declaration, Diagnostic, NetworkSnapshot, Received, Registries, Stage, load_received,
+    Declaration, Diagnostic, Namer, NetworkSnapshot, Received, Registries, Resolve, ResolveError,
+    Resolver, Stage,
 };
 
 use crate::support::{
     Damage, DamageType, Packs, damage, declarations_with, names, report_errors, rl, tag, value,
 };
 
+/// A damage type sent as itself, except one that is too large to send.
+struct Refusing(Damage);
+
+impl Resolve for Refusing {
+    type Named = Damage;
+
+    fn resolve<C: Resolver>(named: Damage, _: &C) -> Result<Self, ResolveError> {
+        Ok(Refusing(named))
+    }
+
+    fn name<C: Namer>(&self, _: &C) -> Result<Damage, ResolveError> {
+        match self.0.message_id.as_str() {
+            "t:huge" => Err(ResolveError::new("the value is too large")),
+            _ => Ok(self.0.clone()),
+        }
+    }
+}
+
+impl From<&Damage> for Refusing {
+    fn from(damage: &Damage) -> Self {
+        Refusing(damage.clone())
+    }
+}
+
+impl From<Refusing> for Damage {
+    fn from(refusing: Refusing) -> Self {
+        refusing.0
+    }
+}
+
 fn synced_damage() -> Vec<Declaration> {
     declarations_with(
         Declaration::data::<Damage>()
-            .synced_as(|damage, _| match damage.message_id.as_str() {
-                "t:huge" => Err("the value is too large".to_owned()),
-                id => Ok(NbtTag::String(id.to_owned())),
-            })
+            .synced_via::<Refusing>()
             .into(),
     )
 }
@@ -29,9 +57,8 @@ fn an_entry_that_cannot_be_sent_fails_the_snapshot_naming_it() {
             ("data/t/damage_type/huge.json", &damage("t:huge")),
         ],
     );
-    let declarations = synced_damage();
-    let (registries, _) = packs.load(&declarations).unwrap();
-    let errors = report_errors(&NetworkSnapshot::new(&declarations, &registries));
+    let (registries, _) = packs.load(synced_damage()).unwrap();
+    let errors = report_errors(&NetworkSnapshot::new(&registries));
     assert!(
         matches!(
             &errors[..],
@@ -47,14 +74,14 @@ fn an_entry_that_cannot_be_sent_fails_the_snapshot_naming_it() {
 #[test]
 fn only_synced_registries_have_registry_data() {
     let packs = || Packs::new().world("a", &[("data/t/damage_type/fine.json", &damage("t:fine"))]);
-    let registry_data = |declarations: &[Declaration]| {
+    let registry_data = |declarations: Vec<Declaration>| {
         let (registries, _) = packs().load(declarations).unwrap();
-        let snapshot = NetworkSnapshot::new(declarations, &registries).unwrap();
+        let snapshot = NetworkSnapshot::new(&registries).unwrap();
         snapshot.registry_data(false).count()
     };
-    assert_eq!(registry_data(&synced_damage()), 1);
+    assert_eq!(registry_data(synced_damage()), 1);
     assert_eq!(
-        registry_data(&declarations_with(Declaration::data::<Damage>().into())),
+        registry_data(declarations_with(Declaration::data::<Damage>().into())),
         0
     );
 }
@@ -68,7 +95,7 @@ fn compound(message_id: &str) -> NbtTag {
 }
 
 fn receive(received: &Received) -> Result<Registries, Vec<String>> {
-    load_received(&synced_damage(), received, None)
+    Registries::receive(synced_damage(), received, None)
         .map(|(registries, _)| registries)
         .map_err(|report| report.iter().map(ToString::to_string).collect())
 }
@@ -115,7 +142,7 @@ fn an_entry_sent_twice_fails_the_load() {
 
 #[test]
 fn an_entry_sent_without_data_takes_the_data_of_the_known_entry() {
-    let declarations = declarations_with(Declaration::data::<Damage>().synced().into());
+    let declarations = || declarations_with(Declaration::data::<Damage>().synced().into());
     let (known, _) = Packs::new()
         .world(
             "a",
@@ -124,7 +151,7 @@ fn an_entry_sent_without_data_takes_the_data_of_the_known_entry() {
                 ("data/t/damage_type/b.json", &damage("t:known_b")),
             ],
         )
-        .load(&declarations)
+        .load(declarations())
         .unwrap();
     let received = Received {
         registries: vec![(
@@ -134,12 +161,12 @@ fn an_entry_sent_without_data_takes_the_data_of_the_known_entry() {
         tags: Vec::new(),
     };
 
-    let (client, _) = load_received(&declarations, &received, Some(&known)).unwrap();
+    let (client, _) = Registries::receive(declarations(), &received, Some(&known)).unwrap();
     assert_eq!(names::<DamageType>(&client), ["t:b", "t:a"]);
     assert_eq!(value::<Damage>(&client, "t:b").message_id, "t:known_b");
     assert_eq!(value::<Damage>(&client, "t:a").message_id, "t:sent_a");
 
-    let errors = report_errors(&load_received(&declarations, &received, None));
+    let errors = report_errors(&Registries::receive(declarations(), &received, None));
     assert!(
         matches!(&errors[..], [Diagnostic::Entry { entry, .. }] if *entry == rl("t:b")),
         "{errors:?}"
@@ -155,7 +182,7 @@ fn a_registry_read_by_its_names_holds_the_names_and_tags_sent() {
         tags: vec![(rl("t:names"), vec![(rl("t:all"), vec![1, 0])])],
     };
 
-    let (registries, _) = load_received(&declarations, &received, None).unwrap();
+    let (registries, _) = Registries::receive(declarations, &received, None).unwrap();
     assert_eq!(
         registries.names_of(&rl("t:names")),
         Some(&[rl("t:x"), rl("t:y")][..])

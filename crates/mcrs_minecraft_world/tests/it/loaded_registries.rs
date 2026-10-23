@@ -180,7 +180,7 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     let names: BTreeSet<String> = loaded_names(test_registries(), "minecraft:worldgen/biome")
         .into_iter()
         .collect();
-    let built = mcrs_minecraft_worldgen_builtin::biome_names();
+    let built = mcrs_minecraft_worldgen_builtin::biomes();
     assert!(!built.is_empty());
     let files: Vec<String> = std::iter::once(vanilla_dir().join("worldgen/biome"))
         .chain(
@@ -196,7 +196,7 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
         })
         .collect();
     assert!(!files.is_empty());
-    for expected in built.iter().map(|name| name.to_string()).chain(files) {
+    for expected in built.keys().map(|name| name.to_string()).chain(files) {
         assert!(
             names.contains(&expected),
             "{expected} is missing from the biome names"

@@ -57,12 +57,8 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     noises
 }
 
-pub fn biome_names() -> Vec<ResourceLocation> {
-    biome::names()
-}
-
-pub fn biome(name: &ResourceLocation) -> Option<BiomeDraft> {
-    biome::draft(name)
+pub fn biomes() -> BTreeMap<ResourceLocation, BiomeDraft> {
+    biome::drafts().collect()
 }
 
 pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {

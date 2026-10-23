@@ -149,9 +149,7 @@ impl<'de, R: Registered, V: Deserialize<'de>> Deserialize<'de> for Ref<Named, R,
         struct RefVisitor<R, V>(PhantomData<fn() -> (R, V)>);
 
         impl<'de, R: Registered, V: Deserialize<'de>> RefVisitor<R, V> {
-            fn inline<D: Deserializer<'de>>(
-                deserializer: D,
-            ) -> Result<Ref<Named, R, V>, D::Error> {
+            fn inline<D: Deserializer<'de>>(deserializer: D) -> Result<Ref<Named, R, V>, D::Error> {
                 V::deserialize(deserializer).map(|value| Ref::Inline(Arc::new(value)))
             }
         }
@@ -215,7 +213,7 @@ pub struct ResolveError {
     missing: Option<Box<MissingRef>>,
 }
 
-/// A name the registry it refers to does not hold, in a registry of the stage being loaded.
+/// A name the registry it refers to does not hold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MissingRef {
     pub(crate) registry: ResourceLocation,
@@ -246,11 +244,8 @@ impl ResolveError {
         }
     }
 
-    pub(crate) fn into_missing(self) -> Result<MissingRef, Self> {
-        match self.missing {
-            Some(missing) => Ok(*missing),
-            None => Err(self),
-        }
+    pub(crate) fn missing_ref(&self) -> Option<&MissingRef> {
+        self.missing.as_deref()
     }
 
     pub fn at(self, field: impl fmt::Display) -> Self {
@@ -367,9 +362,7 @@ impl<R: Registered, V: Resolve<Named: Clone>> Resolve for Ref<Resolved, R, V> {
     fn name<C: Namer>(&self, names: &C) -> Result<Self::Named, ResolveError> {
         match self {
             Ref::Id(id) => id.name(names).map(Ref::Id),
-            Ref::Inline(value) => value
-                .name(names)
-                .map(|value| Ref::Inline(Arc::new(value))),
+            Ref::Inline(value) => value.name(names).map(|value| Ref::Inline(Arc::new(value))),
         }
     }
 }

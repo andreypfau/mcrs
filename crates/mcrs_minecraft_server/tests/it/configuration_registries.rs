@@ -6,6 +6,7 @@ use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -17,7 +18,6 @@ use mcrs_minecraft_protocol::packets::configuration::{
 };
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
-use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_registries::{CurrentRegistries, NetworkSnapshot, Registries};
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::configuration::{
@@ -25,9 +25,7 @@ use mcrs_minecraft_server::configuration::{
     start_configuration,
 };
 use mcrs_minecraft_world::SyncedRegistries;
-use mcrs_minecraft_world::registry_load::{
-    network_snapshot, test_network, test_packs, test_registries,
-};
+use mcrs_minecraft_world::registry_load::{test_network, test_registries};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -224,7 +222,7 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
     let directory = registry.strip_prefix("minecraft:").unwrap();
     let mut entries = BTreeMap::new();
     if registry == "minecraft:worldgen/biome" {
-        for name in mcrs_minecraft_worldgen_builtin::biome_names() {
+        for name in mcrs_minecraft_worldgen_builtin::biomes().into_keys() {
             let key = (format!("{}.json", name.path()), name.namespace().to_owned());
             entries.insert(key, VANILLA_PACK.to_owned());
         }
@@ -396,7 +394,7 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
         .init_state::<AppState>()
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource(SyncedRegistries(
-            network_snapshot(&test_packs(), test_registries()).unwrap(),
+            NetworkSnapshot::new(test_registries()).unwrap(),
         ))
         .insert_resource(KnownPackOffer(true))
         .add_systems(Update, start_configuration())
@@ -465,9 +463,7 @@ fn every_join_writes_the_registry_bytes_the_load_encoded() {
     app.add_plugins(StatesPlugin)
         .init_state::<AppState>()
         .insert_resource(CurrentRegistries::new(registries.clone()))
-        .insert_resource(SyncedRegistries(
-            network_snapshot(&test_packs(), registries).unwrap(),
-        ))
+        .insert_resource(SyncedRegistries(NetworkSnapshot::new(registries).unwrap()))
         .add_systems(Update, start_configuration())
         .add_observer(on_known_packs_response);
     let offer = known_pack_offer(true, registries);

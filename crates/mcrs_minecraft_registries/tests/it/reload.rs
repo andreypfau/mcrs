@@ -47,7 +47,7 @@ fn reloaded(loot: &str) -> Packs {
 
 #[test]
 fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage() {
-    let (before, _) = startup().load(&declarations()).unwrap();
+    let (before, _) = startup().load(declarations()).unwrap();
     let old_item_tag = before
         .tags::<Item>()
         .unwrap()
@@ -59,9 +59,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
         .id(&TagKey::from_location(rl("t:t")))
         .unwrap();
 
-    let (after, diagnostics) = reloaded("{}")
-        .load_after(&declarations(), Some(&before))
-        .unwrap();
+    let (after, diagnostics) = reloaded("{}").reload(&before).unwrap();
 
     assert!(std::ptr::eq(
         before.registry::<Damage>().unwrap(),
@@ -108,7 +106,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     assert_eq!(before_items.name(newer), None);
     assert!(!before_items.contains(newer, get::<Item>(&before, "dirt")));
 
-    let (restored, _) = startup().load_after(&declarations(), Some(&after)).unwrap();
+    let (restored, _) = startup().reload(&after).unwrap();
     let restored_items = restored.tags::<Item>().unwrap();
     assert_eq!(
         restored_items.id(&TagKey::from_location(rl("t:i"))),
@@ -126,10 +124,8 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
 
 #[test]
 fn a_reload_that_breaks_a_reloadable_entry_fails() {
-    let (before, _) = startup().load(&declarations()).unwrap();
-    let report = reloaded("{")
-        .load_after(&declarations(), Some(&before))
-        .unwrap_err();
+    let (before, _) = startup().load(declarations()).unwrap();
+    let report = reloaded("{").reload(&before).unwrap_err();
     assert!(
         report.iter().any(
             |d| matches!(d, Diagnostic::Entry { registry, entry, .. } if *registry == rl("loot_table") && *entry == rl("t:l2"))
@@ -140,12 +136,12 @@ fn a_reload_that_breaks_a_reloadable_entry_fails() {
 
 #[test]
 fn an_entry_origin_follows_the_stack_of_its_stage_when_a_reload_shifts_the_stack() {
-    let (before, _) = startup().load(&declarations()).unwrap();
+    let (before, _) = startup().load(declarations()).unwrap();
     let packs = Packs::new()
         .feature("trade_rebalance", META.into())
         .world("a", &[("data/t/loot_table/l.json", "{}")])
         .world("b", &[("data/t/loot_table/l.json", "{}")]);
-    let (after, _) = packs.load_after(&declarations(), Some(&before)).unwrap();
+    let (after, _) = packs.reload(&before).unwrap();
     let pack = after.origin(get::<DamageType>(&after, "t:x")).unwrap();
     assert_eq!((pack.id(), pack.known_pack()), ("file/a", None));
     let pack = after.origin(get::<LootTable>(&after, "t:l")).unwrap();

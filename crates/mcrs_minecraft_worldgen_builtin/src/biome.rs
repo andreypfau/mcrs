@@ -289,17 +289,9 @@ const BIOMES: &[BiomeRow] = {
     ]
 };
 
-pub fn names() -> Vec<ResourceLocation> {
+/// Every biome as code describes it, its carvers and features still names.
+pub fn drafts() -> impl Iterator<Item = (ResourceLocation, Draft)> {
     BIOMES
         .iter()
-        .map(|(key, _)| (*key.location()).into())
-        .collect()
-}
-
-/// The biome named `name` as code describes it, its carvers and features still names.
-pub fn draft(name: &ResourceLocation) -> Option<Draft> {
-    BIOMES
-        .iter()
-        .find(|(key, _)| key.location().as_str() == name.as_str())
-        .map(|(_, draft)| draft())
+        .map(|(key, draft)| ((*key.location()).into(), draft()))
 }

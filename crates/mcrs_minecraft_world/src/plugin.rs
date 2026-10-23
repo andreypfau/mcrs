@@ -91,8 +91,7 @@ fn install(world: &mut World) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
     registry_load::log_diagnostics(&diagnostics);
     tracing::info!(elapsed = ?started.elapsed(), "loaded registries");
-    let synced = registry_load::network_snapshot(&AssetReaderPacks(pack_files), &registries)
-        .map_err(|error| error.to_string())?;
+    let synced = NetworkSnapshot::new(&registries).map_err(|error| error.to_string())?;
 
     let (definitions, report) =
         mcrs_minecraft_block::definition::load_block_definitions(&asset_server)

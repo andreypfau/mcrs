@@ -933,7 +933,7 @@ mod tests {
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
         world.insert_resource(CurrentRegistries::new(
-            mcrs_minecraft_world::registry_load::registries_declaring(&[]),
+            mcrs_minecraft_world::registry_load::registries_declaring(Vec::new()),
         ));
         world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 

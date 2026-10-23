@@ -13,7 +13,10 @@ use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_dimension::keys::DIMENSION;
+use mcrs_minecraft_dimension_environment::dimension_type::{
+    DimensionTypeFile, NetworkDimensionType,
+};
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
@@ -28,7 +31,7 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_registries::{Declaration, Resolve, Stage};
+use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -41,8 +44,6 @@ use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRu
 use serde::Deserialize;
 
 use crate::registry_load::RegistryLoadError;
-
-const DIMENSION: &str = "minecraft:dimension";
 
 macro_rules! spawning_variants {
     ($($file:ident as $value:ident),+ $(,)?) => {
@@ -100,11 +101,7 @@ fn typed_declarations() -> Vec<Declaration> {
             .into(),
         Declaration::data::<SulfurCubeArchetype>().synced().into(),
         Declaration::data::<DimensionTypeFile>()
-            .synced_as(|file, registries| {
-                let named = file.clone().synced().name(registries);
-                let named = named.map_err(|error| error.to_string())?;
-                mcrs_minecraft_nbt::to_nbt_tag(&named).map_err(|error| error.to_string())
-            })
+            .synced_via::<NetworkDimensionType>()
             .into(),
         Declaration::data::<DamageType>().synced().into(),
         Declaration::data::<BannerPattern>().synced().into(),
@@ -162,10 +159,10 @@ fn data_registries(report: &[u8]) -> Result<BTreeMap<ResourceLocation, Stage>, R
         .into_iter()
         .filter(|(_, flags)| flags.elements)
         .map(|(key, flags)| {
-            let stage = match (flags.stable, key.as_str()) {
+            let stage = match (flags.stable, key == DIMENSION.location()) {
                 (true, _) => Stage::Reloadable,
-                (false, DIMENSION) => Stage::Dimension,
-                (false, _) => Stage::World,
+                (false, true) => Stage::Dimension,
+                (false, false) => Stage::World,
             };
             (key, stage)
         })

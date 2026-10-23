@@ -73,13 +73,12 @@ fn every_built_in_entry_equals_the_file_the_game_ships_for_it() {
     differences.json("noise_settings", builtin::vanilla_noise_settings());
     differences.json("template_pool", builtin::template_pools());
 
-    let biomes = builtin::biome_names();
+    let biomes = builtin::biomes();
     assert!(!biomes.is_empty());
-    for id in &biomes {
-        let built = builtin::biome(id).unwrap_or_else(|| panic!("{id} is listed but not built"));
+    for (id, built) in &biomes {
         differences.compare(&format!("worldgen/biome/{}.json", id.path()), |shipped| {
             serde_json::from_slice::<BiomeFile<Named>>(shipped)
-                .is_ok_and(|shipped| shipped == built)
+                .is_ok_and(|shipped| shipped == *built)
         });
     }
 

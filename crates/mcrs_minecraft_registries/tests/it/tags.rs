@@ -39,7 +39,7 @@ fn block_tag_files(count: u32) -> Packs {
 #[test]
 fn a_registry_past_the_tag_range_fails_to_load() {
     assert_eq!(
-        report_errors(&block_tag_files(65_537).load(&declarations())),
+        report_errors(&block_tag_files(65_537).load(declarations())),
         [Diagnostic::TooManyTags {
             registry: rl("block"),
             count: 65_537,
@@ -52,7 +52,7 @@ mod exhaustive {
 
     #[test]
     fn a_registry_at_the_end_of_the_tag_range_loads() {
-        let (registries, _) = block_tag_files(65_536).load(&declarations()).unwrap();
+        let (registries, _) = block_tag_files(65_536).load(declarations()).unwrap();
         let tags = registries.tags::<Block>().unwrap();
         let last = tags.id(&TagKey::from_location(rl("t:e65535"))).unwrap();
         assert_eq!(last.number(), u16::MAX);
@@ -127,7 +127,7 @@ fn tag_members_resolve_in_order_without_duplicates() {
         (&[("e", r#"{"values":[]}"#)], "t:e", Some(&[])),
     ];
     for (files, name, expected) in cases {
-        let (registries, _) = block_tags(files).load(&declarations()).unwrap();
+        let (registries, _) = block_tags(files).load(declarations()).unwrap();
         let expected = expected.map(|e| e.iter().map(|s| s.to_string()).collect::<Vec<_>>());
         assert_eq!(tag::<Block>(&registries, name), expected, "{files:?}");
     }
@@ -164,7 +164,7 @@ fn files_merge_in_stack_order_from_the_last_valid_replace() {
                 &[("data/minecraft/tags/block/t.json", body)],
             );
         }
-        let (registries, _) = packs.load(&declarations()).unwrap();
+        let (registries, _) = packs.load(declarations()).unwrap();
         assert_eq!(
             tag::<Block>(&registries, "t"),
             Some(expected.iter().map(|s| s.to_string()).collect()),
@@ -187,7 +187,7 @@ fn a_schema_invalid_tag_file_still_makes_the_tag_exist_and_malformed_json_does_n
         ("malformed", "{", false),
     ];
     let bodies: Vec<(&str, &str)> = files.iter().map(|(n, b, _)| (*n, *b)).collect();
-    let (registries, diagnostics) = block_tags(&bodies).load(&declarations()).unwrap();
+    let (registries, diagnostics) = block_tags(&bodies).load(declarations()).unwrap();
     for (name, _, exists) in files {
         let expected = exists.then(Vec::new);
         assert_eq!(
@@ -305,7 +305,7 @@ fn cycles_fail_when_required_and_drop_one_optional_edge_otherwise() {
         ),
     ];
     for (files, expected) in cases {
-        let (registries, _) = block_tags(files).load(&declarations()).unwrap();
+        let (registries, _) = block_tags(files).load(declarations()).unwrap();
         for (name, members) in expected {
             let members = members.map(|m| m.iter().map(|s| s.to_string()).collect::<Vec<_>>());
             assert_eq!(tag::<Block>(&registries, name), members, "{files:?} {name}");
@@ -334,7 +334,7 @@ fn a_failed_tag_is_reported_with_every_missing_member_and_its_pack() {
                 r##"{"values":["#t:gone","stone"]}"##,
             )],
         )
-        .load(&declarations())
+        .load(declarations())
         .unwrap();
     let interesting: Vec<&Diagnostic> = diagnostics
         .iter()
@@ -398,7 +398,7 @@ fn a_missing_required_entry_of_a_data_pack_registry_fails_the_startup_load() {
                 ),
             ],
         )
-        .load(&declarations());
+        .load(declarations());
     assert_eq!(
         report_errors(&result),
         [Diagnostic::Unresolved {
@@ -470,7 +470,7 @@ fn shipped_block_tags_load_as_the_reported_set() {
         "vanilla",
         &mut packs,
     );
-    let (registries, diagnostics) = packs.load(&declarations).unwrap();
+    let (registries, diagnostics) = packs.load(declarations).unwrap();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 
     let ids: Vec<Id<Block>> = registries
@@ -520,7 +520,7 @@ fn a_replacing_feature_pack_tag_holds_only_its_own_members() {
         &mut packs,
     );
     files_under(&trade.join("data"), "data/", "trade_rebalance", &mut packs);
-    let (registries, _) = packs.load(&declarations).unwrap();
+    let (registries, _) = packs.load(declarations).unwrap();
 
     #[derive(Deserialize)]
     struct TagFile {

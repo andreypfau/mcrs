@@ -1,8 +1,10 @@
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 
 use crate::Registries;
-use crate::load::{Declaration, Kind};
-use crate::diagnostics::Diagnostics;
+use crate::declaration::Codec;
+use crate::diagnostics::{Diagnostic, Diagnostics};
+use crate::registries::{Kind, Table};
 use crate::tags::TagTable;
 
 /// The bodies of the configuration packets that carry the registries, without their packet ids.
@@ -19,34 +21,31 @@ struct SyncedRegistry {
 }
 
 impl NetworkSnapshot {
-    /// Encodes what the configuration phase sends of `registries`, loaded over `declarations`.
-    pub fn new(declarations: &[Declaration], registries: &Registries) -> Result<Self, Diagnostics> {
+    /// Encodes what the configuration phase sends of `registries`.
+    pub fn new(registries: &Registries) -> Result<Self, Diagnostics> {
         let mut synced = Vec::new();
         let mut synced_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
         let mut static_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
         let mut errors = Vec::new();
-        for declaration in declarations {
-            let tags = registries
-                .table(declaration.key().as_str())
-                .filter(|table| table.tags.resolved().next().is_some())
-                .map(|table| (declaration.key(), &*table.tags));
-            match &declaration.kind {
-                Kind::Fixed(_) => static_tags.extend(tags),
-                Kind::Names => {}
-                Kind::Data(data) => match data.synced_entries(registries) {
-                    None => {}
-                    Some(Ok(entries)) => {
-                        synced.push(registry_data(declaration.key(), &entries));
-                        synced_tags.extend(tags);
-                    }
-                    Some(Err(error)) => errors.push(error),
-                },
+        for table in registries.tables() {
+            let tags =
+                (table.tags.resolved().next().is_some()).then_some((&table.key, &*table.tags));
+            match &table.kind {
+                Kind::Fixed => static_tags.extend(tags),
+                Kind::Data(codec) if codec.synced() => {
+                    synced.extend(registry_data(
+                        registries,
+                        table,
+                        codec.as_ref(),
+                        &mut errors,
+                    ));
+                    synced_tags.extend(tags);
+                }
+                Kind::Names | Kind::Data(_) => {}
             }
         }
         if !errors.is_empty() {
-            let mut report = Diagnostics::default();
-            report.push_report(errors);
-            return Err(report);
+            return Err(Diagnostics::default().with_report(errors));
         }
         synced_tags.append(&mut static_tags);
         Ok(NetworkSnapshot {
@@ -73,32 +72,58 @@ impl NetworkSnapshot {
     }
 }
 
-/// A synced entry, projected to the value the client decodes and encoded as network NBT.
-pub(crate) struct SyncedEntry<'a> {
-    pub(crate) name: &'a ResourceLocation,
-    pub(crate) data: Vec<u8>,
-    pub(crate) known: bool,
-}
-
-fn registry_data(registry: &ResourceLocation, entries: &[SyncedEntry<'_>]) -> SyncedRegistry {
+/// Each entry of `table` encoded as network NBT, and whether its winning pack has a known-pack
+/// identity.
+fn registry_data(
+    registries: &Registries,
+    table: &Table,
+    codec: &dyn Codec,
+    errors: &mut Vec<Diagnostic>,
+) -> Option<SyncedRegistry> {
+    let Some(values) = &table.registry else {
+        errors.push(Diagnostic::Declaration {
+            registry: table.key.clone(),
+            message: "the synced registry was not loaded".to_owned(),
+        });
+        return None;
+    };
+    let stack = registries.stack(table.stage);
+    let mut entries = Vec::with_capacity(table.names.len());
+    for (name, number) in table.names.all().iter().zip(0..=u16::MAX) {
+        let mut data = Vec::new();
+        let encoded = (codec.encode(values, usize::from(number), registries)).and_then(|tag| {
+            (tag.serialize(&mut WriteAdaptor::new(&mut data))).map_err(|e| e.to_string())
+        });
+        if let Err(message) = encoded {
+            let message = format!("cannot be sent to a client: {message}");
+            errors.push(Diagnostic::entry(&table.key, name, message));
+            return None;
+        }
+        let origin = table.names.origin(number).and_then(|pack| stack.get(pack));
+        entries.push((
+            name,
+            data,
+            origin.is_some_and(|pack| pack.known_pack().is_some()),
+        ));
+    }
     let body = |known: bool| {
         let mut out = Vec::new();
-        string(&mut out, registry.as_str());
+        string(&mut out, table.key.as_str());
         var_int(&mut out, entries.len());
-        for entry in entries {
-            string(&mut out, entry.name.as_str());
-            let present = !(known && entry.known);
+        for (name, data, from_known_pack) in &entries {
+            string(&mut out, name.as_str());
+            let present = !(known && *from_known_pack);
             out.push(u8::from(present));
             if present {
-                out.extend_from_slice(&entry.data);
+                out.extend_from_slice(data);
             }
         }
         out.into_boxed_slice()
     };
-    SyncedRegistry {
+    Some(SyncedRegistry {
         full: body(false),
         by_reference: body(true),
-    }
+    })
 }
 
 fn update_tags(tagged: &[(&ResourceLocation, &TagTable)]) -> Box<[u8]> {

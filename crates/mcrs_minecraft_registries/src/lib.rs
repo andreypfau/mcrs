@@ -16,34 +16,37 @@ extern crate self as mcrs_minecraft_registries;
 
 #[cfg(feature = "bevy")]
 mod bevy;
+mod declaration;
 mod diagnostics;
 pub mod dispatch;
 mod load;
 mod network;
 mod order;
+mod receive;
 mod refs;
 mod registries;
 mod registry;
 mod require;
 pub mod static_key;
+mod tag_file;
 mod tags;
 mod text;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;
+pub use declaration::{DataDeclaration, Declaration, insert_entry};
 pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
-pub use load::{
-    DataDeclaration, Declaration, LoadCtx, Received, TagEntry, insert_entry, load, load_received,
-};
-pub use network::NetworkSnapshot;
-pub use registries::{Registries, Stage};
 pub use mcrs_minecraft_registries_derive::{Resolve, dispatch, registry_value};
+pub use network::NetworkSnapshot;
+pub use receive::{Received, ReceivedTags};
 pub use refs::{
     Inline, KeySet, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
 };
+pub use registries::{Registries, Stage};
 pub use registry::{DataValue, Entries, Registry};
 pub use require::{require_id, require_registry, require_tags};
 pub use static_key::StaticEntry;
+pub use tag_file::TagEntry;
 pub use tags::{IdSet, Tags};
 
 #[doc(hidden)]

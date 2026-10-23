@@ -9,8 +9,7 @@ use mcrs_minecraft_datapack::{
     pack_stack,
 };
 use mcrs_minecraft_registries::{
-    DataValue, Declaration, Diagnostic, Diagnostics, NetworkSnapshot, Received, Registries,
-    insert_entry, load,
+    DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -145,7 +144,7 @@ fn load_stack(
     insert_built_ins(&mut files);
     packs.read_files(source, &stack, &mut files)?;
 
-    match load(&declarations, Arc::new(stack), files, None) {
+    match Registries::load(declarations, Arc::new(stack), files) {
         Ok((registries, loaded)) => {
             diagnostics.extend(loaded);
             Ok((registries, diagnostics))
@@ -160,11 +159,7 @@ fn load_stack(
 const BETA_PACK: &str = "file/beta";
 
 fn insert_built_ins(files: &mut PackFiles) {
-    for name in builtin::biome_names() {
-        if let Some(biome) = builtin::biome(&name) {
-            insert_entry::<BiomeFile>(files, VANILLA_PACK, &name, biome);
-        }
-    }
+    insert_all::<BiomeFile>(files, VANILLA_PACK, builtin::biomes());
     insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools());
     insert_all::<NoiseParam>(files, VANILLA_PACK, builtin::vanilla_noises());
     insert_all::<NoiseParam>(files, BETA_PACK, builtin::beta_noises());
@@ -186,15 +181,6 @@ fn insert_all<V: DataValue>(
     }
 }
 
-/// What the configuration phase sends of `registries`, a load of the packs of `source`.
-pub fn network_snapshot(
-    source: &dyn PackSource,
-    registries: &Registries,
-) -> Result<NetworkSnapshot, RegistryLoadError> {
-    let declarations = declarations(&source.read(DATAPACK_REPORT)?, Vec::new())?;
-    NetworkSnapshot::new(&declarations, registries).map_err(RegistryLoadError::Load)
-}
-
 /// The registries a client holds after a server's configuration, over the vanilla declarations.
 /// An entry sent without data takes the data of the same entry of `known`.
 pub fn load_received(
@@ -202,8 +188,7 @@ pub fn load_received(
     received: &Received,
     known: Option<&Registries>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let declarations = declarations(report, Vec::new())?;
-    mcrs_minecraft_registries::load_received(&declarations, received, known)
+    Registries::receive(declarations(report, Vec::new())?, received, known)
         .map_err(RegistryLoadError::Load)
 }
 
@@ -230,14 +215,15 @@ pub fn test_registries() -> &'static Registries {
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-static TEST_NETWORK: std::sync::LazyLock<NetworkSnapshot> = std::sync::LazyLock::new(|| {
-    network_snapshot(&test_packs(), &TEST_REGISTRIES)
-        .unwrap_or_else(|error| panic!("the registries cannot be sent:\n{error}"))
-});
+static TEST_NETWORK: std::sync::LazyLock<mcrs_minecraft_registries::NetworkSnapshot> =
+    std::sync::LazyLock::new(|| {
+        mcrs_minecraft_registries::NetworkSnapshot::new(&TEST_REGISTRIES)
+            .unwrap_or_else(|error| panic!("the registries cannot be sent:\n{error}"))
+    });
 
 /// What the configuration phase sends of [`test_registries`].
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn test_network() -> &'static NetworkSnapshot {
+pub fn test_network() -> &'static mcrs_minecraft_registries::NetworkSnapshot {
     &TEST_NETWORK
 }
 
@@ -250,7 +236,7 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
         ClientboundRegistryData, ClientboundUpdateTags,
     };
 
-    let network = network_snapshot(&test_packs(), registries)
+    let network = mcrs_minecraft_registries::NetworkSnapshot::new(registries)
         .unwrap_or_else(|error| panic!("the registries cannot be sent:\n{error}"));
     let registries = network
         .registry_data(known)
@@ -283,14 +269,14 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn registries_declaring(declarations: &[Declaration]) -> Registries {
+pub fn registries_declaring(declarations: Vec<Declaration>) -> Registries {
     let (stack, _) = pack_stack(
         &PackSelection::default(),
         RootPacks::vanilla().available(),
         &Features::vanilla(),
         false,
     );
-    mcrs_minecraft_registries::load(declarations, Arc::new(stack), PackFiles::default(), None)
+    Registries::load(declarations, Arc::new(stack), PackFiles::default())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
 }

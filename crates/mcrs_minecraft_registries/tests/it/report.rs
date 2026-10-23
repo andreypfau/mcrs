@@ -24,7 +24,7 @@ fn a_failed_load_lists_errors_by_registry_then_entry_path_then_namespace() {
                 ),
             ],
         )
-        .load(&declarations())
+        .load(declarations())
         .unwrap_err();
     let keys: Vec<(String, String)> = report_of
         .iter()
@@ -58,8 +58,8 @@ fn a_failed_load_lists_errors_by_registry_then_entry_path_then_namespace() {
 
 fn validated() -> Declaration {
     Declaration::data::<Damage>()
-        .validate(|registry, ctx| {
-            let seen = ctx.registry::<Damage>().map(|r| r.len());
+        .validate(|registry, registries| {
+            let seen = registries.registry::<Damage>().map(|r| r.len());
             if seen != Some(registry.len()) {
                 return vec![(0, format!("the context sees {seen:?} entries"))];
             }
@@ -73,9 +73,10 @@ fn validated() -> Declaration {
 
 fn resolving() -> Declaration {
     Declaration::data::<Damage>()
-        .validate(|_, ctx| {
+        .validate(|_, registries| {
             let missing = ResourceKey::<DamageType>::from_location(rl("t:missing"));
-            ctx.id(&missing)
+            registries
+                .id(&missing)
                 .err()
                 .map(|error| (0, error.to_string()))
                 .into_iter()
@@ -154,7 +155,7 @@ fn registry_wide_checks_run_only_after_a_stage_without_entry_errors() {
         ),
     ];
     for (name, declaration, files, expected) in cases {
-        let result = Packs::new().world("a", files).load(&[declaration]);
+        let result = Packs::new().world("a", files).load([declaration]);
         let errors = report_errors(&result);
         match expected {
             Expected::Loads => assert!(result.is_ok(), "{name}: {errors:?}"),
@@ -208,7 +209,7 @@ fn a_registry_declared_twice_is_refused() {
         ),
     ];
     for (name, declarations, expected) in cases {
-        let report_of = Packs::new().load(&declarations).unwrap_err();
+        let report_of = Packs::new().load(declarations).unwrap_err();
         assert_eq!(report(&report_of), [expected], "{name}");
     }
 }

@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::{ResourceLocation, rl};
 
+use crate::PackDiagnostic;
 use crate::filter::Filter;
 
 /// The id of the pack the game jar's data pack is loaded as.
@@ -108,10 +109,6 @@ pub struct KnownPack {
 pub struct PackIndex(u16);
 
 impl PackIndex {
-    pub const fn new(number: u16) -> Self {
-        Self(number)
-    }
-
     pub fn index(self) -> usize {
         usize::from(self.0)
     }
@@ -182,10 +179,6 @@ impl PackStack {
         self.packs.get(index.index())
     }
 
-    pub fn indexed(&self) -> impl Iterator<Item = (PackIndex, &StackedPack)> {
-        (0..=u16::MAX).map(PackIndex::new).zip(self.packs.iter())
-    }
-
     pub fn known_packs(&self) -> impl Iterator<Item = &KnownPack> {
         self.packs.iter().filter_map(StackedPack::known_pack)
     }
@@ -194,17 +187,18 @@ impl PackStack {
         &self.enabled_features
     }
 
-    /// Every file and value of every pack, from the bottom of the stack up. Within one pack the
-    /// content of a later overlay replaces the content of the same path below it. Each value of a
-    /// listed pack moves out of `files`, which keeps a unit value in its place.
-    pub fn files<'f>(&self, files: &'f mut PackFiles) -> Vec<PackFile<'f>> {
+    /// Every file and value of every pack that no filter above it hides, from the bottom of the
+    /// stack up, and a diagnostic for each filter that is ignored. Within one pack the content of a
+    /// later overlay replaces the content of the same path below it. Each value of a listed pack
+    /// moves out of `files`, which keeps a unit value in its place.
+    pub fn files<'f>(&self, files: &'f mut PackFiles) -> (Vec<PackFile<'f>>, Vec<PackDiagnostic>) {
         let mut by_pack: HashMap<&str, &'f mut BTreeMap<String, Content>> = files
             .packs
             .iter_mut()
             .map(|(pack, contents)| (pack.as_str(), contents))
             .collect();
         let mut out = Vec::new();
-        for (pack_index, pack) in self.indexed() {
+        for (pack_index, pack) in (0..=u16::MAX).map(PackIndex).zip(&self.packs) {
             let Some(contents) = by_pack.remove(pack.id()) else {
                 continue;
             };
@@ -246,7 +240,46 @@ impl PackStack {
                     }),
             );
         }
-        out
+        self.filtered(out)
+    }
+
+    /// A filter whose pattern fails on a file is ignored as a whole.
+    fn filtered<'f>(&self, files: Vec<PackFile<'f>>) -> (Vec<PackFile<'f>>, Vec<PackDiagnostic>) {
+        let mut hidden = vec![false; files.len()];
+        let mut diagnostics = Vec::new();
+        for (above, pack) in self.packs.iter().enumerate() {
+            let Some(filter) = &pack.filter else {
+                continue;
+            };
+            let below = files
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| f.pack.index() < above);
+            let hides: Result<Vec<usize>, String> = below
+                .filter_map(
+                    |(at, file)| match filter.hides(file.namespace, file.relative) {
+                        Ok(true) => Some(Ok(at)),
+                        Ok(false) => None,
+                        Err(reason) => Some(Err(reason)),
+                    },
+                )
+                .collect();
+            match hides {
+                Ok(hides) => {
+                    for at in hides {
+                        if let Some(flag) = hidden.get_mut(at) {
+                            *flag = true;
+                        }
+                    }
+                }
+                Err(reason) => diagnostics.push(PackDiagnostic::FilterIgnored {
+                    pack: pack.id().to_owned(),
+                    reason,
+                }),
+            }
+        }
+        let visible = files.into_iter().zip(hidden).filter(|(_, hidden)| !hidden);
+        (visible.map(|(file, _)| file).collect(), diagnostics)
     }
 }
 

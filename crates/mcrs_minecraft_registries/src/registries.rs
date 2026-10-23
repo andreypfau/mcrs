@@ -8,7 +8,8 @@ use mcrs_minecraft_core::{
 };
 use mcrs_minecraft_datapack::{KnownPack, PackStack, StackedPack};
 
-use crate::refs::{Namer, ResolveError, Resolver};
+use crate::declaration::Codec;
+use crate::refs::{MissingRef, Namer, ResolveError, Resolver};
 use crate::registry::{Entries, Names, Registry};
 use crate::tags::{TagTable, Tags};
 
@@ -38,22 +39,53 @@ impl Stage {
 pub(crate) type Erased = Arc<dyn Any + Send + Sync>;
 
 #[derive(Clone)]
-pub(crate) struct Table {
-    pub(crate) stage: Stage,
-    pub(crate) names: Arc<Names>,
-    pub(crate) tags: Arc<TagTable>,
-    /// `None` for a static registry and one read by its names alone.
-    pub(crate) registry: Option<Erased>,
+pub(crate) enum Kind {
+    Fixed,
+    Names,
+    Data(Arc<dyn Codec>),
 }
 
 #[derive(Clone)]
+pub(crate) struct Table {
+    pub(crate) key: ResourceLocation,
+    pub(crate) stage: Stage,
+    pub(crate) kind: Kind,
+    pub(crate) names: Arc<Names>,
+    pub(crate) tags: Arc<TagTable>,
+    /// `None` for a static registry, one read by its names alone, and a data registry whose stage
+    /// is still decoding.
+    pub(crate) registry: Option<Erased>,
+}
+
+/// The tables of one load, in the order of their declarations. While a load runs, the tables of
+/// the stages it has not reached are absent.
+#[derive(Clone)]
 pub struct Registries {
-    pub(crate) tables: Arc<HashMap<ResourceLocation, Table>>,
+    tables: Arc<Vec<Table>>,
+    index: Arc<HashMap<ResourceLocation, usize>>,
     pub(crate) world_stack: Arc<PackStack>,
     pub(crate) reload_stack: Arc<PackStack>,
 }
 
 impl Registries {
+    pub(crate) fn new(
+        tables: Vec<Table>,
+        world_stack: Arc<PackStack>,
+        reload_stack: Arc<PackStack>,
+    ) -> Self {
+        let index = tables
+            .iter()
+            .enumerate()
+            .map(|(at, table)| (table.key.clone(), at))
+            .collect();
+        Self {
+            tables: Arc::new(tables),
+            index: Arc::new(index),
+            world_stack,
+            reload_stack,
+        }
+    }
+
     pub fn registry<V: RegistryValue + 'static>(&self) -> Option<&Registry<V>> {
         self.table(key_of::<V::Registry>())?
             .registry
@@ -78,7 +110,12 @@ impl Registries {
         key: &ResourceLocation,
     ) -> Option<impl Iterator<Item = (&ResourceLocation, &[u16])>> {
         let table = self.table(key.as_str())?;
-        Some(table.tags.resolved().map(|(_, name, members)| (name, members)))
+        Some(
+            table
+                .tags
+                .resolved()
+                .map(|(_, name, members)| (name, members)),
+        )
     }
 
     pub fn tags<R: Registered>(&self) -> Option<Tags<R>> {
@@ -88,11 +125,8 @@ impl Registries {
 
     pub fn origin<R: Registered>(&self, id: Id<R>) -> Option<&StackedPack> {
         let table = self.table(key_of::<R>())?;
-        let stack = match table.stage {
-            Stage::Reloadable => &self.reload_stack,
-            _ => &self.world_stack,
-        };
-        stack.get(table.names.origin(id.number())?)
+        self.stack(table.stage)
+            .get(table.names.origin(id.number())?)
     }
 
     pub fn known_packs(&self) -> impl Iterator<Item = &KnownPack> {
@@ -104,8 +138,29 @@ impl Registries {
         Arc::ptr_eq(&a.tables, &b.tables)
     }
 
+    pub(crate) fn tables(&self) -> &[Table] {
+        &self.tables
+    }
+
     pub(crate) fn table(&self, key: &str) -> Option<&Table> {
-        self.tables.get(key)
+        self.tables.get(*self.index.get(key)?)
+    }
+
+    pub(crate) fn table_mut(&mut self, key: &str) -> Option<&mut Table> {
+        let at = *self.index.get(key)?;
+        Arc::make_mut(&mut self.tables).get_mut(at)
+    }
+
+    pub(crate) fn insert(&mut self, table: Table) {
+        Arc::make_mut(&mut self.index).insert(table.key.clone(), self.tables.len());
+        Arc::make_mut(&mut self.tables).push(table);
+    }
+
+    pub(crate) fn stack(&self, stage: Stage) -> &PackStack {
+        match stage {
+            Stage::Reloadable => &self.reload_stack,
+            _ => &self.world_stack,
+        }
     }
 }
 
@@ -122,18 +177,30 @@ impl Namer for Registries {
 impl Resolver for Registries {
     fn id<R: Registered>(&self, key: &ResourceKey<R>) -> Result<Id<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
-        table
-            .names
-            .id(key.location())
-            .ok_or_else(|| ResolveError::new(format!("unknown entry {key} of {}", R::REGISTRY)))
+        let name = key.location();
+        table.names.id(name).ok_or_else(|| {
+            let message = format!("unknown entry {name} of {}", table.key);
+            miss(table, name, false, message)
+        })
     }
 
     fn tag<R: Registered>(&self, tag: &TagKey<R>) -> Result<TagId<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
+        let name = tag.location();
         table.tags.id(tag.as_str()).ok_or_else(|| {
-            ResolveError::new(format!("unknown tag #{} of {}", tag.as_str(), R::REGISTRY))
+            let message = format!("unknown tag #{name} of {}", table.key);
+            miss(table, name, true, message)
         })
     }
+}
+
+fn miss(table: &Table, name: &ResourceLocation, tag: bool, message: String) -> ResolveError {
+    let missing = MissingRef {
+        registry: table.key.clone(),
+        name: name.clone(),
+        tag,
+    };
+    ResolveError::missing(missing, message)
 }
 
 fn unbound<R: Registered>() -> ResolveError {

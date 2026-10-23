@@ -1,12 +1,14 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_datapack::{PackIndex, PackStack, StackedPack, read_json};
+use mcrs_minecraft_datapack::{
+    PackContent, PackFile, PackIndex, PackStack, StackedPack, read_json,
+};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
-use super::index::Located;
 use crate::diagnostics::{Diagnostic, Missing, Referrer};
+use crate::load::Report;
 use crate::order::identifier_order;
 use crate::registry::Names;
 use crate::tags::TagTable;
@@ -75,13 +77,6 @@ impl<'de> Deserialize<'de> for TagEntry {
             required,
         })
     }
-}
-
-pub(crate) struct TagOutcome {
-    pub(crate) table: Result<TagTable, usize>,
-    pub(crate) file_diagnostics: Vec<Diagnostic>,
-    pub(crate) resolution_diagnostics: Vec<Diagnostic>,
-    pub(crate) unresolved: Vec<Missing>,
 }
 
 struct Node {
@@ -206,7 +201,7 @@ fn push_unique(seen: &mut [bool], out: &mut Vec<u16>, id: u16) {
     }
 }
 
-fn pack_id(stack: &PackStack, pack: PackIndex) -> String {
+pub(crate) fn pack_id(stack: &PackStack, pack: PackIndex) -> String {
     stack.get(pack).map_or("", StackedPack::id).to_owned()
 }
 
@@ -232,28 +227,32 @@ fn is_failed(nodes: &[Node], at: usize) -> bool {
     nodes.get(at).is_none_or(|node| node.failed)
 }
 
+// A value stands for an entry; a tag is read from a file only.
 fn read_nodes(
     registry: &ResourceLocation,
-    files: &BTreeMap<ResourceLocation, Vec<Located<'_>>>,
+    files: BTreeMap<ResourceLocation, Vec<PackFile<'_>>>,
     stack: &PackStack,
-    file_diagnostics: &mut Vec<Diagnostic>,
+    skipped: &mut Vec<Diagnostic>,
 ) -> Vec<Node> {
-    let mut ordered: Vec<(&ResourceLocation, &Vec<Located<'_>>)> = files.iter().collect();
-    ordered.sort_by(|a, b| identifier_order(a.0, b.0));
+    let mut ordered: Vec<(ResourceLocation, Vec<PackFile<'_>>)> = files.into_iter().collect();
+    ordered.sort_by(|a, b| identifier_order(&a.0, &b.0));
 
     let mut nodes: Vec<Node> = Vec::new();
-    for (name, located) in ordered {
+    for (name, files) in ordered {
         let mut exists = false;
         let mut valid: Vec<(TagFile, PackIndex)> = Vec::new();
-        for file in located {
-            match read_json::<TagFile>(file.bytes) {
+        for file in files {
+            let PackContent::Bytes(bytes) = file.content else {
+                continue;
+            };
+            match read_json::<TagFile>(bytes) {
                 Ok(tag_file) => {
                     exists = true;
                     valid.push((tag_file, file.pack));
                 }
                 Err(error) => {
                     exists |= !error.malformed;
-                    file_diagnostics.push(Diagnostic::TagFileSkipped {
+                    skipped.push(Diagnostic::TagFileSkipped {
                         registry: registry.clone(),
                         tag: name.clone(),
                         pack: pack_id(stack, file.pack),
@@ -276,7 +275,7 @@ fn read_nodes(
             .flat_map(|(file, pack)| file.values.into_iter().map(move |m| (m, pack)))
             .collect();
         nodes.push(Node {
-            name: name.clone(),
+            name,
             members,
             failed: false,
             missing: Vec::new(),
@@ -483,16 +482,17 @@ fn number(
     numbered
 }
 
-pub(crate) fn build(
+/// The tags of `registry` its tag `files` define, numbered after the tags of `previous`.
+pub(crate) fn resolve_tags(
     registry: &ResourceLocation,
     names: &Names,
-    files: &BTreeMap<ResourceLocation, Vec<Located<'_>>>,
+    files: BTreeMap<ResourceLocation, Vec<PackFile<'_>>>,
     stack: &PackStack,
     absent_elements_fail_load: bool,
     previous: Option<&TagTable>,
-) -> TagOutcome {
-    let mut file_diagnostics = Vec::new();
-    let mut nodes = read_nodes(registry, files, stack, &mut file_diagnostics);
+    report: &mut Report,
+) -> Vec<(ResourceLocation, Option<Vec<u16>>)> {
+    let mut nodes = read_nodes(registry, files, stack, &mut report.skipped);
     let index: Index = nodes
         .iter()
         .enumerate()
@@ -500,6 +500,10 @@ pub(crate) fn build(
         .collect();
     let unresolved =
         fail_absent_members(&mut nodes, &index, names, stack, absent_elements_fail_load);
+    if !unresolved.is_empty() {
+        let missing = report.unresolved.entry(registry.clone()).or_default();
+        missing.extend(unresolved);
+    }
     let required_edges: Vec<_> = nodes
         .iter()
         .map(|node| required_tag_edges(&index, node))
@@ -509,20 +513,15 @@ pub(crate) fn build(
     let edges = acyclic_live_edges(&nodes, &index, &required);
     let resolved = resolve(&nodes, &index, names, &edges);
 
-    let resolution_diagnostics = nodes
+    let failed = nodes
         .iter()
-        .filter(|node| node.failed && !node.missing.is_empty())
-        .map(|node| Diagnostic::TagFailed {
+        .filter(|node| node.failed && !node.missing.is_empty());
+    report
+        .failed_tags
+        .extend(failed.map(|node| Diagnostic::TagFailed {
             registry: registry.clone(),
             tag: node.name.clone(),
             missing: node.missing.clone(),
-        })
-        .collect();
-
-    TagOutcome {
-        table: TagTable::new(names.len(), number(&nodes, &index, resolved, previous)),
-        file_diagnostics,
-        resolution_diagnostics,
-        unresolved,
-    }
+        }));
+    number(&nodes, &index, resolved, previous)
 }

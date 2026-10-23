@@ -52,7 +52,7 @@ use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, Pa
 use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, Namer, Received};
+use mcrs_minecraft_registries::{CurrentRegistries, Namer, Received, ReceivedTags};
 use md5::{Digest, Md5};
 use std::borrow::Cow;
 use std::net::SocketAddr;
@@ -98,9 +98,6 @@ pub struct ServerProfile {
 /// leave that pack's entries out.
 #[derive(Resource)]
 pub struct HoldsVanillaPack;
-
-/// Each registry's tags as sent: the tag names with the numbers of their members.
-pub type ReceivedTags = Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>;
 
 fn collect_registry(received: &mut Received, data: ClientboundRegistryData<'_>) {
     let registry: ResourceLocation = data.registry.into();
@@ -717,7 +714,7 @@ mod tests {
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::text::Text;
-    use mcrs_minecraft_registries::{Declaration, load_received};
+    use mcrs_minecraft_registries::{Declaration, Registries};
     use serde::{Deserialize, Serialize};
     use std::borrow::Cow;
     use std::sync::Arc;
@@ -867,11 +864,12 @@ mod tests {
         let cats = (0..cats)
             .map(|n| name(&format!("minecraft:cat{n}")))
             .collect();
-        let declarations = [
+        let declarations = vec![
             Declaration::fixed(DIMENSION_TYPE.location().into(), types),
             Declaration::fixed(CAT_VARIANT.location().into(), cats),
         ];
-        let (registries, _) = load_received(&declarations, &Received::default(), None).unwrap();
+        let (registries, _) =
+            Registries::receive(declarations, &Received::default(), None).unwrap();
         CurrentRegistries::new(registries)
     }
 

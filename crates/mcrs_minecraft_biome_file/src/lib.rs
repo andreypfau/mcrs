@@ -250,10 +250,11 @@ pub struct BiomeGenerationSettings {
 
 impl BiomeFile {
     pub fn declaration() -> DataDeclaration<Self> {
-        Declaration::data::<Self>().validate(|registry, ctx| {
-            let (Some(placed), Some(tags)) =
-                (ctx.registry::<PlacedFeatures>(), ctx.tags::<PlacedFeatures>())
-            else {
+        Declaration::data::<Self>().validate(|registry, registries| {
+            let (Some(placed), Some(tags)) = (
+                registries.registry::<PlacedFeatures>(),
+                registries.tags::<PlacedFeatures>(),
+            ) else {
                 return Vec::new();
             };
             let biomes = registry.values().iter().map(|biome| {
