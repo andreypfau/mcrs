@@ -133,14 +133,13 @@ impl Noise for LegacyPerlin2dNoise {
         amplitude: f32,
     ) {
         let size = volume.size();
-        let mut index = 0usize;
+        let mut slots = out.iter_mut();
         for iz in 0..size.z {
             let z = volume.block_z(iz) as f64 * xz_scale;
             for ix in 0..size.x {
                 let value = amplitude * self.get_xz(volume.block_x(ix) as f64 * xz_scale, z);
-                for _ in 0..size.y {
-                    out[index] += value;
-                    index += 1;
+                for slot in slots.by_ref().take(size.y as usize) {
+                    *slot += value;
                 }
             }
         }
@@ -350,7 +349,7 @@ impl GradientNoise {
         amplitude: f32,
     ) {
         let size = volume.size();
-        let mut index = 0usize;
+        let mut slots = out.iter_mut();
         for iz in 0..size.z {
             let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.offset_z;
 
@@ -358,7 +357,7 @@ impl GradientNoise {
                 let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.offset_x;
                 let mut lane = Lane::new(self, shifted_x, shifted_z);
 
-                for iy in 0..size.y {
+                for (iy, slot) in (0..size.y).zip(slots.by_ref()) {
                     let original_y = volume.block_y(iy) as f64 * y_scale;
                     let value = lane.sample::<SMEARED>(
                         self,
@@ -366,8 +365,7 @@ impl GradientNoise {
                         original_y,
                         fudge_y_scale,
                     );
-                    out[index] = mul_add(amplitude, value, out[index]);
-                    index += 1;
+                    *slot = mul_add(amplitude, value, *slot);
                 }
             }
         }
@@ -393,7 +391,7 @@ impl GradientNoise {
         scale: [f64; 3],
         amplitude: f32,
     ) {
-        let mut index = 0usize;
+        let mut slots = out.iter_mut();
         let mut cached_cell = -1i32;
         let (mut lower_near, mut upper_near) = (0.0f32, 0.0f32);
         let (mut lower_far, mut upper_far) = (0.0f32, 0.0f32);
@@ -412,7 +410,7 @@ impl GradientNoise {
                 let local_z = (z - floor_z) as f32;
                 let fade_z = smoothstep(local_z);
 
-                for iy in 0..size[1] {
+                for (iy, slot) in (0..size[1]).zip(slots.by_ref()) {
                     let y = mul_add64(offset[1] + iy as f64, scale[1], self.offset_y);
                     let floor_y = y.floor();
                     let cell = floor_y as i32 & 0xFF;
@@ -451,8 +449,7 @@ impl GradientNoise {
 
                     let near = lerp(fade_y, lower_near, upper_near);
                     let far = lerp(fade_y, lower_far, upper_far);
-                    out[index] = mul_add(amplitude, lerp(fade_z, near, far), out[index]);
-                    index += 1;
+                    *slot = mul_add(amplitude, lerp(fade_z, near, far), *slot);
                 }
             }
         }

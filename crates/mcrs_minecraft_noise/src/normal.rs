@@ -45,7 +45,8 @@ pub fn create<R: Random>(params: &NoiseParam, random: &mut R) -> NoiseStack<Octa
     for (i, (a, b)) in first.into_iter().zip(second).enumerate() {
         let (Some(a), Some(b)) = (a, b) else { continue };
         let frequency = 2.0f64.powi(base_octave + i as i32);
-        let amplitude = (octaves.factor * octaves.amplitudes[i].unwrap_or(0.0)) as f32;
+        let amplitude =
+            (octaves.factor * octaves.amplitudes.get(i).copied().flatten().unwrap_or(0.0)) as f32;
         stack.add(
             Octave::Perlin(PerlinNoise::from_gradient(a)),
             frequency,

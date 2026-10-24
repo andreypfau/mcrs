@@ -204,14 +204,14 @@ impl BlendedNoise {
                     );
                 }
 
-                for (i, slot) in run.iter_mut().enumerate() {
+                for ((slot, &min), &max) in run.iter_mut().zip(&*min).zip(&*max) {
                     let alpha = *slot;
                     *slot = if alpha == 0.0 {
-                        min[i]
+                        min
                     } else if alpha == 1.0 {
-                        max[i]
+                        max
                     } else {
-                        jmath::lerp(alpha, min[i], max[i])
+                        jmath::lerp(alpha, min, max)
                     };
                 }
             });

@@ -39,7 +39,21 @@ pub trait NoiseFloat:
     /// a column rather than folding it into the dot.
     #[inline(always)]
     fn grad_y_at(index: usize) -> Self {
-        Self::GRAD_FLAT[(index & 60) | 1]
+        let [_, y, _] = Self::gradient_at(index);
+        y
+    }
+
+    /// The x, y and z of the gradient at `index`. The fallback is never taken:
+    /// the mask keeps the read inside the table, and the optimizer drops it.
+    #[inline(always)]
+    fn gradient_at(index: usize) -> [Self; 3] {
+        match Self::GRAD_FLAT
+            .get(index & 60..)
+            .and_then(<[Self]>::first_chunk)
+        {
+            Some(&gradient) => gradient,
+            None => [Self::from_f64(0.0); 3],
+        }
     }
 
     #[inline(always)]
@@ -71,18 +85,14 @@ impl NoiseFloat for f64 {
     /// always ±0 and the nesting cannot move the strict result.
     #[inline(always)]
     fn grad_dot_at(index: usize, x: f64, y: f64, z: f64) -> f64 {
-        let i = index & 60;
-        mul_add64(
-            Self::GRAD_FLAT[i | 2],
-            z,
-            mul_add64(Self::GRAD_FLAT[i | 1], y, Self::GRAD_FLAT[i] * x),
-        )
+        let [gx, gy, gz] = Self::gradient_at(index);
+        mul_add64(gz, z, mul_add64(gy, y, gx * x))
     }
 
     #[inline(always)]
     fn grad_dot_xz_at(index: usize, x: f64, z: f64) -> f64 {
-        let i = index & 60;
-        mul_add64(Self::GRAD_FLAT[i | 2], z, Self::GRAD_FLAT[i] * x)
+        let [gx, _, gz] = Self::gradient_at(index);
+        mul_add64(gz, z, gx * x)
     }
 }
 
@@ -98,14 +108,14 @@ impl NoiseFloat for f32 {
     /// products fused, so the rounding of the fused form is part of the contract.
     #[inline(always)]
     fn grad_dot_at(index: usize, x: f32, y: f32, z: f32) -> f32 {
-        let i = index & 60;
-        Self::GRAD_FLAT[i | 2].mul_add(z, Self::GRAD_FLAT[i | 1].mul_add(y, Self::GRAD_FLAT[i] * x))
+        let [gx, gy, gz] = Self::gradient_at(index);
+        gz.mul_add(z, gy.mul_add(y, gx * x))
     }
 
     #[inline(always)]
     fn grad_dot_xz_at(index: usize, x: f32, z: f32) -> f32 {
-        let i = index & 60;
-        Self::GRAD_FLAT[i | 2].mul_add(z, Self::GRAD_FLAT[i] * x)
+        let [gx, _, gz] = Self::gradient_at(index);
+        gz.mul_add(z, gx * x)
     }
 }
 
@@ -197,7 +207,7 @@ impl GradientNoise {
 
     #[inline(always)]
     pub(crate) fn permute(&self, index: usize) -> usize {
-        self.perms[index & 0xFF] as usize
+        usize::from(self.perms.get(index & 0xFF).copied().unwrap_or_default())
     }
 
     #[inline(always)]

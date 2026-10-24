@@ -38,7 +38,7 @@ impl<'a> Runs<'a> {
     #[inline]
     pub fn col(self, ix: usize, iz: usize) -> &'a [f32] {
         let base = ix * self.stride_x + iz * self.stride_z;
-        &self.data[base..base + self.run]
+        self.data.get(base..base + self.run).unwrap_or_default()
     }
 }
 
@@ -66,9 +66,8 @@ fn map1(out: &mut [f32], a: &[f32], f: impl Fn(f32) -> f32) {
         for (o, &x) in out.iter_mut().zip(a) {
             *o = f(x);
         }
-    } else {
-        let x = f(a[0]);
-        out.fill(x);
+    } else if let Some(&x) = a.first() {
+        out.fill(f(x));
     }
 }
 
@@ -82,18 +81,24 @@ fn zip2(out: &mut [f32], a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) {
             }
         }
         (false, true) => {
-            let x = a[0];
-            for (o, &y) in out.iter_mut().zip(b) {
-                *o = f(x, y);
+            if let Some(&x) = a.first() {
+                for (o, &y) in out.iter_mut().zip(b) {
+                    *o = f(x, y);
+                }
             }
         }
         (true, false) => {
-            let y = b[0];
-            for (o, &x) in out.iter_mut().zip(a) {
-                *o = f(x, y);
+            if let Some(&y) = b.first() {
+                for (o, &x) in out.iter_mut().zip(a) {
+                    *o = f(x, y);
+                }
             }
         }
-        (false, false) => out.fill(f(a[0], b[0])),
+        (false, false) => {
+            if let (Some(&x), Some(&y)) = (a.first(), b.first()) {
+                out.fill(f(x, y));
+            }
+        }
     }
 }
 
@@ -101,8 +106,8 @@ fn zip2(out: &mut [f32], a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) {
 fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f32) -> f32) {
     let n = out.len();
     if a.len() == n && b.len() == n && c.len() == n {
-        for (i, o) in out.iter_mut().enumerate() {
-            *o = f(a[i], b[i], c[i]);
+        for (o, ((&x, &y), &z)) in out.iter_mut().zip(a.iter().zip(b).zip(c)) {
+            *o = f(x, y, z);
         }
         return;
     }
@@ -111,8 +116,9 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
     // here; the loop that runs carries no test of its own.
     let stride = |s: &[f32]| usize::from(s.len() == n);
     let (sa, sb, sc) = (stride(a), stride(b), stride(c));
+    let read = |s: &[f32], i: usize| s.get(i).copied().unwrap_or_default();
     for (i, o) in out.iter_mut().enumerate() {
-        *o = f(a[i * sa], b[i * sb], c[i * sc]);
+        *o = f(read(a, i * sa), read(b, i * sb), read(c, i * sc));
     }
 }
 
@@ -152,7 +158,10 @@ pub fn zip3_columns(
 /// that cannot hoist the decision, such as the arm merge in a selection node.
 #[inline]
 pub fn at(s: &[f32], i: usize) -> f32 {
-    if s.len() == 1 { s[0] } else { s[i] }
+    match s {
+        [x] => *x,
+        _ => s.get(i).copied().unwrap_or_default(),
+    }
 }
 
 #[cfg(test)]

@@ -104,15 +104,14 @@ impl Noise for SimplexNoise {
         amplitude: f32,
     ) {
         let size = volume.size();
-        let mut index = 0usize;
+        let mut slots = out.iter_mut();
         for iz in 0..size.z {
             let z = volume.block_z(iz) as f64 * xz_scale;
             for ix in 0..size.x {
                 let x = volume.block_x(ix) as f64 * xz_scale;
                 let value = amplitude * self.sample_2d(x, z, 1.0, 1.0) as f32;
-                for _ in 0..size.y {
-                    out[index] += value;
-                    index += 1;
+                for slot in slots.by_ref().take(size.y as usize) {
+                    *slot += value;
                 }
             }
         }

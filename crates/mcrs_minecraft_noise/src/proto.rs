@@ -143,8 +143,12 @@ impl NoiseParam {
         if factor == 0.0 {
             return unit;
         }
-        let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
-        let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
+        let (Some(lowest), Some(highest)) = (
+            amplitudes.iter().position(|a| *a != 0.0),
+            amplitudes.iter().rposition(|a| *a != 0.0),
+        ) else {
+            return unit;
+        };
         let span_factor = parity_normalization_factor(1.0, (highest - lowest) as f64);
         NoiseParam {
             base_amplitude: HashableF64(span_factor / factor),
@@ -189,9 +193,11 @@ impl NoiseParam {
             (target_amplitude * TARGET_DEVIATION) / (input_deviation * std::f64::consts::SQRT_2)
         };
 
-        if self.normalize == Normalization::Legacy && factor != 0.0 {
-            let lowest = modifiers.iter().position(|m| *m != 0.0).unwrap();
-            let highest = modifiers.iter().rposition(|m| *m != 0.0).unwrap();
+        if self.normalize == Normalization::Legacy
+            && factor != 0.0
+            && let Some(lowest) = modifiers.iter().position(|m| *m != 0.0)
+            && let Some(highest) = modifiers.iter().rposition(|m| *m != 0.0)
+        {
             let parity = parity_normalization_factor(base_amplitude, (highest - lowest) as f64);
             target_amplitude *= parity / factor;
             factor = parity;
