@@ -118,6 +118,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         P: Packet + Encode,
     {
         self.enc.append_packet(pkt)?;
+        self.flush().await
+    }
+
+    pub async fn flush(&mut self) -> anyhow::Result<()> {
         let bytes = self.enc.take();
         self.stream.write_all(&bytes).await?;
         Ok(())
@@ -191,6 +195,24 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             unsent: VecDeque::new(),
         }
     }
+}
+
+impl<S> WritePacket for PacketIo<S> {
+    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
+    where
+        P: Encode + Packet,
+    {
+        self.enc.append_packet(packet)
+    }
+}
+
+/// Decodes a packet that must take up the whole body.
+pub(crate) fn decode_body<'a, P: Decode<'a> + Packet>(body: &'a [u8]) -> anyhow::Result<P> {
+    let mut r = body;
+    let packet =
+        anyhow::Context::with_context(P::decode(&mut r), || format!("reading {}", P::NAME))?;
+    anyhow::ensure!(r.is_empty(), "{} bytes left over in {}", r.len(), P::NAME);
+    Ok(packet)
 }
 
 async fn reader_loop<R: AsyncRead + Unpin>(

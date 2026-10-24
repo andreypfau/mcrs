@@ -1,8 +1,8 @@
 use crate::event::ReceivedPacketEvent;
-use crate::identity;
-use crate::packet_io::{ByteStream, PacketIo};
-use crate::{ConnectionState, RawConnection, SwitchMode};
-use anyhow::{Context as _, bail};
+use crate::join::{Configuration, Join, Joined, received_tags};
+use crate::packet_io::PacketIo;
+use crate::{ConnectionState, RawConnection};
+use anyhow::Context as _;
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -13,24 +13,12 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::handshake::Intent;
-use mcrs_minecraft_protocol::packets::common::Brand;
-use mcrs_minecraft_protocol::packets::common::serverbound::{
-    ClientInformation, KeepAlive, ModList, Payload, PropertyMap,
-};
-use mcrs_minecraft_protocol::packets::configuration::clientbound::{
-    ClientboundFinishConfiguration, ClientboundKeepAlive as ConfigurationKeepAlive,
-    ClientboundRegistryData, ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags,
-};
-use mcrs_minecraft_protocol::packets::configuration::serverbound::{
-    ServerboundClientInformation, ServerboundCustomPayload, ServerboundFinishConfiguration,
-    ServerboundKeepAlive as ServerboundConfigurationKeepAlive, ServerboundSelectKnownPacks,
-};
+use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundKeepAlive as GameKeepAlive,
     ClientboundLogin, ClientboundPlayerPosition, ClientboundRespawn,
@@ -40,27 +28,14 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundConfigurationAcknowledged, ServerboundKeepAlive as ServerboundGameKeepAlive,
 };
-use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_minecraft_protocol::packets::login::clientbound::{
-    ClientboundLoginDisconnect, ClientboundLoginFinished, ClientboundLoginFinishedWithOptions,
-    LoginCompression, OptionFlags,
-};
-use mcrs_minecraft_protocol::packets::login::serverbound::{
-    ServerboundHello, ServerboundLoginAcknowledged,
-};
-use mcrs_minecraft_protocol::resource_pack::KnownPack;
-use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
-use mcrs_minecraft_protocol::{
-    Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
-};
-use mcrs_minecraft_registries::{CurrentRegistries, Namer, Received, ReceivedTags};
+use mcrs_minecraft_protocol::{Encode, Look, Packet, WritePacket, uuid::Uuid};
+use mcrs_minecraft_registries::{CurrentRegistries, Namer, ReceivedTags};
 use md5::{Digest, Md5};
-use std::borrow::Cow;
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 /// The browser has no TCP and the native client has no WebTransport, so what
 /// "the server" is differs by target; everything downstream of the byte stream
@@ -81,6 +56,9 @@ pub struct ClientNetworkPlugin {
     pub username: String,
     pub profile_id: Option<Uuid>,
     pub view_distance: u8,
+    /// Inserts [`HoldsVanillaPack`]. Set it only when the registry loader can fill the entries
+    /// a server leaves out.
+    pub holds_vanilla_pack: bool,
 }
 
 /// The socket, its reader and writer tasks, and the outbound encoder.
@@ -89,64 +67,19 @@ pub struct ClientConnection {
     raw: Box<RawConnection>,
 }
 
-#[derive(Component, Clone, Debug, PartialEq, Eq)]
-pub struct ServerProfile {
-    pub id: Uuid,
-    pub username: String,
-}
+pub use crate::join::ServerProfile;
 
 /// Present when the client holds the vanilla pack of its own version, so it may let a server
 /// leave that pack's entries out.
 #[derive(Resource)]
 pub struct HoldsVanillaPack;
 
-fn collect_registry(received: &mut Received, data: ClientboundRegistryData<'_>) {
-    let registry: ResourceLocation = data.registry.into();
-    let entries = data
-        .entries
-        .into_iter()
-        .map(|entry| (entry.id.into(), entry.data.map(Cow::into_owned)));
-    match received
-        .registries
-        .iter_mut()
-        .find(|(collected, _)| *collected == registry)
-    {
-        Some((_, collected)) => collected.extend(entries),
-        None => received.registries.push((registry, entries.collect())),
-    }
-}
-
-fn received_tags(update: Vec<RegistryTags<'_>>) -> ReceivedTags {
-    update
-        .into_iter()
-        .map(|registry| {
-            let tags = registry
-                .tags
-                .into_iter()
-                .map(|group| {
-                    let members = group.entries.into_iter().map(|member| member.0).collect();
-                    (group.name.into(), members)
-                })
-                .collect();
-            (registry.registry.into(), tags)
-        })
-        .collect()
-}
-
-#[derive(Component, Default)]
-struct ConfigurationPackets {
-    received: Received,
-    vanilla_known: bool,
-}
-
 /// A server ended its configuration. The connection stays in configuration until an observer
 /// answers with [`finish_configuration`] or drops it with [`close_connection_later`].
 #[derive(EntityEvent, Debug)]
 pub struct RegistriesReceived {
     pub entity: Entity,
-    pub registries: Received,
-    /// The client accepted the vanilla pack, so the server may leave its entries' data out.
-    pub vanilla_known: bool,
+    pub configuration: Configuration,
 }
 
 /// A server replaced the tags of the registries it names during play.
@@ -215,13 +148,7 @@ pub struct ChunkCacheRadius(pub i32);
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Resource)]
-struct ClientRuntime(
-    #[expect(
-        dead_code,
-        reason = "the runtime is held only so its tasks live as long as the process, and nothing reads it"
-    )]
-    Runtime,
-);
+struct ClientRuntime(Runtime);
 
 /// Without it a lost connection only logs: a test harness or a browser tab
 /// outlives its connection, a windowed client has nothing left to show.
@@ -248,6 +175,21 @@ pub fn close_connection_later(commands: &mut Commands, connection: Entity, reaso
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(not(target_family = "wasm"))]
+        app.insert_resource(ClientRuntime(
+            Runtime::new().expect("Failed to start the client network runtime"),
+        ));
+        app.configure_sets(
+            Update,
+            (ClientNetworkSystems::Receive, ClientNetworkSystems::Flush).chain(),
+        );
+        app.add_systems(Update, flush.in_set(ClientNetworkSystems::Flush));
+        app.add_observer(handle_configuration_packet);
+        app.add_observer(handle_game_packet);
+        if self.holds_vanilla_pack {
+            app.insert_resource(HoldsVanillaPack);
+        }
+
         let (send, recv) = channel(1);
         #[cfg_attr(
             not(target_family = "wasm"),
@@ -257,44 +199,43 @@ impl Plugin for ClientNetworkPlugin {
             )
         )]
         let server = self.server.clone();
-        let username = self.username.clone();
-        let profile_id = self
-            .profile_id
-            .unwrap_or_else(|| offline_player_uuid(&username));
-        let view_distance = self.view_distance;
-
+        #[cfg(not(target_family = "wasm"))]
+        let (server_address, server_port, remote_addr) =
+            (server.ip().to_string(), server.port(), server);
+        // A browser never learns the peer address; the connection carries one
+        // only so a server-side log line has something to print.
+        #[cfg(target_family = "wasm")]
+        let ((server_address, server_port), remote_addr) =
+            (server.host_and_port(), SocketAddr::from(([0, 0, 0, 0], 0)));
+        let join = Join {
+            server_address,
+            server_port,
+            remote_addr,
+            username: self.username.clone(),
+            profile_id: self
+                .profile_id
+                .unwrap_or_else(|| offline_player_uuid(&self.username)),
+            protocol_version: VERSION.protocol_version,
+            view_distance: self.view_distance,
+            holds_vanilla_pack: self.holds_vanilla_pack,
+        };
         let joining = async move {
-            let outcome = connect_and_log_in(server, username, profile_id)
+            let outcome = connect_and_join(server, join)
                 .await
                 .map_err(|e| format!("{e:#}"));
             let _ = send.send(outcome).await;
         };
-
         #[cfg(not(target_family = "wasm"))]
-        {
-            let runtime = Runtime::new().expect("Failed to start the client network runtime");
-            runtime.spawn(joining);
-            app.insert_resource(ClientRuntime(runtime));
-        }
+        app.world().resource::<ClientRuntime>().0.spawn(joining);
         #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(joining);
 
-        app.configure_sets(
-            Update,
-            (ClientNetworkSystems::Receive, ClientNetworkSystems::Flush).chain(),
-        );
         app.add_systems(
             Update,
-            (
-                spawn_logged_in_connection(recv, view_distance),
-                receive_packets,
-            )
+            (spawn_joined_connection(recv), receive_packets)
                 .chain()
                 .in_set(ClientNetworkSystems::Receive),
         );
-        app.add_systems(Update, flush.in_set(ClientNetworkSystems::Flush));
-        app.add_observer(handle_configuration_packet);
-        app.add_observer(handle_game_packet);
     }
 }
 
@@ -322,182 +263,45 @@ pub fn offline_player_uuid(username: &str) -> Uuid {
     .into_uuid()
 }
 
-async fn connect_and_log_in(
-    server: ServerAddress,
-    username: String,
-    profile_id: Uuid,
-) -> anyhow::Result<(RawConnection, ServerProfile)> {
+async fn connect_and_join(server: ServerAddress, join: Join) -> anyhow::Result<Joined> {
     #[cfg(not(target_family = "wasm"))]
-    {
-        let io = PacketIo::connect(server).await?;
-        log_in(
-            io,
-            server,
-            server.ip().to_string(),
-            server.port(),
-            username,
-            profile_id,
-            VERSION.protocol_version,
-        )
-        .await
-    }
+    let io = PacketIo::connect(server).await?;
     #[cfg(target_family = "wasm")]
-    {
-        // A browser never learns the peer address; the connection carries one
-        // only so a server-side log line has something to print.
-        let peer = SocketAddr::from(([0, 0, 0, 0], 0));
-        let (host, port) = server.host_and_port();
-        let io = PacketIo::new(crate::browser::connect(&server).await?);
-        log_in(
-            io,
-            peer,
-            host,
-            port,
-            username,
-            profile_id,
-            VERSION.protocol_version,
-        )
-        .await
-    }
+    let io = PacketIo::new(crate::browser::connect(&server).await?);
+    crate::join::configure(io, join).await
 }
 
-/// Handshake and login run before the socket is split in two, because
-/// `LoginCompression` changes the framing of every packet after it and the
-/// reader task may already have decoded them by the time an ECS system could
-/// react.
-async fn log_in<S: ByteStream>(
-    mut io: PacketIo<S>,
-    remote_addr: SocketAddr,
-    host: String,
-    port: u16,
-    username: String,
-    profile_id: Uuid,
-    protocol_version: i32,
-) -> anyhow::Result<(RawConnection, ServerProfile)> {
-    io.send_packet(&ServerboundHandshake {
-        protocol_version: VarInt(protocol_version),
-        server_address: Bounded(host.as_str()),
-        server_port: port,
-        intent: Intent::Login,
-    })
-    .await?;
-    io.send_packet(&ServerboundHello {
-        username: Bounded(username.as_str()),
-        profile_id,
-    })
-    .await?;
+type JoinOutcome = Result<Joined, String>;
 
-    let Some(switch_mode) = SwitchMode::of(protocol_version) else {
-        bail!("no login switch mode is known for protocol version {protocol_version}");
-    };
-    // A server that never announced a threshold still can ask for compression.
-    let mut stored_threshold = CompressionThreshold(0);
-    let (profile, options) = loop {
-        let (id, body) = io.recv_frame().await?;
-        let mut r = &body[..];
-        if id == ClientboundLoginDisconnect::ID {
-            let packet = ClientboundLoginDisconnect::decode(&mut r)?;
-            bail!("server refused the login: {}", packet.reason.0);
-        } else if id == LoginCompression::ID {
-            let threshold = CompressionThreshold(LoginCompression::decode(&mut r)?.threshold.0);
-            match switch_mode {
-                SwitchMode::Immediate => io.set_compression(threshold),
-                SwitchMode::Acknowledged => stored_threshold = threshold,
-            }
-        } else if id == ClientboundLoginFinished::ID {
-            let (profile, options) = match switch_mode {
-                SwitchMode::Immediate => (
-                    ClientboundLoginFinished::decode(&mut r)?.profile,
-                    OptionFlags::new(),
-                ),
-                SwitchMode::Acknowledged => {
-                    let packet = ClientboundLoginFinishedWithOptions::decode(&mut r)?;
-                    (packet.profile, packet.options)
-                }
-            };
-            break (
-                ServerProfile {
-                    id: profile.id,
-                    username: profile.username.0.to_owned(),
-                },
-                options,
-            );
-        } else {
-            bail!("unexpected login packet {id:#04x}; only offline login is supported");
-        }
-    };
-
-    if options.cipher() {
-        bail!("the server asked for encryption; only offline login is supported");
-    }
-    let compression = options.compression().then_some(stored_threshold);
-    if let Some(threshold) = compression {
-        io.set_inbound_compression(threshold);
-    }
-    io.send_packet(&ServerboundLoginAcknowledged).await?;
-    if let Some(threshold) = compression {
-        io.set_outbound_compression(threshold);
-    }
-    info!("logged in to {host}:{port} as {}", profile.username);
-    Ok((io.into_raw_connection(remote_addr, switch_mode), profile))
-}
-
-fn client_information(view_distance: u8) -> ClientInformation<'static> {
-    ClientInformation {
-        locale: "en_us",
-        view_distance,
-        chat_mode: ChatMode::Enabled,
-        chat_colors: true,
-        displayed_skin_parts: DisplayedSkinParts::from_bits(0x7f),
-        main_arm: MainArm::Right,
-        enable_text_filtering: false,
-        allow_server_listings: true,
-        particle_status: ParticleStatus::All,
-    }
-}
-
-fn write_first_configuration_packets(connection: &mut ClientConnection, view_distance: u8) {
-    connection.write_packet(&ServerboundCustomPayload::from(Payload::Brand(Brand {
-        brand: identity::BRAND,
-    })));
-    connection.write_packet(&ServerboundCustomPayload::from(Payload::ModList(ModList(
-        vec![(
-            identity::MOD_ENTRY.into(),
-            PropertyMap(vec![(
-                identity::COMMIT_PROPERTY.into(),
-                identity::COMMIT_HASH,
-            )]),
-        )],
-    ))));
-    connection.write_packet(&ServerboundClientInformation(client_information(
-        view_distance,
-    )));
-}
-
-type LoginOutcome = Result<(RawConnection, ServerProfile), String>;
-
-fn spawn_logged_in_connection(
-    mut logged_in: Receiver<LoginOutcome>,
-    view_distance: u8,
-) -> impl FnMut(&mut World) {
+fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut World) {
     move |world: &mut World| {
-        while let Ok(outcome) = logged_in.try_recv() {
-            let (raw, profile) = match outcome {
-                Ok(connection) => connection,
+        while let Ok(outcome) = joined.try_recv() {
+            let Joined {
+                connection,
+                profile,
+                configuration,
+            } = match outcome {
+                Ok(joined) => joined,
                 Err(e) => {
                     end_session(world, format!("the connection failed: {e}"));
                     continue;
                 }
             };
-            let mut connection = ClientConnection { raw: Box::new(raw) };
-            write_first_configuration_packets(&mut connection, view_distance);
-            world.spawn((
-                connection,
-                ConnectionState::Configuration,
-                profile,
-                ConfigurationPackets::default(),
-                PendingTeleports::default(),
-            ));
+            let entity = world
+                .spawn((
+                    ClientConnection {
+                        raw: Box::new(connection),
+                    },
+                    ConnectionState::Configuration,
+                    profile,
+                    Configuration::default(),
+                    PendingTeleports::default(),
+                ))
+                .id();
+            world.trigger(RegistriesReceived {
+                entity,
+                configuration,
+            });
         }
     }
 }
@@ -551,11 +355,7 @@ fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: 
 
 fn handle_configuration_packet(
     event: On<ReceivedPacketEvent>,
-    mut connections: Query<(
-        &mut ClientConnection,
-        &ConnectionState,
-        &mut ConfigurationPackets,
-    )>,
+    mut connections: Query<(&mut ClientConnection, &ConnectionState, &mut Configuration)>,
     holds_vanilla: Option<Res<HoldsVanillaPack>>,
     mut commands: Commands,
 ) {
@@ -566,39 +366,18 @@ fn handle_configuration_packet(
         return;
     }
 
-    if let Some(offer) = event.decode::<ClientboundSelectKnownPacks>() {
-        let vanilla = KnownPack {
-            namespace: "minecraft",
-            id: "core",
-            version: VERSION.id.as_str(),
-        };
-        let known_packs = if holds_vanilla.is_some() && offer.known_packs.contains(&vanilla) {
-            vec![vanilla]
-        } else {
-            Vec::new()
-        };
-        collected.vanilla_known = !known_packs.is_empty();
-        connection.write_packet(&ServerboundSelectKnownPacks { known_packs });
-    } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
-        collect_registry(&mut collected.received, data);
-    } else if let Some(update) = event.decode::<ClientboundUpdateTags>() {
-        collected
-            .received
-            .replace_tags(received_tags(update.registries));
-    } else if let Some(keep_alive) = event.decode::<ConfigurationKeepAlive>() {
-        connection.write_packet(&ServerboundConfigurationKeepAlive(KeepAlive {
-            payload: keep_alive.0.payload,
-        }));
-    } else if event.decode::<ClientboundFinishConfiguration>().is_some() {
-        let ConfigurationPackets {
-            received,
-            vanilla_known,
-        } = std::mem::take(&mut *collected);
-        commands.trigger(RegistriesReceived {
+    match collected.read(
+        event.id,
+        &event.data,
+        holds_vanilla.is_some(),
+        &mut *connection,
+    ) {
+        Ok(None) => {}
+        Ok(Some(configuration)) => commands.trigger(RegistriesReceived {
             entity: event.entity,
-            registries: received,
-            vanilla_known,
-        });
+            configuration,
+        }),
+        Err(error) => close_connection_later(&mut commands, event.entity, format!("{error:#}")),
     }
 }
 
@@ -629,7 +408,7 @@ fn handle_game_packet(
         &mut ClientConnection,
         &mut ConnectionState,
         &mut PendingTeleports,
-        &mut ConfigurationPackets,
+        &mut Configuration,
     )>,
     registries: Option<Res<CurrentRegistries>>,
     mut commands: Commands,
@@ -701,7 +480,7 @@ fn handle_game_packet(
     } else if event.decode::<ClientboundStartConfiguration>().is_some() {
         connection.write_packet(&ServerboundConfigurationAcknowledged);
         *state = ConnectionState::Configuration;
-        *collected = ConfigurationPackets::default();
+        *collected = Configuration::default();
     } else if let Some(update) = event.decode::<ClientboundGameUpdateTags>() {
         commands.trigger(TagsReceived {
             entity: event.entity,
@@ -749,18 +528,23 @@ mod tests {
     use mcrs_minecraft_entity::keys::CAT_VARIANT;
     use mcrs_minecraft_entity::variant::CatVariant;
     use mcrs_minecraft_nbt::tag::NbtTag;
+    use mcrs_minecraft_protocol::Decode;
     use mcrs_minecraft_protocol::GameMode;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
     use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-    use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
+    use mcrs_minecraft_protocol::packets::configuration::clientbound::{
+        ClientboundFinishConfiguration, ClientboundRegistryData, ClientboundSelectKnownPacks,
+        ClientboundUpdateTags, RegistryTags, TagGroup,
+    };
     use mcrs_minecraft_protocol::packets::game::clientbound::{
         ClientboundStartConfiguration, ClientboundUpdateTags as GameUpdateTags,
     };
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
+    use mcrs_minecraft_protocol::resource_pack::KnownPack;
     use mcrs_minecraft_protocol::text::Text;
-    use mcrs_minecraft_registries::{Declaration, Registries};
+    use mcrs_minecraft_registries::{Declaration, Received, Registries};
     use serde::{Deserialize, Serialize};
     use std::borrow::Cow;
     use std::sync::Arc;
@@ -785,7 +569,7 @@ mod tests {
             .spawn((
                 ClientConnection { raw: Box::new(raw) },
                 ConnectionState::Game,
-                ConfigurationPackets::default(),
+                Configuration::default(),
                 PendingTeleports::default(),
             ))
             .id();
@@ -817,58 +601,6 @@ mod tests {
         app.update();
         assert_eq!(app.should_exit(), Some(AppExit::Success));
         assert!(app.world().get_entity(entity).is_err());
-    }
-
-    #[test]
-    fn the_client_sends_brand_then_mod_list_then_client_information() {
-        use crate::identity;
-        use bytes::BytesMut;
-        use mcrs_minecraft_protocol::decode::PacketDecoder;
-        use mcrs_minecraft_protocol::packets::common::serverbound::{ModList, Payload};
-        use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundCustomPayload;
-
-        let runtime = runtime();
-        let _guard = runtime.enter();
-        let (raw, mut outgoing, _inbound) = RawConnection::new_for_test_full(8);
-        let mut connection = ClientConnection { raw: Box::new(raw) };
-
-        write_first_configuration_packets(&mut connection, 11);
-        connection.raw.flush().unwrap();
-
-        let mut decoder = PacketDecoder::new();
-        while let Ok(blob) = outgoing.try_recv() {
-            decoder.queue_bytes(BytesMut::from(&blob[..]));
-        }
-        let frames: Vec<_> = std::iter::from_fn(|| decoder.try_next_packet().unwrap()).collect();
-
-        let ids: Vec<i32> = frames.iter().map(|frame| frame.id).collect();
-        assert_eq!(
-            ids,
-            [
-                ServerboundCustomPayload::ID,
-                ServerboundCustomPayload::ID,
-                ServerboundClientInformation::ID
-            ]
-        );
-
-        let Payload::Brand(brand) = Payload::decode(&mut &frames[0].body[..]).unwrap() else {
-            panic!("the first payload is not a brand");
-        };
-        assert_eq!(brand.brand, identity::BRAND);
-
-        let Payload::ModList(ModList(entries)) = Payload::decode(&mut &frames[1].body[..]).unwrap()
-        else {
-            panic!("the second payload is not a mod list");
-        };
-        assert_eq!(entries.len(), 1);
-        let (id, properties) = &entries[0];
-        assert_eq!(*id, identity::MOD_ENTRY);
-        assert_eq!(properties.0.len(), 1);
-        assert_eq!(properties.0[0].0, identity::COMMIT_PROPERTY);
-        assert_eq!(properties.0[0].1, identity::COMMIT_HASH);
-
-        let information = ClientInformation::decode(&mut &frames[2].body[..]).unwrap();
-        assert_eq!(information.view_distance, 11);
     }
 
     fn deliver<P: Encode + Packet>(
@@ -979,9 +711,10 @@ mod tests {
         mut handed: bevy_ecs::prelude::ResMut<Handed>,
         mut commands: Commands,
     ) {
-        handed
-            .registries
-            .push((event.registries.clone(), event.vanilla_known));
+        handed.registries.push((
+            event.configuration.registries.clone(),
+            event.configuration.vanilla_known,
+        ));
         commands.insert_resource(statics());
         finish_configuration(&mut commands, event.entity);
     }
@@ -1014,7 +747,7 @@ mod tests {
                 .spawn((
                     ClientConnection { raw: Box::new(raw) },
                     state,
-                    ConfigurationPackets::default(),
+                    Configuration::default(),
                     PendingTeleports::default(),
                 ))
                 .id();
@@ -1345,94 +1078,6 @@ mod tests {
         drop(inbound);
         app.update();
         assert!(app.should_exit().is_none());
-    }
-}
-
-#[cfg(all(test, not(target_family = "wasm")))]
-mod log_in_tests {
-    use super::*;
-    use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
-    use mcrs_minecraft_protocol::profile::GameProfile;
-    use std::time::Duration;
-
-    #[test]
-    fn an_acknowledged_switch_login_compresses_each_direction_at_its_own_boundary() {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        runtime.block_on(async {
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap();
-            let server = tokio::spawn(async move {
-                let mut io = PacketIo::new(listener.accept().await.unwrap().0);
-                let handshake = io.recv_packet::<ServerboundHandshake>().await.unwrap();
-                assert_eq!(
-                    handshake.protocol_version.0,
-                    crate::PROTOCOL_26_4_SNAPSHOT_5
-                );
-                io.recv_frame().await.unwrap();
-                io.send_packet(&LoginCompression {
-                    threshold: VarInt(256),
-                })
-                .await
-                .unwrap();
-                io.send_packet(&ClientboundLoginFinishedWithOptions {
-                    profile: GameProfile {
-                        id: Uuid::nil(),
-                        username: Bounded("Steve"),
-                        properties: Default::default(),
-                    },
-                    session_id: Uuid::nil(),
-                    options: OptionFlags::new().with_compression(true),
-                })
-                .await
-                .unwrap();
-                let (id, _) = io.recv_frame().await.unwrap();
-                assert_eq!(
-                    id,
-                    ServerboundLoginAcknowledged::ID,
-                    "an uncompressed acknowledgement"
-                );
-                io.set_compression(CompressionThreshold(256));
-                io
-            });
-
-            let io = PacketIo::connect(address).await.unwrap();
-            let (mut connection, profile) = log_in(
-                io,
-                address,
-                "127.0.0.1".to_owned(),
-                address.port(),
-                "Steve".to_owned(),
-                Uuid::nil(),
-                crate::PROTOCOL_26_4_SNAPSHOT_5,
-            )
-            .await
-            .unwrap();
-            assert_eq!(profile.username, "Steve");
-            let mut server = server.await.unwrap();
-
-            let json = "a".repeat(1000);
-            let large = StatusResponse { json: &json };
-            connection.append(&large).unwrap();
-            connection.flush().unwrap();
-            let (id, body) = server.recv_frame().await.unwrap();
-            assert_eq!((id, body.len()), (StatusResponse::ID, 1002));
-
-            server.send_packet(&large).await.unwrap();
-            let received = tokio::time::timeout(Duration::from_secs(10), async {
-                loop {
-                    if let Some(packet) = connection.try_recv().unwrap() {
-                        return packet;
-                    }
-                    tokio::time::sleep(Duration::from_millis(5)).await;
-                }
-            })
-            .await
-            .unwrap();
-            assert_eq!(
-                (received.id, received.payload.len()),
-                (StatusResponse::ID, 1002)
-            );
-        });
     }
 }
 

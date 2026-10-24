@@ -149,6 +149,7 @@ pub fn run() {
                 username: knobs.username(),
                 profile_id: None,
                 view_distance: knobs.view_distance(),
+                holds_vanilla_pack: false,
             });
             app.add_plugins(crate::columns::ColumnCachePlugin);
         }

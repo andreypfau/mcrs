@@ -9,7 +9,8 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{HoldsVanillaPack, RegistriesReceived};
+use mcrs_minecraft_network::client::RegistriesReceived;
+use mcrs_minecraft_network::join::Configuration;
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Registries};
 use mcrs_minecraft_world::registry_load::{sent_by, test_packs, test_registries};
 use std::collections::BTreeMap;
@@ -49,8 +50,10 @@ pub fn receive_registries(app: &mut App, connection: Entity, edit: impl FnOnce(&
     edit(&mut registries);
     app.world_mut().trigger(RegistriesReceived {
         entity: connection,
-        registries,
-        vanilla_known: true,
+        configuration: Configuration {
+            registries,
+            vanilla_known: true,
+        },
     });
     app.world_mut().flush();
 }
@@ -98,7 +101,6 @@ fn a_client_ends_configuration_with_the_registries_the_server_holds() {
         "world registries are session data, so none exists before a server sends them"
     );
     assert!(app.world().resource::<Blocks>().state_count() > 0);
-    assert!(app.world().contains_resource::<HoldsVanillaPack>());
 
     let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
     receive_registries(&mut app, connection, |_| {});

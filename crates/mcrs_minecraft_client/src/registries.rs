@@ -17,10 +17,11 @@ use mcrs_minecraft_environment::world_clock::{
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ClientNetworkSystems, CurrentDimension, HoldsVanillaPack, RegistriesReceived, TagsReceived,
+    ClientNetworkSystems, CurrentDimension, RegistriesReceived, TagsReceived,
     close_connection_later, finish_configuration,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
+use mcrs_minecraft_network::join::Configuration;
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_received};
 
@@ -38,10 +39,7 @@ pub(crate) struct LocalCorpus(DirectoryPacks);
 /// What the server sent in its last configuration. A tag update in play replaces the tags of the
 /// registries it names and loads the registries again from it.
 #[derive(Component)]
-struct LastConfiguration {
-    received: Received,
-    vanilla_known: bool,
-}
+struct LastConfiguration(Configuration);
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionSet {
@@ -52,7 +50,7 @@ pub enum SessionSet {
 #[derive(Default)]
 pub struct ClientRegistriesPlugin {
     /// The packs the vanilla pack's entries are read from, to fill what a server leaves out.
-    /// A client without them answers the server's pack offer with none.
+    /// A client with them sets `ClientNetworkPlugin::holds_vanilla_pack`.
     pub local_corpus: Option<DirectoryPacks>,
 }
 
@@ -97,8 +95,7 @@ impl Plugin for ClientRegistriesPlugin {
         );
         app.insert_resource(Blocks(Arc::new(definitions)));
         if let Some(corpus) = &self.local_corpus {
-            app.insert_resource(LocalCorpus(corpus.clone()))
-                .insert_resource(HoldsVanillaPack);
+            app.insert_resource(LocalCorpus(corpus.clone()));
         }
     }
 }
@@ -109,14 +106,13 @@ fn refuse<E: std::fmt::Display>(error: &E) -> ! {
 }
 
 pub(crate) fn load_registries(
-    received: &Received,
-    vanilla_known: bool,
+    configuration: &Configuration,
     corpus: Option<&LocalCorpus>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-    let vanilla = corpus.filter(|_| vanilla_known);
+    let vanilla = corpus.filter(|_| configuration.vanilla_known);
     load_received(
         DATAPACK_REPORT,
-        received,
+        &configuration.registries,
         vanilla.map(|corpus| &corpus.0 as _),
     )
 }
@@ -151,13 +147,12 @@ fn load_server_registries(
     blocks: Res<Blocks>,
     mut commands: Commands,
 ) {
-    match load_registries(&event.registries, event.vanilla_known, corpus.as_deref()) {
+    match load_registries(&event.configuration, corpus.as_deref()) {
         Ok(loaded) => {
             install(loaded, (&assets, &blocks), &mut commands);
-            commands.entity(event.entity).insert(LastConfiguration {
-                received: event.registries.clone(),
-                vanilla_known: event.vanilla_known,
-            });
+            commands
+                .entity(event.entity)
+                .insert(LastConfiguration(event.configuration.clone()));
             finish_configuration(&mut commands, event.entity);
         }
         Err(error) => close_connection_later(
@@ -184,8 +179,8 @@ fn replace_server_tags(
         );
         return;
     };
-    last.received.replace_tags(event.tags.clone());
-    match load_registries(&last.received, last.vanilla_known, corpus.as_deref()) {
+    last.0.registries.replace_tags(event.tags.clone());
+    match load_registries(&last.0, corpus.as_deref()) {
         Ok(loaded) => install(loaded, (&assets, &blocks), &mut commands),
         Err(error) => close_connection_later(
             &mut commands,

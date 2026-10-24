@@ -269,6 +269,7 @@ fn main() -> AppExit {
         username,
         profile_id: save_data.player_uuid,
         view_distance,
+        holds_vanilla_pack: true,
     });
     app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
     app.init_resource::<mcrs_minecraft_client::screen::Screen>();

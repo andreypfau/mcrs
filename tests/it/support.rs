@@ -55,6 +55,7 @@ pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
         username: "mcrs_test".to_owned(),
         profile_id: None,
         view_distance,
+        holds_vanilla_pack: true,
     });
     client.add_plugins(ColumnCachePlugin);
     add_client_registries(&mut client);
@@ -96,7 +97,6 @@ pub fn drive_client_until_joined(
     awaits_columns: bool,
 ) -> Option<bevy_ecs::entity::Entity> {
     let deadline = Instant::now() + JOIN_TIMEOUT;
-    let mut seen_configuration = false;
 
     while Instant::now() < deadline {
         client.update();
@@ -107,16 +107,11 @@ pub fn drive_client_until_joined(
             std::thread::sleep(Duration::from_millis(5));
             continue;
         };
-        seen_configuration |= *state == ConnectionState::Configuration;
         if *state != ConnectionState::Game {
             std::thread::sleep(Duration::from_millis(5));
             continue;
         }
 
-        assert!(
-            seen_configuration,
-            "the connection reached play without passing through configuration"
-        );
         let joined = world.get::<JoinedGame>(entity).is_some();
         let positioned = world
             .get::<PendingTeleports>(entity)

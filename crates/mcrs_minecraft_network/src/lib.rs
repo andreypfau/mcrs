@@ -11,6 +11,7 @@ pub mod identity;
 pub mod inbound_rate;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod intent;
+pub mod join;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod lan;
 #[cfg(feature = "bevy")]
