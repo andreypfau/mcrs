@@ -11,13 +11,14 @@ use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 
 use mcrs_minecraft_engine::bus::{
     InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
     InboundRollbackMove, OutboundPlayerPacket,
 };
 use mcrs_minecraft_engine::channel_types::{FromDim, ToDim};
+use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -91,7 +92,7 @@ use mcrs_minecraft_level::world::dimension::{
 };
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
+    DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
@@ -701,12 +702,6 @@ pub(crate) fn flush_from_dim_outbox(
     }
 }
 
-/// Marker component placed on the host-world entity that anchors a
-/// `DimAppLabel`. The entity carries no other state — it exists purely to
-/// allocate a `World`-unique ID for use as the sub-app label key.
-#[derive(bevy_ecs::component::Component)]
-pub struct DimSubAppHandle;
-
 #[derive(Debug, thiserror::Error)]
 #[error(
     "dimension {dimension} names dimension type {dimension_type}, which the loaded registry does not hold"
@@ -740,51 +735,6 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
     for request in requests {
         if let Err(error) = spawn_dim_subapp(app, &request, &bundle) {
             error!(%error, "a dimension was not spawned");
-        }
-    }
-}
-
-/// Drain the `DimDespawnQueue` resource on the host world and tear down the
-/// matching sub-apps. Called from outside the ECS run loop because
-/// `App::remove_sub_app` requires `&mut App`.
-pub fn drain_dim_despawn_queue(app: &mut App) {
-    let Some(mut queue) = app.world_mut().get_resource_mut::<DimDespawnQueue>() else {
-        return;
-    };
-    let entities: Vec<Entity> = std::mem::take(&mut queue.0);
-    for entity in entities {
-        if app.remove_sub_app(DimAppLabel(entity)).is_none() {
-            warn!(
-                ?entity,
-                "DimDespawnQueue entry referenced a sub-app not registered under DimAppLabel"
-            );
-        }
-
-        // Remove the channel entry for the despawned dim. After the sub-app
-        // is gone its dim-side FromDimSender is dropped, so the host-side
-        // receiver would return Disconnected on any subsequent drain attempt.
-        // Removing the entry here keeps DimChannels consistent with the live
-        // sub-app population and avoids holding a stale receiver.
-        if let Some(mut channels) = app
-            .world_mut()
-            .get_resource_mut::<DimChannels<ToDim, FromDim>>()
-        {
-            channels.remove(entity);
-        }
-        // A dimension torn down saves none of its players, so nothing is left to wait for.
-        crate::dim::forget_departures(app.world_mut(), |departing| departing.dim == entity);
-
-        // Free the host-side label-anchor entity so the host world's
-        // dimension-handle archetype matches the live sub-app population.
-        // The OnRemove<DimSubAppHandle> observer fires before this drain runs
-        // (it fires at despawn time), so when the observer path is active the
-        // entity is already gone here — Err(_) is expected on that path.
-        match app.world_mut().get_entity_mut(entity) {
-            Ok(entity_mut) => entity_mut.despawn(),
-            Err(_) => debug!(
-                ?entity,
-                "DimDespawnQueue entity already absent from host world (expected on the OnRemove observer path)"
-            ),
         }
     }
 }

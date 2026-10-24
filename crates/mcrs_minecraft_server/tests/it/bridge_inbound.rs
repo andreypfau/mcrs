@@ -262,7 +262,7 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 /// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
-    use mcrs_minecraft_server::disconnect::{LeavingSessions, process_disconnect};
+    use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
 
     let mut world = World::new();
     world.init_resource::<PlayerSessionCounter>();

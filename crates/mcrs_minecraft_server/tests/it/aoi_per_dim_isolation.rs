@@ -37,10 +37,7 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // source of label_entity values.
     let label_entities: Vec<Entity> = app
         .world_mut()
-        .query::<(
-            Entity,
-            &mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle,
-        )>()
+        .query::<(Entity, &mcrs_minecraft_engine::dim::DimSubAppHandle)>()
         .iter(app.world())
         .map(|(e, _)| e)
         .collect();

@@ -13,12 +13,12 @@ use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
-use mcrs_minecraft_protocol::profile::Property;
-use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Text, uuid};
-use std::borrow::Cow;
+use mcrs_minecraft_protocol::{CompressionThreshold, Text, uuid};
 
-use crate::disconnect::Departing;
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::disconnect::Departing;
+use mcrs_minecraft_engine::session::{
+    GameProfile, HostAnchorRef, SessionBundle, SessionConnection,
+};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
@@ -97,33 +97,6 @@ pub enum LoginState {
     /// Waiting for the sessions under its id to end and their players to be saved.
     AwaitingDeparture,
     Accepted,
-}
-
-#[derive(Debug, Clone, Component)]
-pub struct GameProfile {
-    pub id: uuid::Uuid,
-    pub username: String,
-    pub properties: Vec<Property<String>>,
-}
-
-impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile<'a> {
-    fn from(profile: &'a GameProfile) -> Self {
-        let props: Vec<Property<&'a str>> = profile
-            .properties
-            .iter()
-            .map(|p| Property {
-                name: p.name.as_str(),
-                value: p.value.as_str(),
-                signature: p.signature.as_deref(),
-            })
-            .collect();
-
-        Self {
-            id: profile.id,
-            username: Bounded::from(profile.username.as_str()),
-            properties: Cow::Owned(props),
-        }
-    }
 }
 
 /// The player hosting an integrated server.

@@ -160,8 +160,8 @@ fn transfer_snapshot() -> mcrs_minecraft_engine::bus::PlayerTransferSnapshot {
 
 #[test]
 fn control_full_enqueues_dim_teardown() {
+    use mcrs_minecraft_engine::dim::send_control_or_teardown;
     use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
-    use mcrs_minecraft_server::dim::send_control_or_teardown;
 
     let mut world = World::new();
     let dim = world.spawn_empty().id();

@@ -6,6 +6,9 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
+use mcrs_minecraft_engine::dim::pump_channels;
+use mcrs_minecraft_engine::disconnect::DisconnectProtocolPlugin;
+use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
@@ -33,9 +36,7 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Packet, Text, VarInt, WritePacket,
 };
 use mcrs_minecraft_server::configuration::on_configuration_ack;
-use mcrs_minecraft_server::dim::pump_channels;
-use mcrs_minecraft_server::disconnect::DisconnectProtocolPlugin;
-use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState, SingleplayerProfile};
+use mcrs_minecraft_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use tokio::sync::mpsc;
 
 use crate::mock_connection;

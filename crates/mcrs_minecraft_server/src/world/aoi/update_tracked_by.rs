@@ -22,9 +22,9 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntiti
 use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
-use crate::login::GameProfile;
 use crate::world::aoi::components::TrackedBy;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_engine::session::GameProfile;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
 /// blocks; matches vanilla's mob/player track radius before

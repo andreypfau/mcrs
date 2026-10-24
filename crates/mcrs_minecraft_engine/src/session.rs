@@ -1,7 +1,10 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_protocol::profile::Property;
+use mcrs_minecraft_protocol::{Bounded, uuid};
 use smallvec::SmallVec;
+use std::borrow::Cow;
 
 use crate::bus::InboundPlayerPacket;
 use mcrs_minecraft_level::session::{PlayerSession, Session, SessionPlacement};
@@ -44,5 +47,32 @@ pub struct SessionConnection(Entity);
 impl SessionConnection {
     pub fn entity(&self) -> Entity {
         self.0
+    }
+}
+
+#[derive(Debug, Clone, Component)]
+pub struct GameProfile {
+    pub id: uuid::Uuid,
+    pub username: String,
+    pub properties: Vec<Property<String>>,
+}
+
+impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile<'a> {
+    fn from(profile: &'a GameProfile) -> Self {
+        let props: Vec<Property<&'a str>> = profile
+            .properties
+            .iter()
+            .map(|p| Property {
+                name: p.name.as_str(),
+                value: p.value.as_str(),
+                signature: p.signature.as_deref(),
+            })
+            .collect();
+
+        Self {
+            id: profile.id,
+            username: Bounded::from(profile.username.as_str()),
+            properties: Cow::Owned(props),
+        }
     }
 }

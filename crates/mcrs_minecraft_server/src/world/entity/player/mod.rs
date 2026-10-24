@@ -1,4 +1,3 @@
-use crate::login::GameProfile;
 use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -23,6 +22,7 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerAttached, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
     PlayerInfoEntry,
 };
+use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;

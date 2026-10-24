@@ -3718,6 +3718,7 @@ dependencies = [
 name = "mcrs_minecraft_engine"
 version = "0.5.8"
 dependencies = [
+ "bevy_app",
  "bevy_ecs",
  "bevy_math",
  "bytes",
@@ -3728,6 +3729,7 @@ dependencies = [
  "mcrs_minecraft_level",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
 ]

@@ -14,12 +14,12 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_engine::channel_types::DimChannelsResource;
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_server::disconnect::{
+use mcrs_minecraft_engine::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
+use mcrs_minecraft_engine::session::SessionBundle;
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 
 fn build_app() -> App {
     let mut app = App::new();

@@ -7,8 +7,6 @@ mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
-pub mod dim;
-pub mod disconnect;
 mod keep_alive;
 pub mod login;
 pub mod ops;

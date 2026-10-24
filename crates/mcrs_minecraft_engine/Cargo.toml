@@ -17,10 +17,12 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_level.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
+bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 bytes.workspace = true
 flume.workspace = true
+rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 

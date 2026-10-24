@@ -1,10 +1,10 @@
-use crate::world::sub_app_builder::DimSubAppHandle;
 use crate::world_options::DimensionList;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_level::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
@@ -96,7 +96,7 @@ impl Plugin for WorldPlugin {
                 queue.0.push(trigger.event().entity);
             },
         );
-        app.add_plugins(crate::disconnect::DisconnectProtocolPlugin);
+        app.add_plugins(mcrs_minecraft_engine::disconnect::DisconnectProtocolPlugin);
         app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns);
     }
 }

@@ -1,4 +1,3 @@
-use crate::login::GameProfile;
 use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
@@ -9,6 +8,7 @@ use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
     ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
+use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};

@@ -13,8 +13,8 @@ use std::collections::BTreeMap;
 use tracing::error;
 
 use crate::WorldSave;
-use crate::login::GameProfile;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_engine::session::GameProfile;
 
 /// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;
