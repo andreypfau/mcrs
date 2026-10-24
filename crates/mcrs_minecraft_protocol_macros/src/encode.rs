@@ -27,8 +27,8 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
                 Fields::Named(fields) => fields
                     .named
                     .iter()
-                    .map(|f| {
-                        let name = &f.ident.as_ref().unwrap();
+                    .filter_map(|f| f.ident.as_ref())
+                    .map(|name| {
                         let ctx = format!("failed to encode field `{name}` in `{input_name}`");
                         quote! {
                             self.#name.encode(&mut _w).context(#ctx)?;
@@ -79,7 +79,7 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
                             let field_names = fields
                                 .named
                                 .iter()
-                                .map(|f| f.ident.as_ref().unwrap())
+                                .filter_map(|f| f.ident.as_ref())
                                 .collect::<Vec<_>>();
 
                             let encode_fields = field_names

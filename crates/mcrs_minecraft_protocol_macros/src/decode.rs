@@ -34,13 +34,16 @@ pub(super) fn derive_decode(item: TokenStream) -> Result<TokenStream> {
         Data::Struct(struct_) => {
             let decode_fields = match struct_.fields {
                 Fields::Named(fields) => {
-                    let init = fields.named.iter().map(|f| {
-                        let name = f.ident.as_ref().unwrap();
-                        let ctx = format!("failed to decode field `{name}` in `{input_name}`");
-                        quote! {
-                            #name: Decode::decode(_r).context(#ctx)?,
-                        }
-                    });
+                    let init = fields
+                        .named
+                        .iter()
+                        .filter_map(|f| f.ident.as_ref())
+                        .map(|name| {
+                            let ctx = format!("failed to decode field `{name}` in `{input_name}`");
+                            quote! {
+                                #name: Decode::decode(_r).context(#ctx)?,
+                            }
+                        });
 
                     quote! {
                         Self {
@@ -98,8 +101,8 @@ pub(super) fn derive_decode(item: TokenStream) -> Result<TokenStream> {
                             let fields = fields
                                 .named
                                 .iter()
-                                .map(|f| {
-                                    let field = f.ident.as_ref().unwrap();
+                                .filter_map(|f| f.ident.as_ref())
+                                .map(|field| {
                                     let ctx = format!(
                                         "failed to decode field `{field}` in variant `{name}` in \
                                          `{input_name}`",
