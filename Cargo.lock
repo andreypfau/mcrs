@@ -3573,6 +3573,7 @@ version = "0.5.8"
 dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_registries",
  "rustc-hash 2.1.1",
 ]
 
@@ -4049,10 +4050,10 @@ dependencies = [
 name = "mcrs_minecraft_registry_catalog"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_enchantment",

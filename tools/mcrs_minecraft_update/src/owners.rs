@@ -273,7 +273,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:chunk_status",
-        krate: "mcrs_minecraft_anvil",
+        krate: "mcrs_minecraft_chunk",
         value: ValueType::Enum("ChunkStatus"),
     },
     Owner {

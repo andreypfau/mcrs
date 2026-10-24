@@ -52,8 +52,8 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
         mcrs_minecraft_predicate::keys::CustomStat::ENTRIES,
     ),
     (
-        mcrs_minecraft_anvil::keys::CHUNK_STATUS.location(),
-        mcrs_minecraft_anvil::keys::ChunkStatus::ENTRIES,
+        mcrs_minecraft_chunk::keys::CHUNK_STATUS.location(),
+        mcrs_minecraft_chunk::keys::ChunkStatus::ENTRIES,
     ),
     (
         mcrs_minecraft_item::keys::MENU.location(),
