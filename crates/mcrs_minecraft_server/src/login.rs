@@ -10,12 +10,11 @@ use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
 use mcrs_minecraft_protocol::profile::Property;
-use mcrs_minecraft_protocol::{Bounded, Text, WritePacket, uuid};
+use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Text, uuid};
 use std::borrow::Cow;
 
 use crate::disconnect::Departing;
@@ -26,12 +25,24 @@ use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, Sessio
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct ChatSessionId(pub uuid::Uuid);
 
+/// A packet of at least this many bytes is compressed once a login switches compression on.
+/// A negative threshold leaves every login uncompressed.
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct NetworkCompressionThreshold(pub i32);
+
+impl Default for NetworkCompressionThreshold {
+    fn default() -> Self {
+        Self(256)
+    }
+}
+
 pub struct LoginPlugin;
 
 impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.init_resource::<ServerTicks>();
+        app.init_resource::<NetworkCompressionThreshold>();
         app.add_systems(
             bevy_app::First,
             advance_server_ticks.after(bevy_ecs::message::MessageUpdateSystems),
@@ -225,11 +236,23 @@ impl SessionsById<'_, '_> {
     }
 }
 
-fn finish_login(con: &mut ServerSideConnection, profile: &GameProfile, session_id: uuid::Uuid) {
-    con.write_packet(&ClientboundLoginFinished {
-        profile: profile.into(),
-        session_id,
-    });
+#[derive(SystemParam)]
+pub struct LoginReplies<'w> {
+    session_id: Res<'w, ChatSessionId>,
+    compression: Res<'w, NetworkCompressionThreshold>,
+}
+
+impl LoginReplies<'_> {
+    fn announce_compression(&self, con: &mut ServerSideConnection) {
+        if self.compression.0 >= 0 {
+            con.raw
+                .announce_compression(CompressionThreshold(self.compression.0));
+        }
+    }
+
+    fn finish(&self, con: &mut ServerSideConnection, profile: &GameProfile) {
+        con.raw.finish_login(profile.into(), self.session_id.0);
+    }
 }
 
 pub fn handle_hello_packet(
@@ -237,7 +260,7 @@ pub fn handle_hello_packet(
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
     mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
     sessions: SessionsById,
-    session_id: Res<ChatSessionId>,
+    replies: LoginReplies,
     host: Option<Res<SingleplayerProfile>>,
     mut commands: Commands,
 ) {
@@ -264,6 +287,7 @@ pub fn handle_hello_packet(
     }
     let profile = hello_profile(&pkt.username, host.as_deref());
     tracing::debug!(?profile, "login hello");
+    replies.announce_compression(&mut con);
     let mut must_wait = sessions.saving(profile.id);
     for (_, place, connection) in sessions.of(profile.id) {
         let other = connection.and_then(|entity| {
@@ -286,7 +310,7 @@ pub fn handle_hello_packet(
             .entity(event.entity)
             .insert((profile, LoginState::AwaitingDeparture));
     } else {
-        finish_login(&mut con, &profile, session_id.0);
+        replies.finish(&mut con, &profile);
         commands
             .entity(event.entity)
             .insert((profile, LoginState::Accepted));
@@ -342,14 +366,14 @@ fn finish_awaiting_logins(
     >,
     states: Query<&ConnectionState>,
     sessions: SessionsById,
-    session_id: Res<ChatSessionId>,
+    replies: LoginReplies,
     mut commands: Commands,
 ) {
     for (connection, mut con, profile, state) in &mut logins {
         let in_play = |connection| states.get(connection) == Ok(&ConnectionState::Game);
         if *state == LoginState::AwaitingDeparture && !sessions.in_world(profile.id, None, in_play)
         {
-            finish_login(&mut con, profile, session_id.0);
+            replies.finish(&mut con, profile);
             commands.entity(connection).insert(LoginState::Accepted);
         }
     }
@@ -357,10 +381,10 @@ fn finish_awaiting_logins(
 
 pub fn handle_login_acknowledged(
     event: On<ReceivedPacketEvent>,
-    query: Query<(&ConnectionState, &LoginState)>,
+    mut query: Query<(&mut ServerSideConnection, &ConnectionState, &LoginState)>,
     mut commands: Commands,
 ) {
-    let Ok((state, login)) = query.get(event.entity) else {
+    let Ok((mut con, state, login)) = query.get_mut(event.entity) else {
         return;
     };
     if ConnectionState::Login != *state || LoginState::Accepted != *login {
@@ -369,6 +393,7 @@ pub fn handle_login_acknowledged(
     let Some(_) = event.decode::<ServerboundLoginAcknowledged>() else {
         return;
     };
+    con.raw.login_acknowledged();
     commands
         .entity(event.entity)
         .remove::<LoginStarted>()

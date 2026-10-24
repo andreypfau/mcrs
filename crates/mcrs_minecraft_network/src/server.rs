@@ -189,8 +189,12 @@ impl ServerSideConnection {
     }
 
     /// Sends the disconnect packet of the protocol the client decodes in `state`, behind
-    /// what is already written; the caller then removes the connection.
+    /// what is already written; the caller then removes the connection. While the client
+    /// reads a layer the server does not yet write, the connection closes with no packet.
     pub fn disconnect(&mut self, state: ConnectionState, reason: Text) -> anyhow::Result<()> {
+        if self.raw.awaits_login_acknowledgement() {
+            return Ok(());
+        }
         match state {
             ConnectionState::Login => {
                 let reason = serde_json::to_string(&reason)?;

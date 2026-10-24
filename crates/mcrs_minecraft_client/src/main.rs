@@ -55,7 +55,7 @@ use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{
     BoundAddress, DataPack, DimensionWorldsPlugin, LightingPlugin, MinecraftServerPlugins,
-    ServerCorePlugin, ServerNetworkPlugin,
+    NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
     ops::{OPS_FILE, OpList},
 };
 
@@ -386,6 +386,12 @@ fn host_integrated_server(
         },
         network: ServerNetworkPlugin {
             bind_address: config::integrated_bind_address(open_to_lan),
+            // The host shares this process, so only LAN guests gain from compression.
+            compression_threshold: if open_to_lan {
+                NetworkCompressionThreshold::default()
+            } else {
+                NetworkCompressionThreshold(-1)
+            },
             singleplayer_profile: Some(host),
             ..Default::default()
         },

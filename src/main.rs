@@ -10,7 +10,8 @@ use bevy_app::{App, AppExit, PluginGroup};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_server::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_server::{
-    DimensionWorldsPlugin, GameMode, LightingPlugin, MinecraftServerPlugins, ServerNetworkPlugin,
+    DimensionWorldsPlugin, GameMode, LightingPlugin, MinecraftServerPlugins,
+    NetworkCompressionThreshold, ServerNetworkPlugin,
 };
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
@@ -58,6 +59,9 @@ async fn main() -> AppExit {
                 variable("MCRS_LAN_ANNOUNCE").as_deref(),
             ),
             offer_known_packs: on_off("MCRS_KNOWN_PACKS", variable("MCRS_KNOWN_PACKS").as_deref()),
+            compression_threshold: compression_threshold(
+                variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
+            ),
             ..Default::default()
         },
         ..Default::default()
@@ -149,6 +153,21 @@ fn game_mode(value: Option<&str>) -> GameMode {
                 "MCRS_DEFAULT_GAMEMODE unrecognized, defaulting to creative"
             );
             GameMode::Creative
+        }
+    }
+}
+
+/// `MCRS_COMPRESSION_THRESHOLD` is the packet size in bytes from which packets are compressed;
+/// a negative value turns compression off.
+fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
+    let Some(raw) = value.map(str::trim) else {
+        return NetworkCompressionThreshold::default();
+    };
+    match raw.parse() {
+        Ok(threshold) => NetworkCompressionThreshold(threshold),
+        Err(error) => {
+            bevy_log::error!(%error, raw, "MCRS_COMPRESSION_THRESHOLD is not a number; using the default");
+            NetworkCompressionThreshold::default()
         }
     }
 }

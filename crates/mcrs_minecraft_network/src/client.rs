@@ -1,7 +1,7 @@
 use crate::event::ReceivedPacketEvent;
 use crate::identity;
 use crate::packet_io::{ByteStream, PacketIo};
-use crate::{ConnectionState, RawConnection};
+use crate::{ConnectionState, RawConnection, SwitchMode};
 use anyhow::bail;
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
@@ -42,7 +42,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
-    ClientboundLoginDisconnect, ClientboundLoginFinished, LoginCompression,
+    ClientboundLoginDisconnect, ClientboundLoginFinished, ClientboundLoginFinishedWithOptions,
+    LoginCompression, OptionFlags,
 };
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
@@ -336,6 +337,7 @@ async fn connect_and_log_in(
             server.port(),
             username,
             profile_id,
+            VERSION.protocol_version,
         )
         .await
     }
@@ -346,7 +348,16 @@ async fn connect_and_log_in(
         let peer = SocketAddr::from(([0, 0, 0, 0], 0));
         let (host, port) = server.host_and_port();
         let io = PacketIo::new(crate::browser::connect(&server).await?);
-        log_in(io, peer, host, port, username, profile_id).await
+        log_in(
+            io,
+            peer,
+            host,
+            port,
+            username,
+            profile_id,
+            VERSION.protocol_version,
+        )
+        .await
     }
 }
 
@@ -361,9 +372,10 @@ async fn log_in<S: ByteStream>(
     port: u16,
     username: String,
     profile_id: Uuid,
+    protocol_version: i32,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     io.send_packet(&ServerboundHandshake {
-        protocol_version: VarInt(VERSION.protocol_version),
+        protocol_version: VarInt(protocol_version),
         server_address: Bounded(host.as_str()),
         server_port: port,
         intent: Intent::Login,
@@ -375,29 +387,59 @@ async fn log_in<S: ByteStream>(
     })
     .await?;
 
-    let profile = loop {
+    let Some(switch_mode) = SwitchMode::of(protocol_version) else {
+        bail!("no login switch mode is known for protocol version {protocol_version}");
+    };
+    // A server that never announced a threshold still can ask for compression.
+    let mut stored_threshold = CompressionThreshold(0);
+    let (profile, options) = loop {
         let (id, body) = io.recv_frame().await?;
         let mut r = &body[..];
         if id == ClientboundLoginDisconnect::ID {
             let packet = ClientboundLoginDisconnect::decode(&mut r)?;
             bail!("server refused the login: {}", packet.reason.0);
         } else if id == LoginCompression::ID {
-            let packet = LoginCompression::decode(&mut r)?;
-            io.set_compression(CompressionThreshold(packet.threshold.0));
+            let threshold = CompressionThreshold(LoginCompression::decode(&mut r)?.threshold.0);
+            match switch_mode {
+                SwitchMode::Immediate => io.set_compression(threshold),
+                SwitchMode::Acknowledged => stored_threshold = threshold,
+            }
         } else if id == ClientboundLoginFinished::ID {
-            let packet = ClientboundLoginFinished::decode(&mut r)?;
-            break ServerProfile {
-                id: packet.profile.id,
-                username: packet.profile.username.0.to_owned(),
+            let (profile, options) = match switch_mode {
+                SwitchMode::Immediate => (
+                    ClientboundLoginFinished::decode(&mut r)?.profile,
+                    OptionFlags::new(),
+                ),
+                SwitchMode::Acknowledged => {
+                    let packet = ClientboundLoginFinishedWithOptions::decode(&mut r)?;
+                    (packet.profile, packet.options)
+                }
             };
+            break (
+                ServerProfile {
+                    id: profile.id,
+                    username: profile.username.0.to_owned(),
+                },
+                options,
+            );
         } else {
             bail!("unexpected login packet {id:#04x}; only offline login is supported");
         }
     };
 
+    if options.cipher() {
+        bail!("the server asked for encryption; only offline login is supported");
+    }
+    let compression = options.compression().then_some(stored_threshold);
+    if let Some(threshold) = compression {
+        io.set_inbound_compression(threshold);
+    }
     io.send_packet(&ServerboundLoginAcknowledged).await?;
+    if let Some(threshold) = compression {
+        io.set_outbound_compression(threshold);
+    }
     info!("logged in to {host}:{port} as {}", profile.username);
-    Ok((io.into_raw_connection(remote_addr), profile))
+    Ok((io.into_raw_connection(remote_addr, switch_mode), profile))
 }
 
 fn client_information(view_distance: u8) -> ClientInformation<'static> {
@@ -1299,6 +1341,94 @@ mod tests {
         drop(inbound);
         app.update();
         assert!(app.should_exit().is_none());
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod log_in_tests {
+    use super::*;
+    use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
+    use mcrs_minecraft_protocol::profile::GameProfile;
+    use std::time::Duration;
+
+    #[test]
+    fn an_acknowledged_switch_login_compresses_each_direction_at_its_own_boundary() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let mut io = PacketIo::new(listener.accept().await.unwrap().0);
+                let handshake = io.recv_packet::<ServerboundHandshake>().await.unwrap();
+                assert_eq!(
+                    handshake.protocol_version.0,
+                    crate::PROTOCOL_26_4_SNAPSHOT_5
+                );
+                io.recv_frame().await.unwrap();
+                io.send_packet(&LoginCompression {
+                    threshold: VarInt(256),
+                })
+                .await
+                .unwrap();
+                io.send_packet(&ClientboundLoginFinishedWithOptions {
+                    profile: GameProfile {
+                        id: Uuid::nil(),
+                        username: Bounded("Steve"),
+                        properties: Default::default(),
+                    },
+                    session_id: Uuid::nil(),
+                    options: OptionFlags::new().with_compression(true),
+                })
+                .await
+                .unwrap();
+                let (id, _) = io.recv_frame().await.unwrap();
+                assert_eq!(
+                    id,
+                    ServerboundLoginAcknowledged::ID,
+                    "an uncompressed acknowledgement"
+                );
+                io.set_compression(CompressionThreshold(256));
+                io
+            });
+
+            let io = PacketIo::connect(address).await.unwrap();
+            let (mut connection, profile) = log_in(
+                io,
+                address,
+                "127.0.0.1".to_owned(),
+                address.port(),
+                "Steve".to_owned(),
+                Uuid::nil(),
+                crate::PROTOCOL_26_4_SNAPSHOT_5,
+            )
+            .await
+            .unwrap();
+            assert_eq!(profile.username, "Steve");
+            let mut server = server.await.unwrap();
+
+            let json = "a".repeat(1000);
+            let large = StatusResponse { json: &json };
+            connection.append(&large).unwrap();
+            connection.flush().unwrap();
+            let (id, body) = server.recv_frame().await.unwrap();
+            assert_eq!((id, body.len()), (StatusResponse::ID, 1002));
+
+            server.send_packet(&large).await.unwrap();
+            let received = tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    if let Some(packet) = connection.try_recv().unwrap() {
+                        return packet;
+                    }
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .unwrap();
+            assert_eq!(
+                (received.id, received.payload.len()),
+                (StatusResponse::ID, 1002)
+            );
+        });
     }
 }
 

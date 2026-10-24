@@ -8,7 +8,7 @@ use mcrs_minecraft_level::world::channels::{
 };
 use mcrs_minecraft_network::event::{ReceivedPacketEvent, run_event_loop};
 use mcrs_minecraft_network::metrics::PreGameDecodeCounts;
-use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection, SwitchMode};
 use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
 use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
@@ -16,14 +16,17 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
-    ClientboundLoginDisconnect, ClientboundLoginFinished,
+    ClientboundLoginDisconnect, ClientboundLoginFinished, ClientboundLoginFinishedWithOptions,
+    LoginCompression, OptionFlags,
 };
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Packet, Text};
+use mcrs_minecraft_protocol::{
+    Bounded, CompressionThreshold, Decode, Encode, Packet, Text, VarInt, WritePacket,
+};
 use mcrs_minecraft_server::configuration::on_configuration_ack;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::disconnect::DisconnectProtocolPlugin;
@@ -63,6 +66,7 @@ struct Client {
     connection: Entity,
     outgoing: mpsc::Receiver<Bytes>,
     decoder: PacketDecoder,
+    switch_mode: SwitchMode,
 }
 
 impl Client {
@@ -76,12 +80,26 @@ impl Client {
         while let Ok(blob) = self.outgoing.try_recv() {
             self.decoder.queue_bytes(BytesMut::from(&blob[..]));
         }
-        std::iter::from_fn(|| self.decoder.try_next_packet().unwrap()).collect()
+        std::iter::from_fn(|| {
+            let frame = self.decoder.try_next_packet().unwrap()?;
+            if frame.id == LoginCompression::ID && self.switch_mode == SwitchMode::Immediate {
+                let packet = LoginCompression::decode(&mut &frame.body[..]).unwrap();
+                self.decoder
+                    .set_compression(CompressionThreshold(packet.threshold.0));
+            }
+            Some(frame)
+        })
+        .collect()
     }
 }
 
 fn connect(app: &mut App) -> Client {
+    connect_with(app, SwitchMode::Immediate)
+}
+
+fn connect_with(app: &mut App, switch_mode: SwitchMode) -> Client {
     let (raw, outgoing, _inbound) = mock_connection::make_mock_raw_connection_full();
+    let raw = raw.with_switch_mode(switch_mode);
     let connection = app
         .world_mut()
         .spawn((
@@ -93,6 +111,7 @@ fn connect(app: &mut App) -> Client {
         connection,
         outgoing,
         decoder: PacketDecoder::new(),
+        switch_mode,
     }
 }
 
@@ -201,6 +220,54 @@ fn a_hello_plays_under_the_offline_id_of_its_name_whatever_id_it_carries() {
 }
 
 #[test]
+fn an_acknowledged_switch_login_compresses_only_after_the_acknowledgement() {
+    let mut app = server(None);
+    let mut client = connect_with(&mut app, SwitchMode::Acknowledged);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    let frames = client.received(&mut app);
+    assert_eq!(
+        ids(&frames),
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
+    );
+    let finished = ClientboundLoginFinishedWithOptions::decode(&mut &frames[1].body[..]).unwrap();
+    assert_eq!(finished.options, OptionFlags::new().with_compression(true));
+
+    send(&mut app, &client, &ServerboundLoginAcknowledged);
+    let reason = "a".repeat(1000);
+    let large = ClientboundLoginDisconnect {
+        reason: Bounded(&reason),
+    };
+    let mut con = app
+        .world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap();
+    con.write_packet(&large);
+    con.raw.flush().unwrap();
+    let mut wire = BytesMut::from(&client.outgoing.try_recv().unwrap()[..]);
+    let frame = mcrs_minecraft_protocol::frame::split_frame(&mut wire).unwrap();
+    let mut uncompressed = Vec::new();
+    large.encode_with_id(&mut uncompressed).unwrap();
+    assert_eq!(
+        VarInt::decode(&mut &frame[..]).unwrap().0 as usize,
+        uncompressed.len()
+    );
+}
+
+#[test]
+fn an_acknowledged_switch_login_that_times_out_after_login_finished_closes_without_a_packet() {
+    let mut app = server(None);
+    let mut client = connect_with(&mut app, SwitchMode::Acknowledged);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    client.received(&mut app);
+
+    for _ in 0..=600 {
+        app.update();
+    }
+    assert!(!connected(&app, &client));
+    assert!(client.received(&mut app).is_empty());
+}
+
+#[test]
 fn a_hello_under_the_hosts_name_in_any_case_plays_as_the_host() {
     let host = SingleplayerProfile {
         name: "Host".to_owned(),
@@ -268,7 +335,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     send_hello(&mut app, &first, "Steve", Uuid::new_v4());
     assert_eq!(
         ids(&first.received(&mut app)),
-        [ClientboundLoginFinished::ID]
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
     let first_anchor = anchor(&app, &first);
     app.world_mut()
@@ -294,8 +361,9 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     for _ in 0..3 {
         app.update();
     }
-    assert!(
-        second.received(&mut app).is_empty(),
+    assert_eq!(
+        ids(&second.received(&mut app)),
+        [LoginCompression::ID],
         "the second login finishes before the first player is saved"
     );
     assert_eq!(
@@ -344,7 +412,7 @@ fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
         app.update();
     }
     assert!(connected(&app, &second));
-    assert!(second.received(&mut app).is_empty());
+    assert_eq!(ids(&second.received(&mut app)), [LoginCompression::ID]);
 
     app.update();
     assert!(!connected(&app, &second));
@@ -357,7 +425,7 @@ fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
     send_hello(&mut app, &third, "Steve", Uuid::new_v4());
     assert_eq!(
         ids(&third.received(&mut app)),
-        [ClientboundLoginFinished::ID]
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
     assert_eq!(sessions_under(&mut app, STEVE), [anchor(&app, &third)]);
 }
@@ -374,7 +442,7 @@ fn a_login_under_the_hosts_name_in_another_case_ends_the_hosts_session() {
     send_hello(&mut app, &owner, "Host", Uuid::new_v4());
     assert_eq!(
         ids(&owner.received(&mut app)),
-        [ClientboundLoginFinished::ID]
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
 
     app.world_mut()
@@ -393,7 +461,7 @@ fn a_login_under_the_hosts_name_in_another_case_ends_the_hosts_session() {
     app.update();
     assert_eq!(
         ids(&guest.received(&mut app)),
-        [ClientboundLoginFinished::ID]
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
     assert_eq!(sessions_under(&mut app, OPERATOR), [anchor(&app, &guest)]);
 }
@@ -413,7 +481,7 @@ fn a_second_login_under_a_name_leaves_a_session_that_is_not_yet_in_the_world() {
     assert!(connected(&app, &first));
     assert_eq!(
         ids(&second.received(&mut app)),
-        [ClientboundLoginFinished::ID]
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
 }
 

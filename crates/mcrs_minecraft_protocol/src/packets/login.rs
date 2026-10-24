@@ -1,6 +1,7 @@
 pub mod clientbound {
     use crate::profile::GameProfile;
     use crate::{Bounded, RawBytes, VarInt};
+    use bitfield_struct::bitfield;
     use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
@@ -23,6 +24,32 @@ pub mod clientbound {
     pub struct ClientboundLoginFinished<'a> {
         pub profile: GameProfile<'a>,
         pub session_id: Uuid,
+    }
+
+    /// `login_finished` of the protocol versions that switch layers on acknowledgement, which
+    /// adds the layers the client switches on when it reads it. The packet table holds the
+    /// form without the flags, so this one borrows its id.
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundLoginFinishedWithOptions<'a> {
+        pub profile: GameProfile<'a>,
+        pub session_id: Uuid,
+        pub options: OptionFlags,
+    }
+
+    impl crate::Packet for ClientboundLoginFinishedWithOptions<'_> {
+        const ID: i32 = <ClientboundLoginFinished as crate::Packet>::ID;
+        const NAME: &'static str = <ClientboundLoginFinished as crate::Packet>::NAME;
+        const SIDE: crate::PacketSide = <ClientboundLoginFinished as crate::Packet>::SIDE;
+        const STATE: crate::ConnectionState = <ClientboundLoginFinished as crate::Packet>::STATE;
+    }
+
+    #[bitfield(u8)]
+    #[derive(PartialEq, Eq, Encode, Decode)]
+    pub struct OptionFlags {
+        pub cipher: bool,
+        pub compression: bool,
+        #[bits(6)]
+        _pad: u8,
     }
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Into)]

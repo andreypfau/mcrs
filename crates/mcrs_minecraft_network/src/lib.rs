@@ -53,6 +53,37 @@ pub struct ReceivedPacket {
     pub payload: Bytes,
 }
 
+/// When each side of a login switches compression on, fixed by the protocol version of the
+/// handshake.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SwitchMode {
+    /// Each side switches both directions as it writes or reads the compression packet.
+    Immediate,
+    /// The client switches as it reads `login_finished`, and the server as it reads the
+    /// `login_acknowledged` that answers it.
+    Acknowledged,
+}
+
+pub const PROTOCOL_26_3: i32 = 777;
+/// The first protocol version that switches compression on acknowledgement.
+pub const PROTOCOL_26_4_SNAPSHOT_5: i32 = 1_073_742_167;
+
+impl SwitchMode {
+    pub fn of_own_version() -> Self {
+        Self::of(mcrs_minecraft_core::VERSION.protocol_version).unwrap_or(Self::Immediate)
+    }
+
+    /// The mode of each protocol version a login accepts; another version is refused.
+    pub fn of(protocol_version: i32) -> Option<Self> {
+        match protocol_version {
+            PROTOCOL_26_3 => Some(Self::Immediate),
+            PROTOCOL_26_4_SNAPSHOT_5 => Some(Self::Acknowledged),
+            own if own == mcrs_minecraft_core::VERSION.protocol_version => Some(Self::Immediate),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum ConnectionState {

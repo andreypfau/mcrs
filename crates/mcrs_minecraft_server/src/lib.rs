@@ -32,6 +32,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::time::Duration;
 
+pub use login::NetworkCompressionThreshold;
 #[cfg(feature = "client-jar")]
 pub use mcrs_minecraft_client_jar::ClientJar;
 pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
@@ -115,6 +116,8 @@ impl MinecraftServerPlugins {
             },
             network: ServerNetworkPlugin {
                 bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+                // Both ends share one process, so compression only spends CPU on each side.
+                compression_threshold: NetworkCompressionThreshold(-1),
                 ..Default::default()
             },
             ..Default::default()
@@ -281,6 +284,7 @@ pub struct ServerNetworkPlugin {
     /// Turned off, the server offers no known pack, so a client receives every registry entry's
     /// data instead of only the entries that are not in the vanilla pack.
     pub offer_known_packs: bool,
+    pub compression_threshold: NetworkCompressionThreshold,
     pub singleplayer_profile: Option<SingleplayerProfile>,
 }
 
@@ -290,6 +294,7 @@ impl Default for ServerNetworkPlugin {
             bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
             announce_on_lan: true,
             offer_known_packs: true,
+            compression_threshold: NetworkCompressionThreshold::default(),
             singleplayer_profile: None,
         }
     }
@@ -306,6 +311,7 @@ impl Plugin for ServerNetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
         });
+        app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
