@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_nbt::LIST_ID;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -123,21 +123,24 @@ impl Sample for AttributeModifiers {
     }
 
     fn samples() -> Vec<Self> {
-        let entry = |path: &str, id: &str, amount: f64, operation, slot, display| AttributeEntry {
-            attribute: entry(path),
-            modifier: AttributeModifierValue {
-                id: ResourceLocation::new("mcrs", id).unwrap(),
-                amount,
-                operation,
-            },
-            slot,
-            display,
-        };
+        let entry =
+            |path: &str, id: StaticResourceLocation, amount: f64, operation, slot, display| {
+                AttributeEntry {
+                    attribute: entry(path),
+                    modifier: AttributeModifierValue {
+                        id: id.to_arc(),
+                        amount,
+                        operation,
+                    },
+                    slot,
+                    display,
+                }
+            };
         vec![
             AttributeModifiers::default(),
             AttributeModifiers(vec![entry(
                 "attack_damage",
-                "base_attack_damage",
+                rl!("mcrs:base_attack_damage"),
                 7.0,
                 AttributeOperation::AddValue,
                 EquipmentSlotGroup::Any,
@@ -146,7 +149,7 @@ impl Sample for AttributeModifiers {
             AttributeModifiers(vec![
                 entry(
                     "armor",
-                    "armor",
+                    rl!("mcrs:armor"),
                     -0.5,
                     AttributeOperation::AddMultipliedTotal,
                     EquipmentSlotGroup::Head,
@@ -154,7 +157,7 @@ impl Sample for AttributeModifiers {
                 ),
                 entry(
                     "attack_damage",
-                    "dmg",
+                    rl!("mcrs:dmg"),
                     1.5,
                     AttributeOperation::AddMultipliedBase,
                     EquipmentSlotGroup::Saddle,
@@ -164,7 +167,7 @@ impl Sample for AttributeModifiers {
                 ),
                 entry(
                     "armor",
-                    "styled",
+                    rl!("mcrs:styled"),
                     2.0,
                     AttributeOperation::AddValue,
                     EquipmentSlotGroup::Armor,

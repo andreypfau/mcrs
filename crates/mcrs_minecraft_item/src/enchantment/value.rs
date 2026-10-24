@@ -37,13 +37,11 @@ impl LevelBasedValue {
                 per_level_above_first,
             } => base + per_level_above_first * (level - 1) as f32,
             Exponent { base, power } => base.calculate(level).powf(power.calculate(level)),
-            Lookup { values, fallback } => {
-                if level >= 1 && (level as usize) <= values.len() {
-                    values[level as usize - 1]
-                } else {
-                    fallback.calculate(level)
-                }
-            }
+            Lookup { values, fallback } => usize::try_from(level)
+                .ok()
+                .and_then(|level| level.checked_sub(1))
+                .and_then(|at| values.get(at).copied())
+                .unwrap_or_else(|| fallback.calculate(level)),
         }
     }
 }

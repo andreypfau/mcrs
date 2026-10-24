@@ -1,17 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    clippy::panic,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
-#![cfg_attr(
-    feature = "bevy",
-    expect(
-        clippy::expect_used,
-        clippy::unreachable,
-        reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-    )
-)]
 pub mod block_transformer;
 pub mod component;
 pub mod damage_type;
@@ -26,6 +12,11 @@ pub mod enchantment;
 #[rustfmt::skip]
 pub mod keys;
 #[doc(hidden)]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "test support reports a failure by panicking"
+)]
 pub mod harness;
 pub mod hash_ops;
 #[cfg(feature = "bevy")]

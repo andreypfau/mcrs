@@ -50,12 +50,21 @@ pub enum StackError {
     },
     #[error("{item} has count {count}, outside 1..={}", u8::MAX)]
     BadCount { item: String, count: i32 },
+    #[error("{item} charges {count} projectiles, over {MAX_CHARGED_PROJECTILES}")]
+    ProjectileOverflow { item: String, count: usize },
+    #[error("{item} holds child stacks without a child kind")]
+    OrphanChildren { item: String },
+    #[error("{} written as {}", .expected.location(), .given.location())]
+    KindMismatch {
+        expected: DataComponentType,
+        given: DataComponentType,
+    },
 }
 
 #[doc(hidden)]
 pub struct KindOps {
     pub read: fn(EntityRef) -> Option<ItemComponentValue>,
-    pub insert: fn(&mut EntityWorldMut, &ItemComponentValue),
+    pub insert: fn(&mut EntityWorldMut, &ItemComponentValue) -> Result<(), StackError>,
     pub remove: fn(&mut EntityWorldMut),
     pub contains: fn(EntityRef) -> bool,
     pub differs: fn(EntityRef, Option<&ItemComponentValue>) -> bool,
@@ -80,11 +89,13 @@ fn read_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> Option<Ite
 fn insert_plain<K: ItemDataComponent + Component>(
     entity: &mut EntityWorldMut,
     value: &ItemComponentValue,
-) {
-    let value = K::from_value(value)
-        .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND.location(), value.kind()))
-        .clone();
-    entity.insert(value);
+) -> Result<(), StackError> {
+    let given = K::from_value(value).ok_or(StackError::KindMismatch {
+        expected: K::KIND,
+        given: value.kind(),
+    })?;
+    entity.insert(given.clone());
+    Ok(())
 }
 
 fn remove_plain<K: ItemDataComponent + Component>(entity: &mut EntityWorldMut) {
@@ -170,13 +181,18 @@ fn child_value(
     world: &World,
     stack: Entity,
     kind: DataComponentType,
+    entry: &ItemEntry,
     items: &Items,
-) -> ItemComponentValue {
-    let mut templates: Vec<Option<Template>> = children(world, stack)
+) -> Result<ItemComponentValue, StackError> {
+    let mut templates = children(world, stack)
         .into_iter()
-        .map(|child| child.map(|child| Template(stack_to_value(world, child, items))))
-        .collect();
-    let dense = || templates.iter().flatten().cloned().collect();
+        .map(|child| {
+            child
+                .map(|child| stack_to_value(world, child, items).map(Template))
+                .transpose()
+        })
+        .collect::<Result<Vec<Option<Template>>, _>>()?;
+    let item = || entry.identifier.to_string();
     match kind {
         DataComponentType::Container => {
             let occupied = templates
@@ -184,20 +200,38 @@ fn child_value(
                 .rposition(Option::is_some)
                 .map_or(0, |last| last + 1);
             templates.truncate(occupied);
+            let needed = templates.len();
             Container::new(templates)
-                .expect("a slot table never outgrows the container bound")
-                .into()
+                .map(Into::into)
+                .map_err(|_| StackError::ContainerOverflow {
+                    item: item(),
+                    slots: MAX_CONTAINER_SLOTS,
+                    needed,
+                })
         }
-        DataComponentType::BundleContents => BundleContents(dense()).into(),
-        DataComponentType::ChargedProjectiles => ChargedProjectiles::new(dense())
-            .expect("a slot table never outgrows the projectile bound")
-            .into(),
-        other => unreachable!("{} holds no child stacks", other.location()),
+        DataComponentType::BundleContents => {
+            Ok(BundleContents(templates.into_iter().flatten().collect()).into())
+        }
+        DataComponentType::ChargedProjectiles => {
+            let dense: Vec<Template> = templates.into_iter().flatten().collect();
+            let count = dense.len();
+            ChargedProjectiles::new(dense).map(Into::into).map_err(|_| {
+                StackError::ProjectileOverflow {
+                    item: item(),
+                    count,
+                }
+            })
+        }
+        other => Err(StackError::UnsupportedChildKind {
+            item: item(),
+            kind: other,
+        }),
     }
 }
 
-pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>> {
-    match value {
+/// The stacks a child kind's value holds, or `None` for a kind that holds none.
+pub fn child_targets(value: &ItemComponentValue) -> Option<Vec<Option<&ItemStackValue>>> {
+    Some(match value {
         ItemComponentValue::Container(container) => container
             .slots
             .0
@@ -213,13 +247,21 @@ pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>>
             .iter()
             .map(|template| Some(&template.0))
             .collect(),
-        other => unreachable!("{} holds no child stacks", other.kind().location()),
-    }
+        _ => return None,
+    })
 }
 
-pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackValue {
-    let entry = entry(world, stack, items).expect("a stack entity names a corpus item");
-    let ItemStack { item, count, .. } = *world.get::<ItemStack>(stack).unwrap();
+pub fn stack_to_value(
+    world: &World,
+    stack: Entity,
+    items: &Items,
+) -> Result<ItemStackValue, StackError> {
+    let &ItemStack { item, count, .. } = world
+        .get::<ItemStack>(stack)
+        .ok_or(StackError::NotAStack(stack))?;
+    let entry = items
+        .get(item)
+        .ok_or_else(|| StackError::UnknownItem(format!("#{}", item.number())))?;
     let entity = world.entity(stack);
     let own_child_kind = child_kind(entry);
     let mut components = ComponentPatch::EMPTY;
@@ -230,7 +272,7 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
                 components.removed.push(kind);
                 continue;
             }
-            let derived = child_value(world, stack, kind, items);
+            let derived = child_value(world, stack, kind, entry, items)?;
             if prototype != Some(&derived) {
                 components.added.push(derived);
             }
@@ -245,29 +287,37 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
         }
     }
     if own_child_kind.is_none() && !children(world, stack).is_empty() {
-        unreachable!(
-            "{} holds child stacks without a child kind",
-            entry.identifier
-        );
+        return Err(StackError::OrphanChildren {
+            item: entry.identifier.to_string(),
+        });
     }
-    ItemStackValue {
+    Ok(ItemStackValue {
         item,
         count: Bounded(i32::from(count)),
         components,
-    }
+    })
 }
 
-pub fn stack_to_slot(world: &World, stack: Entity, items: &Items) -> ProtoStack {
-    let value = stack_to_value(world, stack, items);
-    let item = world.get::<ItemStack>(stack).unwrap().item;
-    ProtoStack::new(item, value.count.0, value.components)
+pub fn stack_to_slot(
+    world: &World,
+    stack: Entity,
+    items: &Items,
+) -> Result<ProtoStack, StackError> {
+    let value = stack_to_value(world, stack, items)?;
+    Ok(ProtoStack::new(value.item, value.count.0, value.components))
 }
 
 pub fn same_item_same_components(world: &World, a: Entity, b: Entity, items: &Items) -> bool {
     let item = |stack: Entity| world.get::<ItemStack>(stack).map(|stack| stack.item);
     item(a).is_some()
         && item(a) == item(b)
-        && stack_to_value(world, a, items).components == stack_to_value(world, b, items).components
+        && match (
+            stack_to_value(world, a, items),
+            stack_to_value(world, b, items),
+        ) {
+            (Ok(a), Ok(b)) => a.components == b.components,
+            _ => false,
+        }
 }
 
 pub fn item_of(world: &World, stack: Entity) -> Option<Id<Item>> {

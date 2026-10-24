@@ -1,6 +1,6 @@
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::codec::int_value;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation, rl};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
@@ -25,8 +25,8 @@ macro_rules! typed_entity_component {
 
             fn samples() -> Vec<Self> {
                 vec![
-                    $ty(typed($first, NbtCompound::new())),
-                    $ty(typed($second, sample_tag())),
+                    $ty(typed(rl!($first), NbtCompound::new())),
+                    $ty(typed(rl!($second), sample_tag())),
                 ]
             }
         }
@@ -34,8 +34,8 @@ macro_rules! typed_entity_component {
 }
 
 typed_entity_component! {
-    EntityData(EntityType) ["zombie", "pig"],
-    BlockEntityData(BlockEntityType) ["chest", "sign"],
+    EntityData(EntityType) ["minecraft:zombie", "minecraft:pig"],
+    BlockEntityData(BlockEntityType) ["minecraft:chest", "minecraft:sign"],
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
@@ -62,12 +62,12 @@ impl Sample for Bees {
             Bees::default(),
             Bees(vec![
                 BeeOccupant {
-                    entity_data: typed("pig", sample_tag()),
+                    entity_data: typed(rl!("minecraft:pig"), sample_tag()),
                     ticks_in_hive: 10,
                     min_ticks_in_hive: 600,
                 },
                 BeeOccupant {
-                    entity_data: typed("zombie", NbtCompound::new()),
+                    entity_data: typed(rl!("minecraft:zombie"), NbtCompound::new()),
                     ticks_in_hive: 0,
                     min_ticks_in_hive: -1,
                 },
@@ -76,9 +76,9 @@ impl Sample for Bees {
     }
 }
 
-fn typed<R>(path: &str, tag: NbtCompound) -> TypedEntityData<R> {
+fn typed<R>(id: StaticResourceLocation, tag: NbtCompound) -> TypedEntityData<R> {
     TypedEntityData {
-        id: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
+        id: ResourceKey::from_location(id.to_arc()),
         tag,
     }
 }

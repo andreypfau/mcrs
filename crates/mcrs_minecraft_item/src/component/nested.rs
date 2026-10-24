@@ -211,7 +211,9 @@ impl<'de> Deserialize<'de> for Container<Named> {
                     if slots.len() <= slot {
                         slots.resize(slot + 1, None);
                     }
-                    slots[slot] = Some(entry.item);
+                    if let Some(at) = slots.get_mut(slot) {
+                        *at = Some(entry.item);
+                    }
                 }
                 Container::new(slots).map_err(A::Error::custom)
             }
@@ -221,10 +223,18 @@ impl<'de> Deserialize<'de> for Container<Named> {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test support reports a failure by panicking"
+)]
 fn plain(path: &str, count: i32) -> Template {
     Template::new(entry(path), count, ComponentPatch::EMPTY).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test support reports a failure by panicking"
+)]
 fn patched_sword() -> Template {
     let mut patch = ComponentPatch::EMPTY;
     patch.set(MaxStackSize(codec::Bounded(16)));
@@ -275,6 +285,10 @@ impl Sample for ChargedProjectiles {
         vec![("", LIST_ID)]
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test support reports a failure by panicking"
+    )]
     fn samples() -> Vec<Self> {
         vec![
             ChargedProjectiles::default(),
@@ -289,6 +303,10 @@ impl Sample for BundleContents {
         vec![("", LIST_ID)]
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test support reports a failure by panicking"
+    )]
     fn samples() -> Vec<Self> {
         let mut inner = ComponentPatch::EMPTY;
         inner.set(BundleContents(vec![plain("stone", 1)]));
@@ -343,6 +361,10 @@ impl Sample for Container {
         vec![("", LIST_ID)]
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test support reports a failure by panicking"
+    )]
     fn samples() -> Vec<Self> {
         vec![
             Container::default(),

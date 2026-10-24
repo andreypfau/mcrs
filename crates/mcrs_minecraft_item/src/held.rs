@@ -18,7 +18,9 @@ pub struct Held {
 
 impl Held {
     fn mirror_insert(mut world: DeferredWorld, ctx: HookContext) {
-        let held = *world.get::<Held>(ctx.entity).unwrap();
+        let Some(&held) = world.get::<Held>(ctx.entity) else {
+            return;
+        };
         debug_assert!(
             !world.entity(ctx.entity).contains::<DroppedItem>(),
             "{:?} is held and dropped at once",
@@ -31,7 +33,9 @@ impl Held {
     }
 
     fn mirror_discard(mut world: DeferredWorld, ctx: HookContext) {
-        let held = *world.get::<Held>(ctx.entity).unwrap();
+        let Some(&held) = world.get::<Held>(ctx.entity) else {
+            return;
+        };
         // The holder is already gone while its subtree cascades out of a despawn.
         let Some(mut table) = world.get_mut::<SlotTable>(held.holder) else {
             return;
@@ -74,9 +78,11 @@ impl SlotTable {
         let held: Vec<(u16, Entity)> = holds
             .entities()
             .iter()
-            .map(|&stack| (world.get::<Held>(stack).unwrap().index, stack))
+            .filter_map(|&stack| Some((world.get::<Held>(stack)?.index, stack)))
             .collect();
-        let mut table = world.get_mut::<SlotTable>(ctx.entity).unwrap();
+        let Some(mut table) = world.get_mut::<SlotTable>(ctx.entity) else {
+            return;
+        };
         for (index, stack) in held {
             table.place(index, stack);
         }
@@ -91,9 +97,10 @@ impl SlotTable {
         if index >= self.slots.len() {
             self.slots.resize(index + 1, None);
         }
-        let slot = &mut self.slots[index];
-        debug_assert!(slot.is_none_or(|by| by == stack));
-        *slot = Some(stack);
+        if let Some(slot) = self.slots.get_mut(index) {
+            debug_assert!(slot.is_none_or(|by| by == stack));
+            *slot = Some(stack);
+        }
     }
 
     pub fn fixed(len: usize) -> Self {

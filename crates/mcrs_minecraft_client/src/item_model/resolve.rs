@@ -346,7 +346,7 @@ mod tests {
             if let Some(given) = effective.get_value(kind)
                 && !is_child_kind(kind)
             {
-                (ops(kind).insert)(&mut stack, given);
+                (ops(kind).insert)(&mut stack, given).unwrap();
             }
         }
         stack.id()
@@ -358,7 +358,7 @@ mod tests {
         value: K,
     ) {
         let value: mcrs_minecraft_protocol::item::ItemComponentValue = value.into();
-        (ops(value.kind()).insert)(&mut world.entity_mut(stack), &value);
+        (ops(value.kind()).insert)(&mut world.entity_mut(stack), &value).unwrap();
         world.get_mut::<StackRevision>(stack).unwrap().0 += 1;
     }
 
