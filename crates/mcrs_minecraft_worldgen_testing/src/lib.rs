@@ -145,7 +145,7 @@ pub fn built_template_pools() -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// The built biomes as the JSON they encode to, for the tests that read the
 /// corpus as files.
 pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
-    encoded(builtin::biomes())
+    encoded(builtin::biomes().unwrap_or_else(|error| panic!("{error}")))
 }
 
 fn encoded<T: serde::Serialize>(

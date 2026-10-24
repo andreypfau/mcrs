@@ -32,7 +32,9 @@ const STATIC_REGISTRIES: [&[(
 /// worldgen crates, the data registries the generator reads, and the entries the game and the
 /// beta preset build by code. The biome declaration replaces the vanilla one, so a biome also
 /// checks the domain of the features it places.
-pub fn add_vanilla_worldgen(additions: &mut RegistryAdditions) {
+pub fn add_vanilla_worldgen(
+    additions: &mut RegistryAdditions,
+) -> Result<(), builtin::BuiltinError> {
     for (key, names) in STATIC_REGISTRIES.into_iter().flatten() {
         let names = names.iter().map(|&name| name.into()).collect();
         additions
@@ -54,7 +56,7 @@ pub fn add_vanilla_worldgen(additions: &mut RegistryAdditions) {
         Declaration::data::<MaterialRuleHolder>().into(),
         Declaration::data::<MaterialConditionHolder>().into(),
     ]);
-    insert_built_ins(&mut additions.files);
+    insert_built_ins(&mut additions.files)
 }
 
 fn biome_declaration() -> DataDeclaration<BiomeFile> {
@@ -82,8 +84,8 @@ fn biome_declaration() -> DataDeclaration<BiomeFile> {
 
 const BETA_PACK: &str = "file/beta";
 
-fn insert_built_ins(files: &mut PackFiles) {
-    insert_all::<BiomeFile>(files, VANILLA_PACK, builtin::biomes());
+fn insert_built_ins(files: &mut PackFiles) -> Result<(), builtin::BuiltinError> {
+    insert_all::<BiomeFile>(files, VANILLA_PACK, builtin::biomes()?);
     insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools());
     insert_all::<NoiseParam>(files, VANILLA_PACK, builtin::vanilla_noises());
     insert_all::<NoiseParam>(files, BETA_PACK, builtin::beta_noises());
@@ -91,6 +93,7 @@ fn insert_built_ins(files: &mut PackFiles) {
     insert_all::<DensityFunctionHolder>(files, BETA_PACK, builtin::beta_density_functions());
     insert_all::<NoiseGeneratorSettings>(files, VANILLA_PACK, builtin::vanilla_noise_settings());
     insert_all::<NoiseGeneratorSettings>(files, BETA_PACK, builtin::beta_noise_settings());
+    Ok(())
 }
 
 fn insert_all<V: DataValue>(

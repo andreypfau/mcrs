@@ -168,9 +168,11 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
 
 /// The additions of vanilla world generation, which the beta pack of the test packs needs.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+#[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 pub fn test_additions() -> RegistryAdditions {
     let mut additions = RegistryAdditions::default();
-    mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions);
+    mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions)
+        .unwrap_or_else(|error| panic!("{error}"));
     additions
 }
 

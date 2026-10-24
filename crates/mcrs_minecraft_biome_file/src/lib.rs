@@ -1,8 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    clippy::panic,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 use serde::{Deserialize, Serialize, Serializer};
 
 use mcrs_minecraft_biome::{
@@ -12,7 +7,9 @@ use mcrs_minecraft_biome::{
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
-use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
+use mcrs_minecraft_environment::attribute::{
+    AttributeError, EnvironmentAttributeMap, MobSpawnSettings, Operation,
+};
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
 
 pub type Carvers = ConfiguredCarver;
@@ -69,7 +66,14 @@ fn serialize_steps<T: ListForm, S: Serializer>(steps: &[T], s: S) -> Result<S::O
 }
 
 /// A biome described in code: carvers and placed features are still names.
-pub type BiomeDraft = BiomeFile<Named>;
+///
+/// The builder methods chain, so the first argument an attribute refuses is
+/// kept and [`BiomeDraft::finish`] returns it.
+#[derive(Debug)]
+pub struct BiomeDraft {
+    biome: BiomeFile<Named>,
+    refused: Option<AttributeError>,
+}
 
 /// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
 ///
@@ -151,15 +155,17 @@ impl BiomeGeneration {
         if self.features.len() <= step {
             self.features.resize_with(step + 1, Vec::new);
         }
-        self.features[step].extend(keys.iter().copied().map(key));
+        if let Some(features) = self.features.get_mut(step) {
+            features.extend(keys.iter().copied().map(key));
+        }
         self
     }
 }
 
 impl BiomeDraft {
     pub fn generation(mut self, generation: BiomeGeneration) -> Self {
-        self.carvers = KeySet::List(generation.carvers.into());
-        self.features = generation
+        self.biome.carvers = KeySet::List(generation.carvers.into());
+        self.biome.features = generation
             .features
             .into_iter()
             .map(|step| KeySet::List(step.into()))
@@ -172,17 +178,29 @@ impl BiomeDraft {
     pub const NORMAL_WATER_COLOR: i32 = 4159204;
 
     pub fn new(has_precipitation: bool, temperature: f32, downfall: f32) -> Self {
-        BiomeFile {
-            temperature,
-            downfall,
-            has_precipitation,
-            temperature_modifier: None,
-            effects: BiomeEffects::default(),
-            attributes: Default::default(),
-            carvers: KeySet::default(),
-            features: Vec::new(),
+        BiomeDraft {
+            biome: BiomeFile {
+                temperature,
+                downfall,
+                has_precipitation,
+                temperature_modifier: None,
+                effects: BiomeEffects::default(),
+                attributes: Default::default(),
+                carvers: KeySet::default(),
+                features: Vec::new(),
+            },
+            refused: None,
         }
         .water(Self::NORMAL_WATER_COLOR)
+    }
+
+    /// The biome file, or the first attribute argument the draft was given that
+    /// the attribute or its modifier does not take.
+    pub fn finish(self) -> Result<BiomeFile<Named>, AttributeError> {
+        match self.refused {
+            Some(error) => Err(error),
+            None => Ok(self.biome),
+        }
     }
 
     pub fn spawns(self, mobs: MobSpawnSettings) -> Self {
@@ -193,52 +211,57 @@ impl BiomeDraft {
         self.modified(attribute, Operation::Override, value)
     }
 
-    /// Panics on an argument the attribute or the modifier does not take: a
-    /// description written in code is wrong at the point it is written.
+    /// Leaves the attribute unchanged on an argument the attribute or the
+    /// modifier does not take, and [`BiomeDraft::finish`] reports it.
     pub fn modified<T>(
         mut self,
         attribute: Attribute<T>,
         modifier: Operation,
         argument: impl Serialize,
     ) -> Self {
-        if let Err(error) = self.attributes.modify(attribute.id, modifier, argument) {
-            panic!("{}: {error}", attribute.id);
+        if self.refused.is_none()
+            && let Err(error) = self
+                .biome
+                .attributes
+                .modify(attribute.id, modifier, argument)
+        {
+            self.refused = Some(error);
         }
         self
     }
 
     pub fn precipitation(mut self, has_precipitation: bool) -> Self {
-        self.has_precipitation = has_precipitation;
+        self.biome.has_precipitation = has_precipitation;
         self
     }
 
     pub fn temperature_modifier(mut self, modifier: TemperatureModifier) -> Self {
-        self.temperature_modifier = Some(modifier);
+        self.biome.temperature_modifier = Some(modifier);
         self
     }
 
     pub fn water(mut self, color: i32) -> Self {
-        self.effects.water_color = Some(HexRgb::of(color));
+        self.biome.effects.water_color = Some(HexRgb::of(color));
         self
     }
 
     pub fn foliage(mut self, color: i32) -> Self {
-        self.effects.foliage_color = Some(HexRgb::of(color));
+        self.biome.effects.foliage_color = Some(HexRgb::of(color));
         self
     }
 
     pub fn grass(mut self, color: i32) -> Self {
-        self.effects.grass_color = Some(HexRgb::of(color));
+        self.biome.effects.grass_color = Some(HexRgb::of(color));
         self
     }
 
     pub fn dry_foliage(mut self, color: i32) -> Self {
-        self.effects.dry_foliage_color = Some(HexRgb::of(color));
+        self.biome.effects.dry_foliage_color = Some(HexRgb::of(color));
         self
     }
 
     pub fn grass_modifier(mut self, modifier: GrassColorModifier) -> Self {
-        self.effects.grass_color_modifier = modifier;
+        self.biome.effects.grass_color_modifier = modifier;
         self
     }
 }

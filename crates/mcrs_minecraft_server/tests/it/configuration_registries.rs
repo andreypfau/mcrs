@@ -221,7 +221,10 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
     let directory = registry.strip_prefix("minecraft:").unwrap();
     let mut entries = BTreeMap::new();
     if registry == "minecraft:worldgen/biome" {
-        for name in mcrs_minecraft_worldgen_builtin::biomes().into_keys() {
+        for name in mcrs_minecraft_worldgen_builtin::biomes()
+            .unwrap()
+            .into_keys()
+        {
             let key = (format!("{}.json", name.path()), name.namespace().to_owned());
             entries.insert(key, VANILLA_PACK.to_owned());
         }

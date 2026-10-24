@@ -18,10 +18,12 @@ mod structure;
 mod template_pool;
 mod terrain;
 
-use mcrs_minecraft_biome_file::BiomeDraft;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_environment::attribute::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
+use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -63,8 +65,23 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     noises
 }
 
-pub fn biomes() -> BTreeMap<ResourceLocation, BiomeDraft> {
-    biome::drafts().collect()
+/// An entry described in code that does not build.
+#[derive(Debug, thiserror::Error)]
+pub enum BuiltinError {
+    #[error("the built-in biome `{biome}`: {refused}")]
+    Biome {
+        biome: ResourceLocation,
+        refused: AttributeError,
+    },
+}
+
+pub fn biomes() -> Result<BTreeMap<ResourceLocation, BiomeFile<Named>>, BuiltinError> {
+    biome::drafts()
+        .map(|(biome, draft)| match draft.finish() {
+            Ok(file) => Ok((biome, file)),
+            Err(refused) => Err(BuiltinError::Biome { biome, refused }),
+        })
+        .collect()
 }
 
 pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {

@@ -1,4 +1,4 @@
-use bevy_app::{App, Plugin};
+use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::AssetServer;
 use bevy_asset::io::{AssetReaderError, AssetSourceId, ErasedAssetReader};
 use bevy_ecs::prelude::*;
@@ -22,7 +22,12 @@ pub struct VanillaWorldgenPlugin;
 impl Plugin for VanillaWorldgenPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WorldgenAssetsPlugin);
-        add_vanilla_worldgen(&mut app.world_mut().get_resource_or_init::<RegistryAdditions>());
+        let added =
+            add_vanilla_worldgen(&mut app.world_mut().get_resource_or_init::<RegistryAdditions>());
+        if let Err(error) = added {
+            tracing::error!("the built-in worldgen entries are unusable: {error}");
+            app.world_mut().write_message(AppExit::error());
+        }
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             request_data_pack_templates,
@@ -248,7 +253,7 @@ mod tests {
             ],
         };
         let mut additions = RegistryAdditions::default();
-        add_vanilla_worldgen(&mut additions);
+        add_vanilla_worldgen(&mut additions).unwrap();
         let (registries, _) =
             load_registries(&source, additions).unwrap_or_else(|error| panic!("{error}"));
 
