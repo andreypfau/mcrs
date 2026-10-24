@@ -1,16 +1,4 @@
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::panic,
-        clippy::unreachable,
-        clippy::todo,
-        clippy::unimplemented,
-        clippy::indexing_slicing,
-        clippy::arithmetic_side_effects
-    )
-)]
+#![cfg_attr(not(test), deny(clippy::arithmetic_side_effects))]
 
 mod diagnostic;
 mod filter;

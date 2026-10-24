@@ -1,3 +1,11 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::unwrap_used,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 #![cfg_attr(
     test,
     expect(

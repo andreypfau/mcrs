@@ -1,4 +1,9 @@
 #![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "an application has no caller to return an error to"
+)]
+#![expect(
     clippy::disallowed_methods,
     reason = "a developer tool: its checks are driven by environment variables"
 )]

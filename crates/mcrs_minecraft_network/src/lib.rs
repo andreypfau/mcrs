@@ -1,3 +1,9 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 #[cfg(target_family = "wasm")]
 pub mod browser;
 #[cfg(feature = "bevy")]

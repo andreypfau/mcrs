@@ -1,4 +1,9 @@
 #![expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test reports a failure by panicking"
+)]
+#![expect(
     clippy::disallowed_methods,
     reason = "the test finds the vanilla server to join through the environment"
 )]

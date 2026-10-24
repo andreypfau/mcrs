@@ -5,6 +5,10 @@
 //! routed, the expected number of cross-dim transfers, no orphan entities, an
 //! no session left after teardown — are asserted on every measured iteration,
 //! so a regression fails the bench rather than showing up as a timing wobble.
+#![expect(
+    clippy::indexing_slicing,
+    reason = "a benchmark has no caller to return an error to"
+)]
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::time::{Duration, Instant};

@@ -8,6 +8,13 @@
 //! usage: cargo bench --bench biome_matrix -- [mode] [columns_per_side] [seed] [offset]
 //!   mode = matrix   per-biome surface cost over one fixed patch of terrain
 //!        = natural  same columns with the real biomes vs. the pinned biome
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a benchmark has no caller to return an error to"
+)]
 
 mod common;
 use mcrs_minecraft_core::ResourceKey;

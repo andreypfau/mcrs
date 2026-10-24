@@ -1,4 +1,9 @@
 #![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "an application has no caller to return an error to"
+)]
+#![expect(
     clippy::disallowed_types,
     reason = "the update tool parses the game's JSON reports as they come"
 )]

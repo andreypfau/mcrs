@@ -1,3 +1,9 @@
+#![expect(
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    clippy::unwrap_used,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 #![cfg_attr(
     test,
     expect(clippy::disallowed_macros, reason = "test input is written as JSON")

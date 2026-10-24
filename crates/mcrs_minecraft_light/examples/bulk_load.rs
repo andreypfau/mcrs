@@ -1,5 +1,9 @@
 //! Measures what a bulk world load costs the light engine, batch by batch.
 #![expect(
+    clippy::expect_used,
+    reason = "an example has no caller to return an error to"
+)]
+#![expect(
     clippy::disallowed_methods,
     reason = "the example takes its batch size and priority from the environment"
 )]

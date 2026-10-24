@@ -1,6 +1,13 @@
 //! Overworld column pipeline, one stage at a time.
 //!
 //! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed] [column_offset]
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a benchmark has no caller to return an error to"
+)]
 
 mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;

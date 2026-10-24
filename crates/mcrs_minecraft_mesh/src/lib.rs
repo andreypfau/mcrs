@@ -1,3 +1,7 @@
+#![expect(
+    clippy::indexing_slicing,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 #![cfg_attr(
     test,
     expect(

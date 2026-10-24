@@ -1,4 +1,9 @@
 #![expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "an application has no caller to return an error to"
+)]
+#![expect(
     clippy::disallowed_methods,
     reason = "a build script reads the variables cargo sets for it"
 )]

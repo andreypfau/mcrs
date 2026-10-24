@@ -1,3 +1,4 @@
+#![expect(clippy::panic, reason = "a test reports a failure by panicking")]
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;

@@ -4,6 +4,13 @@
 //!
 //! Mirrors the server's Beta `Filled` stage: terrain, surface, caves. Ores run
 //! in the `Run` stage over a region; `the_ladder_costs` in the tests times that.
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a benchmark has no caller to return an error to"
+)]
 
 mod common;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;

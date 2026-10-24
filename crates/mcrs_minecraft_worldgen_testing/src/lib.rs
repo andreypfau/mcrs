@@ -2,6 +2,13 @@
 //! tests that check the engine against every file the game ships rather than
 //! against a fixture.
 #![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "test support reports a failure by panicking"
+)]
+#![expect(
     clippy::disallowed_types,
     reason = "test support re-encodes a value into JSON for comparison"
 )]

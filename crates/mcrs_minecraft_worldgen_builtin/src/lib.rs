@@ -1,3 +1,9 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 // chisle: every reference in a built template pool is a
 // `ResourceLocation<Arc<str>>`, one allocation each, and a structure template is
 // built as a typed value, encoded to NBT and parsed back by the asset loader. A
