@@ -389,7 +389,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
 }
 
 #[test]
-fn a_client_silent_after_the_handshake_is_disconnected_after_six_hundred_ticks() {
+fn a_connection_silent_in_login_is_disconnected_after_six_hundred_ticks() {
     let mut app = server(None);
     let mut client = connect(&mut app);
 
