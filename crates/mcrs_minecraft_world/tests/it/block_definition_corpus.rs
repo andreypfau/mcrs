@@ -158,7 +158,10 @@ fn stone_has_one_state_and_a_full_cube() {
     assert_eq!(state.push_reaction, PushReaction::Normal);
     assert_eq!(state.instrument, NoteBlockInstrument::Basedrum);
     assert_eq!(
-        definitions.loot_table(state.loot.unwrap()).as_str(),
+        definitions
+            .loot_table(state.loot.unwrap())
+            .unwrap()
+            .as_str(),
         "minecraft:blocks/stone"
     );
     assert_eq!(state.fluid, None);

@@ -68,19 +68,23 @@ pub(super) fn load_corpus() -> BetaSurfaceCorpus {
 /// from above the surface) passes through with a fallback:
 ///   stone (ID 1) → 1, air (ID 0) → 0.
 fn beta_id_for(modern: BlockStateId) -> u8 {
-    let air = super::corpus().default_state("minecraft:air");
-    let stone = super::corpus().default_state("minecraft:stone");
-    let grass = super::corpus().default_state("minecraft:grass_block");
-    let dirt = super::corpus().default_state("minecraft:dirt");
-    let bedrock = super::corpus().default_state("minecraft:bedrock");
-    let sand = super::corpus().default_state("minecraft:sand");
-    let sandstone = super::corpus().default_state("minecraft:sandstone");
-    let gravel = super::corpus().default_state("minecraft:gravel");
+    let air = super::corpus().default_state("minecraft:air").unwrap();
+    let stone = super::corpus().default_state("minecraft:stone").unwrap();
+    let grass = super::corpus()
+        .default_state("minecraft:grass_block")
+        .unwrap();
+    let dirt = super::corpus().default_state("minecraft:dirt").unwrap();
+    let bedrock = super::corpus().default_state("minecraft:bedrock").unwrap();
+    let sand = super::corpus().default_state("minecraft:sand").unwrap();
+    let sandstone = super::corpus()
+        .default_state("minecraft:sandstone")
+        .unwrap();
+    let gravel = super::corpus().default_state("minecraft:gravel").unwrap();
 
     // Water: default_state_id = level 0 (base_state_id 86).
-    let water_source = super::corpus().default_state("minecraft:water");
+    let water_source = super::corpus().default_state("minecraft:water").unwrap();
     // Lava: default_state_id = level 0 (base_state_id 102).
-    let lava_source = super::corpus().default_state("minecraft:lava");
+    let lava_source = super::corpus().default_state("minecraft:lava").unwrap();
 
     if modern == air {
         return 0;
@@ -114,7 +118,7 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
     if modern == sandstone {
         return 24;
     }
-    let ice = super::corpus().default_state("minecraft:ice");
+    let ice = super::corpus().default_state("minecraft:ice").unwrap();
     if modern == ice {
         return 79;
     }
@@ -211,7 +215,9 @@ fn column_matches(
     // Find the topmost non-air Y in the generated column (surface height).
     let surface_y: i32 = (0..128i32)
         .rev()
-        .find(|&y| generated_col[y as usize] != super::corpus().default_state("minecraft:air"))
+        .find(|&y| {
+            generated_col[y as usize] != super::corpus().default_state("minecraft:air").unwrap()
+        })
         .unwrap_or(0);
 
     let surface_lo = (surface_y - SURFACE_BAND_HALF).max(0);

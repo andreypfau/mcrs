@@ -235,8 +235,11 @@ pub(super) fn state_named(id: VoxelId) -> String {
 }
 
 fn block_name(id: VoxelId) -> &'static str {
-    let index = corpus().block_index(corpus_state_of(id));
-    corpus()[index].identifier.as_str()
+    corpus()
+        .owner(corpus_state_of(id))
+        .unwrap()
+        .identifier
+        .as_str()
 }
 
 fn id_of(entity: &GeneratedBlockEntity) -> String {
@@ -315,7 +318,7 @@ pub(super) fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
     let world = WorldStates::clone(&program().world);
     let air = world.air_states.clone();
     let fluid = world.any_fluid.clone();
-    let state = |block: &str| VoxelId::from(corpus().default_state(block).number());
+    let state = |block: &str| VoxelId::from(corpus().default_state(block).unwrap().number());
     let region = BoxRegion::new(min, max, world.air);
     let mut region = match floor {
         0 => region.floor(63, state("minecraft:dirt")),

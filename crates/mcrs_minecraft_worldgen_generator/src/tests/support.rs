@@ -45,10 +45,26 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 
 pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
     RouterBlocks {
-        default_block: blocks.default_state("minecraft:stone").number().into(),
-        default_fluid: blocks.default_state("minecraft:water").number().into(),
-        water: blocks.default_state("minecraft:water").number().into(),
-        lava: blocks.default_state("minecraft:lava").number().into(),
+        default_block: blocks
+            .default_state("minecraft:stone")
+            .unwrap()
+            .number()
+            .into(),
+        default_fluid: blocks
+            .default_state("minecraft:water")
+            .unwrap()
+            .number()
+            .into(),
+        water: blocks
+            .default_state("minecraft:water")
+            .unwrap()
+            .number()
+            .into(),
+        lava: blocks
+            .default_state("minecraft:lava")
+            .unwrap()
+            .number()
+            .into(),
     }
 }
 

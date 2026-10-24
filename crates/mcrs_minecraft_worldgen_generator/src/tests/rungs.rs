@@ -99,12 +99,16 @@ fn tables() -> FeatureTables {
 }
 
 fn state_of(name: &str) -> VoxelId {
-    VoxelId::from(blocks().0.default_state(name).number())
+    VoxelId::from(blocks().0.default_state(name).unwrap().number())
 }
 
 fn named(state: VoxelId) -> &'static str {
-    let index = blocks().0.block_index(corpus_state_of(state));
-    blocks().0[index].identifier.as_str()
+    blocks()
+        .0
+        .owner(corpus_state_of(state))
+        .unwrap()
+        .identifier
+        .as_str()
 }
 
 fn block_at(column: &FilledSnapshot, x: usize, y: i32, z: usize) -> VoxelId {

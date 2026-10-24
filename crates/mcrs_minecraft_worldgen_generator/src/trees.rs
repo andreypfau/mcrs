@@ -69,7 +69,7 @@ pub(super) fn state_of(
     block: Id<Block>,
     properties: &[(&str, &str)],
 ) -> Option<VoxelId> {
-    let entry = &blocks[block];
+    let entry = blocks.entry(block)?;
     let mut id = entry.default_state_id;
     for (name, value) in properties {
         id = entry.with_text(id, name, value)?;
@@ -168,7 +168,7 @@ fn property_table<const N: usize>(
     with_property(blocks, property)
         .filter_map(|(state, _)| {
             let id = crate::block_state::state_of(blocks, state)?;
-            let entry = blocks.owner(id);
+            let entry = blocks.owner(id)?;
             Some((
                 state.0,
                 values.map(|value| {
@@ -271,7 +271,9 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
         mask
     };
     for entry in blocks.blocks() {
-        let block = blocks.block_index(entry.default_state_id);
+        let Some(block) = blocks.block_index(entry.default_state_id) else {
+            continue;
+        };
         if let Some(filter) = &entry.placement_filter {
             let rule = placement_rule(resolver, filter).map_err(|e| e.within(&entry.identifier))?;
             rules.insert(block, rule);
@@ -341,7 +343,7 @@ fn rule_of(
             below(supports)
         }
         SurviveFamily::SnowLayer => {
-            let snow = resolver.block_of(Block::Snow.id());
+            let snow = resolver.block_of(Block::Snow.id())?;
             let mut supports = faces.sturdy_up.clone();
             supports.union_with(&tag(block_tags::SUPPORT_OVERRIDE_SNOW_LAYER)?);
             supports.insert(usize::from(

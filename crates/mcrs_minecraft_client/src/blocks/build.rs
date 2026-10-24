@@ -537,16 +537,20 @@ mod tests {
                 .collect(),
         };
         let corpus = crate::blocks::corpus();
-        let mut id = corpus.default_state(name);
+        let mut id = corpus.default_state(name).unwrap();
         for (key, value) in props {
             id = corpus
                 .owner(id)
+                .unwrap()
                 .with_text(id, key, value)
                 .unwrap_or_else(|| panic!("{name} has no {key}={value}"));
         }
         super::build_one(
             Pack::corpus(),
-            Block::from_id(corpus.block_index(id)).expect("a corpus block is a registry entry"),
+            corpus
+                .block_index(id)
+                .and_then(Block::from_id)
+                .expect("a corpus block is a registry entry"),
             &state,
             corpus.state(id),
             corpus.shape(corpus.state(id).occlusion_shape),

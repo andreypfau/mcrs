@@ -72,7 +72,11 @@ pub(super) fn read_dump(name: &str) -> Dump {
 }
 
 fn name_of(state: VoxelId) -> &'static str {
-    corpus().owner(corpus_state_of(state)).identifier.as_str()
+    corpus()
+        .owner(corpus_state_of(state))
+        .unwrap()
+        .identifier
+        .as_str()
 }
 
 /// Block for block against chunks the game generated itself: every position

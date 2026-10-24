@@ -63,7 +63,7 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
     let blocks = ColumnBlocks::new(&Y_SECTIONS);
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    let state = corpus().default_state("minecraft:stone");
+    let state = corpus().default_state("minecraft:stone").unwrap();
     let (bottom, top) = (0, 15);
     let corners: [((i32, i32), &[(i32, i32)]); 4] = [
         ((-16, -16), &[(-1, 0), (0, -1)]),
@@ -123,7 +123,7 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
 /// earlier write, in a ring column and in the centre alike.
 #[test]
 fn a_rewrite_answers_the_earlier_write() {
-    let stone = VoxelId::from(corpus().default_state("minecraft:stone").number());
+    let stone = VoxelId::from(corpus().default_state("minecraft:stone").unwrap().number());
     let y_sections: Arc<[i32]> = Y_SECTIONS.as_slice().into();
     let snapshots = region_of(CENTRE, |col| {
         flat_snapshot(col, &y_sections, |_| Some(stone), None)
@@ -133,8 +133,8 @@ fn a_rewrite_answers_the_earlier_write() {
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
     let (first, second) = (
-        corpus().default_state("minecraft:dirt"),
-        corpus().default_state("minecraft:gravel"),
+        corpus().default_state("minecraft:dirt").unwrap(),
+        corpus().default_state("minecraft:gravel").unwrap(),
     );
     for at in [BlockPos::new(20, 4, -3), BlockPos::new(5, 4, 9)] {
         assert_eq!(

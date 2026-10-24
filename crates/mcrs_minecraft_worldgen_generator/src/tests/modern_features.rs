@@ -76,11 +76,23 @@ fn program_of(tables: &FeatureTables, registry: &Registries) -> FeatureProgram {
 }
 
 fn stone() -> VoxelId {
-    VoxelId::from(blocks().0.default_state("minecraft:stone").number())
+    VoxelId::from(
+        blocks()
+            .0
+            .default_state("minecraft:stone")
+            .unwrap()
+            .number(),
+    )
 }
 
 fn coal_ore() -> VoxelId {
-    VoxelId::from(blocks().0.default_state("minecraft:coal_ore").number())
+    VoxelId::from(
+        blocks()
+            .0
+            .default_state("minecraft:coal_ore")
+            .unwrap()
+            .number(),
+    )
 }
 
 fn region(center: ColumnPos, y_sections: &Arc<[i32]>) -> RegionSnapshots {
@@ -304,13 +316,13 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         .expect("the empty fluid resolves");
 
     for name in ["minecraft:air", "minecraft:stone", "minecraft:short_grass"] {
-        let state = blocks().0.default_state(name);
+        let state = blocks().0.default_state(name).unwrap();
         assert!(
             mask.contains(state.number() as usize),
             "{name} holds no fluid, so the empty fluid matches it"
         );
     }
-    let water = blocks().0.default_state("minecraft:water");
+    let water = blocks().0.default_state("minecraft:water").unwrap();
     assert!(
         !mask.contains(water.number() as usize),
         "water is not the empty fluid"

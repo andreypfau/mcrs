@@ -186,7 +186,11 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let mut context = fill_context(router, material, registry, source);
     let (_, table) = world(dimension, seed);
     context.program.carvers = Some(Arc::new(table));
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").number().into();
+    let bedrock: VoxelId = corpus()
+        .default_state("minecraft:bedrock")
+        .unwrap()
+        .number()
+        .into();
     if let ColumnGenerator::Modern { carver_blocks, .. } = &mut context.program.generator {
         *carver_blocks = Arc::new(ModernCarverBlockIds::for_test(vec![bedrock]));
     }
@@ -196,7 +200,7 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
 fn block_key(keys: &mut HashMap<u16, u64>, state: VoxelId) -> u64 {
     *keys.entry(state.0).or_insert_with(|| {
         let id = corpus_state_of(state);
-        let block = corpus().owner(id);
+        let block = corpus().owner(id).unwrap();
         let name = block
             .identifier
             .as_str()

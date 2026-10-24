@@ -782,7 +782,12 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         carried.len(),
         "the delivery returned sections it was not asked for"
     );
-    let bedrock = VoxelId::from(corpus().default_state("minecraft:bedrock").number());
+    let bedrock = VoxelId::from(
+        corpus()
+            .default_state("minecraft:bedrock")
+            .unwrap()
+            .number(),
+    );
     let floor = delivered
         .iter()
         .find(|(_, pos, _)| pos.y == carried[0])

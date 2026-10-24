@@ -146,7 +146,7 @@ fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
     let emission = blocks
-        .state(blocks.default_state("minecraft:torch"))
+        .state(blocks.default_state("minecraft:torch").unwrap())
         .light_emission;
 
     let sub_app = app

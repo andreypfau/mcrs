@@ -46,7 +46,7 @@ impl StateCondition {
                 property,
                 value,
                 equal,
-            } => (values[*property as usize] == *value) == *equal,
+            } => (values.get(usize::from(*property)) == Some(value)) == *equal,
             StateCondition::Not(inner) => !inner.matches(values),
             StateCondition::And(pair) => pair.0.matches(values) && pair.1.matches(values),
             StateCondition::Or(pair) => pair.0.matches(values) || pair.1.matches(values),
@@ -103,9 +103,9 @@ fn tokenize(source: &str) -> Result<Vec<Token>, MolangError> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
     let mut at = 0;
-    while at < bytes.len() {
+    while let Some(&byte) = bytes.get(at) {
         let start = at;
-        match bytes[at] {
+        match byte {
             b' ' | b'\t' | b'\n' | b'\r' => at += 1,
             b'(' => {
                 tokens.push(Token::Open);
@@ -154,7 +154,10 @@ fn tokenize(source: &str) -> Result<Vec<Token>, MolangError> {
             }
             b'0'..=b'9' | b'-' => {
                 at += 1;
-                while at < bytes.len() && (bytes[at].is_ascii_digit() || bytes[at] == b'.') {
+                while bytes
+                    .get(at)
+                    .is_some_and(|&b| b.is_ascii_digit() || b == b'.')
+                {
                     at += 1;
                 }
                 let text = &source[start..at];
@@ -164,8 +167,9 @@ fn tokenize(source: &str) -> Result<Vec<Token>, MolangError> {
                 tokens.push(Token::Literal(PropertyValue::Int(value)));
             }
             c if c.is_ascii_alphabetic() || c == b'_' => {
-                while at < bytes.len()
-                    && (bytes[at].is_ascii_alphanumeric() || bytes[at] == b'_' || bytes[at] == b'.')
+                while bytes
+                    .get(at)
+                    .is_some_and(|&b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.')
                 {
                     at += 1;
                 }
@@ -276,16 +280,19 @@ impl Parser<'_> {
             | (Operand::Literal(value), Operand::BlockState(name)) => (name, value),
             _ => return Err(MolangError::NotAComparison),
         };
-        let property = self
+        let (property, entry) = self
             .properties
-            .index_of(&name)
+            .0
+            .iter()
+            .enumerate()
+            .find(|(_, property)| *property.name == *name)
             .ok_or(MolangError::UnknownProperty(name))?;
-        let index = self.properties.0[property]
+        let index = entry
             .values
             .iter()
             .position(|v| *v == value)
             .ok_or_else(|| MolangError::UnknownValue {
-                property: self.properties.0[property].name.to_string(),
+                property: entry.name.to_string(),
                 value: value.to_string(),
             })?;
         Ok(StateCondition::Compares {

@@ -8,11 +8,12 @@ fn corpus() -> &'static BlockDefinitions {
 }
 
 fn table_of(blocks: &BlockDefinitions, block: &str) -> Option<String> {
-    let state = blocks.default_state(block);
+    let state = blocks.default_state(block).unwrap();
     blocks
         .state(state)
         .loot
-        .map(|loot| blocks.loot_table(loot).as_str().to_owned())
+        .and_then(|loot| blocks.loot_table(loot))
+        .map(|table| table.as_str().to_owned())
 }
 
 /// The corpus names the table; nothing guesses it from the block's own name.
@@ -37,13 +38,13 @@ fn the_corpus_names_each_loot_table_once() {
         assert_eq!(table_of(blocks, block), None, "{block} states a loot table");
     }
 
-    let standing = blocks.default_state("minecraft:zombie_head");
-    let wall = blocks.default_state("minecraft:zombie_wall_head");
+    let standing = blocks.default_state("minecraft:zombie_head").unwrap();
+    let wall = blocks.default_state("minecraft:zombie_wall_head").unwrap();
     let standing_loot = blocks.state(standing).loot.expect("zombie head drops");
     let wall_loot = blocks.state(wall).loot.expect("zombie wall head drops");
     assert_eq!(standing_loot, wall_loot);
     assert_eq!(
-        blocks.loot_table(standing_loot).as_str(),
+        blocks.loot_table(standing_loot).unwrap().as_str(),
         "minecraft:blocks/zombie_head"
     );
 }
@@ -59,7 +60,9 @@ mod exhaustive {
         let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
         let mut missing = Vec::new();
         for index in 0..blocks.loot_table_count() {
-            let table = blocks.loot_table(mcrs_minecraft_block::definition::LootId(index as u16));
+            let table = blocks
+                .loot_table(mcrs_minecraft_block::definition::LootId(index as u16))
+                .unwrap();
             let root = match table.namespace() {
                 VANILLA_ROOT => mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
                 namespace => assets.join(namespace),

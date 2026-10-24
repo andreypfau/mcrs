@@ -14,9 +14,14 @@ fn touching_state_ranges_keep_their_owners() {
         let (before, after) = (pair[0], pair[1]);
         let last_before = before.state_at(before.state_count - 1);
         if before.state_at(before.state_count).is_some()
-            || last_before.map(|state| definitions.owner(state).identifier.clone())
-                != Some(before.identifier.clone())
-            || definitions.owner(after.base_state_id).identifier != after.identifier
+            || last_before
+                .and_then(|state| definitions.owner(state))
+                .map(|owner| &owner.identifier)
+                != Some(&before.identifier)
+            || definitions
+                .owner(after.base_state_id)
+                .map(|owner| &owner.identifier)
+                != Some(&after.identifier)
             || last_before.map(BlockStateId::number).map(|n| n + 1)
                 != Some(after.base_state_id.number())
         {
@@ -51,7 +56,7 @@ fn a_single_state_block_owns_only_its_state() {
             && block.state_at(1).is_none()
             && !after.is_some_and(|after| block.owns(after))
             && !before.is_some_and(|before| block.owns(before))
-            && definitions.owner(state).identifier == block.identifier;
+            && definitions.owner(state).map(|owner| &owner.identifier) == Some(&block.identifier);
         if !alone {
             mismatches.push(format!("{} does not own only its state", block.identifier));
         }

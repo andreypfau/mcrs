@@ -28,32 +28,40 @@ use crate::{BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_c
 
 fn modern_id_for_beta(beta_id: u8) -> BlockStateId {
     match beta_id {
-        0 => super::corpus().default_state("minecraft:air"),
-        1 => super::corpus().default_state("minecraft:stone"),
-        2 => super::corpus().default_state("minecraft:grass_block"),
-        3 => super::corpus().default_state("minecraft:dirt"),
-        7 => super::corpus().default_state("minecraft:bedrock"),
-        9 => super::corpus().default_state("minecraft:water"),
-        12 => super::corpus().default_state("minecraft:sand"),
-        13 => super::corpus().default_state("minecraft:gravel"),
-        24 => super::corpus().default_state("minecraft:sandstone"),
-        79 => super::corpus().default_state("minecraft:ice"),
-        _ => super::corpus().default_state("minecraft:air"),
+        0 => super::corpus().default_state("minecraft:air").unwrap(),
+        1 => super::corpus().default_state("minecraft:stone").unwrap(),
+        2 => super::corpus()
+            .default_state("minecraft:grass_block")
+            .unwrap(),
+        3 => super::corpus().default_state("minecraft:dirt").unwrap(),
+        7 => super::corpus().default_state("minecraft:bedrock").unwrap(),
+        9 => super::corpus().default_state("minecraft:water").unwrap(),
+        12 => super::corpus().default_state("minecraft:sand").unwrap(),
+        13 => super::corpus().default_state("minecraft:gravel").unwrap(),
+        24 => super::corpus()
+            .default_state("minecraft:sandstone")
+            .unwrap(),
+        79 => super::corpus().default_state("minecraft:ice").unwrap(),
+        _ => super::corpus().default_state("minecraft:air").unwrap(),
     }
 }
 
 fn beta_id_for_modern(modern: BlockStateId) -> u8 {
-    let air = super::corpus().default_state("minecraft:air");
-    let stone = super::corpus().default_state("minecraft:stone");
-    let grass = super::corpus().default_state("minecraft:grass_block");
-    let dirt = super::corpus().default_state("minecraft:dirt");
-    let bedrock = super::corpus().default_state("minecraft:bedrock");
-    let sand = super::corpus().default_state("minecraft:sand");
-    let gravel = super::corpus().default_state("minecraft:gravel");
-    let sandstone = super::corpus().default_state("minecraft:sandstone");
-    let water = super::corpus().default_state("minecraft:water");
-    let lava = super::corpus().default_state("minecraft:lava");
-    let ice = super::corpus().default_state("minecraft:ice");
+    let air = super::corpus().default_state("minecraft:air").unwrap();
+    let stone = super::corpus().default_state("minecraft:stone").unwrap();
+    let grass = super::corpus()
+        .default_state("minecraft:grass_block")
+        .unwrap();
+    let dirt = super::corpus().default_state("minecraft:dirt").unwrap();
+    let bedrock = super::corpus().default_state("minecraft:bedrock").unwrap();
+    let sand = super::corpus().default_state("minecraft:sand").unwrap();
+    let gravel = super::corpus().default_state("minecraft:gravel").unwrap();
+    let sandstone = super::corpus()
+        .default_state("minecraft:sandstone")
+        .unwrap();
+    let water = super::corpus().default_state("minecraft:water").unwrap();
+    let lava = super::corpus().default_state("minecraft:lava").unwrap();
+    let ice = super::corpus().default_state("minecraft:ice").unwrap();
 
     if modern == air {
         return 0;

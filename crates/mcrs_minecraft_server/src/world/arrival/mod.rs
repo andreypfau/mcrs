@@ -10,6 +10,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_engine::bus::{ArrivalCause, InboundEntitySpawn, MovePayload};
 use mcrs_minecraft_engine::channel_types::FromDim;
 use mcrs_minecraft_level::block_update::BlockSetRequest;
@@ -105,7 +106,7 @@ fn resolve_position(
         ArrivalCause::EndPlatform => place_end_platform(
             dim_entity,
             END_ARRIVAL_DEFAULT,
-            blocks.default_state("minecraft:obsidian"),
+            blocks.default_state_of(Block::Obsidian.id()),
             block_writer,
         ),
         ArrivalCause::NetherPortal { source_pos } => {

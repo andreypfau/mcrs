@@ -1301,7 +1301,7 @@ fn compile_generator(
             let hanging_survive = match &hanging {
                 StateProvider::Simple(state) => {
                     crate::block_state::state_of(resolver.blocks, *state).and_then(|state| {
-                        let block = resolver.blocks.block_index(state);
+                        let block = resolver.blocks.block_index(state)?;
                         trees.survive.get(&block).cloned()
                     })
                 }
@@ -1494,7 +1494,7 @@ fn compile_generator(
             ice: resolver.default_state_of(Block::Ice.id()),
         }),
         Feature::FreezeTopLayer => {
-            let snow = resolver.block_of(Block::Snow.id());
+            let snow = resolver.block_of(Block::Snow.id())?;
             Generator::FreezeTopLayer(Box::new(CompiledFreezeTopLayer {
                 biomes: resolver.climate.to_vec(),
                 ice: resolver.default_state_of(Block::Ice.id()),
@@ -1745,7 +1745,7 @@ fn compile_generator(
             acceptable_barrier: compile_predicate(acceptable_barrier, resolver)?,
         })),
         Feature::Bamboo { probability } => {
-            let bamboo = resolver.block_of(Block::Bamboo.id());
+            let bamboo = resolver.block_of(Block::Bamboo.id())?;
             let stalk = |leaves: &str, stage: &str| -> Compiled<VoxelId> {
                 let id = set(bamboo, bamboo.default_state_id, "age", "1")?;
                 let id = set(bamboo, id, "leaves", leaves)?;
@@ -1767,8 +1767,8 @@ fn compile_generator(
             })
         }
         Feature::ChorusPlant => {
-            let plant = resolver.block_of(Block::ChorusPlant.id());
-            let flower = resolver.block_of(Block::ChorusFlower.id());
+            let plant = resolver.block_of(Block::ChorusPlant.id())?;
+            let flower = resolver.block_of(Block::ChorusFlower.id())?;
             // The index is the six faces as bits, `down` highest, in
             // `connection_index` order.
             let mut plant_by_connections = [VoxelId(0); 64];
@@ -1794,7 +1794,7 @@ fn compile_generator(
             replaceable_blocks,
             planted,
         } => {
-            let weeping = resolver.block_of(Block::WeepingVines.id());
+            let weeping = resolver.block_of(Block::WeepingVines.id())?;
             Generator::HugeFungus(Box::new(CompiledHugeFungus {
                 valid_base: resolver.block_mask(&valid_base_block.name)?,
                 stem_state: resolver.resolve(stem_state)?,
@@ -1886,7 +1886,7 @@ fn compile_generator(
             end_stone: resolver.default_state_of(Block::EndStone.id()),
         }),
         Feature::EndSpikes { spikes, .. } => {
-            let bars = resolver.block_of(Block::IronBars.id());
+            let bars = resolver.block_of(Block::IronBars.id())?;
             // The index is the four sides as bits, `north` highest, in
             // `iron_bars_index` order.
             let mut iron_bars = [VoxelId(0); 16];
@@ -2155,7 +2155,7 @@ pub(crate) fn spring_state(state: &FluidState, resolver: &Resolver<'_>) -> Optio
     }
     let name = Fluid::from_id(fluid.fluid)?.location().to_arc();
     let default = crate::block_state::try_resolve_state(resolver.blocks, &BlockState::bare(name))?;
-    let entry = resolver.block_of(resolver.blocks.block_index(default));
+    let entry = resolver.blocks.owner(default)?;
     (0..entry.state_count)
         .filter_map(|offset| entry.state_at(offset))
         .find(|&id| resolver.blocks.state(id).fluid == Some(fluid))
@@ -2193,7 +2193,8 @@ fn waterlogged_pair(
         crate::block_state::state_of(resolver.blocks, dry),
         block.as_static_str(),
     )?;
-    let wet = set(resolver.blocks.owner(dry_id), dry_id, "waterlogged", "true")?;
+    let owner = missing(resolver.blocks.owner(dry_id), block.as_static_str())?;
+    let wet = set(owner, dry_id, "waterlogged", "true")?;
     Ok([dry, VoxelId::from(wet.number())])
 }
 
@@ -2325,7 +2326,9 @@ fn double_plant_table(blocks: &BlockDefinitions) -> FxHashMap<u16, DoublePlant> 
         let Some(id) = crate::block_state::state_of(blocks, state) else {
             continue;
         };
-        let entry = blocks.owner(id);
+        let Some(entry) = blocks.owner(id) else {
+            continue;
+        };
         let Some(upper) = entry.with_text(id, "half", "upper") else {
             continue;
         };
@@ -2350,7 +2353,7 @@ fn snowy_table(blocks: &BlockDefinitions) -> FxHashMap<VoxelId, VoxelId> {
     with_property(blocks, "snowy")
         .filter_map(|(state, _)| {
             let id = crate::block_state::state_of(blocks, state)?;
-            let snowy = blocks.owner(id).with_text(id, "snowy", "true")?;
+            let snowy = blocks.owner(id)?.with_text(id, "snowy", "true")?;
             Some((state, VoxelId::from(snowy.number())))
         })
         .collect()
@@ -2361,7 +2364,7 @@ fn waterlogging(blocks: &BlockDefinitions, water: VoxelId) -> Waterlogging {
         .filter(|(_, value)| !value.renders_to("true"))
         .filter_map(|(state, _)| {
             let id = crate::block_state::state_of(blocks, state)?;
-            let flooded = blocks.owner(id).with_text(id, "waterlogged", "true")?;
+            let flooded = blocks.owner(id)?.with_text(id, "waterlogged", "true")?;
             Some((state.0, VoxelId::from(flooded.number())))
         })
         .collect();
@@ -2370,7 +2373,7 @@ fn waterlogging(blocks: &BlockDefinitions, water: VoxelId) -> Waterlogging {
 
 /// One block's states in `Direction::HORIZONTAL` order, by its `facing` property.
 fn horizontal_facings(blocks: &BlockDefinitions, block: Id<Block>) -> Option<[VoxelId; 4]> {
-    let entry = &blocks[block];
+    let entry = blocks.entry(block)?;
     let mut states = [VoxelId(0); 4];
     for (index, direction) in Direction::HORIZONTAL.into_iter().enumerate() {
         let id = entry.with_text(entry.default_state_id, "facing", direction.name())?;
@@ -2783,7 +2786,7 @@ impl<'a> Resolver<'a> {
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: crate::block_state::states(self.blocks)
-                .map(|id| self.blocks.block_index(id))
+                .filter_map(|id| self.blocks.block_index(id))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
             fluid_states: crate::block_state::states(self.blocks)
@@ -2792,8 +2795,8 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    pub fn block_of(&self, block: Id<Block>) -> &BlockEntry {
-        &self.blocks[block]
+    pub fn block_of(&self, block: Id<Block>) -> Compiled<&BlockEntry> {
+        missing(self.blocks.entry(block), block.number())
     }
 
     pub fn resolve(&self, state: &BlockState) -> Compiled<VoxelId> {
@@ -2852,12 +2855,13 @@ impl<'a> Resolver<'a> {
     /// The default state of every block of a set, in the set's own order — what
     /// `random_block_provider` draws one of.
     pub fn block_set_defaults(&self, set: &KeySet<Block>) -> Option<Vec<VoxelId>> {
-        let set = self.resolved(set)?;
-        Some(
-            set.ids(&self.tags)
-                .map(|id| VoxelId::from(self.blocks[id].default_state_id.number()))
-                .collect(),
-        )
+        self.resolved(set)?
+            .ids(&self.tags)
+            .map(|id| {
+                let entry = self.blocks.entry(id)?;
+                Some(VoxelId::from(entry.default_state_id.number()))
+            })
+            .collect()
     }
 
     fn resolved<R: mcrs_minecraft_core::Registered>(&self, set: &KeySet<R>) -> Option<IdSet<R>> {
@@ -2869,11 +2873,11 @@ impl<'a> Resolver<'a> {
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
         let block = self
             .blocks
-            .block_index(crate::block_state::state_of(self.blocks, state)?);
+            .block_index(crate::block_state::state_of(self.blocks, state)?)?;
         if trees.survive.contains_key(&block) {
             return None;
         }
-        Some(self.blocks[block].identifier.as_str().to_owned())
+        Some(self.blocks.entry(block)?.identifier.as_str().to_owned())
     }
 
     fn add_entry(mask: &mut FixedBitSet, entry: &BlockEntry) {
@@ -2888,7 +2892,7 @@ impl<'a> Resolver<'a> {
 
     fn add_set(&self, mask: &mut FixedBitSet, set: &KeySet<Block>) -> Option<()> {
         for id in self.resolved(set)?.ids(&self.tags) {
-            Self::add_entry(mask, &self.blocks[id]);
+            Self::add_entry(mask, self.blocks.entry(id)?);
         }
         Some(())
     }

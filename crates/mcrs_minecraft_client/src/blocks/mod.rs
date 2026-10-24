@@ -47,8 +47,8 @@ impl BlockStateKey {
 }
 
 /// The state the server's global block state id stands for.
-pub fn state_key(definitions: &BlockDefinitions, state: BlockStateId) -> BlockStateKey {
-    let block = definitions.owner(state);
+pub fn state_key(definitions: &BlockDefinitions, state: BlockStateId) -> Option<BlockStateKey> {
+    let block = definitions.owner(state)?;
     let props = block
         .properties
         .0
@@ -58,10 +58,10 @@ pub fn state_key(definitions: &BlockDefinitions, state: BlockStateId) -> BlockSt
             Some((property.name.to_string(), render(value)))
         })
         .collect();
-    BlockStateKey {
+    Some(BlockStateKey {
         name: block.identifier.as_str().to_owned(),
         props,
-    }
+    })
 }
 
 fn render(value: &PropertyValue) -> String {
@@ -106,10 +106,16 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions
             ));
             continue;
         };
-        let state = state_key(definitions, id_state);
+        let (Some(state), Some(block)) = (
+            state_key(definitions, id_state),
+            definitions.block_index(id_state).and_then(Block::from_id),
+        ) else {
+            catalog
+                .failures
+                .push(format!("state {id}: no registry block owns it"));
+            continue;
+        };
         let data = definitions.state(id_state);
-        let block = Block::from_id(definitions.block_index(id_state))
-            .expect("a corpus block is a registry entry");
         match build_one(
             pack,
             block,
@@ -154,7 +160,9 @@ mod tests {
     fn a_global_state_id_names_the_block_and_every_property_it_stands_for() {
         let corpus = corpus();
         assert_eq!(
-            state_key(corpus, corpus.default_state("minecraft:stone")).label(),
+            state_key(corpus, corpus.default_state("minecraft:stone").unwrap())
+                .unwrap()
+                .label(),
             "minecraft:stone",
             "a block with no properties is named on its own"
         );
@@ -163,7 +171,7 @@ mod tests {
             .block("minecraft:oak_slab")
             .expect("the corpus has oak slabs");
         for id in (0..slab.state_count).filter_map(|offset| slab.state_at(offset)) {
-            let key = state_key(corpus, id);
+            let key = state_key(corpus, id).unwrap();
             assert_eq!(key.name, "minecraft:oak_slab");
             assert_eq!(key.props.len(), slab.properties.0.len());
             let walked = key

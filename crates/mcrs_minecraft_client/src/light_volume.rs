@@ -754,7 +754,9 @@ mod tests {
     }
 
     fn glowstone() -> BlockStateId {
-        crate::blocks::corpus().default_state("minecraft:glowstone")
+        crate::blocks::corpus()
+            .default_state("minecraft:glowstone")
+            .unwrap()
     }
 
     fn light_colours(rgb: [u8; 3]) -> LightColors {

@@ -103,7 +103,12 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     );
     column.write_back(&mut sections);
 
-    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock").number());
+    let bedrock_id = VoxelId::from(
+        super::corpus()
+            .default_state("minecraft:bedrock")
+            .unwrap()
+            .number(),
+    );
     let section0 = sections[0].as_ref().expect("section 0 must be present");
     let blocks = &section0.0;
 
@@ -202,7 +207,12 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         })
     };
 
-    let stone_id = VoxelId::from(super::corpus().default_state("minecraft:stone").number());
+    let stone_id = VoxelId::from(
+        super::corpus()
+            .default_state("minecraft:stone")
+            .unwrap()
+            .number(),
+    );
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &GeneratedSections, lx: i32, lz: i32| -> Option<i32> {

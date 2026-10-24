@@ -174,7 +174,8 @@ impl ItemLights {
             .filter(|item| mapped[item.id.index()].is_none())
             .filter(|item| {
                 item.block_placer
-                    .is_some_and(|state| emits(blocks, blocks.owner(state)))
+                    .and_then(|state| blocks.owner(state))
+                    .is_some_and(|owner| emits(blocks, owner))
             })
             .map(|item| item.identifier.to_string())
             .collect();
@@ -226,7 +227,7 @@ impl ItemLights {
         {
             return None;
         }
-        let owner = blocks.owner(mapped);
+        let owner = blocks.owner(mapped)?;
         let state = stack_state.into_iter().fold(mapped, |id, (name, value)| {
             owner.with_text(id, name, value).unwrap_or(id)
         });

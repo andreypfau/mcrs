@@ -271,8 +271,13 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             false,
         );
 
-        let grass = VoxelId::from(corpus().default_state("minecraft:grass_block").number());
-        let dirt = VoxelId::from(corpus().default_state("minecraft:dirt").number());
+        let grass = VoxelId::from(
+            corpus()
+                .default_state("minecraft:grass_block")
+                .unwrap()
+                .number(),
+        );
+        let dirt = VoxelId::from(corpus().default_state("minecraft:dirt").unwrap().number());
         let fluid = router.default_fluid_state;
         let top_of = |column: &ColumnBlocks, x: i32, z: i32| {
             (-64..320)
@@ -378,8 +383,13 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
 fn bypassing_every_shortcut_writes_the_same_blocks() {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);
-    let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur").number());
-    let cinnabar = VoxelId::from(corpus().default_state("minecraft:cinnabar").number());
+    let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur").unwrap().number());
+    let cinnabar = VoxelId::from(
+        corpus()
+            .default_state("minecraft:cinnabar")
+            .unwrap()
+            .number(),
+    );
     let mut banded = 0;
     let mut multi_biome = 0;
 
@@ -594,10 +604,16 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
         "a fixed source must answer one biome at every cell"
     );
 
-    let terracotta = VoxelId::from(corpus().default_state("minecraft:terracotta").number());
+    let terracotta = VoxelId::from(
+        corpus()
+            .default_state("minecraft:terracotta")
+            .unwrap()
+            .number(),
+    );
     let orange = VoxelId::from(
         corpus()
             .default_state("minecraft:orange_terracotta")
+            .unwrap()
             .number(),
     );
     assert!(

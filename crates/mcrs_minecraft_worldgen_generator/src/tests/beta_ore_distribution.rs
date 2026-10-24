@@ -246,6 +246,7 @@ fn the_populate_feature_is_the_populate_step() {
     let ctx = super::fill_context_with(router, Some(program));
     let stone: VoxelId = super::corpus()
         .default_state("minecraft:stone")
+        .unwrap()
         .number()
         .into();
     let center = ColumnPos::new(3, -2);

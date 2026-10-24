@@ -68,7 +68,10 @@ impl HeightmapPredicates {
 pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPredicates {
     let motion = tags.id(&BLOCKS_MOTION_IN_HEIGHTMAP);
     let motion_no_leaves = tags.id(&BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES);
-    let has = |tag: Option<TagId<Block>>, block| tag.is_some_and(|tag| tags.contains(tag, block));
+    let has = |tag: Option<TagId<Block>>, block: Option<_>| {
+        tag.zip(block)
+            .is_some_and(|(tag, block)| tags.contains(tag, block))
+    };
     let mut table = Vec::with_capacity(blocks.state_count());
     for id in crate::block_state::states(blocks) {
         let state = blocks.state(id);

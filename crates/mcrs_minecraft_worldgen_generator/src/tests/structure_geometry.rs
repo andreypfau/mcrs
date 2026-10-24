@@ -190,7 +190,7 @@ fn dimension(id: &str) -> (i32, i32, i32) {
 /// The oracle's flat bases: the layers from the dimension floor up to y 63,
 /// `None` being air.
 fn layers(base: u8, min_y: i32) -> Vec<Option<VoxelId>> {
-    let state = |block: &str| VoxelId::from(corpus().default_state(block).number());
+    let state = |block: &str| VoxelId::from(corpus().default_state(block).unwrap().number());
     let stone = state("minecraft:stone");
     (min_y..=63)
         .map(|y| match base {

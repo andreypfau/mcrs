@@ -16,8 +16,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockDefinitionFile, BlockProperties, Components, LavaFlammable, ModelBox, NoteBlockInstrument,
-    PlacementFilter, PropertyValue, Sticky,
+    BlockDefinitionFile, BlockProperties, BlockProperty, Components, LavaFlammable, ModelBox,
+    NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
 };
 use crate::keys::Block;
 use crate::keys::Fluid;
@@ -153,13 +153,8 @@ impl BlockEntry {
         if !self.owns(id) {
             return None;
         }
-        let index = self.properties.index_of(property)?;
-        let property = &self.properties.0[index];
+        let (property, stride) = self.digit(property)?;
         let target = property.values.iter().position(|v| v == value)? as u16;
-        let stride: u16 = self.properties.0[index + 1..]
-            .iter()
-            .map(|p| p.values.len() as u16)
-            .product();
         let offset = id.number() - self.base_state_id.number();
         let current = offset / stride % property.values.len() as u16;
         self.state_at(offset - current * stride + target * stride)
@@ -171,12 +166,7 @@ impl BlockEntry {
         if !self.owns(id) {
             return None;
         }
-        let index = self.properties.index_of(property)?;
-        let property = &self.properties.0[index];
-        let stride: u16 = self.properties.0[index + 1..]
-            .iter()
-            .map(|p| p.values.len() as u16)
-            .product();
+        let (property, stride) = self.digit(property)?;
         let current =
             (id.number() - self.base_state_id.number()) / stride % property.values.len() as u16;
         property.values.get(current as usize)
@@ -185,8 +175,11 @@ impl BlockEntry {
     /// [`BlockEntry::with`] against a value stated as text, as a datapack and a
     /// save state it.
     pub fn with_text(&self, id: BlockStateId, property: &str, text: &str) -> Option<BlockStateId> {
-        let index = self.properties.index_of(property)?;
-        let value = self.properties.0[index]
+        let value = self
+            .properties
+            .0
+            .iter()
+            .find(|p| &*p.name == property)?
             .values
             .iter()
             .find(|value| value.renders_to(text))?
@@ -208,6 +201,15 @@ impl BlockEntry {
             offset = offset * property.values.len() as u16 + index as u16;
         }
         self.state_at(offset)
+    }
+
+    /// The property and the state-id stride of its digit: the product of the
+    /// value counts of every property after it.
+    fn digit(&self, property: &str) -> Option<(&BlockProperty, u16)> {
+        let index = self.properties.index_of(property)?;
+        let (property, later) = self.properties.0.get(index..)?.split_first()?;
+        let stride = later.iter().map(|p| p.values.len() as u16).product();
+        Some((property, stride))
     }
 }
 
@@ -231,19 +233,23 @@ const _: () = assert!(size_of::<Id<Block>>() == 2);
 const _: () = assert!(size_of::<BlockStateData>() <= 52);
 
 impl BlockDefinitions {
+    /// A state id another table issued, past this one's end, reads as an
+    /// unclaimed slot: no shape, no flags, nothing to drop.
     #[inline]
     pub fn state(&self, id: BlockStateId) -> &BlockStateData {
-        &self.states[id.index()]
+        self.states.get(id.index()).unwrap_or(&UNCLAIMED)
     }
 
+    /// A shape id this table did not intern, such as an unclaimed slot's, is
+    /// the empty shape.
     #[inline]
     pub fn shape(&self, id: ShapeId) -> &[Aabb] {
-        &self.shapes[id.0 as usize]
+        self.shapes.get(id.0 as usize).map_or(&[], |shape| shape)
     }
 
     #[inline]
-    pub fn loot_table(&self, id: LootId) -> &ResourceLocation<Arc<str>> {
-        &self.loot[id.0 as usize]
+    pub fn loot_table(&self, id: LootId) -> Option<&ResourceLocation<Arc<str>>> {
+        self.loot.get(usize::from(id.0))
     }
 
     pub fn loot_table_count(&self) -> usize {
@@ -251,8 +257,8 @@ impl BlockDefinitions {
     }
 
     #[inline]
-    pub fn experience_drop(&self, id: ExperienceId) -> &IntProvider {
-        &self.experience[id.0 as usize]
+    pub fn experience_drop(&self, id: ExperienceId) -> Option<&IntProvider> {
+        self.experience.get(usize::from(id.0))
     }
 
     pub fn sound_set(&self, id: SoundSetId) -> Option<&ResourceKey<BlockSoundSet>> {
@@ -268,35 +274,39 @@ impl BlockDefinitions {
     }
 
     pub fn block(&self, identifier: &str) -> Option<&BlockEntry> {
-        self.id_of(identifier).map(|id| &self[id])
-    }
-
-    /// The block's default state. Panics if the corpus does not name it: the
-    /// corpus is every block the game has, so a miss is a typo and not input.
-    pub fn default_state(&self, identifier: &str) -> BlockStateId {
-        self.block(identifier)
-            .unwrap_or_else(|| panic!("the corpus has no block `{identifier}`"))
-            .default_state_id
+        self.id_of(identifier).and_then(|id| self.entry(id))
     }
 
     #[inline]
+    pub fn entry(&self, block: Id<Block>) -> Option<&BlockEntry> {
+        self.blocks.get(block.index())
+    }
+
+    pub fn default_state(&self, identifier: &str) -> Option<BlockStateId> {
+        self.block(identifier).map(|block| block.default_state_id)
+    }
+
+    /// Air for a block past this table's end.
+    #[inline]
     pub fn default_state_of(&self, block: Id<Block>) -> BlockStateId {
-        self[block].default_state_id
+        self.entry(block)
+            .map_or(BlockStateId::AIR, |block| block.default_state_id)
     }
 
     /// The block a state belongs to. Every state in the table has one:
-    /// `Builder::finish` refuses a table with a state no block claimed.
+    /// `Builder::finish` refuses a table with a state no block claimed, so
+    /// this is `None` only for a state id past the table's end.
     #[inline]
-    pub fn owner(&self, id: BlockStateId) -> &BlockEntry {
-        &self[self.block_index(id)]
+    pub fn owner(&self, id: BlockStateId) -> Option<&BlockEntry> {
+        self.entry(self.block_index(id)?)
     }
 
     /// The block's id in the registries report, which is also its position in
     /// the table and the number the protocol names it by. Block tags are
     /// resolved against it, so a state's tag membership is two array reads.
     #[inline]
-    pub fn block_index(&self, id: BlockStateId) -> Id<Block> {
-        self.owners[id.index()]
+    pub fn block_index(&self, id: BlockStateId) -> Option<Id<Block>> {
+        self.owners.get(id.index()).copied()
     }
 
     #[inline]
@@ -313,15 +323,6 @@ impl BlockDefinitions {
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
         states + shapes
-    }
-}
-
-impl std::ops::Index<Id<Block>> for BlockDefinitions {
-    type Output = BlockEntry;
-
-    #[inline]
-    fn index(&self, id: Id<Block>) -> &BlockEntry {
-        &self.blocks[id.index()]
     }
 }
 
@@ -347,7 +348,7 @@ impl BlockDefinitions {
     /// state, since that is the state a bare block id names.
     pub fn properties_of(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         let id = BlockStateId::checked(id, self.states.len())?;
-        let entry = self.owner(id);
+        let entry = self.owner(id)?;
         let properties = if id == entry.default_state_id {
             Vec::new()
         } else {
@@ -523,7 +524,8 @@ pub fn build_block_definitions<S: AsRef<str>>(
 }
 
 /// Fills a slot until its block claims it. `Builder::finish` refuses a table
-/// with a slot no block claimed, so it never reaches a reader.
+/// with a slot no block claimed, so a reader sees it only for a state id past
+/// the table's end.
 const UNCLAIMED: BlockStateData = BlockStateData {
     light_emission: 0,
     light_dampening: 0,
@@ -632,7 +634,8 @@ impl Builder {
                 report: id.index(),
             });
         }
-        if self.blocks[id.index()].is_some() {
+        let unknown = || BlockError::Unknown(description.identifier.to_string());
+        if self.blocks.get(id.index()).ok_or_else(unknown)?.is_some() {
             return Err(BlockError::DuplicateBlock);
         }
         let properties = description.properties;
@@ -669,10 +672,11 @@ impl Builder {
         self.permutations += permutations.len();
 
         let end = base as usize + state_count;
-        let base_state_id = BlockStateId::checked(base, end).ok_or(BlockError::StateSpace {
+        let space = || BlockError::StateSpace {
             base,
             states: state_count,
-        })?;
+        };
+        let base_state_id = BlockStateId::checked(base, end).ok_or_else(space)?;
         let default_state_id =
             BlockStateId::checked(default, end).ok_or(BlockError::DefaultOutOfRange {
                 base,
@@ -705,7 +709,8 @@ impl Builder {
             }
 
             let state = base as usize + index;
-            if let Some(owner) = self.owners[state] {
+            let owner = self.owners.get_mut(state).ok_or_else(space)?;
+            if let Some(owner) = *owner {
                 return Err(BlockError::OverlappingState {
                     state: state as u16,
                     owner: self
@@ -714,20 +719,21 @@ impl Builder {
                         .map_or_else(String::new, |name| name.as_str().to_owned()),
                 });
             }
-            self.owners[state] = Some(id);
+            *owner = Some(id);
+            let missing = |component| BlockError::MissingComponent {
+                state: state as u16,
+                component,
+            };
             if let Some(component) = resolved.missing() {
-                return Err(BlockError::MissingComponent {
-                    state: state as u16,
-                    component,
-                });
+                return Err(missing(component));
             }
-            let mut data = self.resolve(&resolved);
+            let mut data = self.resolve(&resolved).map_err(missing)?;
             data.flags.set(BlockStateFlags::IS_AIR, air);
-            self.states[state] = data;
+            *self.states.get_mut(state).ok_or_else(space)? = data;
         }
 
         let identifier = description.identifier.clone();
-        self.blocks[id.index()] = Some(BlockEntry {
+        *self.blocks.get_mut(id.index()).ok_or_else(unknown)? = Some(BlockEntry {
             identifier,
             base_state_id,
             default_state_id,
@@ -743,95 +749,103 @@ impl Builder {
         Ok(())
     }
 
-    /// Every component a state may not leave unstated is present here:
-    /// [`Components::missing`] has already run against these components.
+    /// Fails with the name of a component it needs that the state leaves
+    /// unstated. [`Components::missing`] has already run against these
+    /// components, so this does not fail on a definition the builder accepts.
     #[expect(
         clippy::too_many_lines,
         reason = "resolves one state's components in the reference's declaration order, so each reads against it"
     )]
-    fn resolve(&mut self, components: &Components) -> BlockStateData {
-        let shape = |builder: &mut Self, boxes: &Option<schema::BoxList>| {
-            builder.intern_shape(&boxes.as_ref().unwrap().0)
-        };
+    fn resolve(&mut self, components: &Components) -> Result<BlockStateData, &'static str> {
+        let destructible_by_mining = components
+            .destructible_by_mining
+            .as_ref()
+            .ok_or("minecraft:destructible_by_mining")?;
+        let light_dampening = components
+            .light_dampening
+            .ok_or("minecraft:light_dampening")?;
+        let collision_box = &components
+            .collision_box
+            .as_ref()
+            .ok_or("minecraft:collision_box")?
+            .0;
+        let selection_box = &components
+            .selection_box
+            .as_ref()
+            .ok_or("minecraft:selection_box")?
+            .0;
+        let occlusion_shape = &components
+            .occlusion_shape
+            .as_ref()
+            .ok_or("mcrs:occlusion_shape")?
+            .0;
+        let movable = components.movable.ok_or("minecraft:movable")?;
+
         let mut flags = BlockStateFlags::empty();
-        let mut flag = |set: Option<bool>, bit: BlockStateFlags| {
-            if set.unwrap() {
+        let mut flag = |set: bool, bit: BlockStateFlags| {
+            if set {
                 flags |= bit;
             }
         };
         flag(
-            Some(
-                !components
-                    .destructible_by_mining
-                    .as_ref()
-                    .unwrap()
-                    .harvested_by
-                    .is_empty(),
-            ),
+            !destructible_by_mining.harvested_by.is_empty(),
             BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS,
         );
         flag(
-            Some(components.replaceable.is_some()),
+            components.replaceable.is_some(),
             BlockStateFlags::REPLACEABLE,
         );
         flag(
-            Some(
-                components
-                    .flammable
-                    .is_some_and(|f| f.lava_flammable == LavaFlammable::Always),
-            ),
+            components
+                .flammable
+                .is_some_and(|f| f.lava_flammable == LavaFlammable::Always),
             BlockStateFlags::IGNITED_BY_LAVA,
         );
         flag(
-            components.use_shape_for_light_occlusion,
+            components
+                .use_shape_for_light_occlusion
+                .ok_or("mcrs:use_shape_for_light_occlusion")?,
             BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION,
         );
         flag(
-            Some(components.light_dampening.unwrap() == 0),
+            light_dampening == 0,
             BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN,
         );
         flag(
-            components.emissive_rendering,
+            components
+                .emissive_rendering
+                .ok_or("mcrs:emissive_rendering")?,
             BlockStateFlags::EMISSIVE_RENDERING,
         );
         flag(
-            Some(fills_the_cube(
-                &components.occlusion_shape.as_ref().unwrap().0,
-            )),
+            fills_the_cube(occlusion_shape),
             BlockStateFlags::IS_SOLID_RENDER,
         );
         flag(
-            Some(fills_the_cube(
-                &components.collision_box.as_ref().unwrap().0,
-            )),
+            fills_the_cube(collision_box),
             BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK,
         );
+        flag(legacy_solid(collision_box), BlockStateFlags::LEGACY_SOLID);
         flag(
-            Some(legacy_solid(&components.collision_box.as_ref().unwrap().0)),
-            BlockStateFlags::LEGACY_SOLID,
-        );
-        flag(
-            Some(components.block_entity.is_some()),
+            components.block_entity.is_some(),
             BlockStateFlags::HAS_BLOCK_ENTITY,
         );
         flag(
-            Some(components.redstone_producer.is_some()),
+            components.redstone_producer.is_some(),
             BlockStateFlags::IS_SIGNAL_SOURCE,
         );
-        flag(
-            Some(components.movable.unwrap().sticky == Sticky::Same),
-            BlockStateFlags::STICKY,
-        );
+        flag(movable.sticky == Sticky::Same, BlockStateFlags::STICKY);
         flag(
             components
                 .redstone_conductivity
-                .map(|c| c.redstone_conductor),
+                .ok_or("minecraft:redstone_conductivity")?
+                .redstone_conductor,
             BlockStateFlags::REDSTONE_CONDUCTOR,
         );
 
-        let collision_shape = shape(self, &components.collision_box);
-        let selection_shape = shape(self, &components.selection_box);
-        let occlusion_shape = shape(self, &components.occlusion_shape);
+        let collision_shape = self.intern_shape(collision_box);
+        let selection_shape = self.intern_shape(selection_box);
+        let occlusion_shape = self.intern_shape(occlusion_shape);
         let loot = components
             .loot
             .as_ref()
@@ -850,28 +864,33 @@ impl Builder {
             source: fluid.source,
         });
 
-        BlockStateData {
-            light_emission: components.light_emission.unwrap(),
-            light_dampening: components.light_dampening.unwrap(),
-            friction: components.friction.unwrap(),
-            hardness: components.destructible_by_mining.as_ref().unwrap().hardness,
+        Ok(BlockStateData {
+            light_emission: components
+                .light_emission
+                .ok_or("minecraft:light_emission")?,
+            light_dampening,
+            friction: components.friction.ok_or("minecraft:friction")?,
+            hardness: destructible_by_mining.hardness,
             explosion_resistance: components
                 .destructible_by_explosion
-                .unwrap()
+                .ok_or("minecraft:destructible_by_explosion")?
                 .explosion_resistance,
-            map_color: components.map_color.unwrap(),
+            map_color: components.map_color.ok_or("minecraft:map_color")?,
             collision_shape,
             selection_shape,
             occlusion_shape,
-            push_reaction: components.movable.unwrap().movement_type,
-            instrument: components.instrument_sound.unwrap().0,
+            push_reaction: movable.movement_type,
+            instrument: components
+                .instrument_sound
+                .ok_or("minecraft:instrument_sound")?
+                .0,
             redstone_power: components.redstone_producer.map_or(0, |p| p.power),
             loot,
             experience,
             fluid,
             sound_set,
             flags,
-        }
+        })
     }
 
     fn finish(&mut self) -> Result<BlockDefinitions, LoadError> {
@@ -949,12 +968,12 @@ fn fills_the_cube(boxes: &[ModelBox]) -> bool {
 /// the blocks it overrides by hand — signs, pressure plates, cobweb, snow,
 /// azalea, ladders, amethyst clusters, pointed dripstone and corals.
 fn legacy_solid(boxes: &[ModelBox]) -> bool {
-    let Some(first) = boxes.first() else {
+    let Some((first, rest)) = boxes.split_first() else {
         return false;
     };
     let mut min = Vec3::from(first.origin);
     let mut max = min + Vec3::from(first.size);
-    for b in &boxes[1..] {
+    for b in rest {
         min = min.min(Vec3::from(b.origin));
         max = max.max(Vec3::from(b.origin) + Vec3::from(b.size));
     }
@@ -1070,8 +1089,18 @@ mod tests {
             "minecraft:second"
         );
         let blocks = definitions.blocks();
-        assert_eq!(definitions.block_index(blocks[1].base_state_id).index(), 1);
-        assert_eq!(definitions.block_index(blocks[0].base_state_id).index(), 0);
+        assert_eq!(
+            definitions
+                .block_index(blocks[1].base_state_id)
+                .map(Id::index),
+            Some(1)
+        );
+        assert_eq!(
+            definitions
+                .block_index(blocks[0].base_state_id)
+                .map(Id::index),
+            Some(0)
+        );
     }
 
     #[test]

@@ -65,8 +65,7 @@ fn main() {
                                         BlockStateId::checked(id.0, corpus().state_count())
                                             .unwrap_or(BlockStateId::AIR),
                                     )
-                                    .identifier
-                                    .to_string()
+                                    .map_or_else(String::new, |block| block.identifier.to_string())
                             });
                         }
                     }

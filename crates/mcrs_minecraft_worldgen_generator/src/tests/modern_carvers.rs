@@ -31,8 +31,16 @@ fn y_sections() -> Vec<i32> {
 fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
     let sections = y_sections();
     let column = ColumnBlocks::new(&sections);
-    let stone: VoxelId = corpus().default_state("minecraft:stone").number().into();
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").number().into();
+    let stone: VoxelId = corpus()
+        .default_state("minecraft:stone")
+        .unwrap()
+        .number()
+        .into();
+    let bedrock: VoxelId = corpus()
+        .default_state("minecraft:bedrock")
+        .unwrap()
+        .number()
+        .into();
     for (index, &section_y) in sections.iter().enumerate() {
         for y in 0..16 {
             for z in 0..16 {
@@ -51,7 +59,11 @@ fn ids() -> ModernCarverBlockIds {
     // No tag registry in a unit test, so the uncarvable set is supplied the
     // way the tag would: bedrock's states.
     ModernCarverBlockIds::for_test(vec![
-        corpus().default_state("minecraft:bedrock").number().into(),
+        corpus()
+            .default_state("minecraft:bedrock")
+            .unwrap()
+            .number()
+            .into(),
     ])
 }
 

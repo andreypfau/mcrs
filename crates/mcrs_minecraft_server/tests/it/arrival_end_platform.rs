@@ -38,7 +38,10 @@ struct DimTick;
 struct TestDimLabel(u8);
 
 fn obsidian() -> BlockStateId {
-    standalone_corpus().0.default_state("minecraft:obsidian")
+    standalone_corpus()
+        .0
+        .default_state("minecraft:obsidian")
+        .unwrap()
 }
 
 fn register_sub_messages(sub_app: &mut SubApp) {
