@@ -24,7 +24,7 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::session::SessionBundle;
-use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
@@ -115,6 +115,16 @@ pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
         enqueue_spawn(app, id, dimension_type);
     }
     drain_dim_spawn_queue(app);
+}
+
+pub fn label_of(app: &App, dimension: &str) -> Entity {
+    app.world()
+        .try_query::<(Entity, &DimSubAppHandle, &ResourceKey<Dimension>)>()
+        .expect("a dimension was spawned")
+        .iter(app.world())
+        .find(|(_, _, key)| key.as_str() == dimension)
+        .map(|(entity, _, _)| entity)
+        .unwrap_or_else(|| panic!("{dimension} was spawned"))
 }
 
 /// Places a new session joining `label`, sends its spawn over the dimension's control channel,

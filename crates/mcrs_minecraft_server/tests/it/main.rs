@@ -30,6 +30,7 @@ mod configuration_tags;
 mod confirmed_move_roundtrip;
 mod cross_player_isolation;
 mod dimension_list;
+mod dimension_plugins;
 mod dimension_type;
 mod entity_sync_look_angle;
 mod epoch_round_trip;

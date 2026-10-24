@@ -206,7 +206,6 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         chunk_index.insert(floor_chunk_pos, chunk_entity);
         sub.world_mut().entity_mut(dim_entity).insert(chunk_index);
 
-        sub.add_schedule(Schedule::new(First));
         sub.add_plugins(BlockUpdatePlugin);
         sub.add_plugins(ArrivalPlugin);
         sub.add_systems(FixedPreUpdate, drain_inbox.in_set(DimInboxDrain));

@@ -5,8 +5,10 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-use tracing::{debug, info};
+use mcrs_minecraft_level::world::sub_app::{
+    DimDespawnQueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
+};
+use tracing::{debug, info, warn};
 
 pub mod aoi;
 pub mod arrival;
@@ -112,10 +114,24 @@ impl Plugin for WorldPlugin {
 pub fn enqueue_dim_spawns(
     dimensions: Res<DimensionList>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
+    plugins: Option<Res<DimensionPlugins>>,
     mut already_enqueued: Local<bool>,
 ) {
     if *already_enqueued {
         return;
+    }
+    let mut unknown: Vec<_> = plugins
+        .iter()
+        .flat_map(|plugins| plugins.dimensions())
+        .filter(|dimension| !dimensions.iter().any(|(key, _)| key == *dimension))
+        .collect();
+    unknown.sort_unstable_by_key(|dimension| dimension.as_str());
+    unknown.dedup();
+    for dimension in unknown {
+        warn!(
+            %dimension,
+            "a plugin is added to a dimension that the world does not spawn at start; it gets the plugin only if it spawns later"
+        );
     }
 
     debug!(

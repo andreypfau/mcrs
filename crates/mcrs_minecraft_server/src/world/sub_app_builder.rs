@@ -47,6 +47,11 @@ pub struct DimInboxDrain;
 ///   each pump rather than being driven by accumulated `Time<Fixed>`. The host
 ///   itself owns the fixed-timestep cadence; the sub-app mirrors it 1:1.
 /// - No `SpawnScene` (we do not depend on `bevy_scene`).
+///
+/// It has no `StateTransition` or `TimePlugin` either. Its time resources are copies of the
+/// host's. `Res<Time>` is the fixed time in the `Fixed*` schedules and the virtual time in the
+/// others. The `Fixed*` schedules run once per host tick, but the host can advance `Time<Fixed>`
+/// by zero, one or more steps in that tick.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 
@@ -86,7 +91,7 @@ use mcrs_minecraft_level::world::dimension::{
 };
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
@@ -229,8 +234,8 @@ pub fn spawn_dim_subapp(
     // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
     // Types that previously crossed the host↔dim boundary via the extract
     // closure are now carried by the ToDim/FromDim flume channels instead
-    // and must NOT be registered here (a stray registration leaves an
-    // undrained double-buffer that retains messages across ticks).
+    // and must NOT be registered here: nothing in the dimension writes or reads
+    // a stray registration, and it hides which side owns the message.
     sub_app.add_message::<OutboundPlayerPacket>();
     // `InboundPlayerSpawn` is written by `drain_to_dim_inbox` from `ToDim::Spawn`
     // and read by `consume_inbound_player_spawn` (added by `MinecraftEntityPlugin`).
@@ -270,20 +275,22 @@ pub fn spawn_dim_subapp(
     ));
 
     sub_app.update_schedule = Some(DimTick.intern());
-    sub_app.add_schedule(Schedule::new(DimTick));
-    sub_app.add_schedule(Schedule::new(First));
-    sub_app.add_schedule(Schedule::new(PreStartup));
-    sub_app.add_schedule(Schedule::new(Startup));
-    sub_app.add_schedule(Schedule::new(PostStartup));
-    sub_app.add_schedule(Schedule::new(PreUpdate));
-    sub_app.add_schedule(Schedule::new(FixedFirst));
-    sub_app.add_schedule(Schedule::new(FixedPreUpdate));
-    sub_app.add_schedule(Schedule::new(FixedUpdate));
-    sub_app.add_schedule(Schedule::new(FixedPostUpdate));
-    sub_app.add_schedule(Schedule::new(FixedLast));
-    sub_app.add_schedule(Schedule::new(Update));
-    sub_app.add_schedule(Schedule::new(PostUpdate));
-    sub_app.add_schedule(Schedule::new(Last));
+    // `init_schedule` keeps a schedule that `SubApp::new` already filled, such as `First` with
+    // `message_update_system`.
+    sub_app.init_schedule(DimTick);
+    sub_app.init_schedule(First);
+    sub_app.init_schedule(PreStartup);
+    sub_app.init_schedule(Startup);
+    sub_app.init_schedule(PostStartup);
+    sub_app.init_schedule(PreUpdate);
+    sub_app.init_schedule(FixedFirst);
+    sub_app.init_schedule(FixedPreUpdate);
+    sub_app.init_schedule(FixedUpdate);
+    sub_app.init_schedule(FixedPostUpdate);
+    sub_app.init_schedule(FixedLast);
+    sub_app.init_schedule(Update);
+    sub_app.init_schedule(PostUpdate);
+    sub_app.init_schedule(Last);
     #[cfg(feature = "telemetry-tracy")]
     let dim_for_tick = request.dimension.to_string();
     #[cfg(feature = "telemetry-tracy")]
@@ -301,11 +308,15 @@ pub fn spawn_dim_subapp(
             }
             world.run_schedule(First);
             world.run_schedule(PreUpdate);
+            let fixed = world.resource::<Time<Fixed>>().as_generic();
+            world.insert_resource(fixed);
             world.run_schedule(FixedFirst);
             world.run_schedule(FixedPreUpdate);
             world.run_schedule(FixedUpdate);
             world.run_schedule(FixedPostUpdate);
             world.run_schedule(FixedLast);
+            let virtual_time = world.resource::<Time<Virtual>>().as_generic();
+            world.insert_resource(virtual_time);
             world.run_schedule(Update);
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
@@ -572,6 +583,12 @@ pub fn spawn_dim_subapp(
         }
     });
 
+    // Before the dimension entity spawns, so a plugin can still register required components and
+    // hooks for its components and its observers see it spawn.
+    if let Some(plugins) = app.world().get_resource::<DimensionPlugins>() {
+        plugins.build(&request.dimension, &mut sub_app);
+    }
+
     let dim_entity = sub_app
         .world_mut()
         .spawn((
@@ -592,14 +609,22 @@ pub fn spawn_dim_subapp(
             .insert(HasWeather);
     }
 
-    // Drain plugins to Ready before finish/cleanup. All plugins currently
-    // composed into a per-dim sub-app reach PluginsState::Ready synchronously
-    // (none override Plugin::ready), so this loop exits immediately. It is
-    // retained to make the contract explicit: any future plugin that introduces
-    // async readiness (e.g., per-dim biome asset loading) will be correctly
-    // waited on here rather than silently breaking sub-app construction.
+    // Drain plugins to Ready before finish/cleanup. The built-in plugins are
+    // ready at once. A plugin from `DimensionPlugins` that overrides
+    // `Plugin::ready` blocks the server loop here, and no schedule of this
+    // world runs while it waits: its readiness must come from the task pools.
+    let waiting = std::time::Instant::now();
+    let mut warned = false;
     while sub_app.plugins_state() == PluginsState::Adding {
         bevy_tasks::tick_global_task_pools_on_main_thread();
+        std::thread::yield_now();
+        if !warned && waiting.elapsed() > std::time::Duration::from_secs(10) {
+            warn!(
+                dim = request.dimension.as_str(),
+                "a plugin of this dimension is not ready after 10 s; the server waits for it"
+            );
+            warned = true;
+        }
     }
     sub_app.finish();
     sub_app.cleanup();

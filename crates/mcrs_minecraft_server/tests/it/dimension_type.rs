@@ -4,7 +4,6 @@ use bevy_app::{App, AppLabel};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_level::session::PlayerSessionCounter;
 use mcrs_minecraft_level::world::dimension::{
@@ -13,14 +12,13 @@ use mcrs_minecraft_level::world::dimension::{
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::enqueue_dim_spawns;
-use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
+use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_server::world_options::DimensionList;
 use mcrs_minecraft_world::dimension::Dimensions;
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 use crate::{host_app, support};
-use mcrs_minecraft_dimension::Dimension;
 
 fn host_spawning(dimensions: &Dimensions) -> App {
     let mut app = host_app::make_host_app();
@@ -36,17 +34,6 @@ fn host_spawning(dimensions: &Dimensions) -> App {
         .expect("the spawn requests are enqueued");
     drain_dim_spawn_queue(&mut app);
     app
-}
-
-fn label_of(app: &mut App, dimension: &str) -> Entity {
-    let mut handles = app
-        .world_mut()
-        .query::<(Entity, &DimSubAppHandle, &ResourceKey<Dimension>)>();
-    handles
-        .iter(app.world())
-        .find(|(_, _, key)| key.as_str() == dimension)
-        .map(|(entity, _, _)| entity)
-        .unwrap_or_else(|| panic!("{dimension} was spawned"))
 }
 
 fn in_world<T>(app: &mut App, label: Entity, read: impl FnOnce(&mut World) -> T) -> T {
@@ -88,7 +75,7 @@ fn rows_hold(failed: Vec<String>) {
 }
 
 fn a_dimension_named_unlike_its_type_spawns_with_its_entry_type(app: &mut App) {
-    let overworld = label_of(app, "minecraft:overworld");
+    let overworld = host_app::label_of(app, "minecraft:overworld");
 
     let config = config_of(app, overworld);
     assert_eq!((config.min_y, config.height), (0, 128));
@@ -111,7 +98,7 @@ fn every_shipped_preset_dimension_spawns_with_its_entry_type(
         .registry::<DimensionTypeFile>()
         .expect("the dimension types are loaded");
     for (key, entry) in support::baked(dimensions, test_registries()) {
-        let label = label_of(app, key.as_str());
+        let label = host_app::label_of(app, key.as_str());
         let (spawned, has_sky) = in_world(app, label, |world| {
             let spawned = *world
                 .query::<&DimensionTypeId>()
@@ -130,12 +117,12 @@ fn every_shipped_preset_dimension_spawns_with_its_entry_type(
 }
 
 fn every_join_into_a_dimension_sends_the_type_of_its_entry(app: &mut App) {
-    let overworld = label_of(app, "minecraft:overworld");
+    let overworld = host_app::label_of(app, "minecraft:overworld");
     host_app::enqueue_spawn(app, "test:nether", "minecraft:the_nether");
     host_app::enqueue_spawn(app, "minecraft:the_end", "minecraft:the_end");
     drain_dim_spawn_queue(app);
-    let nether = label_of(app, "test:nether");
-    let end = label_of(app, "minecraft:the_end");
+    let nether = host_app::label_of(app, "test:nether");
+    let end = host_app::label_of(app, "minecraft:the_end");
 
     let numbers: Vec<u16> = [overworld, nether, end, overworld]
         .into_iter()
@@ -246,7 +233,7 @@ fn dimensions_on_a_bare_host_have_the_sections_and_weather_of_their_type() {
             &mut failed,
             &format!("{dimension_type} gives vanilla sections"),
             || {
-                let label = label_of(&mut app, &format!("test:bounds_{index}"));
+                let label = host_app::label_of(&app, &format!("test:bounds_{index}"));
                 let config = config_of(&mut app, label);
                 assert_eq!(
                     (config.height, config.min_y, config.section_count),
@@ -279,7 +266,7 @@ fn dimensions_on_a_bare_host_have_the_sections_and_weather_of_their_type() {
 }
 
 fn assert_has_weather(app: &mut App, key: &str, dimension_type: &str, expected: bool) {
-    let label = label_of(app, key);
+    let label = host_app::label_of(app, key);
     let has_weather = in_world(app, label, |world| {
         world.query::<&HasWeather>().iter(world).count() == 1
     });
