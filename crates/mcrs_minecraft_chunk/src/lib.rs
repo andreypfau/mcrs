@@ -22,6 +22,13 @@ impl From<u16> for VoxelId {
     }
 }
 
+impl From<mcrs_minecraft_core::BlockStateId> for VoxelId {
+    #[inline]
+    fn from(id: mcrs_minecraft_core::BlockStateId) -> Self {
+        VoxelId(id.number())
+    }
+}
+
 impl From<VoxelId> for u16 {
     #[inline]
     fn from(id: VoxelId) -> Self {

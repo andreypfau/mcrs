@@ -3,7 +3,7 @@ use std::sync::{Arc, OnceLock};
 use bevy_math::Vec3;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
-use mcrs_minecraft_core::{BlockPos, BoundingBox, LocalPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, LocalPos, SectionPos};
 use mcrs_minecraft_light::field::{BlockSnapshot, FieldLayout, LightField, SectionSource};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_minecraft_light::relax;
@@ -391,7 +391,11 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
         .sections()
         .map(|(_, pos)| match neighbourhood.section(pos) {
             Some(cells) => {
-                let ids: Vec<VoxelId> = cells.iter().map(|&id| VoxelId(id)).collect();
+                // The cells name blocks of the test table, which is narrower than u16.
+                let ids: Vec<BlockStateId> = cells
+                    .iter()
+                    .filter_map(|&id| BlockStateId::checked(id, 1 << 16))
+                    .collect();
                 SectionSource::Loaded(Arc::new(VoxelPalette::from_cells(&ids)))
             }
             None if neighbourhood

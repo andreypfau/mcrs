@@ -1,14 +1,31 @@
 use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 use mcrs_minecraft_chunk::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{BlockStateId, SectionPos};
 
 pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, { SectionPos::SIZE }>;
 
+/// One section's block states as the engine keeps them.
+pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
+
 /// The blocks a loaded chunk entity holds: the engine's shared section
 /// palette, named in this crate's vocabulary.
-pub type ChunkBlocks = SharedVoxelPalette<VoxelId, { SectionPos::SIZE }>;
+pub type ChunkBlocks = SharedVoxelPalette<BlockStateId, { SectionPos::SIZE }>;
+
+/// The states of a section that worldgen or a save produced, checked against the
+/// `state_count` states of the block table. An id past the table reads as air.
+pub fn section_states(blocks: &BlockPalette, state_count: usize) -> SectionStates {
+    VoxelPalette(
+        blocks
+            .0
+            .map(|voxel| BlockStateId::checked(voxel.0, state_count).unwrap_or(BlockStateId::AIR)),
+    )
+}
+
+pub fn air_section() -> ChunkBlocks {
+    ChunkBlocks::new(SectionStates::homogeneous(BlockStateId::AIR))
+}
 
 // A container whose edge length disagrees with its section kind's axis bits packs
 // to a wrong length at runtime instead of failing to compile.

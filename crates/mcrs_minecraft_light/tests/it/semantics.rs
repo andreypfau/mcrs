@@ -234,7 +234,7 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
     }]);
     world.update_now([Edit::SetBlock {
         pos: BlockPos::new(15, 8, 8),
-        block: GLOWSTONE,
+        block: state(GLOWSTONE),
     }]);
     assert_eq!(
         world.light_at(BlockPos::new(15, 8, 8), Layer::Block).get(),
@@ -270,7 +270,7 @@ fn unloading_a_section_takes_its_light_with_it() {
     }
     world.update_now([Edit::SetBlock {
         pos: BlockPos::new(15, 8, 8),
-        block: GLOWSTONE,
+        block: state(GLOWSTONE),
     }]);
     assert_eq!(
         world.light_at(BlockPos::new(18, 8, 8), Layer::Block).get(),

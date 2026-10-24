@@ -7,11 +7,11 @@ use std::sync::Arc;
 /// One section's cube of voxel ids, addressed by section-local position.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct VoxelPalette<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize>(
+pub struct VoxelPalette<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize>(
     pub PalettedContainer<V, DIM>,
 );
 
-impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> VoxelPalette<V, DIM> {
+impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette<V, DIM> {
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
 
@@ -72,7 +72,7 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
     }
 }
 
-impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static> VoxelPalette<V, { SectionPos::SIZE }> {
+impl<V: Hash + Eq + Copy + Send + Sync + 'static> VoxelPalette<V, { SectionPos::SIZE }> {
     pub fn get(&self, pos: LocalPos) -> V {
         self.0
             .get(pos.x() as usize, pos.y() as usize, pos.z() as usize)
@@ -93,12 +93,11 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static> VoxelPalette<V, { Se
 /// [`SharedVoxelPalette::make_mut`].
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct SharedVoxelPalette<
-    V: Hash + Eq + Copy + Default + Send + Sync + 'static,
-    const DIM: usize,
->(pub Arc<VoxelPalette<V, DIM>>);
+pub struct SharedVoxelPalette<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize>(
+    pub Arc<VoxelPalette<V, DIM>>,
+);
 
-impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Clone
+impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> Clone
     for SharedVoxelPalette<V, DIM>
 {
     fn clone(&self) -> Self {
@@ -114,7 +113,7 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> De
     }
 }
 
-impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> std::ops::Deref
+impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> std::ops::Deref
     for SharedVoxelPalette<V, DIM>
 {
     type Target = VoxelPalette<V, DIM>;
@@ -124,9 +123,7 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> st
     }
 }
 
-impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize>
-    SharedVoxelPalette<V, DIM>
-{
+impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> SharedVoxelPalette<V, DIM> {
     pub fn new(palette: VoxelPalette<V, DIM>) -> Self {
         Self(Arc::new(palette))
     }

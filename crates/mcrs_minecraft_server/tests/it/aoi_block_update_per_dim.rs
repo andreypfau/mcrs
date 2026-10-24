@@ -14,7 +14,6 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
@@ -57,7 +56,11 @@ fn block_update_resolves_observers_per_dim_emit_site() {
 
     let chunk_entity = app
         .world_mut()
-        .spawn((chunk_pos, InDimension(dim_entity), ChunkBlocks::default()))
+        .spawn((
+            chunk_pos,
+            InDimension(dim_entity),
+            mcrs_minecraft_level::palette::air_section(),
+        ))
         .id();
 
     // The block placed twice goes out once, and the one placed without telling
@@ -66,8 +69,8 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         chunk: chunk_entity,
         chunk_pos,
         block_pos,
-        old_state: mcrs_minecraft_chunk::VoxelId(0),
-        new_state: mcrs_minecraft_chunk::VoxelId(0),
+        old_state: mcrs_minecraft_core::BlockStateId::AIR,
+        new_state: mcrs_minecraft_core::BlockStateId::AIR,
         flags,
     };
     let block_pos = BlockPos::new(2, 3, 4);

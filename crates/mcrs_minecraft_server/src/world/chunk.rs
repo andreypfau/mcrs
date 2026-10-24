@@ -12,7 +12,7 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
-use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
 use mcrs_minecraft_level::world::lifecycle::stage::{
@@ -394,6 +394,7 @@ pub(crate) fn deliver_merged_columns(
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut ready: Local<Vec<ColumnKey>>,
 ) {
+    let states = ctx.as_ref().map(|ctx| ctx.blocks.state_count());
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
     ready.extend(scheduler.pending.keys().copied().filter(|key| {
         scheduler
@@ -464,18 +465,22 @@ pub(crate) fn deliver_merged_columns(
         }
 
         for (entity, _pos, section) in carried {
-            match section {
-                Some((blocks, biomes)) => {
+            match (section, states) {
+                (Some((blocks, biomes)), Some(states)) => {
                     commands
                         .entity(entity)
-                        .try_insert((ChunkBlocks::new(blocks), biomes));
+                        .try_insert((ChunkBlocks::new(section_states(&blocks, states)), biomes));
                     // One cancelled while it generated keeps the blocks for a ticket that
                     // takes it back, but stays on its way out.
                     if stages.get(entity) == Some(SectionStage::Generating) {
                         stages.set(entity, SectionStage::Loaded);
                     }
                 }
-                None => stages.set(entity, SectionStage::Unloading),
+                (Some(_), None) => {
+                    tracing::error!(?col, "a section arrived with no block table to check it");
+                    stages.set(entity, SectionStage::Unloading);
+                }
+                (None, _) => stages.set(entity, SectionStage::Unloading),
             }
         }
     }
@@ -939,7 +944,7 @@ mod tests {
                 let local = mcrs_minecraft_core::LocalPos::from_index(cell);
                 let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
-                    got.get_cell(x, ly, z),
+                    mcrs_minecraft_chunk::VoxelId::from(got.get_cell(x, ly, z)),
                     want.0.get_cell(x, ly, z),
                     "section {y} diverged at ({x}, {ly}, {z})"
                 );

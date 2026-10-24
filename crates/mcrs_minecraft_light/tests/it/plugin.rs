@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::common::{AIR, TORCH, filled, registry};
+use crate::common::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
@@ -50,7 +50,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
         .resource_mut::<PendingEdits>()
         .push(Edit::SetBlock {
             pos: mcrs_minecraft_core::BlockPos::new(8, 8, 8),
-            block: TORCH,
+            block: state(TORCH),
         });
     settle(&mut app);
 
@@ -175,7 +175,10 @@ fn a_block_change_is_not_deferred_behind_a_bulk_load() {
     load_columns(&mut app, limit as i32 * 3);
     app.world_mut()
         .resource_mut::<PendingEdits>()
-        .push(Edit::SetBlock { pos, block: TORCH });
+        .push(Edit::SetBlock {
+            pos,
+            block: state(TORCH),
+        });
     app.update();
 
     assert!(!app.world().resource::<PendingEdits>().is_empty());

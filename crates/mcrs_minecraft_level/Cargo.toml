@@ -24,6 +24,7 @@ indexmap.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_volume.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true

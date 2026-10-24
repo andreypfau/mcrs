@@ -192,7 +192,7 @@ fn disjoint_jobs_publish_in_any_order() {
     let mut queue = LightQueue::default();
     for (col, influence) in concurrent.world.apply_edits([Edit::SetBlock {
         pos: near,
-        block: GLOWSTONE,
+        block: state(GLOWSTONE),
     }]) {
         queue.push(col, influence);
     }
@@ -205,7 +205,7 @@ fn disjoint_jobs_publish_in_any_order() {
     // older job's block snapshot does not contain it.
     for (col, influence) in concurrent.world.apply_edits([Edit::SetBlock {
         pos: far,
-        block: TORCH,
+        block: state(TORCH),
     }]) {
         queue.push(col, influence);
     }
@@ -266,7 +266,7 @@ fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
     for (pos, block) in &edits {
         for (col, influence) in in_batches.world.apply_edits([Edit::SetBlock {
             pos: *pos,
-            block: *block,
+            block: state(*block),
         }]) {
             queue.push(col, influence);
         }
@@ -321,7 +321,7 @@ fn an_edit_takes_effect_before_its_lighting_does() {
 
     let work = world.world.apply_edits([Edit::SetBlock {
         pos,
-        block: GLOWSTONE,
+        block: state(GLOWSTONE),
     }]);
     assert!(!work.is_empty(), "the edit created lighting work");
 
@@ -386,7 +386,10 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
             pos: SectionPos::new(0, 0, 0),
             blocks: Arc::new(filled(AIR)),
         },
-        Edit::SetBlock { pos, block: TORCH },
+        Edit::SetBlock {
+            pos,
+            block: state(TORCH),
+        },
     ]);
 
     assert!(

@@ -3,11 +3,11 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::palette::{BlockPalette, ChunkBlocks};
+use mcrs_minecraft_level::palette::{ChunkBlocks, SectionStates};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
@@ -31,19 +31,15 @@ use crate::host_app;
 const SECTIONS: std::ops::Range<i32> = -4..20;
 const STONE_SECTION_Y: i32 = 0;
 
-fn state(blocks: &Blocks, name: &str) -> VoxelId {
+fn state(blocks: &Blocks, name: &str) -> BlockStateId {
     blocks
         .block(name)
         .unwrap_or_else(|| panic!("{name} is declared"))
         .default_state_id
-        .number()
-        .into()
 }
 
-fn filled(block: VoxelId) -> BlockPalette {
-    let mut palette = BlockPalette::default();
-    palette.fill(block);
-    palette
+fn filled(block: BlockStateId) -> SectionStates {
+    SectionStates::homogeneous(block)
 }
 
 /// Spawn one column of section entities exactly as `process_completed_columns`

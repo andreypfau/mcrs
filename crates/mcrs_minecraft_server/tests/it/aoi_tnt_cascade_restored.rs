@@ -16,14 +16,14 @@
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::palette::air_section;
+use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
@@ -68,12 +68,15 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // single column_entity so every chunk's observers resolve to the same player.
     let mut chunk_index = SectionIndex::default();
     let mut column_index = ColumnIndex::default();
-    let dim_entity = app.world_mut().spawn_empty().id();
+    let dim_entity = app
+        .world_mut()
+        .spawn(DimensionTypeConfig::new(-64, 384))
+        .id();
 
     for &chunk_pos in &chunk_positions {
         let chunk_entity = app
             .world_mut()
-            .spawn((chunk_pos, InDimension(dim_entity), ChunkBlocks::default()))
+            .spawn((chunk_pos, InDimension(dim_entity), air_section()))
             .id();
         chunk_index.insert(chunk_pos, chunk_entity);
         column_index.0.insert(
@@ -108,7 +111,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: block_pos,
-                new_state: mcrs_minecraft_chunk::VoxelId(1),
+                new_state: BlockStateId::checked(1, 2).expect("a state past air"),
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 1,
             });

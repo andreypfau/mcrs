@@ -357,6 +357,37 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
             }
         }
     }
+
+    /// The same cells with every value passed through `f`. While `f` keeps distinct values
+    /// distinct, the palette keeps its order and counts.
+    pub fn map<W: Hash + Eq + Copy, F: Fn(V) -> W>(&self, f: F) -> PalettedContainer<W, DIM> {
+        match self {
+            Self::Homogeneous(value) => PalettedContainer::Homogeneous(f(*value)),
+            Self::Heterogeneous(data) => {
+                let palette: Vec<W> = data.palette.iter().map(|value| f(*value)).collect();
+                let index: FxHashMap<W, usize> =
+                    palette.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+                let mut cube = Box::new([[[palette[0]; DIM]; DIM]; DIM]);
+                for (to, from) in cube
+                    .as_flattened_mut()
+                    .as_flattened_mut()
+                    .iter_mut()
+                    .zip(data.cube.as_flattened().as_flattened())
+                {
+                    *to = f(*from);
+                }
+                if index.len() != palette.len() {
+                    return PalettedContainer::from_cube(cube);
+                }
+                PalettedContainer::Heterogeneous(Box::new(HeterogeneousPaletteData {
+                    cube,
+                    palette,
+                    counts: data.counts.clone(),
+                    index,
+                }))
+            }
+        }
+    }
 }
 
 impl<V: Default + Hash + Eq + Copy, const DIM: usize> Default for PalettedContainer<V, DIM> {

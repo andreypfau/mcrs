@@ -1,5 +1,6 @@
 use anyhow::Context;
 use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
+use mcrs_minecraft_core::BlockStateId;
 
 pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
@@ -58,24 +59,35 @@ pub trait NetworkSectionKind: SectionKind {
 }
 
 /// A value a section container holds, which fixes the widths and the entry
-/// count its wire form is read at.
-pub trait SectionValue: Copy + Into<u16> {
+/// count its wire form is written at.
+pub trait SectionEntry: Copy + Into<u16> {
     type Section: NetworkSectionKind;
+}
 
+/// A section entry that can be read back from its registry id alone.
+pub trait SectionValue: SectionEntry {
     fn from_registry_id(id: u16) -> anyhow::Result<Self>;
 }
 
-impl SectionValue for VoxelId {
+impl SectionEntry for BlockStateId {
     type Section = Blocks;
+}
 
+impl SectionEntry for VoxelId {
+    type Section = Blocks;
+}
+
+impl SectionValue for VoxelId {
     fn from_registry_id(id: u16) -> anyhow::Result<Self> {
         Ok(VoxelId(id))
     }
 }
 
-impl SectionValue for u8 {
+impl SectionEntry for u8 {
     type Section = Biomes;
+}
 
+impl SectionValue for u8 {
     fn from_registry_id(id: u16) -> anyhow::Result<Self> {
         u8::try_from(id).with_context(|| format!("biome id {id}"))
     }

@@ -274,7 +274,11 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
                         .get::<ChunkBlocks>(*entity)
                         .unwrap_or_else(|| panic!("{col:?} was delivered without its blocks"));
                     (0..ColumnBlocks::SECTION_VOLUME)
-                        .map(|index| blocks.get_cell(index & 15, index >> 8, (index >> 4) & 15))
+                        .map(|index| {
+                            blocks
+                                .get_cell(index & 15, index >> 8, (index >> 4) & 15)
+                                .into()
+                        })
                         .collect()
                 })
                 .collect();

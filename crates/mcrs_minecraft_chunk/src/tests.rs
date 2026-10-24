@@ -182,3 +182,27 @@ fn splitting_a_homogeneous_cube_matches_a_full_scan() {
         assert_eq!(actual(&c), reference(&cells), "fill_box {x0}..{x1}");
     }
 }
+
+#[test]
+fn mapping_two_values_onto_one_merges_their_palette_entries() {
+    let cells: Vec<u16> = (0..16 * 16 * 16).map(|i| (i % 3) as u16).collect();
+    let mut mapped = PalettedContainer::<u16, 16>::from_cells(&cells).map(|v| v.min(1));
+
+    let PalettedContainer::Heterogeneous(data) = &mapped else {
+        panic!("two values remain");
+    };
+    let mut entries: Vec<(u16, u16)> = data
+        .palette
+        .iter()
+        .copied()
+        .zip(data.counts.iter().copied())
+        .collect();
+    entries.sort();
+    assert_eq!(entries, [(0, 1366), (1, 2730)]);
+
+    for index in 0..16 * 16 * 16 {
+        let (x, y, z) = (index & 15, index >> 8, (index >> 4) & 15);
+        mapped.set(x, y, z, 0);
+    }
+    assert_eq!(mapped, PalettedContainer::Homogeneous(0));
+}

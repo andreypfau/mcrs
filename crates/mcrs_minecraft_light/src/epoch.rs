@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use std::sync::Arc;
 
-use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
@@ -570,14 +570,15 @@ impl LightWorld {
         stats
     }
 
-    fn edit_block(&mut self, pos: BlockPos, block: VoxelId) -> Option<Influence> {
+    fn edit_block(&mut self, pos: BlockPos, block: BlockStateId) -> Option<Influence> {
         let registry = Arc::clone(self.registry());
         let section = self.section_mut(SectionPos::from(pos))?;
-        if !registry.light_properties_differ(section.blocks.get(LocalPos::from(pos)), block) {
+        let old = section.blocks.get(LocalPos::from(pos));
+        if !registry.light_properties_differ(old.into(), block.into()) {
             return None;
         }
         Arc::make_mut(&mut section.blocks).set(LocalPos::from(pos), block);
-        section.emits |= !registry.emission(block).is_zero();
+        section.emits |= !registry.emission(block.into()).is_zero();
         // Past the early return above, so a write the scan cannot tell apart
         // from what it replaced keeps the bound: equal light properties give
         // equal seams, whatever the surface now says about that block.

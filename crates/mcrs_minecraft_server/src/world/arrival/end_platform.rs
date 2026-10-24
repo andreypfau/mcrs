@@ -1,7 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_math::DVec3;
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
@@ -29,7 +28,7 @@ pub fn place_end_platform(
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: BlockPos::new(center_x + dx, floor_y, center_z + dz),
-                new_state: VoxelId::from(obsidian.number()),
+                new_state: obsidian,
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 512,
             });

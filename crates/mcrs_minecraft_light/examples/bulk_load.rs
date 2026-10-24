@@ -9,11 +9,12 @@ use std::time::{Duration, Instant};
 
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_minecraft_core::{BlockStateId, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
 
 fn filled(block: VoxelId) -> SectionBlocks {
-    VoxelPalette(PalettedContainer::Homogeneous(block))
+    let state = BlockStateId::checked(block.0, 2).expect("a block of the example table");
+    VoxelPalette(PalettedContainer::Homogeneous(state))
 }
 use rayon::prelude::*;
 

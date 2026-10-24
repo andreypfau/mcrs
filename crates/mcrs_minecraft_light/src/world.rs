@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
-use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};
@@ -35,13 +35,13 @@ pub struct Section {
 impl Section {
     pub fn new(registry: &LightRegistry, entity: u64, blocks: Arc<SectionBlocks>) -> Self {
         let emits = match &blocks.0 {
-            PalettedContainer::Homogeneous(block) => !registry.emission(*block).is_zero(),
+            PalettedContainer::Homogeneous(block) => !registry.emission((*block).into()).is_zero(),
             // The palette keeps entries a `set` has emptied, so this errs towards
             // saying yes, which only ever costs the work it would have skipped.
             PalettedContainer::Heterogeneous(data) => data
                 .palette
                 .iter()
-                .any(|block| !registry.emission(*block).is_zero()),
+                .any(|block| !registry.emission((*block).into()).is_zero()),
         };
         Self {
             entity,
@@ -107,7 +107,7 @@ impl SkyFloor {
 pub enum Edit {
     SetBlock {
         pos: BlockPos,
-        block: VoxelId,
+        block: BlockStateId,
     },
     LoadSection {
         pos: SectionPos,
@@ -253,7 +253,7 @@ impl LightWorld {
             return self.registry.outside();
         }
         match self.sections.get(&SectionPos::from(pos)) {
-            Some(section) => section.blocks.get(LocalPos::from(pos)),
+            Some(section) => section.blocks.get(LocalPos::from(pos)).into(),
             None => self.registry.unloaded(),
         }
     }
@@ -394,7 +394,9 @@ impl LightWorld {
             let pos = SectionPos::new(section_column.x, section_y, section_column.z);
             let section = match self.sections.get(&pos) {
                 Some(section) => match &section.blocks.0 {
-                    PalettedContainer::Homogeneous(block) => SkyColumnSection::Uniform(*block),
+                    PalettedContainer::Homogeneous(block) => {
+                        SkyColumnSection::Uniform((*block).into())
+                    }
                     PalettedContainer::Heterogeneous(_) => {
                         SkyColumnSection::Blocks(&section.blocks)
                     }
@@ -445,7 +447,9 @@ impl LightWorld {
                 // seals no seam a uniform one would not: the entry seam and one
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
-                    let air = blocks.get_cell(local_x as usize, SectionPos::MASK, local_z as usize);
+                    let air = blocks
+                        .get_cell(local_x as usize, SectionPos::MASK, local_z as usize)
+                        .into();
                     match top(air) {
                         Ok(block) => above = block,
                         Err(floor) => return floor,
@@ -453,8 +457,9 @@ impl LightWorld {
                 }
                 SkyColumnSection::Blocks(blocks) => {
                     for local_y in (0..SectionPos::SIZE as u8).rev() {
-                        let below =
-                            blocks.get_cell(local_x as usize, local_y as usize, local_z as usize);
+                        let below = blocks
+                            .get_cell(local_x as usize, local_y as usize, local_z as usize)
+                            .into();
                         if self.registry.breaks_sky_column(above, below) {
                             return section_y * SECTION_WIDTH + local_y as i32 + 1;
                         }

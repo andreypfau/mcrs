@@ -1,6 +1,6 @@
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::section::{
-    Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue, biome_direct_bits,
+    Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionEntry, SectionValue, biome_direct_bits,
     block_direct_bits,
 };
 use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
@@ -229,7 +229,7 @@ impl crate::Decode<'_> for ChunkBlockUpdateEntry {
 
 /// The network form drops the palette list past `MAX_INDIRECT_BITS` and packs
 /// registry ids directly; the save keeps a palette at every size.
-pub fn encode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>(
+pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     direct_bits: u32,
     mut w: impl Write,
@@ -347,10 +347,10 @@ pub struct ChunkSection {
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
 }
 
-pub fn encode_section(
+pub fn encode_section<B: SectionEntry<Section = Blocks> + Hash + Eq>(
     non_empty_block_count: u16,
     fluid_count: u16,
-    blocks: &PalettedContainer<VoxelId, { Blocks::SIZE }>,
+    blocks: &PalettedContainer<B, { Blocks::SIZE }>,
     biomes: &PalettedContainer<u8, { Biomes::SIZE }>,
     block_direct_bits: u32,
     biome_direct_bits: u32,

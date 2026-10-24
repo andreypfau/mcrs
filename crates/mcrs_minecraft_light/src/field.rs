@@ -176,9 +176,9 @@ impl SectionSource {
     #[inline]
     pub fn block_at(&self, local: LocalPos) -> VoxelId {
         match self {
-            SectionSource::Loaded(blocks) => {
-                blocks.get_cell(local.x() as usize, local.y() as usize, local.z() as usize)
-            }
+            SectionSource::Loaded(blocks) => blocks
+                .get_cell(local.x() as usize, local.y() as usize, local.z() as usize)
+                .into(),
             SectionSource::Open(block) | SectionSource::Absent(block) => *block,
         }
     }
@@ -187,7 +187,7 @@ impl SectionSource {
     pub fn uniform_block(&self) -> Option<VoxelId> {
         match self {
             SectionSource::Loaded(blocks) => match &blocks.0 {
-                PalettedContainer::Homogeneous(block) => Some(*block),
+                PalettedContainer::Homogeneous(block) => Some((*block).into()),
                 PalettedContainer::Heterogeneous(_) => None,
             },
             SectionSource::Open(block) | SectionSource::Absent(block) => Some(*block),

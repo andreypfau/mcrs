@@ -1,7 +1,7 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, section_states};
 use mcrs_minecraft_worldgen_generator::heightmap::*;
 use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
 use std::sync::OnceLock;
@@ -249,7 +249,8 @@ fn spawn_column(
         .iter()
         .map(|section| {
             let blocks = section.as_ref().map(|(b, _)| b.clone()).unwrap_or_default();
-            app.world_mut().spawn(ChunkBlocks::new(blocks)).id()
+            let states = section_states(&blocks, corpus().state_count());
+            app.world_mut().spawn(ChunkBlocks::new(states)).id()
         })
         .collect();
 
@@ -333,18 +334,19 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
         let index = (y / 16) as usize;
         let (blocks, _) = sections[index].as_mut().unwrap();
         let old = blocks.set_cell(x, (y % 16) as usize, z, id);
+        let state = |id: VoxelId| BlockStateId::checked(id.0, corpus().state_count()).unwrap();
         app.world_mut()
             .entity_mut(section_entities[index])
             .get_mut::<ChunkBlocks>()
             .unwrap()
             .make_mut()
-            .set_cell(x, (y % 16) as usize, z, id);
+            .set_cell(x, (y % 16) as usize, z, state(id));
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],
             chunk_pos: SectionPos::new(0, y / 16, 0),
             block_pos: BlockPos::new(x as i32, y, z as i32),
-            old_state: old,
-            new_state: id,
+            old_state: state(old),
+            new_state: state(id),
             flags: BlockUpdateFlags::all(),
         });
         app.update();

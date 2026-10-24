@@ -12,11 +12,11 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{BlockStateId, SectionPos};
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
-use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks, non_air_block_count};
+use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_level::world::lifecycle::ticket::{
@@ -42,6 +42,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCach
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks};
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
@@ -734,8 +735,11 @@ pub(crate) fn send_column_queue(
                         }
                     }
                     // section and turns the rest of the column into garbage.
+                    let non_air = PalettedSection(&blocks.0.0)
+                        .palette(&mut PaletteBuffer::default())
+                        .count(|state| state != BlockStateId::AIR);
                     encode_section(
-                        non_air_block_count(blocks),
+                        non_air,
                         0,
                         &blocks.0.0,
                         &biomes.0,
@@ -874,7 +878,7 @@ mod tests {
                 .map(|y| {
                     let section = world
                         .spawn((
-                            ChunkBlocks::default(),
+                            mcrs_minecraft_level::palette::air_section(),
                             BiomePalette::default(),
                             SectionStage::Loaded,
                         ))

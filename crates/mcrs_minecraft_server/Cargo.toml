@@ -35,6 +35,7 @@ fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
 mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true

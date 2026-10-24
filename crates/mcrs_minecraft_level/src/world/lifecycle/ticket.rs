@@ -465,7 +465,7 @@ mod tests {
             .spawn(SectionBundle::new(InDimension(dim), pos));
         section.insert(SectionStage::Unloading);
         if blocks {
-            section.insert(ChunkBlocks::default());
+            section.insert(crate::palette::air_section());
         }
         let section = section.id();
         app.world_mut()

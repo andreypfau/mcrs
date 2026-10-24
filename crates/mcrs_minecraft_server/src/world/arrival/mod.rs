@@ -14,11 +14,10 @@ use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_level::block_update::BlockSetRequest;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_level::world::channels::FromDimSender;
 use mcrs_minecraft_level::world::dimension::{Dimension, InDimension};
-use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_level::world::storage::view::DimensionBlocks;
 
 // Platform at x=8, z=8 ensures the 5×5 floor (6..=10 in each axis) stays
 // within a single 16-block chunk section at these default coordinates.
@@ -42,8 +41,7 @@ fn resolve_arrivals(
     blocks: Res<Blocks>,
     sender: Res<FromDimSender<FromDim>>,
     dims: Query<Entity, With<Dimension>>,
-    chunk_index_query: Query<&SectionIndex>,
-    palette_query: Query<&ChunkBlocks>,
+    dimension_blocks: DimensionBlocks,
     mut dim_player_index: ResMut<DimPlayerIndex>,
     mut commands: Commands,
 ) {
@@ -58,8 +56,7 @@ fn resolve_arrivals(
             &spawn.cause,
             &mut block_writer,
             &blocks,
-            &chunk_index_query,
-            &palette_query,
+            &dimension_blocks,
         );
 
         let new_entity = match &spawn.payload {
@@ -102,8 +99,7 @@ fn resolve_position(
     cause: &ArrivalCause,
     block_writer: &mut MessageWriter<BlockSetRequest>,
     blocks: &Blocks,
-    chunk_index_query: &Query<&SectionIndex>,
-    palette_query: &Query<&ChunkBlocks>,
+    dimension_blocks: &DimensionBlocks,
 ) -> DVec3 {
     match cause {
         ArrivalCause::EndPlatform => place_end_platform(
@@ -113,7 +109,7 @@ fn resolve_position(
             block_writer,
         ),
         ArrivalCause::NetherPortal { source_pos } => {
-            find_or_create_nether_landing(dim_entity, *source_pos, chunk_index_query, palette_query)
+            find_or_create_nether_landing(dim_entity, *source_pos, dimension_blocks)
         }
         ArrivalCause::ExactRespawn { pos } => *pos,
         ArrivalCause::CommandTeleport { pos } => *pos,

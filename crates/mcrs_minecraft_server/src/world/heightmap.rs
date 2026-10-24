@@ -188,7 +188,7 @@ pub fn update_column_heightmaps(
         let x = (edit.block_pos.x & SectionPos::MASK as i32) as usize;
         let z = (edit.block_pos.z & SectionPos::MASK as i32) as usize;
         let y = edit.block_pos.y;
-        let kinds = predicates.get(edit.new_state);
+        let kinds = predicates.get(edit.new_state.into());
         let read = |at: i32| block_at(chunks, &palettes, x, at, z);
 
         apply_write(
@@ -218,7 +218,9 @@ fn block_at(
         return VoxelId::default();
     };
     match palettes.get(section) {
-        Ok(blocks) => blocks.get_cell(x, y.rem_euclid(SectionPos::SIZE as i32) as usize, z),
+        Ok(blocks) => blocks
+            .get_cell(x, y.rem_euclid(SectionPos::SIZE as i32) as usize, z)
+            .into(),
         Err(_) => VoxelId::default(),
     }
 }

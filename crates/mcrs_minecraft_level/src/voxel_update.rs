@@ -1,14 +1,12 @@
-use crate::palette::ChunkBlocks;
-use crate::world::storage::section::SectionIndex;
+use crate::world::storage::view::DimensionBlocksMut;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
-use bevy_ecs::prelude::Query;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::{LocalPos, SectionPos};
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_volume::BlockVolumeMut;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {
@@ -50,21 +48,18 @@ impl Plugin for BlockUpdatePlugin {
 pub struct BlockSetRequest {
     pub dimension: Entity,
     pub pos: BlockPos,
-    pub new_state: VoxelId,
+    pub new_state: BlockStateId,
     pub flags: BlockUpdateFlags,
     pub recursion_left: i16,
 }
 
 pub fn apply_voxel_set_requests(
     mut reader: MessageReader<BlockSetRequest>,
-    dimensions: Query<&SectionIndex>,
-    mut chunks: Query<(Entity, &mut ChunkBlocks)>,
+    mut blocks: DimensionBlocksMut,
     mut writer: MessageWriter<BlockPlaced>,
 ) {
     reader.read().for_each(|request| {
-        let chunk_pos = SectionPos::from(request.pos);
-
-        let Ok(chunk_index) = dimensions.get(request.dimension) else {
+        let Some(mut dimension) = blocks.get_mut(request.dimension) else {
             // Stale dimension Entity. Treated as suspicious because the
             // dimension typically outlives a single FixedUpdate; the
             // most common cause is a bus race between dim despawn and
@@ -77,29 +72,28 @@ pub fn apply_voxel_set_requests(
             );
             return;
         };
-        let Some((chunk, mut storage)) = chunk_index
-            .get(chunk_pos)
-            .and_then(|e| chunks.get_mut(e).ok())
-        else {
-            // Chunk unloaded or its palette query missed. This is
-            // expected (a voxel update can arrive for a chunk that just
-            // unloaded) and not an error.
-            tracing::trace!(
-                target: "voxel_update",
-                ?chunk_pos,
-                pos = ?request.pos,
-                "apply_voxel_set_requests: chunk not present in SectionIndex; dropping",
-            );
-            return;
+        let old_state = match dimension.set_block(request.pos, request.new_state) {
+            Ok(old_state) => old_state,
+            Err(why) => {
+                // A voxel update can arrive for a section that just unloaded;
+                // this is expected and not an error.
+                tracing::trace!(
+                    target: "voxel_update",
+                    %why,
+                    pos = ?request.pos,
+                    "apply_voxel_set_requests: dropping",
+                );
+                return;
+            }
         };
-
-        let old_state = storage
-            .make_mut()
-            .set(LocalPos::from(request.pos), request.new_state);
         if old_state == request.new_state {
             return;
         }
 
+        let chunk_pos = SectionPos::from(request.pos);
+        let Some(chunk) = dimension.section_entity(chunk_pos) else {
+            return;
+        };
         writer.write(BlockPlaced {
             chunk,
             chunk_pos,
@@ -116,7 +110,7 @@ pub struct BlockPlaced {
     pub chunk: Entity,
     pub chunk_pos: SectionPos,
     pub block_pos: BlockPos,
-    pub old_state: VoxelId,
-    pub new_state: VoxelId,
+    pub old_state: BlockStateId,
+    pub new_state: BlockStateId,
     pub flags: BlockUpdateFlags,
 }

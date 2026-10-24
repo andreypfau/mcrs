@@ -3,18 +3,17 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
-use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::palette::{ChunkBlocks, air_section};
 use mcrs_minecraft_level::session::{DimPlayerIndex, MoveId, PlayerSessionCounter};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
 };
-use mcrs_minecraft_level::world::dimension::Dimension;
+use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_level::world::in_flight::InFlightMoves;
 use mcrs_minecraft_level::world::storage::section::Section;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
@@ -38,13 +37,8 @@ struct DimTick;
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct TestDimLabel(u8);
 
-fn obsidian() -> VoxelId {
-    VoxelId::from(
-        standalone_corpus()
-            .0
-            .default_state("minecraft:obsidian")
-            .number(),
-    )
+fn obsidian() -> BlockStateId {
+    standalone_corpus().0.default_state("minecraft:obsidian")
 }
 
 fn register_sub_messages(sub_app: &mut SubApp) {
@@ -197,11 +191,11 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         sub.insert_resource(standalone_corpus().0.clone());
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
-        let chunk_entity = sub
+        let chunk_entity = sub.world_mut().spawn((Section, air_section())).id();
+        let dim_entity = sub
             .world_mut()
-            .spawn((Section, ChunkBlocks::default()))
+            .spawn((Dimension, DimensionTypeConfig::new(-64, 384)))
             .id();
-        let dim_entity = sub.world_mut().spawn(Dimension).id();
         let mut chunk_index = SectionIndex::default();
         chunk_index.insert(floor_chunk_pos, chunk_entity);
         sub.world_mut().entity_mut(dim_entity).insert(chunk_index);
@@ -299,7 +293,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     .get(LocalPos::from(pos));
                 assert_eq!(
                     state,
-                    VoxelId::from(BlockStateId::AIR.number()),
+                    BlockStateId::AIR,
                     "block above End platform at {pos:?} must be air"
                 );
             }

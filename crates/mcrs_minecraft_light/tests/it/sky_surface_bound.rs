@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::common::{
-    AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry,
+    AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry, state,
 };
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
@@ -26,12 +26,12 @@ fn stack() -> Vec<SectionBlocks> {
 
     let canopy = &mut sections[2];
     for i in 0..8u8 {
-        canopy.set_cell(i as usize, 4, i as usize, LEAVES);
-        canopy.set_cell((i) as usize, 5_usize, (i + 1) as usize, GLASS);
+        canopy.set_cell(i as usize, 4, i as usize, state(LEAVES));
+        canopy.set_cell((i) as usize, 5_usize, (i + 1) as usize, state(GLASS));
         // A top slab directly under a bottom slab seals a seam neither seals
         // alone, so the shortcut has to leave these columns to the full walk.
-        canopy.set_cell((i + 8) as usize, 7_usize, (i) as usize, TOP_SLAB);
-        canopy.set_cell((i + 8) as usize, 8_usize, (i) as usize, BOTTOM_SLAB);
+        canopy.set_cell((i + 8) as usize, 7_usize, (i) as usize, state(TOP_SLAB));
+        canopy.set_cell((i + 8) as usize, 8_usize, (i) as usize, state(BOTTOM_SLAB));
     }
     sections
 }
@@ -58,7 +58,7 @@ fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
             let mut top = 0;
             for y in (0..SECTIONS_Y * 16).rev() {
                 let blocks = &sections[(y / 16) as usize];
-                if blocks.get_cell(x, (y % 16) as usize, z) != AIR {
+                if blocks.get_cell(x, (y % 16) as usize, z) != state(AIR) {
                     top = y + 1;
                     break;
                 }
@@ -114,7 +114,7 @@ fn a_surface_bound_never_changes_a_sky_floor() {
     }]);
     bounded.update_now(vec![Edit::SetBlock {
         pos: BlockPos::new(15, 0, 15),
-        block: STONE,
+        block: state(STONE),
     }]);
 
     assert_eq!(floors(&bounded), floors(&unbounded));
@@ -136,14 +136,14 @@ fn an_edit_above_the_bound_drops_it() {
     let raised = BlockPos::new(3, 70, 3);
     bounded.update_now(vec![Edit::SetBlock {
         pos: raised,
-        block: STONE,
+        block: state(STONE),
     }]);
 
     let mut unbounded = world();
     load(&mut unbounded, &sections);
     unbounded.update_now(vec![Edit::SetBlock {
         pos: raised,
-        block: STONE,
+        block: state(STONE),
     }]);
 
     assert_eq!(
@@ -167,7 +167,7 @@ fn a_section_arriving_drops_the_bound() {
     // Section 3 comes back holding terrain the bound says is not there.
     let mut ceiling = filled(AIR);
     for i in 0..16u8 {
-        ceiling.set_cell(i as usize, 9_usize, i as usize, STONE);
+        ceiling.set_cell(i as usize, 9_usize, i as usize, state(STONE));
     }
     let replacement = Edit::LoadSection {
         entity: 0,
@@ -191,7 +191,7 @@ fn a_bound_on_a_section_boundary_is_exact() {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)
         .map(|y| filled(if y == 0 { STONE } else { AIR }))
         .collect();
-    sections[1].set_cell(0_usize, 15_usize, 0_usize, STONE);
+    sections[1].set_cell(0_usize, 15_usize, 0_usize, state(STONE));
 
     let mut bounded = world();
     load(&mut bounded, &sections);
@@ -201,14 +201,14 @@ fn a_bound_on_a_section_boundary_is_exact() {
     }]);
     bounded.update_now(vec![Edit::SetBlock {
         pos: BlockPos::new(15, 0, 15),
-        block: STONE,
+        block: state(STONE),
     }]);
 
     let mut unbounded = world();
     load(&mut unbounded, &sections);
     unbounded.update_now(vec![Edit::SetBlock {
         pos: BlockPos::new(15, 0, 15),
-        block: STONE,
+        block: state(STONE),
     }]);
 
     assert_eq!(floors(&bounded), floors(&unbounded));

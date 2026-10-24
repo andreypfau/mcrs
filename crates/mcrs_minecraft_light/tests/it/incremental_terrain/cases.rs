@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::common::{AIR, Reference, STONE, registry};
+use crate::common::{AIR, Reference, STONE, registry, state};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
@@ -19,20 +19,20 @@ fn surface_height(x: i32, z: i32) -> i32 {
 fn section_blocks(pos: SectionPos) -> SectionBlocks {
     let base_y = pos.y * 16;
     let mut solid = 0;
-    let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
+    let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
     for local_z in 0..SectionPos::SIZE {
         for local_x in 0..SectionPos::SIZE {
             let top = surface_height(pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
             for local_y in 0..SectionPos::SIZE {
                 if base_y + local_y as i32 <= top {
-                    blocks.set_cell(local_x, local_y, local_z, STONE);
+                    blocks.set_cell(local_x, local_y, local_z, state(STONE));
                     solid += 1;
                 }
             }
         }
     }
     if solid == 0 {
-        return VoxelPalette(PalettedContainer::Homogeneous(AIR));
+        return VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
     }
     blocks
 }
@@ -219,7 +219,7 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
     let roofed = |x: i32, z: i32| (24..56).contains(&x) && (24..56).contains(&z);
     let blocks_of = |pos: SectionPos| {
         let base_y = pos.y * 16;
-        let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
+        let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
         let mut solid = 0;
         for local_z in 0..SectionPos::SIZE {
             for local_x in 0..SectionPos::SIZE {
@@ -227,14 +227,14 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
                 for local_y in 0..SectionPos::SIZE {
                     let y = base_y + local_y as i32;
                     if y <= 20 || (y == 40 && roofed(x, z)) {
-                        blocks.set_cell(local_x, local_y, local_z, STONE);
+                        blocks.set_cell(local_x, local_y, local_z, state(STONE));
                         solid += 1;
                     }
                 }
             }
         }
         if solid == 0 {
-            return VoxelPalette(PalettedContainer::Homogeneous(AIR));
+            return VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
         }
         blocks
     };
@@ -281,7 +281,7 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
     };
 
     let blocks_of = |pos: SectionPos| {
-        let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
+        let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
         let mut solid = 0;
         for local_z in 0..SectionPos::SIZE {
             for local_x in 0..SectionPos::SIZE {
@@ -292,14 +292,14 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
                         pos.z * 16 + local_z as i32,
                     );
                     if !open(x, y, z) {
-                        blocks.set_cell(local_x, local_y, local_z, STONE);
+                        blocks.set_cell(local_x, local_y, local_z, state(STONE));
                         solid += 1;
                     }
                 }
             }
         }
         if solid == 0 {
-            return VoxelPalette(PalettedContainer::Homogeneous(AIR));
+            return VoxelPalette(PalettedContainer::Homogeneous(state(AIR)));
         }
         blocks
     };

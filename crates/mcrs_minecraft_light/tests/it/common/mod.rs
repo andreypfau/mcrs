@@ -3,7 +3,7 @@ use std::sync::{Arc, OnceLock};
 use bevy_math::Vec3;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
-use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
 use mcrs_minecraft_light::prelude::*;
 
 pub const AIR: VoxelId = VoxelId(0);
@@ -40,8 +40,13 @@ fn top_slab_shape() -> &'static VoxelShape {
     SHAPE.get_or_init(|| slab_shape(UPPER_HALF))
 }
 
+/// The state a test block stands for in a section; the test table holds ten.
+pub fn state(block: VoxelId) -> BlockStateId {
+    BlockStateId::checked(block.0, 10).expect("a block of the test table")
+}
+
 pub fn filled(block: VoxelId) -> SectionBlocks {
-    VoxelPalette(PalettedContainer::Homogeneous(block))
+    VoxelPalette(PalettedContainer::Homogeneous(state(block)))
 }
 
 pub fn registry() -> Arc<LightRegistry> {
@@ -114,13 +119,19 @@ impl TestWorld {
     }
 
     pub fn set(&mut self, pos: BlockPos, block: VoxelId) -> EpochStats {
-        self.world.update_now([Edit::SetBlock { pos, block }])
+        self.world.update_now([Edit::SetBlock {
+            pos,
+            block: state(block),
+        }])
     }
 
     pub fn set_many(&mut self, edits: impl IntoIterator<Item = (BlockPos, VoxelId)>) -> EpochStats {
         let edits: Vec<Edit> = edits
             .into_iter()
-            .map(|(pos, block)| Edit::SetBlock { pos, block })
+            .map(|(pos, block)| Edit::SetBlock {
+                pos,
+                block: state(block),
+            })
             .collect();
         self.world.update_now(edits)
     }
