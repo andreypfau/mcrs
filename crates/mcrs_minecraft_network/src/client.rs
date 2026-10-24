@@ -892,7 +892,7 @@ mod tests {
         let vanilla = || KnownPack {
             namespace: "minecraft",
             id: "core",
-            version: VERSION.id.as_str(),
+            version: VERSION.id,
         };
         let other = KnownPack {
             namespace: "minecraft",

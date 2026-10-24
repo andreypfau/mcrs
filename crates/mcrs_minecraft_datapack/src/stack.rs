@@ -33,7 +33,7 @@ fn known_pack(pack: &AvailablePack) -> Option<KnownPack> {
     Some(KnownPack {
         namespace: "minecraft".to_owned(),
         id: id.to_owned(),
-        version: VERSION.id.clone(),
+        version: VERSION.id.to_owned(),
     })
 }
 

@@ -21,7 +21,7 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn id() -> &'static str {
-    &VERSION.id
+    VERSION.id
 }
 
 fn header(magic: &[u8; 8], format: u32, world: i32) -> Vec<u8> {

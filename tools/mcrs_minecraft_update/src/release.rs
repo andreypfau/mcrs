@@ -93,7 +93,7 @@ pub fn jar(
 }
 
 pub fn check_version(version: &[u8], id: &str) -> Result<(), String> {
-    let version: Version = serde_json::from_slice(version)
+    let version: Version<String> = serde_json::from_slice(version)
         .map_err(|error| format!("the version.json of the jar is not a version: {error}"))?;
     if version.id == id {
         Ok(())

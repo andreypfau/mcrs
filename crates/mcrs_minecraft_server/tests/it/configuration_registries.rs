@@ -383,7 +383,7 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
         [KnownPack {
             namespace: "minecraft",
             id: "core",
-            version: VERSION.id.as_str(),
+            version: VERSION.id,
         }]
     );
     assert!(known_pack_offer(false, test_registries()).is_empty());

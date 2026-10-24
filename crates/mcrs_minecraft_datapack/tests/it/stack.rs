@@ -470,12 +470,12 @@ fn known_packs_are_offered_in_stack_order_for_built_in_packs_only() {
         KnownPack {
             namespace: "minecraft".into(),
             id: "core".into(),
-            version: VERSION.id.clone(),
+            version: VERSION.id.to_owned(),
         },
         KnownPack {
             namespace: "minecraft".into(),
             id: "trade_rebalance".into(),
-            version: VERSION.id.clone(),
+            version: VERSION.id.to_owned(),
         },
     ];
     assert_eq!(offered, expected.iter().collect::<Vec<_>>());

@@ -19,7 +19,7 @@ fn unsupported_version_reason(protocol_version: i32) -> Text {
     } else {
         "multiplayer.disconnect.incompatible"
     };
-    Text::translate(key, vec![Text::from(VERSION.name.clone())])
+    Text::translate(key, vec![Text::from(VERSION.name)])
 }
 
 pub(crate) const MOTD: &str = "mcrs Server";

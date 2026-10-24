@@ -239,7 +239,7 @@ impl<'a> Repository<'a> {
             Some(recorded) if *recorded != VERSION.id => Err(FixtureError::OtherVersion {
                 name: name.to_owned(),
                 recorded: recorded.clone(),
-                corpus: VERSION.id.clone(),
+                corpus: VERSION.id.to_owned(),
             }),
             Some(_) => Ok(Fixture {
                 root: self.root.clone(),

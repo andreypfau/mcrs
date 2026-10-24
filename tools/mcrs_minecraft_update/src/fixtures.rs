@@ -17,7 +17,7 @@ pub type Manifest = BTreeMap<String, String>;
 pub fn corpus_id(root: &Path) -> Result<String, String> {
     let path = root.join(VERSION_FILE);
     let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-    let version: Version =
+    let version: Version<String> =
         serde_json::from_slice(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(version.id)
 }
@@ -215,7 +215,7 @@ mod tests {
     }
 
     fn id() -> &'static str {
-        &mcrs_minecraft_core::VERSION.id
+        mcrs_minecraft_core::VERSION.id
     }
 
     fn a_dump_fixture_passes_only_the_oracle_output_directory() {

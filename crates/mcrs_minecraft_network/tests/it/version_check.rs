@@ -48,7 +48,7 @@ fn a_login_under_another_protocol_version_is_refused_with_the_reason_of_its_age(
         });
         assert_eq!(
             reason,
-            Text::translate(key, vec![Text::from(VERSION.name.clone())]),
+            Text::translate(key, vec![Text::from(VERSION.name)]),
             "{protocol_version}"
         );
     }

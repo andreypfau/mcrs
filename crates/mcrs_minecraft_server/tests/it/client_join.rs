@@ -48,7 +48,8 @@ fn a_client_without_an_app_joins_the_embedded_server_offline() {
     let server = mcrs_minecraft_server::spawn_server_thread(app, move |app| {
         run_server_loop(app);
         finished_send.send(()).ok();
-    });
+    })
+    .expect("the server thread starts");
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let (joined, first_game_packet) = runtime.block_on(async {

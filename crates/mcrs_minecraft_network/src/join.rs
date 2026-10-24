@@ -231,7 +231,7 @@ impl Configuration {
             let vanilla = KnownPack {
                 namespace: "minecraft",
                 id: "core",
-                version: VERSION.id.as_str(),
+                version: VERSION.id,
             };
             let known_packs = if holds_vanilla_pack && offer.known_packs.contains(&vanilla) {
                 vec![vanilla]
