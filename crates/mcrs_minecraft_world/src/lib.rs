@@ -1,8 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::panic,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 // The `Sync` check of a villager trade walks text through loot `Holder`s, whose `V::Registry`
 // projection keeps that cycle from being coinductive, so it goes deeper than the default limit.
 #![recursion_limit = "256"]

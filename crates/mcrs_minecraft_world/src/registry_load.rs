@@ -175,6 +175,7 @@ pub fn test_additions() -> RegistryAdditions {
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+#[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 static TEST_REGISTRIES: std::sync::LazyLock<Registries> = std::sync::LazyLock::new(|| {
     load_registries(&test_packs(), test_additions())
         .map(|(registries, _)| registries)
@@ -187,6 +188,7 @@ pub fn test_registries() -> &'static Registries {
 }
 
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+#[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 static TEST_NETWORK: std::sync::LazyLock<mcrs_minecraft_registries::NetworkSnapshot> =
     std::sync::LazyLock::new(|| {
         mcrs_minecraft_registries::NetworkSnapshot::new(&TEST_REGISTRIES)
@@ -202,6 +204,11 @@ pub fn test_network() -> &'static mcrs_minecraft_registries::NetworkSnapshot {
 /// What a client collects from the payloads `registries` encoded; entries of the vanilla pack go
 /// without data when the client is `known` to hold it.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test support reports a failure by panicking"
+)]
 pub fn sent_by(registries: &Registries, known: bool) -> Received {
     use mcrs_minecraft_protocol::Decode;
     use mcrs_minecraft_protocol::packets::configuration::{
@@ -241,6 +248,7 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+#[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 pub fn registries_declaring(
     declarations: Vec<mcrs_minecraft_registries::Declaration>,
 ) -> Registries {

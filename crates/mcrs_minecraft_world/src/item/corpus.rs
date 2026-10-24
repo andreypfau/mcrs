@@ -1,3 +1,8 @@
+#![expect(
+    clippy::expect_used,
+    reason = "test support reports a failure by panicking"
+)]
+
 use std::sync::{Arc, OnceLock};
 
 use bevy_app::{App, TaskPoolPlugin};
