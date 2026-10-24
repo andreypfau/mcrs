@@ -704,8 +704,10 @@ pub enum DimSpawnError {
 /// sub-app for each request. Called from outside the ECS run loop because
 /// `App::insert_sub_app` requires `&mut App`.
 pub fn drain_dim_spawn_queue(app: &mut App) {
-    let requests: Vec<DimSpawnRequest> =
-        std::mem::take(&mut app.world_mut().resource_mut::<DimSpawnQueue>().0);
+    let Some(mut queue) = app.world_mut().get_resource_mut::<DimSpawnQueue>() else {
+        return;
+    };
+    let requests: Vec<DimSpawnRequest> = std::mem::take(&mut queue.0);
     if requests.is_empty() {
         return;
     }
@@ -721,8 +723,10 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
 /// matching sub-apps. Called from outside the ECS run loop because
 /// `App::remove_sub_app` requires `&mut App`.
 pub fn drain_dim_despawn_queue(app: &mut App) {
-    let entities: Vec<Entity> =
-        std::mem::take(&mut app.world_mut().resource_mut::<DimDespawnQueue>().0);
+    let Some(mut queue) = app.world_mut().get_resource_mut::<DimDespawnQueue>() else {
+        return;
+    };
+    let entities: Vec<Entity> = std::mem::take(&mut queue.0);
     for entity in entities {
         if app.remove_sub_app(DimAppLabel(entity)).is_none() {
             warn!(
