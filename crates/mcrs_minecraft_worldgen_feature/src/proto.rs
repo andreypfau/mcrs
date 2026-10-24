@@ -218,6 +218,10 @@ pub struct PlacedFeature {
     pub placement: Vec<PlacementModifier>,
 }
 
+impl mcrs_minecraft_core::RegistryValue for PlacedFeature {
+    type Registry = mcrs_minecraft_biome::PlacedFeature;
+}
+
 impl PlacedFeature {
     /// The horizontal range around its chunk's corner that the feature can
     /// place into.

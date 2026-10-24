@@ -31,7 +31,7 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 /// The carvers every biome runs, in the order its file lists them, indexed by biome number.
 fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>> {
     let carvers = registries.registry::<CarverConfig>()?;
-    let carver_tags = registries.tags::<CarverConfig>()?;
+    let carver_tags = registries.tags::<mcrs_minecraft_biome::ConfiguredCarver>()?;
     let biomes = registries.registry::<BiomeFile>()?;
     Some(
         biomes

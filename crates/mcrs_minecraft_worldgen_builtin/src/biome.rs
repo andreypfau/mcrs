@@ -6,6 +6,8 @@ mod overworld;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome::keys::biome;
+use mcrs_minecraft_biome::keys::carver;
+use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
@@ -15,8 +17,6 @@ use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_sound::keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
-use mcrs_minecraft_worldgen_carver::keys::carver;
-use mcrs_minecraft_worldgen_feature::keys::placed_feature;
 use serde::Serialize;
 
 type BiomeRow = (ResourceKey<Biome, &'static str>, fn() -> Draft);

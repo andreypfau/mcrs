@@ -1266,10 +1266,9 @@ mod tests {
         >("biome")
         .into_iter()
         .filter(|(_, biome)| match &biome.carvers {
-            mcrs_minecraft_registries::KeySet::List(carvers) => carvers.iter().any(|carver| {
-                carver.location().as_str()
-                    == mcrs_minecraft_worldgen_carver::keys::carver::CAVE.as_str()
-            }),
+            mcrs_minecraft_registries::KeySet::List(carvers) => carvers
+                .iter()
+                .any(|carver| carver.location().as_str() == crate::keys::carver::CAVE.as_str()),
             mcrs_minecraft_registries::KeySet::Tag(tag) => {
                 panic!("a biome names the carver tag #{}", tag.location())
             }

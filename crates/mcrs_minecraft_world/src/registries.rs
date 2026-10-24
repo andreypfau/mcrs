@@ -32,11 +32,12 @@ use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
 use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_registries::{Declaration, Stage};
+use mcrs_minecraft_registries::{DataDeclaration, Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::biome_domain::check_feature_domains;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
@@ -56,10 +57,33 @@ macro_rules! spawning_variants {
     };
 }
 
+fn biome_declaration() -> DataDeclaration<BiomeFile> {
+    Declaration::data::<BiomeFile>().validate(|registry, registries| {
+        let (Some(placed), Some(tags)) = (
+            registries.registry::<PlacedFeature>(),
+            registries.tags::<mcrs_minecraft_biome::PlacedFeature>(),
+        ) else {
+            return Vec::new();
+        };
+        let biomes = registry.values().iter().map(|biome| {
+            biome
+                .features
+                .iter()
+                .map(|step| {
+                    step.ids(&tags)
+                        .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
+                        .collect()
+                })
+                .collect()
+        });
+        check_feature_domains(biomes)
+    })
+}
+
 /// Every data registry whose values this crate reads.
 fn typed_declarations() -> Vec<Declaration> {
     let mut declarations: Vec<Declaration> = vec![
-        BiomeFile::declaration().synced_via::<NetworkBiome>().into(),
+        biome_declaration().synced_via::<NetworkBiome>().into(),
         Declaration::data::<Feature>().into(),
         Declaration::data::<PlacedFeature>().into(),
         Declaration::data::<StructureProcessorList>().into(),

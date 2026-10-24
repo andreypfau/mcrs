@@ -203,13 +203,13 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/carver",
-        krate: "mcrs_minecraft_worldgen_carver",
-        value: ValueType::Defined("crate::config::CarverConfig"),
+        krate: "mcrs_minecraft_biome",
+        value: ValueType::Defined("crate::ConfiguredCarver"),
     },
     Owner {
         registry: "minecraft:worldgen/placed_feature",
-        krate: "mcrs_minecraft_worldgen_feature",
-        value: ValueType::Defined("crate::proto::PlacedFeature"),
+        krate: "mcrs_minecraft_biome",
+        value: ValueType::Defined("crate::PlacedFeature"),
     },
     Owner {
         registry: "minecraft:worldgen/feature",

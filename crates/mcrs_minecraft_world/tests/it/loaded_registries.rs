@@ -1727,7 +1727,9 @@ fn trial_spawners_have_names_and_no_values() {
 }
 
 pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app: &App) {
-    fn parsed<R: Registered>(set: &Registries) -> (ResourceLocation, Vec<ResourceLocation>) {
+    fn parsed<R: RegistryValue + 'static>(
+        set: &Registries,
+    ) -> (ResourceLocation, Vec<ResourceLocation>) {
         let registry = set.registry::<R>().unwrap_or_else(|| {
             panic!("{} is not parsed by the loader", std::any::type_name::<R>())
         });

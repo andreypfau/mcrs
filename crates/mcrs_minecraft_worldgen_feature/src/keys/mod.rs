@@ -5,7 +5,6 @@ pub mod feature_size_type;
 pub mod feature_tags;
 pub mod feature_type;
 pub mod foliage_placer_type;
-pub mod placed_feature;
 pub mod placement_modifier_type;
 pub mod pos_rule_test;
 pub mod processor_list;
@@ -73,12 +72,6 @@ pub const FOLIAGE_PLACER_TYPE: RegistryKey<crate::keys::FoliagePlacerType> =
     RegistryKey::new(rl!("minecraft:worldgen/foliage_placer_type"));
 impl Registered for crate::keys::FoliagePlacerType {
     const REGISTRY: RegistryKey<Self> = FOLIAGE_PLACER_TYPE;
-}
-
-pub const PLACED_FEATURE: RegistryKey<crate::proto::PlacedFeature> =
-    RegistryKey::new(rl!("minecraft:worldgen/placed_feature"));
-impl Registered for crate::proto::PlacedFeature {
-    const REGISTRY: RegistryKey<Self> = PLACED_FEATURE;
 }
 
 pub const PLACEMENT_MODIFIER_TYPE: RegistryKey<crate::keys::PlacementModifierType> =

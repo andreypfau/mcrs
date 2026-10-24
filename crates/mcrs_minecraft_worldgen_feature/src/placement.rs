@@ -2,6 +2,8 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_registries::{Named, dispatch};
 use serde::{Deserialize, Serialize};
 
+pub use mcrs_minecraft_biome::DecorationStep;
+
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default, non_empty};
@@ -250,22 +252,6 @@ impl<P> PlacementModifier<P> {
             },
         })
     }
-}
-// Declaration order is the step index; keep it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DecorationStep {
-    RawGeneration,
-    Lakes,
-    LocalModifications,
-    UndergroundStructures,
-    SurfaceStructures,
-    Strongholds,
-    UndergroundOres,
-    UndergroundDecoration,
-    FluidSprings,
-    VegetalDecoration,
-    TopLayerModification,
 }
 
 #[cfg(test)]

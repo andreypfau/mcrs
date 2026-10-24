@@ -12,11 +12,9 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_environment.workspace = true
-mcrs_minecraft_worldgen_feature.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

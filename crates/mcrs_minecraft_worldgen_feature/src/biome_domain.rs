@@ -1,5 +1,5 @@
+use crate::proto::PlacedFeature;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use std::collections::HashSet;
 
 const ALLOWED_MIN: i32 = -16;

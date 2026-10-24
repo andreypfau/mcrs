@@ -45,6 +45,10 @@ pub enum CarverConfig {
     BetaCave,
 }
 
+impl mcrs_minecraft_core::RegistryValue for CarverConfig {
+    type Registry = mcrs_minecraft_biome::ConfiguredCarver;
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CanyonShape {

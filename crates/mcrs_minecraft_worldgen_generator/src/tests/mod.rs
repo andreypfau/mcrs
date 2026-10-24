@@ -141,7 +141,7 @@ fn placed_feature_tags() -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
 
     let registries = test_registries();
     let tags = registries
-        .tags::<PlacedFeature>()
+        .tags::<mcrs_minecraft_biome::PlacedFeature>()
         .expect("the loaded registries hold the placed feature tags");
     tags.iter()
         .map(|(tag, name)| {

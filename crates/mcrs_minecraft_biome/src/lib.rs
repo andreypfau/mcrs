@@ -1,10 +1,13 @@
 pub mod climate;
+pub mod generation;
 #[rustfmt::skip]
 pub mod keys;
 pub mod overworld_preset;
 pub mod parameter_list;
 pub mod source;
 pub mod zoom;
+
+pub use generation::{ConfiguredCarver, DecorationStep, PlacedFeature};
 
 use serde::{Deserialize, Serialize};
 

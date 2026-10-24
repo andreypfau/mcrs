@@ -3,7 +3,9 @@
 pub mod biome;
 pub mod biome_source;
 pub mod biome_tags;
+pub mod carver;
 pub mod multi_noise_biome_source_parameter_list;
+pub mod placed_feature;
 
 pub use biome_source::BiomeSourceType;
 
@@ -20,6 +22,12 @@ impl Registered for crate::keys::BiomeSourceType {
     const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
 }
 
+pub const CARVER: RegistryKey<crate::ConfiguredCarver> =
+    RegistryKey::new(rl!("minecraft:worldgen/carver"));
+impl Registered for crate::ConfiguredCarver {
+    const REGISTRY: RegistryKey<Self> = CARVER;
+}
+
 pub const MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST: RegistryKey<
     crate::parameter_list::MultiNoiseBiomeSourceParameterList,
 > = RegistryKey::new(rl!(
@@ -27,4 +35,10 @@ pub const MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST: RegistryKey<
 ));
 impl Registered for crate::parameter_list::MultiNoiseBiomeSourceParameterList {
     const REGISTRY: RegistryKey<Self> = MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST;
+}
+
+pub const PLACED_FEATURE: RegistryKey<crate::PlacedFeature> =
+    RegistryKey::new(rl!("minecraft:worldgen/placed_feature"));
+impl Registered for crate::PlacedFeature {
+    const REGISTRY: RegistryKey<Self> = PLACED_FEATURE;
 }

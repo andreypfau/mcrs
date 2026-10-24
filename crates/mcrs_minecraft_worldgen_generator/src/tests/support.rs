@@ -231,7 +231,7 @@ pub fn carvers_of(biome: &str) -> Arc<[mcrs_minecraft_worldgen_carver::config::C
 pub fn carver_list(biome: usize) -> Arc<[mcrs_minecraft_worldgen_carver::config::CarverConfig]> {
     let registries = test_registries();
     let configs = registries
-        .registry::<mcrs_minecraft_biome_file::Carvers>()
+        .registry::<mcrs_minecraft_worldgen_carver::config::CarverConfig>()
         .expect("the loaded registries hold the carvers");
     let tags = registries
         .tags::<mcrs_minecraft_biome_file::Carvers>()

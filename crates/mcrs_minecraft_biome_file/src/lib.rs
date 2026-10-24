@@ -1,22 +1,16 @@
 use serde::{Deserialize, Serialize, Serializer};
 
-use mcrs_minecraft_biome::{BiomeEffects, GrassColorModifier, TemperatureModifier};
+use mcrs_minecraft_biome::{
+    BiomeEffects, ConfiguredCarver, DecorationStep, GrassColorModifier, PlacedFeature,
+    TemperatureModifier,
+};
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
-use mcrs_minecraft_registries::{
-    DataDeclaration, Declaration, KeySet, Named, Refs, Resolve, Resolved,
-};
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
-use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
 
-mod validate;
-
-pub use validate::check_feature_domains;
-
-pub type Carvers = CarverConfig;
+pub type Carvers = ConfiguredCarver;
 pub type PlacedFeatures = PlacedFeature;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Resolve)]
@@ -138,7 +132,7 @@ fn key<R, V>(key: ResourceKey<V, &'static str>) -> ResourceKey<R> {
 }
 
 impl BiomeGeneration {
-    pub fn carver(&mut self, carver: ResourceKey<CarverConfig, &'static str>) -> &mut Self {
+    pub fn carver(&mut self, carver: ResourceKey<ConfiguredCarver, &'static str>) -> &mut Self {
         self.carvers.push(key(carver));
         self
     }
@@ -250,29 +244,4 @@ impl BiomeDraft {
 pub struct BiomeGenerationSettings {
     pub carvers: mcrs_minecraft_registries::IdSet<Carvers>,
     pub features: Vec<mcrs_minecraft_registries::IdSet<PlacedFeatures>>,
-}
-
-impl BiomeFile {
-    pub fn declaration() -> DataDeclaration<Self> {
-        Declaration::data::<Self>().validate(|registry, registries| {
-            let (Some(placed), Some(tags)) = (
-                registries.registry::<PlacedFeatures>(),
-                registries.tags::<PlacedFeatures>(),
-            ) else {
-                return Vec::new();
-            };
-            let biomes = registry.values().iter().map(|biome| {
-                biome
-                    .features
-                    .iter()
-                    .map(|step| {
-                        step.ids(&tags)
-                            .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
-                            .collect()
-                    })
-                    .collect()
-            });
-            check_feature_domains(biomes)
-        })
-    }
 }

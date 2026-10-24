@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_core.workspace = true
 serde.workspace = true
 serde_json.workspace = true

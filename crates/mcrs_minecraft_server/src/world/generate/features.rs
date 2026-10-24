@@ -53,9 +53,9 @@ impl Plugin for FeaturePlugin {
 
 /// A biome's decoration steps in the form the feature compiler reads.
 fn decoration_steps(
-    steps: &[IdSet<PlacedFeature>],
+    steps: &[IdSet<mcrs_minecraft_biome::PlacedFeature>],
     registries: &Registries,
-    tags: &Tags<PlacedFeature>,
+    tags: &Tags<mcrs_minecraft_biome::PlacedFeature>,
 ) -> Vec<FeatureStepList> {
     steps
         .iter()
@@ -70,7 +70,7 @@ fn decoration_steps(
 /// Every placed feature tag by name, with its members by name.
 fn placed_feature_tags(
     registries: &Registries,
-    tags: &Tags<PlacedFeature>,
+    tags: &Tags<mcrs_minecraft_biome::PlacedFeature>,
 ) -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
     tags.iter()
         .map(|(tag, name)| {
@@ -161,7 +161,7 @@ fn build_dimension_features(
         .collect();
     let (Some(loaded), Some(placed_tags), Some(biomes)) = (
         loaded_features(&registries, template_values),
-        registries.tags::<PlacedFeature>(),
+        registries.tags::<mcrs_minecraft_biome::PlacedFeature>(),
         registries.registry::<BiomeFile>(),
     ) else {
         tracing::error!(
