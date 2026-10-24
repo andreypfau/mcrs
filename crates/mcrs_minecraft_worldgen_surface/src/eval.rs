@@ -1,5 +1,6 @@
 use crate::compile::{
-    CondId, Condition, MaterialProgram, NoiseId, Op, Scope, SurfaceNoise, Tri, VeinId,
+    CLAY_BAND_COUNT, CompiledCondition, CondId, Condition, MaterialProgram, NoiseId, Op, Scope,
+    SurfaceNoise, Tri, VeinId,
 };
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
@@ -7,7 +8,9 @@ use mcrs_minecraft_core::mth::{map, mth_floor};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
+use mcrs_minecraft_worldgen_density::cell::{
+    CELL_BOUNDS_SLACK, CellBounds, corner_bounds, sampled_bounds,
+};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 
@@ -19,11 +22,11 @@ pub const NO_WATER: i32 = i32::MIN;
 pub struct MaterialScratch {
     bypass_shortcuts: bool,
     workspace: Workspace,
-    condition_stamp: Vec<u32>,
-    condition_value: Vec<bool>,
+    /// Per condition, the stamp its answer was computed at and the answer.
+    conditions: Vec<(u32, bool)>,
     folded: Vec<Option<bool>>,
-    noise_stamp: Vec<u32>,
-    noise_value: Vec<f64>,
+    /// Per noise, the stamp its value was sampled at and the value.
+    noises: Vec<(u32, f64)>,
     preliminary: Vec<f32>,
     /// One row per vein over the column's block volume, written only inside
     /// the cells `vein_cells` leaves open.
@@ -179,18 +182,12 @@ where
         let min_y = router.noise.min_y;
         let memoise = !scratch.bypass_shortcuts;
 
-        scratch.condition_stamp.clear();
+        scratch.conditions.clear();
         scratch
-            .condition_stamp
-            .resize(program.conditions().len(), 0);
-        scratch.condition_value.clear();
-        scratch
-            .condition_value
-            .resize(program.conditions().len(), false);
-        scratch.noise_stamp.clear();
-        scratch.noise_stamp.resize(program.noise_count(), 0);
-        scratch.noise_value.clear();
-        scratch.noise_value.resize(program.noise_count(), 0.0);
+            .conditions
+            .resize(program.conditions().len(), (0, false));
+        scratch.noises.clear();
+        scratch.noises.resize(program.noise_count(), (0, 0.0));
 
         scratch.splits.clear();
         for (id, condition) in program.conditions().iter().enumerate() {
@@ -209,16 +206,23 @@ where
         scratch.folded.clear();
         for condition in program.conditions() {
             let folded = match condition.kind {
-                Condition::Biome { set } => {
-                    match program.biome_sets()[set as usize].fold(biomes.iter().copied()) {
-                        Tri::Never => Some(false),
-                        Tri::Always => Some(true),
-                        Tri::Maybe => None,
-                    }
-                }
+                Condition::Biome { set } => match program
+                    .biome_sets()
+                    .get(set as usize)
+                    .map(|set| set.fold(biomes.iter().copied()))
+                {
+                    Some(Tri::Never) | None => Some(false),
+                    Some(Tri::Always) => Some(true),
+                    Some(Tri::Maybe) => None,
+                },
                 // An operand is interned before the `not` that names it, so its
                 // own fold is already settled here.
-                Condition::Not(inner) => scratch.folded[inner as usize].map(|value| !value),
+                Condition::Not(inner) => scratch
+                    .folded
+                    .get(inner as usize)
+                    .copied()
+                    .flatten()
+                    .map(|value| !value),
                 _ => None,
             };
             scratch.folded.push(folded);
@@ -330,16 +334,17 @@ where
         self.run_depth = depth_above;
         self.water_level = water_level;
         let min_y = self.veins.min_block().y;
+        let program = self.program;
         let mut breaks = std::mem::take(&mut self.scratch.breaks);
+        let splits = std::mem::take(&mut self.scratch.splits);
         breaks.clear();
-        for k in 0..self.scratch.splits.len() {
-            let id = self.scratch.splits[k];
-            match self.program.conditions()[id as usize].kind {
-                Condition::VerticalGradient {
+        for &id in &splits {
+            match program.conditions().get(id as usize).map(|c| &c.kind) {
+                Some(&Condition::VerticalGradient {
                     true_at_and_below,
                     false_at_and_above,
                     ..
-                } => breaks.extend([true_at_and_below + 1, false_at_and_above]),
+                }) => breaks.extend([true_at_and_below + 1, false_at_and_above]),
                 _ => {
                     if let Some(Split::At(at)) | Some(Split::AtOrBelow(at)) = self.split(id) {
                         breaks.extend([at, at + 1]);
@@ -347,10 +352,13 @@ where
                 }
             }
         }
+        self.scratch.splits = splits;
         // Only the cells this run meets can break it; the rest would be
         // dropped by the retain below, and asking about one classifies it.
         for vein in 0..self.scratch.vein_layout.len() {
-            let layout = self.scratch.vein_layout[vein];
+            let Some(&layout) = self.scratch.vein_layout.get(vein) else {
+                break;
+            };
             let cell_of = |y: i32| {
                 (y - min_y)
                     .div_euclid(layout.cell.y)
@@ -396,11 +404,15 @@ where
                 on_false,
             } => (condition, on_true, on_false),
         };
-        let Condition::VerticalGradient {
-            random,
-            true_at_and_below,
-            false_at_and_above,
-        } = self.program.conditions()[condition as usize].kind
+        let Some(&CompiledCondition {
+            kind:
+                Condition::VerticalGradient {
+                    random,
+                    true_at_and_below,
+                    false_at_and_above,
+                },
+            ..
+        }) = self.program.conditions().get(condition as usize)
         else {
             return;
         };
@@ -424,10 +436,11 @@ where
                 1.0,
                 0.0,
             );
-            let mut draw = self
+            let state = if self
                 .program
-                .random_at(random, IVec3::new(self.block_x, y, self.block_z));
-            let state = if f64::from(draw.next_f32()) < probability {
+                .random_at(random, IVec3::new(self.block_x, y, self.block_z))
+                .is_some_and(|mut draw| f64::from(draw.next_f32()) < probability)
+            {
                 whenever
             } else {
                 otherwise
@@ -468,10 +481,11 @@ where
 
     /// The condition's answer if it is the same for every y in `lo..=hi`.
     fn over(&mut self, condition: CondId, lo: i32, hi: i32) -> Option<bool> {
-        if let Some(value) = self.scratch.folded[condition as usize] {
+        if let Some(&Some(value)) = self.scratch.folded.get(condition as usize) {
             return Some(value);
         }
-        let compiled = &self.program.conditions()[condition as usize];
+        let program = self.program;
+        let compiled = program.conditions().get(condition as usize)?;
         match compiled.kind {
             Condition::VerticalGradient {
                 true_at_and_below,
@@ -494,7 +508,9 @@ where
                 if !self.reachable_over(lo, hi) {
                     return None;
                 }
-                match self.program.biome_sets()[set as usize]
+                match program
+                    .biome_sets()
+                    .get(set as usize)?
                     .fold(self.scratch.reachable.iter().copied())
                 {
                     Tri::Never => Some(false),
@@ -541,7 +557,9 @@ where
         let (ceiling_y, water) = (self.run_ceiling, self.water_level);
         // What `y + depth_above` comes to anywhere on the run.
         let top = self.run_top + self.run_depth - 1;
-        Some(match self.program.conditions()[condition as usize].kind {
+        let program = self.program;
+        let compiled = program.conditions().get(condition as usize)?;
+        Some(match compiled.kind {
             Condition::StoneDepth {
                 offset,
                 add_surface_depth,
@@ -618,7 +636,9 @@ where
     /// Whether any cell of the vein's lattice meeting `lo..=hi` in this strip
     /// is open, or the run reaches above the lattice.
     fn vein_open_in(&mut self, vein: usize, lo: i32, hi: i32) -> bool {
-        let layout = self.scratch.vein_layout[vein];
+        let Some(&layout) = self.scratch.vein_layout.get(vein) else {
+            return true;
+        };
         let min_y = self.veins.min_block().y;
         let first = (lo - min_y) / layout.cell.y;
         let last = (hi - min_y) / layout.cell.y;
@@ -650,7 +670,7 @@ where
                     }
                 }
                 Op::Block { state } => return Some(state),
-                Op::Bandlands => return Some(self.bandlands()),
+                Op::Bandlands => return self.bandlands(),
                 Op::OreVein { vein } => {
                     if let Some(state) = self.ore_vein(vein) {
                         return Some(state);
@@ -670,8 +690,9 @@ where
         let level = match self
             .preliminary
             .index_of_block(self.block_x, 0, self.block_z)
+            .and_then(|index| self.scratch.preliminary.get(index))
         {
-            Some(index) => self.scratch.preliminary[index],
+            Some(&level) => level,
             None => self.sample(
                 CHUNK_SURFACE_LEVEL,
                 IVec3::new(self.block_x, 0, self.block_z),
@@ -712,17 +733,20 @@ where
 
     pub(crate) fn noise(&mut self, noise: NoiseId, is_3d: bool) -> f64 {
         let stamp = if is_3d { self.gen_y } else { self.gen_xz };
-        if self.memoise && self.scratch.noise_stamp[noise as usize] == stamp {
-            return self.scratch.noise_value[noise as usize];
+        if self.memoise
+            && let Some(&(held, value)) = self.scratch.noises.get(noise as usize)
+            && held == stamp
+        {
+            return value;
         }
+        let Some(sampler) = self.program.noise(noise) else {
+            return 0.0;
+        };
         let y = if is_3d { f64::from(self.block_y) } else { 0.0 };
-        let value = f64::from(self.program.noise(noise).get(
-            f64::from(self.block_x),
-            y,
-            f64::from(self.block_z),
-        ));
-        self.scratch.noise_stamp[noise as usize] = stamp;
-        self.scratch.noise_value[noise as usize] = value;
+        let value = f64::from(sampler.get(f64::from(self.block_x), y, f64::from(self.block_z)));
+        if let Some(slot) = self.scratch.noises.get_mut(noise as usize) {
+            *slot = (stamp, value);
+        }
         value
     }
 
@@ -734,7 +758,8 @@ where
             root,
             &mut out,
         );
-        out[0]
+        let [value] = out;
+        value
     }
 
     /// A vein's density prefilled over the column, point-sampled where the
@@ -742,17 +767,23 @@ where
     /// can.
     fn prefilled(&mut self, vein: usize, root: usize) -> f32 {
         let dy = self.block_y - self.veins.min_block().y;
-        if (0..self.veins.size().y).contains(&dy) {
-            self.scratch.vein_values[vein * self.veins.len() + self.vein_row + dy as usize]
-        } else {
-            self.sample(root, IVec3::new(self.block_x, self.block_y, self.block_z))
+        if (0..self.veins.size().y).contains(&dy)
+            && let Some(&value) = self
+                .scratch
+                .vein_values
+                .get(vein * self.veins.len() + self.vein_row + dy as usize)
+        {
+            return value;
         }
+        self.sample(root, IVec3::new(self.block_x, self.block_y, self.block_z))
     }
 
     /// Whether the vein's density can be positive in the cell holding the
     /// position; above the classified lattice nothing is known.
     fn vein_possible(&mut self, vein: usize) -> bool {
-        let layout = self.scratch.vein_layout[vein];
+        let Some(&layout) = self.scratch.vein_layout.get(vein) else {
+            return true;
+        };
         let cy = (self.block_y - self.veins.min_block().y) / layout.cell.y;
         cy >= layout.size.y || self.vein_cell_open(vein, cy)
     }
@@ -765,23 +796,32 @@ where
     /// Where the bound leaves the sign open the density is filled for that cell
     /// alone, which is what the descent reads back through `prefilled`.
     fn vein_cell_open(&mut self, vein: usize, cy: i32) -> bool {
-        let slot = self.scratch.vein_strip[vein] + cy as usize;
-        match self.scratch.vein_cells[slot] {
-            CELL_OPEN => return true,
-            CELL_CLOSED => return false,
-            _ => {}
+        let Some(&strip) = self.scratch.vein_strip.get(vein) else {
+            return true;
+        };
+        let slot = strip + cy as usize;
+        match self.scratch.vein_cells.get(slot) {
+            Some(&CELL_OPEN) | None => return true,
+            Some(&CELL_CLOSED) => return false,
+            Some(_) => {}
         }
+        let program = self.program;
+        let (Some(&layout), Some(bounds), Some(ore_vein)) = (
+            self.scratch.vein_layout.get(vein),
+            program.vein_cell_bounds(vein),
+            program.veins().get(vein),
+        ) else {
+            return true;
+        };
 
-        let layout = self.scratch.vein_layout[vein];
         let min = self.veins.min_block();
         let local = IVec3::new(self.block_x, 0, self.block_z) - min;
         let (cx, cz) = (local.x / layout.cell.x, local.z / layout.cell.z);
         let cell_min = min + IVec3::new(cx, cy, cz) * layout.cell;
         let cell_max = cell_min + layout.cell - 1;
 
-        let bounds = self.program.vein_cell_bounds(vein);
         let lattice = SampleGrid::new(layout.size + IVec3::ONE, min, layout.cell);
-        self.pin_vein_lattice(vein, lattice);
+        self.pin_vein_lattice(vein, bounds, lattice);
 
         corner_bounds(
             &self.scratch.lattice,
@@ -820,7 +860,9 @@ where
                     )
                     .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
             });
-        self.scratch.vein_cells[slot] = if closed { CELL_CLOSED } else { CELL_OPEN };
+        if let Some(cell) = self.scratch.vein_cells.get_mut(slot) {
+            *cell = if closed { CELL_CLOSED } else { CELL_OPEN };
+        }
         if closed {
             return false;
         }
@@ -829,7 +871,7 @@ where
         // it the rule samples the point.
         let rows = (self.veins.max_block().y - cell_min.y + 1).min(layout.cell.y);
         if rows > 0 {
-            self.fill_vein_cell(vein, cell_min, rows, cx, cz);
+            self.fill_vein_cell(vein, layout, ore_vein.density, cell_min, rows, cx, cz);
         }
         true
     }
@@ -837,12 +879,14 @@ where
     /// Samples the vein lattice `bounds` interpolates on, unless the pinned one
     /// already is it. The veins of one dimension share their inputs, so the
     /// lattice sampled for the first serves the rest.
-    fn pin_vein_lattice(&mut self, vein: usize, lattice: SampleGrid) {
-        let bounds = self.program.vein_cell_bounds(vein);
+    fn pin_vein_lattice(&mut self, vein: usize, bounds: &CellBounds, lattice: SampleGrid) {
         let inputs = bounds.inputs();
         if let Some((held, volume)) = &self.scratch.vein_lattice_for
             && *volume == lattice
-            && self.program.vein_cell_bounds(*held).inputs() == inputs
+            && self
+                .program
+                .vein_cell_bounds(*held)
+                .is_some_and(|held| held.inputs() == inputs)
         {
             return;
         }
@@ -869,9 +913,20 @@ where
     }
 
     /// One open cell's density, into the rows of `vein_values` it covers.
-    fn fill_vein_cell(&mut self, vein: usize, cell_min: IVec3, rows: i32, cx: i32, cz: i32) {
-        let layout = self.scratch.vein_layout[vein];
-        let density = self.program.veins()[vein].density;
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the vein, its layout and density root, and the cell's origin, height and column offsets"
+    )]
+    fn fill_vein_cell(
+        &mut self,
+        vein: usize,
+        layout: VeinCells,
+        density: usize,
+        cell_min: IVec3,
+        rows: i32,
+        cx: i32,
+        cz: i32,
+    ) {
         let dense = SampleGrid::dense(IVec3::new(layout.cell.x, rows, layout.cell.z), cell_min);
         self.scratch.cell_density.clear();
         self.scratch.cell_density.resize(dense.len(), 0.0);
@@ -894,15 +949,22 @@ where
                         cell_min.y - min_y,
                         cz * layout.cell.z + dz,
                     );
-                self.scratch.vein_values[to..to + rows as usize]
-                    .copy_from_slice(&self.scratch.cell_density[from..from + rows as usize]);
+                if let (Some(to), Some(from)) = (
+                    self.scratch.vein_values.get_mut(to..to + rows as usize),
+                    self.scratch.cell_density.get(from..from + rows as usize),
+                ) {
+                    to.copy_from_slice(from);
+                }
             }
         }
     }
 
     fn compute(&mut self, condition: CondId) -> bool {
         let program = self.program;
-        match program.conditions()[condition as usize].kind {
+        let Some(compiled) = program.conditions().get(condition as usize) else {
+            return false;
+        };
+        match compiled.kind {
             Condition::StoneDepth {
                 offset,
                 add_surface_depth,
@@ -935,7 +997,10 @@ where
             }
             Condition::Biome { set } => {
                 let biome = self.biome();
-                program.biome_sets()[set as usize].contains(biome)
+                program
+                    .biome_sets()
+                    .get(set as usize)
+                    .is_some_and(|set| set.contains(biome))
             }
             Condition::NoiseThreshold {
                 noise,
@@ -963,9 +1028,9 @@ where
                         1.0,
                         0.0,
                     );
-                    let mut random = program
-                        .random_at(random, IVec3::new(self.block_x, self.block_y, self.block_z));
-                    f64::from(random.next_f32()) < probability
+                    program
+                        .random_at(random, IVec3::new(self.block_x, self.block_y, self.block_z))
+                        .is_some_and(|mut random| f64::from(random.next_f32()) < probability)
                 }
             }
             Condition::Steep => self.gradient_x <= -4 || self.gradient_z >= 4,
@@ -999,31 +1064,37 @@ where
         if !self.memoise {
             return self.compute(condition);
         }
-        if let Some(value) = self.scratch.folded[condition as usize] {
+        if let Some(&Some(value)) = self.scratch.folded.get(condition as usize) {
             return value;
         }
-        let stamp = match self.program.conditions()[condition as usize].scope {
+        let Some(compiled) = self.program.conditions().get(condition as usize) else {
+            return false;
+        };
+        let stamp = match compiled.scope {
             Scope::Xz => self.gen_xz,
             Scope::Y => self.gen_y,
         };
-        if self.scratch.condition_stamp[condition as usize] == stamp {
-            return self.scratch.condition_value[condition as usize];
+        if let Some(&(held, value)) = self.scratch.conditions.get(condition as usize)
+            && held == stamp
+        {
+            return value;
         }
         let value = self.compute(condition);
-        self.scratch.condition_stamp[condition as usize] = stamp;
-        self.scratch.condition_value[condition as usize] = value;
+        if let Some(slot) = self.scratch.conditions.get_mut(condition as usize) {
+            *slot = (stamp, value);
+        }
         value
     }
 
     /// The band at the position the descent is on, for the paths that walk the
     /// tape rather than settle a run.
-    pub(crate) fn bandlands(&mut self) -> VoxelId {
+    pub(crate) fn bandlands(&mut self) -> Option<VoxelId> {
         self.bandlands_at(self.block_y)
     }
 
     /// The band `y` lands on. The offset noise is 2D, so it is one draw per
     /// strip however many y a settled run asks about.
-    pub fn bandlands_at(&mut self, y: i32) -> VoxelId {
+    pub fn bandlands_at(&mut self, y: i32) -> Option<VoxelId> {
         let noise = self.noise(
             self.program.surface_noise(SurfaceNoise::ClayBandsOffset),
             false,
@@ -1032,21 +1103,23 @@ where
         // away-from-zero `round`: the two disagree on every negative half and
         // shift the whole band table.
         let offset = ((noise as f32 * 4.0) + 0.5).floor() as i32;
-        let bands = self.program.clay_bands();
-        bands[(y + offset).rem_euclid(bands.len() as i32) as usize]
+        self.program
+            .clay_bands()
+            .get((y + offset).rem_euclid(CLAY_BAND_COUNT as i32) as usize)
+            .copied()
     }
 
     pub(crate) fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId> {
         if !self.vein_possible(vein as usize) {
             return None;
         }
-        let ore_vein = self.program.veins()[vein as usize];
+        let ore_vein = *self.program.veins().get(vein as usize)?;
         let density = self.prefilled(vein as usize, ore_vein.density);
         if density <= 0.0 {
             return None;
         }
         let at = IVec3::new(self.block_x, self.block_y, self.block_z);
-        let mut random = self.program.random_at(ore_vein.random, at);
+        let mut random = self.program.random_at(ore_vein.random, at)?;
         if random.next_f32() > density {
             return None;
         }
@@ -1088,9 +1161,9 @@ fn plan_veins(
     scratch.vein_lattice_for = None;
 
     for (index, vein) in program.veins().iter().enumerate() {
-        let bounds = program.vein_cell_bounds(index);
-        let cell = bounds
-            .cell_size()
+        let cell = program
+            .vein_cell_bounds(index)
+            .and_then(CellBounds::cell_size)
             .filter(|c| 16 % c.x == 0 && 16 % c.z == 0 && height % c.y == 0);
         let at = scratch.vein_cells.len();
         scratch.vein_strip.push(at);
@@ -1103,10 +1176,14 @@ fn plan_veins(
             // No lattice tiles the column, so there is nothing to settle and
             // nothing to defer: the density is filled whole.
             scratch.vein_cells.push(CELL_OPEN);
-            let row = &mut scratch.vein_values[index * points..(index + 1) * points];
-            router
-                .program
-                .fill(&mut scratch.workspace, veins, vein.density, row);
+            if let Some(row) = scratch
+                .vein_values
+                .get_mut(index * points..(index + 1) * points)
+            {
+                router
+                    .program
+                    .fill(&mut scratch.workspace, veins, vein.density, row);
+            }
             continue;
         };
 

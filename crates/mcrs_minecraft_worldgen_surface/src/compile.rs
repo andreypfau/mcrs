@@ -134,15 +134,18 @@ impl BiomeMask {
             .unwrap_or(0);
         let mut bits = vec![0u64; words];
         for id in ids {
-            bits[usize::from(*id) / 64] |= 1 << (*id % 64);
+            if let Some(word) = bits.get_mut(usize::from(*id) / 64) {
+                *word |= 1 << (*id % 64);
+            }
         }
         BiomeMask(bits.into_boxed_slice())
     }
 
     #[inline]
     pub fn contains(&self, biome: u16) -> bool {
-        let word = usize::from(biome) / 64;
-        word < self.0.len() && self.0[word] >> (biome % 64) & 1 != 0
+        self.0
+            .get(usize::from(biome) / 64)
+            .is_some_and(|word| word >> (biome % 64) & 1 != 0)
     }
 
     /// How this set answers for a column that can select exactly `biomes`.
@@ -173,8 +176,8 @@ pub struct MaterialProgram {
     veins: Box<[OreVein]>,
     randoms: Box<[RandomSource]>,
     noise_random: RandomSource,
-    clay_bands: Box<[VoxelId]>,
-    surface_noises: [NoiseId; 9],
+    clay_bands: [VoxelId; CLAY_BAND_COUNT],
+    surface_noises: [(NoiseId, Arc<NoiseStack<Octave>>); 9],
     /// One per ore vein, over its density root.
     vein_bounds: Box<[CellBounds]>,
     /// The interning tables the builder kept. Only the differential oracle
@@ -219,12 +222,12 @@ impl MaterialProgram {
 
     /// The cell bounds of one ore vein's density, indexed as [`Self::veins`].
     #[inline]
-    pub fn vein_cell_bounds(&self, vein: usize) -> &CellBounds {
-        &self.vein_bounds[vein]
+    pub fn vein_cell_bounds(&self, vein: usize) -> Option<&CellBounds> {
+        self.vein_bounds.get(vein)
     }
 
-    pub fn noise(&self, noise: NoiseId) -> &NoiseStack<Octave> {
-        &self.noises[noise as usize]
+    pub fn noise(&self, noise: NoiseId) -> Option<&NoiseStack<Octave>> {
+        self.noises.get(noise as usize).map(|noise| &**noise)
     }
 
     pub fn noise_count(&self) -> usize {
@@ -242,17 +245,48 @@ impl MaterialProgram {
     }
 
     pub fn surface_noise(&self, noise: SurfaceNoise) -> NoiseId {
-        self.surface_noises[noise as usize]
+        self.surface(noise).0
     }
 
-    /// The 192-entry table the `bandlands` rule indexes by Y plus the
-    /// `clay_bands_offset` noise.
-    pub fn clay_bands(&self) -> &[VoxelId] {
+    pub fn surface_noise_sampler(&self, noise: SurfaceNoise) -> &NoiseStack<Octave> {
+        &self.surface(noise).1
+    }
+
+    fn surface(&self, noise: SurfaceNoise) -> &(NoiseId, Arc<NoiseStack<Octave>>) {
+        let [
+            surface,
+            surface_secondary,
+            clay_bands_offset,
+            badlands_pillar,
+            badlands_pillar_roof,
+            badlands_surface,
+            iceberg_pillar,
+            iceberg_pillar_roof,
+            iceberg_surface,
+        ] = &self.surface_noises;
+        match noise {
+            SurfaceNoise::Surface => surface,
+            SurfaceNoise::SurfaceSecondary => surface_secondary,
+            SurfaceNoise::ClayBandsOffset => clay_bands_offset,
+            SurfaceNoise::BadlandsPillar => badlands_pillar,
+            SurfaceNoise::BadlandsPillarRoof => badlands_pillar_roof,
+            SurfaceNoise::BadlandsSurface => badlands_surface,
+            SurfaceNoise::IcebergPillar => iceberg_pillar,
+            SurfaceNoise::IcebergPillarRoof => iceberg_pillar_roof,
+            SurfaceNoise::IcebergSurface => iceberg_surface,
+        }
+    }
+
+    /// The table the `bandlands` rule indexes by Y plus the `clay_bands_offset`
+    /// noise.
+    pub fn clay_bands(&self) -> &[VoxelId; CLAY_BAND_COUNT] {
         &self.clay_bands
     }
 
-    pub fn random_at(&self, random: RandomId, pos: IVec3) -> RandomSource {
-        self.randoms[random as usize].clone().fork_at(pos)
+    pub fn random_at(&self, random: RandomId, pos: IVec3) -> Option<RandomSource> {
+        self.randoms
+            .get(random as usize)
+            .map(|random| random.clone().fork_at(pos))
     }
 
     /// The unnamed stream the surface depth and the icebergs draw from.
@@ -351,10 +385,28 @@ fn compile_material<'a>(
         .ok_or_else(|| CompileError::UnknownRule(settings.material_rule.as_str().to_string()))?;
     builder.rule(root)?;
 
-    let mut surface_noises = [0; 9];
-    for (slot, name) in surface_noises.iter_mut().zip(SURFACE_NOISE_NAMES) {
-        *slot = builder.noise(&name.location().to_arc(), false)?;
-    }
+    let [
+        surface,
+        surface_secondary,
+        clay_bands_offset,
+        badlands_pillar,
+        badlands_pillar_roof,
+        badlands_surface,
+        iceberg_pillar,
+        iceberg_pillar_roof,
+        iceberg_surface,
+    ] = SURFACE_NOISE_NAMES.map(|name| name.location().to_arc());
+    let surface_noises = [
+        builder.noise(&surface, false)?,
+        builder.noise(&surface_secondary, false)?,
+        builder.noise(&clay_bands_offset, false)?,
+        builder.noise(&badlands_pillar, false)?,
+        builder.noise(&badlands_pillar_roof, false)?,
+        builder.noise(&badlands_surface, false)?,
+        builder.noise(&iceberg_pillar, false)?,
+        builder.noise(&iceberg_pillar_roof, false)?,
+        builder.noise(&iceberg_surface, false)?,
+    ];
     let clay_bands = builder.clay_bands()?;
 
     Ok(MaterialProgram {
@@ -409,7 +461,7 @@ impl<'r> Builder<'_, '_, 'r> {
                 }
             }
             MaterialRule::Condition { if_true, then_run } => {
-                let condition = self.condition(if_true)?;
+                let (condition, _) = self.condition(if_true)?;
                 let guard = self.tape.len();
                 self.tape.push(Op::Guard {
                     condition,
@@ -417,10 +469,9 @@ impl<'r> Builder<'_, '_, 'r> {
                 });
                 self.rule(then_run)?;
                 let end = self.tape.len() as u32;
-                self.tape[guard] = Op::Guard {
-                    condition,
-                    skip_to: end,
-                };
+                if let Some(Op::Guard { skip_to, .. }) = self.tape.get_mut(guard) {
+                    *skip_to = end;
+                }
             }
             MaterialRule::Bandlands => self.tape.push(Op::Bandlands),
             MaterialRule::OreVein {
@@ -473,7 +524,10 @@ impl<'r> Builder<'_, '_, 'r> {
         }
     }
 
-    fn condition(&mut self, holder: &'r MaterialConditionHolder) -> Result<CondId, CompileError> {
+    fn condition(
+        &mut self,
+        holder: &'r MaterialConditionHolder,
+    ) -> Result<(CondId, Scope), CompileError> {
         let depth = self.condition_stack.len();
         let condition = self.resolve_condition(holder)?;
         let (kind, scope) = match condition {
@@ -528,7 +582,7 @@ impl<'r> Builder<'_, '_, 'r> {
                 is_3d,
             } => (
                 Condition::NoiseThreshold {
-                    noise: self.noise(noise, *is_3d)?,
+                    noise: self.noise(noise, *is_3d)?.0,
                     min: *min_threshold,
                     max: *max_threshold,
                     is_3d: *is_3d,
@@ -553,8 +607,7 @@ impl<'r> Builder<'_, '_, 'r> {
                 (Condition::AbovePreliminarySurface, Scope::Y)
             }
             MaterialCondition::Not { invert } => {
-                let inner = self.condition(invert)?;
-                let scope = self.conditions[inner as usize].scope;
+                let (inner, scope) = self.condition(invert)?;
                 (Condition::Not(inner), scope)
             }
             MaterialCondition::Temperature => {
@@ -562,7 +615,7 @@ impl<'r> Builder<'_, '_, 'r> {
             }
         };
         self.condition_stack.truncate(depth);
-        Ok(self.intern(kind, scope))
+        Ok((self.intern(kind, scope), scope))
     }
 
     fn resolve_condition(
@@ -620,17 +673,23 @@ impl<'r> Builder<'_, '_, 'r> {
 
     /// Each dimensionality gets its own id: the descent's cache is one slot per id,
     /// and a 2D reading is stamped against a different scope than a 3D one.
-    fn noise(&mut self, id: &ResourceLocation, is_3d: bool) -> Result<NoiseId, CompileError> {
-        if let Some(&noise) = self.noise_ids.get(&(id.clone(), is_3d)) {
-            return Ok(noise);
+    fn noise(
+        &mut self,
+        id: &ResourceLocation,
+        is_3d: bool,
+    ) -> Result<(NoiseId, Arc<NoiseStack<Octave>>), CompileError> {
+        if let Some(&noise) = self.noise_ids.get(&(id.clone(), is_3d))
+            && let Some(sampler) = self.noises.get(noise as usize)
+        {
+            return Ok((noise, sampler.clone()));
         }
         let sampler = self
             .compiler
             .noise_sampler(&NoiseHolder::Reference(id.clone()))?;
         let noise = self.noises.len() as NoiseId;
-        self.noises.push(sampler);
+        self.noises.push(sampler.clone());
         self.noise_ids.insert((id.clone(), is_3d), noise);
-        Ok(noise)
+        Ok((noise, sampler))
     }
 
     fn random(&mut self, name: &ResourceLocation) -> RandomId {
@@ -654,7 +713,7 @@ impl<'r> Builder<'_, '_, 'r> {
         Ok(root)
     }
 
-    fn clay_bands(&mut self) -> Result<Box<[VoxelId]>, CompileError> {
+    fn clay_bands(&mut self) -> Result<[VoxelId; CLAY_BAND_COUNT], CompileError> {
         let colours = ClayBandColours {
             terracotta: self.named_block("terracotta")?,
             orange: self.named_block("orange_terracotta")?,
@@ -685,15 +744,20 @@ struct ClayBandColours {
     light_gray: VoxelId,
 }
 
-fn generate_clay_bands(random: &mut RandomSource, colours: &ClayBandColours) -> Box<[VoxelId]> {
-    let mut bands = vec![colours.terracotta; CLAY_BAND_COUNT];
+fn generate_clay_bands(
+    random: &mut RandomSource,
+    colours: &ClayBandColours,
+) -> [VoxelId; CLAY_BAND_COUNT] {
+    let mut bands = [colours.terracotta; CLAY_BAND_COUNT];
     let count = CLAY_BAND_COUNT as i32;
 
     let mut i = 0;
     while i < count {
         i += random.next_i32_bound(5) + 1;
-        if i < count {
-            bands[i as usize] = colours.orange;
+        if i < count
+            && let Some(band) = bands.get_mut(i as usize)
+        {
+            *band = colours.orange;
         }
         i += 1;
     }
@@ -706,18 +770,26 @@ fn generate_clay_bands(random: &mut RandomSource, colours: &ClayBandColours) -> 
     let mut drawn = 0;
     let mut start = 0;
     while drawn < white_bands && start < count {
-        bands[start as usize] = colours.white;
-        if start - 1 > 0 && random.next_bool() {
-            bands[start as usize - 1] = colours.light_gray;
+        if let Some(band) = bands.get_mut(start as usize) {
+            *band = colours.white;
         }
-        if start + 1 < count && random.next_bool() {
-            bands[start as usize + 1] = colours.light_gray;
+        if start - 1 > 0
+            && random.next_bool()
+            && let Some(band) = bands.get_mut(start as usize - 1)
+        {
+            *band = colours.light_gray;
+        }
+        if start + 1 < count
+            && random.next_bool()
+            && let Some(band) = bands.get_mut(start as usize + 1)
+        {
+            *band = colours.light_gray;
         }
         drawn += 1;
         start += random.next_i32_bound(16) + 4;
     }
 
-    bands.into_boxed_slice()
+    bands
 }
 
 fn make_bands(random: &mut RandomSource, bands: &mut [VoxelId], base_width: i32, state: VoxelId) {
@@ -726,11 +798,10 @@ fn make_bands(random: &mut RandomSource, bands: &mut [VoxelId], base_width: i32,
         let width = base_width + random.next_i32_bound(3);
         let start = random.next_i32_bound(bands.len() as i32);
         for p in 0..width {
-            let at = (start + p) as usize;
-            if at >= bands.len() {
+            let Some(band) = bands.get_mut((start + p) as usize) else {
                 break;
-            }
-            bands[at] = state;
+            };
+            *band = state;
         }
     }
 }
@@ -1078,7 +1149,7 @@ pub(crate) mod tests {
             "nine distinct samplers"
         );
         for id in ids {
-            assert!(material.noise(id).get(1.0, 2.0, 3.0).is_finite());
+            assert!(material.noise(id).unwrap().get(1.0, 2.0, 3.0).is_finite());
         }
 
         // `minecraft:surface` is also named by a noise_threshold condition, so

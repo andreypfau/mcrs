@@ -112,7 +112,7 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
     let veins = material.veins();
     assert!(!veins.is_empty(), "the overworld ships ore veins");
     for (index, vein) in veins.iter().enumerate() {
-        let bounds: &CellBounds = material.vein_cell_bounds(index);
+        let bounds: &CellBounds = material.vein_cell_bounds(index).unwrap();
         let mut terms = Vec::new();
         let checked = check_root(
             &router,
@@ -137,7 +137,11 @@ fn check_root(
     } else {
         let material = material.expect("a vein root is bounded by the material program");
         let veins = material.veins();
-        Some(material.vein_cell_bounds(veins.iter().position(|v| v.density == root).unwrap()))
+        Some(
+            material
+                .vein_cell_bounds(veins.iter().position(|v| v.density == root).unwrap())
+                .unwrap(),
+        )
     };
     let (cell, inputs) = match bounds {
         None => (router.cell_size().unwrap(), router.cell_inputs()),

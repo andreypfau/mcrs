@@ -218,7 +218,7 @@ pub fn apply_material_surface(
                         let mut state = if run < settled.len() && y <= settled[run].1 {
                             match settled[run].2 {
                                 SettledState::Block(state) => state,
-                                SettledState::Bandlands => Some(eval.bandlands_at(y)),
+                                SettledState::Bandlands => eval.bandlands_at(y),
                             }
                         } else {
                             eval.update_y(depth_above, depth_below, water_level, y);
@@ -524,7 +524,7 @@ fn noise_2d(
     block_z: i32,
     scale: f64,
 ) -> f32 {
-    program.noise(program.surface_noise(which)).get(
+    program.surface_noise_sampler(which).get(
         f64::from(block_x) * scale,
         0.0,
         f64::from(block_z) * scale,

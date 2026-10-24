@@ -82,7 +82,7 @@ impl<'a> MaterialOracle<'a> {
             }
             MaterialRule::Bandlands => {
                 visited.insert(("bandlands", true));
-                Some(eval.bandlands())
+                eval.bandlands()
             }
             MaterialRule::OreVein { .. } => {
                 let vein = *veins;
@@ -223,7 +223,8 @@ impl<'a> MaterialOracle<'a> {
                         .expect("a compiled random");
                     let mut random = eval
                         .program
-                        .random_at(id, IVec3::new(eval.block_x, y, eval.block_z));
+                        .random_at(id, IVec3::new(eval.block_x, y, eval.block_z))
+                        .expect("a compiled random");
                     f64::from(random.next_f32()) < probability
                 };
                 ("vertical_gradient", value)
