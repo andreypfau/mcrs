@@ -123,7 +123,13 @@ pub struct VolumeMatch<M: Refs = Resolved> {
 
 impl<M: Refs> Validate for VolumeMatch<M> {
     fn validate(&self) -> Result<(), String> {
-        if (0..3).any(|axis| self.min.0[axis] > self.max.0[axis]) {
+        if self
+            .min
+            .0
+            .iter()
+            .zip(self.max.0)
+            .any(|(min, max)| *min > max)
+        {
             return Err("min bound cannot be larger than max bound".to_owned());
         }
         Ok(())
