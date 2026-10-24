@@ -4,7 +4,7 @@ use crate::density::{
 };
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::proto::ValueRange;
 use mcrs_minecraft_worldgen_density::proto::build::Df;
 use mcrs_minecraft_worldgen_density::router::{
@@ -13,21 +13,38 @@ use mcrs_minecraft_worldgen_density::router::{
 };
 use std::collections::BTreeMap;
 
-fn id(name: &str) -> ResourceLocation {
-    ResourceLocation::minecraft(name).expect("a hardcoded name")
+/// The density functions an overworld preset reads its climate from.
+struct Climate {
+    temperature: StaticResourceLocation,
+    vegetation: StaticResourceLocation,
+    continents: StaticResourceLocation,
+    erosion: StaticResourceLocation,
 }
 
-fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
-    let climate = |name: &str| format!("{climate}/{name}");
+const CLIMATE: Climate = Climate {
+    temperature: rl!("minecraft:overworld/temperature"),
+    vegetation: rl!("minecraft:overworld/vegetation"),
+    continents: rl!("minecraft:overworld/continents"),
+    erosion: rl!("minecraft:overworld/erosion"),
+};
+
+const LARGE_BIOMES_CLIMATE: Climate = Climate {
+    temperature: rl!("minecraft:overworld_large_biomes/temperature"),
+    vegetation: rl!("minecraft:overworld_large_biomes/vegetation"),
+    continents: rl!("minecraft:overworld_large_biomes/continents"),
+    erosion: rl!("minecraft:overworld_large_biomes/erosion"),
+};
+
+fn overworld(climate: &Climate, terrain: &str) -> NoiseGeneratorSettings {
     let terrain = |name: &str| Df::reference(&format!("{terrain}/{name}"));
     let surface_level = terrain("preliminary_surface_level");
     let router = RouterFunctions {
-        temperature: Df::reference(&climate("temperature")),
-        vegetation: Df::reference(&climate("vegetation")),
-        continents: Df::reference(&climate("continents")),
-        erosion: Df::reference(&climate("erosion")),
+        temperature: Df::reference(climate.temperature.as_static_str()),
+        vegetation: Df::reference(climate.vegetation.as_static_str()),
+        continents: Df::reference(climate.continents.as_static_str()),
+        erosion: Df::reference(climate.erosion.as_static_str()),
         depth: terrain("depth"),
-        ridges: Df::reference(RIDGES),
+        ridges: Df::reference(RIDGES.as_static_str()),
         chunk_surface_level: terrain("chunk_surface_level"),
         final_density: terrain("final_density"),
     };
@@ -35,11 +52,11 @@ fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
     let spawn_target = [ValueRange::new(-1.0, -0.16), ValueRange::new(0.16, 1.0)]
         .map(|weirdness| -> SpawnTargetPoint {
             BTreeMap::from([
-                (id(&climate("temperature")), full_range.clone()),
-                (id(&climate("vegetation")), full_range.clone()),
-                (id(&climate("continents")), ValueRange::new(-0.11, 1.0)),
-                (id(&climate("erosion")), full_range.clone()),
-                (id(RIDGES), weirdness),
+                (climate.temperature.into(), full_range.clone()),
+                (climate.vegetation.into(), full_range.clone()),
+                (climate.continents.into(), ValueRange::new(-0.11, 1.0)),
+                (climate.erosion.into(), full_range.clone()),
+                (RIDGES.into(), weirdness),
             ])
         })
         .into();
@@ -69,7 +86,7 @@ fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
             OVERWORLD,
             BlockState::from(Block::Water),
             router,
-            id("overworld"),
+            rl!("minecraft:overworld").into(),
             63,
         )
     }
@@ -93,7 +110,7 @@ fn nether() -> NoiseGeneratorSettings {
             bounds,
             BlockState::from(Block::Lava),
             router,
-            id("nether"),
+            rl!("minecraft:nether").into(),
             32,
         )
     }
@@ -113,7 +130,13 @@ fn end() -> NoiseGeneratorSettings {
             DebugFunction::new("N", &router.final_density),
             DebugFunction::new("IS", &router.erosion),
         ],
-        ..NoiseGeneratorSettings::new(bounds, BlockState::from(Block::Air), router, id("end"), 0)
+        ..NoiseGeneratorSettings::new(
+            bounds,
+            BlockState::from(Block::Air),
+            router,
+            rl!("minecraft:end").into(),
+            0,
+        )
     }
 }
 
@@ -122,7 +145,7 @@ fn density_only(
     slide: Df,
     cell_size_xz: u32,
     cell_size_y: u32,
-    material_rule: &str,
+    material_rule: StaticResourceLocation,
     sea_level: i32,
 ) -> NoiseGeneratorSettings {
     let router = RouterFunctions::of_density(full_noise(slide, cell_size_xz, cell_size_y));
@@ -133,7 +156,7 @@ fn density_only(
             bounds,
             BlockState::from(Block::Water),
             router,
-            id(material_rule),
+            material_rule.into(),
             sea_level,
         )
     }
@@ -146,7 +169,7 @@ fn caves() -> NoiseGeneratorSettings {
         slide_nether_like(bounds),
         4,
         8,
-        "overworld_caves",
+        rl!("minecraft:overworld_caves"),
         32,
     )
 }
@@ -154,23 +177,33 @@ fn caves() -> NoiseGeneratorSettings {
 fn floating_islands() -> NoiseGeneratorSettings {
     let bounds = NoiseSettings::new(0, 256);
     let slide = slide_end_like(Df::reference(BASE_3D_NOISE_END), bounds);
-    density_only(bounds, slide, 8, 4, "overworld_floating_islands", -64)
+    density_only(
+        bounds,
+        slide,
+        8,
+        4,
+        rl!("minecraft:overworld_floating_islands"),
+        -64,
+    )
 }
 
 pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
-    BTreeMap::from([
-        (id("overworld"), overworld("overworld", "overworld")),
-        (
-            id("large_biomes"),
-            overworld("overworld_large_biomes", "overworld_large_biomes"),
-        ),
-        (
-            id("amplified"),
-            overworld("overworld", "overworld_amplified"),
-        ),
-        (id("nether"), nether()),
-        (id("end"), end()),
-        (id("caves"), caves()),
-        (id("floating_islands"), floating_islands()),
-    ])
+    BTreeMap::from(
+        [
+            (rl!("minecraft:overworld"), overworld(&CLIMATE, "overworld")),
+            (
+                rl!("minecraft:large_biomes"),
+                overworld(&LARGE_BIOMES_CLIMATE, "overworld_large_biomes"),
+            ),
+            (
+                rl!("minecraft:amplified"),
+                overworld(&CLIMATE, "overworld_amplified"),
+            ),
+            (rl!("minecraft:nether"), nether()),
+            (rl!("minecraft:end"), end()),
+            (rl!("minecraft:caves"), caves()),
+            (rl!("minecraft:floating_islands"), floating_islands()),
+        ]
+        .map(|(name, settings)| (name.into(), settings)),
+    )
 }

@@ -86,7 +86,7 @@ const BETA_PACK: &str = "file/beta";
 
 fn insert_built_ins(files: &mut PackFiles) -> Result<(), builtin::BuiltinError> {
     insert_all::<BiomeFile>(files, VANILLA_PACK, builtin::biomes()?);
-    insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools());
+    insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools()?);
     insert_all::<NoiseParam>(files, VANILLA_PACK, builtin::vanilla_noises());
     insert_all::<NoiseParam>(files, BETA_PACK, builtin::beta_noises());
     insert_all::<DensityFunctionHolder>(files, VANILLA_PACK, builtin::vanilla_density_functions());

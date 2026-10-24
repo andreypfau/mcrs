@@ -87,16 +87,15 @@ pub fn define(f: &mut Functions) {
 /// ids alone, so these entries are only what the loader finds under the ids.
 pub fn noises() -> impl Iterator<Item = (ResourceLocation, NoiseParam)> {
     [
-        ("climate_detail", -1, 2),
-        ("depth", -15, 16),
-        ("scale", -9, 10),
-        ("temperature", -3, 4),
-        ("vegetation", -3, 4),
+        (rl!("mcrs:beta/climate_detail"), -1, 2),
+        (rl!("mcrs:beta/depth"), -15, 16),
+        (rl!("mcrs:beta/scale"), -9, 10),
+        (rl!("mcrs:beta/temperature"), -3, 4),
+        (rl!("mcrs:beta/vegetation"), -3, 4),
     ]
     .into_iter()
     .map(|(name, base_octave, octave_count)| {
-        let id = ResourceLocation::new("mcrs", &format!("beta/{name}")).expect("a hardcoded name");
-        (id, NoiseParam::uniform(base_octave, octave_count))
+        (name.into(), NoiseParam::uniform(base_octave, octave_count))
     })
 }
 

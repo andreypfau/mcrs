@@ -168,7 +168,9 @@ fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     static NOISES: Json = LazyLock::new(|| encoded(builtin::noises()));
     static DENSITY_FUNCTIONS: Json = LazyLock::new(|| encoded(builtin::density_functions()));
     static NOISE_SETTINGS: Json = LazyLock::new(|| encoded(builtin::noise_settings()));
-    static TEMPLATE_POOLS: Json = LazyLock::new(|| encoded(builtin::template_pools()));
+    static TEMPLATE_POOLS: Json = LazyLock::new(|| {
+        encoded(builtin::template_pools().unwrap_or_else(|error| panic!("{error}")))
+    });
     match folder {
         "biome" => built_biomes(),
         "noise" => NOISES.clone(),

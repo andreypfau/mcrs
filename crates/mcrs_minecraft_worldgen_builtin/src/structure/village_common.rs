@@ -1,4 +1,5 @@
 use super::*;
+use mcrs_minecraft_core::rl;
 
 /// A marker that turns into `floor`, with the `animals` of one `kind` standing on it.
 fn animals(c: &mut Canvas, floor: &str, kind: Fields, animals: &[([f64; 3], [i32; 3], Fields)]) {
@@ -64,253 +65,329 @@ mod data {
 use data::*;
 
 pub const TEMPLATES: &[Entry] = &[
-    ("village/common/animals/cat_black", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.594088879085021, 1.0, 0.7762497828982937],
-                [0, 1, 0],
-                CAT_ENTITY,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_british", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.10287446715470594, 1.0, 0.6401005165379434],
-                [0, 1, 0],
-                CAT_ENTITY_2,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_calico", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [1.034435390287527, 1.0, 1.0372841507700956],
-                [1, 1, 1],
-                CAT_ENTITY_3,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_jellie", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.594088879085021, 1.0, 0.7762497828982937],
-                [0, 1, 0],
-                CAT_ENTITY_4,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_persian", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.7045879820373386, 1.0, 1.0038031046223237],
-                [0, 1, 1],
-                CAT_ENTITY_5,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_ragdoll", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.09318670032310195, 1.0, 0.3996525399343511],
-                [0, 1, 0],
-                CAT_ENTITY_6,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_red", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.6200000000000045, 1.0, -0.07499998807907104],
-                [0, 1, -1],
-                CAT_ENTITY_7,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_siamese", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.491924415155637, 1.0, 0.8459992136320515],
-                [0, 1, 0],
-                CAT_ENTITY_8,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_tabby", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.6606286838719058, 1.0, 0.8089603178721241],
-                [0, 1, 0],
-                CAT_ENTITY_9,
-            )],
-        )
-    }),
-    ("village/common/animals/cat_white", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            CAT_MOB,
-            &[(
-                [0.38217550315006577, 1.0, 0.8995760608387542],
-                [0, 1, 0],
-                CAT_ENTITY_10,
-            )],
-        )
-    }),
-    ("village/common/animals/cows_1", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            COW_MOB,
-            &[
-                (
-                    [0.07499998807907104, 1.0, 0.07499998807907104],
+    (
+        rl!("minecraft:village/common/animals/cat_black"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.594088879085021, 1.0, 0.7762497828982937],
                     [0, 1, 0],
-                    COW_ENTITY,
-                ),
-                (
-                    [0.925000011920929, 1.0, 0.925000011920929],
+                    CAT_ENTITY,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_british"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.10287446715470594, 1.0, 0.6401005165379434],
                     [0, 1, 0],
-                    COW_ENTITY_2,
-                ),
-            ],
-        )
-    }),
-    ("village/common/animals/horses_1", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            HORSE_MOB,
-            &[([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY)],
-        )
-    }),
-    ("village/common/animals/horses_2", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            HORSE_MOB,
-            &[
-                ([0.3232421875, 1.0, 0.3232421875], [0, 1, 0], HORSE_ENTITY_2),
-                ([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_3),
-            ],
-        )
-    }),
-    ("village/common/animals/horses_3", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            HORSE_MOB,
-            &[
-                ([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_4),
-                ([0.6767578125, 1.0, 0.3232421875], [0, 1, 0], HORSE_ENTITY_5),
-            ],
-        )
-    }),
-    ("village/common/animals/horses_4", [1, 3, 1], |c| {
-        animals(
-            c,
-            mcrs_minecraft_block::keys::Block::HayBlock.as_static_str(),
-            HORSE_MOB,
-            &[([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_6)],
-        )
-    }),
-    ("village/common/animals/horses_5", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            HORSE_MOB,
-            &[(
-                [0.5380230367288732, 1.0, 0.32324218749994316],
-                [0, 1, 0],
-                HORSE_ENTITY_7,
-            )],
-        )
-    }),
-    ("village/common/animals/pigs_1", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            PIG_MOB,
-            &[
-                (
-                    [0.07499998807907104, 1.0, 0.925000011920929],
+                    CAT_ENTITY_2,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_calico"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [1.034435390287527, 1.0, 1.0372841507700956],
+                    [1, 1, 1],
+                    CAT_ENTITY_3,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_jellie"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.594088879085021, 1.0, 0.7762497828982937],
                     [0, 1, 0],
-                    PIG_ENTITY,
-                ),
-                (
-                    [0.925000011920929, 1.0, 0.07499998807907104],
+                    CAT_ENTITY_4,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_persian"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.7045879820373386, 1.0, 1.0038031046223237],
+                    [0, 1, 1],
+                    CAT_ENTITY_5,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_ragdoll"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.09318670032310195, 1.0, 0.3996525399343511],
                     [0, 1, 0],
-                    PIG_ENTITY_2,
-                ),
-            ],
-        )
-    }),
-    ("village/common/animals/sheep_1", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            SHEEP_MOB,
-            &[
-                (
-                    [0.07499998807907104, 1.0, 0.925000011920929],
+                    CAT_ENTITY_6,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_red"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.6200000000000045, 1.0, -0.07499998807907104],
+                    [0, 1, -1],
+                    CAT_ENTITY_7,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_siamese"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.491924415155637, 1.0, 0.8459992136320515],
                     [0, 1, 0],
-                    SHEEP_ENTITY,
-                ),
-                (
-                    [0.925000011920929, 1.0, 0.07499998807907104],
+                    CAT_ENTITY_8,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_tabby"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.6606286838719058, 1.0, 0.8089603178721241],
                     [0, 1, 0],
-                    SHEEP_ENTITY_2,
-                ),
-            ],
-        )
-    }),
-    ("village/common/animals/sheep_2", [1, 3, 1], |c| {
-        animals(
-            c,
-            NOTHING,
-            SHEEP_MOB,
-            &[
-                (
-                    [0.07499998807907104, 1.0, 0.925000011920929],
+                    CAT_ENTITY_9,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cat_white"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                CAT_MOB,
+                &[(
+                    [0.38217550315006577, 1.0, 0.8995760608387542],
                     [0, 1, 0],
-                    SHEEP_ENTITY_3,
-                ),
-                (
-                    [0.925000011920929, 1.0, 0.07499998807907104],
+                    CAT_ENTITY_10,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/cows_1"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                COW_MOB,
+                &[
+                    (
+                        [0.07499998807907104, 1.0, 0.07499998807907104],
+                        [0, 1, 0],
+                        COW_ENTITY,
+                    ),
+                    (
+                        [0.925000011920929, 1.0, 0.925000011920929],
+                        [0, 1, 0],
+                        COW_ENTITY_2,
+                    ),
+                ],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/horses_1"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                HORSE_MOB,
+                &[([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY)],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/horses_2"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                HORSE_MOB,
+                &[
+                    ([0.3232421875, 1.0, 0.3232421875], [0, 1, 0], HORSE_ENTITY_2),
+                    ([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_3),
+                ],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/horses_3"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                HORSE_MOB,
+                &[
+                    ([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_4),
+                    ([0.6767578125, 1.0, 0.3232421875], [0, 1, 0], HORSE_ENTITY_5),
+                ],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/horses_4"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                mcrs_minecraft_block::keys::Block::HayBlock.as_static_str(),
+                HORSE_MOB,
+                &[([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_6)],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/horses_5"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                HORSE_MOB,
+                &[(
+                    [0.5380230367288732, 1.0, 0.32324218749994316],
                     [0, 1, 0],
-                    SHEEP_ENTITY_4,
-                ),
-            ],
-        )
-    }),
-    ("village/common/iron_golem", [1, 3, 1], |c| {
+                    HORSE_ENTITY_7,
+                )],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/pigs_1"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                PIG_MOB,
+                &[
+                    (
+                        [0.07499998807907104, 1.0, 0.925000011920929],
+                        [0, 1, 0],
+                        PIG_ENTITY,
+                    ),
+                    (
+                        [0.925000011920929, 1.0, 0.07499998807907104],
+                        [0, 1, 0],
+                        PIG_ENTITY_2,
+                    ),
+                ],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/sheep_1"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                SHEEP_MOB,
+                &[
+                    (
+                        [0.07499998807907104, 1.0, 0.925000011920929],
+                        [0, 1, 0],
+                        SHEEP_ENTITY,
+                    ),
+                    (
+                        [0.925000011920929, 1.0, 0.07499998807907104],
+                        [0, 1, 0],
+                        SHEEP_ENTITY_2,
+                    ),
+                ],
+            )
+        },
+    ),
+    (
+        rl!("minecraft:village/common/animals/sheep_2"),
+        [1, 3, 1],
+        |c| {
+            animals(
+                c,
+                NOTHING,
+                SHEEP_MOB,
+                &[
+                    (
+                        [0.07499998807907104, 1.0, 0.925000011920929],
+                        [0, 1, 0],
+                        SHEEP_ENTITY_3,
+                    ),
+                    (
+                        [0.925000011920929, 1.0, 0.07499998807907104],
+                        [0, 1, 0],
+                        SHEEP_ENTITY_4,
+                    ),
+                ],
+            )
+        },
+    ),
+    (rl!("minecraft:village/common/iron_golem"), [1, 3, 1], |c| {
         animals(
             c,
             NOTHING,
@@ -322,5 +399,9 @@ pub const TEMPLATES: &[Entry] = &[
             )],
         )
     }),
-    ("village/common/well_bottom", [4, 3, 4], well_bottom),
+    (
+        rl!("minecraft:village/common/well_bottom"),
+        [4, 3, 4],
+        well_bottom,
+    ),
 ];

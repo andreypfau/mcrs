@@ -1,9 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::panic,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 // chisle: every reference in a built template pool is a
 // `ResourceLocation<Arc<str>>`, one allocation each, and a structure template is
 // built as a typed value, encoded to NBT and parsed back by the asset loader. A
@@ -20,6 +14,7 @@ mod terrain;
 
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
 use mcrs_minecraft_environment::attribute::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
@@ -73,6 +68,8 @@ pub enum BuiltinError {
         biome: ResourceLocation,
         refused: AttributeError,
     },
+    #[error("a built-in template pool: {0}")]
+    TemplatePool(#[from] InvalidResourceLocation),
 }
 
 pub fn biomes() -> Result<BTreeMap<ResourceLocation, BiomeFile<Named>>, BuiltinError> {
@@ -96,17 +93,12 @@ pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
     settings
 }
 
-pub fn template_pools() -> BTreeMap<ResourceLocation, TemplatePool> {
-    template_pool::all().collect()
+pub fn template_pools() -> Result<BTreeMap<ResourceLocation, TemplatePool>, BuiltinError> {
+    Ok(template_pool::all().collect::<Result<_, _>>()?)
 }
 
 pub fn templates() -> BTreeMap<ResourceLocation, Template> {
-    structure::keys()
-        .map(|id| {
-            let template = structure::build(&id).expect("a listed template builds");
-            (id, template)
-        })
-        .collect()
+    structure::all().collect()
 }
 
 /// The path of every built-in structure template under one namespace's
@@ -127,5 +119,5 @@ pub fn template_paths(directory: &str) -> Vec<String> {
 pub fn asset(path: &str) -> Option<Vec<u8>> {
     let (namespace, name) = path.strip_suffix(".nbt")?.split_once("/structure/")?;
     let template = structure::build(&ResourceLocation::new(namespace, name).ok()?)?;
-    Some(to_gzip_bytes_vec(&template).expect("a built-in template encodes as NBT"))
+    to_gzip_bytes_vec(&template).ok()
 }

@@ -9,7 +9,7 @@ use mcrs_minecraft_biome::keys::biome;
 use mcrs_minecraft_biome::keys::carver;
 use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
-use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
+use mcrs_minecraft_core::codec::{Bounded, HexRgb};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
@@ -126,7 +126,7 @@ impl Mobs {
         Mobs(MobSpawnSettings::no_spawns())
     }
 
-    pub fn spawn(&mut self, mob: Mob, weight: i32, min: i32, max: i32) -> &mut Self {
+    pub fn spawn(&mut self, mob: Mob, weight: u16, min: i32, max: i32) -> &mut Self {
         self.spawn_as(mob, mob.category, weight, min, max)
     }
 
@@ -134,15 +134,14 @@ impl Mobs {
         &mut self,
         mob: Mob,
         category: MobCategory,
-        weight: i32,
+        weight: u16,
         min: i32,
         max: i32,
     ) -> &mut Self {
-        let weight = NonNegativeInt::new(weight).expect("a spawn weight is not negative");
         self.0.add_spawn(
             category,
             *mob.id.location(),
-            weight,
+            Bounded(weight.into()),
             IntProvider::between(min, max),
         );
         self

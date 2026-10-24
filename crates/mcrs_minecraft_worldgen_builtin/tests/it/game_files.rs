@@ -71,7 +71,7 @@ fn every_built_in_entry_equals_the_file_the_game_ships_for_it() {
     differences.json("noise", builtin::vanilla_noises());
     differences.json("density_function", builtin::vanilla_density_functions());
     differences.json("noise_settings", builtin::vanilla_noise_settings());
-    differences.json("template_pool", builtin::template_pools());
+    differences.json("template_pool", builtin::template_pools().unwrap());
 
     let biomes = builtin::biomes().unwrap();
     assert!(!biomes.is_empty());

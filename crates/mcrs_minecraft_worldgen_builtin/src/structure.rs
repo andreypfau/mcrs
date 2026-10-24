@@ -10,6 +10,18 @@ macro_rules! kit {
     };
 }
 
+/// The name of a template, checked when the crate compiles.
+macro_rules! name {
+    ($name:expr) => {
+        const {
+            match ResourceLocation::new_static($name) {
+                Ok(name) => name,
+                Err(reason) => panic!("{}", reason),
+            }
+        }
+    };
+}
+
 /// The table of a village family whose villagers are of `kind`: under `both`
 /// the pieces painted once for the living village and once for the abandoned
 /// one, under `single` the rest. The villagers themselves are the same in
@@ -28,14 +40,14 @@ macro_rules! templates {
         const NITWIT: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(mcrs_minecraft_entity::keys::VillagerProfession::Nitwit.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(mcrs_minecraft_entity::keys::VillagerType::$kind.as_static_str()))]))];
 
         pub const TEMPLATES: &[Entry] = &[
-            $((concat!("village/", $family, "/", $path), $size, |c| ($paint)(c, LIVING)),)*
-            $((concat!("village/", $family, "/zombie/", $path), $size, |c| ($paint)(c, ZOMBIE)),)*
-            $((concat!("village/", $family, "/", $one), $one_size, $single),)*
-            (concat!("village/", $family, "/villagers/baby"), [1, 2, 1], |c| baby(c, &[MOB, ANY_VILLAGER, VILLAGER, BABY, UNEMPLOYED])),
-            (concat!("village/", $family, "/villagers/nitwit"), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, VILLAGER, ADULT, NITWIT])),
-            (concat!("village/", $family, "/villagers/unemployed"), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, VILLAGER, ADULT, UNEMPLOYED])),
-            (concat!("village/", $family, "/zombie/villagers/nitwit"), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, ZOMBIE_VILLAGER, ADULT, NITWIT])),
-            (concat!("village/", $family, "/zombie/villagers/unemployed"), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, ZOMBIE_VILLAGER, ADULT, UNEMPLOYED])),
+            $((name!(concat!("minecraft:village/", $family, "/", $path)), $size, |c| ($paint)(c, LIVING)),)*
+            $((name!(concat!("minecraft:village/", $family, "/zombie/", $path)), $size, |c| ($paint)(c, ZOMBIE)),)*
+            $((name!(concat!("minecraft:village/", $family, "/", $one)), $one_size, $single),)*
+            (name!(concat!("minecraft:village/", $family, "/villagers/baby")), [1, 2, 1], |c| baby(c, &[MOB, ANY_VILLAGER, VILLAGER, BABY, UNEMPLOYED])),
+            (name!(concat!("minecraft:village/", $family, "/villagers/nitwit")), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, VILLAGER, ADULT, NITWIT])),
+            (name!(concat!("minecraft:village/", $family, "/villagers/unemployed")), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, VILLAGER, ADULT, UNEMPLOYED])),
+            (name!(concat!("minecraft:village/", $family, "/zombie/villagers/nitwit")), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, ZOMBIE_VILLAGER, ADULT, NITWIT])),
+            (name!(concat!("minecraft:village/", $family, "/zombie/villagers/unemployed")), [1, 3, 1], |c| adult(c, &[MOB, ANY_VILLAGER, ZOMBIE_VILLAGER, ADULT, UNEMPLOYED])),
         ];
     };
 }
@@ -50,7 +62,7 @@ mod village_taiga;
 
 use mcrs_minecraft_core::Axis::{X, Y, Z};
 use mcrs_minecraft_core::Direction::{East, North, South, West};
-use mcrs_minecraft_core::{Axis, Direction, ResourceLocation};
+use mcrs_minecraft_core::{Axis, Direction, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
     Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs, fence_joined, log,
@@ -58,7 +70,7 @@ use mcrs_minecraft_worldgen_structure::blueprint::{
 };
 
 /// A template's name under `structure`, its size and the procedure that paints it.
-type Entry = (&'static str, [i32; 3], fn(&mut Canvas));
+type Entry = (StaticResourceLocation, [i32; 3], fn(&mut Canvas));
 
 const FAMILIES: [&[Entry]; 7] = [
     village_common::TEMPLATES,
@@ -75,17 +87,21 @@ fn listed() -> impl Iterator<Item = &'static Entry> {
 }
 
 pub fn keys() -> impl Iterator<Item = ResourceLocation> {
-    listed().map(|(name, ..)| ResourceLocation::minecraft(name).expect("a hardcoded name"))
+    listed().map(|(name, ..)| (*name).into())
+}
+
+pub fn all() -> impl Iterator<Item = (ResourceLocation, Template)> {
+    listed().map(|entry| (entry.0.into(), paint(entry)))
 }
 
 pub fn build(id: &ResourceLocation) -> Option<Template> {
-    if id.namespace() != "minecraft" {
-        return None;
-    }
-    let (_, size, paint) = listed().find(|(name, ..)| *name == id.path())?;
+    listed().find(|(name, ..)| name == id).map(paint)
+}
+
+fn paint((_, size, paint): &Entry) -> Template {
     let mut canvas = Canvas::new(*size);
     paint(&mut canvas);
-    Some(canvas.template())
+    canvas.template()
 }
 
 const AIR: &str = Block::Air.as_static_str();
@@ -293,11 +309,11 @@ fn wall_torch(facing: Direction) -> Cell {
     block(&format!("minecraft:wall_torch[facing={}]", facing.name()))
 }
 
-/// `cells[0]` where x and z sum to an even number, `cells[1]` elsewhere.
-fn checker(c: &mut Canvas, cells: [&Cell; 2], y: i32, min: [i32; 2], max: [i32; 2]) {
+/// `even` where x and z sum to an even number, `odd` elsewhere.
+fn checker(c: &mut Canvas, [even, odd]: [&Cell; 2], y: i32, min: [i32; 2], max: [i32; 2]) {
     for x in min[0]..=max[0] {
         for z in min[1]..=max[1] {
-            c.place(cells[((x + z) % 2) as usize], x, y, z);
+            c.place(if (x + z) % 2 == 0 { even } else { odd }, x, y, z);
         }
     }
 }

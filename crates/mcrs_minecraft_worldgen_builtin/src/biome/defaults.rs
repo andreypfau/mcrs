@@ -215,7 +215,7 @@ impl Mobs {
         self.common_spawns_with_skeletons(100)
     }
 
-    pub fn common_spawns_with_skeletons(&mut self, skeleton_weight: i32) -> &mut Self {
+    pub fn common_spawns_with_skeletons(&mut self, skeleton_weight: u16) -> &mut Self {
         self.cave_spawns().monsters(95, 5, 0, skeleton_weight)
     }
 
@@ -223,7 +223,7 @@ impl Mobs {
         self.cave_spawns().monsters(90, 5, 5, 100)
     }
 
-    pub fn swamp_spawns(&mut self, swamp_skeleton_weight: i32) -> &mut Self {
+    pub fn swamp_spawns(&mut self, swamp_skeleton_weight: u16) -> &mut Self {
         self.common_spawns_with_skeletons(swamp_skeleton_weight)
             .spawn(SLIME, 1, 1, 1)
             .spawn(BOGGED, 30, 4, 4)
@@ -232,9 +232,9 @@ impl Mobs {
 
     pub fn ocean_spawns(
         &mut self,
-        squid_weight: i32,
+        squid_weight: u16,
         squid_max_count: i32,
-        cod_weight: i32,
+        cod_weight: u16,
     ) -> &mut Self {
         self.spawn(SQUID, squid_weight, 1, squid_max_count)
             .spawn(COD, cod_weight, 3, 6)
@@ -242,7 +242,7 @@ impl Mobs {
             .spawn(DROWNED, 5, 1, 1)
     }
 
-    pub fn warm_ocean_spawns(&mut self, squid_weight: i32, squid_min_count: i32) -> &mut Self {
+    pub fn warm_ocean_spawns(&mut self, squid_weight: u16, squid_min_count: i32) -> &mut Self {
         self.spawn(SQUID, squid_weight, squid_min_count, 4)
             .spawn(TROPICAL_FISH, 25, 8, 8)
             .spawn(DOLPHIN, 2, 1, 2)
@@ -281,10 +281,10 @@ impl Mobs {
 
     pub fn monsters(
         &mut self,
-        zombie_weight: i32,
-        zombie_villager_weight: i32,
-        zombie_horse_weight: i32,
-        skeleton_weight: i32,
+        zombie_weight: u16,
+        zombie_villager_weight: u16,
+        zombie_horse_weight: u16,
+        skeleton_weight: u16,
     ) -> &mut Self {
         self.spawn(SPIDER, 100, 4, 4)
             .spawn(ZOMBIE, zombie_weight, 4, 4)

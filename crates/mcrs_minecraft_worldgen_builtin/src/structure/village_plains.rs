@@ -101,7 +101,7 @@ fn market_stall(
     c: &mut Canvas,
     at: [i32; 3],
     (along, length): (Axis, i32),
-    wool: [&Cell; 2],
+    [even, odd]: [&Cell; 2],
     lit: bool,
 ) {
     let [x, y, z] = at;
@@ -116,10 +116,10 @@ fn market_stall(
         let end = u == 0 || u == length - 1;
         place(c, &K.planks, u, 0, 1);
         for w in 0..3 {
-            let cover = if end {
-                &K.slab
-            } else {
-                wool[((u + w) % 2) as usize]
+            let cover = match (end, (u + w) % 2) {
+                (true, _) => &K.slab,
+                (false, 0) => even,
+                (false, _) => odd,
             };
             place(c, cover, u, 3, w);
         }

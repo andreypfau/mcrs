@@ -8,7 +8,7 @@ const DARK_DRY_FOLIAGE_COLOR: i32 = 8082228;
 const COLD_WATER_COLOR: i32 = 4020182;
 const FROZEN_WATER_COLOR: i32 = 3750089;
 const FOREST_MUSIC: SoundEvent = SoundEvent::MusicOverworldForest;
-const SWAMP_SKELETON_WEIGHT: i32 = 70;
+const SWAMP_SKELETON_WEIGHT: u16 = 70;
 
 fn sky_color(temperature: f32) -> i32 {
     let temp = (temperature / 3.0).clamp(-1.0, 1.0);
@@ -571,7 +571,7 @@ pub fn dappled_forest() -> Draft {
         .dry_foliage(9189892)
 }
 
-pub fn peaks(sound: SoundEvent, frostbite_weight: i32) -> Draft {
+pub fn peaks(sound: SoundEvent, frostbite_weight: u16) -> Draft {
     let mut m = Mobs::default();
     m.spawn(GOAT, 5, 1, 3)
         .spawn(FROSTBITE, frostbite_weight, 4, 4)

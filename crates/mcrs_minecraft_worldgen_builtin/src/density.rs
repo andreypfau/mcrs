@@ -1,4 +1,5 @@
 use crate::terrain::{self, Coordinates};
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::node::distance::DistanceMetric;
 use mcrs_minecraft_worldgen_density::proto::MAX_REASONABLE_NOISE_VALUE;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
@@ -9,7 +10,7 @@ pub(crate) const OVERWORLD: NoiseSettings = NoiseSettings::new(-64, 384);
 const OVERWORLD_TOP: i32 = OVERWORLD.min_y + OVERWORLD.height as i32;
 
 const Y: &str = "y";
-pub(crate) const RIDGES: &str = "overworld/ridges";
+pub(crate) const RIDGES: StaticResourceLocation = rl!("minecraft:overworld/ridges");
 const RIDGES_FOLDED: &str = "overworld/ridges_folded";
 const BASE_3D_NOISE_OVERWORLD: &str = "overworld/base_3d_noise";
 const BASE_3D_NOISE_NETHER: &str = "nether/base_3d_noise";
@@ -58,7 +59,7 @@ pub fn define(f: &mut Functions) {
     );
     let continents = f.define("overworld/continents", climate("continentalness").cache());
     let erosion = f.define("overworld/erosion", climate("erosion").cache());
-    let ridge = f.define(RIDGES, climate("ridge").cache());
+    let ridge = f.define(RIDGES.as_static_str(), climate("ridge").cache());
     f.define(RIDGES_FOLDED, peaks_and_valleys(&ridge));
     let jagged = Df::noise("jagged", 1500.0, 0.0);
     terrain_noises(
@@ -121,7 +122,7 @@ fn terrain_noises(
     let coordinates = Coordinates {
         continents,
         erosion,
-        weirdness: Df::reference(RIDGES),
+        weirdness: Df::reference(RIDGES.as_static_str()),
         ridges: Df::reference(RIDGES_FOLDED),
     };
     let offset = f.define(
