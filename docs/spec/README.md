@@ -48,6 +48,46 @@ This file lists the rules that apply here and how this project adapts them.
 - When you count words, a code span, a number with its unit and a rule id each
   count as one word.
 
+## Semantics, not accidents
+
+The reference implementation and its libraries have defects. A specification states what the
+behaviour means. It does not copy an accident of the reference code, because the next version
+can change that accident. Each rule is of one of these kinds:
+
+- **Wire**: bytes, ids and codecs that the vanilla client decodes. The rule is exact. A choice
+  that the server makes inside the format, for example the order of node numbers, is not wire
+  if the client accepts each valid choice.
+- **Client agreement**: the vanilla client computes the same result from the data that the
+  server sends, for example the parse of a command line. The server must agree with the client
+  on the input that a player types in normal use.
+- **Semantic**: the meaning of the behaviour, for example the result in the world or the
+  message that a player receives. The rule does not state the order of internal operations,
+  the class of an internal error or the text of a log line.
+- **Deviation**: a defect or an accident of the reference. The rule states the correct
+  behaviour. The section "Intentional deviations" of the document records the reference
+  behaviour.
+- **Unspecified**: an implementation selects the behaviour. A parity test must not compare it.
+
+A new or revised rule states its kind on its provenance line, for example
+`Provenance: source_suggested. Kind: semantic. Confidence: medium.` A rule that corrects a
+deviation has the kind of the correct behaviour, and its entry in "Intentional deviations"
+names the rule.
+
+A deviation inside a grammar that the vanilla client parses can make the server stricter than
+the client. The server can reject such input with a syntax error. The server must not accept
+input that the client rejects. The server must not give a different meaning to input that both
+accept.
+
+An entry in "Intentional deviations" has these parts:
+
+- **Rule**: the id of the rule that states the correct behaviour.
+- **Reference**: the behaviour of the reference implementation.
+- **Visible to the client**: yes or no, and what the player sees.
+- **Test**: what a differential test does when it finds this difference.
+
+Do not write an experiment that only confirms an accident. Put the observation in the
+deviation entry.
+
 ## Where these rules do not apply
 
 Tables, code blocks, JSON and NBT examples, and text quoted from the game keep
