@@ -32,17 +32,18 @@ impl BlockStateList {
         self.entries.len()
     }
 
-    pub fn name(&self, index: usize) -> &str {
-        slice(&self.text, self.entries[index].name)
-    }
-
-    pub fn properties(&self, index: usize) -> Properties<'_> {
-        let entry = self.entries[index];
+    /// The name and properties of entry `index`.
+    pub fn get(&self, index: usize) -> Option<(&str, Properties<'_>)> {
+        let entry = self.entries.get(index)?;
         let start = entry.props.0 as usize;
-        Properties {
-            text: &self.text,
-            props: &self.props[start..start + entry.props.1 as usize],
-        }
+        let props = self.props.get(start..start + entry.props.1 as usize)?;
+        Some((
+            slice(&self.text, entry.name),
+            Properties {
+                text: &self.text,
+                props,
+            },
+        ))
     }
 
     fn push_str(&mut self, value: &str) -> Span {
@@ -118,13 +119,12 @@ impl<'de> Deserialize<'de> for BlockStateList {
 impl Serialize for BlockStateList {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for index in 0..self.len() {
-            let properties = self.properties(index);
+        for (name, properties) in (0..self.len()).filter_map(|index| self.get(index)) {
             if properties.is_empty() {
-                seq.serialize_element(self.name(index))?;
+                seq.serialize_element(name)?;
             } else {
                 seq.serialize_element(&BlockState {
-                    id: self.name(index),
+                    id: name,
                     properties,
                 })?;
             }

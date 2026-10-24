@@ -345,9 +345,10 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
         }
     })?;
 
-    if mcrs_minecraft_chunk::any_entry_past(bits, &data, K::ENTRY_COUNT, len) {
-        let index = mcrs_minecraft_chunk::first_entry_past(bits, &data, K::ENTRY_COUNT, len)
-            .expect("the maximum is already past the palette");
+    if mcrs_minecraft_chunk::any_entry_past(bits, &data, K::ENTRY_COUNT, len)
+        && let Some(index) =
+            mcrs_minecraft_chunk::first_entry_past(bits, &data, K::ENTRY_COUNT, len)
+    {
         return Err(ErrorKind::PaletteIndex {
             y,
             field,
@@ -360,8 +361,15 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
         .map(|index| resolve(&raw.palette, lookup, index))
         .collect::<Result<Vec<V>, _>>()?;
     let mut cells = vec![V::default(); K::ENTRY_COUNT];
-    mcrs_minecraft_chunk::remap_into(bits, &data, &entries, &mut cells)
-        .expect("the data length was checked above");
+    mcrs_minecraft_chunk::remap_into(bits, &data, &entries, &mut cells).map_err(|e| {
+        ErrorKind::DataLength {
+            y,
+            field,
+            found: e.found,
+            expected: e.expected,
+            bits,
+        }
+    })?;
     Ok(PalettedContainer::from_cells(&cells))
 }
 
@@ -371,9 +379,13 @@ fn resolve<V>(
     lookup: &impl PaletteLookup<V>,
     index: usize,
 ) -> Result<V, ErrorKind> {
-    let name = palette.name(index);
+    let (name, properties) = palette
+        .get(index)
+        .ok_or_else(|| ErrorKind::UnknownPaletteEntry {
+            name: format!("#{index}"),
+        })?;
     lookup
-        .resolve(name, palette.properties(index))
+        .resolve(name, properties)
         .ok_or_else(|| ErrorKind::UnknownPaletteEntry {
             name: name.to_string(),
         })

@@ -1,3 +1,9 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "a generator of benchmark and test input has no caller to return an error to"
+)]
+
 use mcrs_minecraft_chunk::SectionKind;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_core::VERSION;

@@ -1498,6 +1498,27 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
 }
 
 #[test]
+fn a_record_of_no_sectors_is_a_payload_length_error() {
+    let fixture = Fixture::new("empty_record");
+    let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
+    let mut bytes = std::fs::read(&path).unwrap();
+    bytes[..4].copy_from_slice(&(2i32 << 8).to_be_bytes());
+    std::fs::write(&path, bytes).unwrap();
+    let err = RegionFile::open(&path)
+        .unwrap()
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(err.kind, ErrorKind::PayloadLength { available: 0, .. }),
+        "{err}"
+    );
+}
+
+#[test]
 fn a_truncated_header_is_rejected_at_open() {
     let fixture = Fixture::new("short_header");
     let path = fixture.dir.join("r.0.0.mca");

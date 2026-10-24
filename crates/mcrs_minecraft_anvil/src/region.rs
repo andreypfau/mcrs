@@ -90,8 +90,7 @@ impl RegionFile {
     }
 
     fn header_entry(&self, slot: usize) -> i32 {
-        let head = slot * 4;
-        i32::from_be_bytes(self.bytes[head..head + 4].try_into().unwrap())
+        be_i32(&self.bytes, slot * 4).unwrap_or(0)
     }
 
     /// Lays out a whole new file at `out`: every slot not in `replaced` keeps its
@@ -127,7 +126,7 @@ impl RegionFile {
             Err(_) => dir
                 .canonicalize()
                 .map_err(io)?
-                .join(out.file_name().unwrap()),
+                .join(out.file_name().ok_or_else(|| at(ErrorKind::FileName))?),
         };
         if source == target {
             return Err(at(ErrorKind::WriteOntoSource {
@@ -149,7 +148,9 @@ impl RegionFile {
                     region_z: self.pos.z,
                 }));
             }
-            new[slot_index(*pos)] = Some(nbt);
+            if let Some(slot) = new.get_mut(slot_index(*pos)) {
+                *slot = Some(nbt);
+            }
         }
 
         let now = SystemTime::now()
@@ -159,13 +160,13 @@ impl RegionFile {
         let mut body = Vec::new();
         let mut externals = Vec::new();
         let mut stale = Vec::new();
-        for slot in 0..(REGION_SIDE * REGION_SIDE) as usize {
+        for (slot, replacement) in new.iter().enumerate() {
             let pos = self
                 .pos
                 .column_at(slot as i32 % REGION_SIDE, slot as i32 / REGION_SIDE);
             let external = || dir.join(format!("c.{}.{}.mcc", pos.x, pos.z));
             let timestamp;
-            let record = match new[slot] {
+            let record = match replacement {
                 Some(nbt) => {
                     timestamp = now;
                     let payload = zlib(nbt).map_err(io)?;
@@ -207,10 +208,8 @@ impl RegionFile {
             };
             let sector = HEADER_SECTORS as usize + body.len() / SECTOR_BYTES;
             let count = record.len() / SECTOR_BYTES;
-            header[slot * 4..slot * 4 + 4]
-                .copy_from_slice(&((sector as u32) << 8 | count as u32).to_be_bytes());
-            header[SECTOR_BYTES + slot * 4..SECTOR_BYTES + slot * 4 + 4]
-                .copy_from_slice(&timestamp.to_be_bytes());
+            put_be(&mut header, slot * 4, (sector as u32) << 8 | count as u32);
+            put_be(&mut header, SECTOR_BYTES + slot * 4, timestamp as u32);
             body.extend_from_slice(&record);
         }
 
@@ -228,8 +227,7 @@ impl RegionFile {
     }
 
     fn timestamp(&self, slot: usize) -> i32 {
-        let at = SECTOR_BYTES + slot * 4;
-        i32::from_be_bytes(self.bytes[at..at + 4].try_into().unwrap())
+        be_i32(&self.bytes, SECTOR_BYTES + slot * 4).unwrap_or(0)
     }
 
     /// The sectors a slot's header entry points at, checked against the file.
@@ -256,21 +254,17 @@ impl RegionFile {
         if sector < HEADER_SECTORS {
             return Err(ErrorKind::SectorInHeader { x, z, sector });
         }
-        let sectors = self.bytes.len() / SECTOR_BYTES;
         let end = sector + sector_count;
-        if end as usize > sectors {
-            return Err(ErrorKind::SectorOutOfBounds {
+        self.bytes
+            .get(sector as usize * SECTOR_BYTES..end as usize * SECTOR_BYTES)
+            .map(Some)
+            .ok_or(ErrorKind::SectorOutOfBounds {
                 x,
                 z,
                 sector,
                 end,
-                sectors,
-            });
-        }
-
-        Ok(Some(
-            &self.bytes[sector as usize * SECTOR_BYTES..end as usize * SECTOR_BYTES],
-        ))
+                sectors: self.bytes.len() / SECTOR_BYTES,
+            })
     }
 
     fn read_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, ErrorKind> {
@@ -278,17 +272,27 @@ impl RegionFile {
         let Some(span) = self.record(pos)? else {
             return Ok(None);
         };
-        let length = i32::from_be_bytes(span[..4].try_into().unwrap());
-        let version = span[4];
-        let available = span.len() - CHUNK_HEADER_BYTES;
-        if length < 1 || (length - 1) as usize > available {
+        let available = span.len().saturating_sub(CHUNK_HEADER_BYTES);
+        let (Some(length), Some(&version)) = (be_i32(span, 0), span.get(4)) else {
+            return Err(ErrorKind::PayloadLength {
+                x,
+                z,
+                length: 0,
+                available,
+            });
+        };
+        let payload = usize::try_from(length)
+            .ok()
+            .and_then(|length| length.checked_sub(1))
+            .and_then(|stored| span.get(CHUNK_HEADER_BYTES..CHUNK_HEADER_BYTES + stored));
+        let Some(payload) = payload else {
             return Err(ErrorKind::PayloadLength {
                 x,
                 z,
                 length,
                 available,
             });
-        }
+        };
 
         if version & EXTERNAL_STREAM_FLAG != 0 {
             let name = format!("c.{x}.{z}.mcc");
@@ -298,8 +302,21 @@ impl RegionFile {
             return decompress(version & !EXTERNAL_STREAM_FLAG, &payload, x, z).map(Some);
         }
 
-        let payload = &span[CHUNK_HEADER_BYTES..CHUNK_HEADER_BYTES + (length - 1) as usize];
         decompress(version, payload, x, z).map(Some)
+    }
+}
+
+fn be_i32(bytes: &[u8], at: usize) -> Option<i32> {
+    bytes
+        .get(at..)?
+        .first_chunk()
+        .copied()
+        .map(i32::from_be_bytes)
+}
+
+fn put_be(bytes: &mut [u8], at: usize, value: u32) {
+    if let Some(slot) = bytes.get_mut(at..).and_then(<[u8]>::first_chunk_mut) {
+        *slot = value.to_be_bytes();
     }
 }
 
@@ -310,7 +327,10 @@ fn zlib(nbt: &[u8]) -> std::io::Result<Vec<u8>> {
 }
 
 fn replace_file(path: &Path, parts: &[&[u8]]) -> std::io::Result<()> {
-    let name = path.file_name().unwrap().to_string_lossy();
+    let name = path
+        .file_name()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?
+        .to_string_lossy();
     let temp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
     let written = std::fs::File::create(&temp).and_then(|mut file| {
         for part in parts {

@@ -99,11 +99,9 @@ impl<V: PaletteId> PaletteNames<V> {
     /// out for.
     pub fn entry(&self, id: V) -> Option<(String, Vec<(String, String)>)> {
         let names = self.names.borrow();
-        let index = id.index();
-        (index < names.entries.len()).then(|| {
-            let properties = names.entries.properties(index);
+        names.entries.get(id.index()).map(|(name, properties)| {
             (
-                names.entries.name(index).to_string(),
+                name.to_string(),
                 properties
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -124,14 +122,10 @@ impl<V: PaletteId> PaletteNames<V> {
         let names = self.names.borrow();
         let mut list = BlockStateList::default();
         for &id in ids {
-            let index = id.index();
-            if index >= names.entries.len() {
+            let Some((name, properties)) = names.entries.get(id.index()) else {
                 return Err(id);
-            }
-            list.push(
-                names.entries.name(index),
-                names.entries.properties(index).iter(),
-            );
+            };
+            list.push(name, properties.iter());
         }
         Ok(list)
     }
