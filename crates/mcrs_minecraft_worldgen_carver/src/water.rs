@@ -32,13 +32,18 @@ impl WaterMask {
             return;
         }
         let bit = 1u128 << world_y;
-        self.columns[(local_x * 16 + local_z) as usize] |= bit;
+        if let Some(column) = self.columns.get_mut((local_x * 16 + local_z) as usize) {
+            *column |= bit;
+        }
         self.any |= bit;
     }
 
     #[inline]
     fn column(&self, local_x: i32, local_z: i32) -> u128 {
-        self.columns[(local_x * 16 + local_z) as usize]
+        self.columns
+            .get((local_x * 16 + local_z) as usize)
+            .copied()
+            .unwrap_or(0)
     }
 }
 

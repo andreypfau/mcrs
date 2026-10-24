@@ -221,7 +221,9 @@ impl CarveTarget for Region<'_> {
             for chunk_z in first_z..=last_z {
                 let slot =
                     ((chunk_x - self.origin_x) * self.width + (chunk_z - self.origin_z)) as usize;
-                if live.contains(slot) {
+                if live.contains(slot)
+                    && let Some(mask) = self.masks.get_mut(slot)
+                {
                     carved |= carve_ellipsoid(
                         chunk_x,
                         chunk_z,
@@ -232,7 +234,7 @@ impl CarveTarget for Region<'_> {
                         vertical_radius,
                         shape,
                         &self.no_water,
-                        &mut self.masks[slot],
+                        mask,
                     );
                 }
             }

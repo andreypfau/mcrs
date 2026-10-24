@@ -54,9 +54,8 @@ pub fn carve_source_into<T: CarveTarget>(
         CarverConfig::Canyon { .. } => {
             carve_canyon_into(config, context, target, source_x, source_z, &mut rng)
         }
-        CarverConfig::BetaCave => {
-            unreachable!("a Beta carver seeds from its own chunk seed and carves one column")
-        }
+        // A Beta carver seeds from its own chunk seed and carves one column.
+        CarverConfig::BetaCave => return false,
     }
     true
 }

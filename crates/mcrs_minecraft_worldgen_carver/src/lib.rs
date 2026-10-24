@@ -1,8 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    clippy::unreachable,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #[rustfmt::skip]
 pub mod keys;
 pub mod beta;
@@ -106,7 +101,11 @@ pub fn carve_ellipsoid(
                     }
                     for world_y in (min_y + 1..=max_y).rev() {
                         let yd = (world_y as f64 - 0.5 - y) / vertical_radius;
-                        let width = width_factors[(world_y - anchor - 1) as usize] as f64;
+                        let Some(&width) = width_factors.get((world_y - anchor - 1) as usize)
+                        else {
+                            continue;
+                        };
+                        let width = width as f64;
                         if horizontal * width + yd * yd / 6.0 < 1.0 {
                             mask.carve(local_x, world_y, local_z);
                         }
