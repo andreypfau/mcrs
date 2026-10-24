@@ -20,7 +20,7 @@ no mixins are applied.
 The Minecraft version comes from `assets/minecraft/version.json`, which
 `build.gradle` reads when Gradle configures the project. The version is stated
 nowhere else; a new version reaches this project by updating the corpus with
-`mcrs_minecraft_update` (see `crates/mcrs_minecraft_update/README.md`).
+`mcrs_minecraft_update` (see `tools/mcrs_minecraft_update/README.md`).
 
 A dump is regenerated with the update tool's recapture command, which runs the
 Gradle task into a temporary directory, puts the files where the tests read

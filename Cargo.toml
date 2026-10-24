@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "xtask"]
+members = ["crates/*", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_update", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -127,7 +127,7 @@ mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
 mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
-mcrs_minecraft_fixtures = { path = "crates/mcrs_minecraft_fixtures" }
+mcrs_minecraft_fixtures = { path = "tools/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 
 [workspace.lints.rust]

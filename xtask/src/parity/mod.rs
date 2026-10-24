@@ -10,7 +10,7 @@ use std::path::Path;
 use syn::{Item, Visibility};
 
 pub const TABLE: &str = "tools/fixtures.json";
-pub const LOADER_SOURCE: &str = "crates/mcrs_minecraft_fixtures/src/lib.rs";
+pub const LOADER_SOURCE: &str = "tools/mcrs_minecraft_fixtures/src/lib.rs";
 
 pub enum Selection<'a> {
     Every,
@@ -333,12 +333,12 @@ mod tests {
                 true,
             ),
             (
-                "crates/mcrs_minecraft_fixtures/src/owner.rs",
+                "tools/mcrs_minecraft_fixtures/src/owner.rs",
                 "const P: &str = \"tests/fixtures/demo.bin\";\n",
                 false,
             ),
             (
-                "crates/mcrs_minecraft_update/src/owner.rs",
+                "tools/mcrs_minecraft_update/src/owner.rs",
                 "const P: &str = \"crates/demo/tests/fixtures/demo.bin\";\n",
                 false,
             ),

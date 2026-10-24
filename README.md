@@ -100,7 +100,7 @@ cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
 Updating to a new snapshot is one command; the procedure is in
-[`crates/mcrs_minecraft_update/README.md`](crates/mcrs_minecraft_update/README.md).
+[`tools/mcrs_minecraft_update/README.md`](tools/mcrs_minecraft_update/README.md).
 
 ## Community
 

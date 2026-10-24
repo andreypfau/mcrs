@@ -6,8 +6,8 @@ pub const OUTSIDE_THE_LOADER: &str =
     "fixture path outside the loader: load the fixture through mcrs_minecraft_fixtures";
 
 const OWNERS: [&str; 2] = [
-    "crates/mcrs_minecraft_fixtures/",
-    "crates/mcrs_minecraft_update/",
+    "tools/mcrs_minecraft_fixtures/",
+    "tools/mcrs_minecraft_update/",
 ];
 
 #[derive(Deserialize)]
