@@ -104,39 +104,58 @@ impl Reader for Shared {
 
     fn read(&self, bytes: &[u8]) {
         let period = f32::from_bits(self.period_ns.load(Ordering::Relaxed));
-        let ticks: &[u64] = bytemuck::cast_slice(&bytes[..SLOTS * 2 * TIMESTAMP_BYTES as usize]);
-        let ms: [Option<f32>; SLOTS] =
-            std::array::from_fn(|slot| elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period));
-        self.push(ms);
+        let Some(pairs) = bytes
+            .get(..SLOTS * 2 * TIMESTAMP_BYTES as usize)
+            .and_then(|bytes| bytemuck::try_cast_slice::<u8, [u64; 2]>(bytes).ok())
+            .and_then(|pairs| pairs.first_chunk::<SLOTS>())
+        else {
+            return;
+        };
+        self.push(pairs.map(|[begin, end]| elapsed_ms(begin, end, period)));
     }
 }
 
 struct Samples<const N: usize, const W: usize> {
-    ms: Vec<[f32; W]>,
-    written: [usize; N],
+    slots: Vec<Ring<W>>,
+}
+
+#[derive(Clone)]
+struct Ring<const W: usize> {
+    ms: [f32; W],
+    written: usize,
 }
 
 impl<const N: usize, const W: usize> Default for Samples<N, W> {
     fn default() -> Self {
         Self {
-            ms: vec![[0.0; W]; N],
-            written: [0; N],
+            slots: vec![
+                Ring {
+                    ms: [0.0; W],
+                    written: 0
+                };
+                N
+            ],
         }
     }
 }
 
 impl<const N: usize, const W: usize> Samples<N, W> {
     fn push(&mut self, slot: usize, ms: f32) {
-        let at = self.written[slot] % W;
-        self.ms[slot][at] = ms;
-        self.written[slot] += 1;
+        let Some(ring) = self.slots.get_mut(slot) else {
+            return;
+        };
+        if let Some(at) = ring.ms.get_mut(ring.written % W) {
+            *at = ms;
+        }
+        ring.written += 1;
     }
 
     fn last(&self, slot: usize) -> f32 {
-        match self.written[slot] {
-            0 => 0.0,
-            n => self.ms[slot][(n - 1) % W],
-        }
+        self.slots
+            .get(slot)
+            .and_then(|ring| ring.ms.get(ring.written.checked_sub(1)? % W))
+            .copied()
+            .unwrap_or(0.0)
     }
 
     fn median(&self, slot: usize) -> Option<f32> {
@@ -154,8 +173,15 @@ impl<const N: usize, const W: usize> Samples<N, W> {
         if held == 0 {
             return None;
         }
-        let end = self.written[slot];
-        let mut scratch: Vec<f32> = (end - held..end).map(|i| self.ms[slot][i % W]).collect();
+        let ring = self.slots.get(slot)?;
+        let (newer, older) = ring.ms.split_at_checked(ring.written % W)?;
+        let mut scratch: Vec<f32> = older
+            .iter()
+            .chain(newer)
+            .rev()
+            .take(held)
+            .copied()
+            .collect();
         Some(quantiles.map(|q| {
             let at = ((held as f32 * q) as usize).min(held - 1);
             *scratch.select_nth_unstable_by(at, f32::total_cmp).1
@@ -163,7 +189,7 @@ impl<const N: usize, const W: usize> Samples<N, W> {
     }
 
     fn held(&self, slot: usize) -> usize {
-        self.written[slot].min(W)
+        self.slots.get(slot).map_or(0, |ring| ring.written.min(W))
     }
 }
 
@@ -221,18 +247,23 @@ impl Default for FrameStarts {
 
 impl FrameStarts {
     fn push(&mut self, at: Instant) {
-        self.at[self.written % CPU_WINDOW] = at;
+        if let Some(slot) = self.at.get_mut(self.written % CPU_WINDOW) {
+            *slot = at;
+        }
         self.written += 1;
     }
 
     /// How many of the newest frames began within the window.
     fn recent(&self, now: Instant) -> usize {
-        let held = self.written.min(CPU_WINDOW);
-        (1..=held)
-            .take_while(|&back| {
-                let at = self.at[(self.written - back) % CPU_WINDOW];
-                now.saturating_duration_since(at).as_secs_f32() <= WINDOW_SECS
-            })
+        let Some((newer, older)) = self.at.split_at_checked(self.written % CPU_WINDOW) else {
+            return 0;
+        };
+        older
+            .iter()
+            .chain(newer)
+            .rev()
+            .take(self.written.min(CPU_WINDOW))
+            .take_while(|&&at| now.saturating_duration_since(at).as_secs_f32() <= WINDOW_SECS)
             .count()
     }
 }
@@ -275,12 +306,20 @@ impl CpuTimings {
         })
     }
 
+    fn mark(&self, at: usize, when: Option<Instant>) {
+        if let Ok(mut marks) = self.0.marks.lock()
+            && let Some(mark) = marks.get_mut(at)
+        {
+            *mark = when;
+        }
+    }
+
     fn lap(&self, from: usize, to: usize, slot: usize) {
         let now = Instant::now();
         let Ok(mut marks) = self.0.marks.lock() else {
             return;
         };
-        if let Some(from) = marks[from]
+        if let Some(&Some(from)) = marks.get(from)
             && let Ok(mut samples) = self.0.samples.lock()
         {
             samples.push(
@@ -288,14 +327,14 @@ impl CpuTimings {
                 now.saturating_duration_since(from).as_secs_f32() * 1e3,
             );
         }
-        marks[to] = Some(now);
+        if let Some(mark) = marks.get_mut(to) {
+            *mark = Some(now);
+        }
     }
 }
 
 pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
-    if let Ok(mut marks) = cpu.0.marks.lock() {
-        marks[FRAME_START] = time.last_update();
-    }
+    cpu.mark(FRAME_START, time.last_update());
     if let Some(at) = time.last_update()
         && let Ok(mut starts) = cpu.0.starts.lock()
     {
@@ -318,9 +357,7 @@ pub(crate) fn prepared(cpu: Res<CpuTimings>) {
 /// The swapchain acquire blocks until the display hands a drawable back, so on a machine whose
 /// presentation is throttled this is the wait that hides inside the prepare stage.
 pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
-    if let Ok(mut marks) = cpu.0.marks.lock() {
-        marks[ACQUIRE_START] = Some(Instant::now());
-    }
+    cpu.mark(ACQUIRE_START, Some(Instant::now()));
 }
 
 pub(crate) fn acquired(cpu: Res<CpuTimings>) {

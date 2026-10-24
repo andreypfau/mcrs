@@ -1,7 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 // wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
 // `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]

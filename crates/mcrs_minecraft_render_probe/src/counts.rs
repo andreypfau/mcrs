@@ -12,18 +12,25 @@ use crate::readback::{self, Gate, Reader};
 const TRIANGLES_PER_QUAD: u32 = 2;
 
 fn drawn_quads(args: &[DrawArgs]) -> u32 {
-    (0..2 * STREAMS)
-        .map(|draw| args[draw].vertex_count / VERTICES_PER_QUAD)
+    args.iter()
+        .take(2 * STREAMS)
+        .map(|draw| draw.vertex_count / VERTICES_PER_QUAD)
         .sum()
 }
 
 /// Quads the last frame's depth hid and this frame's did not revive.
 fn hidden_quads(args: &[DrawArgs]) -> u32 {
-    let hidden: u32 = (0..STREAMS)
-        .map(|stream| args[2 * STREAMS + stream].vertex_count)
+    let hidden: u32 = args
+        .iter()
+        .skip(2 * STREAMS)
+        .take(STREAMS)
+        .map(|draw| draw.vertex_count)
         .sum();
-    let revived: u32 = (0..STREAMS)
-        .map(|stream| args[STREAMS + stream].vertex_count / VERTICES_PER_QUAD)
+    let revived: u32 = args
+        .iter()
+        .skip(STREAMS)
+        .take(STREAMS)
+        .map(|draw| draw.vertex_count / VERTICES_PER_QUAD)
         .sum();
     hidden.saturating_sub(revived)
 }
@@ -81,7 +88,9 @@ impl Reader for Counted {
     }
 
     fn read(&self, bytes: &[u8]) {
-        let args: &[DrawArgs] = bytemuck::cast_slice(bytes);
+        let Ok(args) = bytemuck::try_cast_slice::<u8, DrawArgs>(bytes) else {
+            return;
+        };
         self.triangles
             .store(drawn_quads(args) * TRIANGLES_PER_QUAD, Ordering::Relaxed);
         self.hidden
