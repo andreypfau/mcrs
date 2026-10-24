@@ -14,7 +14,7 @@ use mcrs_minecraft_server::{
     NetworkCompressionThreshold, ServerNetworkPlugin,
 };
 
-const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
+const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
 #[tokio::main]
 async fn main() -> AppExit {

@@ -239,7 +239,7 @@ fn encode_and_send(
     for sub_queue in encode_queues {
         for pkt in sub_queue {
             trace!(
-                target: "crate::bridge",
+                target: "mcrs_minecraft_engine::bridge",
                 conn = ?entity,
                 kind = ?std::mem::discriminant(&pkt.data),
                 "dispatch_encode"

@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine"
-description = "The bridge between the network and the dimension worlds, sessions, and the assembly of each dimension world"
+description = "The packet bus, the bridge between the network and the dimension worlds, sessions, and the host side of the dimension channels"
 version.workspace = true
 edition.workspace = true
 
