@@ -5,7 +5,7 @@ use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::{LazyLock, OnceLock};
 
-use bevy_math::DVec3;
+use glam::DVec3;
 use mcrs_minecraft_core::{Bounded, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;

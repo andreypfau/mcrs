@@ -18,7 +18,7 @@ pub struct BridgeTelemetry {
     pub outbound_no_queue_total: u64,
 }
 
-type Check = fn(i32, &mut &[u8]) -> anyhow::Result<Decoded<()>>;
+type Check = fn(i32, &mut &[u8]) -> mcrs_minecraft_protocol::Result<Decoded<()>>;
 
 /// Decode failures per row and ids outside the table, for one serverbound table.
 /// Sized by the table when built; nothing a client sends grows it.

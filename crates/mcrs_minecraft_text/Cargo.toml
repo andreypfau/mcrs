@@ -14,6 +14,7 @@ workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_wire.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true

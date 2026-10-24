@@ -1,4 +1,4 @@
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, Result};
 use std::io::Write;
 
 /// For the first 8 values set means relative value while unset means absolute
@@ -35,15 +35,19 @@ impl PositionFlag {
     }
 }
 
-impl Encode for Vec<PositionFlag> {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        let bitfield = PositionFlag::get_bitfield(self.as_slice());
+/// The flags of a teleport, one bit each on the wire.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
+pub struct PositionFlags(pub Vec<PositionFlag>);
+
+impl Encode for PositionFlags {
+    fn encode(&self, w: impl Write) -> Result<()> {
+        let bitfield = PositionFlag::get_bitfield(&self.0);
         bitfield.encode(w)
     }
 }
 
-impl<'a> Decode<'a> for Vec<PositionFlag> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for PositionFlags {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let bitfield = i32::decode(r)?;
         let mut flags = Vec::with_capacity(9);
         for i in 0..9 {
@@ -63,6 +67,6 @@ impl<'a> Decode<'a> for Vec<PositionFlag> {
                 flags.push(flag);
             }
         }
-        Ok(flags)
+        Ok(PositionFlags(flags))
     }
 }

@@ -14,8 +14,9 @@ fn is_actions(value: Option<&str>) -> bool {
     value == Some("true")
 }
 
-const WASM32_PACKAGES: [&str; 9] = [
+const WASM32_PACKAGES: [&str; 10] = [
     "mcrs_minecraft_protocol",
+    "mcrs_minecraft_wire",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_registry_catalog",
@@ -26,7 +27,7 @@ const WASM32_PACKAGES: [&str; 9] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 46] = [
+const NO_BEVY_PACKAGES: [&str; 47] = [
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
@@ -54,7 +55,6 @@ const NO_BEVY_PACKAGES: [&str; 46] = [
     "mcrs_minecraft_predicate",
     "mcrs_minecraft_profile",
     "mcrs_minecraft_protocol",
-    "mcrs_minecraft_protocol_macros",
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
@@ -63,6 +63,8 @@ const NO_BEVY_PACKAGES: [&str; 46] = [
     "mcrs_minecraft_text",
     "mcrs_minecraft_value_provider",
     "mcrs_minecraft_volume",
+    "mcrs_minecraft_wire",
+    "mcrs_minecraft_wire_macros",
     "mcrs_minecraft_worldgen",
     "mcrs_minecraft_worldgen_builtin",
     "mcrs_minecraft_worldgen_carver",

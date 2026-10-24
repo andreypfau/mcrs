@@ -13,7 +13,6 @@ use mcrs_minecraft_item::keys::RecipeBookCategory;
 use mcrs_minecraft_item::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
 use mcrs_minecraft_protocol::item::WireLookup;
-use mcrs_minecraft_protocol::item::lookup::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, ItemComponentValue, Template, Text, TrimPattern, TrimPatternRef,
 };
@@ -28,6 +27,7 @@ use mcrs_minecraft_protocol::recipe::{
     RecipeBookEntry, RecipeBookSettings, RecipeBookType, RecipeBookTypeSettings, RecipeDisplay,
     RecipePropertySet, SelectableRecipe, SlotDisplay,
 };
+use mcrs_minecraft_protocol::wire::MAX_NESTING;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, IdSet, Ref, Resolved, Wire};
 
@@ -345,10 +345,10 @@ fn ingredient_rejects_what_vanilla_refuses_to_construct() {
     let air_id = Item::Air.id().number() as u8;
     let empty_stonecutter = [1, SlotDisplayType::Empty as u8];
     let error = SelectableRecipe::<Wire>::decode(&mut &empty_stonecutter[..]).unwrap_err();
-    assert_eq!(error.to_string(), "Ingredients can't be empty");
+    assert_eq!(error.kind().to_string(), "Ingredients can't be empty");
     let air_stonecutter = [3, air_id, 1, SlotDisplayType::Empty as u8];
     let error = SelectableRecipe::<Wire>::decode(&mut &air_stonecutter[..]).unwrap_err();
-    assert_eq!(error.to_string(), "Ingredient can't contain air");
+    assert_eq!(error.kind().to_string(), "Ingredient can't contain air");
     let error = Ingredient::<Resolved>(IdSet::List(Box::new([])))
         .validate()
         .unwrap_err();

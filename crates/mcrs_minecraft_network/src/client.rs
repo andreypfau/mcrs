@@ -654,7 +654,9 @@ fn handle_game_packet(
             ),
         );
     } else if let Some(login) = event.try_decode::<ClientboundLogin>() {
-        match login.and_then(|login| in_session(session, &login.player_spawn_info).map(|()| login))
+        match login
+            .map_err(anyhow::Error::from)
+            .and_then(|login| in_session(session, &login.player_spawn_info).map(|()| login))
         {
             Ok(login) => {
                 commands.entity(event.entity).insert((
@@ -669,6 +671,7 @@ fn handle_game_packet(
         }
     } else if let Some(respawn) = event.try_decode::<ClientboundRespawn>() {
         let respawn = respawn
+            .map_err(anyhow::Error::from)
             .and_then(|respawn| in_session(session, &respawn.player_spawn_info).map(|()| respawn));
         match respawn {
             Ok(respawn) => {
@@ -705,7 +708,7 @@ fn handle_game_packet(
             tags: received_tags(update.registries),
         });
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
-        if !position.flags.is_empty() {
+        if !position.flags.0.is_empty() {
             // chisle: every relative flag is treated as absolute. Our server
             // only ever sends absolute teleports; the upgrade is vanilla's
             // `PositionMoveRotation.calculateAbsolute`.

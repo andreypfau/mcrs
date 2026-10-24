@@ -374,7 +374,7 @@ fn profiles_match_vanilla() {
         Profile::KIND,
         &format!("0001054e6f746368000141{}01620000000000", "6e".repeat(65)),
     );
-    assert!(err.contains("expected <= 64, got 65"), "{err}");
+    assert!(err.contains("length 65 exceeds the maximum 64"), "{err}");
     let mut long_name = Profile::named("Notch").unwrap();
     let ProfileIdentity::Partial { properties, .. } = &mut long_name.profile else {
         panic!("{long_name:?}");
@@ -388,7 +388,7 @@ fn profiles_match_vanilla() {
         .encode_checked(&lookup(), &mut wire)
         .unwrap_err();
     assert!(
-        format!("{err:#}").contains("expected <= 64, got 65"),
+        format!("{err:#}").contains("length 65 exceeds the maximum 64"),
         "{err:#}"
     );
 }

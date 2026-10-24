@@ -13,14 +13,26 @@ use crate::component::consume::{
 };
 use crate::harness::Sample;
 use crate::harness::{list_set, one_set, tag_set};
+use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_sound::SoundEventValue;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 float_default! {
     ninety / is_ninety = 90.0f32,
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct BlocksAttacks<M: Refs = Resolved> {
     #[serde(
@@ -83,7 +95,16 @@ fn is_default_reductions<M: Refs>(reductions: &[DamageReduction<M>]) -> bool {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct DamageReduction<M: Refs = Resolved> {
     #[serde(
@@ -109,7 +130,7 @@ impl<M: Refs> Default for DamageReduction<M> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct ItemDamageFunction {
     #[serde(deserialize_with = "non_negative_float")]
@@ -135,7 +156,16 @@ impl ItemDamageFunction {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct PiercingWeapon<M: Refs = Resolved> {
     #[serde(
@@ -355,5 +385,53 @@ impl Sample for KineticWeapon {
                 hit_sound: Some(Ref::Id(SoundEvent::ItemArmorEquipGeneric.id())),
             },
         ]
+    }
+}
+
+impl Encode for KineticWeapon<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.contact_cooldown_ticks.0).encode(&mut w)?;
+        VarInt(self.delay_ticks.0).encode(&mut w)?;
+        self.dismount_conditions.encode(&mut w)?;
+        self.knockback_conditions.encode(&mut w)?;
+        self.damage_conditions.encode(&mut w)?;
+        self.forward_movement.encode(&mut w)?;
+        self.damage_multiplier.encode(&mut w)?;
+        self.sound.encode(&mut w)?;
+        self.hit_sound.encode(w)
+    }
+}
+
+impl Decode<'_> for KineticWeapon<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(KineticWeapon {
+            contact_cooldown_ticks: codec::Bounded(VarInt::decode(r)?.0),
+            delay_ticks: codec::Bounded(VarInt::decode(r)?.0),
+            dismount_conditions: Option::decode(r)?,
+            knockback_conditions: Option::decode(r)?,
+            damage_conditions: Option::decode(r)?,
+            forward_movement: f32::decode(r)?,
+            damage_multiplier: f32::decode(r)?,
+            sound: Option::decode(r)?,
+            hit_sound: Option::decode(r)?,
+        })
+    }
+}
+
+impl Encode for KineticCondition {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.max_duration_ticks.0).encode(&mut w)?;
+        self.min_speed.encode(&mut w)?;
+        self.min_relative_speed.encode(w)
+    }
+}
+
+impl Decode<'_> for KineticCondition {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(KineticCondition {
+            max_duration_ticks: codec::Bounded(VarInt::decode(r)?.0),
+            min_speed: f32::decode(r)?,
+            min_relative_speed: f32::decode(r)?,
+        })
     }
 }

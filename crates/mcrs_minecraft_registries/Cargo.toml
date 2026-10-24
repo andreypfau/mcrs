@@ -19,6 +19,7 @@ mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries_derive.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_wire.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

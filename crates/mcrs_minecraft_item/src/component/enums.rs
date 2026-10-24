@@ -6,6 +6,9 @@ use crate::component::common::{ordinal_enum, transparent_newtype};
 use crate::component::registry_ref::null_as_default;
 use crate::component::scalar::record_codec;
 use crate::harness::Sample;
+use crate::wire::ordinal_enum_wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 macro_rules! enum_samples {
     ($($ty:ident),* $(,)?) => {$(
@@ -194,15 +197,93 @@ impl Sample for SwingAnimation {
 }
 
 transparent_newtype! {
-    AttackAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    InteractAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    Dye(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    BaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    WolfCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    TropicalFishBaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    TropicalFishPatternColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    CatCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    SheepColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    ShulkerColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
-    CushionColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    AttackAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    InteractAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    Dye(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    BaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    WolfCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    TropicalFishBaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    TropicalFishPatternColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    CatCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    SheepColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    ShulkerColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+    CushionColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode],
+}
+
+ordinal_enum_wire!(
+    Rarity,
+    DyeColor,
+    MapPostProcessing,
+    SwingAnimationKind,
+    FoxVariant,
+    AxolotlVariant
+);
+
+/// The wire id is the ordinal; an out-of-range id is clamped or wrapped.
+macro_rules! continuous_enum_wire {
+    ($($name:ident [$strategy:ident]),* $(,)?) => {$(
+        impl Encode for $name {
+            fn encode(&self, w: impl Write) -> Result<()> {
+                VarInt(*self as i32).encode(w)
+            }
+        }
+
+        impl Decode<'_> for $name {
+            fn decode(r: &mut &[u8]) -> Result<Self> {
+                let id = VarInt::decode(r)?.0;
+                let len = Self::ALL.len() as i32;
+                Ok(Self::ALL[continuous_enum_wire!(@$strategy id, len) as usize])
+            }
+        }
+    )*};
+    (@clamp $id:expr, $len:expr) => { $id.clamp(0, $len - 1) };
+    (@wrap $id:expr, $len:expr) => { $id.rem_euclid($len) };
+}
+
+continuous_enum_wire!(
+    SalmonSize[clamp],
+    ParrotVariant[clamp],
+    MooshroomVariant[clamp],
+    LlamaVariant[clamp],
+    HorseVariant[wrap],
+);
+
+/// An unknown id reads as the first variant.
+macro_rules! sparse_enum_wire {
+    ($($name:ident),* $(,)?) => {$(
+        impl Encode for $name {
+            fn encode(&self, w: impl Write) -> Result<()> {
+                VarInt(self.id()).encode(w)
+            }
+        }
+
+        impl Decode<'_> for $name {
+            fn decode(r: &mut &[u8]) -> Result<Self> {
+                let id = VarInt::decode(r)?.0;
+                Ok(Self::ALL
+                    .iter()
+                    .copied()
+                    .find(|variant| variant.id() == id)
+                    .unwrap_or(Self::ALL[0]))
+            }
+        }
+    )*};
+}
+
+sparse_enum_wire!(RabbitVariant, TropicalFishPattern);
+
+impl Encode for SwingAnimation {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.kind.encode(&mut w)?;
+        VarInt(self.duration.0).encode(w)
+    }
+}
+
+impl Decode<'_> for SwingAnimation {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(SwingAnimation {
+            kind: SwingAnimationKind::decode(r)?,
+            duration: Bounded(VarInt::decode(r)?.0),
+        })
+    }
 }

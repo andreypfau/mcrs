@@ -1,4 +1,5 @@
 pub mod clientbound {
+    use crate::ByteAngle;
     use crate::advancement::{AdvancementProgress, PositionedAdvancement};
     use crate::block::BlockStateNumber;
     use crate::chunk::ChunkBlockUpdateEntry;
@@ -11,9 +12,8 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, LpVec3, PositionFlag, VarInt};
-    use crate::{Decode as _, Encode as _};
-    use bevy_math::DVec3;
+    use crate::{ColumnPos, Look, LpVec3, PositionFlags, Result, VarInt};
+    use glam::DVec3;
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
@@ -21,9 +21,8 @@ pub mod clientbound {
     use mcrs_minecraft_entity::keys::{Attribute, EntityType};
     use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_particle::ParticleOptions;
-    use mcrs_minecraft_protocol::ByteAngle;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use mcrs_minecraft_registries::Wire;
+    use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -163,7 +162,7 @@ pub mod clientbound {
     }
 
     impl crate::Decode<'_> for ParticleRandomization {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> Result<Self> {
             // Vanilla maps an unknown id to the first variant instead of rejecting it.
             Ok(match VarInt::decode(r)?.0 {
                 1 => Self::Alternative,
@@ -226,7 +225,7 @@ pub mod clientbound {
             }
         }
 
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> Result<()> {
             match self {
                 Self::Linear(delta) => delta.encode(w),
                 Self::Stepped(steps) => {
@@ -238,12 +237,12 @@ pub mod clientbound {
             }
         }
 
-        fn decode(r: &mut &[u8], step_count: i32) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8], step_count: i32) -> Result<Self> {
             if step_count <= 0 {
                 return Ok(Self::Linear(crate::Decode::decode(r)?));
             }
             let step_count = step_count as usize;
-            anyhow::ensure!(
+            crate::wire::ensure!(
                 step_count <= r.len() / Self::MIN_ENCODED_STEP_LEN,
                 "VecDelta with {step_count} steps exceeds the remaining input"
             );
@@ -271,7 +270,7 @@ pub mod clientbound {
     }
 
     impl crate::Encode for ClientboundMoveEntityPos {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> Result<()> {
             self.entity_id.encode(&mut w)?;
             pack_move_properties(self.on_ground, self.delta.step_count()).encode(&mut w)?;
             self.delta.encode(w)
@@ -279,7 +278,7 @@ pub mod clientbound {
     }
 
     impl crate::Decode<'_> for ClientboundMoveEntityPos {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> Result<Self> {
             let entity_id = VarInt::decode(r)?;
             let (on_ground, step_count) = unpack_move_properties(VarInt::decode(r)?);
             Ok(Self {
@@ -300,7 +299,7 @@ pub mod clientbound {
     }
 
     impl crate::Encode for ClientboundMoveEntityPosRot {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> Result<()> {
             self.entity_id.encode(&mut w)?;
             pack_move_properties(self.on_ground, self.delta.step_count()).encode(&mut w)?;
             self.delta.encode(&mut w)?;
@@ -310,7 +309,7 @@ pub mod clientbound {
     }
 
     impl crate::Decode<'_> for ClientboundMoveEntityPosRot {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> Result<Self> {
             let entity_id = VarInt::decode(r)?;
             let (on_ground, step_count) = unpack_move_properties(VarInt::decode(r)?);
             let delta = VecDelta::decode(r, step_count)?;
@@ -367,7 +366,7 @@ pub mod clientbound {
         pub position: DVec3,
         pub velocity: DVec3,
         pub look: Look,
-        pub flags: Vec<PositionFlag>,
+        pub flags: PositionFlags,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -429,8 +428,8 @@ pub mod clientbound {
     }
 
     impl crate::Encode for ClientboundSetEquipment {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-            anyhow::ensure!(!self.slots.is_empty(), "SetEquipment with no slots");
+        fn encode(&self, mut w: impl Write) -> Result<()> {
+            crate::wire::ensure!(!self.slots.is_empty(), "SetEquipment with no slots");
             self.entity_id.encode(&mut w)?;
             let last = self.slots.len() - 1;
             for (i, (slot, stack)) in self.slots.iter().enumerate() {
@@ -443,13 +442,15 @@ pub mod clientbound {
     }
 
     impl crate::Decode<'_> for ClientboundSetEquipment {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> Result<Self> {
             let entity_id = VarInt::decode(r)?;
             let mut slots = Vec::new();
             loop {
                 let byte = u8::decode(r)?;
                 slots.push((
-                    EquipmentSlot::from_id(byte & 0x7F)?,
+                    EquipmentSlot::from_id(byte & 0x7F).ok_or_else(|| {
+                        crate::Error::invalid(format!("invalid equipment slot {}", byte & 0x7F))
+                    })?,
                     ProtoStack::<Wire>::decode(r)?,
                 ));
                 if byte & 0x80 == 0 {
@@ -553,7 +554,7 @@ pub mod clientbound {
     }
 
     impl<'a> crate::Encode for ClientboundPlayerInfoUpdate<'a> {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> Result<()> {
             self.actions.into_bits().encode(&mut w)?;
 
             // Write number of entries.
@@ -593,7 +594,7 @@ pub mod clientbound {
     }
 
     impl<'a> crate::Decode<'a> for ClientboundPlayerInfoUpdate<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> Result<Self> {
             let actions = PlayerListActions::from_bits(u8::decode(r)?);
 
             let mut entries = vec![];
@@ -701,13 +702,13 @@ pub mod serverbound {
     const ABILITIES_FLYING: u8 = 2;
 
     impl Encode for ServerboundPlayerAbilities {
-        fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+        fn encode(&self, w: impl std::io::Write) -> crate::Result<()> {
             (if self.flying { ABILITIES_FLYING } else { 0 }).encode(w)
         }
     }
 
     impl Decode<'_> for ServerboundPlayerAbilities {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> crate::Result<Self> {
             Ok(Self {
                 flying: u8::decode(r)? & ABILITIES_FLYING != 0,
             })
@@ -746,13 +747,13 @@ pub mod serverbound {
     }
 
     impl Encode for PlayerInputFlags {
-        fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+        fn encode(&self, w: impl std::io::Write) -> crate::Result<()> {
             self.into_bits().encode(w)
         }
     }
 
     impl Decode<'_> for PlayerInputFlags {
-        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &[u8]) -> crate::Result<Self> {
             Ok(Self::from_bits(u8::decode(r)?))
         }
     }

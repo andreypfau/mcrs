@@ -10,6 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::component::common::{MobEffectDetails, MobEffectInstance};
 use crate::harness::{Sample, entry};
 use crate::keys::Potion;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result};
+use std::io::Write;
 
 /// The full map, or on read a bare potion id. Custom effects never carry a
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder
@@ -185,5 +188,29 @@ impl Sample for PotionContents {
                 custom_name: Some("mcrs".into()),
             },
         ]
+    }
+}
+
+impl Encode for PotionContents<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.potion.encode(&mut w)?;
+        self.custom_color.encode(&mut w)?;
+        self.visible_effects().encode(&mut w)?;
+        self.custom_name.encode(w)
+    }
+}
+
+impl Decode<'_> for PotionContents<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let potion = Option::decode(r)?;
+        let custom_color = Option::decode(r)?;
+        let mut custom_effects: Vec<MobEffectInstance<Wire>> = Vec::decode(r)?;
+        strip_hidden(&mut custom_effects);
+        Ok(PotionContents {
+            potion,
+            custom_color,
+            custom_effects,
+            custom_name: Option::decode(r)?,
+        })
     }
 }

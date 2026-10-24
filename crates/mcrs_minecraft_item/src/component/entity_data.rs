@@ -8,10 +8,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::component::common::TypedEntityData;
 use crate::harness::Sample;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 macro_rules! typed_entity_component {
     ($($ty:ident($registry:ident) [$first:literal, $second:literal]),* $(,)?) => {$(
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
         pub struct $ty(pub TypedEntityData<$registry>);
 
@@ -35,7 +38,7 @@ typed_entity_component! {
     BlockEntityData(BlockEntityType) ["chest", "sign"],
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct Bees(pub Vec<BeeOccupant>);
 
@@ -98,4 +101,22 @@ fn typed_tags(tag: &NbtCompound) -> Vec<(&'static str, u8)> {
         ]);
     }
     tags
+}
+
+impl Encode for BeeOccupant {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.entity_data.encode(&mut w)?;
+        VarInt(self.ticks_in_hive).encode(&mut w)?;
+        VarInt(self.min_ticks_in_hive).encode(w)
+    }
+}
+
+impl Decode<'_> for BeeOccupant {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(BeeOccupant {
+            entity_data: TypedEntityData::decode(r)?,
+            ticks_in_hive: VarInt::decode(r)?.0,
+            min_ticks_in_hive: VarInt::decode(r)?.0,
+        })
+    }
 }

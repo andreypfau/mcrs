@@ -1,7 +1,7 @@
 pub mod serverbound {
     use crate::handshake::Intent;
     use crate::{Bounded, VarInt};
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundHandshake<'a> {

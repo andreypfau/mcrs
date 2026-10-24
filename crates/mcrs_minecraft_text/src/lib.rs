@@ -70,6 +70,7 @@ pub trait TextMap<A: TextTypes, B: TextTypes> {
 
 pub mod color;
 mod into_text;
+mod wire;
 
 pub use color::Color;
 pub use into_text::IntoText;

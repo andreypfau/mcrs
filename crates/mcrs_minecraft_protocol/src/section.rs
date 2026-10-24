@@ -1,4 +1,5 @@
-use anyhow::Context;
+use crate::Result;
+use crate::wire::Context;
 use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 use mcrs_minecraft_core::BlockStateId;
 
@@ -66,7 +67,7 @@ pub trait SectionEntry: Copy + Into<u16> {
 
 /// A section entry that can be read back from its registry id alone.
 pub trait SectionValue: SectionEntry {
-    fn from_registry_id(id: u16) -> anyhow::Result<Self>;
+    fn from_registry_id(id: u16) -> Result<Self>;
 }
 
 impl SectionEntry for BlockStateId {
@@ -78,7 +79,7 @@ impl SectionEntry for VoxelId {
 }
 
 impl SectionValue for VoxelId {
-    fn from_registry_id(id: u16) -> anyhow::Result<Self> {
+    fn from_registry_id(id: u16) -> Result<Self> {
         Ok(VoxelId(id))
     }
 }
@@ -88,8 +89,10 @@ impl SectionEntry for u8 {
 }
 
 impl SectionValue for u8 {
-    fn from_registry_id(id: u16) -> anyhow::Result<Self> {
-        u8::try_from(id).with_context(|| format!("biome id {id}"))
+    fn from_registry_id(id: u16) -> Result<Self> {
+        u8::try_from(id)
+            .ok()
+            .with_context(|| format!("biome id {id}"))
     }
 }
 

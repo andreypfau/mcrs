@@ -375,14 +375,14 @@ macro_rules! tables {
                 pub fn decode$(<$tlt>)?(
                     id: i32,
                     r: &mut &$($tlt)? [u8],
-                ) -> anyhow::Result<$crate::packets::table::Decoded<$enum $(<$tlt>)?>> {
+                ) -> crate::Result<$crate::packets::table::Decoded<$enum $(<$tlt>)?>> {
                     $($(
                         if id == <rows::$ty as $crate::Packet>::ID {
                             return <rows::$ty as $crate::Decode>::decode(r)
                                 .map($enum::$ty)
                                 .map($crate::packets::table::Decoded::Packet)
                                 .map_err(|error| {
-                                    error.context(concat!("decoding ", $name, " (", stringify!($table), ")"))
+                                    error.with_context(concat!("decoding ", $name, " (", stringify!($table), ")"))
                                 });
                         }
                     )?)*

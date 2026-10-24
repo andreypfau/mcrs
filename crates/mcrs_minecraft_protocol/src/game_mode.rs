@@ -1,9 +1,9 @@
 use std::io::Write;
 
-use anyhow::bail;
+use crate::wire::bail;
 use derive_more::{From, Into};
 
-use crate::{Decode, Encode, VarInt};
+use crate::{Decode, Encode, Result, VarInt};
 
 #[derive(
     Copy, Clone, PartialEq, Eq, Debug, Default, Encode, Decode, serde::Serialize, serde::Deserialize,
@@ -30,13 +30,13 @@ impl GameMode {
 pub struct OptGameMode(pub Option<GameMode>);
 
 impl Encode for OptGameMode {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, w: impl Write) -> Result<()> {
         VarInt(self.0.map_or(0, |gm| gm as i32 + 1)).encode(w)
     }
 }
 
 impl Decode<'_> for OptGameMode {
-    fn decode(r: &mut &'_ [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'_ [u8]) -> Result<Self> {
         Ok(Self(match VarInt::decode(r)?.0 {
             0 => None,
             1 => Some(GameMode::Survival),

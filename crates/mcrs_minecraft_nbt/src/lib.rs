@@ -26,12 +26,14 @@ mod snbt_golden;
 pub mod tag;
 pub mod tag_deserializer;
 pub mod tag_serializer;
+mod wire;
 
 pub use deserializer::{from_bytes, from_bytes_unnamed};
 pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
 
 pub use tag_deserializer::from_tag;
 pub use tag_serializer::{to_nbt_compound, to_nbt_tag};
+pub use wire::{WireDeserializer, decode_wire, encode_wire, read_wire};
 
 thread_local! {
     static BINARY_READS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };

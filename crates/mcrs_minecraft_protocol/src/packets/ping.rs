@@ -1,6 +1,6 @@
 pub mod clientbound {
     use derive_more::Into;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into)]
     pub struct PongResponse {
@@ -10,7 +10,7 @@ pub mod clientbound {
 
 pub mod serverbound {
     use derive_more::Into;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into)]
     pub struct PingRequest {

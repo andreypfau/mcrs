@@ -7,6 +7,9 @@ use crate::Text;
 use crate::component::common::WireRef;
 use crate::harness::Sample;
 use crate::harness::entry;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -24,7 +27,16 @@ pub struct PaintingVariantValue<M: Refs = Resolved> {
 /// The persistent form is the registry id alone; the wire form carries the
 /// variant inline.
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct PaintingVariant<M: Refs = Resolved>(
     pub WireRef<M, PaintingVariantValue, PaintingVariantValue<M>>,
@@ -37,5 +49,27 @@ impl Sample for PaintingVariant {
 
     fn samples() -> Vec<Self> {
         vec![PaintingVariant(WireRef(Ref::Id(entry("kebab"))))]
+    }
+}
+
+impl Encode for PaintingVariantValue<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.width.0).encode(&mut w)?;
+        VarInt(self.height.0).encode(&mut w)?;
+        self.asset_id.encode(&mut w)?;
+        self.title.encode(&mut w)?;
+        self.author.encode(w)
+    }
+}
+
+impl Decode<'_> for PaintingVariantValue<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(PaintingVariantValue {
+            width: Bounded(VarInt::decode(r)?.0),
+            height: Bounded(VarInt::decode(r)?.0),
+            asset_id: ResourceLocation::decode(r)?,
+            title: Option::decode(r)?,
+            author: Option::decode(r)?,
+        })
     }
 }

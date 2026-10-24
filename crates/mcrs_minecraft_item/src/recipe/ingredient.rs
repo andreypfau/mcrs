@@ -3,9 +3,11 @@ use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::validated;
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_registries::{
-    IdSet, KeySet, Named, Refs, Resolved, WireId, WireSet, registry_value,
+    IdSet, KeySet, Named, Refs, Resolved, Wire, WireId, WireSet, registry_value,
 };
+use mcrs_minecraft_wire::{Decode, Encode, Error, Result};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 
 use crate::stack::ItemRef;
 
@@ -58,5 +60,20 @@ where
 {
     fn validate(&self) -> Result<(), String> {
         self.0.listed().map_or(Ok(()), check_items)
+    }
+}
+
+impl Encode for Ingredient<Wire> {
+    fn encode(&self, w: impl Write) -> Result<()> {
+        self.validate().map_err(Error::invalid)?;
+        self.0.encode(w)
+    }
+}
+
+impl Decode<'_> for Ingredient<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let ingredient = Ingredient(Decode::decode(r)?);
+        ingredient.validate().map_err(Error::invalid)?;
+        Ok(ingredient)
     }
 }

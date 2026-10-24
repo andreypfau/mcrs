@@ -77,7 +77,7 @@ enum Outcome {
     Failed(String),
 }
 
-fn outcome<P>(result: anyhow::Result<Decoded<P>>, left: usize) -> Outcome {
+fn outcome<P>(result: mcrs_minecraft_protocol::Result<Decoded<P>>, left: usize) -> Outcome {
     match result {
         Ok(Decoded::Packet(_)) => Outcome::Packet,
         Ok(Decoded::NotImplemented(name)) => Outcome::NotImplemented { name, left },

@@ -6,9 +6,19 @@ use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use serde::{Deserialize, Serialize};
 
 use crate::harness::Sample;
+use mcrs_minecraft_wire::{Decode, Encode};
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct BreakSound<M: Refs = Resolved>(pub Sound<M>);
 

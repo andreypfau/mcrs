@@ -34,14 +34,14 @@ pub mod clientbound {
     }
 
     impl Encode for Payload<'_> {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             match self {
                 Payload::Brand(brand) => {
                     BRAND_CHANNEL.encode(&mut w)?;
                     brand.encode(w)
                 }
                 Payload::Raw(raw) => {
-                    anyhow::ensure!(
+                    crate::wire::ensure!(
                         raw.channel != BRAND_CHANNEL,
                         "the channel {} is a typed payload",
                         raw.channel
@@ -53,7 +53,7 @@ pub mod clientbound {
     }
 
     impl<'a> Decode<'a> for Payload<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> crate::Result<Self> {
             let channel = ResourceLocation::decode(r)?;
             if channel == BRAND_CHANNEL {
                 return Ok(Payload::Brand(Brand::decode(r)?));
@@ -134,20 +134,20 @@ pub mod serverbound {
     #[derive(Clone, PartialEq, Eq, Debug, Default)]
     pub struct ModList<'a>(pub Vec<(ResourceLocation<Cow<'a, str>>, PropertyMap<'a>)>);
 
-    fn write_count(w: impl Write, len: usize, max: usize, what: &str) -> anyhow::Result<()> {
-        anyhow::ensure!(len <= max, "{what} of {len} entries exceeds {max}");
+    fn write_count(w: impl Write, len: usize, max: usize, what: &str) -> crate::Result<()> {
+        crate::wire::ensure!(len <= max, "{what} of {len} entries exceeds {max}");
         VarInt(len as i32).encode(w)
     }
 
-    fn read_count(r: &mut &[u8], max: usize, what: &str) -> anyhow::Result<usize> {
+    fn read_count(r: &mut &[u8], max: usize, what: &str) -> crate::Result<usize> {
         let len = VarInt::decode(r)?.0;
-        anyhow::ensure!(len >= 0, "{what} has a negative length");
-        anyhow::ensure!(len as usize <= max, "{what} of {len} entries exceeds {max}");
+        crate::wire::ensure!(len >= 0, "{what} has a negative length");
+        crate::wire::ensure!(len as usize <= max, "{what} of {len} entries exceeds {max}");
         Ok(len as usize)
     }
 
     impl Encode for PropertyMap<'_> {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             write_count(&mut w, self.0.len(), MAX_PROPERTIES, "a property map")?;
             for (key, value) in &self.0 {
                 key.encode(&mut w)?;
@@ -158,7 +158,7 @@ pub mod serverbound {
     }
 
     impl<'a> Decode<'a> for PropertyMap<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> crate::Result<Self> {
             let len = read_count(r, MAX_PROPERTIES, "a property map")?;
             let mut pairs = Vec::with_capacity(len.min(r.len()));
             for _ in 0..len {
@@ -171,7 +171,7 @@ pub mod serverbound {
     }
 
     impl Encode for ModList<'_> {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             write_count(&mut w, self.0.len(), MAX_MOD_ENTRIES, "a mod list")?;
             for (key, properties) in &self.0 {
                 key.encode(&mut w)?;
@@ -182,7 +182,7 @@ pub mod serverbound {
     }
 
     impl<'a> Decode<'a> for ModList<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> crate::Result<Self> {
             let len = read_count(r, MAX_MOD_ENTRIES, "a mod list")?;
             let mut entries = Vec::with_capacity(len.min(r.len()));
             for _ in 0..len {
@@ -200,7 +200,7 @@ pub mod serverbound {
     }
 
     impl Encode for Payload<'_> {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             match self {
                 Payload::Brand(brand) => {
                     BRAND_CHANNEL.encode(&mut w)?;
@@ -211,7 +211,7 @@ pub mod serverbound {
                     mods.encode(w)
                 }
                 Payload::Raw(raw) => {
-                    anyhow::ensure!(
+                    crate::wire::ensure!(
                         raw.channel != BRAND_CHANNEL && raw.channel != MOD_LIST_CHANNEL,
                         "the channel {} is a typed payload",
                         raw.channel
@@ -223,7 +223,7 @@ pub mod serverbound {
     }
 
     impl<'a> Decode<'a> for Payload<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> crate::Result<Self> {
             let channel = ResourceLocation::decode(r)?;
             if channel == BRAND_CHANNEL {
                 return Ok(Payload::Brand(Brand::decode(r)?));
@@ -263,15 +263,17 @@ pub mod serverbound {
     }
 
     impl Encode for CustomClickAction<'_> {
-        fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl std::io::Write) -> crate::Result<()> {
             self.id.encode(&mut w)?;
             let mut body = Vec::new();
             match &self.payload {
                 None => body.push(NbtTag::End.get_type_id()),
-                Some(NbtTag::End) => anyhow::bail!("a click action payload cannot be an end tag"),
+                Some(NbtTag::End) => {
+                    crate::wire::bail!("a click action payload cannot be an end tag")
+                }
                 Some(tag) => tag.encode(&mut body)?,
             }
-            anyhow::ensure!(
+            crate::wire::ensure!(
                 body.len() <= MAX_CLICK_PAYLOAD,
                 "a click action payload of {} bytes exceeds {MAX_CLICK_PAYLOAD}",
                 body.len()
@@ -281,14 +283,14 @@ pub mod serverbound {
     }
 
     impl<'a> Decode<'a> for CustomClickAction<'a> {
-        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        fn decode(r: &mut &'a [u8]) -> crate::Result<Self> {
             let id = ResourceLocation::decode(r)?;
             let Bounded(mut body) = Bounded::<&[u8], MAX_CLICK_PAYLOAD>::decode(r)?;
             let payload = match NbtTag::decode(&mut body)? {
                 NbtTag::End => None,
                 tag => Some(tag),
             };
-            anyhow::ensure!(
+            crate::wire::ensure!(
                 body.is_empty(),
                 "{} bytes follow a click action payload",
                 body.len()
@@ -317,7 +319,7 @@ mod tests {
         bytes
     }
 
-    fn encoded(value: &impl Encode) -> anyhow::Result<Vec<u8>> {
+    fn encoded(value: &impl Encode) -> crate::Result<Vec<u8>> {
         let mut bytes = Vec::new();
         value.encode(&mut bytes)?;
         Ok(bytes)

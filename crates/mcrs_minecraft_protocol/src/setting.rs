@@ -1,5 +1,5 @@
 use bitfield_struct::bitfield;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug, Encode, Decode)]
 pub enum ChatMode {

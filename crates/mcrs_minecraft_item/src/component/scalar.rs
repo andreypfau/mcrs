@@ -6,6 +6,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::RgbInt;
 use crate::harness::Sample;
+use crate::wire::var_int_wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
+use std::io::Write;
 
 macro_rules! var_int_newtype {
     ($($(#[$meta:meta])* $ty:ident($(#[$field:meta])* $inner:ty) [$($sample:expr),+ $(,)?]),* $(,)?) => {$(
@@ -35,7 +38,7 @@ var_int_newtype! {
     OminousBottleAmplifier(codec::Bounded<0, 4, 0>) [codec::Bounded(0), codec::Bounded(4)],
     #[derive(Default)]
     MapId(#[serde(deserialize_with = "int_value")] i32) [0, 12345, -1],
-    #[derive(Default)]
+    #[derive(Default, Encode, Decode)]
     DyedColor(RgbInt) [RgbInt(0), RgbInt(0xFF0000), RgbInt(-6265536)],
 }
 
@@ -149,7 +152,9 @@ var_int_record! {
 #[serde(transparent)]
 pub struct AdditionalTradeCost(pub i32);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Encode, Decode,
+)]
 #[serde(transparent)]
 pub struct EnchantmentGlintOverride(pub bool);
 
@@ -171,6 +176,7 @@ macro_rules! float_newtype {
     ($($(#[$meta:meta])* $ty:ident [$min:expr, $max:expr] $message:expr),* $(,)?) => {$(
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Default)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         pub struct $ty(pub f32);
 
         impl Serialize for $ty {
@@ -227,4 +233,38 @@ impl Sample for EnchantmentGlintOverride {
             EnchantmentGlintOverride(false),
         ]
     }
+}
+
+var_int_wire!(
+    MaxStackSize,
+    MaxDamage,
+    Damage,
+    RepairCost,
+    OminousBottleAmplifier,
+    MapId,
+    AdditionalTradeCost,
+);
+
+macro_rules! var_int_record_wire {
+    ($($ty:ident { $field:ident } $(=> $guard:expr)?),* $(,)?) => {$(
+        impl Encode for $ty {
+            fn encode(&self, w: impl Write) -> Result<()> {
+                VarInt(self.$field.0).encode(w)
+            }
+        }
+
+        impl Decode<'_> for $ty {
+            fn decode(r: &mut &[u8]) -> Result<Self> {
+                let $field = VarInt::decode(r)?.0;
+                $($guard;)?
+                Ok($ty { $field: codec::Bounded($field) })
+            }
+        }
+    )*};
+}
+
+var_int_record_wire! {
+    Enchantable { value }
+        => ensure!(value > 0, "Enchantment value must be positive, but was {value}"),
+    VillagerFood { nutrition },
 }

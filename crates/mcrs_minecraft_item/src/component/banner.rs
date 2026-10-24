@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
 use crate::harness::entry;
+use mcrs_minecraft_wire::{Decode, Encode};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct BannerPattern {
     pub asset_id: ResourceLocation,
@@ -18,7 +19,16 @@ pub struct BannerPattern {
 mcrs_minecraft_registries::resolve_as_is!(BannerPattern);
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct BannerLayer<M: Refs = Resolved> {
     pub pattern: Ref<M, BannerPattern, BannerPattern>,
@@ -27,7 +37,15 @@ pub struct BannerLayer<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(transparent)]
 pub struct BannerPatterns<M: Refs = Resolved>(pub Vec<BannerLayer<M>>);

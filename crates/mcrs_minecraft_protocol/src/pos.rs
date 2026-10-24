@@ -1,7 +1,7 @@
-use crate::{Decode, Encode};
-use bevy_math::DVec3;
+use crate::{ColumnPos, Decode, Encode, Result};
 use bitfield_struct::bitfield;
 use derive_more::Deref;
+use glam::DVec3;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default, Deref)]
 pub struct Position(DVec3);
@@ -25,7 +25,7 @@ impl From<Position> for DVec3 {
 }
 
 impl Encode for Position {
-    fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
         let pos = self.0;
         pos.encode(&mut w)?;
         Ok(())
@@ -33,7 +33,7 @@ impl Encode for Position {
 }
 
 impl Decode<'_> for Position {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let pos = DVec3::decode(r)?;
         Ok(Position(pos))
     }
@@ -57,7 +57,7 @@ pub struct Look {
 }
 
 impl Encode for Look {
-    fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
         self.yaw.encode(&mut w)?;
         self.pitch.encode(&mut w)?;
         Ok(())
@@ -65,7 +65,7 @@ impl Encode for Look {
 }
 
 impl Decode<'_> for Look {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let yaw = f32::decode(r)?;
         let pitch = f32::decode(r)?;
         Ok(Look { yaw, pitch })
@@ -81,15 +81,22 @@ pub struct MoveFlags {
 }
 
 impl Encode for MoveFlags {
-    fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
         self.0.encode(&mut w)?;
         Ok(())
     }
 }
 
 impl Decode<'_> for MoveFlags {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let byte = u8::decode(r)?;
         Ok(MoveFlags::from_bits(byte))
+    }
+}
+
+impl From<Position> for ColumnPos {
+    #[inline]
+    fn from(pos: Position) -> Self {
+        Self::from(*pos)
     }
 }

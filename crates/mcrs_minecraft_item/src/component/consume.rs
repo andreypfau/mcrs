@@ -11,7 +11,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::component::common::{ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set};
+use crate::keys::ConsumeEffectType;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
+use mcrs_minecraft_wire::{Decode, Encode, Result, bail};
+use std::io::Write;
 
 /// A ranged float field with vanilla's error wording; the bounds order `-0.0`
 /// below `0.0` and NaN outside every range.
@@ -97,7 +102,16 @@ pub enum ConsumeEffect<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct Consumable<M: Refs = Resolved> {
     #[serde(
@@ -152,7 +166,15 @@ impl<M: Refs> Default for Consumable<M> {
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(deny_unknown_fields)]
 pub struct DeathProtection<M: Refs = Resolved> {
@@ -275,5 +297,56 @@ impl Sample for DeathProtection {
                 death_effects: every_consume_effect(),
             },
         ]
+    }
+}
+
+impl Encode for ConsumeEffect<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        encode_registry_id(self.kind() as u16, &mut w)?;
+        match self {
+            Self::ApplyEffects {
+                effects,
+                probability,
+            } => {
+                effects.encode(&mut w)?;
+                probability.encode(w)
+            }
+            Self::RemoveEffects { effects } => effects.encode(w),
+            Self::ClearAllEffects => Ok(()),
+            Self::TeleportRandomly {
+                diameter,
+                directional_particles,
+            } => {
+                diameter.encode(&mut w)?;
+                directional_particles.encode(w)
+            }
+            Self::PlaySound { sound } => sound.encode(w),
+        }
+    }
+}
+
+impl Decode<'_> for ConsumeEffect<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let id = decode_registry_id(r)?;
+        let Some(kind) = ConsumeEffectType::from_protocol_id(id) else {
+            bail!("unknown consume effect type {id}");
+        };
+        Ok(match kind {
+            ConsumeEffectType::ApplyEffects => Self::ApplyEffects {
+                effects: Vec::decode(r)?,
+                probability: f32::decode(r)?,
+            },
+            ConsumeEffectType::RemoveEffects => Self::RemoveEffects {
+                effects: Decode::decode(r)?,
+            },
+            ConsumeEffectType::ClearAllEffects => Self::ClearAllEffects,
+            ConsumeEffectType::TeleportRandomly => Self::TeleportRandomly {
+                diameter: f32::decode(r)?,
+                directional_particles: bool::decode(r)?,
+            },
+            ConsumeEffectType::PlaySound => Self::PlaySound {
+                sound: Decode::decode(r)?,
+            },
+        })
     }
 }

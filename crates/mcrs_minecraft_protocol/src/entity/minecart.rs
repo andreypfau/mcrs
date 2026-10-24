@@ -1,6 +1,6 @@
-use bevy_math::DVec3;
-use mcrs_minecraft_protocol::ByteAngle;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use crate::ByteAngle;
+use glam::DVec3;
+use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Encode, Decode)]
 pub struct MinecartStep {

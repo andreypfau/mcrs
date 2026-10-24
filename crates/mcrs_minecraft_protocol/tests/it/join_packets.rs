@@ -144,7 +144,7 @@ fn handshake_frame(host: &str) -> Vec<u8> {
     frame
 }
 
-fn decode_handshake(frame: &[u8]) -> anyhow::Result<ServerboundHandshake<'_>> {
+fn decode_handshake(frame: &[u8]) -> mcrs_minecraft_protocol::Result<ServerboundHandshake<'_>> {
     let mut r = frame;
     ServerboundHandshake::decode(&mut r)
 }

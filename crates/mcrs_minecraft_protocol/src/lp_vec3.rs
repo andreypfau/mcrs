@@ -1,9 +1,9 @@
 use std::io::Write;
 
-use bevy_math::DVec3;
 use derive_more::{From, Into};
+use glam::DVec3;
 
-use crate::{Decode, Encode, VarInt};
+use crate::{Decode, Encode, Result, VarInt};
 
 /// A vector quantized into three 15-bit components sharing one integer scale.
 ///
@@ -42,7 +42,7 @@ fn unpack(value: u64) -> f64 {
 }
 
 impl Encode for LpVec3 {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         let [x, y, z] = [self.0.x, self.0.y, self.0.z].map(sanitize);
         let chessboard_length = x.abs().max(y.abs()).max(z.abs());
         if chessboard_length < Self::ABS_MIN_VALUE {
@@ -73,7 +73,7 @@ impl Encode for LpVec3 {
 }
 
 impl Decode<'_> for LpVec3 {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let lowest = u8::decode(r)? as u64;
         if lowest == 0 {
             return Ok(Self(DVec3::ZERO));

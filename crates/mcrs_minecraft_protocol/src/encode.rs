@@ -24,7 +24,7 @@ impl PacketEncoder {
 
         if let Err(error) = pkt.encode_with_id((&mut self.buf).writer()) {
             self.buf.truncate(start);
-            return Err(error);
+            return Err(error.into());
         }
 
         encode_frame(&mut self.buf, start, self.threshold, &mut self.deflate)?;
@@ -99,7 +99,7 @@ mod tests {
     }
 
     impl Encode for Raw {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             w.write_all(&self.0)?;
             Ok(())
         }
@@ -116,9 +116,9 @@ mod tests {
     }
 
     impl Encode for Failing {
-        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        fn encode(&self, mut w: impl Write) -> crate::Result<()> {
             w.write_all(&[1, 2, 3])?;
-            anyhow::bail!("refused after writing")
+            crate::wire::bail!("refused after writing")
         }
     }
 

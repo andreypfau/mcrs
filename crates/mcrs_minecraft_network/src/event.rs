@@ -2,7 +2,7 @@ use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bytes::Bytes;
-use mcrs_minecraft_protocol::{Decode, Packet, PacketSide};
+use mcrs_minecraft_protocol::{Decode, ErrorKind, Packet, PacketSide};
 use tracing::warn;
 
 #[derive(Debug, Clone, EntityEvent)]
@@ -14,7 +14,7 @@ pub struct ReceivedPacketEvent {
 }
 
 impl ReceivedPacketEvent {
-    pub fn try_decode<'a, P>(&'a self) -> Option<anyhow::Result<P>>
+    pub fn try_decode<'a, P>(&'a self) -> Option<mcrs_minecraft_protocol::Result<P>>
     where
         P: Decode<'a> + Packet,
     {
@@ -25,7 +25,7 @@ impl ReceivedPacketEvent {
         let mut r = &self.data[..];
         Some(match P::decode(&mut r) {
             Ok(pkt) if r.is_empty() => Ok(pkt),
-            Ok(_) => Err(anyhow::anyhow!("{} bytes left over", r.len())),
+            Ok(_) => Err(ErrorKind::TrailingBytes(r.len()).into()),
             Err(error) => Err(error),
         })
     }

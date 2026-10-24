@@ -1,101 +1,7 @@
-use crate::{Decode, Encode, VarInt};
-use anyhow::Context;
-use mcrs_minecraft_core::Id;
+use crate::{Decode, Encode};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use std::borrow::Cow;
-use std::io::Write;
-
-macro_rules! static_registry_wire {
-    ($ty:ty, $what:literal) => {
-        impl crate::Encode for $ty {
-            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
-                crate::registry::encode_registry_id(*self as u16, w)
-            }
-        }
-
-        impl crate::Decode<'_> for $ty {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                let id = crate::registry::decode_registry_id(r)?;
-                <$ty>::from_protocol_id(id)
-                    .ok_or_else(|| anyhow::anyhow!(concat!("unknown ", $what, " {}"), id))
-            }
-        }
-    };
-}
-
-pub(crate) use static_registry_wire;
-
-macro_rules! world_registry_wire {
-    ($($ty:ty),+ $(,)?) => {$(
-        impl crate::Encode for Id<$ty> {
-            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
-                crate::registry::encode_registry_id(self.number(), w)
-            }
-        }
-
-        impl crate::Decode<'_> for Id<$ty> {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                crate::registry::decode_world_registry_id(r)
-            }
-        }
-    )+};
-}
-
-static_registry_wire!(mcrs_minecraft_entity::keys::EntityType, "entity type");
-static_registry_wire!(mcrs_minecraft_item::keys::MenuType, "menu type");
-static_registry_wire!(mcrs_minecraft_entity::keys::Attribute, "attribute");
-static_registry_wire!(
-    mcrs_minecraft_block::keys::BlockEntityType,
-    "block entity type"
-);
-
-world_registry_wire!(
-    mcrs_minecraft_dimension::DimensionType,
-    mcrs_minecraft_entity::variant::CatSoundVariant,
-    mcrs_minecraft_entity::variant::CatVariant,
-    mcrs_minecraft_entity::variant::ChickenSoundVariant,
-    mcrs_minecraft_entity::variant::ChickenVariant,
-    mcrs_minecraft_entity::variant::CowSoundVariant,
-    mcrs_minecraft_entity::variant::CowVariant,
-    mcrs_minecraft_entity::variant::FrogVariant,
-    mcrs_minecraft_entity::variant::PigSoundVariant,
-    mcrs_minecraft_entity::variant::PigVariant,
-    mcrs_minecraft_entity::variant::WolfSoundVariant,
-    mcrs_minecraft_entity::variant::WolfVariant,
-    mcrs_minecraft_entity::variant::ZombieNautilusVariant,
-    mcrs_minecraft_item::PaintingVariantValue,
-);
-
-// The number is checked where the id is looked up in the registries the connection holds.
-fn decode_world_registry_id<R>(r: &mut &[u8]) -> anyhow::Result<Id<R>> {
-    let number = decode_registry_id(r)?;
-    Id::checked(number, usize::from(u16::MAX) + 1).context("a sixteen-bit id")
-}
-
-pub fn encode_registry_id(id: u16, w: impl Write) -> anyhow::Result<()> {
-    VarInt(i32::from(id)).encode(w)
-}
-
-pub fn decode_registry_id(r: &mut &[u8]) -> anyhow::Result<u16> {
-    let VarInt(raw) = VarInt::decode(r)?;
-    u16::try_from(raw).with_context(|| format!("registry id {raw} is outside 0..=65535"))
-}
-
-pub(crate) fn encode_holder_id(reference: Option<u16>, w: impl Write) -> anyhow::Result<()> {
-    VarInt(reference.map_or(0, |id| i32::from(id) + 1)).encode(w)
-}
-
-pub(crate) fn decode_holder_id(r: &mut &[u8]) -> anyhow::Result<Option<u16>> {
-    let VarInt(raw) = VarInt::decode(r)?;
-    if raw == 0 {
-        return Ok(None);
-    }
-    raw.checked_sub(1)
-        .and_then(|id| u16::try_from(id).ok())
-        .map(Some)
-        .with_context(|| format!("holder id {raw} is outside 0..=65536"))
-}
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
@@ -108,17 +14,19 @@ mod tests {
     use super::*;
     use crate::block::BlockStateNumber;
     use crate::entity::OptionalBlockState;
+    use crate::{Result, VarInt};
     use mcrs_minecraft_core::Id;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
     use mcrs_minecraft_particle::keys::ParticleType;
+    use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
 
-    type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
+    type Decoder = fn(&mut &[u8]) -> Result<()>;
 
     const DECODERS: [(&str, Decoder); 7] = [
         ("registry id", |r| decode_registry_id(r).map(drop)),
         ("block state", |r| BlockStateNumber::decode(r).map(drop)),
-        ("item", |r| Id::<Item>::decode(r).map(drop)),
+        ("item", |r| Item::decode(r).map(drop)),
         ("optional block state", |r| {
             OptionalBlockState::decode(r).map(drop)
         }),
@@ -169,7 +77,7 @@ mod tests {
         table_len: usize,
         prefix: usize,
         valid: &[u8],
-        decode_packet: impl Fn(&mut &[u8]) -> anyhow::Result<()>,
+        decode_packet: impl Fn(&mut &[u8]) -> Result<()>,
     ) {
         let last = table_len as u16 - 1;
         let decode = |number: u16| {
@@ -195,7 +103,7 @@ mod tests {
             ClientboundUpdateAttributes,
         };
         use crate::text::Text;
-        use bevy_math::DVec3;
+        use glam::DVec3;
         use mcrs_minecraft_block::keys::BlockEntityType;
         use mcrs_minecraft_entity::keys::{Attribute, EntityType};
         use mcrs_minecraft_item::keys::MenuType;
@@ -212,7 +120,7 @@ mod tests {
             data: VarInt(0),
         };
         refused_past_the_table(
-            "entity type",
+            "minecraft:entity_type",
             EntityType::ALL.len(),
             1 + 16,
             &encoded(&add_entity),
@@ -220,9 +128,13 @@ mod tests {
         );
 
         let last_item = Item::ALL.last().unwrap().id();
-        refused_past_the_table("item", Item::ALL.len(), 0, &encoded(&last_item), |r| {
-            Id::<Item>::decode(r).map(drop)
-        });
+        refused_past_the_table(
+            "minecraft:item",
+            Item::ALL.len(),
+            0,
+            &encoded(&last_item),
+            |r| Item::decode(r).map(drop),
+        );
 
         let open_screen = ClientboundOpenScreen {
             container_id: VarInt(1),
@@ -230,7 +142,7 @@ mod tests {
             title: Text::text("Chest"),
         };
         refused_past_the_table(
-            "menu type",
+            "minecraft:menu",
             MenuType::ALL.len(),
             1,
             &encoded(&open_screen),
@@ -246,7 +158,7 @@ mod tests {
             }],
         };
         refused_past_the_table(
-            "attribute",
+            "minecraft:attribute",
             Attribute::ALL.len(),
             1 + 1,
             &encoded(&attributes),
@@ -260,7 +172,7 @@ mod tests {
             data: Cow::Owned(Default::default()),
         };
         refused_past_the_table(
-            "block entity type",
+            "minecraft:block_entity_type",
             BlockEntityType::ALL.len(),
             1 + 2,
             &encoded(&block_entity),

@@ -1,17 +1,19 @@
 #[rustfmt::skip]
 pub mod keys;
+mod wire;
 
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
-use mcrs_minecraft_core::{BlockPos, ResourceKey};
+use mcrs_minecraft_core::{BlockPos, BlockStateNumber, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
 use mcrs_minecraft_registries::{
     FromWire, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, WireNames, dispatch,
     registry_value,
 };
+use mcrs_minecraft_wire::{Decode, Encode};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -216,10 +218,6 @@ impl<'de> Deserialize<'de> for BlockStateValue {
     }
 }
 
-/// A block state number as the peer sent it, not yet checked against the block definitions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WireBlockState(pub u16);
-
 impl Resolve for BlockStateValue {
     type Named = Self;
 
@@ -233,9 +231,9 @@ impl Resolve for BlockStateValue {
 }
 
 impl FromWire for BlockStateValue {
-    type Wire = WireBlockState;
+    type Wire = BlockStateNumber;
 
-    fn from_wire<C: WireNames>(wire: WireBlockState, ctx: &C) -> Result<Self, ResolveError> {
+    fn from_wire<C: WireNames>(wire: BlockStateNumber, ctx: &C) -> Result<Self, ResolveError> {
         let (block, properties) = ctx.block_state(wire.0)?;
         Ok(BlockStateValue {
             block: ResourceKey::from_location(block),
@@ -243,19 +241,28 @@ impl FromWire for BlockStateValue {
         })
     }
 
-    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<WireBlockState, ResolveError> {
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<BlockStateNumber, ResolveError> {
         let properties: Vec<(&str, &str)> = self
             .properties
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
         ctx.block_state_id(self.block.location(), &properties)
-            .map(WireBlockState)
+            .map(BlockStateNumber)
     }
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct BlockParticle<M: Refs = Resolved> {
     pub block_state: M::Value<BlockStateValue>,
@@ -279,7 +286,7 @@ fn one() -> f32 {
     1.0
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct PowerParticle {
     #[serde(default = "one", deserialize_with = "float_value")]
@@ -314,14 +321,14 @@ impl<'de> Deserialize<'de> for ParticleScale {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct DustParticle {
     pub color: RgbInt,
     pub scale: ParticleScale,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct DustColorTransitionParticle {
     pub from_color: RgbInt,
@@ -341,7 +348,7 @@ fn is_one(power: &f32) -> bool {
     *power == 1.0
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct SpellParticle {
     #[serde(default = "white", skip_serializing_if = "is_white")]
@@ -354,13 +361,13 @@ pub struct SpellParticle {
     pub power: f32,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct ColorParticle {
     pub color: ArgbInt,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct SculkChargeParticle {
     #[serde(deserialize_with = "float_value")]
@@ -375,7 +382,16 @@ pub struct ShriekParticle {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct ItemParticle<M: Refs = Resolved> {
     pub item: Template<M>,

@@ -1,5 +1,4 @@
 pub mod block_pos;
-pub mod bounded;
 pub mod bounding_box;
 pub mod codec;
 pub mod column_pos;
@@ -23,16 +22,17 @@ pub mod voxel_shape;
 
 mod block_state_id;
 mod id;
+mod wire;
 
 pub use block_pos::BlockPos;
-pub use block_state_id::BlockStateId;
-pub use bounded::Bounded;
+pub use block_state_id::{BlockStateId, BlockStateNumber};
 pub use bounding_box::BoundingBox;
 pub use column_pos::ColumnPos;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
 pub use heightmap::HeightmapName;
 pub use id::{Id, NarrowError, TagId};
 pub use local_pos::LocalPos;
+pub use mcrs_minecraft_wire::Bounded;
 pub use mirror::Mirror;
 pub use quart_pos::QuartPos;
 pub use region_pos::RegionPos;

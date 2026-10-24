@@ -39,7 +39,7 @@ Each layer depends only on the layers below it.
 
 | # | Layer | What it holds |
 |---|---|---|
-| 1 | Data and wire | NBT, text, keys, typed packets in both directions, framing |
+| 1 | Data and wire | NBT, text, keys, the wire codec, typed packets in both directions, framing |
 | 2 | Network | connections, login, packet I/O on tokio |
 | 3 | Game data and rules | registries, blocks, items, biomes, dimensions, chunks, Anvil saves; the rules of lighting, world generation and block simulation |
 | 4 | Engine | worlds, dimensions, players, entities, the server loop and gameplay as Bevy plugins |

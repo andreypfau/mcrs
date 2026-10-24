@@ -47,7 +47,12 @@ pub use registry::{DataValue, Entries, Registry};
 pub use static_key::StaticEntry;
 pub use tag_file::TagEntry;
 pub use tags::{IdSet, Tags};
-pub use wire::{BlockStates, FromWire, Wire, WireId, WireNames, WireSet};
+pub use wire::{
+    BlockStates, FromWire, Wire, WireId, WireNames, WireSet, decode_holder_id, decode_registry_id,
+    encode_holder_id, encode_registry_id,
+};
 
+#[doc(hidden)]
+pub use mcrs_minecraft_wire as __wire;
 #[doc(hidden)]
 pub use serde as __serde;

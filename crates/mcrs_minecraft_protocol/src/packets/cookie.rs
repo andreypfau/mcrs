@@ -2,7 +2,7 @@ pub mod serverbound {
     use crate::Bounded;
     use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
 
     pub const MAX_COOKIE_PAYLOAD: usize = 5 * 1024;
@@ -17,7 +17,7 @@ pub mod serverbound {
 pub mod clientbound {
     use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
 
     #[derive(Clone, Debug, Encode, Decode, Into)]

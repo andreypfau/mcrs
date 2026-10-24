@@ -4,7 +4,7 @@ pub mod clientbound {
     use bitfield_struct::bitfield;
     use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;
 
@@ -68,7 +68,7 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::{Bounded, RawBytes, VarInt};
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
     use uuid::Uuid;
 
     #[derive(Copy, Clone, Debug, Encode, Decode)]

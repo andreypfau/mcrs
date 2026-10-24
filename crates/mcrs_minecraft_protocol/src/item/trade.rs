@@ -1,12 +1,12 @@
 use std::io::Write;
 
-use anyhow::ensure;
+use crate::wire::ensure;
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 
 use crate::item::patch::ComponentMap;
-use crate::{Decode, Encode, VarInt};
+use crate::{Decode, Encode, Result, VarInt};
 
 /// An item a trade takes, matched by exact component values.
 #[derive(Clone, Debug, PartialEq, FromWire)]
@@ -17,7 +17,7 @@ pub struct ItemCost<M: Refs = Resolved> {
 }
 
 impl Encode for ItemCost<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         self.item.encode(&mut w)?;
         VarInt(self.count).encode(&mut w)?;
         self.components.encode(w)
@@ -25,7 +25,7 @@ impl Encode for ItemCost<Wire> {
 }
 
 impl Decode<'_> for ItemCost<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         Ok(Self {
             item: Decode::decode(r)?,
             count: VarInt::decode(r)?.0,
@@ -56,7 +56,7 @@ impl<M: Refs> MerchantOffer<M> {
 }
 
 impl Encode for MerchantOffer<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         ensure!(!self.result.is_empty(), "Empty ItemStack not allowed");
         self.cost_a.encode(&mut w)?;
         self.result.encode(&mut w)?;
@@ -72,7 +72,7 @@ impl Encode for MerchantOffer<Wire> {
 }
 
 impl Decode<'_> for MerchantOffer<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let cost_a = ItemCost::decode(r)?;
         let result = ProtoStack::decode(r)?;
         ensure!(!result.is_empty(), "Empty ItemStack not allowed");

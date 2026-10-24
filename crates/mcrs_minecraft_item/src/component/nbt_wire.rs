@@ -13,9 +13,11 @@ use crate::harness::Sample;
 use crate::keys::MapDecorationType;
 use crate::loot::LootTable;
 use crate::recipe::Recipe;
+use mcrs_minecraft_wire::{Decode, Encode, Result};
+use std::io::Write;
 
 /// The compound as is; an SNBT string reads as one too.
-#[derive(Clone, Debug, PartialEq, Default, Serialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct CustomData(pub NbtCompound);
 
@@ -59,7 +61,7 @@ impl Sample for CustomData {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct BucketEntityData(pub CustomData);
 
@@ -209,3 +211,22 @@ impl Sample for ContainerLoot {
         ]
     }
 }
+
+/// A kind whose wire form is its persistent form as one network NBT tag.
+macro_rules! nbt_wire {
+    ($($ty:ident),* $(,)?) => {$(
+        impl mcrs_minecraft_wire::Encode for $ty {
+            fn encode(&self, w: impl Write) -> Result<()> {
+                mcrs_minecraft_nbt::encode_wire(self, w)
+            }
+        }
+
+        impl mcrs_minecraft_wire::Decode<'_> for $ty {
+            fn decode(r: &mut &[u8]) -> Result<Self> {
+                mcrs_minecraft_nbt::decode_wire(r)
+            }
+        }
+    )*};
+}
+
+nbt_wire!(MapDecorations, DebugStickState, Recipes, ContainerLoot);

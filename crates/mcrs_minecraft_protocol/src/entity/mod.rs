@@ -1,15 +1,14 @@
 use crate::block::BlockStateNumber;
+use crate::entity::player::HumanoidArm;
 use crate::item::WireLookup;
 pub use crate::item::component::enums::DyeColor;
 pub use crate::item::component::equippable::EquipmentSlot;
-use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
 use crate::text::Text;
-use crate::{Direction, GlobalPos, VarInt, VarLong};
-use bevy_math::{Vec3, Vec4};
+use crate::{Direction, GlobalPos, Result, VarInt, VarLong};
+use glam::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::Registered;
-use mcrs_minecraft_entity::keys::{VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
     FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
@@ -17,10 +16,10 @@ use mcrs_minecraft_entity::variant::{
 pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item::ProtoStack;
-use mcrs_minecraft_protocol::entity::player::HumanoidArm;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_registries::{FromWire, ResolveError, Wire, WireId};
+use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
+use mcrs_minecraft_wire::{Decode, Encode};
 use std::io::Write;
 use uuid::Uuid;
 
@@ -34,8 +33,8 @@ pub struct MetadataEntry<'a> {
 }
 
 impl crate::Encode for MetadataEntry<'_> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        anyhow::ensure!(
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        crate::wire::ensure!(
             self.index != METADATA_END,
             "entity data index {METADATA_END} is the end marker"
         );
@@ -45,7 +44,7 @@ impl crate::Encode for MetadataEntry<'_> {
 }
 
 impl<'a> crate::Decode<'a> for MetadataEntry<'a> {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
         Ok(Self {
             index: u8::decode(r)?,
             value: MetaDataValue::decode(r)?,
@@ -61,7 +60,7 @@ const METADATA_END: u8 = 0xFF;
 pub struct Metadata<'a>(pub Vec<MetadataEntry<'a>>);
 
 impl crate::Encode for Metadata<'_> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         for entry in &self.0 {
             entry.encode(&mut w)?;
         }
@@ -70,7 +69,7 @@ impl crate::Encode for Metadata<'_> {
 }
 
 impl<'a> crate::Decode<'a> for Metadata<'a> {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let mut entries = Vec::new();
         loop {
             let index = u8::decode(r)?;
@@ -166,13 +165,13 @@ pub enum MetaDataValue<'a> {
 pub struct OptionalBlockState(pub Option<BlockStateNumber>);
 
 impl crate::Encode for OptionalBlockState {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, w: impl Write) -> Result<()> {
         encode_registry_id(self.0.map_or(0, |state| state.0), w)
     }
 }
 
 impl crate::Decode<'_> for OptionalBlockState {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let id = decode_registry_id(r)?;
         Ok(Self((id != 0).then_some(BlockStateNumber(id))))
     }
@@ -183,13 +182,13 @@ impl crate::Decode<'_> for OptionalBlockState {
 pub struct OptionalUnsignedInt(pub Option<u32>);
 
 impl crate::Encode for OptionalUnsignedInt {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, w: impl Write) -> Result<()> {
         VarInt(self.0.map_or(0, |value| value as i32 + 1)).encode(w)
     }
 }
 
 impl crate::Decode<'_> for OptionalUnsignedInt {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let raw = VarInt::decode(r)?.0;
         Ok(Self((raw != 0).then(|| raw as u32 - 1)))
     }
@@ -252,23 +251,4 @@ pub enum CopperGolemState {
     GettingNoItem,
     DroppingItem,
     DroppingNoItem,
-}
-
-static_registry_wire!(VillagerType, "villager type");
-static_registry_wire!(VillagerProfession, "villager profession");
-
-impl crate::Encode for VillagerData {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.kind.encode(&mut w)?;
-        self.profession.encode(&mut w)?;
-        VarInt(self.level()).encode(w)
-    }
-}
-
-impl crate::Decode<'_> for VillagerData {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let kind = VillagerType::decode(r)?;
-        let profession = VillagerProfession::decode(r)?;
-        Ok(VillagerData::new(kind, profession, VarInt::decode(r)?.0))
-    }
 }

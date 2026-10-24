@@ -1,5 +1,5 @@
 use crate::item::harness::wire_form;
-use bevy_math::DVec3;
+use glam::DVec3;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{Attribute, EntityType, VillagerProfession, VillagerType};

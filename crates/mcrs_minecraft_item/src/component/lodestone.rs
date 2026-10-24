@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::component::common::IntArray;
 use crate::harness::Sample;
+use mcrs_minecraft_wire::{Decode, Encode};
 
 mod pos {
     use super::*;
@@ -22,7 +23,7 @@ mod pos {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct GlobalPos {
     pub dimension: ResourceKey<Dimension>,
@@ -30,7 +31,7 @@ pub struct GlobalPos {
     pub pos: BlockPos,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct LodestoneTracker {
     #[serde(default, skip_serializing_if = "Option::is_none")]

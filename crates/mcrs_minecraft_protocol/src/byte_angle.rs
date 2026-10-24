@@ -1,4 +1,4 @@
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, Result};
 use derive_more::Deref;
 use std::fmt;
 use std::io::Write;
@@ -30,13 +30,13 @@ impl fmt::Display for ByteAngle {
 }
 
 impl Encode for ByteAngle {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, w: impl Write) -> Result<()> {
         self.0.encode(w)
     }
 }
 
 impl Decode<'_> for ByteAngle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         u8::decode(r).map(ByteAngle)
     }
 }

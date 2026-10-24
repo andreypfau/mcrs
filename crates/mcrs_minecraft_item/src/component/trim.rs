@@ -7,13 +7,23 @@ use serde::{Deserialize, Serialize};
 use crate::Text;
 use crate::harness::Sample;
 use crate::harness::entry;
+use mcrs_minecraft_wire::{Decode, Encode};
 
 pub type TrimMaterialRef<M> = Ref<M, TrimMaterial, TrimMaterial<M>>;
 
 pub type TrimPatternRef<M> = Ref<M, TrimPattern, TrimPattern<M>>;
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct TrimMaterial<M: Refs = Resolved> {
     pub palette_id: ResourceLocation,
@@ -22,7 +32,16 @@ pub struct TrimMaterial<M: Refs = Resolved> {
 
 /// `decal`: absent reads as false, always written.
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct TrimPattern<M: Refs = Resolved> {
     pub asset_id: ResourceLocation,
@@ -32,7 +51,16 @@ pub struct TrimPattern<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct Trim<M: Refs = Resolved> {
     pub material: TrimMaterialRef<M>,
@@ -40,7 +68,16 @@ pub struct Trim<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct ProvidesTrimMaterial<M: Refs = Resolved>(pub TrimMaterialRef<M>);
 

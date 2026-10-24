@@ -12,6 +12,9 @@ use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
+use std::io::Write;
 
 /// The length check the transparent `Bounded` serde lacks.
 pub fn size_limited<'de, D: Deserializer<'de>, T: DeserializeOwned, const MAX: usize>(
@@ -34,7 +37,7 @@ fn no_pages<T, const MAX: usize>(pages: &Bounded<Vec<T>, MAX>) -> bool {
 pub const MAX_WRITABLE_PAGES: usize = 100;
 pub const WRITABLE_PAGE_CHARS: usize = 1024;
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct WritableBookContent {
     #[serde(
@@ -160,5 +163,34 @@ impl Sample for WrittenBookContent {
                 resolved: true,
             },
         ]
+    }
+}
+
+impl Encode for WrittenBookContent<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.title.encode(&mut w)?;
+        self.author.encode(&mut w)?;
+        VarInt(self.generation.0).encode(&mut w)?;
+        self.pages.encode(&mut w)?;
+        self.resolved.encode(w)
+    }
+}
+
+impl Decode<'_> for WrittenBookContent<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let title = Filterable::decode(r)?;
+        let author = String::decode(r)?;
+        let generation = VarInt::decode(r)?.0;
+        ensure!(
+            (0..=3).contains(&generation),
+            "Generation was {generation}, but must be between 0 and 3"
+        );
+        Ok(WrittenBookContent {
+            title,
+            author,
+            generation: codec::Bounded(generation),
+            pages: Vec::decode(r)?,
+            resolved: bool::decode(r)?,
+        })
     }
 }

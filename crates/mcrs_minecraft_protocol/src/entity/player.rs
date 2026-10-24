@@ -3,7 +3,7 @@ use crate::{Bounded, GameMode, GlobalPos, VarInt};
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo {

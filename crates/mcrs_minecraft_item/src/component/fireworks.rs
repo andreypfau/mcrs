@@ -8,7 +8,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::component::book::size_limited;
 use crate::component::common::{ordinal_enum, unsigned_byte};
 use crate::harness::Sample;
+use crate::wire::ordinal_enum_wire;
 use mcrs_minecraft_core::Bounded;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 ordinal_enum! {
     FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
@@ -145,5 +148,45 @@ impl Sample for Fireworks {
                 }]),
             },
         ]
+    }
+}
+
+ordinal_enum_wire!(FireworkShape);
+
+impl Encode for FireworkExplosion {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.shape.encode(&mut w)?;
+        self.colors.encode(&mut w)?;
+        self.fade_colors.encode(&mut w)?;
+        self.has_trail.encode(&mut w)?;
+        self.has_twinkle.encode(w)
+    }
+}
+
+impl Decode<'_> for FireworkExplosion {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(FireworkExplosion {
+            shape: FireworkShape::decode(r)?,
+            colors: Vec::decode(r)?,
+            fade_colors: Vec::decode(r)?,
+            has_trail: bool::decode(r)?,
+            has_twinkle: bool::decode(r)?,
+        })
+    }
+}
+
+impl Encode for Fireworks {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.flight_duration).encode(&mut w)?;
+        self.explosions.encode(w)
+    }
+}
+
+impl Decode<'_> for Fireworks {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(Fireworks {
+            flight_duration: VarInt::decode(r)?.0,
+            explosions: Bounded::decode(r)?,
+        })
     }
 }

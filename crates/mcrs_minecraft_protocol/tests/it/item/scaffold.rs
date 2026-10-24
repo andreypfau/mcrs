@@ -475,7 +475,10 @@ fn a_kind_is_a_var_int_on_the_wire() {
     let mut unknown = Vec::new();
     VarInt(122).encode(&mut unknown).unwrap();
     let error = DataComponentType::decode(&mut &unknown[..]).unwrap_err();
-    assert_eq!(error.to_string(), "unknown data component type 122");
+    assert_eq!(
+        error.kind().to_string(),
+        "registry minecraft:data_component_type has no id 122"
+    );
 }
 
 #[test]

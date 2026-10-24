@@ -15,20 +15,49 @@ use crate::keys::DataComponentType;
 use crate::patch::ComponentPatch;
 use crate::stack::Template;
 use mcrs_minecraft_core::Bounded;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result};
+use std::io::Write;
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct UseRemainder<M: Refs = Resolved>(pub Template<M>);
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct SulfurCubeContent<M: Refs = Resolved>(pub Template<M>);
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(transparent)]
 pub struct BundleContents<M: Refs = Resolved>(pub Vec<Template<M>>);
@@ -36,7 +65,9 @@ pub struct BundleContents<M: Refs = Resolved>(pub Vec<Template<M>>);
 pub const MAX_CHARGED_PROJECTILES: usize = 1024;
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Encode, Decode,
+)]
 #[serde(transparent)]
 pub struct ChargedProjectiles<M: Refs = Resolved> {
     pub items: Bounded<Vec<Template<M>>, MAX_CHARGED_PROJECTILES>,
@@ -96,6 +127,8 @@ pub const MAX_CONTAINER_SLOTS: usize = 256;
     Default,
     mcrs_minecraft_registries::Resolve,
     mcrs_minecraft_registries::FromWire,
+    Encode,
+    Decode,
 )]
 pub struct Container<M: Refs = Resolved> {
     pub slots: Bounded<Vec<Option<Template<M>>>, MAX_CONTAINER_SLOTS>,
@@ -322,5 +355,32 @@ impl Sample for Container {
             ])
             .unwrap(),
         ]
+    }
+}
+
+impl Encode for PotDecorations<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        for side in self.sides() {
+            match side {
+                Some(template) => {
+                    true.encode(&mut w)?;
+                    template.encode(&mut w)?;
+                }
+                None => false.encode(&mut w)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Decode<'a> for PotDecorations<Wire> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
+        let mut side = || Option::<Template<Wire>>::decode(r).map(|t| t.map(Box::new));
+        Ok(PotDecorations {
+            back: side()?,
+            left: side()?,
+            right: side()?,
+            front: side()?,
+        })
     }
 }

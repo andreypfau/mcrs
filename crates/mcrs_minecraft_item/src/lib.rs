@@ -27,6 +27,7 @@ pub mod recipe;
 pub mod stack;
 #[cfg(feature = "bevy")]
 pub mod value;
+mod wire;
 
 pub use component::*;
 #[cfg(feature = "bevy")]

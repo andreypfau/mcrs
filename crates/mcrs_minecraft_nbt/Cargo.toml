@@ -13,6 +13,7 @@ workspace = true
 serde.workspace = true
 thiserror.workspace = true
 bytes.workspace = true
+mcrs_minecraft_wire.workspace = true
 
 cesu8 = "1.1"
 flate2 = "1.1"

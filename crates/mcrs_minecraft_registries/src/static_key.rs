@@ -17,6 +17,11 @@ pub fn unknown_entry(registry: impl fmt::Display, location: impl fmt::Display) -
     format!("Unknown registry key in ResourceKey[minecraft:root / {registry}]: {location}")
 }
 
+#[doc(hidden)]
+pub fn unknown_id(registry: impl fmt::Display, id: u16) -> String {
+    format!("registry {registry} has no id {id}")
+}
+
 /// A static registry as an enum of its entries, numbered by protocol id.
 #[macro_export]
 macro_rules! static_registry {
@@ -92,6 +97,24 @@ macro_rules! static_registry {
         impl From<$name> for ::mcrs_minecraft_core::Id<$name> {
             fn from(entry: $name) -> Self {
                 entry.id()
+            }
+        }
+
+        impl $crate::__wire::Encode for $name {
+            fn encode(&self, w: impl ::std::io::Write) -> $crate::__wire::Result<()> {
+                $crate::encode_registry_id(*self as u16, w)
+            }
+        }
+
+        impl $crate::__wire::Decode<'_> for $name {
+            fn decode(r: &mut &[u8]) -> $crate::__wire::Result<Self> {
+                let id = $crate::decode_registry_id(r)?;
+                Self::from_protocol_id(id).ok_or_else(|| {
+                    $crate::__wire::Error::invalid($crate::static_key::unknown_id(
+                        <Self as ::mcrs_minecraft_core::Registered>::REGISTRY.location(),
+                        id,
+                    ))
+                })
             }
         }
 

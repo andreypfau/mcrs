@@ -5,3 +5,4 @@ pub mod keys;
 pub mod predicate;
 pub mod provider;
 pub mod state_properties;
+mod wire;

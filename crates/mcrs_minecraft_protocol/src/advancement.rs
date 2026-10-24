@@ -7,8 +7,7 @@ use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire, registry_value};
 use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
-use crate::item::wire::record_wire;
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, Result};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -23,7 +22,23 @@ impl AdvancementType {
     pub const ALL: &'static [Self] = &[Self::Task, Self::Challenge, Self::Goal];
 }
 
-crate::item::wire::ordinal_enum_wire!(AdvancementType);
+impl Encode for AdvancementType {
+    fn encode(&self, w: impl Write) -> Result<()> {
+        crate::VarInt(*self as i32).encode(w)
+    }
+}
+
+/// An unknown ordinal reads as `Task`.
+impl Decode<'_> for AdvancementType {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let id = crate::VarInt::decode(r)?.0;
+        Ok(usize::try_from(id)
+            .ok()
+            .and_then(|id| Self::ALL.get(id))
+            .copied()
+            .unwrap_or_default())
+    }
+}
 
 /// The wire carries only `background`, `show_toast` and `hidden` as flag bits,
 /// so `announce_to_chat` reads back as `false`.
@@ -52,7 +67,7 @@ const FLAG_SHOW_TOAST: i32 = 2;
 const FLAG_HIDDEN: i32 = 4;
 
 impl Encode for DisplayInfo<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         self.title.encode(&mut w)?;
         self.description.encode(&mut w)?;
         self.icon.encode(&mut w)?;
@@ -76,7 +91,7 @@ impl Encode for DisplayInfo<Wire> {
 }
 
 impl Decode<'_> for DisplayInfo<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let title = Text::decode(r)?;
         let description = Text::decode(r)?;
         let icon = Template::decode(r)?;
@@ -102,7 +117,7 @@ impl Decode<'_> for DisplayInfo<Wire> {
 
 /// The part of an advancement a client needs: rewards and criteria stay on
 /// the server.
-#[derive(Clone, Debug, PartialEq, FromWire)]
+#[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct Advancement<M: Refs = Resolved> {
     pub parent: Option<ResourceLocation>,
     pub display: Option<DisplayInfo<M>>,
@@ -110,27 +125,13 @@ pub struct Advancement<M: Refs = Resolved> {
     pub sends_telemetry_event: bool,
 }
 
-record_wire!(Advancement<Wire> {
-    parent,
-    display,
-    requirements,
-    sends_telemetry_event
-});
-
-#[derive(Clone, Debug, PartialEq, FromWire)]
+#[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct PositionedAdvancement<M: Refs = Resolved> {
     pub id: ResourceLocation,
     pub advancement: Advancement<M>,
     pub x: f32,
     pub y: f32,
 }
-
-record_wire!(PositionedAdvancement<Wire> {
-    id,
-    advancement,
-    x,
-    y
-});
 
 /// When a criterion was obtained, as epoch milliseconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Encode, Decode)]

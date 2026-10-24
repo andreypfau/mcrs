@@ -2,7 +2,7 @@
 //! field rather than in front of the steps, so these two packets carry
 //! hand-written codecs that the derive cannot express.
 
-use bevy_math::DVec3;
+use glam::DVec3;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
     DeltaStep, PositionPath, PositionStep, VecDelta,

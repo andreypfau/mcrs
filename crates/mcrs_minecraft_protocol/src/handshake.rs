@@ -1,4 +1,4 @@
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub enum Intent {

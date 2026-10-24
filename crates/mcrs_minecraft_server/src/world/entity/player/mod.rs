@@ -296,7 +296,7 @@ fn consume_inbound_player_spawn(
                     position: spawn_pos,
                     velocity: DVec3::ZERO,
                     look: Look::default(),
-                    flags: Vec::new(),
+                    flags: mcrs_minecraft_protocol::PositionFlags::default(),
                 }),
             )
             .critical(),

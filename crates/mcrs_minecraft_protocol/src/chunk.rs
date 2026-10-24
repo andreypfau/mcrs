@@ -1,10 +1,9 @@
-use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::section::{
     Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionEntry, SectionValue, biome_direct_bits,
     block_direct_bits,
 };
-use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
-use anyhow::{Context, bail, ensure};
+use crate::wire::{Context, bail, ensure};
+use crate::{Decode as DecodeTrait, Encode as EncodeTrait, Result, VarInt, VarLong};
 use bitfield_struct::bitfield;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_chunk::{
@@ -12,7 +11,8 @@ use mcrs_minecraft_chunk::{
     packed_len, remap_into, unpack_into,
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
+use mcrs_minecraft_wire::{Decode, Encode};
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::io::Write;
@@ -99,7 +99,7 @@ impl From<[u8; 2048]> for LightChunk {
 }
 
 impl EncodeTrait for LightChunk {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         VarInt(2048).encode(&mut w)?;
         w.write_all(&self.0)?;
         Ok(())
@@ -107,7 +107,7 @@ impl EncodeTrait for LightChunk {
 }
 
 impl<'a> DecodeTrait<'a> for LightChunk {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len == 2048, "expected light section length 2048, got {len}");
         ensure!(
@@ -134,7 +134,7 @@ pub struct LightData<'a> {
 
 /// Vanilla's `ByteBufCodecs.BIT_SET` is `BitSet.toByteArray()`: the words as
 /// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
-fn encode_bit_set(words: &[u64], mut w: impl Write) -> anyhow::Result<()> {
+fn encode_bit_set(words: &[u64], mut w: impl Write) -> Result<()> {
     let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
     while bytes.last() == Some(&0) {
         bytes.pop();
@@ -142,7 +142,7 @@ fn encode_bit_set(words: &[u64], mut w: impl Write) -> anyhow::Result<()> {
     bytes.as_slice().encode(&mut w)
 }
 
-fn decode_bit_set<'a>(r: &mut &'a [u8]) -> anyhow::Result<Cow<'a, [u64]>> {
+fn decode_bit_set<'a>(r: &mut &'a [u8]) -> Result<Cow<'a, [u64]>> {
     let bytes = <&[u8]>::decode(r)?;
     Ok(Cow::Owned(
         bytes
@@ -157,7 +157,7 @@ fn decode_bit_set<'a>(r: &mut &'a [u8]) -> anyhow::Result<Cow<'a, [u64]>> {
 }
 
 impl EncodeTrait for LightData<'_> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         encode_bit_set(&self.sky_light_mask, &mut w)?;
         encode_bit_set(&self.block_light_mask, &mut w)?;
         encode_bit_set(&self.empty_sky_light_mask, &mut w)?;
@@ -168,7 +168,7 @@ impl EncodeTrait for LightData<'_> {
 }
 
 impl<'a> DecodeTrait<'a> for LightData<'a> {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
         Ok(Self {
             sky_light_mask: decode_bit_set(r)?,
             block_light_mask: decode_bit_set(r)?,
@@ -216,13 +216,13 @@ pub struct ChunkBlockUpdateEntry {
 }
 
 impl crate::Encode for ChunkBlockUpdateEntry {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, w: impl Write) -> Result<()> {
         VarLong(self.0 as _).encode(w)
     }
 }
 
 impl crate::Decode<'_> for ChunkBlockUpdateEntry {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         Ok(ChunkBlockUpdateEntry(VarLong::decode(r)?.0 as _))
     }
 }
@@ -233,7 +233,7 @@ pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     direct_bits: u32,
     mut w: impl Write,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     const { assert!(DIM == V::Section::SIZE) };
     let data = match container {
         PalettedContainer::Homogeneous(value) => {
@@ -272,7 +272,7 @@ pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
 pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>(
     r: &mut &[u8],
     direct_bits: u32,
-) -> anyhow::Result<PalettedContainer<V, DIM>> {
+) -> Result<PalettedContainer<V, DIM>> {
     const { assert!(DIM == V::Section::SIZE) };
     let bits_per_entry = u8::decode(r)?;
     if bits_per_entry == 0 {
@@ -281,7 +281,9 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     let storage_bits = V::Section::wire_storage_bits(bits_per_entry, direct_bits);
     let palette = if bits_per_entry as u32 <= V::Section::MAX_INDIRECT_BITS {
         let len = VarInt::decode(r)?.0;
-        let len = usize::try_from(len).with_context(|| format!("negative palette length {len}"))?;
+        let len = usize::try_from(len)
+            .ok()
+            .with_context(|| format!("negative palette length {len}"))?;
         ensure!(
             len <= 1 << storage_bits,
             "a palette of {len} entries is wider than the {storage_bits} bits \
@@ -310,7 +312,7 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     );
     let packed = (0..words)
         .map(|_| i64::decode(r))
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?;
 
     let mut cells = vec![V::default(); entry_count];
     match palette {
@@ -335,7 +337,7 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     Ok(PalettedContainer::from_cells(&cells))
 }
 
-fn read_id<V: SectionValue>(r: &mut &[u8]) -> anyhow::Result<V> {
+fn read_id<V: SectionValue>(r: &mut &[u8]) -> Result<V> {
     V::from_registry_id(decode_registry_id(r)?)
 }
 
@@ -355,7 +357,7 @@ pub fn encode_section<B: SectionEntry<Section = Blocks> + Hash + Eq>(
     block_direct_bits: u32,
     biome_direct_bits: u32,
     mut w: impl Write,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     non_empty_block_count.encode(&mut w)?;
     fluid_count.encode(&mut w)?;
     encode_container(blocks, block_direct_bits, &mut w)?;
@@ -363,11 +365,7 @@ pub fn encode_section<B: SectionEntry<Section = Blocks> + Hash + Eq>(
 }
 
 impl ChunkSection {
-    pub fn read(
-        r: &mut &[u8],
-        block_direct_bits: u32,
-        biome_direct_bits: u32,
-    ) -> anyhow::Result<Self> {
+    pub fn read(r: &mut &[u8], block_direct_bits: u32, biome_direct_bits: u32) -> Result<Self> {
         Ok(Self {
             non_empty_block_count: u16::decode(r)?,
             fluid_count: u16::decode(r)?,
@@ -388,7 +386,7 @@ impl<'a> ChunkData<'a> {
         section_count: usize,
         block_state_count: usize,
         biome_registry_len: usize,
-    ) -> anyhow::Result<Vec<ChunkSection>> {
+    ) -> Result<Vec<ChunkSection>> {
         let block_direct_bits = block_direct_bits(block_state_count);
         let biome_direct_bits = biome_direct_bits(biome_registry_len);
         let mut r = self.data;
@@ -397,7 +395,7 @@ impl<'a> ChunkData<'a> {
                 ChunkSection::read(&mut r, block_direct_bits, biome_direct_bits)
                     .with_context(|| format!("chunk section {index}"))
             })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()?;
         ensure!(
             r.is_empty(),
             "{} bytes left over after {section_count} chunk sections",

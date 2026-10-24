@@ -30,6 +30,7 @@ serde_path_to_error = "0.1.20"
 bevy_ecs = { version = "0.19.1", features = ["debug"] }
 bevy_app = { version = "0.19.1" }
 bevy_math = "0.19.1"
+glam = { version = "0.32.1", default-features = false, features = ["std"] }
 bevy_time = "0.19.1"
 bevy_tasks = "0.19.1"
 # `file_watcher` cannot compile for wasm; the client re-enables it through
@@ -52,7 +53,6 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145"}
 base64 = "0.22.1"
 bitfield-struct = "0.12.1"
-byteorder = "1.5.0"
 crc32c = "0.6.8"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
@@ -70,7 +70,8 @@ rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 
-mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
+mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
+mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }

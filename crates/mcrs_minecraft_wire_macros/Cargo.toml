@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_wire_macros"
+description = "Derive macros for the codec traits of mcrs_minecraft_wire"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+proc-macro = true
+
+[lints]
+workspace = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn = { workspace = true, features = ["full"] }

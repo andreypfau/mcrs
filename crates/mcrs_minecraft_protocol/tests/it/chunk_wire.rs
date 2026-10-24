@@ -41,7 +41,7 @@ fn encoded_blocks(container: &BlockContainer) -> Vec<u8> {
     buf
 }
 
-fn decoded_blocks(r: &mut &[u8]) -> anyhow::Result<BlockContainer> {
+fn decoded_blocks(r: &mut &[u8]) -> mcrs_minecraft_protocol::Result<BlockContainer> {
     decode_container(r, block_direct_bits(BLOCK_STATE_COUNT))
 }
 
@@ -164,7 +164,7 @@ fn a_hand_built_direct_biome_container(declared_bits: u8) -> Vec<u8> {
 #[test]
 fn a_direct_container_from_a_registry_of_one_biome_is_a_decode_error() {
     let bytes = a_hand_built_direct_biome_container(9);
-    let decoded: anyhow::Result<BiomeContainer> =
+    let decoded: mcrs_minecraft_protocol::Result<BiomeContainer> =
         decode_container(&mut bytes.as_slice(), biome_direct_bits(1));
     assert!(decoded.is_err());
 }

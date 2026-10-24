@@ -1,5 +1,6 @@
+use crate::Result;
 use crate::chunk::{LightChunk, LightData};
-use anyhow::{Context, bail, ensure};
+use crate::wire::{Context, bail, ensure};
 
 /// What one wire row says about a layer. A row absent from both masks is not
 /// "dark": vanilla means "unchanged", and a delta update leans on that.
@@ -21,7 +22,7 @@ pub struct ColumnLight {
 
 /// The inverse of `pack_chunk` over a whole column: `rows` is the padded row
 /// count, one more than the dimension's section count at each end.
-pub fn unpack_light_data(data: &LightData<'_>, rows: usize) -> anyhow::Result<ColumnLight> {
+pub fn unpack_light_data(data: &LightData<'_>, rows: usize) -> Result<ColumnLight> {
     Ok(ColumnLight {
         sky: unpack_layer(
             &data.sky_light_mask,
@@ -45,7 +46,7 @@ fn unpack_layer(
     empty_mask: &[u64],
     arrays: &[LightChunk],
     rows: usize,
-) -> anyhow::Result<Vec<RowLight>> {
+) -> Result<Vec<RowLight>> {
     ensure!(
         !any_bit_from(mask, rows) && !any_bit_from(empty_mask, rows),
         "a mask bit is set past the column's {rows} rows"
@@ -69,7 +70,7 @@ fn unpack_layer(
                 },
             )
         })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?;
 
     ensure!(
         taken == arrays.len(),

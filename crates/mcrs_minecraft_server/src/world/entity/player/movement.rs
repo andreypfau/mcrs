@@ -161,7 +161,7 @@ fn teleport(
                         position: transform.translation,
                         velocity: DVec3::ZERO,
                         look: Look::default(),
-                        flags: Vec::new(),
+                        flags: mcrs_minecraft_protocol::PositionFlags::default(),
                     }),
                 )
                 .critical(),

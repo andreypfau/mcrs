@@ -4,6 +4,8 @@ A protocol library for _Minecraft: Java Edition_. Use this to build clients, ser
 
 `mcrs_minecraft_protocol` is primarily concerned with defining all of Minecraft's [network packets](packets) and the process for encoding and decoding them. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
 
+The `Encode` and `Decode` traits, the variable-length integers and the codecs for primitives come from `mcrs_minecraft_wire`, and this crate re-exports them. Each vocabulary crate implements the traits for its own types, so a crate that needs only the codec does not depend on this crate.
+
 ```rust
 use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
 use mcrs_minecraft_protocol::{Decode, Packet, PacketDecoder, PacketEncoder, VarInt};

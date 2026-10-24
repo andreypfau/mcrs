@@ -1,3 +1,5 @@
+mod wire;
+
 use std::fmt;
 
 use mcrs_minecraft_core::ResourceLocation;

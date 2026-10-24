@@ -1,13 +1,13 @@
-use crate::item::harness::{WireCodec, decode_component};
+use crate::item::harness::{WireCodec, decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 
 use mcrs_minecraft_item::keys::{DataComponentType, Item};
-use mcrs_minecraft_protocol::item::lookup::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, ItemComponentValue, PotDecorations, Template,
     hash_ops,
 };
-use mcrs_minecraft_protocol::{Encode, VarInt};
+use mcrs_minecraft_protocol::wire::MAX_NESTING;
+use mcrs_minecraft_protocol::{Encode, ErrorKind, VarInt};
 use mcrs_minecraft_registries::Named;
 use serde::Deserialize;
 
@@ -134,9 +134,15 @@ fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
     let wire = wrapped(MAX_NESTING - 1);
     Template::decode_checked(&lookup, &mut &wire[..]).unwrap();
     let error = Template::decode_checked(&lookup, &mut &wrapped(MAX_NESTING)[..]).unwrap_err();
-    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    assert!(
+        matches!(wire_kind(&error), ErrorKind::TooDeep { max: 64 }),
+        "{error:#}"
+    );
     let error = Template::decode_checked(&lookup, &mut &wrapped(10_000)[..]).unwrap_err();
-    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    assert!(
+        matches!(wire_kind(&error), ErrorKind::TooDeep { max: 64 }),
+        "{error:#}"
+    );
 }
 
 #[test]
@@ -231,9 +237,12 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
     };
 
     let air = decode(DataComponentType::UseRemainder, "00010000").unwrap_err();
-    assert_eq!(air.to_string(), "Item must not be minecraft:air");
+    assert_eq!(
+        wire_kind(&air).to_string(),
+        "Item must not be minecraft:air"
+    );
     let zero = decode(DataComponentType::UseRemainder, "01000000").unwrap_err();
-    assert_eq!(zero.to_string(), "Item must be non-empty");
+    assert_eq!(wire_kind(&zero).to_string(), "Item must be non-empty");
 
     let hundred = decode(DataComponentType::UseRemainder, "01640000").unwrap();
     assert_eq!(
@@ -285,7 +294,10 @@ fn block_predicates_inside_their_own_matchers_stop_at_the_depth_bound() {
             &mut &wrapped(levels)[..],
         )
         .unwrap_err();
-        assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+        assert!(
+            matches!(wire_kind(&error), ErrorKind::TooDeep { max: 64 }),
+            "{error:#}"
+        );
     }
 }
 
@@ -301,5 +313,8 @@ fn hidden_effects_stop_at_the_depth_bound() {
     };
     MobEffectDetails::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap();
     let error = MobEffectDetails::decode(&mut &wrapped(10_000)[..]).unwrap_err();
-    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    assert!(
+        matches!(error.kind(), ErrorKind::TooDeep { max: 64 }),
+        "{error}"
+    );
 }

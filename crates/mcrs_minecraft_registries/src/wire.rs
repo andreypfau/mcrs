@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -6,6 +7,7 @@ use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::{Id, Registered, ResourceLocation, TagKey};
+use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;
 use crate::refs::{Checked, Named, Ref, Refs, ResolveError, Resolved, Resolver};
@@ -283,4 +285,105 @@ macro_rules! wire_as_named {
             }
         }
     };
+}
+
+pub fn encode_registry_id(id: u16, w: impl Write) -> Result<()> {
+    VarInt(i32::from(id)).encode(w)
+}
+
+pub fn decode_registry_id(r: &mut &[u8]) -> Result<u16> {
+    let VarInt(raw) = VarInt::decode(r)?;
+    u16::try_from(raw)
+        .ok()
+        .with_context(|| format!("registry id {raw} is outside 0..=65535"))
+}
+
+/// A holder writes a registry id one above its number, and zero for an inline value.
+pub fn encode_holder_id(reference: Option<u16>, w: impl Write) -> Result<()> {
+    VarInt(reference.map_or(0, |id| i32::from(id).saturating_add(1))).encode(w)
+}
+
+pub fn decode_holder_id(r: &mut &[u8]) -> Result<Option<u16>> {
+    let VarInt(raw) = VarInt::decode(r)?;
+    if raw == 0 {
+        return Ok(None);
+    }
+    raw.checked_sub(1)
+        .and_then(|id| u16::try_from(id).ok())
+        .map(Some)
+        .with_context(|| format!("holder id {raw} is outside 0..=65536"))
+}
+
+impl<R> Encode for WireId<R> {
+    fn encode(&self, w: impl Write) -> Result<()> {
+        encode_registry_id(self.number, w)
+    }
+}
+
+impl<R> Decode<'_> for WireId<R> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        decode_registry_id(r).map(WireId::new)
+    }
+}
+
+impl<R: Registered, V: Encode> Encode for Ref<Wire, R, V> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        match self {
+            Ref::Id(id) => encode_holder_id(Some(id.number()), w),
+            Ref::Inline(value) => {
+                encode_holder_id(None, &mut w)?;
+                value.encode(w)
+            }
+        }
+    }
+}
+
+impl<'a, R: Registered, V: Decode<'a>> Decode<'a> for Ref<Wire, R, V> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
+        Ok(match decode_holder_id(r)? {
+            Some(id) => Ref::Id(WireId::new(id)),
+            None => Ref::Inline(Arc::new(V::decode(r)?)),
+        })
+    }
+}
+
+impl<R> Encode for WireSet<R> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        match self {
+            WireSet::Tag(tag) => {
+                VarInt(0).encode(&mut w)?;
+                tag.location().encode(w)
+            }
+            WireSet::List(ids) => {
+                let len = ids.len().saturating_add(1);
+                let max = i32::MAX as usize;
+                let len = i32::try_from(len).map_err(|_| ErrorKind::TooLong { len, max })?;
+                VarInt(len).encode(&mut w)?;
+                for id in ids.iter() {
+                    id.encode(&mut w)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl<R> Decode<'_> for WireSet<R> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let raw = VarInt::decode(r)?.0;
+        let Ok(raw) = usize::try_from(raw) else {
+            return Err(ErrorKind::NegativeLength(raw).into());
+        };
+        if raw == 0 {
+            return Ok(WireSet::Tag(TagKey::from_location(
+                ResourceLocation::decode(r)?,
+            )));
+        }
+        let len = raw.saturating_sub(1);
+        let mut ids = Vec::with_capacity(len.min(r.len()));
+        for _ in 0..len {
+            ids.push(WireId::decode(r)?);
+        }
+        Ok(WireSet::List(ids.into()))
+    }
 }

@@ -1,3 +1,4 @@
+use crate::Result;
 use mcrs_minecraft_item::keys::{RecipeBookCategory, RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
@@ -5,34 +6,14 @@ use std::io::Write;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_item::component::trim::TrimPatternRef;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
+use mcrs_minecraft_wire::{Decode, Encode};
 
 use crate::VarInt;
 use crate::entity::OptionalUnsignedInt;
 use crate::item::Template;
-use crate::item::lookup::nested;
-use crate::registry::static_registry_wire;
+use crate::wire::nested;
 use mcrs_minecraft_item::keys::DataComponentType;
-
-impl crate::Encode for Ingredient<Wire> {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.validate().map_err(anyhow::Error::msg)?;
-        self.0.encode(w)
-    }
-}
-
-impl crate::Decode<'_> for Ingredient<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let ingredient = Ingredient(crate::Decode::decode(r)?);
-        ingredient.validate().map_err(anyhow::Error::msg)?;
-        Ok(ingredient)
-    }
-}
-
-static_registry_wire!(SlotDisplayType, "slot display type");
-static_registry_wire!(RecipeDisplayType, "recipe display type");
-static_registry_wire!(RecipeBookCategory, "recipe book category");
 
 #[derive(Clone, Debug, PartialEq, FromWire)]
 pub enum SlotDisplay<M: Refs = Resolved> {
@@ -91,7 +72,7 @@ impl<M: Refs> SlotDisplay<M> {
 }
 
 impl crate::Encode for SlotDisplay<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         let w: &mut dyn Write = &mut w;
         self.kind().encode(&mut *w)?;
         match self {
@@ -130,7 +111,7 @@ impl crate::Encode for SlotDisplay<Wire> {
 }
 
 impl crate::Decode<'_> for SlotDisplay<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         nested(|| {
             let boxed = |r: &mut &[u8]| SlotDisplay::decode(r).map(Box::new);
             Ok(match SlotDisplayType::decode(r)? {
@@ -238,8 +219,8 @@ impl<M: Refs> Validate for RecipeDisplay<M> {
 }
 
 impl crate::Encode for RecipeDisplay<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.validate().map_err(anyhow::Error::msg)?;
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.validate().map_err(crate::Error::invalid)?;
         self.kind().encode(&mut w)?;
         match self {
             Self::CraftingShapeless {
@@ -306,7 +287,7 @@ impl crate::Encode for RecipeDisplay<Wire> {
 }
 
 impl crate::Decode<'_> for RecipeDisplay<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         let slot = |r: &mut &[u8]| SlotDisplay::decode(r);
         let display = match RecipeDisplayType::decode(r)? {
             RecipeDisplayType::CraftingShapeless => Self::CraftingShapeless {
@@ -342,7 +323,7 @@ impl crate::Decode<'_> for RecipeDisplay<Wire> {
                 crafting_station: slot(r)?,
             },
         };
-        display.validate().map_err(anyhow::Error::msg)?;
+        display.validate().map_err(crate::Error::invalid)?;
         Ok(display)
     }
 }
@@ -367,7 +348,7 @@ impl RecipeBookEntry {
 }
 
 impl crate::Encode for RecipeBookEntry<Wire> {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         self.id.encode(&mut w)?;
         self.display.encode(&mut w)?;
         OptionalUnsignedInt(self.group).encode(&mut w)?;
@@ -378,7 +359,7 @@ impl crate::Encode for RecipeBookEntry<Wire> {
 }
 
 impl crate::Decode<'_> for RecipeBookEntry<Wire> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
         Ok(RecipeBookEntry {
             id: VarInt::decode(r)?,
             display: RecipeDisplay::decode(r)?,
@@ -395,16 +376,11 @@ impl crate::Decode<'_> for RecipeBookEntry<Wire> {
 pub type RecipePropertySet<M = Resolved> = Vec<<M as Refs>::Id<Item>>;
 
 /// One stonecutter option: the input it accepts and what the button shows.
-#[derive(Clone, Debug, PartialEq, FromWire)]
+#[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct SelectableRecipe<M: Refs = Resolved> {
     pub input: Ingredient<M>,
     pub option_display: SlotDisplay<M>,
 }
-
-crate::item::wire::record_wire!(SelectableRecipe<Wire> {
-    input,
-    option_display
-});
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum RecipeBookType {

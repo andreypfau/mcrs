@@ -1,4 +1,4 @@
-use crate::{Decode, Encode, GameMode};
+use crate::{Decode, Encode, GameMode, Result};
 use std::io::Write;
 
 #[derive(Debug, Clone, Copy)]
@@ -20,7 +20,7 @@ pub enum GameEventKind {
 }
 
 impl Encode for GameEventKind {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
         let a = match self {
             GameEventKind::NoRespawnBlockAvailable => (0, 0f32),
             GameEventKind::EndRaining => (1, 0f32),
@@ -61,7 +61,7 @@ impl Encode for GameEventKind {
 }
 
 impl<'a> Decode<'a> for GameEventKind {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let event_id = i8::decode(r)?;
         let param = f32::decode(r)?;
         match event_id {
@@ -74,7 +74,11 @@ impl<'a> Decode<'a> for GameEventKind {
                     1 => GameMode::Creative,
                     2 => GameMode::Adventure,
                     3 => GameMode::Spectator,
-                    _ => return Err(anyhow::anyhow!("invalid GameMode value: {param}")),
+                    _ => {
+                        return Err(crate::Error::invalid(format!(
+                            "invalid GameMode value: {param}"
+                        )));
+                    }
                 };
                 Ok(GameEventKind::ChangeGameMode(mode))
             }
@@ -82,7 +86,11 @@ impl<'a> Decode<'a> for GameEventKind {
                 let credits = match param as i32 {
                     0 => EnterCredits::SeenBefore,
                     1 => EnterCredits::FirstTime,
-                    _ => return Err(anyhow::anyhow!("invalid EnterCredits value: {param}")),
+                    _ => {
+                        return Err(crate::Error::invalid(format!(
+                            "invalid EnterCredits value: {param}"
+                        )));
+                    }
                 };
                 Ok(GameEventKind::WinGame(credits))
             }
@@ -93,7 +101,11 @@ impl<'a> Decode<'a> for GameEventKind {
                     102 => DemoMessage::JumpControl,
                     103 => DemoMessage::InventoryControl,
                     104 => DemoMessage::ScreenshotControl,
-                    _ => return Err(anyhow::anyhow!("invalid DemoMessage value: {param}")),
+                    _ => {
+                        return Err(crate::Error::invalid(format!(
+                            "invalid DemoMessage value: {param}"
+                        )));
+                    }
                 };
                 Ok(GameEventKind::DemoEvent(message))
             }
@@ -105,7 +117,9 @@ impl<'a> Decode<'a> for GameEventKind {
             11 => Ok(GameEventKind::ImmediateRespawn(param != 0.0)),
             12 => Ok(GameEventKind::LimitedCrafting(param != 0.0)),
             13 => Ok(GameEventKind::LevelChunksLoadStart),
-            _ => Err(anyhow::anyhow!("invalid GameEventKind id: {event_id}")),
+            _ => Err(crate::Error::invalid(format!(
+                "invalid GameEventKind id: {event_id}"
+            ))),
         }
     }
 }

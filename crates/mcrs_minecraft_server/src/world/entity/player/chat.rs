@@ -86,7 +86,7 @@ fn handle_command(
                         position: pos,
                         velocity: DVec3::ZERO,
                         look: Look::default(),
-                        flags: Vec::new(),
+                        flags: mcrs_minecraft_protocol::PositionFlags::default(),
                     }),
                 )
                 .critical(),

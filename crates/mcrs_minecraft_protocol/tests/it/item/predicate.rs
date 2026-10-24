@@ -1,6 +1,7 @@
-use crate::item::harness::decode_component;
+use crate::item::harness::{decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_protocol::ErrorKind;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;
 
@@ -327,5 +328,8 @@ fn a_state_predicate_naming_a_property_twice_is_refused_on_the_wire() {
     wire.extend([0, 0, 0]);
     let error =
         decode_component(DataComponentType::CanBreak, &lookup(), &mut &wire[..]).unwrap_err();
-    assert!(error.to_string().contains("duplicate key"), "{error}");
+    assert!(
+        matches!(wire_kind(&error), ErrorKind::DuplicateKey),
+        "{error:#}"
+    );
 }

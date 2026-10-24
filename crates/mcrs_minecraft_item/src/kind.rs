@@ -9,6 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::*;
 use crate::keys::DataComponentType;
+use mcrs_minecraft_wire::{Decode, Encode, Result};
+use std::io::Write;
 
 /// Every data component: its `DataComponentType` variant, its value type and
 /// its flags. Exactly one of `persistent` / `transient`; `unit` for a value
@@ -361,3 +363,44 @@ impl DataComponentType {
         self.flags() & flag::nbt_wire != 0
     }
 }
+
+/// Expands to the first group when the flag list holds `nbt_wire`, else to the second.
+macro_rules! if_nbt_wire {
+    ([] $then:tt {$($else:tt)*}) => { $($else)* };
+    ([nbt_wire $(, $rest:ident)*] {$($then:tt)*} $else:tt) => { $($then)* };
+    ([$first:ident $(, $rest:ident)*] $then:tt $else:tt) => {
+        if_nbt_wire!([$($rest),*] $then $else)
+    };
+}
+
+macro_rules! value_wire {
+    ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        impl Encode for ItemComponentValue<Wire> {
+            fn encode(&self, w: impl Write) -> Result<()> {
+                match self {
+                    $(Self::$ty(value) => if_nbt_wire!([$($flag),*] {
+                        mcrs_minecraft_nbt::encode_wire(value, w)
+                    } {
+                        value.encode(w)
+                    }),)*
+                }
+            }
+        }
+
+        /// The value of `kind`, whose wire layout the kind alone selects.
+        pub fn decode_component_value(
+            kind: DataComponentType,
+            r: &mut &[u8],
+        ) -> Result<ItemComponentValue<Wire>> {
+            Ok(match kind {
+                $(DataComponentType::$kind => ItemComponentValue::$ty(if_nbt_wire!([$($flag),*] {
+                    mcrs_minecraft_nbt::decode_wire(r)?
+                } {
+                    Decode::decode(r)?
+                })),)*
+            })
+        }
+    };
+}
+
+for_each_data_component!(value_wire);

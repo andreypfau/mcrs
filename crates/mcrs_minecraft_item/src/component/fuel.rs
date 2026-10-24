@@ -34,6 +34,7 @@ impl ResolvableFloat {
 macro_rules! fuel {
     ($($ty:ident { $($field:ident: $field_ty:ident = $constant:expr),+ }),* $(,)?) => {$(
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(deny_unknown_fields)]
         pub struct $ty {
             $(pub $field: $field_ty,)+

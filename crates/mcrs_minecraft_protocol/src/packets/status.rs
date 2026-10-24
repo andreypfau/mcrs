@@ -1,6 +1,6 @@
 pub mod clientbound {
     use derive_more::Into;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
 
     pub use crate::packets::ping::clientbound::PongResponse;
 
@@ -11,7 +11,7 @@ pub mod clientbound {
 }
 
 pub mod serverbound {
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_wire::{Decode, Encode};
 
     pub use crate::packets::ping::serverbound::PingRequest;
 

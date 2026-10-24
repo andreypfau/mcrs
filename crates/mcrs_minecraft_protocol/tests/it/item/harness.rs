@@ -32,7 +32,7 @@ pub trait WireCodec: FromWire<Wire: Encode> {
         lookup: &WireLookup<'_>,
         w: impl std::io::Write,
     ) -> anyhow::Result<()> {
-        self.to_wire(lookup)?.encode(w)
+        Ok(self.to_wire(lookup)?.encode(w)?)
     }
 
     fn decode_checked(lookup: &WireLookup<'_>, r: &mut &[u8]) -> anyhow::Result<Self>
@@ -48,6 +48,14 @@ impl<T: FromWire<Wire: Encode>> WireCodec for T {}
 
 pub fn wire_form<T: FromWire>(value: &T) -> T::Wire {
     value.to_wire(&block_lookup()).unwrap()
+}
+
+/// The kind of the codec error behind `error`, without the fields that led to it.
+pub fn wire_kind(error: &anyhow::Error) -> &mcrs_minecraft_protocol::ErrorKind {
+    match error.downcast_ref::<mcrs_minecraft_protocol::Error>() {
+        Some(error) => error.kind(),
+        None => panic!("not a codec error: {error:#}"),
+    }
 }
 
 pub fn decode_component(

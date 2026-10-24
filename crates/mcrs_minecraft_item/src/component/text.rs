@@ -11,12 +11,16 @@ use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result};
+use std::io::Write;
 
 macro_rules! text_newtype {
     ($($ty:ident),* $(,)?) => {$(
         #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub Text<M::Nbt>);
 
@@ -52,7 +56,9 @@ text_newtype!(CustomName, ItemName);
 pub const MAX_LORE_LINES: usize = 256;
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, Default, PartialEq, Serialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, Default, PartialEq, Serialize, Encode, Decode,
+)]
 #[serde(transparent)]
 pub struct Lore<M: Refs = Resolved> {
     pub lines: Bounded<Vec<Text<M::Nbt>>, MAX_LORE_LINES>,
@@ -89,6 +95,7 @@ impl Sample for Lore {
 macro_rules! location_newtype {
     ($($ty:ident),* $(,)?) => {$(
         #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
         pub struct $ty(pub ResourceLocation);
 
@@ -210,6 +217,7 @@ macro_rules! sign_newtype {
         #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub SignText<M>);
 
@@ -226,3 +234,23 @@ macro_rules! sign_newtype {
 }
 
 sign_newtype!(SignTextFront, SignTextBack);
+
+impl Encode for SignText<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.messages.encode(&mut w)?;
+        self.filtered_messages.encode(&mut w)?;
+        self.color.encode(&mut w)?;
+        self.has_glowing_text.encode(w)
+    }
+}
+
+impl Decode<'_> for SignText<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(SignText::new(
+            Decode::decode(r)?,
+            Option::decode(r)?,
+            DyeColor::decode(r)?,
+            bool::decode(r)?,
+        ))
+    }
+}

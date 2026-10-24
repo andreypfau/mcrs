@@ -3,7 +3,7 @@ use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use bevy_math::DVec3;
+use glam::DVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
@@ -319,13 +319,13 @@ fn block_states_read_from_data_resolve_like_vanilla() {
 
 #[test]
 fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
+    use mcrs_minecraft_core::BlockStateNumber;
     use mcrs_minecraft_core::{ResourceLocation, TagKey};
     use mcrs_minecraft_item::component::CompactList;
     use mcrs_minecraft_item::component::{AdventureModePredicate, BlockPredicate, CanPlaceOn};
     use mcrs_minecraft_item::keys::Item;
     use mcrs_minecraft_item::kind::ItemComponentValue;
     use mcrs_minecraft_item::stack::ItemStackValue;
-    use mcrs_minecraft_particle::WireBlockState;
     use mcrs_minecraft_registries::{WireId, WireSet};
 
     let item = |id: u16, components: ComponentPatch<Wire>| {
@@ -357,7 +357,7 @@ fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
         (
             "unknown block state",
             ParticleOptions::Block(BlockParticle {
-                block_state: WireBlockState(u16::MAX),
+                block_state: BlockStateNumber(u16::MAX),
             }),
             "no block state has id 65535",
         ),

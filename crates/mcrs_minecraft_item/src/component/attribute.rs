@@ -11,16 +11,37 @@ use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
+use crate::wire::ordinal_enum_wire;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
+use std::io::Write;
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(transparent)]
 pub struct AttributeModifiers<M: Refs = Resolved>(pub Vec<AttributeEntry<M>>);
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeEntry<M: Refs = Resolved> {
     #[serde(rename = "type")]
@@ -60,7 +81,7 @@ fn is_any(slot: &EquipmentSlotGroup) -> bool {
     *slot == EquipmentSlotGroup::Any
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeModifierValue {
     pub id: ResourceLocation,
@@ -153,5 +174,30 @@ impl Sample for AttributeModifiers {
                 ),
             ]),
         ]
+    }
+}
+
+ordinal_enum_wire!(AttributeOperation);
+
+impl Encode for AttributeDisplay<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.type_id()).encode(&mut w)?;
+        match self {
+            AttributeDisplay::Override { value } => value.encode(w),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// An unknown type id reads as `Default`.
+impl Decode<'_> for AttributeDisplay<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(match VarInt::decode(r)?.0 {
+            1 => AttributeDisplay::Hidden,
+            2 => AttributeDisplay::Override {
+                value: Decode::decode(r)?,
+            },
+            _ => AttributeDisplay::Default,
+        })
     }
 }

@@ -36,6 +36,9 @@ use crate::patch::ComponentMap;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
+use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt, ensure, nested};
+use std::io::Write;
 
 pub const MAX_PARTIAL_PREDICATES: usize = 64;
 
@@ -43,7 +46,7 @@ macro_rules! predicate_newtype {
     ($($ty:ident($inner:ident<$mode:ty>)),* $(,)?) => {$(
         #[registry_value]
         #[derive(mcrs_minecraft_registries::FromWire)]
-        #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+        #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub $inner<$mode>);
 
@@ -82,7 +85,9 @@ macro_rules! empty_default {
 /// One predicate bare, otherwise a non-empty list; the wire allows an empty
 /// list.
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Encode, Decode,
+)]
 #[serde(transparent)]
 pub struct AdventureModePredicate<M: Refs = Resolved>(pub CompactList<BlockPredicate<M>>);
 
@@ -1136,4 +1141,103 @@ fn sample_matchers() -> DataComponentMatchers {
             .collect(),
         ),
     }
+}
+
+impl Encode for BlockPredicate<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.blocks.encode(&mut w)?;
+        self.state.encode(&mut w)?;
+        self.nbt.encode(&mut w)?;
+        self.matchers.encode(w)
+    }
+}
+
+/// A matcher map holds components that hold block predicates again.
+impl Decode<'_> for BlockPredicate<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        nested(|| {
+            Ok(BlockPredicate {
+                blocks: Option::decode(r)?,
+                state: Option::decode(r)?,
+                nbt: Option::decode(r)?,
+                matchers: DataComponentMatchers::decode(r)?,
+            })
+        })
+    }
+}
+
+/// The writer is erased before recursing into the component dispatch, as
+/// `ComponentPatch` does: a generic `impl Write` would otherwise gain one
+/// `&mut` per level of a value that contains a value of its own kind and
+/// never reach a fixed type.
+impl Encode for DataComponentMatchers<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        let w: &mut dyn Write = &mut w;
+        self.components.encode(&mut *w)?;
+        let predicates = &self.predicates.0;
+        ensure!(
+            predicates.len() <= MAX_PARTIAL_PREDICATES,
+            "list of {} entries exceeds the maximum of {MAX_PARTIAL_PREDICATES}",
+            predicates.len()
+        );
+        VarInt(predicates.len() as i32).encode(&mut *w)?;
+        for entry in predicates {
+            match entry {
+                ComponentPredicateEntry::Typed(predicate) => {
+                    true.encode(&mut *w)?;
+                    predicate.kind().encode(&mut *w)?;
+                    mcrs_minecraft_nbt::encode_wire(predicate, &mut *w)?;
+                }
+                ComponentPredicateEntry::AnyValue(kind) => {
+                    false.encode(&mut *w)?;
+                    kind.encode(&mut *w)?;
+                    mcrs_minecraft_nbt::encode_wire(&UnitMap, &mut *w)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Decode<'_> for DataComponentMatchers<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let components = ComponentMap::decode(r)?;
+        let partial = VarInt::decode(r)?.0;
+        ensure!(
+            (0..=MAX_PARTIAL_PREDICATES as i32).contains(&partial),
+            "list of {partial} entries exceeds the maximum of {MAX_PARTIAL_PREDICATES}"
+        );
+        let mut predicates = ComponentPredicates::default();
+        for _ in 0..partial {
+            let entry = match bool::decode(r)? {
+                true => {
+                    let kind = DataComponentPredicateType::decode(r)?;
+                    ComponentPredicateEntry::Typed(decode_predicate_wire(kind, r)?)
+                }
+                false => {
+                    let kind = DataComponentType::decode(r)?;
+                    mcrs_minecraft_nbt::decode_wire::<UnitMap>(r)?;
+                    ComponentPredicateEntry::AnyValue(kind)
+                }
+            };
+            ensure!(
+                !predicates.0.iter().any(|seen| seen.same_key(&entry)),
+                "duplicate data component predicate"
+            );
+            predicates.0.push(entry);
+        }
+        Ok(DataComponentMatchers {
+            components,
+            predicates,
+        })
+    }
+}
+
+/// One network NBT tag of whatever root type the predicate's codec writes,
+/// read back through that codec.
+fn decode_predicate_wire(
+    kind: DataComponentPredicateType,
+    r: &mut &[u8],
+) -> Result<ComponentPredicate<Named>> {
+    mcrs_minecraft_nbt::read_wire(r, |d| kind.deserialize(&mut *d).map_err(Error::other))
 }

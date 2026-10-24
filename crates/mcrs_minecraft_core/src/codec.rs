@@ -68,6 +68,18 @@ pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Bounded<const MIN: i32, const MAX: i32, const DEFAULT: i32 = 0>(pub i32);
 
+impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> From<i32> for Bounded<MIN, MAX, DEFAULT> {
+    fn from(value: i32) -> Self {
+        Bounded(value)
+    }
+}
+
+impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> From<Bounded<MIN, MAX, DEFAULT>> for i32 {
+    fn from(value: Bounded<MIN, MAX, DEFAULT>) -> Self {
+        value.0
+    }
+}
+
 impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Default for Bounded<MIN, MAX, DEFAULT> {
     fn default() -> Self {
         Bounded(DEFAULT)
@@ -511,6 +523,7 @@ macro_rules! color_int {
     ($(#[$meta:meta])* $name:ident, $channels:literal, $from:expr) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         pub struct $name(pub i32);
 
         impl Serialize for $name {

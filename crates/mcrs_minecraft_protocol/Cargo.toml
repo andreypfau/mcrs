@@ -12,7 +12,6 @@ workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
-mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_profile.workspace = true
@@ -20,13 +19,12 @@ mcrs_minecraft_text.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
-bevy_math.workspace = true
+glam.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_protocol_macros.workspace = true
+mcrs_minecraft_wire = { workspace = true, features = ["glam", "uuid", "serde"] }
 anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
-byteorder.workspace = true
 uuid = { workspace = true, features = ["serde"] }
 tracing.workspace = true
 bytes.workspace = true
@@ -35,6 +33,7 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true

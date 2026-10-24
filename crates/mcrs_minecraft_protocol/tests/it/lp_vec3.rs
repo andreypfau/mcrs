@@ -1,4 +1,4 @@
-use bevy_math::DVec3;
+use glam::DVec3;
 use mcrs_minecraft_protocol::{Decode, Encode, LpVec3};
 
 fn encode(vec: DVec3) -> Vec<u8> {
@@ -74,7 +74,7 @@ fn the_continuation_bit_turns_on_above_a_scale_of_three() {
         assert_eq!(buf[0] & 4 == 4, continuation, "magnitude {magnitude}");
         assert_eq!(
             buf[0] & 3,
-            magnitude.ceil() as u8 & 3,
+            f64::ceil(magnitude) as u8 & 3,
             "magnitude {magnitude}"
         );
     }

@@ -15,6 +15,7 @@ use crate::component::consume::{
 use crate::harness::Sample;
 use crate::keys::DataComponentType;
 use crate::keys::Item;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
 
 float_default! {
     speed_multiplier / is_speed_multiplier = 0.2f32,
@@ -29,7 +30,7 @@ checked_float! {
     margin: v in 0.0 is_ge 1.0 => "Value must be within range [0.0;1.0]: {v}",
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct UseEffects {
     #[serde(default, skip_serializing_if = "Not::not")]
@@ -79,7 +80,7 @@ impl Sample for UseEffects {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct CustomModelData {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -230,7 +231,7 @@ impl Sample for Food {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct UseCooldown {
     #[serde(deserialize_with = "positive_float")]
@@ -307,7 +308,7 @@ impl Sample for Weapon {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct AttackRange {
     #[serde(
@@ -392,7 +393,7 @@ impl Sample for AttackRange {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct BlockState(pub BTreeMap<String, String>);
 
@@ -413,5 +414,52 @@ impl Sample for BlockState {
                 ("lit".to_string(), "true".to_string()),
             ])),
         ]
+    }
+}
+
+impl Encode for TooltipDisplay {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
+        self.hide_tooltip.encode(&mut w)?;
+        self.hidden_components.encode(w)
+    }
+}
+
+impl Decode<'_> for TooltipDisplay {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(TooltipDisplay::new(bool::decode(r)?, Vec::decode(r)?))
+    }
+}
+
+impl Encode for Food {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
+        VarInt(self.nutrition.0).encode(&mut w)?;
+        self.saturation.encode(&mut w)?;
+        self.can_always_eat.encode(w)
+    }
+}
+
+impl Decode<'_> for Food {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(Food {
+            nutrition: Bounded(VarInt::decode(r)?.0),
+            saturation: f32::decode(r)?,
+            can_always_eat: bool::decode(r)?,
+        })
+    }
+}
+
+impl Encode for Weapon {
+    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
+        VarInt(self.item_damage_per_attack.0).encode(&mut w)?;
+        self.disable_blocking_for_seconds.encode(w)
+    }
+}
+
+impl Decode<'_> for Weapon {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(Weapon {
+            item_damage_per_attack: Bounded(VarInt::decode(r)?.0),
+            disable_blocking_for_seconds: f32::decode(r)?,
+        })
     }
 }

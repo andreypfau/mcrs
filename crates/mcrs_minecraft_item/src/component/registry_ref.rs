@@ -25,6 +25,9 @@ use crate::component::common::{is_one, one, serialize_entries};
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set, tag_set};
+use mcrs_minecraft_registries::WireId;
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
+use std::io::Write;
 
 /// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
@@ -32,6 +35,7 @@ macro_rules! registry_key_component {
         #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+        #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub M::Id<$registry>);
 
@@ -234,7 +238,15 @@ impl Sample for Enchantments {
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(transparent)]
 pub struct StoredEnchantments<M: Refs = Resolved>(pub Enchantments<M>);
@@ -253,7 +265,16 @@ impl Sample for StoredEnchantments {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant<M: Refs = Resolved> {
     pub types: M::Set<DamageType>,
@@ -330,7 +351,16 @@ impl<M: Refs> Default for Tool<M> {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct ToolRule<M: Refs = Resolved> {
     pub blocks: M::Set<Block>,
@@ -401,7 +431,16 @@ impl Sample for Tool {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct Repairable<M: Refs = Resolved> {
     pub items: M::Set<Item>,
@@ -430,7 +469,16 @@ impl Sample for Repairable {
 pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility<M: Refs = Resolved> {
     pub targeting_entity_types: M::Set<EntityType>,
@@ -473,7 +521,16 @@ impl Sample for MobVisibility {
 }
 
 #[registry_value]
-#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 #[serde(transparent)]
 pub struct ProvidesBannerPatterns<M: Refs = Resolved>(pub M::Set<BannerPattern>);
 
@@ -493,7 +550,15 @@ impl Sample for ProvidesBannerPatterns {
 
 #[registry_value]
 #[derive(
-    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+    mcrs_minecraft_registries::FromWire,
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
 )]
 #[serde(transparent)]
 pub struct SuspiciousStewEffects<M: Refs = Resolved>(pub Vec<StewEntry<M>>);
@@ -608,5 +673,74 @@ pub(crate) fn holder_set_tag<T>(set: &IdSet<T>) -> u8 {
     match set {
         IdSet::List(entries) if entries.len() != 1 => LIST_ID,
         _ => STRING_ID,
+    }
+}
+
+impl Encode for Enchantments<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        VarInt(self.0.len() as i32).encode(&mut w)?;
+        for (enchantment, level) in &self.0 {
+            enchantment.encode(&mut w)?;
+            VarInt(*level).encode(&mut w)?;
+        }
+        Ok(())
+    }
+}
+
+impl Decode<'_> for Enchantments<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let len = VarInt::decode(r)?.0;
+        ensure!(len >= 0, "attempt to decode a map with negative length");
+        let mut entries: Vec<(WireId<EnchantmentData>, i32)> =
+            Vec::with_capacity((len as usize).min(r.len()));
+        for _ in 0..len {
+            let enchantment = WireId::decode(r)?;
+            let level = VarInt::decode(r)?.0;
+            ensure!(
+                (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
+                "Enchantment {enchantment:?} has invalid level {level}"
+            );
+            match entries.iter_mut().find(|(k, _)| *k == enchantment) {
+                Some(entry) => entry.1 = level,
+                None => entries.push((enchantment, level)),
+            }
+        }
+        Ok(Enchantments(entries))
+    }
+}
+
+impl Encode for Tool<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.rules.encode(&mut w)?;
+        self.default_mining_speed.encode(&mut w)?;
+        VarInt(self.damage_per_block.0).encode(&mut w)?;
+        self.can_destroy_blocks_in_creative.encode(w)
+    }
+}
+
+impl Decode<'_> for Tool<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(Tool {
+            rules: Vec::decode(r)?,
+            default_mining_speed: f32::decode(r)?,
+            damage_per_block: Bounded(VarInt::decode(r)?.0),
+            can_destroy_blocks_in_creative: bool::decode(r)?,
+        })
+    }
+}
+
+impl Encode for StewEntry<Wire> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.id.encode(&mut w)?;
+        VarInt(self.duration).encode(w)
+    }
+}
+
+impl Decode<'_> for StewEntry<Wire> {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Ok(StewEntry {
+            id: Decode::decode(r)?,
+            duration: VarInt::decode(r)?.0,
+        })
     }
 }

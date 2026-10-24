@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::CompressionThreshold;
 use crate::Decode;
-use crate::var_int::VarInt;
+use crate::VarInt;
 
 pub const MAX_FRAME_BODY: usize = 2_097_151;
 
@@ -341,7 +341,7 @@ mod tests {
 
     use super::*;
     use crate::Encode;
-    use crate::var_int::VarInt;
+    use crate::VarInt;
 
     fn deflate(data: &[u8]) -> Vec<u8> {
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());

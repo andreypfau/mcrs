@@ -4,8 +4,8 @@ use flate2::Decompress;
 
 use crate::CompressionThreshold;
 use crate::Decode;
+use crate::VarInt;
 use crate::frame::{decompress, split_frame};
-use crate::var_int::VarInt;
 
 #[derive(Default)]
 pub struct PacketDecoder {
