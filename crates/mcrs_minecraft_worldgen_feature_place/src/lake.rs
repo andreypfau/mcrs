@@ -31,6 +31,10 @@ fn index(x: usize, z: usize, y: usize) -> usize {
     (x * WIDTH + z) * DEPTH + y
 }
 
+fn cell(grid: &[bool], x: usize, z: usize, y: usize) -> bool {
+    grid.get(index(x, z, y)).copied().unwrap_or(false)
+}
+
 /// A cell outside the blob whose six neighbours inside the grid include one
 /// that is: the shell the barrier and the validation both walk.
 fn is_liquid<W: WorldGenVolume>(volume: &W, state: VoxelId) -> bool {
@@ -39,15 +43,15 @@ fn is_liquid<W: WorldGenVolume>(volume: &W, state: VoxelId) -> bool {
 }
 
 fn on_shell(grid: &[bool], x: usize, z: usize, y: usize) -> bool {
-    if grid[index(x, z, y)] {
+    if cell(grid, x, z, y) {
         return false;
     }
-    (x < 15 && grid[index(x + 1, z, y)])
-        || (x > 0 && grid[index(x - 1, z, y)])
-        || (z < 15 && grid[index(x, z + 1, y)])
-        || (z > 0 && grid[index(x, z - 1, y)])
-        || (y < 7 && grid[index(x, z, y + 1)])
-        || (y > 0 && grid[index(x, z, y - 1)])
+    (x < 15 && cell(grid, x + 1, z, y))
+        || (x > 0 && cell(grid, x - 1, z, y))
+        || (z < 15 && cell(grid, x, z + 1, y))
+        || (z > 0 && cell(grid, x, z - 1, y))
+        || (y < 7 && cell(grid, x, z, y + 1))
+        || (y > 0 && cell(grid, x, z, y - 1))
 }
 
 /// `LakeFeature.place`: four to seven ellipsoids carved into a 16×8×16 grid,
@@ -92,7 +96,7 @@ pub fn place_lake<W: WorldGenVolume>(
     for x in 0..WIDTH {
         for z in 0..WIDTH {
             for y in 0..DEPTH {
-                if !grid[index(x, z, y)] {
+                if !cell(&grid, x, z, y) {
                     continue;
                 }
                 let pos = origin + IVec3::new(x as i32, y as i32, z as i32);
@@ -165,8 +169,10 @@ fn carve_blobs(rng: &mut WorldgenRandom) -> Vec<bool> {
                     let dx = (x as f64 - x_center) / (x_size / 2.0);
                     let dy = (y as f64 - y_center) / (y_size / 2.0);
                     let dz = (z as f64 - z_center) / (z_size / 2.0);
-                    if dx * dx + dy * dy + dz * dz < 1.0 {
-                        grid[index(x, z, y)] = true;
+                    if dx * dx + dy * dy + dz * dz < 1.0
+                        && let Some(cell) = grid.get_mut(index(x, z, y))
+                    {
+                        *cell = true;
                     }
                 }
             }

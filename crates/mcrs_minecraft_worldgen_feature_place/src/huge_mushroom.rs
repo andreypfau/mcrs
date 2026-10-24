@@ -61,12 +61,13 @@ impl MushroomFaces {
         north: bool,
         south: bool,
     ) -> VoxelId {
-        match self.entries.get(&state.0) {
-            Some(entry) => {
-                entry.by_faces[face_index(up.unwrap_or(entry.up), west, east, north, south)]
-            }
-            None => state,
-        }
+        self.entries
+            .get(&state.0)
+            .and_then(|entry| {
+                let index = face_index(up.unwrap_or(entry.up), west, east, north, south);
+                entry.by_faces.get(index).copied()
+            })
+            .unwrap_or(state)
     }
 }
 

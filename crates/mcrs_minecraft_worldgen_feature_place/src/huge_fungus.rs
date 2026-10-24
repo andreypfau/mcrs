@@ -198,7 +198,9 @@ fn hang_vines<W: WorldGenVolume>(
         if volume.is_air(pos) {
             if step == goal || !volume.is_air(pos - IVec3::Y) {
                 let age = rng.next_i32_bound(3) as usize;
-                volume.set(pos, cfg.weeping_vines_by_age[age]);
+                if let Some(&vines) = cfg.weeping_vines_by_age.get(age) {
+                    volume.set(pos, vines);
+                }
                 break;
             }
             volume.set(pos, cfg.weeping_vines_plant);

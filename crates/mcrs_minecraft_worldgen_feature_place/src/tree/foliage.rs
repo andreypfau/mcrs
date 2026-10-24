@@ -530,9 +530,9 @@ impl Foliage {
                     corner && rng.next_f32() < corner_hole_chance.0 as f32
                 }
             }
-            FoliagePlacer::Poplar { .. } => {
-                unreachable!("the poplar rhombus needs the row's own height and flip")
-            }
+            // The poplar rhombus needs the row's own height and flip, so
+            // `poplar_row` tests it and never asks here.
+            FoliagePlacer::Poplar { .. } => false,
         }
     }
     fn try_place_leaf<W: WorldGenVolume>(

@@ -139,8 +139,9 @@ pub fn place_monster_room<W: WorldGenVolume>(
     }
 
     let placed = volume.set_unless(&config.cannot_replace, origin, config.spawner);
-    if placed || volume.holds(&config.spawner_states, origin) {
-        let mob = MOBS[rng.next_i32_bound(4) as usize];
+    if (placed || volume.holds(&config.spawner_states, origin))
+        && let Some(mob) = MOBS.get(rng.next_i32_bound(4) as usize)
+    {
         volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             origin,
             mob.as_static_str(),
@@ -158,11 +159,13 @@ pub fn reorient<W: WorldGenVolume>(
     volume: &W,
     pos: BlockPos,
 ) -> VoxelId {
+    let [north, ..] = *chest_facing;
+    let chest = |facing: usize| chest_facing.get(facing).copied().unwrap_or(north);
     let mut only_solid = None;
     for (index, side) in Direction::HORIZONTAL.iter().enumerate() {
         let state = volume.get(pos + side.normal());
         if holds(chest_states, state) {
-            return chest_facing[0];
+            return north;
         }
         if holds(&volume.world().solid_render, state) {
             if only_solid.is_some() {
@@ -173,11 +176,12 @@ pub fn reorient<W: WorldGenVolume>(
         }
     }
     if let Some(index) = only_solid {
-        return chest_facing[(index + 2) % 4];
+        return chest((index + 2) % 4);
     }
     let solid_render = |facing: usize| {
-        let step = Direction::HORIZONTAL[facing].normal();
-        volume.holds(&volume.world().solid_render, pos + step)
+        Direction::HORIZONTAL
+            .get(facing)
+            .is_some_and(|side| volume.holds(&volume.world().solid_render, pos + side.normal()))
     };
     let mut facing = 0;
     if solid_render(facing) {
@@ -189,7 +193,7 @@ pub fn reorient<W: WorldGenVolume>(
     if solid_render(facing) {
         facing = (facing + 2) % 4;
     }
-    chest_facing[facing]
+    chest(facing)
 }
 
 /// `Util.toShuffledList(IntStream.rangeClosed(min, max), random)`.

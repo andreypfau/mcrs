@@ -406,9 +406,17 @@ pub fn chest_minecart(
     )
 }
 
-/// `Registry.getRandom` over a registry in its order.
-fn pick_sound(sounds: &[ResourceLocation], rng: &mut WorldgenRandom) -> ResourceLocation {
-    sounds[rng.next_i32_bound(sounds.len() as i32) as usize].clone()
+/// `Registry.getRandom` over a registry in its order, `fallback` when the
+/// registry is empty.
+fn pick_sound(
+    sounds: &[ResourceLocation],
+    fallback: impl FnOnce() -> ResourceLocation,
+    rng: &mut WorldgenRandom,
+) -> ResourceLocation {
+    sounds
+        .get(rng.next_i32_bound(sounds.len() as i32) as usize)
+        .cloned()
+        .unwrap_or_else(fallback)
 }
 
 pub fn cat(
@@ -423,7 +431,15 @@ pub fn cat(
             .location()
             .to_arc()
     });
-    let sound_variant = pick_sound(&tables.cat_sounds, rng);
+    let sound_variant = pick_sound(
+        &tables.cat_sounds,
+        || {
+            mcrs_minecraft_entity::keys::cat_sound_variant::CLASSIC
+                .location()
+                .to_arc()
+        },
+        rng,
+    );
     placed(
         bottom_centre(at),
         [0.0; 2],
@@ -447,7 +463,15 @@ fn chicken_jockey(
             .location()
             .to_arc()
     });
-    let sound_variant = pick_sound(&tables.chicken_sounds, rng);
+    let sound_variant = pick_sound(
+        &tables.chicken_sounds,
+        || {
+            mcrs_minecraft_entity::keys::chicken_sound_variant::CLASSIC
+                .location()
+                .to_arc()
+        },
+        rng,
+    );
     let left_handed = mob(rng);
     placed(
         pos,

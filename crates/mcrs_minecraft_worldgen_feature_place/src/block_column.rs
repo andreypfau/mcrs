@@ -65,18 +65,17 @@ pub fn place_block_column<W: WorldGenVolume>(
 
 fn truncate(heights: &mut [i32], total: i32, new_height: i32, prioritize_tip: bool) {
     let mut to_remove = total - new_height;
-    for step in 0..heights.len() {
-        if to_remove <= 0 {
-            break;
+    let take = |height: &mut i32| {
+        if to_remove > 0 {
+            let taken = (*height).min(to_remove);
+            to_remove -= taken;
+            *height -= taken;
         }
-        let index = if prioritize_tip {
-            step
-        } else {
-            heights.len() - 1 - step
-        };
-        let taken = heights[index].min(to_remove);
-        to_remove -= taken;
-        heights[index] -= taken;
+    };
+    if prioritize_tip {
+        heights.iter_mut().for_each(take);
+    } else {
+        heights.iter_mut().rev().for_each(take);
     }
 }
 

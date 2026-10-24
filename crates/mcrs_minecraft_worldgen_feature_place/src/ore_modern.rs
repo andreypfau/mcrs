@@ -112,24 +112,26 @@ fn do_place<W: WorldGenVolume>(
     let (dx, dy, dz) = (x1 - x0, y1 - y0, z1 - z0);
     let step_distance = (dx * dx + dy * dy + dz * dz).sqrt() / size as f64;
 
-    for i in 0..spheres.len().saturating_sub(1) {
-        let radius = spheres[i][3];
+    let mut rest = spheres.as_mut_slice();
+    while let Some((sphere, others)) = std::mem::take(&mut rest).split_first_mut() {
+        rest = others;
+        let radius = sphere[3];
         if radius <= 0.0 {
             continue;
         }
-        for j in i + 1..spheres.len() {
-            let other_radius = spheres[j][3];
+        for (gap, other) in (1u32..).zip(rest.iter_mut()) {
+            let other_radius = other[3];
             if other_radius <= 0.0 {
                 continue;
             }
-            let distance = (j - i) as f64 * step_distance;
+            let distance = f64::from(gap) * step_distance;
             let dr = radius - other_radius;
             if dr * dr > distance * distance {
                 if dr <= 0.0 {
-                    spheres[i][3] = -1.0;
+                    sphere[3] = -1.0;
                     break;
                 }
-                spheres[j][3] = -1.0;
+                other[3] = -1.0;
             }
             if distance > largest_radius {
                 break;
@@ -180,10 +182,13 @@ fn do_place<W: WorldGenVolume>(
                 let half_span = remaining.sqrt();
                 let y_low = ((yy - 0.5 - half_span).floor() as i32 + 1).max(lowest_y);
                 let y_high = ((yy - 0.5 + half_span).ceil() as i32 - 1).min(highest_y);
-                if y_low <= y_high {
-                    let index = (row_offset + z) as usize;
-                    column_min_y[index] = column_min_y[index].min(y_low);
-                    column_max_y[index] = column_max_y[index].max(y_high);
+                let index = (row_offset + z) as usize;
+                if y_low <= y_high
+                    && let (Some(min_y), Some(max_y)) =
+                        (column_min_y.get_mut(index), column_max_y.get_mut(index))
+                {
+                    *min_y = (*min_y).min(y_low);
+                    *max_y = (*max_y).max(y_high);
                 }
             }
         }
@@ -193,12 +198,15 @@ fn do_place<W: WorldGenVolume>(
         let x = x_start + grid_x;
         for grid_z in touched_min_z..=touched_max_z {
             let index = (grid_x * size_xz + grid_z) as usize;
-            let y_min = column_min_y[index];
+            let (Some(&y_min), Some(&y_max)) = (column_min_y.get(index), column_max_y.get(index))
+            else {
+                continue;
+            };
             if y_min == i32::MAX {
                 continue;
             }
             let z = z_start + grid_z;
-            for y in y_min..=column_max_y[index] {
+            for y in y_min..=y_max {
                 let pos = BlockPos::new(x, y, z);
                 let current = volume.get(pos);
                 for target in &cfg.targets {

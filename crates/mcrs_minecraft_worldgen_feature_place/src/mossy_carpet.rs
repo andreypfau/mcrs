@@ -71,7 +71,10 @@ impl MossyCarpetStates {
     }
 
     fn state(&self, shape: CarpetShape) -> VoxelId {
-        self.by_shape[shape.index()]
+        self.by_shape
+            .get(shape.index())
+            .copied()
+            .unwrap_or(self.air)
     }
 
     fn shape(&self, state: VoxelId) -> Option<CarpetShape> {
@@ -94,13 +97,12 @@ fn position_seed(pos: BlockPos) -> i64 {
 /// `MultifaceBlock.canAttachTo` for a horizontal, which is the only plane a
 /// carpet climbs.
 fn can_attach<W: WorldGenVolume>(
-    states: &MossyCarpetStates,
     volume: &W,
+    attaches: &StateMask,
     pos: BlockPos,
-    face: usize,
+    direction: Direction,
 ) -> bool {
-    let direction = Direction::HORIZONTAL[face];
-    volume.holds(&states.attaches[face], pos + direction.normal())
+    volume.holds(attaches, pos + direction.normal())
 }
 
 /// `MossyCarpetBlock.getUpdatedState`.
@@ -115,13 +117,11 @@ fn updated<W: WorldGenVolume>(
     let mut above = None;
     let mut below = None;
 
-    for face in 0..4 {
-        let mut side = if can_attach(states, volume, pos, face) {
-            if create_sides {
-                WallSide::Low
-            } else {
-                shape.sides[face]
-            }
+    let base = shape.base;
+    let faces = Direction::HORIZONTAL.into_iter().zip(&states.attaches);
+    for (face, (slot, (direction, attaches))) in shape.sides.iter_mut().zip(faces).enumerate() {
+        let mut side = if can_attach(volume, attaches, pos, direction) {
+            if create_sides { WallSide::Low } else { *slot }
         } else {
             WallSide::None
         };
@@ -129,23 +129,26 @@ fn updated<W: WorldGenVolume>(
         if side == WallSide::Low {
             let up = *above.get_or_insert_with(|| states.shape(volume.get(pos + IVec3::Y)));
             if let Some(up) = up
-                && up.sides[face] != WallSide::None
+                && up
+                    .sides
+                    .get(face)
+                    .is_some_and(|side| *side != WallSide::None)
                 && !up.base
             {
                 side = WallSide::Tall;
             }
 
-            if !shape.base {
+            if !base {
                 let down = *below.get_or_insert_with(|| states.shape(volume.get(pos - IVec3::Y)));
                 if let Some(down) = down
-                    && down.sides[face] == WallSide::None
+                    && down.sides.get(face) == Some(&WallSide::None)
                 {
                     side = WallSide::None;
                 }
             }
         }
 
-        shape.sides[face] = side;
+        *slot = side;
     }
     shape
 }

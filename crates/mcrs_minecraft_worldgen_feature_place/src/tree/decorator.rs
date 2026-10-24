@@ -76,7 +76,9 @@ pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
             .wrapping_add(pos.x) as u32;
         let hash = hash ^ (hash >> 16);
         let index = (hash as usize) & (table.len() - 1);
-        let bucket = &mut table[index];
+        let Some(bucket) = table.get_mut(index) else {
+            continue;
+        };
         if bucket.iter().any(|(_, seen)| *seen == pos) {
             continue;
         }
@@ -86,7 +88,9 @@ pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
             let capacity = table.len() * 2;
             let mut grown: Vec<Vec<(u32, BlockPos)>> = vec![Vec::new(); capacity];
             for entry in table.into_iter().flatten() {
-                grown[(entry.0 as usize) & (capacity - 1)].push(entry);
+                if let Some(bucket) = grown.get_mut((entry.0 as usize) & (capacity - 1)) {
+                    bucket.push(entry);
+                }
             }
             table = grown;
         }
@@ -148,15 +152,17 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
     }
 
     fn place_vine(&mut self, pos: BlockPos, side: Direction) {
-        self.set(pos, self.tables.palette.vine_side[horizontal_index(side)]);
+        if let Some(state) = by_horizontal(&self.tables.palette.vine_side, side) {
+            self.set(pos, state);
+        }
     }
     fn lowest_trunk_or_root(&self) -> Vec<BlockPos> {
-        if self.roots.is_empty() {
-            self.logs.clone()
-        } else if !self.logs.is_empty() && self.roots[0].y == self.logs[0].y {
-            self.logs.iter().chain(&self.roots).copied().collect()
-        } else {
-            self.roots.clone()
+        match (self.logs.first(), self.roots.first()) {
+            (_, None) => self.logs.clone(),
+            (Some(log), Some(root)) if root.y == log.y => {
+                self.logs.iter().chain(&self.roots).copied().collect()
+            }
+            _ => self.roots.clone(),
         }
     }
 }
@@ -202,7 +208,9 @@ impl CompiledTreeDecorator {
         match &self.0 {
             TreeDecorator::TrunkVine {} => {
                 for index in 0..ctx.logs.len() {
-                    let pos = ctx.logs[index];
+                    let Some(&pos) = ctx.logs.get(index) else {
+                        break;
+                    };
                     for side in VINE_SIDES {
                         if rng.next_i32_bound(3) > 0 {
                             let at = pos + side.normal();
@@ -215,7 +223,9 @@ impl CompiledTreeDecorator {
             }
             TreeDecorator::LeaveVine { probability } => {
                 for index in 0..ctx.leaves.len() {
-                    let pos = ctx.leaves[index];
+                    let Some(&pos) = ctx.leaves.get(index) else {
+                        break;
+                    };
                     for side in VINE_SIDES {
                         if rng.next_f32() < probability.0 as f32 {
                             let at = pos + side.normal();
@@ -232,20 +242,17 @@ impl CompiledTreeDecorator {
                 ground_probability,
             } => {
                 let shuffled = shuffled(&ctx.logs, rng);
-                if shuffled.is_empty() {
+                let Some(ground_origin) = shuffled.iter().min_by_key(|pos| pos.y).copied() else {
                     return;
-                }
-                let ground_origin = shuffled
-                    .iter()
-                    .min_by_key(|pos| pos.y)
-                    .copied()
-                    .expect("the list is not empty");
+                };
                 if rng.next_f32() < ground_probability.0 as f32 {
                     ctx.sink
                         .moss_patch(ctx.volume, rng, ground_origin + IVec3::Y);
                 }
                 for index in 0..ctx.logs.len() {
-                    let pos = ctx.logs[index];
+                    let Some(&pos) = ctx.logs.get(index) else {
+                        break;
+                    };
                     if rng.next_f32() < trunk_probability.0 as f32 {
                         let below = pos + IVec3::NEG_Y;
                         if ctx.is_air(below) {
@@ -254,7 +261,9 @@ impl CompiledTreeDecorator {
                     }
                 }
                 for index in 0..ctx.leaves.len() {
-                    let pos = ctx.leaves[index];
+                    let Some(&pos) = ctx.leaves.get(index) else {
+                        break;
+                    };
                     if rng.next_f32() < leaves_probability.0 as f32 {
                         let below = pos + IVec3::NEG_Y;
                         if ctx.is_air(below) {
@@ -278,34 +287,47 @@ impl CompiledTreeDecorator {
                 }
             }
             TreeDecorator::Cocoa { probability } => {
-                if rng.next_f32() >= probability.0 as f32 || ctx.logs.is_empty() {
+                if rng.next_f32() >= probability.0 as f32 {
                     return;
                 }
-                let base_y = ctx.logs[0].y;
+                let Some(base_y) = ctx.logs.first().map(|log| log.y) else {
+                    return;
+                };
+                let cocoa = &ctx.tables.palette.cocoa;
                 for index in 0..ctx.logs.len() {
-                    let pos = ctx.logs[index];
+                    let Some(&pos) = ctx.logs.get(index) else {
+                        break;
+                    };
                     if pos.y - base_y > 2 {
                         continue;
                     }
-                    for (facing, side) in Direction::HORIZONTAL.into_iter().enumerate() {
+                    for side in Direction::HORIZONTAL {
                         if rng.next_f32() <= 0.25 {
                             let at = pos + side.opposite().normal();
                             if ctx.is_air(at) {
                                 let age = rng.next_i32_bound(3) as usize;
-                                ctx.set(at, ctx.tables.palette.cocoa[age][facing]);
+                                if let Some(state) = cocoa
+                                    .get(age)
+                                    .and_then(|by_side| by_horizontal(by_side, side))
+                                {
+                                    ctx.set(at, state);
+                                }
                             }
                         }
                     }
                 }
             }
             TreeDecorator::ShelfMushroom { probability } => {
-                if rng.next_f32() >= probability.0 as f32 || ctx.logs.is_empty() {
+                if rng.next_f32() >= probability.0 as f32 {
                     return;
                 }
-                if ctx.logs[0].y == ctx.logs[ctx.logs.len() - 1].y {
-                    place_mushrooms_on_fallen_log(ctx, rng);
+                let (Some(&first), Some(&last)) = (ctx.logs.first(), ctx.logs.last()) else {
+                    return;
+                };
+                if first.y == last.y {
+                    place_mushrooms_on_fallen_log(ctx, rng, first, last);
                 } else {
-                    place_mushrooms_on_standing_tree(ctx, rng);
+                    place_mushrooms_on_standing_tree(ctx, rng, first.y);
                 }
             }
             TreeDecorator::Beehive { probability } => place_beehive(ctx, rng, probability.0 as f32),
@@ -340,7 +362,11 @@ impl CompiledTreeDecorator {
                     (exclusion_radius_xz.0, exclusion_radius_y.0);
                 let mut excluded: HashSet<BlockPos> = HashSet::default();
                 for leaf in shuffled(&ctx.leaves, rng) {
-                    let side = directions[rng.next_i32_bound(directions.len() as i32) as usize];
+                    let Some(&side) =
+                        directions.get(rng.next_i32_bound(directions.len() as i32) as usize)
+                    else {
+                        continue;
+                    };
                     let at = leaf + side.normal();
                     if excluded.contains(&at)
                         || rng.next_f32() >= probability.0 as f32
@@ -408,7 +434,11 @@ impl CompiledTreeDecorator {
                 directions,
             } => {
                 for log in shuffled(&ctx.logs, rng) {
-                    let side = directions[rng.next_i32_bound(directions.len() as i32) as usize];
+                    let Some(&side) =
+                        directions.get(rng.next_i32_bound(directions.len() as i32) as usize)
+                    else {
+                        continue;
+                    };
                     let at = log + side.normal();
                     if rng.next_f32() <= probability.0 as f32 && ctx.is_air(at) {
                         let state = provider.state(ctx.volume, rng, at);
@@ -428,11 +458,13 @@ const VINE_SIDES: [Direction; 4] = [
     Direction::South,
 ];
 
-fn horizontal_index(direction: Direction) -> usize {
+/// The entry of a table over [`Direction::HORIZONTAL`] for `side`, which a
+/// vertical has none of.
+fn by_horizontal<T: Copy>(by_side: &[T; 4], side: Direction) -> Option<T> {
     Direction::HORIZONTAL
         .iter()
-        .position(|side| *side == direction)
-        .expect("a horizontal direction")
+        .zip(by_side)
+        .find_map(|(each, &value)| (*each == side).then_some(value))
 }
 
 fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, side: Direction) {
@@ -451,12 +483,13 @@ fn hang_moss<W: WorldGenVolume>(
     pos: BlockPos,
     rng: &mut WorldgenRandom,
 ) {
+    let [hanging, tip] = ctx.tables.palette.pale_hanging_moss;
     let mut cursor = pos;
     while ctx.is_air(cursor + IVec3::NEG_Y) && rng.next_f32() >= 0.5 {
-        ctx.set(cursor, ctx.tables.palette.pale_hanging_moss[0]);
+        ctx.set(cursor, hanging);
         cursor += IVec3::NEG_Y;
     }
-    ctx.set(cursor, ctx.tables.palette.pale_hanging_moss[1]);
+    ctx.set(cursor, tip);
 }
 
 fn place_circle<W: WorldGenVolume>(
@@ -490,13 +523,16 @@ fn place_beehive<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
     probability: f32,
 ) {
-    if ctx.logs.is_empty() || rng.next_f32() >= probability {
+    let (Some(&lowest_log), Some(&highest_log)) = (ctx.logs.first(), ctx.logs.last()) else {
+        return;
+    };
+    if rng.next_f32() >= probability {
         return;
     }
     let hive_y = if let Some(lowest_leaf) = ctx.leaves.first() {
-        (lowest_leaf.y - 1).max(ctx.logs[0].y + 1)
+        (lowest_leaf.y - 1).max(lowest_log.y + 1)
     } else {
-        (ctx.logs[0].y + 1 + rng.next_i32_bound(3)).min(ctx.logs[ctx.logs.len() - 1].y)
+        (lowest_log.y + 1 + rng.next_i32_bound(3)).min(highest_log.y)
     };
     let mut sides: Vec<BlockPos> = ctx
         .logs
@@ -530,12 +566,14 @@ fn place_beehive<W: WorldGenVolume>(
 fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     rng: &mut WorldgenRandom,
+    base_y: i32,
 ) {
     let first = random_horizontal(rng);
     let sides = [first, first.clockwise()];
-    let base_y = ctx.logs[0].y;
     for index in 0..ctx.logs.len() {
-        let log = ctx.logs[index];
+        let Some(&log) = ctx.logs.get(index) else {
+            break;
+        };
         if !(1..=4).contains(&(log.y - base_y)) {
             continue;
         }
@@ -558,15 +596,18 @@ fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
 fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     rng: &mut WorldgenRandom,
+    first: BlockPos,
+    last: BlockPos,
 ) {
-    let last = ctx.logs[ctx.logs.len() - 1];
-    let sides = if ctx.logs[0].x != last.x {
+    let sides = if first.x != last.x {
         [Direction::North, Direction::South]
     } else {
         [Direction::East, Direction::West]
     };
     for index in 0..ctx.logs.len() {
-        let log = ctx.logs[index];
+        let Some(&log) = ctx.logs.get(index) else {
+            break;
+        };
         for side in sides {
             if rng.next_f32() > 0.25 {
                 continue;
@@ -602,10 +643,15 @@ fn place_shelf_mushroom<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
 ) {
     let age = rng.next_i32_bound(2) as usize;
-    ctx.set(
-        pos,
-        ctx.tables.palette.shelf_mushroom[age][horizontal_index(facing)],
-    );
+    if let Some(state) = ctx
+        .tables
+        .palette
+        .shelf_mushroom
+        .get(age)
+        .and_then(|by_side| by_horizontal(by_side, facing))
+    {
+        ctx.set(pos, state);
+    }
 }
 
 #[cfg(test)]

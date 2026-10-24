@@ -76,8 +76,8 @@ struct Cursor {
 }
 
 impl CompiledSculkPatch {
-    fn vein_state(&self, faces: u8, waterlogged: bool) -> VoxelId {
-        self.vein.by_faces[usize::from(waterlogged)][usize::from(faces)]
+    fn vein_state(&self, faces: u8, waterlogged: bool) -> Option<VoxelId> {
+        self.vein.state_with(faces, waterlogged)
     }
 
     fn behaviour(&self, state: VoxelId) -> Behaviour {
@@ -282,7 +282,10 @@ fn regrow<W: WorldGenVolume>(
         return false;
     }
     let waterlogged = holds(&volume.world().any_fluid, existing);
-    volume.set(pos, config.vein_state(grown, waterlogged));
+    let Some(vein) = config.vein_state(grown, waterlogged) else {
+        return false;
+    };
+    volume.set(pos, vein);
     true
 }
 
@@ -512,7 +515,12 @@ fn random_growth_state<W: WorldGenVolume>(
     } else {
         &config.sensor
     };
-    family[usize::from(volume.holds(&volume.world().any_fluid, pos))]
+    let [dry, wet] = *family;
+    if volume.holds(&volume.world().any_fluid, pos) {
+        wet
+    } else {
+        dry
+    }
 }
 
 /// `SculkBlock.canPlaceGrowth`: an open cell above, and no more than two of the
@@ -565,7 +573,10 @@ fn on_discharged<W: WorldGenVolume>(
             volume.world().air
         }
     } else {
-        config.vein_state(faces, waterlogged)
+        let Some(vein) = config.vein_state(faces, waterlogged) else {
+            return;
+        };
+        vein
     };
     volume.set(pos, next);
 }

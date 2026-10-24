@@ -18,7 +18,10 @@ pub use mcrs_minecraft_core::{Axis, dist_manhattan};
 
 /// `Direction.Plane.getRandomDirection`.
 pub fn random_horizontal<R: Random>(rng: &mut R) -> Direction {
-    Direction::HORIZONTAL[rng.next_i32_bound(4) as usize]
+    Direction::HORIZONTAL
+        .get(rng.next_i32_bound(4) as usize)
+        .copied()
+        .unwrap_or(Direction::North)
 }
 
 /// `Direction.allShuffled`, which is `Util.shuffle` over all six: a descending
@@ -51,15 +54,18 @@ pub struct TreeStates {
 
 impl TreeStates {
     pub fn with_axis(&self, state: VoxelId, axis: Axis) -> VoxelId {
-        match self.axis.get(&state.0) {
-            Some(by_axis) => by_axis[axis as usize],
-            None => state,
+        match (self.axis.get(&state.0), axis) {
+            (Some(&[x, _, _]), Axis::X) => x,
+            (Some(&[_, y, _]), Axis::Y) => y,
+            (Some(&[_, _, z]), Axis::Z) => z,
+            (None, _) => state,
         }
     }
 
     pub fn with_waterlogged(&self, state: VoxelId, waterlogged: bool) -> VoxelId {
         match self.waterlogged.get(&state.0) {
-            Some(pair) => pair[usize::from(waterlogged)],
+            Some(&[_, wet]) if waterlogged => wet,
+            Some(&[dry, _]) => dry,
             None => state,
         }
     }
@@ -989,8 +995,7 @@ impl Trunk {
             let directions = shuffled_branch_directions(rng);
             if trunk_height_up_to_branches - 1 == y {
                 let branches = branch_amount.sample(rng);
-                for index in 0..branches {
-                    let branch_direction = directions[index as usize];
+                for &branch_direction in directions.iter().take(branches.max(0) as usize) {
                     self.place_log(
                         cx,
                         rng,

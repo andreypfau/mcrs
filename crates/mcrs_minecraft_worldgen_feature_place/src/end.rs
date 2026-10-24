@@ -129,8 +129,8 @@ pub fn place_end_podium<W: WorldGenVolume>(
     }
 
     let center_of_pillar = at + IVec3::new(0, 2, 0);
-    for (face, side) in Direction::HORIZONTAL.iter().enumerate() {
-        volume.set(center_of_pillar + side.normal(), config.wall_torch[face]);
+    for (side, torch) in Direction::HORIZONTAL.iter().zip(config.wall_torch) {
+        volume.set(center_of_pillar + side.normal(), torch);
     }
     true
 }
@@ -248,11 +248,11 @@ pub fn seed_spikes(world_seed: i64) -> Vec<EndSpike> {
     mcrs_minecraft_random::shuffle(&mut sizes, &mut rng);
 
     (0..NUMBER_OF_SPIKES)
-        .map(|index| {
+        .zip(sizes)
+        .map(|(index, size)| {
             let angle = 2.0
                 * (-std::f64::consts::PI
                     + (std::f64::consts::PI / NUMBER_OF_SPIKES as f64) * index as f64);
-            let size = sizes[index as usize];
             EndSpike {
                 center_x: (SPIKE_DISTANCE * angle.cos()).floor() as i32,
                 center_z: (SPIKE_DISTANCE * angle.sin()).floor() as i32,
@@ -317,10 +317,16 @@ fn place_spike<W: WorldGenVolume>(
                         z_edge && dx != -2,
                         z_edge && dx != 2,
                     );
-                    volume.set(
-                        BlockPos::new(spike.center_x + dx, spike.height + dy, spike.center_z + dz),
-                        config.iron_bars[bars],
-                    );
+                    if let Some(&bars) = config.iron_bars.get(bars) {
+                        volume.set(
+                            BlockPos::new(
+                                spike.center_x + dx,
+                                spike.height + dy,
+                                spike.center_z + dz,
+                            ),
+                            bars,
+                        );
+                    }
                 }
             }
         }

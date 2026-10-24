@@ -36,11 +36,10 @@ impl GeodeCrystal {
             }
         };
         let mut states = [[VoxelId(0); 2]; 6];
-        for (face, name) in FACES.into_iter().enumerate() {
+        for (row, name) in states.iter_mut().zip(FACES) {
             let facing = try_with(state, "facing", name);
-            for (waterlogged, flag) in ["false", "true"].into_iter().enumerate() {
-                states[face][waterlogged] =
-                    blocks.state(&try_with(&facing, "waterlogged", flag))?;
+            for (slot, flag) in row.iter_mut().zip(["false", "true"]) {
+                *slot = blocks.state(&try_with(&facing, "waterlogged", flag))?;
             }
         }
         Some(GeodeCrystal { states })
@@ -205,19 +204,23 @@ pub fn place_geode<W: WorldGenVolume>(
     }
 
     for spot in crystal_spots {
-        let crystal = &config.inner_placements
-            [rng.next_i32_bound(config.inner_placements.len() as i32) as usize];
-        for (face, direction) in Direction::all().into_iter().enumerate() {
+        let Some(crystal) = config
+            .inner_placements
+            .get(rng.next_i32_bound(config.inner_placements.len() as i32) as usize)
+        else {
+            continue;
+        };
+        for (direction, &[dry, wet]) in Direction::all().into_iter().zip(&crystal.states) {
             let at = spot + direction.normal();
             let target = volume.get(at).0 as usize;
             if !config.cluster_growable.contains(target) {
                 continue;
             }
-            let waterlogged = usize::from(volume.world().any_source_fluid.contains(target));
+            let waterlogged = volume.world().any_source_fluid.contains(target);
             volume.set_unless(
                 &config.cannot_replace,
                 at,
-                crystal.states[face][waterlogged],
+                if waterlogged { wet } else { dry },
             );
             break;
         }

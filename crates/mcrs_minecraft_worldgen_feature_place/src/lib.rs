@@ -1,9 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::unreachable,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 pub mod bamboo;
 pub mod blob;
 pub mod block_column;
@@ -58,7 +52,10 @@ pub fn holds(mask: &FixedBitSet, state: VoxelId) -> bool {
 
 /// `Direction.getRandom`, over the declaration order `values()` hands back.
 pub fn random_direction(rng: &mut WorldgenRandom) -> Direction {
-    Direction::all()[rng.next_i32_bound(6) as usize]
+    Direction::all()
+        .get(rng.next_i32_bound(6) as usize)
+        .copied()
+        .unwrap_or(Direction::Down)
 }
 
 /// One bit per face, in `Direction` declaration order.

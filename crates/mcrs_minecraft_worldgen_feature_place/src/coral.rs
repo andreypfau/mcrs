@@ -36,7 +36,7 @@ where
     let mut directions = Direction::HORIZONTAL;
     shuffle(&mut directions, rng);
 
-    for direction in &directions[..branches as usize] {
+    for direction in directions.iter().take(branches as usize) {
         let mut pos = top + direction.normal();
         let branch_height = rng.next_i32_bound(5) + 2;
         let mut segment = 0;
@@ -78,15 +78,17 @@ where
     ];
     shuffle(&mut directions, rng);
 
-    for direction in &directions[..branches as usize] {
+    for direction in directions.iter().take(branches as usize) {
         let sideways = rng.next_i32_bound(2) + 1;
         let mut pos = origin + direction.normal();
         let (segment_direction, inward) = if *direction == claw {
             (claw, rng.next_i32_bound(3) + 2)
         } else {
             pos += IVec3::Y;
-            let choices = [*direction, Direction::Up];
-            let picked = choices[rng.next_i32_bound(choices.len() as i32) as usize];
+            let picked = match rng.next_i32_bound(2) {
+                0 => *direction,
+                _ => Direction::Up,
+            };
             (picked, rng.next_i32_bound(3) + 3)
         };
 

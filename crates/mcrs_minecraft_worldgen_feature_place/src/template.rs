@@ -61,12 +61,13 @@ fn remap_sides(
     mut out: VoxelId,
     f: impl Fn(Direction) -> Direction,
 ) -> VoxelId {
-    if Direction::HORIZONTAL
-        .iter()
-        .all(|d| layout.property(d.name()).is_some())
+    if let [Some(north), Some(east), Some(south), Some(west)] =
+        Direction::HORIZONTAL.map(|side| value_of(layout, state, side.name()))
     {
-        for side in Direction::HORIZONTAL {
-            let value = value_of(layout, state, side.name()).expect("checked above");
+        for (side, value) in Direction::HORIZONTAL
+            .into_iter()
+            .zip([north, east, south, west])
+        {
             out = layout.try_set(out, f(side).name(), value);
         }
     }
@@ -75,7 +76,10 @@ fn remap_sides(
 
 fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&'a str> {
     let property = layout.property(name)?;
-    Some(&property.values[layout.value_index(state, property) as usize])
+    property
+        .values
+        .get(usize::from(layout.value_index(state, property)))
+        .map(|value| &**value)
 }
 
 /// `BlockState.rotate` for a rotation about Y, over the property names the
@@ -92,7 +96,13 @@ pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> 
     let quarter_turns = rotation as u16;
     let mut out = state;
     for property in &layout.properties {
-        let value = &*property.values[layout.value_index(state, property) as usize];
+        let Some(value) = property
+            .values
+            .get(usize::from(layout.value_index(state, property)))
+            .map(|value| &**value)
+        else {
+            continue;
+        };
         match &*property.name {
             "facing" => {
                 if let Some(d) = direction_named(value) {
@@ -163,7 +173,9 @@ pub fn mirror_state(world: &WorldStates, state: VoxelId, mirror: Mirror) -> Voxe
     for property in &layout.properties {
         let index = layout.value_index(state, property);
         let count = property.values.len() as u16;
-        let value = &*property.values[index as usize];
+        let Some(value) = property.values.get(usize::from(index)) else {
+            continue;
+        };
         match &*property.name {
             "hinge" => out = layout.with_index(out, property, (index + 1) % count),
             "rotation" => out = layout.with_index(out, property, mirror.mirror_index(index, count)),
@@ -339,13 +351,22 @@ impl BlockAgeTables {
         } else {
             non_mossy
         };
-        from[rng.next_i32_bound(2) as usize]
+        let [first, second] = from;
+        if rng.next_i32_bound(2) == 0 {
+            first
+        } else {
+            second
+        }
     }
 }
 
 fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &mut R) -> VoxelId {
     let facing = crate::tree::trunk::random_horizontal(rng);
-    let half = ["top", "bottom"][rng.next_i32_bound(2) as usize];
+    let half = if rng.next_i32_bound(2) == 0 {
+        "top"
+    } else {
+        "bottom"
+    };
     let Some(layout) = world.layout_of(stairs) else {
         return stairs;
     };
@@ -819,11 +840,12 @@ impl CompiledProcessor {
             if replaced >= to_replace {
                 break;
             }
-            let mut altered = processed[index].clone();
-            if run_processor(delegate, volume, p, &mut altered, stream)
-                && altered != processed[index]
-            {
-                processed[index] = altered;
+            let Some(slot) = processed.get_mut(index) else {
+                continue;
+            };
+            let mut altered = slot.clone();
+            if run_processor(delegate, volume, p, &mut altered, stream) && altered != *slot {
+                *slot = altered;
                 replaced += 1;
             }
         }

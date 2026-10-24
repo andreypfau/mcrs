@@ -64,8 +64,12 @@ impl LeafDistances {
 
     pub fn with_distance(&self, state: VoxelId, distance: u8) -> VoxelId {
         match self.entries.get(&state.0) {
-            Some(entry) if (1..=7).contains(&distance) => entry.by_distance[distance as usize - 1],
-            _ => state,
+            Some(entry) => usize::from(distance)
+                .checked_sub(1)
+                .and_then(|index| entry.by_distance.get(index))
+                .copied()
+                .unwrap_or(state),
+            None => state,
         }
     }
 }
@@ -299,10 +303,10 @@ fn update_leaves<W: WorldGenVolume>(
 
     let mut smallest = 0usize;
     loop {
-        if smallest >= MAX_LEAF_DISTANCE {
+        let Some(queue) = to_check.get_mut(smallest) else {
             return;
-        }
-        let Some(pos) = to_check[smallest].pop() else {
+        };
+        let Some(pos) = queue.pop() else {
             smallest += 1;
             continue;
         };
@@ -331,8 +335,8 @@ fn update_leaves<W: WorldGenVolume>(
                 continue;
             };
             let lowered = distance.min(smallest as u8 + 1) as usize;
-            if lowered < MAX_LEAF_DISTANCE {
-                to_check[lowered].push(neighbour);
+            if let Some(queue) = to_check.get_mut(lowered) {
+                queue.push(neighbour);
                 smallest = smallest.min(lowered);
             }
         }

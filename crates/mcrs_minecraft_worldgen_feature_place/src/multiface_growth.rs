@@ -24,8 +24,14 @@ impl MultifaceStates {
         self.of_state.get(&state.0).copied()
     }
 
-    fn with_face(&self, faces: u8, waterlogged: bool, direction: Direction) -> VoxelId {
-        self.by_faces[usize::from(waterlogged)][usize::from(faces | face_bit(direction))]
+    pub fn state_with(&self, faces: u8, waterlogged: bool) -> Option<VoxelId> {
+        let [dry, wet] = &self.by_faces;
+        let table = if waterlogged { wet } else { dry };
+        table.get(usize::from(faces)).copied()
+    }
+
+    fn with_face(&self, faces: u8, waterlogged: bool, direction: Direction) -> Option<VoxelId> {
+        self.state_with(faces | face_bit(direction), waterlogged)
     }
 
     fn has_face(&self, state: VoxelId, direction: Direction) -> bool {
@@ -53,7 +59,7 @@ impl MultifaceStates {
         let (faces, waterlogged) = self
             .faces_of(old_state)
             .unwrap_or((0, holds(&volume.world().water_source, old_state)));
-        Some(self.with_face(faces, waterlogged, direction))
+        self.with_face(faces, waterlogged, direction)
     }
 }
 

@@ -85,7 +85,10 @@ fn grow<W: WorldGenVolume>(
         }
         for _ in 0..stems {
             let facing = rng.next_i32_bound(4) as usize;
-            let target = current + Direction::HORIZONTAL[facing].normal() + IVec3::Y * height;
+            let Some(side) = Direction::HORIZONTAL.get(facing) else {
+                continue;
+            };
+            let target = current + side.normal() + IVec3::Y * height;
             let below = target - IVec3::Y;
             if (target.x - start.x).abs() < MAX_HORIZONTAL_SPREAD
                 && (target.z - start.z).abs() < MAX_HORIZONTAL_SPREAD
@@ -128,7 +131,9 @@ fn connect<W: WorldGenVolume>(cfg: &CompiledChorusPlant, volume: &mut W, pos: Bl
         joins(volume, pos.x, pos.y, pos.z + 1),
         joins(volume, pos.x - 1, pos.y, pos.z),
     );
-    volume.set(pos, cfg.plant_by_connections[index]);
+    if let Some(&state) = cfg.plant_by_connections.get(index) {
+        volume.set(pos, state);
+    }
 }
 
 #[cfg(test)]

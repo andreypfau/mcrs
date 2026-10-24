@@ -12,7 +12,7 @@ pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: B
     if !volume.is_air(at) {
         return false;
     }
-    for (index, direction) in Direction::all().into_iter().enumerate() {
+    for (direction, &state) in Direction::all().into_iter().zip(vine) {
         if direction == Direction::Down {
             continue;
         }
@@ -20,7 +20,7 @@ pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: B
         // vine refuses a stair or a slab the reference would hang from.
         let neighbour = at + direction.normal();
         if volume.holds(&volume.world().sturdy_up, neighbour) {
-            volume.set(at, vine[index]);
+            volume.set(at, state);
             return true;
         }
     }

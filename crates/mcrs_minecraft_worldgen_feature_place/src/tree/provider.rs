@@ -101,7 +101,7 @@ pub struct DirectionProperty {
 
 impl DirectionProperty {
     fn set(&self, state: VoxelId, direction: Direction) -> VoxelId {
-        let Some(index) = self.by_direction[direction as usize] else {
+        let Some(&Some(index)) = self.by_direction.get(direction as usize) else {
             return state;
         };
         with_digit(state, self.base, self.stride, self.count, index)
@@ -281,7 +281,9 @@ impl StateProvider {
                 if states.is_empty() {
                     return None;
                 }
-                Some(states[rng.next_i32_bound(states.len() as i32) as usize])
+                states
+                    .get(rng.next_i32_bound(states.len() as i32) as usize)
+                    .copied()
             }
             StateProvider::CopyProperties(source) => {
                 let state = source.state(volume, rng, pos);
@@ -291,10 +293,7 @@ impl StateProvider {
                 noise,
                 scale,
                 states,
-            } => Some(state_at_noise(
-                states,
-                noise_value(noise, pos, *scale as f64),
-            )),
+            } => state_at_noise(states, noise_value(noise, pos, *scale as f64)),
             StateProvider::NoiseThreshold {
                 noise,
                 scale,
@@ -306,12 +305,14 @@ impl StateProvider {
             } => {
                 let local = noise_value(noise, pos, *scale as f64);
                 if (local as f64) < *threshold as f64 {
-                    return Some(low_states[rng.next_i32_bound(low_states.len() as i32) as usize]);
+                    return low_states
+                        .get(rng.next_i32_bound(low_states.len() as i32) as usize)
+                        .copied();
                 }
                 if rng.next_f32() < *high_chance {
-                    return Some(
-                        high_states[rng.next_i32_bound(high_states.len() as i32) as usize],
-                    );
+                    return high_states
+                        .get(rng.next_i32_bound(high_states.len() as i32) as usize)
+                        .copied();
                 }
                 Some(*default_state)
             }
@@ -336,10 +337,7 @@ impl StateProvider {
                     noise_value(noise, pos, *scale as f64),
                 ) as i32;
                 let offset = BlockPos::new(pos.x + i * 54545, pos.y, pos.z + i * 34234);
-                Some(state_at_noise(
-                    states,
-                    slow_noise_value(slow_noise, offset, *slow_scale),
-                ))
+                state_at_noise(states, slow_noise_value(slow_noise, offset, *slow_scale))
             }
         }
     }
@@ -364,8 +362,8 @@ fn slow_noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f32) -> f3
     )
 }
 
-fn state_at_noise(states: &[VoxelId], noise: f32) -> VoxelId {
-    states[index_at_noise(states.len(), noise)]
+fn state_at_noise(states: &[VoxelId], noise: f32) -> Option<VoxelId> {
+    states.get(index_at_noise(states.len(), noise)).copied()
 }
 
 fn index_at_noise(len: usize, noise: f32) -> usize {
