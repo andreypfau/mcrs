@@ -7,8 +7,8 @@ use bevy_ecs::system::System;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
@@ -84,19 +84,17 @@ fn ambiguous_schedules(app: &str, world: &mut World) -> Vec<String> {
 #[test]
 fn no_simulation_schedule_has_an_unordered_conflicting_pair() {
     let mut app = App::new();
-    app.add_plugins(MinecraftServerPlugin {
-        asset_path: Some(ASSETS.to_owned()),
-        lighting: Lighting::Propagated,
-        announce_on_lan: false,
-        dimensions: Some(Dimensions::from([(
-            ResourceKey::from_location("mcrs:ambiguity".parse().expect("a valid identifier")),
-            DimensionEntry {
-                dimension_type: crate::support::dimension_type("minecraft:overworld"),
-                generator: ChunkGenerator::Debug,
-            },
-        )])),
-        ..MinecraftServerPlugin::embedded()
-    });
+    let mut plugins = MinecraftServerPlugins::embedded();
+    plugins.core.asset_path = Some(ASSETS.to_owned());
+    plugins.network.announce_on_lan = false;
+    plugins.worlds.dimensions = Some(Dimensions::from([(
+        ResourceKey::from_location("mcrs:ambiguity".parse().expect("a valid identifier")),
+        DimensionEntry {
+            dimension_type: crate::support::dimension_type("minecraft:overworld"),
+            generator: ChunkGenerator::Debug,
+        },
+    )]));
+    app.add_plugins(plugins);
     app.finish();
     app.cleanup();
     let mut reports = ambiguous_schedules("server", app.world_mut());

@@ -1,19 +1,18 @@
 use bevy_app::{App, Plugin, Startup};
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
+use bevy_ecs::prelude::{Commands, Res};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
 
-pub struct BlockLightTablePlugin;
+/// Light propagation in every dimension. Without it the block light table is never built, so
+/// no dimension registers a lighting engine and every column goes to the client at full sky
+/// light: sunlight, torches and shadows stop existing, and the world loads without the
+/// propagation cost.
+pub struct LightingPlugin;
 
-impl Plugin for BlockLightTablePlugin {
+impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<crate::Lighting>();
-        app.add_systems(
-            Startup,
-            insert_block_light_registry.run_if(
-                bevy_ecs::schedule::common_conditions::resource_equals(crate::Lighting::Propagated),
-            ),
-        );
+        crate::require::<Self, crate::ServerCorePlugin>(app);
+        app.add_systems(Startup, insert_block_light_registry);
     }
 }
 

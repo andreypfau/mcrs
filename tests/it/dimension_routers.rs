@@ -3,7 +3,7 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_server::MinecraftServerPlugin;
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_server::world::generate::DimensionRouters;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_server::world_options::DimensionList;
@@ -17,7 +17,7 @@ use std::time::Duration;
 #[test]
 fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let mut app = App::new();
-    app.add_plugins(MinecraftServerPlugin::embedded());
+    app.add_plugins(MinecraftServerPlugins::embedded());
     // The block corpus is loaded in `Plugin::finish`, which `App::run` would
     // have called for us.
     app.finish();

@@ -19,7 +19,7 @@ use mcrs_minecraft_protocol::packets::configuration::{
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_registries::{CurrentRegistries, NetworkSnapshot, Registries};
-use mcrs_minecraft_server::MinecraftServerPlugin;
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_server::configuration::{
     KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
@@ -33,11 +33,10 @@ pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../asse
 
 fn served(root: &Path) -> (Registries, NetworkSnapshot) {
     let mut app = App::new();
-    app.add_plugins(MinecraftServerPlugin {
-        asset_path: Some(root.to_str().unwrap().to_owned()),
-        announce_on_lan: false,
-        ..MinecraftServerPlugin::embedded()
-    });
+    let mut plugins = MinecraftServerPlugins::embedded();
+    plugins.core.asset_path = Some(root.to_str().unwrap().to_owned());
+    plugins.network.announce_on_lan = false;
+    app.add_plugins(plugins);
     app.finish();
     app.cleanup();
     let registries = Registries::clone(app.world().resource::<CurrentRegistries>());

@@ -33,7 +33,7 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
-        // Seeded by `MinecraftServerPlugin` before this plugin loads; the
+        // Seeded by `DimensionWorldsPlugin` before this plugin loads; the
         // default is for harnesses that compose `WorldPlugin` on its own.
         app.init_resource::<crate::world_options::WorldSeed>();
 
@@ -100,18 +100,7 @@ impl Plugin for WorldPlugin {
             },
         );
         app.add_plugins(crate::disconnect::DisconnectProtocolPlugin);
-        // The routers must exist before the spawns are enqueued: the runner
-        // drains the queue right after this update, and a sub-app takes its
-        // router at spawn.
-        app.add_systems(
-            OnEnter(AppState::Playing),
-            (
-                crate::world::generate::routers::build_dimension_routers
-                    .after(crate::world::generate::structures::build_dimension_structures),
-                enqueue_dim_spawns,
-            )
-                .chain(),
-        );
+        app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns);
     }
 }
 

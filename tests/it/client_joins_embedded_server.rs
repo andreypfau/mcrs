@@ -1,25 +1,20 @@
-use bevy_app::{App, AppExit, Update};
-use bevy_ecs::message::MessageWriter;
+use bevy_app::{App, Update};
 use bevy_ecs::prelude::{Local, Res};
-use mcrs_minecraft_client::columns::{BlockSource, ColumnCachePlugin, ColumnStore};
+use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, JoinedGame,
-    PendingTeleports, ServerProfile, offline_player_uuid,
+    ChunkCacheCenter, ChunkCacheRadius, CurrentDimension, JoinedGame, PendingTeleports,
+    ServerProfile, offline_player_uuid,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
+use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugins};
 use mcrs_minecraft_world::registry_load::sent_by;
 use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::time::Duration;
 
 use crate::support::{
-    JOIN_TIMEOUT, add_client_registries, assert_session_registries, drive_client_until_joined,
-    insert_player,
+    JOIN_TIMEOUT, assert_session_registries, drive_client_until_joined, joining_client,
+    start_server,
 };
 
 type Contents = BTreeMap<String, (Vec<String>, Vec<(String, Vec<u16>)>)>;
@@ -46,23 +41,12 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
 }
 
 #[test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "the test follows one client through login, configuration and join against the embedded server, and each phase needs the connection the last left"
-)]
 fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     let mut server = App::new();
-    server.add_plugins(MinecraftServerPlugin::embedded());
+    server.add_plugins(MinecraftServerPlugins::embedded());
     let address = server.world().resource::<BoundAddress>().0;
     assert!(address.ip().is_loopback(), "embedded server left loopback");
 
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_flag = stop.clone();
-    server.add_systems(Update, move |mut exit: MessageWriter<AppExit>| {
-        if stop_flag.load(Ordering::Relaxed) {
-            exit.write(AppExit::Success);
-        }
-    });
     let (synced_send, synced_recv) = mpsc::channel();
     server.add_systems(
         Update,
@@ -91,32 +75,11 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
                 .ok();
         },
     );
-    let (finished_send, finished_recv) = mpsc::channel();
-    let server_thread = mcrs_minecraft_server::spawn_server_thread(server, move |app| {
-        run_server_loop(app);
-        finished_send.send(()).ok();
-    });
+    let stop_server = start_server(server);
 
-    let mut client = App::new();
-    client.add_plugins(ClientNetworkPlugin {
-        server: address,
-        username: "mcrs_test".to_owned(),
-        profile_id: None,
-        view_distance: 8,
-    });
-    client.add_plugins(ColumnCachePlugin);
-    add_client_registries(&mut client);
-    insert_player(&mut client);
-    client.finish();
-    client.cleanup();
-
-    let outcome = drive_client_until_joined(&mut client);
-
-    stop.store(true, Ordering::Relaxed);
-    finished_recv
-        .recv_timeout(Duration::from_secs(30))
-        .expect("the embedded server did not stop after AppExit");
-    server_thread.join().expect("server thread joined");
+    let mut client = joining_client(address, 8);
+    let outcome = drive_client_until_joined(&mut client, true);
+    stop_server();
 
     let Some(connection) = outcome else {
         panic!("the client never reached the play state within {JOIN_TIMEOUT:?}");
@@ -126,11 +89,6 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     let profile = world.get::<ServerProfile>(connection).unwrap();
     assert_eq!(profile.username, "mcrs_test");
     assert_eq!(profile.id, offline_player_uuid("mcrs_test"));
-
-    assert_eq!(
-        *world.get::<ConnectionState>(connection).unwrap(),
-        ConnectionState::Game
-    );
 
     let (synced, server, named) = synced_recv
         .try_recv()

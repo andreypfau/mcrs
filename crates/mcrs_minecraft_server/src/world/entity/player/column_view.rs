@@ -64,7 +64,6 @@ pub struct ColumnViewSet;
 
 impl Plugin for ColumnViewPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<crate::Lighting>();
         app.configure_sets(
             FixedUpdate,
             ColumnViewSet
@@ -465,7 +464,6 @@ pub(crate) struct ReadyInputs<'w, 's> {
     chunks: Query<'w, 's, &'static SectionStage>,
     codec_params: LightCodecParams<'w, 's>,
     light_status: mcrs_minecraft_light::prelude::LightStatus<'w>,
-    lighting: Res<'w, crate::Lighting>,
     ready: Local<'s, Vec<ColumnPos>>,
     traces: Option<ResMut<'w, ColumnTraceLog>>,
 }
@@ -516,11 +514,10 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
         chunks,
         codec_params,
         light_status,
-        lighting,
         ready,
         traces,
     } = inputs;
-    let await_light = light_status.is_installed() && **lighting == crate::Lighting::Propagated;
+    let await_light = light_status.is_installed();
     for (mut chunk_view, dim) in players.iter_mut() {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
@@ -626,7 +623,7 @@ pub(crate) fn send_column_queue(
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
-    lighting: Res<crate::Lighting>,
+    light_status: mcrs_minecraft_light::prelude::LightStatus,
     (block_definitions, registries): (Res<Blocks>, Res<CurrentRegistries>),
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
@@ -748,7 +745,7 @@ pub(crate) fn send_column_queue(
                     )
                     .expect("Failed to encode chunk section");
                 }
-                let light_data = if *lighting == crate::Lighting::FullSky {
+                let light_data = if !light_status.is_installed() {
                     build_fullbright_light_data(wire_light_rows)
                 } else {
                     build_full_light_data(column_entity, &codec_params)
@@ -931,7 +928,6 @@ mod tests {
         )));
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
-        world.init_resource::<crate::Lighting>();
         world.insert_resource(CurrentRegistries::new(
             mcrs_minecraft_world::registry_load::registries_declaring(Vec::new()),
         ));

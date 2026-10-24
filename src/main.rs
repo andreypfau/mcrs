@@ -6,10 +6,12 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use bevy_app::{App, AppExit};
+use bevy_app::{App, AppExit, PluginGroup};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_server::ops::{OPS_FILE, OpList};
-use mcrs_minecraft_server::{GameMode, Lighting, MinecraftServerPlugin};
+use mcrs_minecraft_server::{
+    DimensionWorldsPlugin, GameMode, LightingPlugin, MinecraftServerPlugins, ServerNetworkPlugin,
+};
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
@@ -40,21 +42,31 @@ async fn main() -> AppExit {
             return AppExit::error();
         }
     };
-    app.add_plugins(MinecraftServerPlugin {
-        world: world_folder(),
-        ops,
-        announce_on_lan: on_off(
-            "MCRS_LAN_ANNOUNCE",
-            variable("MCRS_LAN_ANNOUNCE").as_deref(),
-        ),
-        offer_known_packs: on_off("MCRS_KNOWN_PACKS", variable("MCRS_KNOWN_PACKS").as_deref()),
-        seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
-        preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
-        lighting: lighting(variable("MCRS_NO_LIGHTING").as_deref()),
-        default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
-        slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
+    let mut server = MinecraftServerPlugins {
+        worlds: DimensionWorldsPlugin {
+            world: world_folder(),
+            ops,
+            seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
+            preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
+            default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
+            slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
+            ..Default::default()
+        },
+        network: ServerNetworkPlugin {
+            announce_on_lan: on_off(
+                "MCRS_LAN_ANNOUNCE",
+                variable("MCRS_LAN_ANNOUNCE").as_deref(),
+            ),
+            offer_known_packs: on_off("MCRS_KNOWN_PACKS", variable("MCRS_KNOWN_PACKS").as_deref()),
+            ..Default::default()
+        },
         ..Default::default()
-    });
+    }
+    .build();
+    if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
+        server = server.disable::<LightingPlugin>();
+    }
+    app.add_plugins(server);
     mcrs_minecraft_server::run_server_loop(app)
 }
 
@@ -116,11 +128,8 @@ fn world_preset(value: Option<&str>) -> String {
 }
 
 /// `MCRS_NO_LIGHTING=1` turns propagation off.
-fn lighting(value: Option<&str>) -> Lighting {
-    match value {
-        Some("1" | "true" | "on" | "yes") => Lighting::FullSky,
-        _ => Lighting::Propagated,
-    }
+fn propagates_light(value: Option<&str>) -> bool {
+    !matches!(value, Some("1" | "true" | "on" | "yes"))
 }
 
 /// `MCRS_DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case;

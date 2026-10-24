@@ -15,12 +15,14 @@ pub mod ops;
 pub mod world;
 pub mod world_options;
 
+pub use crate::block_light_table::LightingPlugin;
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::world::WorldPlugin;
-use bevy_app::{App, AppExit, Plugin};
+pub use crate::world::generate::WorldGenPlugin;
+use bevy_app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder};
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -89,10 +91,62 @@ impl Default for DataPack {
     }
 }
 
-pub struct MinecraftServerPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`].
-    pub bind_address: SocketAddr,
+/// Every part of the server, each one a member that can be disabled or replaced through
+/// [`PluginGroup::build`]. A member that needs another one panics at build and names it.
+#[derive(Default)]
+pub struct MinecraftServerPlugins {
+    pub core: ServerCorePlugin,
+    pub worlds: DimensionWorldsPlugin,
+    pub network: ServerNetworkPlugin,
+}
+
+/// The world folder the server reads its saved chunks from.
+#[derive(Resource, Clone)]
+pub struct WorldSave(pub PathBuf);
+
+impl MinecraftServerPlugins {
+    /// A server running inside another process: loopback only, an OS-assigned
+    /// port, and the task pools left to the host app.
+    pub fn embedded() -> Self {
+        Self {
+            core: ServerCorePlugin {
+                owns_task_pools: false,
+                ..Default::default()
+            },
+            network: ServerNetworkPlugin {
+                bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+}
+
+impl PluginGroup for MinecraftServerPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<Self>()
+            .add(self.core)
+            .add(self.worlds)
+            .add(WorldGenPlugin)
+            .add(LightingPlugin)
+            .add(self.network)
+    }
+}
+
+/// Panics unless `P` is built, so a missing member is named at build and not as a missing
+/// resource at the first tick.
+pub(crate) fn require<By: Plugin, P: Plugin>(app: &App) {
+    assert!(
+        app.is_plugin_added::<P>(),
+        "{} needs {} added before it",
+        std::any::type_name::<By>(),
+        std::any::type_name::<P>()
+    );
+}
+
+/// The tick, the task pools, the asset server, and the registries with the block and item
+/// definitions.
+pub struct ServerCorePlugin {
     /// Clear when the server shares a process with another Bevy app, which
     /// then owns the process-global task pools.
     pub owns_task_pools: bool,
@@ -101,87 +155,19 @@ pub struct MinecraftServerPlugin {
     pub asset_path: Option<String>,
     /// Where the game's data pack is read from.
     pub data_pack: DataPack,
-    /// World folder to read saved chunks from. Without one, and for any column
-    /// the folder has never saved, the dimension generates its terrain.
-    pub world: Option<PathBuf>,
-    /// Shared with a client in the same process, whose debug views read each
-    /// dimension's column lifecycle from it.
-    pub column_traces: Option<ColumnTraceSink>,
-    pub lighting: Lighting,
-    /// The seed of a world without a save; a save's own seed replaces it.
-    pub seed: u64,
-    /// The world preset that names the dimensions when neither the save nor `dimensions` does.
-    pub preset: String,
-    pub ops: ops::OpList,
-    /// Operator level of a player who has no entry in `ops`.
-    pub default_op_level: u8,
-    /// Game mode of a player joining for the first time.
-    pub default_game_mode: GameMode,
-    /// A column that takes longer than this from request to delivery is logged.
-    pub slow_column_threshold: Duration,
-    /// A server that listens beyond loopback announces itself on the local network.
-    pub announce_on_lan: bool,
-    /// Turned off, the server offers no known pack, so a client receives every registry entry's
-    /// data instead of only the entries that are not in the vanilla pack.
-    pub offer_known_packs: bool,
-    pub singleplayer_profile: Option<SingleplayerProfile>,
-    /// The dimensions the world spawns, in place of a save's list and the world preset; the
-    /// overworld is then optional, and a player with no saved dimension spawns in the first.
-    pub dimensions: Option<Dimensions>,
 }
 
-/// Whether dimensions propagate light. Without it the block light table is never built, so
-/// no dimension registers a lighting engine and every column goes to the client at full sky
-/// light: sunlight, torches and shadows stop existing, and the world loads without the
-/// propagation cost.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Lighting {
-    #[default]
-    Propagated,
-    FullSky,
-}
-
-/// The world folder the server reads its saved chunks from.
-#[derive(Resource, Clone)]
-pub struct WorldSave(pub PathBuf);
-
-impl Default for MinecraftServerPlugin {
+impl Default for ServerCorePlugin {
     fn default() -> Self {
         Self {
-            bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
             owns_task_pools: true,
             asset_path: None,
             data_pack: DataPack::default(),
-            world: None,
-            column_traces: None,
-            lighting: Lighting::default(),
-            seed: 0,
-            preset: "normal".to_owned(),
-            ops: ops::OpList::default(),
-            default_op_level: 0,
-            default_game_mode: GameMode::Creative,
-            slow_column_threshold: Duration::from_millis(250),
-            announce_on_lan: true,
-            offer_known_packs: true,
-            singleplayer_profile: None,
-            dimensions: None,
         }
     }
 }
 
-impl MinecraftServerPlugin {
-    /// A server running inside another process: loopback only, an OS-assigned
-    /// port, and the task pools left to the host app.
-    pub fn embedded() -> Self {
-        Self {
-            bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
-            owns_task_pools: false,
-            ..Default::default()
-        }
-    }
-}
-
-impl Plugin for MinecraftServerPlugin {
+impl Plugin for ServerCorePlugin {
     fn build(&self, app: &mut App) {
         let vanilla = match self.data_pack.resolve() {
             Ok(vanilla) => vanilla,
@@ -208,6 +194,56 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
+        app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
+        app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
+        app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
+    }
+}
+
+/// The dimension list and one world per dimension, with the bridge that carries each
+/// player's packets between the network and the player's dimension.
+pub struct DimensionWorldsPlugin {
+    /// World folder to read saved chunks from. Without one, and for any column
+    /// the folder has never saved, the dimension generates its terrain.
+    pub world: Option<PathBuf>,
+    /// Shared with a client in the same process, whose debug views read each
+    /// dimension's column lifecycle from it.
+    pub column_traces: Option<ColumnTraceSink>,
+    /// The seed of a world without a save; a save's own seed replaces it.
+    pub seed: u64,
+    /// The world preset that names the dimensions when neither the save nor `dimensions` does.
+    pub preset: String,
+    /// The dimensions the world spawns, in place of a save's list and the world preset; the
+    /// overworld is then optional, and a player with no saved dimension spawns in the first.
+    pub dimensions: Option<Dimensions>,
+    pub ops: ops::OpList,
+    /// Operator level of a player who has no entry in `ops`.
+    pub default_op_level: u8,
+    /// Game mode of a player joining for the first time.
+    pub default_game_mode: GameMode,
+    /// A column that takes longer than this from request to delivery is logged.
+    pub slow_column_threshold: Duration,
+}
+
+impl Default for DimensionWorldsPlugin {
+    fn default() -> Self {
+        Self {
+            world: None,
+            column_traces: None,
+            seed: 0,
+            preset: "normal".to_owned(),
+            dimensions: None,
+            ops: ops::OpList::default(),
+            default_op_level: 0,
+            default_game_mode: GameMode::Creative,
+            slow_column_threshold: Duration::from_millis(250),
+        }
+    }
+}
+
+impl Plugin for DimensionWorldsPlugin {
+    fn build(&self, app: &mut App) {
+        require::<Self, ServerCorePlugin>(app);
         app.insert_resource(crate::world_options::WorldSeed(self.seed));
         app.insert_resource(crate::world_options::WorldPresetName(self.preset.clone()));
         if let Some(world) = &self.world {
@@ -216,7 +252,6 @@ impl Plugin for MinecraftServerPlugin {
         if let Some(dimensions) = &self.dimensions {
             app.insert_resource(crate::world_options::PluginDimensions(dimensions.clone()));
         }
-        app.insert_resource(self.lighting);
         app.insert_resource(self.ops.clone());
         app.insert_resource(ops::DefaultOpLevel(
             crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
@@ -227,29 +262,53 @@ impl Plugin for MinecraftServerPlugin {
         app.insert_resource(crate::world::chunk::SlowColumnThreshold(
             self.slow_column_threshold,
         ));
-        app.insert_resource(crate::configuration::KnownPackOffer(self.offer_known_packs));
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }
-        app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-        app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
-        app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
+        app.add_systems(bevy_app::Startup, crate::world_options::bake_dimensions);
+        app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
+        app.add_plugins(WorldPlugin);
+    }
+}
+
+/// The listener, login, configuration and keep-alive of every connection.
+pub struct ServerNetworkPlugin {
+    /// Port 0 asks the OS for a free port; read the result back from
+    /// [`BoundAddress`].
+    pub bind_address: SocketAddr,
+    /// A server that listens beyond loopback announces itself on the local network.
+    pub announce_on_lan: bool,
+    /// Turned off, the server offers no known pack, so a client receives every registry entry's
+    /// data instead of only the entries that are not in the vanilla pack.
+    pub offer_known_packs: bool,
+    pub singleplayer_profile: Option<SingleplayerProfile>,
+}
+
+impl Default for ServerNetworkPlugin {
+    fn default() -> Self {
+        Self {
+            bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
+            announce_on_lan: true,
+            offer_known_packs: true,
+            singleplayer_profile: None,
+        }
+    }
+}
+
+impl Plugin for ServerNetworkPlugin {
+    fn build(&self, app: &mut App) {
+        require::<Self, DimensionWorldsPlugin>(app);
+        app.insert_resource(crate::configuration::KnownPackOffer(self.offer_known_packs));
+        if let Some(host) = &self.singleplayer_profile {
+            app.insert_resource(host.clone());
+        }
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
         });
-        if let Some(host) = &self.singleplayer_profile {
-            app.insert_resource(host.clone());
-        }
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
-        app.add_plugins(crate::block_light_table::BlockLightTablePlugin);
-        app.add_plugins(crate::world::generate::modern_carvers::ModernCarverPlugin);
-        app.add_plugins(crate::world::generate::features::FeaturePlugin);
-        app.add_plugins(crate::world::generate::structures::StructurePlugin);
-        app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
-        app.add_plugins(WorldPlugin);
         app.add_plugins(ClientInfoPlugin);
     }
 }

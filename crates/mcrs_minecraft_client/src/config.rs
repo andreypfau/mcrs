@@ -195,12 +195,8 @@ impl Knobs {
 
     /// `NO_LIGHTING=1` turns light propagation off.
     #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn lighting(&self) -> mcrs_minecraft_server::Lighting {
-        if self.flag("NO_LIGHTING", false) {
-            mcrs_minecraft_server::Lighting::FullSky
-        } else {
-            mcrs_minecraft_server::Lighting::Propagated
-        }
+    pub fn propagates_light(&self) -> bool {
+        !self.flag("NO_LIGHTING", false)
     }
 
     /// `DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case; unset

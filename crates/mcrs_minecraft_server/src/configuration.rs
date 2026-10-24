@@ -44,7 +44,7 @@ use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use crate::world_options::{DimensionList, bake_dimensions};
+use crate::world_options::DimensionList;
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -57,7 +57,6 @@ pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(bevy_app::Startup, bake_dimensions);
         app.add_systems(
             bevy_app::FixedPreUpdate,
             start_configuration()

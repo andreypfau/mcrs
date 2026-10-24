@@ -8,7 +8,7 @@ use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
+use mcrs_minecraft_server::{DimensionWorldsPlugin, MinecraftServerPlugins};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
@@ -51,10 +51,10 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
     )
     .unwrap();
 
-    let mut app = booted(MinecraftServerPlugin {
+    let mut app = booted(DimensionWorldsPlugin {
         world: Some(world.clone()),
         preset: "test:absent".to_owned(),
-        ..MinecraftServerPlugin::embedded()
+        ..Default::default()
     });
     app.update();
     the_startup_tables_and_clocks_exist_after_the_first_update(&app);
@@ -73,22 +73,23 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
 
 #[test]
 fn a_preset_that_names_no_world_preset_asks_the_app_to_exit_with_an_error() {
-    let mut app = booted(MinecraftServerPlugin {
+    let mut app = booted(DimensionWorldsPlugin {
         preset: "test:absent".to_owned(),
-        ..MinecraftServerPlugin::embedded()
+        ..Default::default()
     });
     app.update();
     assert_eq!(app.should_exit(), Some(AppExit::error()));
 }
 
-fn booted(plugin: MinecraftServerPlugin) -> App {
+fn booted(worlds: DimensionWorldsPlugin) -> App {
+    let mut plugins = MinecraftServerPlugins {
+        worlds,
+        ..MinecraftServerPlugins::embedded()
+    };
+    plugins.core.asset_path = Some(ASSETS.to_owned());
+    plugins.network.announce_on_lan = false;
     let mut app = App::new();
-    app.add_plugins(MinecraftServerPlugin {
-        asset_path: Some(ASSETS.to_owned()),
-        lighting: Lighting::Propagated,
-        announce_on_lan: false,
-        ..plugin
-    });
+    app.add_plugins(plugins);
     app.finish();
     app.cleanup();
     app
@@ -143,9 +144,9 @@ mod exhaustive {
     #[test]
     fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
         let lobby = Dimensions::from([(key("mcrs:lobby"), debug_dimension("minecraft:overworld"))]);
-        let spawned = spawned_dimensions(booted(MinecraftServerPlugin {
+        let spawned = spawned_dimensions(booted(DimensionWorldsPlugin {
             dimensions: Some(lobby),
-            ..MinecraftServerPlugin::embedded()
+            ..Default::default()
         }));
         assert_eq!(spawned, ["mcrs:lobby"]);
     }

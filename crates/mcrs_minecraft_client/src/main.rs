@@ -54,7 +54,8 @@ use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{
-    BoundAddress, DataPack, MinecraftServerPlugin,
+    BoundAddress, DataPack, DimensionWorldsPlugin, LightingPlugin, MinecraftServerPlugins,
+    ServerCorePlugin, ServerNetworkPlugin,
     ops::{OPS_FILE, OpList},
 };
 
@@ -364,24 +365,36 @@ fn host_integrated_server(
 ) -> SocketAddr {
     let open_to_lan = knobs.open_to_lan();
     let mut server = App::new();
-    server.add_plugins(MinecraftServerPlugin {
-        bind_address: config::integrated_bind_address(open_to_lan),
-        asset_path: Some(assets.to_owned()),
-        data_pack: DataPack::Directory(data_pack.to_owned()),
-        world: world.map(Path::to_path_buf),
-        column_traces: traces,
-        singleplayer_profile: Some(host),
-        ops: OpList::read(Path::new(OPS_FILE)).unwrap_or_else(|error| {
-            eprintln!("{error}");
-            std::process::exit(1);
-        }),
-        seed: knobs.world_seed(),
-        preset: knobs.world_preset(),
-        lighting: knobs.lighting(),
-        default_game_mode: knobs.default_game_mode(),
-        slow_column_threshold: knobs.slow_column_threshold(),
-        ..MinecraftServerPlugin::embedded()
-    });
+    let mut plugins = MinecraftServerPlugins {
+        core: ServerCorePlugin {
+            owns_task_pools: false,
+            asset_path: Some(assets.to_owned()),
+            data_pack: DataPack::Directory(data_pack.to_owned()),
+        },
+        worlds: DimensionWorldsPlugin {
+            world: world.map(Path::to_path_buf),
+            column_traces: traces,
+            ops: OpList::read(Path::new(OPS_FILE)).unwrap_or_else(|error| {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }),
+            seed: knobs.world_seed(),
+            preset: knobs.world_preset(),
+            default_game_mode: knobs.default_game_mode(),
+            slow_column_threshold: knobs.slow_column_threshold(),
+            ..Default::default()
+        },
+        network: ServerNetworkPlugin {
+            bind_address: config::integrated_bind_address(open_to_lan),
+            singleplayer_profile: Some(host),
+            ..Default::default()
+        },
+    }
+    .build();
+    if !knobs.propagates_light() {
+        plugins = plugins.disable::<LightingPlugin>();
+    }
+    server.add_plugins(plugins);
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, |app| {
         if let AppExit::Error(code) = mcrs_minecraft_server::run_server_loop(app) {

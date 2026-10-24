@@ -30,7 +30,7 @@ The game's data pack is not in the repository. Every consumer reads the
 `crates/mcrs_minecraft_client_jar/src/release.json` describes, unpacked once
 into the user's cache directory (`mcrs_minecraft_client_jar::vanilla_data`) and
 served as the `minecraft` directory of the pack root. The server takes it
-from `MinecraftServerPlugin::data_pack`: a directory, or by default the client
+from `ServerCorePlugin::data_pack`: a directory, or by default the client
 jar of a launcher's installation or else a download. The tests read the same
 directory: the nextest setup script installs the jar before any test runs. The
 resource pack is read from the same jar.
