@@ -48,7 +48,9 @@ struct DimensionPluginEntry {
     only: Option<ResourceKey<Dimension>>,
     name: String,
     unique: bool,
-    added: fn(&SubApp) -> bool,
+    // Bevy rejects a duplicate by `Plugin::name`, but `SubApp::is_plugin_added` looks up the
+    // type name, which a plugin with its own name does not register.
+    added: fn(&SubApp, &str) -> bool,
     add: Box<dyn Fn(&mut SubApp) + Send + Sync>,
 }
 
@@ -72,7 +74,9 @@ impl DimensionPlugins {
                 None if plugin.unique && replaced.contains(plugin.name.as_str()) => continue,
                 _ => {}
             }
-            if plugin.unique && (!built.insert(plugin.name.as_str()) || (plugin.added)(sub_app)) {
+            if plugin.unique
+                && (!built.insert(plugin.name.as_str()) || (plugin.added)(sub_app, &plugin.name))
+            {
                 tracing::error!(
                     %dimension,
                     plugin = plugin.name,
@@ -89,7 +93,12 @@ impl DimensionPlugins {
             only,
             name: plugin.name().to_owned(),
             unique: plugin.is_unique(),
-            added: SubApp::is_plugin_added::<P>,
+            added: |sub_app, name| {
+                sub_app
+                    .get_added_plugins::<P>()
+                    .iter()
+                    .any(|plugin| plugin.name() == name)
+            },
             add: Box::new(move |sub_app| {
                 sub_app.add_plugins(plugin.clone());
             }),

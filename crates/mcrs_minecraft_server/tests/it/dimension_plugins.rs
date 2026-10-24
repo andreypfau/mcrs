@@ -18,6 +18,14 @@ struct Ticked;
 struct CountTicks<const ALL: bool>;
 
 impl<const ALL: bool> Plugin for CountTicks<ALL> {
+    fn name(&self) -> &str {
+        if ALL {
+            "count every tick"
+        } else {
+            "count overworld ticks"
+        }
+    }
+
     fn build(&self, app: &mut App) {
         app.init_resource::<Ticks<ALL>>().add_systems(
             FixedUpdate,
