@@ -23,7 +23,7 @@ rustc-hash.workspace = true
 tracing.workspace = true
 
 [features]
-default = ["bevy"]
+default = []
 bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
 
 [dev-dependencies]

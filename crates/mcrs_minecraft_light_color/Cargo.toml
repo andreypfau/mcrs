@@ -28,7 +28,7 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"], optional = true }
 serde_json = { workspace = true, optional = true }
 
 [features]
-default = ["bevy"]
+default = []
 bevy = [
     "dep:bevy_ecs",
     "dep:bevy_app",
