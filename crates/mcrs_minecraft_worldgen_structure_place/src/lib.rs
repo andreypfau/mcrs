@@ -1,8 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 pub mod after_place;
 pub mod buried_treasure;
 pub mod canvas;
@@ -60,7 +55,13 @@ impl Oriented {
     }
 
     pub fn get(&self, orientation: Orientation) -> VoxelId {
-        self.0[orientation as usize]
+        let [south, west, north, east] = self.0;
+        match orientation {
+            Orientation::South => south,
+            Orientation::West => west,
+            Orientation::North => north,
+            Orientation::East => east,
+        }
     }
 
     /// The state as given, under the orientation that transforms nothing.

@@ -70,11 +70,9 @@ pub fn woodland_mansion<W: WorldGenVolume>(
     clip: BoundingBox,
     piece_bounds: &[BoundingBox],
 ) {
-    let bounds = piece_bounds
-        .iter()
-        .copied()
-        .reduce(BoundingBox::union)
-        .expect("a start has at least one piece");
+    let Some(bounds) = piece_bounds.iter().copied().reduce(BoundingBox::union) else {
+        return;
+    };
     let min_y = volume.extent().min_y;
     let floor = bounds.min.y;
     let world = volume.world();

@@ -723,8 +723,11 @@ fn portal_room<W: WorldGenVolume, R: Random>(
         all_eyes &= eye;
         eye
     });
-    let frame = |facing: usize, eye: bool| b.portal_frame[facing][usize::from(eye)];
-    let (north, east, south, west) = (0, 1, 2, 3);
+    let frame = |facing: &[Oriented; 2], eye: bool| {
+        let [empty, filled] = *facing;
+        if eye { filled } else { empty }
+    };
+    let [north, east, south, west] = &b.portal_frame;
     c.place(&frame(north, eyes[0]), 4, 3, 8);
     c.place(&frame(north, eyes[1]), 5, 3, 8);
     c.place(&frame(north, eyes[2]), 6, 3, 8);

@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ResourceKey};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, ResourceKey};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
@@ -22,6 +22,18 @@ pub struct ChestStates {
 }
 
 impl ChestStates {
+    /// `None` for a vertical facing, which no chest takes.
+    pub fn facing(&self, facing: Direction) -> Option<VoxelId> {
+        let [north, east, south, west] = self.facing;
+        match facing {
+            Direction::North => Some(north),
+            Direction::East => Some(east),
+            Direction::South => Some(south),
+            Direction::West => Some(west),
+            Direction::Up | Direction::Down => None,
+        }
+    }
+
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         let facing = |name| state(blocks, Block::Chest, &[("facing", name)]);
         Ok(ChestStates {

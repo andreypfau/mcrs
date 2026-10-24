@@ -52,12 +52,12 @@ impl OceanMonumentBlocks {
     }
 }
 
-const DOWN: usize = Direction::Down.id();
-const UP: usize = Direction::Up.id();
-const NORTH: usize = Direction::North.id();
-const SOUTH: usize = Direction::South.id();
-const WEST: usize = Direction::West.id();
-const EAST: usize = Direction::East.id();
+const DOWN: Direction = Direction::Down;
+const UP: Direction = Direction::Up;
+const NORTH: Direction = Direction::North;
+const SOUTH: Direction = Direction::South;
+const WEST: Direction = Direction::West;
+const EAST: Direction = Direction::East;
 
 /// One child piece's brushes: the blocks, its canvas and the room graph.
 struct Room<'a, 'b, W: WorldGenVolume> {
@@ -71,24 +71,27 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
         self.c.place(state, x, y, z);
     }
 
-    fn room(&self, room: u8) -> &MonumentRoom {
-        &self.rooms[usize::from(room)]
+    fn room(&self, room: u8) -> Option<&MonumentRoom> {
+        self.rooms.get(usize::from(room))
     }
 
-    fn past(&self, room: u8, direction: usize) -> u8 {
-        self.room(room).connections[direction].expect("an open face leads to a room")
+    fn past(&self, room: u8, direction: Direction) -> Option<u8> {
+        let past = self.room(room)?.connection(direction)?;
+        u8::try_from(past).ok()
     }
 
-    fn open(&self, room: u8, direction: usize) -> bool {
-        self.room(room).has_opening[direction]
+    fn open(&self, room: u8, direction: Direction) -> bool {
+        self.room(room).is_some_and(|room| room.opens(direction))
     }
 
     fn has_up(&self, room: u8) -> bool {
-        self.room(room).connections[UP].is_some()
+        self.room(room)
+            .is_some_and(|room| room.connection(UP).is_some())
     }
 
     fn above_ground_floor(&self, room: u8) -> bool {
-        self.room(room).index / MonumentRoom::GRID_FLOOR > 0
+        self.room(room)
+            .is_some_and(|room| room.index / MonumentRoom::GRID_FLOOR > 0)
     }
 
     /// `generateWaterBox`: air above the sea, water below, over anything but
@@ -626,7 +629,9 @@ fn core_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>) {
 
 fn double_x_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, west: u8) {
     let (gray, light, lamp) = (r.b.gray, r.b.light, r.b.lamp);
-    let east = r.past(west, EAST);
+    let Some(east) = r.past(west, EAST) else {
+        return;
+    };
     if r.above_ground_floor(west) {
         r.default_floor(8, 0, r.open(east, DOWN));
         r.default_floor(0, 0, r.open(west, DOWN));
@@ -676,9 +681,15 @@ fn double_x_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, west: u8) {
 
 fn double_xy_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, west: u8) {
     let (gray, light, lamp) = (r.b.gray, r.b.light, r.b.lamp);
-    let east = r.past(west, EAST);
-    let west_up = r.past(west, UP);
-    let east_up = r.past(east, UP);
+    let Some(east) = r.past(west, EAST) else {
+        return;
+    };
+    let Some(west_up) = r.past(west, UP) else {
+        return;
+    };
+    let Some(east_up) = r.past(east, UP) else {
+        return;
+    };
     if r.above_ground_floor(west) {
         r.default_floor(8, 0, r.open(east, DOWN));
         r.default_floor(0, 0, r.open(west, DOWN));
@@ -766,7 +777,9 @@ fn double_y_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, room: u8) {
     if r.above_ground_floor(room) {
         r.default_floor(0, 0, r.open(room, DOWN));
     }
-    let above = r.past(room, UP);
+    let Some(above) = r.past(room, UP) else {
+        return;
+    };
     if !r.has_up(above) {
         r.box_on_fill_only([1, 8, 1], [6, 8, 6], &gray);
     }
@@ -826,9 +839,15 @@ fn double_y_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, room: u8) {
 
 fn double_yz_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, south: u8) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
-    let north = r.past(south, NORTH);
-    let north_up = r.past(north, UP);
-    let south_up = r.past(south, UP);
+    let Some(north) = r.past(south, NORTH) else {
+        return;
+    };
+    let Some(north_up) = r.past(north, UP) else {
+        return;
+    };
+    let Some(south_up) = r.past(south, UP) else {
+        return;
+    };
     if r.above_ground_floor(south) {
         r.default_floor(0, 8, r.open(north, DOWN));
         r.default_floor(0, 0, r.open(south, DOWN));
@@ -902,7 +921,9 @@ fn double_yz_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, south: u8) {
 
 fn double_z_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, south: u8) {
     let (gray, light, lamp) = (r.b.gray, r.b.light, r.b.lamp);
-    let north = r.past(south, NORTH);
+    let Some(north) = r.past(south, NORTH) else {
+        return;
+    };
     if r.above_ground_floor(south) {
         r.default_floor(0, 8, r.open(north, DOWN));
         r.default_floor(0, 0, r.open(south, DOWN));
@@ -1054,12 +1075,9 @@ fn simple_room<W: WorldGenVolume>(
     if !r.has_up(room) {
         r.box_on_fill_only([1, 4, 1], [6, 4, 6], &gray);
     }
-    let openings = r
-        .room(room)
-        .has_opening
-        .iter()
-        .filter(|open| **open)
-        .count();
+    let openings = r.room(room).map_or(0, |room| {
+        room.has_opening.iter().filter(|open| **open).count()
+    });
     let centre_pillar = main_design != 0
         && rng.next_bool()
         && !r.open(room, DOWN)

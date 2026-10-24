@@ -272,7 +272,10 @@ impl<W: WorldGenVolume> Portal<'_, W> {
                 if adjusted >= max_distance {
                     continue;
                 }
-                if self.rng.next_f64() >= f64::from(NETHERRACK_BY_DISTANCE[adjusted as usize]) {
+                let Some(&chance) = NETHERRACK_BY_DISTANCE.get(adjusted as usize) else {
+                    continue;
+                };
+                if self.rng.next_f64() >= f64::from(chance) {
                     continue;
                 }
                 let surface_y = self.volume.height(heightmap(placement), x, z) - 1;
@@ -342,12 +345,17 @@ impl<W: WorldGenVolume> Portal<'_, W> {
         {
             return;
         }
-        let side = self.rng.next_i32_bound(4) as usize;
-        let neighbour = pos + Direction::HORIZONTAL[side].normal();
-        if self.volume.is_air(neighbour)
-            && self.b.full_collision_face[side].contains(state.0 as usize)
-        {
-            self.volume.set(neighbour, self.b.vine_facing[side]);
+        let [face_north, face_east, face_south, face_west] = &self.b.full_collision_face;
+        let [vine_north, vine_east, vine_south, vine_west] = self.b.vine_facing;
+        let (side, face, vine) = match self.rng.next_i32_bound(4) {
+            0 => (Direction::North, face_north, vine_north),
+            1 => (Direction::East, face_east, vine_east),
+            2 => (Direction::South, face_south, vine_south),
+            _ => (Direction::West, face_west, vine_west),
+        };
+        let neighbour = pos + side.normal();
+        if self.volume.is_air(neighbour) && face.contains(state.0 as usize) {
+            self.volume.set(neighbour, vine);
         }
     }
 

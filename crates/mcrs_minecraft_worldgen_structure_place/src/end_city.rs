@@ -47,8 +47,12 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
-    let template = &frozen.templates[piece.template.0 as usize];
-    let manifest = &frozen.manifests[piece.template.0 as usize];
+    let (Some(template), Some(manifest)) = (
+        frozen.templates.get(piece.template.0 as usize),
+        frozen.manifest(piece.template),
+    ) else {
+        return;
+    };
     let chain = if piece.overwrite {
         &chains.overwrite
     } else {

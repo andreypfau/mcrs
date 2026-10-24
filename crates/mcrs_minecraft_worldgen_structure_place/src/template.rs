@@ -96,13 +96,12 @@ impl OceanRuinBlocks {
         })
     }
 
-    fn chain(&self, integrity: f32) -> &CompiledChain {
-        &self
-            .chains
+    /// `None` for an integrity the layout never hands out, which a save can hold.
+    fn chain(&self, integrity: f32) -> Option<&CompiledChain> {
+        self.chains
             .iter()
             .find(|(at, _)| *at == integrity)
-            .expect("the layout hands out one of the four integrities")
-            .1
+            .map(|(_, chain)| chain)
     }
 }
 
@@ -125,8 +124,13 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
 ) {
     let position = piece.position.with_y(piece.floor_y);
-    let template = &frozen.templates[piece.template.0 as usize];
-    let manifest = &frozen.manifests[piece.template.0 as usize];
+    let (Some(template), Some(manifest), Some(chain)) = (
+        frozen.templates.get(piece.template.0 as usize),
+        frozen.manifest(piece.template),
+        blocks.chain(piece.integrity),
+    ) else {
+        return;
+    };
     let Some(palette) = place_positional(
         template,
         position,
@@ -134,7 +138,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
         Mirror::None,
         IVec3::ZERO,
         clip,
-        blocks.chain(piece.integrity),
+        chain,
         true,
         true,
         reference,

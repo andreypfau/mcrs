@@ -92,11 +92,10 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
             if volume.holds(&b.chest.states, pos) {
                 continue;
             }
-            let index = Direction::HORIZONTAL
-                .iter()
-                .position(|d| *d == facing)
-                .expect("a horizontal facing");
-            volume.set(pos, b.chest.facing[index]);
+            let Some(chest) = b.chest.facing(facing) else {
+                continue;
+            };
+            volume.set(pos, chest);
             volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
                 mcrs_minecraft_item::keys::loot_table::CHESTS_WOODLAND_MANSION
