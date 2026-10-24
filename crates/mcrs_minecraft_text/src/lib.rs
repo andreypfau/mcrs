@@ -1,8 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #![cfg_attr(
     test,
     expect(
@@ -985,7 +980,7 @@ mod java_uri {
         }
 
         fn until(&self, mut p: usize, stop: &str) -> usize {
-            while p < self.chars.len() && !stop.contains(self.chars[p]) {
+            while self.chars.get(p).is_some_and(|&c| !stop.contains(c)) {
                 p += 1;
             }
             p
@@ -1000,7 +995,9 @@ mod java_uri {
         ) -> Result<(), String> {
             let mut p = start;
             while p < end {
-                let c = self.chars[p];
+                let Some(&c) = self.chars.get(p) else {
+                    break;
+                };
                 if allowed(c) || other(c) {
                     p += 1;
                 } else if c == '%' {
@@ -1053,11 +1050,13 @@ mod java_uri {
             if colon == 0 {
                 return Err(parser.fail("Expected scheme name", 0));
             }
-            if !chars[0].is_ascii_alphabetic() {
+            let name = chars.get(..colon).unwrap_or_default();
+            if !name.first().is_some_and(char::is_ascii_alphabetic) {
                 return Err(parser.fail("Illegal character in scheme name", 0));
             }
-            if let Some(bad) = (1..colon)
-                .find(|&i| !(chars[i].is_ascii_alphanumeric() || "+-.".contains(chars[i])))
+            if let Some(bad) = name
+                .iter()
+                .position(|&c| !(c.is_ascii_alphanumeric() || "+-.".contains(c)))
             {
                 return Err(parser.fail("Illegal character in scheme name", bad));
             }
@@ -1072,7 +1071,7 @@ mod java_uri {
                 parser.check(p, q, uric, "opaque part")?;
                 q
             };
-            (Some(chars[..colon].iter().collect()), end)
+            (Some(name.iter().collect()), end)
         } else {
             (None, parser.hierarchical(0)?)
         };

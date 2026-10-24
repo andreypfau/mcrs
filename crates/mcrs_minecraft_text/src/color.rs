@@ -126,36 +126,47 @@ impl RgbColor {
             NamedColor::Yellow,
         ]
         .into_iter()
-        .min_by_key(|&named| squared_distance(named.into(), self))
-        .unwrap()
+        .fold((NamedColor::White, i32::MAX), |closest, named| {
+            let distance = squared_distance(named.into(), self);
+            if distance < closest.1 {
+                (named, distance)
+            } else {
+                closest
+            }
+        })
+        .0
     }
 }
 
 impl NamedColor {
     /// Returns the corresponding hex digit of the color.
     pub const fn hex_digit(self) -> char {
-        b"0123456789abcdef"[self as usize] as char
+        self.code().0
     }
     /// Returns the identifier of the color.
     pub const fn name(self) -> &'static str {
-        [
-            "black",
-            "dark_blue",
-            "dark_green",
-            "dark_aqua",
-            "dark_red",
-            "dark_purple",
-            "gold",
-            "gray",
-            "dark_gray",
-            "blue",
-            "green",
-            "aqua",
-            "red",
-            "light_purple",
-            "yellow",
-            "white",
-        ][self as usize]
+        self.code().1
+    }
+
+    const fn code(self) -> (char, &'static str) {
+        match self {
+            Self::Black => ('0', "black"),
+            Self::DarkBlue => ('1', "dark_blue"),
+            Self::DarkGreen => ('2', "dark_green"),
+            Self::DarkAqua => ('3', "dark_aqua"),
+            Self::DarkRed => ('4', "dark_red"),
+            Self::DarkPurple => ('5', "dark_purple"),
+            Self::Gold => ('6', "gold"),
+            Self::Gray => ('7', "gray"),
+            Self::DarkGray => ('8', "dark_gray"),
+            Self::Blue => ('9', "blue"),
+            Self::Green => ('a', "green"),
+            Self::Aqua => ('b', "aqua"),
+            Self::Red => ('c', "red"),
+            Self::LightPurple => ('d', "light_purple"),
+            Self::Yellow => ('e', "yellow"),
+            Self::White => ('f', "white"),
+        }
     }
 }
 
