@@ -1,3 +1,9 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "a test reports a failure by panicking"
+)]
 mod common;
 
 mod batching;

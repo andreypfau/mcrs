@@ -1,3 +1,9 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 pub mod block_pos;
 pub mod bounded;
 pub mod bounding_box;

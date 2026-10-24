@@ -1,3 +1,10 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "an example has no caller to return an error to"
+)]
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::LocalPos;

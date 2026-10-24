@@ -1,3 +1,8 @@
+#![expect(
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 use serde::{Deserialize, Serialize, Serializer};
 
 use mcrs_minecraft_biome::{

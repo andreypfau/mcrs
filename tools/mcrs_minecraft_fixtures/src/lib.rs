@@ -7,6 +7,11 @@
 //! Every test in it loads a fixture and takes each expected value from the
 //! fixture or from the code under test. Nothing else in the workspace names a
 //! fixture file.
+#![expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "an application has no caller to return an error to"
+)]
 
 mod error;
 

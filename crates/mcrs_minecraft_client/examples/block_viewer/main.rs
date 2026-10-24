@@ -12,6 +12,11 @@
 //! Drag with the left mouse button to orbit, scroll to zoom, press `F` to drop the block onto a
 //! floor of neighbours — ambient occlusion is invisible on a block floating in open air, because
 //! every neighbour sample is then unoccluded.
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "an example has no caller to return an error to"
+)]
 
 use bevy::asset::RenderAssetUsages;
 use bevy::color::LinearRgba;

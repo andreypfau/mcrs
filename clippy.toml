@@ -1,6 +1,10 @@
 too-many-lines-threshold = 100
 too-many-arguments-threshold = 7
 excessive-nesting-threshold = 6
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
 disallowed-types = [
   { path = "serde_json::Value", reason = "express the shape as Deserialize and Serialize; a JSON value loses NBT integer widths" },
   { path = "serde_json::Map", reason = "express the shape as Deserialize and Serialize; a JSON value loses NBT integer widths" },

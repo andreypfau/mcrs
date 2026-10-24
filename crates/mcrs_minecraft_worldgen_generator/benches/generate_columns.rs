@@ -1,3 +1,10 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a benchmark has no caller to return an error to"
+)]
 use criterion::{Criterion, criterion_group, criterion_main};
 mod common;
 use mcrs_minecraft_core::BlockPos;

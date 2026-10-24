@@ -1,3 +1,10 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unreachable,
+    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
+)]
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]

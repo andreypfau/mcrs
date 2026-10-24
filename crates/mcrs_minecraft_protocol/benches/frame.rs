@@ -1,3 +1,7 @@
+#![expect(
+    clippy::unwrap_used,
+    reason = "a benchmark has no caller to return an error to"
+)]
 use std::borrow::Cow;
 use std::hint::black_box;
 
