@@ -3,6 +3,7 @@
 pub mod chunk_generator;
 pub mod dimension;
 pub mod dimension_type;
+pub mod noise_settings;
 
 pub use chunk_generator::ChunkGeneratorType;
 
@@ -23,4 +24,10 @@ pub const CHUNK_GENERATOR: RegistryKey<crate::keys::ChunkGeneratorType> =
     RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 impl Registered for crate::keys::ChunkGeneratorType {
     const REGISTRY: RegistryKey<Self> = CHUNK_GENERATOR;
+}
+
+pub const NOISE_SETTINGS: RegistryKey<crate::NoiseSettings> =
+    RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
+impl Registered for crate::NoiseSettings {
+    const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
 }

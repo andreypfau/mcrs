@@ -28,6 +28,10 @@ pub struct DimensionType {
     pub has_fixed_time: bool,
 }
 
+/// An entry of `worldgen/noise_settings`. A crate of world generation holds its value, so a noise
+/// chunk generator names its settings without that crate.
+pub enum NoiseSettings {}
+
 /// The part of a dimension every crate that names one can hold. Its chunk
 /// generator is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -238,8 +238,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/noise_settings",
-        krate: "mcrs_minecraft_worldgen_density",
-        value: ValueType::Defined("crate::router::NoiseGeneratorSettings"),
+        krate: "mcrs_minecraft_dimension",
+        value: ValueType::Defined("crate::NoiseSettings"),
     },
     Owner {
         registry: "minecraft:worldgen/noise",

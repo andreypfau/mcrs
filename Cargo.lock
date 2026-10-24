@@ -4364,6 +4364,7 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_random",

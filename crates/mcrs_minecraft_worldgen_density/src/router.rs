@@ -146,6 +146,10 @@ pub struct NoiseGeneratorSettings {
     pub debug_functions: Vec<DebugFunction>,
 }
 
+impl mcrs_minecraft_core::RegistryValue for NoiseGeneratorSettings {
+    type Registry = mcrs_minecraft_dimension::NoiseSettings;
+}
+
 impl NoiseGeneratorSettings {
     /// Settings with nothing optional: no terrain block of their own, no spawn
     /// target, no aquifers, no debug functions, mobs generated, and the

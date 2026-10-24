@@ -2,7 +2,6 @@
 
 pub mod density_function;
 pub mod density_function_type;
-pub mod noise_settings;
 
 pub use density_function_type::DensityFunctionType;
 
@@ -18,10 +17,4 @@ pub const DENSITY_FUNCTION_TYPE: RegistryKey<crate::keys::DensityFunctionType> =
     RegistryKey::new(rl!("minecraft:worldgen/density_function_type"));
 impl Registered for crate::keys::DensityFunctionType {
     const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
-}
-
-pub const NOISE_SETTINGS: RegistryKey<crate::router::NoiseGeneratorSettings> =
-    RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
-impl Registered for crate::router::NoiseGeneratorSettings {
-    const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
 }

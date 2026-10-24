@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
-use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 #[registry_value]
 #[dispatch(registry = mcrs_minecraft_dimension::keys::ChunkGeneratorType)]
@@ -26,5 +25,5 @@ pub struct FlatChunkGenerator {
 #[serde(deny_unknown_fields)]
 pub struct NoiseChunkGenerator<M: Refs = Resolved> {
     pub biome_source: BiomeSource<M>,
-    pub settings: M::Id<NoiseGeneratorSettings>,
+    pub settings: M::Id<mcrs_minecraft_dimension::NoiseSettings>,
 }
