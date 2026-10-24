@@ -76,7 +76,8 @@ pub(crate) fn prepare_colour_pipelines(
 /// Group `g` reads `lanes[1 - g]` and writes `lanes[g]`.
 fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) -> [BindGroup; 2] {
     let layout = cache.get_bind_group_layout(&colour_layout());
-    [0, 1].map(|g| {
+    let [first, second] = &volume.scratch.lanes;
+    [(second, first), (first, second)].map(|(read, write)| {
         device.create_bind_group(
             "light colour",
             &layout,
@@ -84,8 +85,8 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
                 volume.scratch.jobs.as_entire_binding(),
                 volume.pool.as_entire_binding(),
                 volume.scratch.cost.as_entire_binding(),
-                volume.scratch.lanes[1 - g].as_entire_binding(),
-                volume.scratch.lanes[g].as_entire_binding(),
+                read.as_entire_binding(),
+                write.as_entire_binding(),
                 &volume.atlas,
             )),
         )
@@ -122,10 +123,12 @@ pub(crate) fn propagate_colour(
         if jobs.lane_words > volume.scratch.lane_words {
             volume.grow_lanes(jobs.lane_words, &device);
         }
-        if volume.colour_groups.is_none() {
-            volume.colour_groups = Some(bind_groups(volume, &device, &cache));
-        }
-        let groups = volume.colour_groups.as_ref().expect("made above");
+        let groups = match volume.colour_groups.take() {
+            Some(groups) => groups,
+            None => bind_groups(volume, &device, &cache),
+        };
+        let [even, odd] = &*volume.colour_groups.insert(groups);
+        let group = |wave: usize| if wave.is_multiple_of(2) { even } else { odd };
         queue.write_buffer(&volume.scratch.jobs, 0, bytemuck::cast_slice(&jobs.records));
         let count = jobs.records.len() as u32;
         let workgroups = |cells: u64| cells.div_ceil(WORKGROUP) as u32;
@@ -139,16 +142,16 @@ pub(crate) fn propagate_colour(
             });
         let span = diagnostics.pass_span(&mut pass, "light colour");
         pass.set_pipeline(gather);
-        pass.set_bind_group(0, &groups[0], &[]);
+        pass.set_bind_group(0, even, &[]);
         pass.dispatch_workgroups(workgroups(REGION_CELLS as u64), count, 1);
         pass.set_pipeline(waves);
         let lanes = REGION_CELLS as u64 * jobs.widest as u64;
         for wave in 0..WAVES {
-            pass.set_bind_group(0, &groups[(wave + 1) % 2], &[]);
+            pass.set_bind_group(0, group(wave + 1), &[]);
             pass.dispatch_workgroups(workgroups(lanes), count, 1);
         }
         pass.set_pipeline(resolve);
-        pass.set_bind_group(0, &groups[(WAVES + 1) % 2], &[]);
+        pass.set_bind_group(0, group(WAVES + 1), &[]);
         pass.dispatch_workgroups(workgroups(BRICK_SIDE.pow(3) as u64), count, 1);
         span.end(&mut pass);
     }

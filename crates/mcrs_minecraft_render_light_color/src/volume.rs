@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::num::NonZeroU64;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
@@ -85,7 +85,7 @@ impl VolumeQueue {
     }
 
     fn inbox(&self) -> MutexGuard<'_, Inbox> {
-        self.0.lock().unwrap()
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Called by whoever creates the volume; the filler sees the new generation and starts again.
@@ -281,9 +281,11 @@ impl VolumeBook {
         }
     }
 
-    fn reset(&mut self, min_section_y: i32, sections: u32) {
+    fn reset(&mut self, min_section_y: i32, sections: u32) -> Pages {
         *self = Self::new(self.pool_capacity, self.grid, self.view_distance);
-        self.pages = Some(Pages::new(self.view_distance, min_section_y, sections));
+        let pages = Pages::new(self.view_distance, min_section_y, sections);
+        self.pages = Some(pages);
+        pages
     }
 
     /// A brick the pool has no room for is refused, and every section whose region needs it
@@ -411,9 +413,13 @@ impl VolumeBook {
             quarter(self.pool.len(), self.pool_capacity),
             quarter(self.atlas.len(), self.grid.capacity() - 1),
         ];
-        let crossed = std::array::from_fn(|i| (now[i] != self.quarters[i]).then_some(now[i]));
+        let [pool, atlas] = now;
+        let [was_pool, was_atlas] = self.quarters;
         self.quarters = now;
-        crossed
+        [
+            (pool != was_pool).then_some(pool),
+            (atlas != was_atlas).then_some(atlas),
+        ]
     }
 
     fn log_occupancy(&mut self) {
@@ -452,7 +458,7 @@ impl VolumeBook {
             .copied()
             .max_by_key(|&at| distance(at))
             .filter(|&at| distance(at) > distance(section))?;
-        let slot = self.atlas.remove(&farthest).expect("a coloured section");
+        let slot = self.atlas.remove(&farthest)?;
         self.touched.insert(farthest);
         self.atlas.insert(section, slot);
         Some(slot)
@@ -485,7 +491,9 @@ impl VolumeBook {
             .collect();
         near.sort_unstable_by_key(|&section| (section - camera).length_squared());
         for section in near {
-            let lanes = &self.pending[&section];
+            let Some(lanes) = self.pending.get(&section) else {
+                continue;
+            };
             let refused = !self.refused.is_empty()
                 && neighbours(SectionPos(section)).any(|n| self.refused.contains(&n.0));
             if lanes.is_empty() || refused {
@@ -511,10 +519,9 @@ impl VolumeBook {
             for (entry, neighbour) in slots.iter_mut().zip(neighbours(SectionPos(section))) {
                 *entry = self.neighbour_slot(neighbour.0, pages);
             }
-            let lanes = self
-                .pending
-                .remove(&section)
-                .expect("taken from the pending keys");
+            let Some(lanes) = self.pending.remove(&section) else {
+                continue;
+            };
             let lane_base = jobs.lane_words * REGION_CELLS as u32;
             let origin = self.grid.origin(slot).to_array();
             jobs.records
@@ -718,8 +725,7 @@ impl Volume {
         device: &RenderDevice,
         cache: &PipelineCache,
     ) {
-        self.book.reset(min_section_y, sections);
-        let pages = self.book.pages.expect("a reset book has pages");
+        let pages = self.book.reset(min_section_y, sections);
         self.page_table = page_table(pages.extent(), device);
         self.bind_group = volume_bind_group(
             &self.page_table,
