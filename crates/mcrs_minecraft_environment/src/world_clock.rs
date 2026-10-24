@@ -375,7 +375,8 @@ impl mcrs_minecraft_registries::Namer for TestClocks {
     }
 }
 
-#[cfg(all(test, feature = "bevy"))]
+#[cfg(test)]
+#[cfg(feature = "bevy")]
 mod tests {
     use super::*;
     use crate::timeline::Timeline;

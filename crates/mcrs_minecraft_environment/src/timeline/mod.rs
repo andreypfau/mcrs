@@ -477,10 +477,10 @@ mod tests {
 
             for (id, sampler) in &baked {
                 for ticks in (-50000..250000).step_by(997) {
-                    let sampled = sampler.sample_argument(ticks);
+                    let sampled = sampler.sample_argument(ticks).unwrap();
                     assert_eq!(
                         sampled,
-                        sampler.sample_argument(ticks),
+                        sampler.sample_argument(ticks).unwrap(),
                         "{name} / {id} at {ticks} is not a pure function of ticks"
                     );
                 }
@@ -494,15 +494,15 @@ mod tests {
         let sun = day.tracks["minecraft:visual/sun_angle"].bake(day.period_ticks);
 
         // the zero-length middle segment is what makes tick 6000 read as 0
-        assert_eq!(float(&sun.sample_argument(6000)), 0.0);
+        assert_eq!(float(&sun.sample_argument(6000).unwrap()), 0.0);
         assert!(
-            float(&sun.sample_argument(5999)) > 359.9,
+            float(&sun.sample_argument(5999).unwrap()) > 359.9,
             "and the tick before it as 360"
         );
-        assert!(float(&sun.sample_argument(6001)) < 0.1);
+        assert!(float(&sun.sample_argument(6001).unwrap()) < 0.1);
         let mut previous = 0.0;
         for tick in 6001..30000 {
-            let angle = float(&sun.sample_argument(tick));
+            let angle = float(&sun.sample_argument(tick).unwrap());
             assert!(angle >= previous, "sun_angle went backwards at {tick}");
             previous = angle;
         }
@@ -513,7 +513,7 @@ mod tests {
         let day = timeline("day.json");
         let id = "minecraft:visual/sky_light_factor";
         let sampler = day.tracks[id].bake(day.period_ticks);
-        let at = |tick| float(&sampler.sample_argument(tick));
+        let at = |tick| float(&sampler.sample_argument(tick).unwrap());
 
         // the keyframes run 730 → 22860, so 100 is before the first and 23000
         // after the last; both must interpolate around the period
@@ -545,7 +545,7 @@ mod tests {
         let moon = timeline("moon.json");
         let id = "minecraft:visual/moon_phase";
         let sampler = moon.tracks[id].bake(moon.period_ticks);
-        let at = |tick| sampler.sample_argument(tick);
+        let at = |tick| sampler.sample_argument(tick).unwrap();
         let phase = AttributeValue::MoonPhase;
 
         // nominally a linear track, but MOON_PHASE is not interpolated, so each
@@ -668,7 +668,11 @@ mod tests {
             )
             .unwrap();
             for tick in [-1_000_000, -1, 0, 500, 23_999, 1_000_000] {
-                assert_eq!(float(&sampler.sample_argument(tick)), 0.25, "at {tick}");
+                assert_eq!(
+                    float(&sampler.sample_argument(tick).unwrap()),
+                    0.25,
+                    "at {tick}"
+                );
             }
         }
     }

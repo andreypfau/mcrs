@@ -12,35 +12,34 @@ pub struct TrackSampler {
 }
 
 impl TrackSampler {
-    pub fn sample(&self, ticks: i64) -> AttributeValue {
+    /// `None` for a track without keyframes.
+    pub fn sample(&self, ticks: i64) -> Option<AttributeValue> {
         self.sample_at(ticks as f64)
     }
 
-    pub fn sample_at(&self, ticks: f64) -> AttributeValue {
-        let (first, last) = (
-            &self.keyframes[0],
-            &self.keyframes[self.keyframes.len() - 1],
-        );
+    pub fn sample_at(&self, ticks: f64) -> Option<AttributeValue> {
+        let (first, last) = (self.keyframes.first()?, self.keyframes.last()?);
         let Some(period) = self.period_ticks.map(f64::from) else {
-            if ticks <= first.0 {
-                return first.1.clone();
-            }
-            if ticks >= last.0 {
-                return last.1.clone();
-            }
-            let next = self
-                .keyframes
-                .iter()
-                .position(|(at, _)| *at > ticks)
-                .unwrap();
-            return between(&self.keyframes[next - 1], &self.keyframes[next], ticks);
+            return Some(match self.around(ticks) {
+                _ if ticks <= first.0 => first.1.clone(),
+                Some((from, to)) => between(from, to, ticks),
+                None => last.1.clone(),
+            });
         };
         let ticks = ticks.rem_euclid(period);
-        match self.keyframes.iter().position(|(at, _)| *at > ticks) {
-            Some(0) => between(&(last.0 - period, last.1.clone()), first, ticks),
-            Some(next) => between(&self.keyframes[next - 1], &self.keyframes[next], ticks),
+        Some(match self.around(ticks) {
+            _ if first.0 > ticks => between(&(last.0 - period, last.1.clone()), first, ticks),
+            Some((from, to)) => between(from, to, ticks),
             None => between(last, &(first.0 + period, first.1.clone()), ticks),
-        }
+        })
+    }
+
+    /// The two keyframes on either side of `ticks`, when a later one exists.
+    fn around(&self, ticks: f64) -> Option<(&(f64, AttributeValue), &(f64, AttributeValue))> {
+        self.keyframes.windows(2).find_map(|pair| match pair {
+            [from, to] if to.0 > ticks => Some((from, to)),
+            _ => None,
+        })
     }
 }
 
@@ -73,7 +72,7 @@ pub struct AttributeTrackSampler {
 }
 
 impl AttributeTrackSampler {
-    pub fn sample_argument(&self, ticks: i64) -> AttributeValue {
+    pub fn sample_argument(&self, ticks: i64) -> Option<AttributeValue> {
         self.argument.sample(ticks)
     }
 
@@ -90,7 +89,10 @@ impl AttributeTrackSampler {
         base: &AttributeValue,
         ticks: f64,
     ) -> Result<AttributeValue, ModifierError> {
-        crate::attribute::apply(self.modifier, base, &self.argument.sample_at(ticks))
+        match self.argument.sample_at(ticks) {
+            Some(argument) => crate::attribute::apply(self.modifier, base, &argument),
+            None => Ok(base.clone()),
+        }
     }
 }
 
