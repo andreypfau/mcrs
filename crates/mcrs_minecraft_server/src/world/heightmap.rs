@@ -3,14 +3,14 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_level::block_update::BlockPlaced;
-use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
+use mcrs_minecraft_level::world::storage::column::ColumnIndex;
+use mcrs_minecraft_level::world::storage::view::WorldView;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_volume::BlockVolume;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap,
     SurfaceHeightmap, apply_write, heightmap_predicates,
@@ -162,26 +162,33 @@ fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
 pub fn update_column_heightmaps(
     mut placed: MessageReader<BlockPlaced>,
     predicates: Res<HeightmapPredicates>,
+    sections: Query<&InDimension>,
     indices: Query<&ColumnIndex>,
     mut columns: Query<(
-        &ColumnSections,
         &mut SurfaceHeightmap,
         &mut SolidHeightmap,
         &mut MotionHeightmap,
         &mut NoLeavesHeightmap,
     )>,
-    palettes: Query<&ChunkBlocks>,
+    world: WorldView,
 ) {
     for edit in placed.read() {
+        let Ok(&InDimension(dimension)) = sections.get(edit.chunk) else {
+            continue;
+        };
+        let Some(blocks) = world.get(dimension) else {
+            continue;
+        };
         let col = ColumnPos::from(edit.block_pos);
         let Some(entity) = indices
-            .iter()
-            .find_map(|index| index.get(&col).map(|slot| slot.entity))
+            .get(dimension)
+            .ok()
+            .and_then(|index| index.get(&col))
+            .map(|slot| slot.entity)
         else {
             continue;
         };
-        let Ok((chunks, mut surface, mut solid, mut motion, mut no_leaves)) =
-            columns.get_mut(entity)
+        let Ok((mut surface, mut solid, mut motion, mut no_leaves)) = columns.get_mut(entity)
         else {
             continue;
         };
@@ -189,7 +196,11 @@ pub fn update_column_heightmaps(
         let z = (edit.block_pos.z & SectionPos::MASK as i32) as usize;
         let y = edit.block_pos.y;
         let kinds = predicates.get(edit.new_state.into());
-        let read = |at: i32| block_at(chunks, &palettes, x, at, z);
+        let read = |at: i32| {
+            blocks
+                .block(BlockPos::new(edit.block_pos.x, at, edit.block_pos.z))
+                .map_or(VoxelId::default(), VoxelId::from)
+        };
 
         apply_write(
             &mut surface.0,
@@ -203,25 +214,6 @@ pub fn update_column_heightmaps(
             &predicates,
             &read,
         );
-    }
-}
-
-fn block_at(
-    chunks: &ColumnSections,
-    palettes: &Query<&ChunkBlocks>,
-    x: usize,
-    y: i32,
-    z: usize,
-) -> VoxelId {
-    let SectionLookup::Loaded(section) = chunks.lookup(y.div_euclid(SectionPos::SIZE as i32))
-    else {
-        return VoxelId::default();
-    };
-    match palettes.get(section) {
-        Ok(blocks) => blocks
-            .get_cell(x, y.rem_euclid(SectionPos::SIZE as i32) as usize, z)
-            .into(),
-        Err(_) => VoxelId::default(),
     }
 }
 

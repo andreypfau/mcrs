@@ -1,7 +1,7 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, section_states};
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks, section_states};
 use mcrs_minecraft_worldgen_generator::heightmap::*;
 use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
 use std::sync::OnceLock;
@@ -239,42 +239,62 @@ fn spawn_column(
     y_sections: &[i32],
 ) -> (App, Entity, Vec<Entity>) {
     use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::section::SectionIndex;
 
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
     app.insert_resource(predicates().clone());
     app.add_systems(bevy_app::Update, update_column_heightmaps);
 
-    let section_entities: Vec<Entity> = sections
-        .iter()
-        .map(|section| {
-            let blocks = section.as_ref().map(|(b, _)| b.clone()).unwrap_or_default();
-            let states = section_states(&blocks, corpus().state_count());
-            app.world_mut().spawn(ChunkBlocks::new(states)).id()
-        })
-        .collect();
-
     let first = *y_sections.first().unwrap();
     let height = ((*y_sections.last().unwrap() - first + 1) * 16) as u32;
     let min_y = first * 16;
-    let mut chunks = ColumnSections::new(first, y_sections.len());
-    for (&section_y, &entity) in y_sections.iter().zip(&section_entities) {
-        chunks.set_loaded(section_y, entity);
-    }
+    let slot = |entity| ColumnSlot {
+        entity,
+        section_count: y_sections.len() as u32,
+    };
+
+    // Spawned first, so an update that ignores which dimension an edit landed in
+    // finds this dimension's column at the same position.
+    let other_column = app
+        .world_mut()
+        .spawn(ColumnHeightmapSet::new(height, min_y))
+        .id();
+    let mut other_index = ColumnIndex::default();
+    other_index.insert(ColumnPos::new(0, 0), slot(other_column));
+    app.world_mut().spawn((
+        other_index,
+        SectionIndex::new(),
+        DimensionTypeConfig::new(min_y, height),
+    ));
+
+    let dim = app
+        .world_mut()
+        .spawn(DimensionTypeConfig::new(min_y, height))
+        .id();
+    let mut section_index = SectionIndex::new();
+    let section_entities: Vec<Entity> = sections
+        .iter()
+        .zip(y_sections)
+        .map(|(section, &section_y)| {
+            let blocks = section.as_ref().map(|(b, _)| b.clone()).unwrap_or_default();
+            let states = section_states(&blocks, corpus().state_count());
+            let entity = app
+                .world_mut()
+                .spawn((ChunkBlocks::new(states), InDimension(dim)))
+                .id();
+            section_index.insert(SectionPos::new(0, section_y, 0), entity);
+            entity
+        })
+        .collect();
+
     let column = app
         .world_mut()
-        .spawn((chunks, ColumnHeightmapSet::new(height, min_y)))
+        .spawn(ColumnHeightmapSet::new(height, min_y))
         .id();
-
     let mut index = ColumnIndex::default();
-    index.insert(
-        ColumnPos::new(0, 0),
-        ColumnSlot {
-            entity: column,
-            section_count: y_sections.len() as u32,
-        },
-    );
-    app.world_mut().spawn(index);
+    index.insert(ColumnPos::new(0, 0), slot(column));
+    app.world_mut().entity_mut(dim).insert((index, section_index));
 
     (app, column, section_entities)
 }
@@ -294,7 +314,6 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 }
 
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
-    use mcrs_minecraft_core::{BlockPos, SectionPos};
     use mcrs_minecraft_simulation::BlockUpdateFlags;
 
     let table = predicates();
