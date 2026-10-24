@@ -28,17 +28,17 @@ pub fn ignore_structure_and_air(
 /// placed at `pos`, if any, takes the table and a seed from the stream.
 // chisle: the chest-shaped containers only; a hopper, decorated pot or
 // crafter under a marker needs its own arm.
-pub fn seed_container_loot(
-    entities: &mut [GeneratedBlockEntity],
+pub fn seed_container_loot<W: WorldGenVolume>(
+    volume: &mut W,
     pos: BlockPos,
     loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
     rng: &mut WorldgenRandom,
 ) {
-    let container = entities
-        .iter_mut()
-        .rev()
-        .filter(|entity| entity.position() == pos)
-        .find_map(|entity| match entity {
+    let container = volume
+        .block_entity_mut(pos)
+        .ok()
+        .flatten()
+        .and_then(|entity| match entity {
             GeneratedBlockEntity::Chest(container)
             | GeneratedBlockEntity::TrappedChest(container)
             | GeneratedBlockEntity::Barrel(container)
@@ -78,7 +78,6 @@ pub fn paint_shipwreck<W: WorldGenVolume>(
     clip: BoundingBox,
     region: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
     let position = piece.placed_position();
@@ -95,7 +94,6 @@ pub fn paint_shipwreck<W: WorldGenVolume>(
         reference,
         region,
         rng,
-        entities,
         spawns,
     ) else {
         return;
@@ -110,7 +108,7 @@ pub fn paint_shipwreck<W: WorldGenVolume>(
         Some(clip),
     ) {
         if let Some(loot) = shipwreck_loot(marker) {
-            seed_container_loot(entities, (pos - IVec3::Y).into(), loot, rng);
+            seed_container_loot(region, (pos - IVec3::Y).into(), loot, rng);
         }
     }
 }
@@ -155,7 +153,6 @@ pub fn paint_igloo<W: WorldGenVolume>(
     clip: BoundingBox,
     region: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
     if template.palettes.is_empty() {
@@ -176,7 +173,6 @@ pub fn paint_igloo<W: WorldGenVolume>(
         reference,
         region,
         rng,
-        entities,
         spawns,
     );
     if let Some(palette) = placed {
@@ -192,7 +188,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
             if marker == "chest" {
                 region.set(pos.into(), b.air);
                 seed_container_loot(
-                    entities,
+                    region,
                     (pos - IVec3::Y).into(),
                     mcrs_minecraft_item::keys::loot_table::CHESTS_IGLOO_CHEST,
                     rng,

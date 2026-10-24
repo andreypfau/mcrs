@@ -743,7 +743,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
     let pos = c.world_pos(5, 3, 6);
     if c.clip.is_inside(pos) {
         c.volume.set(pos, b.spawner);
-        c.entities.push(GeneratedBlockEntity::mob_spawner(
+        c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             pos,
             mcrs_minecraft_entity::keys::EntityType::Silverfish.as_static_str(),
         ));

@@ -51,7 +51,6 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     clip: BoundingBox,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
     let Some(palette) = place_positional(
@@ -67,7 +66,6 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
         reference,
         volume,
         rng,
-        entities,
         spawns,
     ) else {
         return;
@@ -99,7 +97,7 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
                 .position(|d| *d == facing)
                 .expect("a horizontal facing");
             volume.set(pos, b.chest.facing[index]);
-            entities.push(GeneratedBlockEntity::chest(
+            volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
                 mcrs_minecraft_item::keys::loot_table::CHESTS_WOODLAND_MANSION
                     .as_str()

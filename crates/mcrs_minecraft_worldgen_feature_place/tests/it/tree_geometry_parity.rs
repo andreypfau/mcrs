@@ -32,7 +32,7 @@ use mcrs_minecraft_worldgen_feature::placer::{
 };
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{
-    CompiledTreeDecorator, EntitiesOnly, TreePalette,
+    CompiledTreeDecorator, NoMoss, TreePalette,
 };
 use mcrs_minecraft_worldgen_feature_place::tree::foliage::Foliage;
 use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
@@ -388,7 +388,7 @@ mod exhaustive {
 
             let origin = case.origin;
             let mut world = flat_world(&blocks, origin);
-            let mut entities = EntitiesOnly::default();
+            let mut entities = NoMoss;
             let mut rng = WorldgenRandom::new(case.seed as u64);
             let result = place_tree(&tree, &mut world, &mut rng, &mut entities, origin);
 

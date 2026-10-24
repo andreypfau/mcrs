@@ -165,34 +165,23 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
 #[derive(Clone, Debug)]
 pub struct CompiledTreeDecorator(pub TreeDecorator<StateProvider>);
 
-/// What a tree's decorators write beside blocks: the block entities they grow,
-/// and the bare `pale_moss_patch` some of them run on the tree's own source.
-///
-/// One interface rather than two parameters, because both reach the same state
-/// — the patch is a feature of its own and may grow block entities too — and
-/// two parameters cannot both borrow it.
+/// The bare `pale_moss_patch` some of a tree's decorators run on the tree's own source.
 pub trait TreeSink<W> {
-    fn block_entity(&mut self, entity: GeneratedBlockEntity);
-
     /// `pale_moss` runs a whole feature on the tree's source, and that feature
     /// lives outside this crate.
     fn moss_patch(&mut self, volume: &mut W, rng: &mut WorldgenRandom, at: BlockPos);
 }
 
-/// A sink with no patch to run: it keeps the block entities and drops the moss.
+/// A sink with no patch to run: it drops the moss.
 ///
 /// Only right where the corpus carries no `pale_moss` decorator — a tree that
 /// does grows nothing where its patch belongs.
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct EntitiesOnly(pub Vec<GeneratedBlockEntity>);
+pub struct NoMoss;
 
 #[cfg(any(test, feature = "test-support"))]
-impl<W> TreeSink<W> for EntitiesOnly {
-    fn block_entity(&mut self, entity: GeneratedBlockEntity) {
-        self.0.push(entity);
-    }
-
+impl<W> TreeSink<W> for NoMoss {
     fn moss_patch(&mut self, _window: &mut W, _rng: &mut WorldgenRandom, _at: BlockPos) {}
 }
 
@@ -530,7 +519,7 @@ fn place_beehive<W: WorldGenVolume>(
     let bees = (0..occupants)
         .map(|_| BeeOccupant::bee(rng.next_i32_bound(599)))
         .collect();
-    ctx.sink.block_entity(GeneratedBlockEntity::Beehive {
+    ctx.volume.add_block_entity(GeneratedBlockEntity::Beehive {
         x: hive.x,
         y: hive.y,
         z: hive.z,
@@ -747,7 +736,7 @@ mod tests {
             water_states: mask_of([WATER]),
             ..WorldStates::default()
         };
-        let mut sink = EntitiesOnly::default();
+        let mut sink = NoMoss;
         let mut actual = rng();
         {
             let mut ctx =
@@ -757,9 +746,10 @@ mod tests {
         let mut replay = rng();
         expected(&mut replay);
         assert_eq!(actual, replay, "draw sequence");
+        let block_entities = std::mem::take(&mut volume.block_entities);
         Placed {
             volume,
-            block_entities: sink.0,
+            block_entities,
         }
     }
 

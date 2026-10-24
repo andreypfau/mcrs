@@ -57,7 +57,6 @@ pub fn replaceable_by_structures(
 /// column's writable box.
 pub struct PieceCanvas<'a, W: WorldGenVolume> {
     pub volume: &'a mut W,
-    pub entities: &'a mut Vec<GeneratedBlockEntity>,
     pub spawns: &'a mut Vec<GeneratedEntity>,
     pub bounds: BoundingBox,
     pub orientation: Option<Orientation>,
@@ -276,7 +275,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
         let state = reorient(&chest.facing, &chest.states, self.volume, pos);
         self.volume.set(pos, state);
-        self.entities.push(GeneratedBlockEntity::chest(
+        self.volume.add_block_entity(GeneratedBlockEntity::chest(
             pos,
             loot_table.as_str().to_owned(),
             rng.next_java_long(),
@@ -304,8 +303,8 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
             return false;
         }
         self.place(dispenser, x, y, z);
-        self.entities
-            .push(GeneratedBlockEntity::Dispenser(ContainerData::looted(
+        self.volume
+            .add_block_entity(GeneratedBlockEntity::Dispenser(ContainerData::looted(
                 pos,
                 loot_table.as_str().to_owned(),
                 rng.next_java_long(),
@@ -334,13 +333,11 @@ mod tests {
 
     fn canvas<'a>(
         region: &'a mut BoxRegion,
-        entities: &'a mut Vec<GeneratedBlockEntity>,
         spawns: &'a mut Vec<GeneratedEntity>,
         orientation: Orientation,
     ) -> PieceCanvas<'a, BoxRegion> {
         PieceCanvas {
             volume: region,
-            entities,
             spawns,
             bounds: BoundingBox {
                 min: BlockPos::new(8, 10, 8),
@@ -358,17 +355,16 @@ mod tests {
     #[test]
     fn writes_are_oriented_and_clipped() {
         let mut region = region();
-        let mut entities = Vec::new();
         let mut spawns = Vec::new();
         let brick = Oriented([BRICK; 4]);
-        let mut east = canvas(&mut region, &mut entities, &mut spawns, Orientation::East);
+        let mut east = canvas(&mut region, &mut spawns, Orientation::East);
         east.generate_box([0, 0, 0], [3, 0, 3], &brick, &brick, false);
         let writes = region.writes.len();
         assert_eq!(
             writes, 16,
             "the east box lands in x 8..=11, inside the clip"
         );
-        let mut north = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
+        let mut north = canvas(&mut region, &mut spawns, Orientation::North);
         north.generate_box([10, 0, 0], [13, 0, 3], &brick, &brick, false);
         assert_eq!(region.writes.len(), writes, "x 18..=21 is past the clip");
     }
@@ -376,9 +372,8 @@ mod tests {
     #[test]
     fn the_column_fills_down_through_air_only() {
         let mut region = region();
-        let mut entities = Vec::new();
         let mut spawns = Vec::new();
-        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
+        let mut canvas = canvas(&mut region, &mut spawns, Orientation::North);
         canvas.fill_column_down(&mask_of([AIR]), BRICK, 2, 5, 2);
         let column: Vec<i32> = region.writes.iter().map(|(pos, _)| pos.y).collect();
         assert_eq!(column, vec![15, 14, 13, 12, 11, 10]);
@@ -387,10 +382,9 @@ mod tests {
     #[test]
     fn interior_and_sphere_follow_the_reference_shape() {
         let mut region = region();
-        let mut entities = Vec::new();
         let mut spawns = Vec::new();
         let brick = Oriented([BRICK; 4]);
-        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
+        let mut canvas = canvas(&mut region, &mut spawns, Orientation::North);
         assert!(
             !canvas.is_interior(0, 0, 0),
             "y 11 is above the height of 10"
@@ -403,12 +397,11 @@ mod tests {
     #[test]
     fn the_maybe_box_draws_once_per_cell() {
         let mut region = region();
-        let mut entities = Vec::new();
         let brick = Oriented([BRICK; 4]);
         let mut rng = LegacyRandom::new(3);
         let mut replay = rng.clone();
         let mut spawns = Vec::new();
-        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::South);
+        let mut canvas = canvas(&mut region, &mut spawns, Orientation::South);
         canvas.generate_maybe_box(
             &mut rng,
             0.5,

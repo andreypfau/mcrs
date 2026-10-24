@@ -12,7 +12,6 @@ use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::proto::{ProcessorRule, StructureProcessor};
 use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{ChainKind, CompiledChain, compile_chain};
 use mcrs_minecraft_worldgen_structure::RuinedPortalSetup;
@@ -190,7 +189,6 @@ pub fn place_ruined_portal<W: WorldGenVolume>(
     piece: &RuinedPortalPiece,
     template: &FrozenTemplate,
     volume: &mut W,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
     reference: IVec3,
     clip: BoundingBox,
@@ -221,7 +219,6 @@ pub fn place_ruined_portal<W: WorldGenVolume>(
         reference,
         volume,
         rng,
-        entities,
         spawns,
     );
     let mut portal = Portal {

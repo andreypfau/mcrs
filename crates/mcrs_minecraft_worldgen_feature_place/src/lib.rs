@@ -1,7 +1,7 @@
 pub mod bamboo;
 pub mod blob;
 pub mod block_column;
-pub mod block_entity;
+pub use mcrs_minecraft_worldgen_feature::block_entity;
 pub mod block_pile;
 pub mod chorus_plant;
 pub mod coral;

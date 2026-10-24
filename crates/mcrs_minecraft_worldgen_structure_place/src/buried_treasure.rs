@@ -140,11 +140,9 @@ mod tests {
         region.seed(BlockPos::new(9, 5, 9), WATER);
         region.seed(BlockPos::new(10, 5, 9), WATER);
         region.seed(BlockPos::new(10, 4, 9), AIR);
-        let mut entities = Vec::new();
         let mut spawns = Vec::new();
         let mut canvas = PieceCanvas {
             volume: &mut region,
-            entities: &mut entities,
             spawns: &mut spawns,
             bounds: BoundingBox::point(BlockPos::new(9, 90, 9)),
             orientation: None,
@@ -163,7 +161,7 @@ mod tests {
                 (BlockPos::new(9, 5, 9), CHEST),
             ]
         );
-        assert_eq!(entities.len(), 1);
+        assert_eq!(region.block_entities.len(), 1);
         assert_eq!(rng, {
             let mut replay = LegacyRandom::new(7);
             replay.next_java_long();
@@ -177,11 +175,9 @@ mod tests {
         for y in 0..=4 {
             region.seed_layer(y, GRAVEL);
         }
-        let mut entities = Vec::new();
         let mut spawns = Vec::new();
         let mut canvas = PieceCanvas {
             volume: &mut region,
-            entities: &mut entities,
             spawns: &mut spawns,
             bounds: BoundingBox::point(BlockPos::new(9, 90, 9)),
             orientation: None,
@@ -194,7 +190,7 @@ mod tests {
         let mut rng = LegacyRandom::new(7);
         paint_buried_treasure(&blocks(), &mut canvas, &mut rng);
         assert!(region.writes.is_empty());
-        assert!(entities.is_empty());
+        assert!(region.block_entities.is_empty());
         assert_eq!(rng, LegacyRandom::new(7));
     }
 }

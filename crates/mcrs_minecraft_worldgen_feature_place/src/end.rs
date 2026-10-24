@@ -160,7 +160,6 @@ pub struct CompiledEndGateway {
 pub fn place_end_gateway<W: WorldGenVolume>(
     config: &CompiledEndGateway,
     volume: &mut W,
-    block_entities: &mut Vec<GeneratedBlockEntity>,
     at: BlockPos,
 ) -> bool {
     for z in at.z - 1..=at.z + 1 {
@@ -173,7 +172,7 @@ pub fn place_end_gateway<W: WorldGenVolume>(
                 if same_x && same_y && same_z {
                     volume.set(BlockPos::new(x, y, z), config.gateway);
                     if let Some(exit) = config.exit {
-                        block_entities.push(GeneratedBlockEntity::EndGateway(EndGatewayData {
+                        volume.add_block_entity(GeneratedBlockEntity::EndGateway(EndGatewayData {
                             x,
                             y,
                             z,
@@ -504,11 +503,9 @@ mod tests {
     #[test]
     fn an_end_gateway_stamps_its_frame_and_records_its_exit() {
         let mut volume = FakeVolume::default();
-        let mut gateways = Vec::new();
         assert!(place_end_gateway(
             &gateway(Some([100, 50, 0]), true),
             &mut volume,
-            &mut gateways,
             BlockPos::new(0, 0, 0)
         ));
 
@@ -532,7 +529,7 @@ mod tests {
         );
         assert_eq!(volume.writes.len(), 3 * 5 * 3);
         assert_eq!(
-            gateways,
+            volume.block_entities,
             vec![GeneratedBlockEntity::EndGateway(EndGatewayData {
                 x: 0,
                 y: 0,

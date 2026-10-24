@@ -59,7 +59,6 @@ use mcrs_minecraft_worldgen_feature_place::blob::{
 use mcrs_minecraft_worldgen_feature_place::block_column::{
     ColumnLayer, CompiledBlockColumn, place_block_column,
 };
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::block_pile::{CompiledBlockPile, place_block_pile};
 use mcrs_minecraft_worldgen_feature_place::chorus_plant::{
     CompiledChorusPlant, place_chorus_plant,
@@ -609,7 +608,6 @@ impl FeatureProgram {
     /// handed back by [`Run::finish`] so a worker keeps them warm.
     pub fn run(&self, scratch: RunScratch) -> Run<'_> {
         Run {
-            entities: Vec::new(),
             spawns: Vec::new(),
             moss_patch: self.moss_patch.as_deref(),
             scratch,
@@ -635,11 +633,9 @@ impl FeatureProgram {
     }
 }
 
-/// What every generator of one column's run shares: the block entities it
-/// grows, the entities it spawns and the bare `pale_moss_patch` a tree
-/// decorator runs on the tree's own source.
+/// What every generator of one column's run shares: the entities it spawns and
+/// the bare `pale_moss_patch` a tree decorator runs on the tree's own source.
 pub struct Run<'a> {
-    pub entities: Vec<GeneratedBlockEntity>,
     pub spawns: Vec<GeneratedEntity>,
     pub moss_patch: Option<&'a Generator>,
     scratch: RunScratch,
@@ -654,23 +650,18 @@ pub struct RunScratch {
 }
 
 impl Run<'_> {
-    pub fn finish(self) -> (Vec<GeneratedBlockEntity>, Vec<GeneratedEntity>, RunScratch) {
-        (self.entities, self.spawns, self.scratch)
+    pub fn finish(self) -> (Vec<GeneratedEntity>, RunScratch) {
+        (self.spawns, self.scratch)
     }
 }
 
-/// What a tree writes beside its blocks: its block entities join the run's, and
-/// its moss patch is the program's own `pale_moss_patch` on the tree's source.
+/// A tree's moss patch is the program's own `pale_moss_patch` on the tree's source.
 struct TreeRun<'r, 'a, 'c> {
     run: &'r mut Run<'a>,
     carries: &'c dyn Fn(u16) -> bool,
 }
 
 impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
-    fn block_entity(&mut self, entity: GeneratedBlockEntity) {
-        self.run.entities.push(entity);
-    }
-
     fn moss_patch(&mut self, region: &mut W, rng: &mut WorldgenRandom, at: BlockPos) {
         // A tree that decorates with moss made the build resolve the patch, so
         // nothing to run here is a bug in the compile.
@@ -835,12 +826,8 @@ impl Generator {
             Generator::BlueIce(config) => place_blue_ice(config, region, rng, at),
             Generator::FreezeTopLayer(config) => place_freeze_top_layer(config, region, at),
             Generator::Spring(config) => place_spring(config, region, rng, at),
-            Generator::MonsterRoom(config) => {
-                place_monster_room(config, region, rng, &mut run.entities, at)
-            }
-            Generator::BonusChest(config) => {
-                place_bonus_chest(config, region, rng, &mut run.entities, at)
-            }
+            Generator::MonsterRoom(config) => place_monster_room(config, region, rng, at),
+            Generator::BonusChest(config) => place_bonus_chest(config, region, rng, at),
             Generator::Lake(config) => place_lake(config, region, rng, at),
             Generator::Geode(config) => place_geode(config, region, rng, at),
             Generator::SpeleothemCluster(config) => {
@@ -882,9 +869,7 @@ impl Generator {
             Generator::EndPlatform(config) => place_end_platform(config, region, at),
             Generator::VoidStartPlatform(config) => place_void_start_platform(config, region, at),
             Generator::EndPodium(config) => place_end_podium(config, region, at),
-            Generator::EndGateway(config) => {
-                place_end_gateway(config, region, &mut run.entities, at)
-            }
+            Generator::EndGateway(config) => place_end_gateway(config, region, at),
             Generator::EndIsland(config) => place_end_island(config, region, rng, at),
             // An end crystal is an entity, and worldgen has no entity channel;
             // its yaw draw still happens, so nothing after it moves.
@@ -936,13 +921,10 @@ impl Generator {
                     },
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 )
             }
-            Generator::Fossil(config) => {
-                place_fossil(config, region, rng, at, &mut run.entities, &mut run.spawns)
-            }
+            Generator::Fossil(config) => place_fossil(config, region, rng, at, &mut run.spawns),
         }
     }
 }
@@ -952,7 +934,6 @@ fn place_fossil<W: WorldGenVolume>(
     region: &mut W,
     rng: &mut WorldgenRandom,
     at: BlockPos,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
     let rotation = mcrs_minecraft_worldgen_structure::orient::random_rotation(rng);
@@ -1026,7 +1007,6 @@ fn place_fossil<W: WorldGenVolume>(
             },
             region,
             rng,
-            entities,
             spawns,
         );
     }

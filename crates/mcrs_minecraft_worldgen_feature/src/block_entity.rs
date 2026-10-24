@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
+use crate::template::{EMPTY_LABEL, Joint};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
@@ -19,7 +20,6 @@ use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_registries::{Named, dispatch};
 use mcrs_minecraft_value_provider::Weighted;
-use mcrs_minecraft_worldgen_feature::template::{EMPTY_LABEL, Joint};
 use serde::{Deserialize, Serialize};
 
 fn empty_id() -> String {
@@ -27,9 +27,7 @@ fn empty_id() -> String {
 }
 
 fn empty_pool() -> String {
-    mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY
-        .as_str()
-        .to_owned()
+    crate::keys::template_pool::EMPTY.as_str().to_owned()
 }
 
 fn air_id() -> String {
@@ -351,7 +349,7 @@ pub enum GeneratedBlockEntity {
 
 pub(crate) use mcrs_minecraft_nbt::nbt_flag;
 
-pub(crate) fn one() -> i32 {
+pub fn one() -> i32 {
     1
 }
 

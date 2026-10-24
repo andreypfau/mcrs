@@ -399,6 +399,7 @@ pub(crate) mod fake {
         pub heights: HashMap<(i32, i32), i32>,
         pub writes: Vec<((i32, i32, i32), VoxelId)>,
         pub ticks: Vec<mcrs_minecraft_simulation::PendingTick<GenerationKinds>>,
+        pub block_entities: Vec<crate::block_entity::GeneratedBlockEntity>,
         pub world: WorldStates,
     }
 
@@ -411,6 +412,7 @@ pub(crate) mod fake {
                 heights: HashMap::default(),
                 writes: Vec::new(),
                 ticks: Vec::new(),
+                block_entities: Vec::new(),
                 world: WorldStates {
                     air: AIR,
                     air_states: Arc::new(air_states),
@@ -482,6 +484,51 @@ pub(crate) mod fake {
         ) -> Result<(), mcrs_minecraft_volume::Denied> {
             self.ticks.push(tick);
             Ok(())
+        }
+    }
+
+    impl mcrs_minecraft_volume::BlockEntityVolume for FakeVolume {
+        type BlockEntity = crate::block_entity::GeneratedBlockEntity;
+
+        fn block_entity(&self, at: BlockPos) -> Result<Option<&Self::BlockEntity>, Unavailable> {
+            Ok(self
+                .block_entities
+                .iter()
+                .find(|held| held.position() == at))
+        }
+    }
+
+    impl mcrs_minecraft_volume::BlockEntityVolumeMut for FakeVolume {
+        fn set_block_entity(
+            &mut self,
+            at: BlockPos,
+            entity: Self::BlockEntity,
+        ) -> Result<Option<Self::BlockEntity>, mcrs_minecraft_volume::Denied> {
+            Ok(mcrs_minecraft_worldgen_feature::placer::set_held(
+                &mut self.block_entities,
+                at,
+                entity,
+            ))
+        }
+
+        fn remove_block_entity(
+            &mut self,
+            at: BlockPos,
+        ) -> Result<Option<Self::BlockEntity>, mcrs_minecraft_volume::Denied> {
+            Ok(mcrs_minecraft_worldgen_feature::placer::remove_held(
+                &mut self.block_entities,
+                at,
+            ))
+        }
+
+        fn block_entity_mut(
+            &mut self,
+            at: BlockPos,
+        ) -> Result<Option<&mut Self::BlockEntity>, mcrs_minecraft_volume::Denied> {
+            Ok(self
+                .block_entities
+                .iter_mut()
+                .find(|held| held.position() == at))
         }
     }
 

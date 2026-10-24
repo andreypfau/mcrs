@@ -7,7 +7,6 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, rotate_state};
 use mcrs_minecraft_worldgen_structure::orient::random_rotation;
@@ -51,7 +50,6 @@ pub fn paint_nether_fossil<W: WorldGenVolume>(
     clip: BoundingBox,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
     if template.palettes.is_empty() {
@@ -71,7 +69,6 @@ pub fn paint_nether_fossil<W: WorldGenVolume>(
         reference,
         volume,
         rng,
-        entities,
         spawns,
     );
     place_dried_ghast(b, volume, piece.bounds, clip);

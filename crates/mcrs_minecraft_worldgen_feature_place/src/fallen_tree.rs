@@ -142,7 +142,7 @@ fn decorate<W: WorldGenVolume>(
 
 #[cfg(test)]
 mod tests {
-    use crate::tree::decorator::EntitiesOnly;
+    use crate::tree::decorator::NoMoss;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 
@@ -226,7 +226,7 @@ mod tests {
     fn a_fallen_tree_lays_a_stump_and_a_log_and_spends_the_draws_in_that_order() {
         let (tree, mut volume) = fixture();
         let mut rng = WorldgenRandom::new(1234);
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
         assert!(place_fallen_tree(
             &tree,
             &mut volume,
@@ -255,7 +255,7 @@ mod tests {
             assert_eq!(volume.get(at), LOG, "the log at {step} of {log_length}");
             assert_eq!(at.y, 64, "the log rests on the ground it searched down to");
         }
-        assert!(entities.0.is_empty());
+        assert!(volume.block_entities.is_empty());
     }
 
     /// `canPlaceEntireFallenLog` refuses a log that would hang over more than
@@ -268,7 +268,7 @@ mod tests {
         volume.blocks.insert((0, 63, 0), DIRT);
 
         let mut rng = WorldgenRandom::new(1234);
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
         assert!(place_fallen_tree(
             &tree,
             &mut volume,

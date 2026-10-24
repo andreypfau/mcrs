@@ -182,7 +182,6 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
         b,
         c: PieceCanvas {
             volume: &mut *c.volume,
-            entities: &mut *c.entities,
             spawns: &mut *c.spawns,
             bounds: piece.bounds,
             orientation,
@@ -200,7 +199,6 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
             b,
             c: PieceCanvas {
                 volume: &mut *c.volume,
-                entities: &mut *c.entities,
                 spawns: &mut *c.spawns,
                 bounds: child.bounds,
                 orientation,

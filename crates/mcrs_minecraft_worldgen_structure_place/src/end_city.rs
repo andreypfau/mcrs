@@ -4,7 +4,6 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::data_markers;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, elytra_frame, shulker};
 use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
@@ -46,7 +45,6 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
     clip: BoundingBox,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
     let template = &frozen.templates[piece.template.0 as usize];
@@ -69,7 +67,6 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
         reference,
         volume,
         rng,
-        entities,
         spawns,
     ) else {
         return;
@@ -87,7 +84,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
             let chest = BlockPos::from(pos - IVec3::Y);
             if clip.is_inside(chest) {
                 seed_container_loot(
-                    entities,
+                    volume,
                     chest,
                     mcrs_minecraft_item::keys::loot_table::CHESTS_END_CITY_TREASURE,
                     rng,

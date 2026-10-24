@@ -16,13 +16,14 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{
-    Access, BiomeVolume, ColumnLayout, Denied, HeightVolume, Unavailable, Volume, VoxelStore,
-    VoxelStoreMut,
+    Access, BiomeVolume, BlockEntityVolume, BlockEntityVolumeMut, ColumnLayout, Denied,
+    HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
 };
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
-    GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
+    GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate, remove_held,
+    set_held,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
@@ -748,6 +749,62 @@ impl BiomeVolume for ColumnRegion<'_> {
     }
 }
 
+impl BlockEntityVolume for ColumnRegion<'_> {
+    type BlockEntity = GeneratedBlockEntity;
+
+    /// The unit's own write, then the one the snapshot of the column holds.
+    fn block_entity(&self, at: BlockPos) -> Result<Option<&GeneratedBlockEntity>, Unavailable> {
+        self.access(SectionPos::from(at)).check_read()?;
+        if let Some(own) = self
+            .block_entities
+            .iter()
+            .find(|held| held.position() == at)
+        {
+            return Ok(Some(own));
+        }
+        let column = ColumnPos::new(at.x.div_euclid(16), at.z.div_euclid(16));
+        Ok(region_slot(self.center, column).and_then(|slot| {
+            self.snapshots[slot]
+                .block_entities
+                .iter()
+                .find(|held| held.position() == at)
+        }))
+    }
+}
+
+impl BlockEntityVolumeMut for ColumnRegion<'_> {
+    fn set_block_entity(
+        &mut self,
+        at: BlockPos,
+        entity: GeneratedBlockEntity,
+    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
+        self.access(SectionPos::from(at)).check_write()?;
+        Ok(set_held(&mut self.block_entities, at, entity))
+    }
+
+    /// Takes back only the unit's own write: one a snapshot holds goes when the merge
+    /// settles the block that replaced it.
+    fn remove_block_entity(
+        &mut self,
+        at: BlockPos,
+    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
+        self.access(SectionPos::from(at)).check_write()?;
+        Ok(remove_held(&mut self.block_entities, at))
+    }
+
+    /// The unit's own write only, like a removal.
+    fn block_entity_mut(
+        &mut self,
+        at: BlockPos,
+    ) -> Result<Option<&mut GeneratedBlockEntity>, Denied> {
+        self.access(SectionPos::from(at)).check_write()?;
+        Ok(self
+            .block_entities
+            .iter_mut()
+            .find(|held| held.position() == at))
+    }
+}
+
 impl ScheduleTicks<GenerationKinds> for ColumnRegion<'_> {
     fn schedule_tick(&mut self, tick: PendingTick<GenerationKinds>) -> Result<(), Denied> {
         let at = tick.pos();
@@ -857,7 +914,7 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
                 },
             );
         }
-        (region.block_entities, region.entities, *pool) = run.finish();
+        (region.entities, *pool) = run.finish();
     });
 }
 

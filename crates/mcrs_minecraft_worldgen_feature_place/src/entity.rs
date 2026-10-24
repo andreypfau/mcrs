@@ -14,7 +14,7 @@ use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 use serde::{Deserialize, Serialize};
 
-use crate::block_entity::nbt_flag;
+use mcrs_minecraft_nbt::nbt_flag;
 
 /// An entity a generator spawned, in the compound the save writes; a
 /// projection of the seed until delivery makes it real.

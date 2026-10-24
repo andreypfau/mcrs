@@ -9,6 +9,7 @@
 
 mod access;
 mod block;
+mod block_entity;
 mod bounds;
 mod box_volume;
 mod columns;
@@ -26,6 +27,7 @@ pub use access::{Access, Denied, Unavailable, Volume};
 pub use block::{
     BlockVolume, BlockVolumeMut, Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut,
 };
+pub use block_entity::{BlockEntityVolume, BlockEntityVolumeMut};
 pub use bounds::{ColumnLayout, SectionBox};
 pub use box_volume::BoxVolume;
 pub use columns::{BiomeVolume, HeightVolume};

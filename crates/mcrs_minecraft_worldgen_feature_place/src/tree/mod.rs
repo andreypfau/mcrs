@@ -342,7 +342,7 @@ fn update_leaves<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::decorator::EntitiesOnly;
+    use crate::tree::decorator::NoMoss;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -482,7 +482,7 @@ mod tests {
     fn a_tree_writes_its_trunk_and_crown_and_spends_the_draws_its_placers_ask_for() {
         let mut volume = flat();
         let mut rng = WorldgenRandom::new(1234);
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
         assert!(place_tree(
             &tree(None, Vec::new()),
             &mut volume,
@@ -506,7 +506,7 @@ mod tests {
         }
         assert_eq!(volume.get(ORIGIN - IVec3::Y), DIRT);
         assert_eq!(volume.get(ORIGIN + IVec3::Y * height), leaf(1));
-        assert!(entities.0.is_empty());
+        assert!(volume.block_entities.is_empty());
     }
 
     /// Distance 1 over the top log, then one per step out along the row: the
@@ -515,7 +515,7 @@ mod tests {
     fn the_leaf_pass_lowers_a_distance_per_step_from_the_trunk() {
         let mut volume = flat();
         let mut rng = WorldgenRandom::new(7);
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
         assert!(place_tree(
             &tree(None, Vec::new()),
             &mut volume,
@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn an_obstruction_clips_the_tree_and_a_short_clip_places_nothing() {
         let blocked = ORIGIN + IVec3::Y * 3;
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
 
         let mut volume = blocked_at(flat(), blocked);
         let mut rng = WorldgenRandom::new(99);
@@ -582,7 +582,7 @@ mod tests {
         );
         let mut volume = flat();
         let mut rng = WorldgenRandom::new(5);
-        let mut entities = EntitiesOnly::default();
+        let mut entities = NoMoss;
         assert!(place_tree(
             &tree(None, vec![decorator]),
             &mut volume,
@@ -609,7 +609,7 @@ mod tests {
             volume.seed(under_edge, existing);
 
             let mut rng = WorldgenRandom::new(3);
-            let mut entities = EntitiesOnly::default();
+            let mut entities = NoMoss;
             assert!(place_tree(
                 &tree(None, Vec::new()),
                 &mut volume,

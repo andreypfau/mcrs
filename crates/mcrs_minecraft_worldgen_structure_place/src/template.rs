@@ -121,7 +121,6 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
     reference: IVec3,
     clip: BoundingBox,
     region: &mut W,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
     rng: &mut WorldgenRandom,
 ) {
@@ -141,7 +140,6 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
         reference,
         region,
         rng,
-        entities,
         spawns,
     ) else {
         return;
@@ -173,7 +171,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                 } else {
                     mcrs_minecraft_item::keys::loot_table::CHESTS_UNDERWATER_RUIN_SMALL
                 };
-                entities.push(GeneratedBlockEntity::chest(
+                region.add_block_entity(GeneratedBlockEntity::chest(
                     pos,
                     loot.as_str().to_owned(),
                     rng.next_java_long(),

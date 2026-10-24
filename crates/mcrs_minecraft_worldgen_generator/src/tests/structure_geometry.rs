@@ -617,7 +617,8 @@ mod exhaustive {
                     &mut rng,
                     liquid,
                 );
-                let (block_entities, spawns, _) = run.finish();
+                let (spawns, _) = run.finish();
+                let block_entities = std::mem::take(&mut region.block_entities);
                 faults.extend(compare_chunk(
                     &format!("{label} chunk {:?}", chunk.chunk),
                     chunk,

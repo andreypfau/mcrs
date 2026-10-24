@@ -162,7 +162,6 @@ pub fn place_start<W: WorldGenVolume>(
                 let sink = desert_pyramid_sink(blocks.world_seed, piece, structure);
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: sunk_bounds(piece, sink),
                     orientation: Some(piece.orientation),
@@ -184,7 +183,6 @@ pub fn place_start<W: WorldGenVolume>(
                 ));
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: raised,
                     orientation: Some(piece.orientation),
@@ -200,7 +198,6 @@ pub fn place_start<W: WorldGenVolume>(
                 };
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: piece.bounds.moved(IVec3::new(
                         0,
@@ -227,7 +224,6 @@ pub fn place_start<W: WorldGenVolume>(
                 };
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: None,
@@ -243,7 +239,6 @@ pub fn place_start<W: WorldGenVolume>(
                 };
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
@@ -266,7 +261,6 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 );
             }
@@ -285,7 +279,6 @@ pub fn place_start<W: WorldGenVolume>(
                     reference,
                     clip,
                     region,
-                    &mut run.entities,
                     &mut run.spawns,
                     rng,
                 );
@@ -301,7 +294,6 @@ pub fn place_start<W: WorldGenVolume>(
                     piece,
                     &frozen.templates[piece.template.0 as usize],
                     region,
-                    &mut run.entities,
                     &mut run.spawns,
                     reference,
                     clip,
@@ -316,7 +308,6 @@ pub fn place_start<W: WorldGenVolume>(
                 };
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
@@ -330,15 +321,7 @@ pub fn place_start<W: WorldGenVolume>(
                 else {
                     continue;
                 };
-                paint_mineshaft(
-                    blocks,
-                    piece,
-                    region,
-                    &mut run.entities,
-                    &mut run.spawns,
-                    clip,
-                    rng,
-                );
+                paint_mineshaft(blocks, piece, region, &mut run.spawns, clip, rng);
             }
             Piece::Igloo(piece) => {
                 let Some(CompiledStructure::Igloo(blocks)) = program.structure(start.structure)
@@ -355,7 +338,6 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 );
             }
@@ -373,7 +355,6 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 );
             }
@@ -385,7 +366,6 @@ pub fn place_start<W: WorldGenVolume>(
                 };
                 let mut canvas = PieceCanvas {
                     volume: region,
-                    entities: &mut run.entities,
                     spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
@@ -407,7 +387,6 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 );
             }
@@ -426,7 +405,6 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     region,
                     rng,
-                    &mut run.entities,
                     &mut run.spawns,
                 );
             }
@@ -442,7 +420,6 @@ pub fn place_start<W: WorldGenVolume>(
                 after_place::desert_pyramid(
                     blocks,
                     region,
-                    &mut run.entities,
                     clip,
                     sunk_bounds(piece, sink),
                     piece.orientation,
@@ -508,7 +485,6 @@ pub fn place_element<W: WorldGenVolume>(
                 },
                 region,
                 rng,
-                &mut run.entities,
                 &mut run.spawns,
             )
         }

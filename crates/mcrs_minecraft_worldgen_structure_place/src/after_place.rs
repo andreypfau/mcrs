@@ -15,17 +15,16 @@ use crate::woodland_mansion::WoodlandMansionBlocks;
 pub fn desert_pyramid<W: WorldGenVolume>(
     b: &DesertPyramidBlocks,
     volume: &mut W,
-    entities: &mut Vec<GeneratedBlockEntity>,
     clip: BoundingBox,
     bounds: BoundingBox,
     orientation: Orientation,
 ) {
-    let suspicious = |volume: &mut W, entities: &mut Vec<GeneratedBlockEntity>, pos: BlockPos| {
+    let suspicious = |volume: &mut W, pos: BlockPos| {
         if !clip.is_inside(pos) {
             return;
         }
         volume.set(pos, b.suspicious_sand);
-        entities.push(GeneratedBlockEntity::BrushableBlock {
+        volume.add_block_entity(GeneratedBlockEntity::BrushableBlock {
             x: pos.x,
             y: pos.y,
             z: pos.z,
@@ -42,7 +41,6 @@ pub fn desert_pyramid<W: WorldGenVolume>(
 
     suspicious(
         volume,
-        entities,
         collapsed_roof_pos(b.world_seed, bounds, orientation),
     );
 
@@ -56,7 +54,7 @@ pub fn desert_pyramid<W: WorldGenVolume>(
     for pos in placements {
         if to_place > 0 {
             to_place -= 1;
-            suspicious(volume, entities, pos);
+            suspicious(volume, pos);
         } else if clip.is_inside(pos) {
             volume.set(pos, sand);
         }

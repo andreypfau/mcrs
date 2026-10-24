@@ -12,7 +12,9 @@ use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_simulation::{Kinds, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;
-use mcrs_minecraft_volume::{BiomeVolume, BlockVolumeMut, HeightVolume};
+use mcrs_minecraft_volume::{BiomeVolume, BlockEntityVolumeMut, BlockVolumeMut, HeightVolume};
+
+use crate::block_entity::GeneratedBlockEntity;
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;
@@ -40,7 +42,11 @@ impl Kinds for GenerationKinds {
 }
 
 pub trait WorldGenVolume:
-    BlockVolumeMut + HeightVolume + BiomeVolume + ScheduleTicks<GenerationKinds>
+    BlockVolumeMut
+    + HeightVolume
+    + BiomeVolume
+    + ScheduleTicks<GenerationKinds>
+    + BlockEntityVolumeMut<BlockEntity = GeneratedBlockEntity>
 {
     fn world(&self) -> &WorldStates;
 
@@ -55,6 +61,12 @@ pub trait WorldGenVolume:
         if let Some(state) = BlockStateId::checked(state.0, self.world().state_count.0) {
             let _ = self.set_block(p, state);
         }
+    }
+
+    /// Generation drops a block entity it cannot write, like a block.
+    fn add_block_entity(&mut self, entity: GeneratedBlockEntity) {
+        let at = entity.position();
+        let _ = self.set_block_entity(at, entity);
     }
 
     fn is_air(&self, p: BlockPos) -> bool {
@@ -205,6 +217,29 @@ pub fn decorate<'a, W: WorldGenVolume>(
             );
         }
     }
+}
+
+/// Writes `entity` over the one held at `at`, keeping its place, or after every other.
+pub fn set_held(
+    held: &mut Vec<GeneratedBlockEntity>,
+    at: BlockPos,
+    entity: GeneratedBlockEntity,
+) -> Option<GeneratedBlockEntity> {
+    match held.iter_mut().find(|held| held.position() == at) {
+        Some(slot) => Some(std::mem::replace(slot, entity)),
+        None => {
+            held.push(entity);
+            None
+        }
+    }
+}
+
+pub fn remove_held(
+    held: &mut Vec<GeneratedBlockEntity>,
+    at: BlockPos,
+) -> Option<GeneratedBlockEntity> {
+    let index = held.iter().position(|held| held.position() == at)?;
+    Some(held.remove(index))
 }
 
 #[cfg(test)]

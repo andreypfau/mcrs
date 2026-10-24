@@ -871,7 +871,6 @@ pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
     let Some(blocks) = p.template.palettes.get(p.palette) else {
@@ -932,7 +931,7 @@ pub fn place_template<W: WorldGenVolume>(
         if let Some(nbt) = b.nbt.as_ref().filter(|_| holds_entity) {
             let seed = GeneratedBlockEntity::wants_loot_seed(nbt).then(|| rng.next_java_long());
             match GeneratedBlockEntity::from_template(nbt, pos, seed) {
-                Ok(Some(entity)) => entities.push(entity),
+                Ok(Some(entity)) => volume.add_block_entity(entity),
                 Ok(None) => {}
                 Err(error) => debug_assert!(false, "block entity at {pos} failed to load: {error}"),
             }
@@ -1181,9 +1180,9 @@ mod tests {
     fn place(p: &Placement<'_>) -> (BoxRegion, Vec<GeneratedBlockEntity>, WorldgenRandom, bool) {
         let mut region = new_region();
         let mut rng = WorldgenRandom::new(7);
-        let mut entities = Vec::new();
-        let placed = place_template(p, &mut region, &mut rng, &mut entities, &mut Vec::new());
-        (region, entities, rng, placed)
+        let placed = place_template(p, &mut region, &mut rng, &mut Vec::new());
+        let block_entities = std::mem::take(&mut region.block_entities);
+        (region, block_entities, rng, placed)
     }
 
     fn rule(input: Rule, output: VoxelId, modifier: Option<AppendLoot>) -> CompiledProcessor {
@@ -1259,16 +1258,14 @@ mod tests {
         let clip = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(15, 12, 15));
         let mut region = new_region().with_height(|_, _, _, _| 30);
         let mut rng = WorldgenRandom::new(7);
-        let mut entities = Vec::new();
         assert!(place_template(
             &placement(&template, &chain, Rotation::None, Some(clip)),
             &mut region,
             &mut rng,
-            &mut entities,
             &mut Vec::new(),
         ));
         assert!(region.writes.is_empty(), "every block moved to y=29..30");
-        assert!(entities.is_empty());
+        assert!(region.block_entities.is_empty());
     }
 
     #[test]
@@ -1453,8 +1450,7 @@ mod tests {
         p.waterlog = true;
         let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
         let mut rng = WorldgenRandom::new(1);
-        let mut entities = Vec::new();
-        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
+        place_template(&p, &mut region, &mut rng, &mut Vec::new());
         let wet = with(fence, &[("waterlogged", "true")]);
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), wet);
         assert_eq!(
@@ -1474,7 +1470,7 @@ mod tests {
 
         p.waterlog = false;
         let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
-        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
+        place_template(&p, &mut region, &mut rng, &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), fence);
         assert_eq!(region.get(BlockPos::new(5, 5, 4)), fence);
     }
@@ -1500,8 +1496,7 @@ mod tests {
         p.waterlog = true;
         let mut region = region_with_water_at(BlockPos::new(7, 5, 4));
         let mut rng = WorldgenRandom::new(1);
-        let mut entities = Vec::new();
-        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
+        place_template(&p, &mut region, &mut rng, &mut Vec::new());
         assert_eq!(
             region.get(BlockPos::new(5, 5, 4)),
             fence,
@@ -1526,7 +1521,7 @@ mod tests {
         p.waterlog = true;
         let mut region = region_with_water_at(BlockPos::new(4, 5, 4));
         let mut rng = WorldgenRandom::new(1);
-        place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut Vec::new());
+        place_template(&p, &mut region, &mut rng, &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), slab);
     }
 
@@ -1619,7 +1614,6 @@ mod tests {
             &mut region,
             &mut rng,
             &mut Vec::new(),
-            &mut Vec::new(),
         );
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), STONE);
         assert_eq!(region.writes.len(), template.palettes[0].len() - 1);
@@ -1696,7 +1690,7 @@ mod tests {
             p.clip = Some(clip);
             let mut region = new_region();
             let mut rng = WorldgenRandom::new(7);
-            place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut spawns);
+            place_template(&p, &mut region, &mut rng, &mut spawns);
         }
         let [villager] = spawns.as_slice() else {
             panic!("{spawns:?}");

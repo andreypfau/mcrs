@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_value_provider.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_biome.workspace = true

@@ -509,7 +509,7 @@ fn monster_throne<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_,
     let pos = c.world_pos(3, 5, 5);
     if c.clip.is_inside(pos) {
         c.volume.set(pos, b.spawner);
-        c.entities.push(GeneratedBlockEntity::mob_spawner(
+        c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             pos,
             mcrs_minecraft_entity::keys::EntityType::Blaze.as_static_str(),
         ));

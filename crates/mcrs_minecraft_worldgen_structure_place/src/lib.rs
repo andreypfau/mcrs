@@ -24,7 +24,6 @@ use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{
     CompiledChain, CompiledProcessor, Placement, SettingsRandom, block_mask, mirror_state,
@@ -94,7 +93,6 @@ pub fn place_positional<W: WorldGenVolume>(
     reference: IVec3,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) -> Option<usize> {
     if template.palettes.is_empty() {
@@ -120,7 +118,6 @@ pub fn place_positional<W: WorldGenVolume>(
         },
         volume,
         rng,
-        entities,
         spawns,
     )
     .then_some(palette)

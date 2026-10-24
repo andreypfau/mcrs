@@ -46,7 +46,6 @@ pub fn place_monster_room<W: WorldGenVolume>(
     config: &CompiledMonsterRoom,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     origin: BlockPos,
 ) -> bool {
     let x_radius = rng.next_i32_bound(2) + 2;
@@ -127,7 +126,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
             }
             let chest = reorient(&config.chest_facing, &config.chest_states, volume, pos);
             if volume.set_unless(&config.cannot_replace, pos, chest) {
-                entities.push(GeneratedBlockEntity::chest(
+                volume.add_block_entity(GeneratedBlockEntity::chest(
                     pos,
                     mcrs_minecraft_item::keys::loot_table::CHESTS_SIMPLE_DUNGEON
                         .as_str()
@@ -142,7 +141,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
     let placed = volume.set_unless(&config.cannot_replace, origin, config.spawner);
     if placed || volume.holds(&config.spawner_states, origin) {
         let mob = MOBS[rng.next_i32_bound(4) as usize];
-        entities.push(GeneratedBlockEntity::mob_spawner(
+        volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             origin,
             mob.as_static_str(),
         ));
@@ -206,7 +205,6 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
     config: &CompiledBonusChest,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    entities: &mut Vec<GeneratedBlockEntity>,
     origin: BlockPos,
 ) -> bool {
     let min_x = (origin.x >> 4) << 4;
@@ -225,7 +223,7 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
                 continue;
             }
             volume.set(pos, config.chest);
-            entities.push(GeneratedBlockEntity::chest(
+            volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
                 mcrs_minecraft_item::keys::loot_table::CHESTS_SPAWN_BONUS_CHEST
                     .as_str()
@@ -318,16 +316,9 @@ mod tests {
                 }
             }
         }
-        let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(7);
-        assert!(!place_monster_room(
-            &room(),
-            &mut volume,
-            &mut rng,
-            &mut entities,
-            ORIGIN
-        ));
-        assert!(entities.is_empty());
+        assert!(!place_monster_room(&room(), &mut volume, &mut rng, ORIGIN));
+        assert!(volume.block_entities.is_empty());
     }
 
     /// The hole scan runs after the two radius draws and before anything else,
@@ -335,10 +326,9 @@ mod tests {
     #[test]
     fn a_rejected_room_spends_two_draws() {
         let mut volume = cave();
-        let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(7);
         let mut replay = rng.clone();
-        place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
+        place_monster_room(&room(), &mut volume, &mut rng, ORIGIN);
         replay.next_i32_bound(2);
         replay.next_i32_bound(2);
         assert_eq!(rng, replay);
@@ -353,18 +343,12 @@ mod tests {
     #[test]
     fn room_draw_count_anchor() {
         let mut volume = stone_with_one_hole();
-        let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(0x5eed_2024);
         let mut replay = rng.clone();
-        assert!(place_monster_room(
-            &room(),
-            &mut volume,
-            &mut rng,
-            &mut entities,
-            ORIGIN
-        ));
+        assert!(place_monster_room(&room(), &mut volume, &mut rng, ORIGIN));
         assert_eq!(volume.get(ORIGIN), SPAWNER);
-        let spawner = entities
+        let spawner = volume
+            .block_entities
             .iter()
             .find(|entity| matches!(entity, GeneratedBlockEntity::MobSpawner { .. }))
             .expect("a monster room always leaves a spawner");
@@ -397,14 +381,12 @@ mod tests {
                 volume.blocks.insert((x, 63, z), STONE);
             }
         }
-        let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(99);
         let mut replay = rng.clone();
         assert!(place_bonus_chest(
             &bonus(),
             &mut volume,
             &mut rng,
-            &mut entities,
             BlockPos::new(8, 64, 8)
         ));
         for _ in 0..2 {
@@ -414,8 +396,8 @@ mod tests {
         }
         replay.next_java_long();
         assert_eq!(rng, replay, "bonus chest draw sequence");
-        assert_eq!(entities.len(), 1);
-        let pos = entities[0].position();
+        assert_eq!(volume.block_entities.len(), 1);
+        let pos = volume.block_entities[0].position();
         assert_eq!(volume.get(pos), CHEST_NORTH);
         for side in Direction::HORIZONTAL {
             let torch = pos + side.normal();
@@ -432,15 +414,13 @@ mod tests {
                 volume.blocks.insert((x, 64, z), STONE);
             }
         }
-        let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(99);
         assert!(!place_bonus_chest(
             &bonus(),
             &mut volume,
             &mut rng,
-            &mut entities,
             BlockPos::new(8, 64, 8)
         ));
-        assert!(entities.is_empty());
+        assert!(volume.block_entities.is_empty());
     }
 }

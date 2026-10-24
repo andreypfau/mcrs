@@ -9,9 +9,11 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
 
 use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
-use mcrs_minecraft_volume::Denied;
+use mcrs_minecraft_volume::{BlockEntityVolume, BlockEntityVolumeMut, Denied};
 
-use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates};
+use crate::block_entity::GeneratedBlockEntity;
+
+use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates, remove_held, set_held};
 
 fn test_state(voxel: VoxelId) -> BlockStateId {
     BlockStateId::checked(voxel.0, StateCount::default().0).expect("a test world has no table")
@@ -30,6 +32,8 @@ pub struct BoxRegion {
     pub height: HeightFn,
     pub writes: Vec<(BlockPos, VoxelId)>,
     pub ticks: Vec<PendingTick<GenerationKinds>>,
+    /// In the order first written, each the last one written at its position.
+    pub block_entities: Vec<GeneratedBlockEntity>,
 }
 
 impl BoxRegion {
@@ -49,6 +53,7 @@ impl BoxRegion {
             height: Box::new(move |_, _, _, _| max.y + 1),
             writes: Vec::new(),
             ticks: Vec::new(),
+            block_entities: Vec::new(),
         }
     }
 
@@ -131,6 +136,56 @@ impl ScheduleTicks<GenerationKinds> for BoxRegion {
         }
         self.ticks.push(tick);
         Ok(())
+    }
+}
+
+impl BlockEntityVolume for BoxRegion {
+    type BlockEntity = GeneratedBlockEntity;
+
+    fn block_entity(&self, at: BlockPos) -> Result<Option<&GeneratedBlockEntity>, Unavailable> {
+        if !self.contains(at) {
+            return Err(Unavailable::Outside);
+        }
+        Ok(self
+            .block_entities
+            .iter()
+            .find(|held| held.position() == at))
+    }
+}
+
+impl BlockEntityVolumeMut for BoxRegion {
+    fn set_block_entity(
+        &mut self,
+        at: BlockPos,
+        entity: GeneratedBlockEntity,
+    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
+        if !self.contains(at) {
+            return Err(Denied::Outside);
+        }
+        Ok(set_held(&mut self.block_entities, at, entity))
+    }
+
+    fn remove_block_entity(
+        &mut self,
+        at: BlockPos,
+    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
+        if !self.contains(at) {
+            return Err(Denied::Outside);
+        }
+        Ok(remove_held(&mut self.block_entities, at))
+    }
+
+    fn block_entity_mut(
+        &mut self,
+        at: BlockPos,
+    ) -> Result<Option<&mut GeneratedBlockEntity>, Denied> {
+        if !self.contains(at) {
+            return Err(Denied::Outside);
+        }
+        Ok(self
+            .block_entities
+            .iter_mut()
+            .find(|held| held.position() == at))
     }
 }
 

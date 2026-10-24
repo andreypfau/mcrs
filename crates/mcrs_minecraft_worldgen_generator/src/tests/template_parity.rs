@@ -842,7 +842,8 @@ mod exhaustive {
                     &mut rng,
                     liquid,
                 );
-                let (entities, _, _) = run.finish();
+                let _ = run.finish();
+                let entities = std::mem::take(&mut region.block_entities);
                 let outcome = Outcome {
                     placed,
                     writes: region.writes,
@@ -907,7 +908,8 @@ mod exhaustive {
                     IVec3::from_array(case.position).into(),
                     &|_| true,
                 );
-                let (entities, _, _) = run.finish();
+                let _ = run.finish();
+                let entities = std::mem::take(&mut region.block_entities);
                 let outcome = Outcome {
                     placed,
                     writes: region.writes,
@@ -967,7 +969,6 @@ mod exhaustive {
                     placement.floor,
                 );
                 let mut rng = WorldgenRandom::new(placement.seed as u64);
-                let mut entities = Vec::new();
                 let placed = place_template(
                     &Placement {
                         template,
@@ -986,13 +987,12 @@ mod exhaustive {
                     },
                     &mut region,
                     &mut rng,
-                    &mut entities,
                     &mut Vec::new(),
                 );
                 let outcome = Outcome {
                     placed,
+                    entities: std::mem::take(&mut region.block_entities),
                     writes: region.writes,
-                    entities,
                     rng: [rng.next_java_long(), rng.next_java_long()],
                 };
                 faults.extend(compare(&label, placement, &outcome));

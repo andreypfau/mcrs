@@ -121,7 +121,6 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     piece: &MineshaftPiece,
     region: &mut W,
-    entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
     clip: BoundingBox,
     rng: &mut WorldgenRandom,
@@ -131,7 +130,6 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     }
     let mut c = PieceCanvas {
         volume: region,
-        entities,
         spawns,
         bounds: piece.bounds,
         orientation: piece.orientation(),
@@ -374,7 +372,7 @@ fn corridor<W: WorldGenVolume>(
             if hosts_spawner && c.clip.is_inside(pos) && c.is_interior(1, 0, spawner_z) {
                 placed_spider = true;
                 c.volume.set(pos, b.spawner);
-                c.entities.push(GeneratedBlockEntity::mob_spawner(
+                c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
                     pos,
                     mcrs_minecraft_entity::keys::EntityType::CaveSpider.as_static_str(),
                 ));
