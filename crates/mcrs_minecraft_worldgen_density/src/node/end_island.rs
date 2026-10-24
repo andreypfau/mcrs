@@ -1,15 +1,15 @@
 use mcrs_minecraft_core::mth::{clampf, jmax};
+use mcrs_minecraft_noise::jmath::mul_add;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_noise::jmath::mul_add;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
-use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
 
 const ISLAND_THRESHOLD: f32 = -0.9;
 
 /// `EndIslandFunction.range()`.
-pub fn range() -> mcrs_minecraft_worldgen_noise::interval::Interval {
-    mcrs_minecraft_worldgen_noise::interval::Interval::of(-0.84375, 0.5625)
+pub fn range() -> mcrs_minecraft_noise::interval::Interval {
+    mcrs_minecraft_noise::interval::Interval::of(-0.84375, 0.5625)
 }
 
 #[derive(Clone, Debug)]
@@ -32,7 +32,7 @@ impl EndIslandParams {
     }
 
     pub fn eval(&self, out: &mut [f32], ext: &SampleGrid) {
-        mcrs_minecraft_worldgen_noise::kernel::each_column(out, ext, |run, ix, iz| {
+        mcrs_minecraft_noise::kernel::each_column(out, ext, |run, ix, iz| {
             let bx = ext.block_x(ix as i32);
             let bz = ext.block_z(iz as i32);
             run.fill((self.height(bx / 8, bz / 8) - 8.0) / 128.0);

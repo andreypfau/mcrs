@@ -3562,9 +3562,9 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_value_provider",
- "mcrs_minecraft_worldgen_noise",
  "serde",
  "serde_json",
 ]
@@ -3609,6 +3609,7 @@ dependencies = [
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -3617,7 +3618,6 @@ dependencies = [
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
- "mcrs_minecraft_worldgen_noise",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3919,6 +3919,18 @@ dependencies = [
  "web-sys",
  "web-time",
  "wtransport",
+]
+
+[[package]]
+name = "mcrs_minecraft_noise"
+version = "0.5.8"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_registries",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4250,6 +4262,7 @@ dependencies = [
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_registry_catalog",
@@ -4262,7 +4275,6 @@ dependencies = [
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
@@ -4290,10 +4302,10 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
@@ -4314,6 +4326,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_sound",
@@ -4321,7 +4334,6 @@ dependencies = [
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
@@ -4355,10 +4367,10 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_worldgen_density",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
@@ -4381,13 +4393,13 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
  "serde",
@@ -4410,6 +4422,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -4417,7 +4430,6 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
@@ -4451,6 +4463,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_level",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -4462,7 +4475,6 @@ dependencies = [
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_structure_place",
  "mcrs_minecraft_worldgen_surface",
@@ -4474,18 +4486,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
-]
-
-[[package]]
-name = "mcrs_minecraft_worldgen_noise"
-version = "0.5.8"
-dependencies = [
- "bevy_math",
- "mcrs_minecraft_core",
- "mcrs_minecraft_random",
- "mcrs_minecraft_registries",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -4545,11 +4545,11 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_noise",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_worldgen_density",
- "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",

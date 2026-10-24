@@ -9,7 +9,7 @@ use crate::proto::{
 };
 use crate::router::NoiseSettings;
 use mcrs_minecraft_core::{Axis, ResourceLocation};
-use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder};
+use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::{Add, Bound, Div, Mul, RangeBounds, RangeInclusive, Sub};

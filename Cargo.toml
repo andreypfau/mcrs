@@ -110,7 +110,7 @@ mcrs_minecraft_render_probe = { path = "crates/mcrs_minecraft_render_probe" }
 mcrs_minecraft_client_jar = { path = "crates/mcrs_minecraft_client_jar" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_worldgen_testing = { path = "crates/mcrs_minecraft_worldgen_testing" }
-mcrs_minecraft_worldgen_noise = { path = "crates/mcrs_minecraft_worldgen_noise", default-features = false }
+mcrs_minecraft_noise = { path = "crates/mcrs_minecraft_noise", default-features = false }
 mcrs_minecraft_worldgen_density = { path = "crates/mcrs_minecraft_worldgen_density", default-features = false }
 mcrs_minecraft_worldgen_builtin = { path = "crates/mcrs_minecraft_worldgen_builtin" }
 mcrs_minecraft_worldgen_surface = { path = "crates/mcrs_minecraft_worldgen_surface", default-features = false }
@@ -215,7 +215,7 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_protocol"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft_worldgen_noise"]
+[profile.dev.package."mcrs_minecraft_noise"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_worldgen_density"]

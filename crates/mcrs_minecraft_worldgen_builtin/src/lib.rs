@@ -15,12 +15,12 @@ mod terrain;
 use mcrs_minecraft_biome_file::BiomeDraft;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::Template;
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use std::collections::BTreeMap;
 
 pub fn vanilla_noises() -> BTreeMap<ResourceLocation, NoiseParam> {

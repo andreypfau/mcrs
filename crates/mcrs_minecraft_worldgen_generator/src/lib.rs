@@ -22,6 +22,8 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::NarrowError;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::beard::Beard;
@@ -31,8 +33,6 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;

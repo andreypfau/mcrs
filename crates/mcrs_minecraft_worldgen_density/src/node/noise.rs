@@ -1,8 +1,8 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_worldgen_noise::kernel::{Runs, at, each_column};
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
-use mcrs_minecraft_worldgen_noise::stack::ColumnScratch;
-use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
+use mcrs_minecraft_noise::kernel::{Runs, at, each_column};
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::stack::ColumnScratch;
+use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -29,14 +29,14 @@ impl NoiseFunctionParams {
     }
 
     /// The declared bound of the octaves behind it. `NoiseFunction.range()`.
-    pub fn range(&self) -> mcrs_minecraft_worldgen_noise::interval::Interval {
+    pub fn range(&self) -> mcrs_minecraft_noise::interval::Interval {
         self.noise.range()
     }
 
     /// A zero scale is the only way a noise sheds an axis: the coordinate is
     /// multiplied by it before the lattice sees it.
-    pub fn axes(&self) -> mcrs_minecraft_worldgen_noise::strata::Axes {
-        use mcrs_minecraft_worldgen_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z};
+    pub fn axes(&self) -> mcrs_minecraft_noise::strata::Axes {
+        use mcrs_minecraft_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z};
         let mut axes = ALL_AXES;
         if self.y_scale == 0.0 {
             axes &= !AXIS_Y;
@@ -125,11 +125,11 @@ impl NoiseFunctionParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_noise::strata::{AXIS_Y, NO_AXES};
     use mcrs_minecraft_random::RandomSource;
-    use mcrs_minecraft_worldgen_noise::strata::{AXIS_Y, NO_AXES};
 
     fn sampler(seed: u64, first_octave: i32, amplitudes: &[f64]) -> Arc<NoiseStack<Octave>> {
-        Arc::new(mcrs_minecraft_worldgen_noise::normal::create_parity(
+        Arc::new(mcrs_minecraft_noise::normal::create_parity(
             first_octave,
             amplitudes,
             &mut RandomSource::new(seed, false),

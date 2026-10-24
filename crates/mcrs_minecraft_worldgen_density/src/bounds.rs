@@ -2,9 +2,9 @@ use crate::node::gradient::{GradientParams, Tiling};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::mth::jmax;
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::jmath::mul_add;
-use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::jmath::mul_add;
+use mcrs_minecraft_noise::sample_grid::Axis;
 
 /// Which of the two bounds a walk over the graph is after. The arithmetic over
 /// the operators is the same either way; only the leaves and the selections

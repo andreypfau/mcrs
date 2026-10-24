@@ -230,9 +230,9 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 
+    use mcrs_minecraft_noise::normal;
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
-    use mcrs_minecraft_worldgen_noise::normal;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};

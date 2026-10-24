@@ -22,7 +22,7 @@ bevy_math.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_noise.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
@@ -46,4 +46,4 @@ bevy = [
     "mcrs_minecraft_worldgen_density/bevy",
     "mcrs_minecraft_worldgen_surface/bevy",
 ]
-fast = ["mcrs_minecraft_worldgen_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast", "mcrs_minecraft_worldgen_feature/fast"]
+fast = ["mcrs_minecraft_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast", "mcrs_minecraft_worldgen_feature/fast"]

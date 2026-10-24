@@ -1,4 +1,4 @@
-use mcrs_minecraft_worldgen_noise::proto::HashableF64;
+use mcrs_minecraft_noise::proto::HashableF64;
 use serde::{Deserialize, Serialize};
 
 /// `Codec.either(A, B)`: a value written either as `A` or as `B`, round-tripping

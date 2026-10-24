@@ -4,12 +4,12 @@ use crate::compile::{
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::{map, mth_floor};
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// The water level of a strip in which no fluid has been seen from above.
 pub const NO_WATER: i32 = i32::MIN;

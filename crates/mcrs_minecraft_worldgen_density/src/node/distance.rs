@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::mth::jmax;
-use mcrs_minecraft_worldgen_noise::jmath::mul_add;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::jmath::mul_add;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -29,7 +29,7 @@ mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_noise.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

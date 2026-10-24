@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::mth::{jmax, jmin};
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::jmath::{lerp, mul_add};
-use mcrs_minecraft_worldgen_noise::kernel::{Runs, at, each_column};
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::jmath::{lerp, mul_add};
+use mcrs_minecraft_noise::kernel::{Runs, at, each_column};
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 
 #[derive(Clone, Debug)]
 pub enum SplineValue {
@@ -193,7 +193,7 @@ pub(crate) fn multipoint_range(
 mod tests {
     use super::*;
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen_noise::strata::{AXIS_Y, NO_AXES};
+    use mcrs_minecraft_noise::strata::{AXIS_Y, NO_AXES};
     use std::cell::RefCell;
 
     fn multipoint(

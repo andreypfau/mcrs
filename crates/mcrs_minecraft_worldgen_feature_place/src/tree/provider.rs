@@ -8,11 +8,11 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
-use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 
 pub type SharedNoise = Arc<NoiseStack<Octave>>;
 
@@ -492,11 +492,11 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 
+    use mcrs_minecraft_noise::normal;
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_value_provider::{DispatchedIntProvider, IntProvider};
     use mcrs_minecraft_worldgen_feature::placer::PropertyLayout;
-    use mcrs_minecraft_worldgen_noise::normal;
 
     use super::fake::{AIR, FakeVolume};
     use super::*;

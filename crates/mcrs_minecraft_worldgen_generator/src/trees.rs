@@ -20,6 +20,7 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
+use mcrs_minecraft_noise::normal as normal_noise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
@@ -39,7 +40,6 @@ use mcrs_minecraft_worldgen_feature_place::tree::root::{AboveRootPlacement, Mang
 use mcrs_minecraft_worldgen_feature_place::tree::survive::{SurviveFamily, SurviveRule, family_of};
 use mcrs_minecraft_worldgen_feature_place::tree::trunk::{TreeStates, Trunk};
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, LeafDistances, TreeTables};
-use mcrs_minecraft_worldgen_noise::normal as normal_noise;
 
 use super::feature_program::{Resolver, missing, set, union_masks};
 
@@ -652,7 +652,7 @@ fn block_states_of(
 
 /// `NoiseBasedStateProvider`'s constructor: one legacy source per noise field,
 /// each reseeded from the provider's own `seed` rather than the world's.
-fn sampler(seed: i64, noise: &mcrs_minecraft_worldgen_noise::proto::NoiseParam) -> SharedNoise {
+fn sampler(seed: i64, noise: &mcrs_minecraft_noise::proto::NoiseParam) -> SharedNoise {
     let mut random = LegacyRandom::new(seed as u64);
     Arc::new(normal_noise::create(noise, &mut random))
 }

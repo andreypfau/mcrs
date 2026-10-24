@@ -6,14 +6,14 @@ use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use bevy_math::IVec3;
 use mcrs_minecraft_core::mth;
-use mcrs_minecraft_worldgen_noise::blended::BlendedNoise;
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::jmath;
-use mcrs_minecraft_worldgen_noise::kernel::{
+use mcrs_minecraft_noise::blended::BlendedNoise;
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::jmath;
+use mcrs_minecraft_noise::kernel::{
     Runs, at, each_column, map_columns, zip2_columns, zip3_columns,
 };
-use mcrs_minecraft_worldgen_noise::sample_grid::{Axis, SampleGrid};
-use mcrs_minecraft_worldgen_noise::strata::{
+use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
+use mcrs_minecraft_noise::strata::{
     ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum,
 };
 use std::sync::Arc;
@@ -1593,7 +1593,7 @@ mod tests {
     use super::*;
     use crate::node::gradient::Tiling;
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
+    use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
 
     fn gradient(axis: Axis, from: f32, to: f32, from_value: f32, to_value: f32) -> Node {
         Node::Gradient(GradientParams {

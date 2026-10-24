@@ -40,12 +40,12 @@ use crate::common::{
 };
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 
 #[derive(serde::Deserialize)]

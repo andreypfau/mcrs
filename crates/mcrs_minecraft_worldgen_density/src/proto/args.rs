@@ -1,7 +1,7 @@
 use crate::node::gradient::Tiling;
 use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue};
 use mcrs_minecraft_core::{codec::Validate, validated};
-use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
+use mcrs_minecraft_noise::sample_grid::Axis;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 
@@ -179,7 +179,7 @@ pub struct BlendedNoiseArguments {
     pub smear_scale_multiplier: SmearScaleMultiplier,
 }
 
-mcrs_minecraft_worldgen_noise::bounded_float! {
+mcrs_minecraft_noise::bounded_float! {
     eq_by_bits
     ScaleValue as f64 in [MIN_BLENDED_NOISE_SCALE, MAX_BLENDED_NOISE_SCALE];
     SmearScaleMultiplier as f64 in [MIN_SMEAR_SCALE_MULTIPLIER, MAX_SMEAR_SCALE_MULTIPLIER];

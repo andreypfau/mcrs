@@ -1,5 +1,5 @@
 use crate::program::{BinaryOp, Node, NodeId};
-use mcrs_minecraft_worldgen_noise::interval::Interval;
+use mcrs_minecraft_noise::interval::Interval;
 
 /// Whether the nodes behind one guarded input are needed anywhere in the column
 /// about to be filled. Every test reads one already-evaluated run and answers

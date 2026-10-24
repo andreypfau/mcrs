@@ -5,11 +5,11 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::RegistryValue;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Resolve};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,

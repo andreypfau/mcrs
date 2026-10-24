@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
 use mcrs_minecraft_core::{BlockPos, QuartPos};
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::BiomeGrid;

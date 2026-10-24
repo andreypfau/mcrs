@@ -1,9 +1,9 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_noise::SampleGrid;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_feature::template::Projection;
-use mcrs_minecraft_worldgen_noise::SampleGrid;
 use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;

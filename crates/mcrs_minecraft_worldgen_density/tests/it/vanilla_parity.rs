@@ -2,14 +2,14 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_fixtures::{FixtureFile, fixture};
+use mcrs_minecraft_noise::proto::NoiseParam;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES, RouterBlocks,
 };
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_testing as corpus;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;

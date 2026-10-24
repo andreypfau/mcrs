@@ -6,8 +6,8 @@ use bevy_math::IVec3;
 use bytes::{Buf, Bytes};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_noise::SampleGrid;
 use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
-use mcrs_minecraft_worldgen_noise::SampleGrid;
 use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use mcrs_minecraft_worldgen_testing::dump_string;
 

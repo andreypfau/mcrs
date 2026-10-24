@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_noise::proto::HashableF64;
 use mcrs_minecraft_registries::{KeySet, dispatch};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
-use mcrs_minecraft_worldgen_noise::proto::HashableF64;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

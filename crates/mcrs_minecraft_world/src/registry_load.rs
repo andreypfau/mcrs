@@ -8,6 +8,7 @@ use mcrs_minecraft_datapack::{
     AvailablePack, Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks,
     VANILLA_PACK, pack_stack, read_vanilla,
 };
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{
     DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry,
 };
@@ -15,7 +16,6 @@ use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;

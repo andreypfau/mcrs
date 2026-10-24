@@ -5,9 +5,9 @@ use std::str::FromStr;
 
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::{IntProvider, Weighted};
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -16,7 +16,7 @@ use crate::block_state::{BlockState, serialize_stated};
 use crate::predicate::BlockPredicate;
 use mcrs_minecraft_block::keys::Block;
 
-mcrs_minecraft_worldgen_noise::bounded_float! {
+mcrs_minecraft_noise::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
     UnitFloat as f32 in [0.0, 1.0];
     /// `Codec.floatRange(-1.0F, 1.0F)`.

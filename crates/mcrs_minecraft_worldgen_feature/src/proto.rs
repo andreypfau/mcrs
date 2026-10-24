@@ -830,7 +830,7 @@ pub enum RuleBlockEntityModifier {
 // Bounded scalars, defaults and validators
 // ---------------------------------------------------------------------------
 
-mcrs_minecraft_worldgen_noise::bounded_float! {
+mcrs_minecraft_noise::bounded_float! {
     UnitDouble as f64 in [0.0, 1.0];
     CrackSize as f64 in [0.0, 5.0];
     LayerThickness as f64 in [0.01, 50.0];

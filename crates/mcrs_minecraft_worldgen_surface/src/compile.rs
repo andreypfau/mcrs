@@ -5,6 +5,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder, NoiseParam};
+use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registries::KeySet;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -14,8 +16,6 @@ use mcrs_minecraft_worldgen_density::compile::{CompileError, Compiler};
 use mcrs_minecraft_worldgen_density::program::NodeId;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder, NoiseParam};
-use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -31,15 +31,15 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
 pub const SURFACE_NOISE_NAMES: [ResourceKey<NoiseParam, &'static str>; 9] = [
-    mcrs_minecraft_worldgen_noise::keys::noise::SURFACE,
-    mcrs_minecraft_worldgen_noise::keys::noise::SURFACE_SECONDARY,
-    mcrs_minecraft_worldgen_noise::keys::noise::CLAY_BANDS_OFFSET,
-    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_PILLAR,
-    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_PILLAR_ROOF,
-    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_SURFACE,
-    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_PILLAR,
-    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_PILLAR_ROOF,
-    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_SURFACE,
+    mcrs_minecraft_noise::keys::noise::SURFACE,
+    mcrs_minecraft_noise::keys::noise::SURFACE_SECONDARY,
+    mcrs_minecraft_noise::keys::noise::CLAY_BANDS_OFFSET,
+    mcrs_minecraft_noise::keys::noise::BADLANDS_PILLAR,
+    mcrs_minecraft_noise::keys::noise::BADLANDS_PILLAR_ROOF,
+    mcrs_minecraft_noise::keys::noise::BADLANDS_SURFACE,
+    mcrs_minecraft_noise::keys::noise::ICEBERG_PILLAR,
+    mcrs_minecraft_noise::keys::noise::ICEBERG_PILLAR_ROOF,
+    mcrs_minecraft_noise::keys::noise::ICEBERG_SURFACE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -745,8 +745,8 @@ pub(crate) mod tests {
         lava: VoxelId(3),
     };
 
+    use mcrs_minecraft_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_worldgen_density::program::Workspace;
-    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_worldgen_testing::registry;
     use std::collections::BTreeSet;
 

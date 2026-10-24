@@ -7,8 +7,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

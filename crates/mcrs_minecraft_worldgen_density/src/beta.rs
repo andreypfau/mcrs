@@ -1,8 +1,8 @@
+use mcrs_minecraft_noise::gradient::GradientNoise;
+use mcrs_minecraft_noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
+use mcrs_minecraft_noise::simplex::SimplexNoise;
+use mcrs_minecraft_noise::stack::{NoiseStack, Octave, beta_fbm};
 use mcrs_minecraft_random::{Random, legacy::LegacyRandom};
-use mcrs_minecraft_worldgen_noise::gradient::GradientNoise;
-use mcrs_minecraft_worldgen_noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
-use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
-use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave, beta_fbm};
 
 /// Beta's octave counts are contiguous from `first_octave` up, and every octave
 /// carries weight, so the amplitude list is only ever a run of ones.
@@ -144,7 +144,7 @@ mod tests {
     fn inline_noise_scales(name: &str) -> Vec<(String, f64)> {
         use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
         use mcrs_minecraft_core::ResourceLocation;
-        use mcrs_minecraft_worldgen_noise::proto::NoiseHolder;
+        use mcrs_minecraft_noise::proto::NoiseHolder;
 
         fn walk(holder: &DensityFunctionHolder, out: &mut Vec<(String, f64)>) {
             let DensityFunctionHolder::Owned(function) = holder else {

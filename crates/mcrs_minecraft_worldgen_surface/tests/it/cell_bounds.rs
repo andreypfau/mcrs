@@ -6,14 +6,14 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::rl;
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
 };
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,

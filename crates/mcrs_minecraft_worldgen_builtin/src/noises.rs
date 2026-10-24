@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use mcrs_minecraft_noise::proto::NoiseParam;
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]

@@ -243,7 +243,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/noise",
-        krate: "mcrs_minecraft_worldgen_noise",
+        krate: "mcrs_minecraft_noise",
         value: ValueType::Defined("crate::proto::NoiseParam"),
     },
     Owner {

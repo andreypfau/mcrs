@@ -5,8 +5,8 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::mth::floor_div;
 use mcrs_minecraft_core::mth::map;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// `DimensionType.WAY_BELOW_MIN_Y`: the level of a dry cell. Still a number,
 /// and it enters the pressure formula as one.

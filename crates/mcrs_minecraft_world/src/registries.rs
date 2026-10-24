@@ -31,6 +31,7 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
+use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -38,7 +39,6 @@ use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRuleHolder};
 use serde::Deserialize;

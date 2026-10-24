@@ -5,6 +5,8 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_noise::simplex::SimplexNoise;
+use mcrs_minecraft_noise::stack::NoiseStack;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -12,8 +14,6 @@ use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{
     Predicate, StateMask, WorldGenVolume, biome_info_noise,
 };
-use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
-use mcrs_minecraft_worldgen_noise::stack::NoiseStack;
 
 use crate::holds;
 use crate::tables::BlockTables;

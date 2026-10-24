@@ -8,6 +8,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
@@ -20,7 +21,6 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
     BiomeClimate, RAIN_TEMPERATURE, temperature,
 };
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_structure::StructurePlacement;
 use mcrs_minecraft_worldgen_structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_starts,

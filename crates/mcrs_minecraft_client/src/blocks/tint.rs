@@ -4,8 +4,8 @@ use bevy::ecs::resource::Resource;
 
 use crate::columns::{BlockSource, SECTION_SIZE};
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
 
 use crate::model::{self, Pack};
 use mcrs_minecraft_biome::GrassColorModifier;

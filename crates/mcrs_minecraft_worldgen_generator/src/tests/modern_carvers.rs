@@ -228,8 +228,8 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
 fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use bevy_math::IVec3;
     use mcrs_minecraft_biome::source::BiomeSource;
+    use mcrs_minecraft_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_worldgen_density::router::{TEMPERATURE, VEGETATION};
-    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let router = super::build_beta_router();
     let (source, _) = super::beta_surface::build_beta_biome_source();

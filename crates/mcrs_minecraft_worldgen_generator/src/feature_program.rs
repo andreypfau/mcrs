@@ -1652,7 +1652,7 @@ fn compile_generator(
                 base_crack_size: crack.base_crack_size.0,
                 generate_crack_chance: crack.generate_crack_chance.0,
                 crack_point_offset: crack.crack_point_offset.0,
-                noise: Arc::new(mcrs_minecraft_worldgen_noise::normal::create_parity(
+                noise: Arc::new(mcrs_minecraft_noise::normal::create_parity(
                     -4,
                     &[1.0],
                     &mut LegacyRandom::new(resolver.world_seed as u64),

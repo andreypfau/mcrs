@@ -1,9 +1,9 @@
 use crate::bounds::{Bounds, node_bounds};
 use crate::program::{Node, NodeId, Program};
 use bevy_math::IVec3;
-use mcrs_minecraft_worldgen_noise::interval::Interval;
-use mcrs_minecraft_worldgen_noise::jmath::{lerp, mul_add};
-use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_noise::jmath::{lerp, mul_add};
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
 
 /// The lattice a router with no `interpolated` node is still asked about.
 const DEFAULT_CELL: IVec3 = IVec3::new(4, 8, 4);
@@ -259,8 +259,8 @@ mod tests {
     use super::*;
     use crate::node::gradient::{GradientParams, Tiling};
     use crate::program::{Node, Program, UnaryOp, Workspace};
-    use mcrs_minecraft_worldgen_noise::sample_grid::{Axis, SampleGrid};
-    use mcrs_minecraft_worldgen_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, Axes};
+    use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
+    use mcrs_minecraft_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, Axes};
 
     /// A field that is not linear in any axis, so the interpolant it feeds has
     /// non-zero cross terms and the ramp is not the whole story.

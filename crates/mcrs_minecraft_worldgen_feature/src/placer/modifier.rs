@@ -7,7 +7,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::placement::{PlacementModifier, VerticalDirection};
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
+use mcrs_minecraft_noise::simplex::SimplexNoise;
 
 use super::{Predicate, WorldGenVolume};
 

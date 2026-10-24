@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_worldgen_noise"
+name = "mcrs_minecraft_noise"
 description = "Perlin, simplex, normal and blended noise and the interval and grid types they sample over"
 version.workspace = true
 edition.workspace = true
