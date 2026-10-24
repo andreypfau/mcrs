@@ -24,11 +24,13 @@ pub fn stored_biome(sections: &[Container], first_section_y: i32, x: i32, y: i32
         return 0;
     }
     let (section, local_y) = column_cell(first_section_y, sections.len(), y);
-    sections[section].get_cell(
-        x.rem_euclid(EDGE) as usize,
-        local_y,
-        z.rem_euclid(EDGE) as usize,
-    )
+    sections[section]
+        .get_cell(
+            x.rem_euclid(EDGE) as usize,
+            local_y,
+            z.rem_euclid(EDGE) as usize,
+        )
+        .unwrap_or(0)
 }
 
 pub fn stored_biomes_between(

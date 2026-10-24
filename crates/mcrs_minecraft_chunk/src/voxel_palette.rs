@@ -1,5 +1,5 @@
-use crate::PalettedContainer;
 use crate::PalettedContainer::{Heterogeneous, Homogeneous};
+use crate::{AbstractCube, PalettedContainer};
 use mcrs_minecraft_core::{LocalPos, SectionPos};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -21,20 +21,25 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
     }
 
     /// Build a section from dense cells in the container's own index order:
-    /// y-major, then z, then x.
-    pub fn from_cells(cells: &[V]) -> Self {
-        Self(PalettedContainer::from_cells(cells))
+    /// y-major, then z, then x. `None` unless `cells` holds exactly
+    /// [`Self::VOLUME`] of them.
+    pub fn from_cells(cells: &[V]) -> Option<Self> {
+        PalettedContainer::from_cells(cells).map(Self)
+    }
+
+    pub fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
+        Self(PalettedContainer::from_cube(cube))
     }
 
     pub fn fill(&mut self, value: V) {
         self.0 = Homogeneous(value);
     }
 
-    pub fn set_cell(&mut self, x: usize, y: usize, z: usize, value: V) -> V {
+    pub fn set_cell(&mut self, x: usize, y: usize, z: usize, value: V) -> Option<V> {
         self.0.set(x, y, z, value)
     }
 
-    pub fn get_cell(&self, x: usize, y: usize, z: usize) -> V {
+    pub fn get_cell(&self, x: usize, y: usize, z: usize) -> Option<V> {
         self.0.get(x, y, z)
     }
 
@@ -74,13 +79,11 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
 
 impl<V: Hash + Eq + Copy + Send + Sync + 'static> VoxelPalette<V, { SectionPos::SIZE }> {
     pub fn get(&self, pos: LocalPos) -> V {
-        self.0
-            .get(pos.x() as usize, pos.y() as usize, pos.z() as usize)
+        self.0.get_local(pos)
     }
 
     pub fn set(&mut self, pos: LocalPos, value: V) -> V {
-        self.0
-            .set(pos.x() as usize, pos.y() as usize, pos.z() as usize, value)
+        self.0.set_local(pos, value)
     }
 }
 

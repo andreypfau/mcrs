@@ -75,12 +75,12 @@ fn a_full_chunk_written_by_the_game_loads() {
         .blocks
         .intern("minecraft:stone", std::iter::empty())
         .unwrap();
-    assert_eq!(states.get(1, 2, 3), log);
-    assert_eq!(states.get(4, 5, 6), water);
-    assert_eq!(states.get(0, 0, 0), stone);
+    assert_eq!(states.get(1, 2, 3), Some(log));
+    assert_eq!(states.get(4, 5, 6), Some(water));
+    assert_eq!(states.get(0, 0, 0), Some(stone));
 
     let biomes = ground.biomes.as_ref().unwrap();
-    assert_eq!(biomes.get(5, 9, 13), forest);
+    assert_eq!(biomes.get(5, 9, 13), Some(forest));
     for (x, y, z) in [
         (4, 9, 13),
         (6, 9, 13),
@@ -89,7 +89,7 @@ fn a_full_chunk_written_by_the_game_loads() {
         (5, 9, 12),
         (5, 9, 14),
     ] {
-        assert_eq!(biomes.get(x, y, z), plains, "{x} {y} {z}");
+        assert_eq!(biomes.get(x, y, z), Some(plains), "{x} {y} {z}");
     }
 
     let layered = section(&loaded, 1).biomes.as_ref().unwrap();
@@ -101,7 +101,7 @@ fn a_full_chunk_written_by_the_game_loads() {
         (11, desert),
         (15, desert),
     ] {
-        assert_eq!(layered.get(7, y, 2), expected, "layer {y}");
+        assert_eq!(layered.get(7, y, 2), Some(expected), "layer {y}");
     }
 }
 
@@ -124,7 +124,12 @@ fn a_terrain_proto_chunk_keeps_its_noise_biomes() {
             } else {
                 plains
             };
-            assert_eq!(noise.get(x, y, z), expected, "{} {x} {y} {z}", section.y);
+            assert_eq!(
+                noise.get(x, y, z),
+                Some(expected),
+                "{} {x} {y} {z}",
+                section.y
+            );
         }
         let biomes = section.biomes.as_ref().expect("a biome container");
         for (x, y, z) in cells(Biomes::SIZE) {
@@ -134,7 +139,12 @@ fn a_terrain_proto_chunk_keeps_its_noise_biomes() {
                 1 if y >= 11 => desert,
                 _ => plains,
             };
-            assert_eq!(biomes.get(x, y, z), expected, "{} {x} {y} {z}", section.y);
+            assert_eq!(
+                biomes.get(x, y, z),
+                Some(expected),
+                "{} {x} {y} {z}",
+                section.y
+            );
         }
     }
 }

@@ -36,14 +36,18 @@ impl SectionNibbles {
     #[inline]
     pub fn get(&self, x: usize, y: usize, z: usize) -> u8 {
         let idx = Self::index(x, y, z);
-        (self.0[idx >> 1] >> ((idx & 1) * 4)) & 0x0F
+        self.0
+            .get(idx >> 1)
+            .map_or(0, |byte| (byte >> ((idx & 1) * 4)) & 0x0F)
     }
 
     #[inline]
     pub fn set(&mut self, x: usize, y: usize, z: usize, val: u8) {
         debug_assert!(val < 16);
         let idx = Self::index(x, y, z);
-        let byte = &mut self.0[idx >> 1];
+        let Some(byte) = self.0.get_mut(idx >> 1) else {
+            return;
+        };
         let shift = (idx & 1) * 4;
         *byte = (*byte & !(0x0F << shift)) | ((val & 0x0F) << shift);
     }

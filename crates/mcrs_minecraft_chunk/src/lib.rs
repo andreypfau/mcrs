@@ -1,7 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 pub mod column_heights;
 pub mod container;
 #[rustfmt::skip]
@@ -149,7 +145,9 @@ fn even_lanes(bits: u32, lane_limit: usize, limit: u64) -> (u64, u64, u64) {
 }
 
 /// Adding `2^bits - limit` to a lane carries out of it exactly when the lane
-/// reaches `limit`, so one word answers for all of its cells at once.
+/// reaches `limit`, so one word answers for all of its cells at once. Entries
+/// past the end of `data` are not examined; [`check_len`] reports a short
+/// `data`.
 pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> bool {
     debug_assert!((1..=16).contains(&bits));
     if limit >= 1usize << bits {
@@ -160,7 +158,7 @@ pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize)
     let (lo_lanes, lo_carries, lo_addend) = even_lanes(bits, per_long, limit as u64);
     let (hi_lanes, hi_carries, hi_addend) = even_lanes(bits, per_long - 1, limit as u64);
 
-    for &word in &data[..full] {
+    for &word in data.iter().take(full) {
         let word = word as u64;
         let lo = (word & lo_lanes) + lo_addend;
         let hi = ((word >> bits) & hi_lanes) + hi_addend;
@@ -173,8 +171,11 @@ pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize)
     if tail == 0 {
         return false;
     }
+    let Some(&word) = data.get(full) else {
+        return false;
+    };
     let mask = (1u64 << bits) - 1;
-    let mut word = data[full] as u64;
+    let mut word = word as u64;
     (0..tail).any(|_| {
         let lane = word & mask;
         word >>= bits;
@@ -182,12 +183,16 @@ pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize)
     })
 }
 
-/// Only the error path needs this, so it may be as slow as it likes.
+/// Only the error path needs this, so it may be as slow as it likes. Entries
+/// past the end of `data` are not examined.
 pub fn first_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> Option<u16> {
     let per_long = entries_per_long(bits);
     let mask = (1u64 << bits) - 1;
-    (0..entry_count)
-        .map(|i| ((data[i / per_long] as u64 >> ((i % per_long) as u32 * bits)) & mask) as u16)
+    data.iter()
+        .flat_map(|&word| {
+            (0..per_long).map(move |slot| ((word as u64 >> (slot as u32 * bits)) & mask) as u16)
+        })
+        .take(entry_count)
         .find(|&e| e as usize >= limit)
 }
 
@@ -208,21 +213,38 @@ pub fn pack_from<T>(bits: u32, cells: &[T], mut id: impl FnMut(&T) -> u32) -> Bo
         .collect()
 }
 
-/// Every stored entry must be a valid index into `table`; a caller that
-/// validated at load already knows this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemapError {
+    DataLength(DataLength),
+    /// A stored entry that is not an index into the table.
+    PaletteIndex(u16),
+}
+
+impl From<DataLength> for RemapError {
+    fn from(e: DataLength) -> Self {
+        Self::DataLength(e)
+    }
+}
+
+/// Replaces every stored entry with the `table` element it indexes. On an
+/// error, `out` holds a partial result.
 pub fn remap_into<T: Copy>(
     bits: u32,
     data: &[i64],
     table: &[T],
     out: &mut [T],
-) -> Result<(), DataLength> {
+) -> Result<(), RemapError> {
     check_len(bits, data, out.len())?;
     let per_long = entries_per_long(bits);
     let mask = (1u64 << bits) - 1;
     for (cells, &word) in out.chunks_mut(per_long).zip(data) {
         let mut word = word as u64;
         for cell in cells {
-            *cell = table[(word & mask) as usize];
+            let entry = word & mask;
+            let Some(&value) = table.get(entry as usize) else {
+                return Err(RemapError::PaletteIndex(entry as u16));
+            };
+            *cell = value;
             word >>= bits;
         }
     }

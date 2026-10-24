@@ -583,7 +583,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
             for cx in 0..16 {
                 for cy in 0..16 {
                     for cz in 0..16 {
-                        biomes.push(biome_palette.get_cell(cx, cy, cz));
+                        biomes.push(biome_palette.get_cell(cx, cy, cz).unwrap());
                     }
                 }
             }

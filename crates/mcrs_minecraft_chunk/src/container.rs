@@ -1,4 +1,5 @@
 use crate::ceillog2;
+use mcrs_minecraft_core::{LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
@@ -15,57 +16,78 @@ pub struct HeterogeneousPaletteData<V: Hash + Eq + Copy, const DIM: usize> {
 }
 
 impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
-    fn get(&self, x: usize, y: usize, z: usize) -> V {
-        debug_assert!(x < DIM);
-        debug_assert!(y < DIM);
-        debug_assert!(z < DIM);
+    fn get(&self, x: usize, y: usize, z: usize) -> Option<V> {
+        self.cube.get(y)?.get(z)?.get(x).copied()
+    }
 
-        self.cube[y][z][x]
+    fn cell_mut(&mut self, x: usize, y: usize, z: usize) -> Option<&mut V> {
+        self.cube.get_mut(y)?.get_mut(z)?.get_mut(x)
     }
 
     /// O(1) palette index lookup via the reverse HashMap.
     #[inline]
-    fn palette_index(&self, value: &V) -> usize {
-        self.index[value]
+    fn palette_index(&self, value: &V) -> Option<usize> {
+        self.index.get(value).copied()
+    }
+
+    /// Drops one use of `value`, which sits at palette `index`. Answers whether
+    /// the palette lost the entry, which moves the last entry into `index`.
+    fn release(&mut self, value: &V, index: usize) -> bool {
+        let Some(count) = self.counts.get_mut(index) else {
+            return false;
+        };
+        *count -= 1;
+        if *count != 0 {
+            return false;
+        }
+        self.index.remove(value);
+        self.palette.swap_remove(index);
+        self.counts.swap_remove(index);
+        if let Some(&moved) = self.palette.get(index) {
+            self.index.insert(moved, index);
+        }
+        true
+    }
+
+    /// Adds one use of `value` and answers its palette index, appending it on
+    /// its first use.
+    fn acquire(&mut self, value: V) -> usize {
+        match self.palette_index(&value) {
+            Some(index) => {
+                self.acquire_at(index);
+                index
+            }
+            None => {
+                let index = self.palette.len();
+                self.palette.push(value);
+                self.counts.push(1);
+                self.index.insert(value, index);
+                index
+            }
+        }
+    }
+
+    fn acquire_at(&mut self, index: usize) {
+        if let Some(count) = self.counts.get_mut(index) {
+            *count += 1;
+        }
     }
 
     /// Returns the Original
-    fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> V {
-        debug_assert!(x < DIM);
-        debug_assert!(y < DIM);
-        debug_assert!(z < DIM);
-
-        let original = self.cube[y][z][x];
-        let original_index = self.palette_index(&original);
-        self.counts[original_index] -= 1;
-
-        if self.counts[original_index] == 0 {
-            // Remove from palette and counts Vecs if the count hits zero.
-            self.index.remove(&original);
-            let last = self.palette.len() - 1;
-            if original_index != last {
-                // swap_remove will move the last element into original_index
-                let moved_value = self.palette[last];
-                self.index.insert(moved_value, original_index);
-            }
-            self.palette.swap_remove(original_index);
-            self.counts.swap_remove(original_index);
+    fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> Option<V> {
+        let original = std::mem::replace(self.cell_mut(x, y, z)?, value);
+        if let Some(index) = self.palette_index(&original) {
+            self.release(&original, index);
         }
+        self.acquire(value);
+        Some(original)
+    }
 
-        // Set the new value in the cube
-        self.cube[y][z][x] = value;
-
-        // Find or add the new value to the palette.
-        if let Some(&existing_index) = self.index.get(&value) {
-            self.counts[existing_index] += 1;
-        } else {
-            let new_index = self.palette.len();
-            self.palette.push(value);
-            self.counts.push(1);
-            self.index.insert(value, new_index);
+    fn sole_value(&self) -> Option<V> {
+        match self.palette.as_slice() {
+            &[only] => Some(only),
+            _ => None,
         }
-
-        original
     }
 }
 
@@ -115,7 +137,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }))
     }
 
-    fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
+    pub fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
         let mut palette: Vec<V> = Vec::new();
         let mut counts: Vec<u16> = Vec::new();
         let mut index: FxHashMap<V, usize> = FxHashMap::default();
@@ -127,12 +149,16 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
             if let Some((prev, idx)) = last
                 && prev == *val
             {
-                counts[idx] += 1;
+                if let Some(count) = counts.get_mut(idx) {
+                    *count += 1;
+                }
                 continue;
             }
             let idx = match index.get(val) {
                 Some(&idx) => {
-                    counts[idx] += 1;
+                    if let Some(count) = counts.get_mut(idx) {
+                        *count += 1;
+                    }
                     idx
                 }
                 None => {
@@ -146,26 +172,30 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
             last = Some((*val, idx));
         }
 
-        if palette.len() == 1 {
-            Self::Homogeneous(palette[0])
-        } else {
-            Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
-                cube,
-                palette,
-                counts,
-                index,
-            }))
+        if let &[only] = palette.as_slice() {
+            return Self::Homogeneous(only);
         }
+        Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
+            cube,
+            palette,
+            counts,
+            index,
+        }))
     }
 
-    /// Cells in `index` order: y-major, then z, then x.
-    pub fn from_cells(cells: &[V]) -> Self {
-        assert_eq!(cells.len(), Self::VOLUME);
-        let mut cube = Box::new([[[cells[0]; DIM]; DIM]; DIM]);
-        cube.as_flattened_mut()
-            .as_flattened_mut()
-            .copy_from_slice(cells);
-        Self::from_cube(cube)
+    /// Cells in `index` order: y-major, then z, then x. `None` unless `cells`
+    /// holds exactly [`Self::VOLUME`] of them.
+    pub fn from_cells(cells: &[V]) -> Option<Self> {
+        let (rows, []) = cells.as_chunks::<DIM>() else {
+            return None;
+        };
+        let (planes, []) = rows.as_chunks::<DIM>() else {
+            return None;
+        };
+        let ([cube], []) = planes.as_chunks::<DIM>() else {
+            return None;
+        };
+        Some(Self::from_cube(Box::new(*cube)))
     }
 
     pub fn to_palette_and_packed_data(&self, bits_per_entry: u8) -> (Box<[V]>, Box<[i64]>) {
@@ -176,48 +206,49 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 debug_assert!(bits_per_entry <= 15);
 
                 let cells = data.cube.as_flattened().as_flattened();
-                let packed =
-                    crate::pack_from(bits_per_entry as u32, cells, |key| data.index[key] as u32);
+                let packed = crate::pack_from(bits_per_entry as u32, cells, |key| {
+                    data.palette_index(key).map_or(0, |index| index as u32)
+                });
 
                 (data.palette.clone().into_boxed_slice(), packed)
             }
         }
     }
 
-    pub fn get(&self, x: usize, y: usize, z: usize) -> V {
+    /// `None` when a coordinate is outside the cube.
+    pub fn get(&self, x: usize, y: usize, z: usize) -> Option<V> {
         match self {
-            Self::Homogeneous(value) => *value,
+            Self::Homogeneous(value) => (x < DIM && y < DIM && z < DIM).then_some(*value),
             Self::Heterogeneous(data) => data.get(x, y, z),
         }
     }
 
-    pub fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> V {
-        debug_assert!(x < Self::SIZE);
-        debug_assert!(y < Self::SIZE);
-        debug_assert!(z < Self::SIZE);
-
+    /// Returns the value the cell held, or `None` with nothing changed when a
+    /// coordinate is outside the cube.
+    pub fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> Option<V> {
         match self {
             Self::Homogeneous(original) => {
                 let original = *original;
-                if value != original {
-                    let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
-                    cube[y][z][x] = value;
-                    *self =
-                        Self::from_split_cube(cube, original, value, 1, x == 0 && y == 0 && z == 0);
+                if value == original {
+                    return (x < DIM && y < DIM && z < DIM).then_some(original);
                 }
-                original
+                let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
+                *cube.get_mut(y)?.get_mut(z)?.get_mut(x)? = value;
+                *self = Self::from_split_cube(cube, original, value, 1, x == 0 && y == 0 && z == 0);
+                Some(original)
             }
             Self::Heterogeneous(data) => {
-                let original = data.set(x, y, z, value);
-                if data.counts.len() == 1 {
-                    *self = Self::Homogeneous(data.palette[0]);
+                let original = data.set(x, y, z, value)?;
+                if let Some(only) = data.sole_value() {
+                    *self = Self::Homogeneous(only);
                 }
-                original
+                Some(original)
             }
         }
     }
 
     /// Fill the axis-aligned box `[x0, x1) x [y0, y1) x [z0, z1)` with `value`.
+    /// The part of the box outside the cube is ignored.
     ///
     /// Equivalent to calling `set` for every position in the box, including the
     /// exact palette-entry ordering produced by that sequence (appends on first
@@ -242,7 +273,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         z1: usize,
         value: V,
     ) {
-        debug_assert!(x1 <= DIM && y1 <= DIM && z1 <= DIM);
+        let (x1, y1, z1) = (x1.min(DIM), y1.min(DIM), z1.min(DIM));
         if x0 >= x1 || y0 >= y1 || z0 >= z1 {
             return;
         }
@@ -258,9 +289,11 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                     return;
                 }
                 let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
-                for y in y0..y1 {
-                    for row in &mut cube[y][z0..z1] {
-                        row[x0..x1].fill(value);
+                for plane in cube.get_mut(y0..y1).into_iter().flatten() {
+                    for row in plane.get_mut(z0..z1).into_iter().flatten() {
+                        if let Some(cells) = row.get_mut(x0..x1) {
+                            cells.fill(value);
+                        }
                     }
                 }
                 *self = Self::from_split_cube(
@@ -279,58 +312,42 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 for y in y0..y1 {
                     for z in z0..z1 {
                         for x in x0..x1 {
-                            let original = data.cube[y][z][x];
+                            let Some(cell) = data.cell_mut(x, y, z) else {
+                                continue;
+                            };
+                            let original = std::mem::replace(cell, value);
                             if original == value {
                                 // Re-setting the same value can reorder the palette
-                                // (remove + re-append when count is 1); delegate to
-                                // `set` for exact semantics and drop memos.
-                                data.set(x, y, z, value);
+                                // (remove + re-append when count is 1); redo the
+                                // bookkeeping of `set` for exact semantics and drop memos.
+                                if let Some(index) = data.palette_index(&original) {
+                                    data.release(&original, index);
+                                }
+                                data.acquire(value);
                                 orig_memo = None;
                                 value_idx = None;
                                 continue;
                             }
                             let original_index = match orig_memo {
-                                Some((o, idx)) if o == original => idx,
-                                _ => {
-                                    let idx = data.palette_index(&original);
-                                    orig_memo = Some((original, idx));
-                                    idx
-                                }
+                                Some((o, idx)) if o == original => Some(idx),
+                                _ => data.palette_index(&original),
                             };
-                            data.counts[original_index] -= 1;
-                            if data.counts[original_index] == 0 {
-                                data.index.remove(&original);
-                                let last = data.palette.len() - 1;
-                                if original_index != last {
-                                    let moved_value = data.palette[last];
-                                    data.index.insert(moved_value, original_index);
+                            if let Some(original_index) = original_index {
+                                orig_memo = Some((original, original_index));
+                                if data.release(&original, original_index) {
+                                    orig_memo = None;
+                                    value_idx = None;
                                 }
-                                data.palette.swap_remove(original_index);
-                                data.counts.swap_remove(original_index);
-                                orig_memo = None;
-                                value_idx = None;
                             }
-                            data.cube[y][z][x] = value;
                             match value_idx {
-                                Some(vi) => data.counts[vi] += 1,
-                                None => {
-                                    if let Some(&existing) = data.index.get(&value) {
-                                        data.counts[existing] += 1;
-                                        value_idx = Some(existing);
-                                    } else {
-                                        let new_index = data.palette.len();
-                                        data.palette.push(value);
-                                        data.counts.push(1);
-                                        data.index.insert(value, new_index);
-                                        value_idx = Some(new_index);
-                                    }
-                                }
+                                Some(vi) => data.acquire_at(vi),
+                                None => value_idx = Some(data.acquire(value)),
                             }
                         }
                     }
                 }
-                if data.counts.len() == 1 {
-                    *self = Self::Homogeneous(data.palette[0]);
+                if let Some(only) = data.sole_value() {
+                    *self = Self::Homogeneous(only);
                 }
             }
         }
@@ -367,15 +384,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 let palette: Vec<W> = data.palette.iter().map(|value| f(*value)).collect();
                 let index: FxHashMap<W, usize> =
                     palette.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-                let mut cube = Box::new([[[palette[0]; DIM]; DIM]; DIM]);
-                for (to, from) in cube
-                    .as_flattened_mut()
-                    .as_flattened_mut()
-                    .iter_mut()
-                    .zip(data.cube.as_flattened().as_flattened())
-                {
-                    *to = f(*from);
-                }
+                let cube = Box::new(data.cube.map(|plane| plane.map(|row| row.map(&f))));
                 if index.len() != palette.len() {
                     return PalettedContainer::from_cube(cube);
                 }
@@ -387,6 +396,29 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 }))
             }
         }
+    }
+}
+
+impl<V: Hash + Eq + Copy> PalettedContainer<V, { SectionPos::SIZE }> {
+    pub fn get_local(&self, pos: LocalPos) -> V {
+        match self {
+            Self::Homogeneous(value) => *value,
+            Self::Heterogeneous(data) => {
+                // A `LocalPos` keeps every coordinate inside the cube, so the
+                // lookup cannot miss; the corner only gives the type a value.
+                let [[[corner, ..], ..], ..] = &*data.cube;
+                data.get(pos.x().into(), pos.y().into(), pos.z().into())
+                    .unwrap_or(*corner)
+            }
+        }
+    }
+
+    /// Returns the value the cell held.
+    pub fn set_local(&mut self, pos: LocalPos, value: V) -> V {
+        // A `LocalPos` keeps every coordinate inside the cube, so `set` cannot
+        // refuse it.
+        self.set(pos.x().into(), pos.y().into(), pos.z().into(), value)
+            .unwrap_or(value)
     }
 }
 

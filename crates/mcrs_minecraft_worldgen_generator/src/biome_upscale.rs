@@ -90,7 +90,8 @@ pub fn upscale_biomes(
                 return VoxelPalette::homogeneous(biome);
             }
 
-            let mut cells = vec![0u8; EDGE * EDGE * EDGE];
+            let mut cube = Box::new([[[0u8; EDGE]; EDGE]; EDGE]);
+            let cells = cube.as_flattened_mut().as_flattened_mut();
             for cell_y in 0..CELLS {
                 for cell_z in 0..CELLS {
                     for cell_x in 0..CELLS {
@@ -120,7 +121,7 @@ pub fn upscale_biomes(
                     }
                 }
             }
-            VoxelPalette::from_cells(&cells)
+            VoxelPalette::from_cube(cube)
         })
         .collect()
 }

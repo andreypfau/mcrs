@@ -29,17 +29,19 @@ fn scatter(index: u32, distinct: u32) -> u32 {
 }
 
 fn blocks(distinct: u32) -> PalettedContainer<VoxelId, { Blocks::SIZE }> {
-    let cells: Vec<VoxelId> = (0..Blocks::ENTRY_COUNT as u32)
-        .map(|index| VoxelId(scatter(index, distinct) as u16))
-        .collect();
-    PalettedContainer::from_cells(&cells)
+    let mut cube = Box::new([[[VoxelId::default(); Blocks::SIZE]; Blocks::SIZE]; Blocks::SIZE]);
+    for (index, cell) in (0..).zip(cube.as_flattened_mut().as_flattened_mut()) {
+        *cell = VoxelId(scatter(index, distinct) as u16);
+    }
+    PalettedContainer::from_cube(cube)
 }
 
 fn biomes(distinct: u32) -> PalettedContainer<u8, { Biomes::SIZE }> {
-    let cells: Vec<u8> = (0..Biomes::ENTRY_COUNT as u32)
-        .map(|index| scatter(index, distinct) as u8)
-        .collect();
-    PalettedContainer::from_cells(&cells)
+    let mut cube = Box::new([[[0u8; Biomes::SIZE]; Biomes::SIZE]; Biomes::SIZE]);
+    for (index, cell) in (0..).zip(cube.as_flattened_mut().as_flattened_mut()) {
+        *cell = scatter(index, distinct) as u8;
+    }
+    PalettedContainer::from_cube(cube)
 }
 
 fn column_blob() -> Vec<u8> {

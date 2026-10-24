@@ -549,11 +549,11 @@ impl<'a> ColumnRegion<'a> {
             .get(section)
             .and_then(Option::as_ref)
             .ok_or(Unavailable::Unloaded)?;
-        Ok(u16::from(biomes.0.get(
-            p.x.rem_euclid(16) as usize,
-            y,
-            p.z.rem_euclid(16) as usize,
-        )))
+        let biome = biomes
+            .0
+            .get(p.x.rem_euclid(16) as usize, y, p.z.rem_euclid(16) as usize)
+            .ok_or(Unavailable::Outside)?;
+        Ok(u16::from(biome))
     }
 
     /// One delta per column this unit wrote into, its own included: the merge of
@@ -659,11 +659,7 @@ impl Volume for ColumnRegion<'_> {
 fn filled_voxel(snapshot: &FilledSnapshot, section: usize, local: LocalPos) -> VoxelId {
     snapshot.sections[section]
         .as_ref()
-        .map_or(VoxelId::default(), |(blocks, _)| {
-            blocks
-                .0
-                .get(local.x() as usize, local.y() as usize, local.z() as usize)
-        })
+        .map_or(VoxelId::default(), |(blocks, _)| blocks.0.get_local(local))
 }
 
 impl ColumnRegion<'_> {
@@ -1010,13 +1006,7 @@ fn settle_block_entities<'a>(
             merged
                 .slot(at.y)
                 .and_then(|slot| merged.sections[slot].as_ref())
-                .is_some_and(|(blocks, _)| {
-                    let state =
-                        blocks
-                            .0
-                            .get(local.x() as usize, local.y() as usize, local.z() as usize);
-                    mask.contains(state.0 as usize)
-                })
+                .is_some_and(|(blocks, _)| mask.contains(blocks.0.get_local(local).0 as usize))
         });
     }
     settled
@@ -1217,10 +1207,14 @@ mod tests {
         let (palette, _) = merged.sections[0].as_ref().expect("the section survives");
         assert_eq!(
             palette.0.get(5, 6, 7),
-            VoxelId(70),
+            Some(VoxelId(70)),
             "the highest rank stands whatever order the deltas arrived in"
         );
-        assert_eq!(palette.0.get(0, 0, 0), VoxelId(1), "the fill is untouched");
+        assert_eq!(
+            palette.0.get(0, 0, 0),
+            Some(VoxelId(1)),
+            "the fill is untouched"
+        );
     }
 
     /// A saved column merges against no deltas at all, so anything the save

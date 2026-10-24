@@ -960,7 +960,8 @@ mod tests {
                 let local = mcrs_minecraft_core::LocalPos::from_index(cell);
                 let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
-                    mcrs_minecraft_chunk::VoxelId::from(got.get_cell(x, ly, z)),
+                    got.get_cell(x, ly, z)
+                        .map(mcrs_minecraft_chunk::VoxelId::from),
                     want.0.get_cell(x, ly, z),
                     "section {y} diverged at ({x}, {ly}, {z})"
                 );

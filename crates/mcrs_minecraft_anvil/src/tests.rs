@@ -564,10 +564,10 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
     let chunk = read_with(&fixture, ZLIB, &root, &registry).unwrap();
     assert_eq!(registry.asked.get(), 300, "every palette entry is resolved");
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0), numbered(299));
-    assert_eq!(blocks.get(3, 4, 5), numbered(256));
-    assert_eq!(blocks.get(15, 15, 15), numbered(137));
-    assert_eq!(blocks.get(1, 0, 0), numbered(0));
+    assert_eq!(blocks.get(0, 0, 0), Some(numbered(299)));
+    assert_eq!(blocks.get(3, 4, 5), Some(numbered(256)));
+    assert_eq!(blocks.get(15, 15, 15), Some(numbered(137)));
+    assert_eq!(blocks.get(1, 0, 0), Some(numbered(0)));
 }
 
 #[test]
@@ -650,10 +650,10 @@ fn a_256_entry_palette_is_stored_at_eight_bits() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0), numbered(255));
-    assert_eq!(blocks.get(9, 0, 0), numbered(200));
-    assert_eq!(blocks.get(15, 15, 15), numbered(1));
-    assert_eq!(blocks.get(1, 0, 0), numbered(0));
+    assert_eq!(blocks.get(0, 0, 0), Some(numbered(255)));
+    assert_eq!(blocks.get(9, 0, 0), Some(numbered(200)));
+    assert_eq!(blocks.get(15, 15, 15), Some(numbered(1)));
+    assert_eq!(blocks.get(1, 0, 0), Some(numbered(0)));
 }
 
 /// Above 65536 entries an index no longer fits the decoded entry, so a crafted
@@ -883,7 +883,11 @@ fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
         for index in 0..Blocks::ENTRY_COUNT {
             let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
             let expected = if x == 0 { STONE } else { AIR };
-            assert_eq!(blocks.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+            assert_eq!(
+                blocks.get(x, y, z),
+                Some(expected),
+                "{shape} at {x},{y},{z}"
+            );
         }
     }
 }
@@ -923,7 +927,11 @@ fn biome_data_widens_each_element_as_a_signed_number() {
         for index in 0..Biomes::ENTRY_COUNT {
             let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
             let expected = if index % 64 == 0 { PLAINS } else { DESERT };
-            assert_eq!(biomes.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+            assert_eq!(
+                biomes.get(x, y, z),
+                Some(expected),
+                "{shape} at {x},{y},{z}"
+            );
         }
     }
 }
@@ -1567,11 +1575,11 @@ fn a_section_reads_its_noise_biomes_at_the_quart_size() {
     )
     .unwrap();
     let noise = chunk.sections[0].noise_biomes.as_ref().unwrap();
-    assert_eq!(noise.get(0, 0, 0), DESERT);
-    assert_eq!(noise.get(3, 3, 3), DESERT);
-    assert_eq!(noise.get(1, 2, 3), DESERT);
-    assert_eq!(noise.get(2, 0, 0), PLAINS);
-    assert_eq!(noise.get(1, 2, 2), PLAINS);
+    assert_eq!(noise.get(0, 0, 0), Some(DESERT));
+    assert_eq!(noise.get(3, 3, 3), Some(DESERT));
+    assert_eq!(noise.get(1, 2, 3), Some(DESERT));
+    assert_eq!(noise.get(2, 0, 0), Some(PLAINS));
+    assert_eq!(noise.get(1, 2, 2), Some(PLAINS));
     assert!(chunk.sections[0].biomes.is_none());
 }
 
@@ -1952,7 +1960,12 @@ pub(crate) mod write {
 
         let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
         let section = read.chunk.sections.iter().find(|s| s.y == 70 >> 4).unwrap();
-        let id = section.block_states.as_ref().unwrap().get(5, 70 & 15, 9);
+        let id = section
+            .block_states
+            .as_ref()
+            .unwrap()
+            .get(5, 70 & 15, 9)
+            .unwrap();
         assert_eq!(
             read.blocks.entry(id),
             Some(("minecraft:torch".to_string(), vec![]))

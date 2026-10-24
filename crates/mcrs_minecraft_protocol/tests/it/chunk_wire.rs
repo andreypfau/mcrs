@@ -15,12 +15,12 @@ const BIOME_REGISTRY_LEN: usize = 100;
 
 fn blocks(ids: &[u32]) -> BlockContainer {
     let cells: Vec<VoxelId> = ids.iter().map(|&id| VoxelId(id as u16)).collect();
-    PalettedContainer::from_cells(&cells)
+    PalettedContainer::from_cells(&cells).expect("one id per cell")
 }
 
 fn biomes(ids: &[u32]) -> BiomeContainer {
     let cells: Vec<u8> = ids.iter().map(|&id| id as u8).collect();
-    PalettedContainer::from_cells(&cells)
+    PalettedContainer::from_cells(&cells).expect("one id per cell")
 }
 
 fn block_ids(distinct: u32) -> Vec<u32> {
@@ -133,7 +133,7 @@ fn a_direct_section_holding_states_past_fifteen_bits_round_trips() {
 
     let decoded = decoded_blocks(&mut bytes.as_slice()).expect("decode container");
     let expected: Vec<VoxelId> = ids.iter().map(|&id| VoxelId(id as u16)).collect();
-    assert_eq!(decoded, PalettedContainer::from_cells(&expected));
+    assert_eq!(decoded, PalettedContainer::from_cells(&expected).unwrap());
     round_trip_blocks(container);
 }
 

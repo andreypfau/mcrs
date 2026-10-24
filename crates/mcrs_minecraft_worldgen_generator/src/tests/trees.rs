@@ -202,7 +202,7 @@ pub(super) fn decorate_region(
                 };
                 for index in 0..4096 {
                     let (x, y, z) = (index & 15, index >> 8, (index >> 4) & 15);
-                    column[(slot * 16 + y) * 256 + z * 16 + x] = palette.get_cell(x, y, z);
+                    column[(slot * 16 + y) * 256 + z * 16 + x] = palette.get_cell(x, y, z).unwrap();
                 }
             }
             let holds = |mask: &FixedBitSet, state: VoxelId| mask.contains(state.0 as usize);
@@ -387,7 +387,8 @@ fn the_pale_garden_grows_pale_oaks_and_their_moss() {
             for index in 0..4096 {
                 let cell = section
                     .0
-                    .get_cell(index & 15, index >> 8, (index >> 4) & 15);
+                    .get_cell(index & 15, index >> 8, (index >> 4) & 15)
+                    .unwrap();
                 for (slot, (_, states)) in wanted.iter().enumerate() {
                     counts[slot] += usize::from(states.contains(&cell.0));
                 }

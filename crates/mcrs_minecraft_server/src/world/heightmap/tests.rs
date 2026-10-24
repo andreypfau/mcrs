@@ -96,7 +96,7 @@ fn naive_heightmaps(
                     let Some((blocks, _)) = sections[index].as_ref() else {
                         continue;
                     };
-                    let id = blocks.0.get(x, y.rem_euclid(16) as usize, z);
+                    let id = blocks.0.get(x, y.rem_euclid(16) as usize, z).unwrap();
                     if table.get(id).contains(kind) {
                         found = y + 1;
                         break;
@@ -358,7 +358,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
     for (x, y, z, id) in edits {
         let index = (y / 16) as usize;
         let (blocks, _) = sections[index].as_mut().unwrap();
-        let old = blocks.set_cell(x, (y % 16) as usize, z, id);
+        let old = blocks.set_cell(x, (y % 16) as usize, z, id).unwrap();
         let state = |id: VoxelId| BlockStateId::checked(id.0, corpus().state_count()).unwrap();
         app.world_mut()
             .entity_mut(section_entities[index])

@@ -324,7 +324,7 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let (blocks, _) = sections[0].as_ref().expect("the saved section");
     assert_eq!(
         blocks.0.get(0, 0, 0),
-        stone.default_state_id.number().into()
+        Some(stone.default_state_id.number().into())
     );
 
     let (blocks, _) = sections[1]

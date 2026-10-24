@@ -139,7 +139,7 @@ fn splitting_a_homogeneous_cube_matches_a_full_scan() {
     const V: usize = C::VOLUME;
 
     let reference = |cells: &[u16]| {
-        let c = C::from_cells(cells);
+        let c = C::from_cells(cells).unwrap();
         match c {
             PalettedContainer::Homogeneous(v) => (vec![v], vec![V as u16]),
             PalettedContainer::Heterogeneous(d) => (d.palette.clone(), d.counts.clone()),
@@ -186,7 +186,9 @@ fn splitting_a_homogeneous_cube_matches_a_full_scan() {
 #[test]
 fn mapping_two_values_onto_one_merges_their_palette_entries() {
     let cells: Vec<u16> = (0..16 * 16 * 16).map(|i| (i % 3) as u16).collect();
-    let mut mapped = PalettedContainer::<u16, 16>::from_cells(&cells).map(|v| v.min(1));
+    let mut mapped = PalettedContainer::<u16, 16>::from_cells(&cells)
+        .unwrap()
+        .map(|v| v.min(1));
 
     let PalettedContainer::Heterogeneous(data) = &mapped else {
         panic!("two values remain");

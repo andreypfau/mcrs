@@ -277,6 +277,7 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
                         .map(|index| {
                             blocks
                                 .get_cell(index & 15, index >> 8, (index >> 4) & 15)
+                                .unwrap()
                                 .into()
                         })
                         .collect()
@@ -856,7 +857,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
         for (x, y, z) in
             (0..16).flat_map(|x| (0..16).flat_map(move |y| (0..16).map(move |z| (x, y, z))))
         {
-            assert_eq!(biomes.get_cell(x, y, z), desert);
+            assert_eq!(biomes.get_cell(x, y, z), Some(desert));
             cells += 1;
         }
     }

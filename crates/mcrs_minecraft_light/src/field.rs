@@ -189,9 +189,7 @@ impl SectionSource {
     #[inline]
     pub fn block_at(&self, local: LocalPos) -> VoxelId {
         match self {
-            SectionSource::Loaded(blocks) => blocks
-                .get_cell(local.x() as usize, local.y() as usize, local.z() as usize)
-                .into(),
+            SectionSource::Loaded(blocks) => blocks.get(local).into(),
             SectionSource::Open(block) | SectionSource::Absent(block) => *block,
         }
     }

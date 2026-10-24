@@ -429,7 +429,7 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
                     .iter()
                     .filter_map(|&id| BlockStateId::checked(id, 1 << 16))
                     .collect();
-                SectionSource::Loaded(Arc::new(VoxelPalette::from_cells(&ids)))
+                SectionSource::Loaded(Arc::new(VoxelPalette::from_cells(&ids).unwrap()))
             }
             None if neighbourhood
                 .bounds

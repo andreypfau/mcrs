@@ -313,14 +313,9 @@ macro_rules! column_volume {
                 let section = SectionPos::from(at);
                 self.access(section).check_read()?;
                 let cell = LocalPos::from(at);
-                let cell = (
-                    usize::from(cell.x()),
-                    usize::from(cell.y()),
-                    usize::from(cell.z()),
-                );
-                Ok(self.stored_section(section).map_or(0, |stored| {
-                    u16::from(stored.biomes.get(cell.0, cell.1, cell.2))
-                }))
+                Ok(self
+                    .stored_section(section)
+                    .map_or(0, |stored| u16::from(stored.biomes.get_local(cell))))
             }
         }
     };
@@ -483,8 +478,8 @@ fn biome_ids(
             Ok(PalettedContainer::Homogeneous(local(*number)?))
         }
         PalettedContainer::Heterogeneous(_) => {
-            let mut cells = [0u8; Biomes::ENTRY_COUNT];
-            let mut slots = cells.iter_mut();
+            let mut cube = Box::new([[[0u8; Biomes::SIZE]; Biomes::SIZE]; Biomes::SIZE]);
+            let mut slots = cube.as_flattened_mut().as_flattened_mut().iter_mut();
             let mut refused = Ok(());
             sent.for_each(|number| {
                 let slot = slots.next().expect("one cell per entry");
@@ -494,7 +489,7 @@ fn biome_ids(
                 }
             });
             refused?;
-            Ok(PalettedContainer::from_cells(&cells))
+            Ok(PalettedContainer::from_cube(cube))
         }
     }
 }
@@ -834,7 +829,7 @@ mod tests {
         ChunkSection {
             non_empty_block_count: ids.iter().filter(|&&id| id != 0).count() as u16,
             fluid_count: 0,
-            blocks: PalettedContainer::from_cells(&cells),
+            blocks: PalettedContainer::from_cells(&cells).unwrap(),
             biomes: PalettedContainer::Homogeneous(3),
         }
     }
@@ -963,7 +958,7 @@ mod tests {
     fn biomes_with_one_cell(base: u8, cell: (usize, usize, usize), value: u8) -> ChunkSection {
         let mut cells = vec![base; Biomes::ENTRY_COUNT];
         cells[Biomes::index(cell.0, cell.1, cell.2)] = value;
-        stone_with(PalettedContainer::from_cells(&cells))
+        stone_with(PalettedContainer::from_cells(&cells).unwrap())
     }
 
     #[test]

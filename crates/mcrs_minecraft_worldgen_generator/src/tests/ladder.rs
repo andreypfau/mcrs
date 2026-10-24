@@ -245,7 +245,9 @@ pub fn decode(sections: &[Option<SectionData>]) -> Column {
             let mut cells = vec![VoxelId::default(); ColumnBlocks::SECTION_VOLUME];
             if let Some((palette, _)) = section {
                 for (index, cell) in cells.iter_mut().enumerate() {
-                    *cell = palette.get_cell(index & 15, index >> 8, (index >> 4) & 15);
+                    *cell = palette
+                        .get_cell(index & 15, index >> 8, (index >> 4) & 15)
+                        .unwrap();
                 }
             }
             cells

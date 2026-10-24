@@ -1,6 +1,7 @@
 use std::cell::Cell;
 
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 
 /// Every block of one column, dense, in the section palette's own index order:
@@ -169,7 +170,6 @@ impl ColumnBlocks {
     /// stone below it — and answering those with a scan that stops at the first
     /// difference keeps the copy and the palette build off that path entirely.
     pub fn block_palettes(&self) -> Vec<BlockPalette> {
-        let mut scratch = [VoxelId::default(); Self::SECTION_VOLUME];
         self.y_sections
             .iter()
             .enumerate()
@@ -179,10 +179,18 @@ impl ColumnBlocks {
                 if cells.iter().all(|cell| cell.get() == first) {
                     return BlockPalette::homogeneous(first);
                 }
-                for (slot, cell) in scratch.iter_mut().zip(cells) {
+                let mut cube = Box::new(
+                    [[[VoxelId::default(); SectionPos::SIZE]; SectionPos::SIZE]; SectionPos::SIZE],
+                );
+                for (slot, cell) in cube
+                    .as_flattened_mut()
+                    .as_flattened_mut()
+                    .iter_mut()
+                    .zip(cells)
+                {
                     *slot = cell.get();
                 }
-                BlockPalette::from_cells(&scratch)
+                BlockPalette::from_cube(cube)
             })
             .collect()
     }

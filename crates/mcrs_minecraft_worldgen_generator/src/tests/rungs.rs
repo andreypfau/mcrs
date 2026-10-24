@@ -118,7 +118,7 @@ fn block_at(column: &FilledSnapshot, x: usize, y: i32, z: usize) -> VoxelId {
     column.sections[slot]
         .as_ref()
         .map_or(VoxelId::default(), |(palette, _)| {
-            palette.0.get(x, (y & 0xF) as usize, z)
+            palette.0.get(x, (y & 0xF) as usize, z).unwrap()
         })
 }
 

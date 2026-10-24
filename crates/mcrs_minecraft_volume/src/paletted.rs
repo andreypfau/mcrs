@@ -23,12 +23,7 @@ fn palette_of(container: &Container) -> Palette<'_> {
 impl SectionBlocks for PalettedSection<'_> {
     #[inline]
     fn get(&self, at: LocalPos) -> BlockStateId {
-        let at = (
-            usize::from(at.x()),
-            usize::from(at.y()),
-            usize::from(at.z()),
-        );
-        self.0.get(at.0, at.1, at.2)
+        self.0.get_local(at)
     }
 
     fn uniform(&self) -> Option<BlockStateId> {
@@ -85,12 +80,7 @@ impl SectionBlocks for PalettedSectionMut<'_> {
 impl SectionBlocksMut for PalettedSectionMut<'_> {
     #[inline]
     fn set(&mut self, at: LocalPos, state: BlockStateId) -> BlockStateId {
-        let at = (
-            usize::from(at.x()),
-            usize::from(at.y()),
-            usize::from(at.z()),
-        );
-        self.0.set(at.0, at.1, at.2, state)
+        self.0.set_local(at, state)
     }
 
     fn fill(&mut self, state: BlockStateId) {

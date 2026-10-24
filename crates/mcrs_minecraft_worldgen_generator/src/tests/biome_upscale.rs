@@ -46,7 +46,9 @@ fn assert_equals_plain_zoom(
                 for x in 0..16 {
                     let pos = BlockPos::new(min.x + 4 + x, section_y * 16 + y, min.z + 4 + z);
                     assert_eq!(
-                        container.get_cell(x as usize, y as usize, z as usize),
+                        container
+                            .get_cell(x as usize, y as usize, z as usize)
+                            .unwrap(),
                         biome(quart_cell(zoom_seed, pos)),
                         "block {x},{y},{z} of section {section_y}"
                     );

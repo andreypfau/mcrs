@@ -6,7 +6,7 @@ use mcrs_minecraft_block::keys::block_tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
-use mcrs_minecraft_core::{SectionPos, TagId};
+use mcrs_minecraft_core::{LocalPos, SectionPos, TagId};
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registries::Tags;
 use std::cell::Cell;
@@ -262,9 +262,11 @@ impl SectionCells<'_> {
     fn get(&self, local_y: usize, cell: usize) -> VoxelId {
         match self {
             SectionCells::Dense(cells) => cells[local_y * SectionPos::AREA + cell].get(),
-            SectionCells::Palette(palette) => {
-                palette.get(cell & SectionPos::MASK, local_y, cell >> SectionPos::BITS)
-            }
+            SectionCells::Palette(palette) => palette.get_local(LocalPos::new(
+                (cell & SectionPos::MASK) as u8,
+                local_y as u8,
+                (cell >> SectionPos::BITS) as u8,
+            )),
         }
     }
 }

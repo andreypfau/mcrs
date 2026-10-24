@@ -7,8 +7,8 @@ use crate::{Decode as DecodeTrait, Encode as EncodeTrait, Result, VarInt, VarLon
 use bitfield_struct::bitfield;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_chunk::{
-    PalettedContainer, SectionKind, VoxelId, any_entry_past, first_entry_past, pack_from,
-    packed_len, remap_into, unpack_into,
+    PalettedContainer, RemapError, SectionKind, VoxelId, any_entry_past, first_entry_past,
+    pack_from, packed_len, remap_into, unpack_into,
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
@@ -315,7 +315,8 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
         .map(|_| i64::decode(r))
         .collect::<Result<Vec<_>>>()?;
 
-    let mut cells = vec![V::default(); entry_count];
+    let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
+    let cells = cube.as_flattened_mut().as_flattened_mut();
     match palette {
         Some(entries) => {
             if any_entry_past(storage_bits, &packed, entry_count, entries.len())
@@ -324,11 +325,15 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
             {
                 bail!("palette index {index} of {}", entries.len());
             }
-            remap_into(storage_bits, &packed, &entries, &mut cells).map_err(|length| {
-                crate::wire::Error::invalid(format!(
+            remap_into(storage_bits, &packed, &entries, cells).map_err(|error| match error {
+                RemapError::DataLength(length) => crate::wire::Error::invalid(format!(
                     "{} packed longs where {} fit",
                     length.found, length.expected
-                ))
+                )),
+                RemapError::PaletteIndex(index) => crate::wire::Error::invalid(format!(
+                    "palette index {index} of {}",
+                    entries.len()
+                )),
             })?;
         }
         None => {
@@ -344,7 +349,7 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
             }
         }
     }
-    Ok(PalettedContainer::from_cells(&cells))
+    Ok(PalettedContainer::from_cube(cube))
 }
 
 fn read_id<V: SectionValue>(r: &mut &[u8]) -> Result<V> {

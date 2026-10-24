@@ -351,7 +351,7 @@ mod tests {
         let mut cells = vec![2u8; Biomes::ENTRY_COUNT];
         cells[Biomes::index(3, 15, 7)] = 1;
         cells[Biomes::index(3, 0, 7)] = 5;
-        let highest = section_holding(PalettedContainer::from_cells(&cells));
+        let highest = section_holding(PalettedContainer::from_cells(&cells).unwrap());
         let lower = section_holding(PalettedContainer::Homogeneous(3));
 
         let extent = Extent {

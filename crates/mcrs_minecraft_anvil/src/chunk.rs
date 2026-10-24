@@ -1,10 +1,10 @@
-use mcrs_minecraft_core::{BlockPos, ColumnPos, VERSION};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, LocalPos, VERSION};
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
 
 use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
-use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
+use mcrs_minecraft_chunk::{PalettedContainer, RemapError, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{ArrayKind, ArrayVisitor};
 use serde::de::IgnoredAny;
@@ -88,12 +88,7 @@ impl Chunk {
                 z: self.pos.z,
                 section_y,
             })?;
-        let previous = states.set(
-            (x & 15) as usize,
-            (y & 15) as usize,
-            (z & 15) as usize,
-            state,
-        );
+        let previous = states.set_local(LocalPos::new(x as u8, y as u8, z as u8), state);
         if previous != state {
             self.is_light_on = false;
             self.heightmaps.clear();
@@ -360,17 +355,24 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
     let entries = (0..len)
         .map(|index| resolve(&raw.palette, lookup, index))
         .collect::<Result<Vec<V>, _>>()?;
-    let mut cells = vec![V::default(); K::ENTRY_COUNT];
-    mcrs_minecraft_chunk::remap_into(bits, &data, &entries, &mut cells).map_err(|e| {
-        ErrorKind::DataLength {
+    let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
+    let cells = cube.as_flattened_mut().as_flattened_mut();
+    mcrs_minecraft_chunk::remap_into(bits, &data, &entries, cells).map_err(|e| match e {
+        RemapError::DataLength(e) => ErrorKind::DataLength {
             y,
             field,
             found: e.found,
             expected: e.expected,
             bits,
-        }
+        },
+        RemapError::PaletteIndex(index) => ErrorKind::PaletteIndex {
+            y,
+            field,
+            index,
+            len,
+        },
     })?;
-    Ok(PalettedContainer::from_cells(&cells))
+    Ok(PalettedContainer::from_cube(cube))
 }
 
 /// Resolved while the name is still borrowed out of the palette's text.

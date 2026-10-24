@@ -56,7 +56,9 @@ impl ColumnHeights {
 
     pub fn get(&self, x: usize, z: usize) -> i32 {
         let (word, shift, mask) = self.slot(x, z);
-        ((self.longs[word] >> shift) & mask) as i32 + self.min_y
+        self.longs.get(word).map_or(self.min_y, |&long| {
+            ((long >> shift) & mask) as i32 + self.min_y
+        })
     }
 
     pub fn set(&mut self, x: usize, z: usize, y: i32) {
@@ -68,7 +70,9 @@ impl ColumnHeights {
         );
         let rel = (y - self.min_y).clamp(0, self.height as i32);
         let (word, shift, mask) = self.slot(x, z);
-        self.longs[word] = (self.longs[word] & !(mask << shift)) | ((rel as u64) << shift);
+        if let Some(long) = self.longs.get_mut(word) {
+            *long = (*long & !(mask << shift)) | ((rel as u64) << shift);
+        }
     }
 
     pub fn raw_longs(&self) -> &[u64] {

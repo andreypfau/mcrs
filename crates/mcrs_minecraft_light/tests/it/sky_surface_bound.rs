@@ -58,7 +58,7 @@ fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
             let mut top = 0;
             for y in (0..SECTIONS_Y * 16).rev() {
                 let blocks = &sections[(y / 16) as usize];
-                if blocks.get_cell(x, (y % 16) as usize, z) != state(AIR) {
+                if blocks.get_cell(x, (y % 16) as usize, z) != Some(state(AIR)) {
                     top = y + 1;
                     break;
                 }

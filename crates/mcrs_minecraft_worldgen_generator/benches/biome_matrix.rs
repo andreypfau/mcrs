@@ -346,7 +346,7 @@ fn natural(
                 for y in 0..16 {
                     for z in 0..16 {
                         for x in 0..16 {
-                            counts[section.get_cell(x, y, z) as usize] += 1;
+                            counts[section.get_cell(x, y, z).unwrap() as usize] += 1;
                         }
                     }
                 }

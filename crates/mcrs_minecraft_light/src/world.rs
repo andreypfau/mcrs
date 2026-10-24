@@ -451,7 +451,7 @@ impl LightWorld {
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
                     let air = blocks
-                        .get_cell(local_x as usize, SectionPos::MASK, local_z as usize)
+                        .get(LocalPos::new(local_x, SectionPos::MASK as u8, local_z))
                         .into();
                     match top(air) {
                         Ok(block) => above = block,
@@ -460,9 +460,7 @@ impl LightWorld {
                 }
                 SkyColumnSection::Blocks(blocks) => {
                     for local_y in (0..SectionPos::SIZE as u8).rev() {
-                        let below = blocks
-                            .get_cell(local_x as usize, local_y as usize, local_z as usize)
-                            .into();
+                        let below = blocks.get(LocalPos::new(local_x, local_y, local_z)).into();
                         if self.registry.breaks_sky_column(above, below) {
                             return section_y * SECTION_WIDTH + local_y as i32 + 1;
                         }

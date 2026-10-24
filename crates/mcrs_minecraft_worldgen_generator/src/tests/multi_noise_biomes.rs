@@ -424,7 +424,7 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
                         chunk_z * 16 + z as i32,
                     );
                     assert_eq!(
-                        palettes[index].get_cell(x, y, z),
+                        palettes[index].get_cell(x, y, z).unwrap(),
                         plain_pick(block),
                         "block {x},{y},{z} of section {section_y}"
                     );

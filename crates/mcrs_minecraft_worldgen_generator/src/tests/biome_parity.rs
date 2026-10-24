@@ -96,7 +96,7 @@ mod exhaustive {
                     for z in 0..16 {
                         for x in 0..16 {
                             let want = column.at(index, x, y, z);
-                            let got = names[container.get_cell(x, y, z) as usize];
+                            let got = names[container.get_cell(x, y, z).unwrap() as usize];
                             assert_eq!(
                                 got, want,
                                 "seed {} chunk {},{} section {} block {x},{y},{z}",
