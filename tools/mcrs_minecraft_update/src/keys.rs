@@ -37,6 +37,7 @@ struct Target {
     definitions: String,
     modules: Vec<String>,
     enums: Vec<(String, String)>,
+    statics: Vec<(u16, String)>,
 }
 
 impl Target {
@@ -46,6 +47,7 @@ impl Target {
             definitions: String::new(),
             modules: Vec::new(),
             enums: Vec::new(),
+            statics: Vec::new(),
         }
     }
 
@@ -80,6 +82,7 @@ pub fn generate(
     names: &names::Names,
     owners: &[Owner],
     above_catalog: &BTreeSet<String>,
+    own_lists: &BTreeSet<String>,
 ) -> Result<Files, String> {
     let named = registries
         .keys()
@@ -186,23 +189,32 @@ pub fn generate(
                      so the catalog cannot list it"
                 ));
             }
-            let entries = if report.entries.is_empty() {
-                "&[]".to_owned()
-            } else if let Some(name) = enumerated {
-                target.path(&format!("{name}::ENTRIES"))
-            } else {
-                target.path(&format!("{module}::ENTRIES"))
+            let entries = match enumerated {
+                _ if report.entries.is_empty() => "&[]".to_owned(),
+                Some(name) => format!("{name}::ENTRIES"),
+                None => format!("{module}::ENTRIES"),
             };
-            let location = if target.owned() {
-                format!("{}.location()", target.path(&key))
+            if own_lists.contains(krate) {
+                target.statics.push((
+                    report.protocol_id,
+                    format!("    ({key}.location(), {entries}),\n"),
+                ));
             } else {
-                target.path(&key)
-            };
-            statics.push((
-                report.protocol_id,
-                format!("    ({location}, {entries}),\n"),
-            ));
-            static_owners.insert(krate.to_owned());
+                let entries = match report.entries.is_empty() {
+                    true => entries,
+                    false => target.path(&entries),
+                };
+                let location = if target.owned() {
+                    format!("{}.location()", target.path(&key))
+                } else {
+                    target.path(&key)
+                };
+                statics.push((
+                    report.protocol_id,
+                    format!("    ({location}, {entries}),\n"),
+                ));
+                static_owners.insert(krate.to_owned());
+            }
         }
         if let Some(text) = text {
             files.insert(target.source(&format!("{module}.rs")), text);
@@ -593,12 +605,28 @@ fn owner_file(target: &Target) -> String {
     if !target.enums.is_empty() {
         out.push('\n');
     }
+    let mut statics = target.statics.clone();
+    statics.sort_by_key(|&(protocol_id, _)| protocol_id);
+    let imports = match statics.is_empty() {
+        true => "Registered, RegistryKey, rl",
+        false => "Registered, RegistryKey, StaticResourceLocation, rl",
+    };
     out.push_str(&format!(
-        "use mcrs_minecraft_core::{{Registered, RegistryKey, rl}};\n\
+        "use mcrs_minecraft_core::{{{imports}}};\n\
          \n\
          {definitions}",
         definitions = target.definitions,
     ));
+    if !statics.is_empty() {
+        out.push_str(
+            "\n/// The static registries of this crate, which the catalog does not list.\n\
+             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n",
+        );
+        for (_, line) in statics {
+            out.push_str(&line);
+        }
+        out.push_str("];\n");
+    }
     out
 }
 
@@ -728,7 +756,15 @@ mod tests {
 
     fn owned(statics: Statics, data: Data, owners: &[Owner]) -> Result<Files, String> {
         let (registries, datapack, names) = reports(statics, data);
-        generate(&registries, &datapack, &names, owners, &BTreeSet::new()).map(in_keys_crate)
+        generate(
+            &registries,
+            &datapack,
+            &names,
+            owners,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        )
+        .map(in_keys_crate)
     }
 
     fn generated(statics: Statics, data: Data) -> Result<Files, String> {
@@ -983,7 +1019,15 @@ mod tests {
                 )
             })
             .collect();
-        generate(&registries, &datapack, &names, &[], &BTreeSet::new()).map(in_keys_crate)
+        generate(
+            &registries,
+            &datapack,
+            &names,
+            &[],
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        )
+        .map(in_keys_crate)
     }
 
     #[test]
@@ -1203,21 +1247,42 @@ mod tests {
         let (registries, mut datapack, names) = reports(statics, data);
         datapack.registries.remove("minecraft:block");
         assert_refused(
-            generate(&registries, &datapack, &names, &[], &BTreeSet::new()),
+            generate(
+                &registries,
+                &datapack,
+                &names,
+                &[],
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
             &["minecraft:block"],
         );
 
         let (registries, mut datapack, names) = reports(statics, data);
         datapack.registries.remove("minecraft:worldgen/biome");
         assert_refused(
-            generate(&registries, &datapack, &names, &[], &BTreeSet::new()),
+            generate(
+                &registries,
+                &datapack,
+                &names,
+                &[],
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
             &["minecraft:worldgen/biome"],
         );
 
         let (registries, datapack, mut names) = reports(statics, data);
         names.entries.remove("minecraft:worldgen/biome");
         assert_refused(
-            generate(&registries, &datapack, &names, &[], &BTreeSet::new()),
+            generate(
+                &registries,
+                &datapack,
+                &names,
+                &[],
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
             &["minecraft:worldgen/biome"],
         );
 
@@ -1226,7 +1291,14 @@ mod tests {
             .entries
             .insert("minecraft:block".to_owned(), BTreeSet::new());
         assert_refused(
-            generate(&registries, &datapack, &names, &[], &BTreeSet::new()),
+            generate(
+                &registries,
+                &datapack,
+                &names,
+                &[],
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
             &["minecraft:block"],
         );
 
@@ -1424,6 +1496,7 @@ mod tests {
                 ValueType::Defined("crate::ChatType"),
             )],
             &above,
+            &BTreeSet::new(),
         )
         .unwrap();
         assert!(files.contains_key("crates/mcrs_minecraft_world/src/keys/mod.rs"));
@@ -1437,8 +1510,38 @@ mod tests {
                 &names,
                 &[owner("minecraft:block", ValueType::Enum("Block"))],
                 &above,
+                &BTreeSet::new(),
             ),
             &["minecraft:block", "mcrs_minecraft_world"],
+        );
+    }
+
+    #[test]
+    fn an_owner_that_lists_its_own_static_registries_is_left_out_of_the_catalog() {
+        let (registries, datapack, names) = reports(&[("minecraft:block", BLOCK)], &[]);
+        let owner = Owner {
+            registry: "minecraft:block",
+            krate: "mcrs_minecraft_worldgen_block",
+            value: ValueType::Enum("Block"),
+        };
+        let own = BTreeSet::from(["mcrs_minecraft_worldgen_block".to_owned()]);
+
+        let files = generate(
+            &registries,
+            &datapack,
+            &names,
+            &[owner],
+            &BTreeSet::new(),
+            &own,
+        )
+        .unwrap();
+        assert!(!files[CATALOG_LIB].contains("mcrs_minecraft_worldgen_block"));
+        assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_worldgen_block"));
+        assert!(
+            files["crates/mcrs_minecraft_worldgen_block/src/keys/mod.rs"]
+                .contains("&[(BLOCK.location(), Block::ENTRIES)]"),
+            "{}",
+            files["crates/mcrs_minecraft_worldgen_block/src/keys/mod.rs"]
         );
     }
 
@@ -1481,7 +1584,15 @@ mod tests {
         fs::write(owner.join("mod.rs"), HEADER).unwrap();
         fs::write(owner.join("gone.rs"), HEADER).unwrap();
         let (registries, datapack, names) = reports(&[("minecraft:block", BLOCK)], &[]);
-        let files = generate(&registries, &datapack, &names, &[], &BTreeSet::new()).unwrap();
+        let files = generate(
+            &registries,
+            &datapack,
+            &names,
+            &[],
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        )
+        .unwrap();
         let block = "crates/mcrs_minecraft_keys/src/block.rs";
         let unformatted = files[block].replace("&[AIR, STONE]", "&[\n    AIR,\n    STONE,\n]");
         let unformatted = format!("#[rustfmt::skip]\n{unformatted}");

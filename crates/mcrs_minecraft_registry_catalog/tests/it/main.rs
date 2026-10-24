@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Id;
@@ -26,44 +26,26 @@ fn report() -> BTreeMap<String, RegistryReport> {
 }
 
 #[test]
-fn the_catalog_holds_exactly_the_reported_registries_in_protocol_id_order() {
+fn every_catalog_row_is_a_reported_registry_in_protocol_id_order() {
     let report = report();
-
-    let catalog: BTreeSet<&str> = STATIC_REGISTRIES
+    let ids: Vec<u16> = STATIC_REGISTRIES
         .iter()
-        .map(|(location, _)| location.as_static_str())
+        .map(|(location, _)| {
+            report
+                .get(location.as_static_str())
+                .unwrap_or_else(|| panic!("{location}: in the catalog but not in the report"))
+                .protocol_id
+        })
         .collect();
-    let reported: BTreeSet<&str> = report.keys().map(String::as_str).collect();
-    assert_eq!(
-        catalog.difference(&reported).collect::<Vec<_>>(),
-        Vec::<&&str>::new(),
-        "registries in the catalog but not in the report"
-    );
-    assert_eq!(
-        reported.difference(&catalog).collect::<Vec<_>>(),
-        Vec::<&&str>::new(),
-        "registries in the report but not in the catalog"
-    );
-    assert_eq!(STATIC_REGISTRIES.len(), report.len());
-
-    for (name, registry) in &report {
-        let row = STATIC_REGISTRIES.get(usize::from(registry.protocol_id));
-        assert_eq!(
-            row.map(|(location, _)| location.as_static_str()),
-            Some(name.as_str()),
-            "{name}: row {}",
-            registry.protocol_id
-        );
-    }
+    assert!(ids.is_sorted(), "{ids:?}");
 }
 
 #[test]
 fn every_reported_entry_is_the_catalog_entry_at_its_protocol_id() {
-    for (name, registry) in &report() {
-        let (_, entries) = STATIC_REGISTRIES
-            .iter()
-            .find(|(location, _)| location.as_static_str() == name)
-            .unwrap_or_else(|| panic!("{name}: no catalog row"));
+    let report = report();
+    for (location, entries) in STATIC_REGISTRIES {
+        let name = location.as_static_str();
+        let registry = &report[name];
         for (entry, reported) in &registry.entries {
             assert_eq!(
                 entries

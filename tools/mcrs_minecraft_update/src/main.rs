@@ -290,6 +290,10 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
         names,
         owners::OWNERS,
         &above,
+        &owners::OWN_LISTS
+            .iter()
+            .map(|krate| (*krate).to_owned())
+            .collect(),
     )
 }
 

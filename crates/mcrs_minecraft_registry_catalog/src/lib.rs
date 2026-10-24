@@ -56,18 +56,6 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
         mcrs_minecraft_anvil::keys::ChunkStatus::ENTRIES,
     ),
     (
-        mcrs_minecraft_worldgen_feature::keys::RULE_TEST_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::RuleTestType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::RULE_BLOCK_ENTITY_MODIFIER.location(),
-        mcrs_minecraft_worldgen_feature::keys::RuleBlockEntityModifierType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::POS_RULE_TEST.location(),
-        mcrs_minecraft_worldgen_feature::keys::PosRuleTestType::ENTRIES,
-    ),
-    (
         mcrs_minecraft_item::keys::MENU.location(),
         mcrs_minecraft_item::keys::MenuType::ENTRIES,
     ),
@@ -164,52 +152,8 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
         mcrs_minecraft_block_predicate::keys::BlockPredicateType::ENTRIES,
     ),
     (
-        mcrs_minecraft_worldgen_carver::keys::CARVER_TYPE.location(),
-        mcrs_minecraft_worldgen_carver::keys::CarverType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::FEATURE_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::FeatureType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_structure::keys::STRUCTURE_PLACEMENT.location(),
-        mcrs_minecraft_worldgen_structure::keys::StructurePlacementType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_structure::keys::STRUCTURE_PIECE.location(),
-        mcrs_minecraft_worldgen_structure::keys::StructurePieceType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_structure::keys::STRUCTURE_TYPE.location(),
-        mcrs_minecraft_worldgen_structure::keys::StructureType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::PLACEMENT_MODIFIER_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::PlacementModifierType::ENTRIES,
-    ),
-    (
         mcrs_minecraft_block_predicate::keys::BLOCK_STATE_PROVIDER_TYPE.location(),
         mcrs_minecraft_block_predicate::keys::BlockStateProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::FOLIAGE_PLACER_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::FoliagePlacerType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::TRUNK_PLACER_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::TrunkPlacerType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::ROOT_PLACER_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::RootPlacerType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::TREE_DECORATOR_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::TreeDecoratorType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::FEATURE_SIZE_TYPE.location(),
-        mcrs_minecraft_worldgen_feature::keys::FeatureSizeType::ENTRIES,
     ),
     (
         mcrs_minecraft_biome::keys::BIOME_SOURCE.location(),
@@ -218,30 +162,6 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (
         mcrs_minecraft_dimension::keys::CHUNK_GENERATOR.location(),
         mcrs_minecraft_dimension::keys::ChunkGeneratorType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_surface::keys::MATERIAL_CONDITION_TYPE.location(),
-        mcrs_minecraft_worldgen_surface::keys::MaterialConditionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_surface::keys::MATERIAL_RULE_TYPE.location(),
-        mcrs_minecraft_worldgen_surface::keys::MaterialRuleType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_density::keys::DENSITY_FUNCTION_TYPE.location(),
-        mcrs_minecraft_worldgen_density::keys::DensityFunctionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::STRUCTURE_PROCESSOR.location(),
-        mcrs_minecraft_worldgen_feature::keys::StructureProcessorType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_feature::keys::STRUCTURE_POOL_ELEMENT.location(),
-        mcrs_minecraft_worldgen_feature::keys::StructurePoolElementType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_worldgen_structure::keys::POOL_ALIAS_BINDING.location(),
-        mcrs_minecraft_worldgen_structure::keys::PoolAliasBindingType::ENTRIES,
     ),
     (
         mcrs_minecraft_keys::CREATIVE_MODE_TAB,

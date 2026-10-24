@@ -4063,11 +4063,6 @@ dependencies = [
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
- "mcrs_minecraft_worldgen_carver",
- "mcrs_minecraft_worldgen_density",
- "mcrs_minecraft_worldgen_feature",
- "mcrs_minecraft_worldgen_structure",
- "mcrs_minecraft_worldgen_surface",
  "serde",
  "serde_json",
 ]

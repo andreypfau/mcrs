@@ -1,5 +1,15 @@
 use crate::keys::{Owner, ValueType};
 
+/// The owners that list their own static registries: the catalog stays below world generation,
+/// so it cannot depend on them.
+pub const OWN_LISTS: &[&str] = &[
+    "mcrs_minecraft_worldgen_carver",
+    "mcrs_minecraft_worldgen_density",
+    "mcrs_minecraft_worldgen_feature",
+    "mcrs_minecraft_worldgen_structure",
+    "mcrs_minecraft_worldgen_surface",
+];
+
 pub const OWNERS: &[Owner] = &[
     Owner {
         registry: "minecraft:timeline",

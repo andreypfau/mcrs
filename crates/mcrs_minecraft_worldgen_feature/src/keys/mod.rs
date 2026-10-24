@@ -30,7 +30,7 @@ pub use structure_processor::StructureProcessorType;
 pub use tree_decorator_type::TreeDecoratorType;
 pub use trunk_placer_type::TrunkPlacerType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTestType> =
     RegistryKey::new(rl!("minecraft:pos_rule_test"));
@@ -121,3 +121,31 @@ pub const TRUNK_PLACER_TYPE: RegistryKey<crate::keys::TrunkPlacerType> =
 impl Registered for crate::keys::TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
 }
+
+/// The static registries of this crate, which the catalog does not list.
+pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
+    (RULE_TEST_TYPE.location(), RuleTestType::ENTRIES),
+    (
+        RULE_BLOCK_ENTITY_MODIFIER.location(),
+        RuleBlockEntityModifierType::ENTRIES,
+    ),
+    (POS_RULE_TEST.location(), PosRuleTestType::ENTRIES),
+    (FEATURE_TYPE.location(), FeatureType::ENTRIES),
+    (
+        PLACEMENT_MODIFIER_TYPE.location(),
+        PlacementModifierType::ENTRIES,
+    ),
+    (FOLIAGE_PLACER_TYPE.location(), FoliagePlacerType::ENTRIES),
+    (TRUNK_PLACER_TYPE.location(), TrunkPlacerType::ENTRIES),
+    (ROOT_PLACER_TYPE.location(), RootPlacerType::ENTRIES),
+    (TREE_DECORATOR_TYPE.location(), TreeDecoratorType::ENTRIES),
+    (FEATURE_SIZE_TYPE.location(), FeatureSizeType::ENTRIES),
+    (
+        STRUCTURE_PROCESSOR.location(),
+        StructureProcessorType::ENTRIES,
+    ),
+    (
+        STRUCTURE_POOL_ELEMENT.location(),
+        StructurePoolElementType::ENTRIES,
+    ),
+];

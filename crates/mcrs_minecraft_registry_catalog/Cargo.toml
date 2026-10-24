@@ -29,11 +29,6 @@ mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_value_provider.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_structure.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

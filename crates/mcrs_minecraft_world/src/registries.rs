@@ -201,7 +201,16 @@ pub fn declarations(
     extra: Vec<Declaration>,
 ) -> Result<Vec<Declaration>, RegistryLoadError> {
     let mut declarations = Vec::new();
-    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES {
+    let worldgen = [
+        mcrs_minecraft_worldgen_carver::keys::STATIC_REGISTRIES,
+        mcrs_minecraft_worldgen_density::keys::STATIC_REGISTRIES,
+        mcrs_minecraft_worldgen_feature::keys::STATIC_REGISTRIES,
+        mcrs_minecraft_worldgen_structure::keys::STATIC_REGISTRIES,
+        mcrs_minecraft_worldgen_surface::keys::STATIC_REGISTRIES,
+    ];
+    let statics =
+        std::iter::once(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES).chain(worldgen);
+    for (key, names) in statics.flatten() {
         let names = names.iter().map(|&name| name.into()).collect();
         declarations.push(Declaration::fixed((*key).into(), names));
     }
