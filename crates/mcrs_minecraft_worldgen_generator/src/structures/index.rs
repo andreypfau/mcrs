@@ -547,7 +547,9 @@ fn plane_admits(
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            preferred.contains(usize::from(table.biome_at_from(target, &mut last)))
+            table
+                .biome_at_from(target, &mut last)
+                .is_some_and(|biome| preferred.contains(usize::from(biome)))
         })
         .collect()
 }
@@ -569,7 +571,7 @@ impl SiteWorld for View<'_> {
                     block.y >> 2,
                     block.z >> 2,
                 );
-                Some(u16::from(table.biome_at(target)))
+                table.biome_at(target).map(u16::from)
             }
             BiomeLookup::Fixed(biome) => Some(*biome),
             BiomeLookup::TheEnd(end) => Some(end.at(&self.index.router, &mut self.ws, block >> 2)),
@@ -617,7 +619,9 @@ impl SiteWorld for View<'_> {
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            biomes.contains(usize::from(table.biome_at(target)))
+            table
+                .biome_at(target)
+                .is_some_and(|biome| biomes.contains(usize::from(biome)))
         })
     }
 
@@ -656,7 +660,9 @@ impl SiteWorld for View<'_> {
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            biomes.contains(usize::from(table.biome_at(target)))
+            table
+                .biome_at(target)
+                .is_some_and(|biome| biomes.contains(usize::from(biome)))
         })
     }
 

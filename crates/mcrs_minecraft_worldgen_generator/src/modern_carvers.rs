@@ -432,9 +432,10 @@ impl CarverBiomeTable {
                             values[4 * points + at],
                             values[5 * points + at],
                         );
-                        let slot = table.find_slot_from(target, &mut last);
-                        slots[(dx * TILE + dz) as usize] =
-                            u16::try_from(slot).expect("a climate table fits in u16 slots");
+                        if let Some(slot) = table.find_slot_from(target, &mut last) {
+                            slots[(dx * TILE + dz) as usize] =
+                                u16::try_from(slot).expect("a climate table fits in u16 slots");
+                        }
                     }
                 }
             }
@@ -479,7 +480,9 @@ impl CarverBiomeTable {
         let SourceBiomes::Climate(table) = &self.biomes else {
             panic!("only a climate table answers a climate target");
         };
-        table.find_value(target)
+        table
+            .find_value(target)
+            .expect("a climate table answers every target")
     }
 
     #[cfg(test)]

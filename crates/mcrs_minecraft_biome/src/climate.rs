@@ -200,12 +200,14 @@ impl TargetPoint {
 
 #[inline]
 fn bound_distance(space: &[Parameter; 7], target: &Coords) -> i64 {
-    let mut total = 0;
-    for axis in 0..7 {
-        let distance = space[axis].distance(target[axis]);
-        total += distance * distance;
-    }
-    total
+    space
+        .iter()
+        .zip(target)
+        .map(|(parameter, &target)| {
+            let distance = parameter.distance(target);
+            distance * distance
+        })
+        .sum()
 }
 
 /// An R-tree node over the parameter space. A subtree's own space is the union
@@ -249,11 +251,12 @@ struct Tree {
 
 impl Tree {
     fn push(&mut self, space: &[Parameter; 7]) {
-        for axis in 0..6 {
-            self.min[axis].push(space[axis].min);
-            self.max[axis].push(space[axis].max);
+        let [.., offset] = space;
+        for ((min, max), parameter) in self.min.iter_mut().zip(&mut self.max).zip(space) {
+            min.push(parameter.min);
+            max.push(parameter.max);
         }
-        let offset = space[6].distance(0);
+        let offset = offset.distance(0);
         self.offset.push(offset * offset);
         self.value.push(0);
         self.children_start.push(0);
@@ -270,12 +273,20 @@ where
     let mut queue = std::collections::VecDeque::from([(root, 0usize)]);
     while let Some((node, at)) = queue.pop_front() {
         match node {
-            Node::Leaf { value, .. } => tree.value[at] = value.into(),
+            Node::Leaf { value, .. } => {
+                if let Some(slot) = tree.value.get_mut(at) {
+                    *slot = value.into();
+                }
+            }
             Node::SubTree { children, .. } => {
-                assert!(children.len() <= CHILDREN_PER_NODE);
                 let start = tree.value.len();
-                tree.children_start[at] = start as u32;
-                tree.children_count[at] = children.len() as u32;
+                if let (Some(slot_start), Some(slot_count)) = (
+                    tree.children_start.get_mut(at),
+                    tree.children_count.get_mut(at),
+                ) {
+                    *slot_start = start as u32;
+                    *slot_count = children.len() as u32;
+                }
                 for child in &children {
                     tree.push(child.space());
                 }
@@ -291,27 +302,39 @@ where
 /// The nearest leaf under the subtree `at`, given a candidate to beat. A branch
 /// whose own bound is already further than the candidate is not entered at all.
 fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
-    let start = tree.children_start[at] as usize;
-    let count = tree.children_count[at] as usize;
+    let (Some(&start), Some(&count)) = (tree.children_start.get(at), tree.children_count.get(at))
+    else {
+        return best;
+    };
+    let children = start as usize..start as usize + count as usize;
     let mut distances = [0i64; CHILDREN_PER_NODE];
-    let distances = &mut distances[..count];
-    distances.copy_from_slice(&tree.offset[start..start + count]);
-    for axis in 0..6 {
-        let min = &tree.min[axis][start..start + count];
-        let max = &tree.max[axis][start..start + count];
-        let target = target[axis];
+    let (Some(distances), Some(offsets), Some(counts), Some(values)) = (
+        distances.get_mut(..count as usize),
+        tree.offset.get(children.clone()),
+        tree.children_count.get(children.clone()),
+        tree.value.get(children.clone()),
+    ) else {
+        return best;
+    };
+    distances.copy_from_slice(offsets);
+    for ((min, max), &target) in tree.min.iter().zip(&tree.max).zip(target) {
+        let (Some(min), Some(max)) = (min.get(children.clone()), max.get(children.clone())) else {
+            return best;
+        };
         for ((total, &min), &max) in distances.iter_mut().zip(min).zip(max) {
             let distance = (target - max + 1).max(min - target).max(0);
             *total += distance * distance;
         }
     }
     let mut best = best;
-    for (child, &distance) in (start..).zip(distances.iter()) {
+    for (((child, &distance), &grandchildren), &value) in
+        children.zip(distances.iter()).zip(counts).zip(values)
+    {
         if best.map_or(i64::MAX, |(_, nearest)| nearest) <= distance {
             continue;
         }
-        let found = if tree.children_count[child] == 0 {
-            Some((tree.value[child], distance))
+        let found = if grandchildren == 0 {
+            Some((value, distance))
         } else {
             search(tree, child, target, best)
         };
@@ -326,14 +349,15 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
 
 const CHILDREN_PER_NODE: usize = 19;
 
-fn union_space<T>(children: &[Node<T>]) -> [Parameter; 7] {
-    let mut space = *children[0].space();
-    for child in &children[1..] {
+fn union_space<T>(children: &[Node<T>]) -> Option<[Parameter; 7]> {
+    let (first, rest) = children.split_first()?;
+    let mut space = *first.space();
+    for child in rest {
         for (slot, parameter) in space.iter_mut().zip(child.space()) {
             *slot = slot.union(*parameter);
         }
     }
-    space
+    Some(space)
 }
 
 /// Sort by how far the node sits from the origin overall. This is the order a
@@ -354,10 +378,9 @@ fn sort_nodes<T>(nodes: &mut [Node<T>], dimension: usize, absolute: bool) {
     let key = |node: &Node<T>| -> [i64; 7] {
         let space = node.space();
         let mut out = [0i64; 7];
-        for step in 0..7 {
-            let parameter = space[(dimension + step) % 7];
+        for (slot, parameter) in out.iter_mut().zip(space.iter().cycle().skip(dimension)) {
             let centre = (parameter.min + parameter.max) / 2;
-            out[step] = if absolute { centre.abs() } else { centre };
+            *slot = if absolute { centre.abs() } else { centre };
         }
         out
     };
@@ -382,22 +405,23 @@ fn space_cost(space: &[Parameter; 7]) -> i64 {
 fn bucketed_cost<T>(children: &[Node<T>], per_bucket: usize) -> i64 {
     children
         .chunks(per_bucket)
-        .map(|bucket| space_cost(&union_space(bucket)))
+        .filter_map(union_space)
+        .map(|space| space_cost(&space))
         .sum()
 }
 
 /// Group the nodes along whichever dimension gives the tightest bounds, so a
-/// search prunes as much as possible.
-fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T> {
+/// search prunes as much as possible. No children build no node.
+fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Option<Node<T>> {
     if children.len() == 1 {
-        return children.pop().expect("one child");
+        return children.pop();
     }
     if children.len() <= children_per_node {
         sort_by_total_magnitude(&mut children);
-        return Node::SubTree {
-            space: union_space(&children),
+        return Some(Node::SubTree {
+            space: union_space(&children)?,
             children,
-        };
+        });
     }
 
     let per_bucket = bucket_size(children.len(), children_per_node);
@@ -419,7 +443,7 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T
         let take = per_bucket.min(rest.len());
         let bucket: Vec<Node<T>> = rest.drain(..take).collect();
         buckets.push(Node::SubTree {
-            space: union_space(&bucket),
+            space: union_space(&bucket)?,
             children: bucket,
         });
     }
@@ -430,13 +454,13 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T
         .into_iter()
         .map(|bucket| match bucket {
             Node::SubTree { children, .. } => build_node(children, children_per_node),
-            leaf => leaf,
+            leaf => Some(leaf),
         })
-        .collect();
-    Node::SubTree {
-        space: union_space(&subtrees),
+        .collect::<Option<_>>()?;
+    Some(Node::SubTree {
+        space: union_space(&subtrees)?,
         children: subtrees,
-    }
+    })
 }
 
 /// A biome table, searched by nearest climate.
@@ -447,11 +471,8 @@ pub struct ParameterList<T> {
 }
 
 impl<T> ParameterList<T> {
+    /// An empty table answers no lookup.
     pub fn new(values: Vec<(ParameterPoint, T)>) -> Self {
-        assert!(
-            !values.is_empty(),
-            "a climate table needs at least one entry"
-        );
         let leaves = values
             .iter()
             .enumerate()
@@ -460,15 +481,23 @@ impl<T> ParameterList<T> {
                 value: slot as u32,
             })
             .collect();
-        let tree = flatten(build_node(leaves, CHILDREN_PER_NODE));
+        let tree = build_node(leaves, CHILDREN_PER_NODE)
+            .map(flatten)
+            .unwrap_or_default();
         ParameterList { values, tree }
     }
 
     /// The same climates answering with other values. The tree depends on the
     /// climates alone, so it is shared rather than rebuilt.
     pub fn map_values<U>(&self, mut f: impl FnMut(&T) -> U) -> ParameterList<U> {
-        self.try_map_values(|value| Some(f(value)))
-            .expect("an infallible mapping")
+        ParameterList {
+            values: self
+                .values
+                .iter()
+                .map(|(point, value)| (*point, f(value)))
+                .collect(),
+            tree: self.tree.clone(),
+        }
     }
 
     pub fn try_map_values<U>(
@@ -497,8 +526,8 @@ impl<T> ParameterList<T> {
         self.values.is_empty()
     }
 
-    /// The entry whose climate fits `target` best.
-    pub fn find_value(&self, target: TargetPoint) -> &T {
+    /// The entry whose climate fits `target` best, if the table has any.
+    pub fn find_value(&self, target: TargetPoint) -> Option<&T> {
         self.find_value_from(target, &mut None)
     }
 
@@ -506,45 +535,41 @@ impl<T> ParameterList<T> {
     /// answered. Climate drifts slowly between neighbouring cells, so that leaf
     /// is usually the answer or next to it, and its distance prunes most of the
     /// tree before the walk starts.
-    pub fn find_value_from(&self, target: TargetPoint, last: &mut Option<usize>) -> &T {
-        &self.values[self.find_slot_from(target, last)].1
+    pub fn find_value_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<&T> {
+        let slot = self.find_slot_from(target, last)?;
+        self.values.get(slot).map(|(_, value)| value)
     }
 
     /// [`Self::find_value_from`], answering with the entry's index into
     /// [`Self::values`] rather than the entry.
-    pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> usize {
+    pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<usize> {
         let coords = target.coords();
-        let seed = last.map(|slot| {
-            (
-                slot as u32,
-                bound_distance(&self.values[slot].0.space(), &coords),
-            )
+        let seed = last.and_then(|slot| {
+            let (point, _) = self.values.get(slot)?;
+            Some((slot as u32, bound_distance(&point.space(), &coords)))
         });
-        let slot = if self.tree.children_count[0] == 0 {
-            self.tree.value[0]
-        } else {
-            search(&self.tree, 0, &coords, seed)
-                .expect("a non-empty tree")
-                .0
-        };
-        *last = Some(slot as usize);
-        slot as usize
+        let slot = match self.tree.children_count.first()? {
+            0 => *self.tree.value.first()?,
+            _ => search(&self.tree, 0, &coords, seed)?.0,
+        } as usize;
+        *last = Some(slot);
+        Some(slot)
     }
 
     /// The same answer by scanning every entry, which is what the tree has to
     /// agree with. Ties go to the earlier entry here; the tree visits its own
     /// sorted order, so a tie can land elsewhere and the tree is the authority.
-    pub fn find_value_brute_force(&self, target: TargetPoint) -> &T {
-        let mut best = &self.values[0];
+    pub fn find_value_brute_force(&self, target: TargetPoint) -> Option<&T> {
+        let (mut best, rest) = self.values.split_first()?;
         let mut best_fitness = best.0.fitness(target);
-        for candidate in &self.values[1..] {
+        for candidate in rest {
             let fitness = candidate.0.fitness(target);
             if fitness < best_fitness {
                 best_fitness = fitness;
                 best = candidate;
             }
         }
-        &best.1
+        Some(&best.1)
     }
 }
 
@@ -612,7 +637,7 @@ mod tests {
         assert_eq!(plain.fitness(target), 6);
         assert_eq!(penalized.fitness(target), 6 + 1000 * 1000);
         let table = ParameterList::new(vec![(penalized, "penalized"), (plain, "plain")]);
-        assert_eq!(*table.find_value(target), "plain");
+        assert_eq!(*table.find_value(target).unwrap(), "plain");
     }
 
     #[test]
@@ -623,11 +648,15 @@ mod tests {
             (point(0.5, 0.0), "warm duplicate"),
         ]);
         assert_eq!(
-            *table.find_value(TargetPoint::new(-0.4, 0.0, 0.0, 0.0, 0.0, 0.0)),
+            *table
+                .find_value(TargetPoint::new(-0.4, 0.0, 0.0, 0.0, 0.0, 0.0))
+                .unwrap(),
             "cold"
         );
         assert_eq!(
-            *table.find_value(TargetPoint::new(0.6, 0.0, 0.0, 0.0, 0.0, 0.0)),
+            *table
+                .find_value(TargetPoint::new(0.6, 0.0, 0.0, 0.0, 0.0, 0.0))
+                .unwrap(),
             "warm"
         );
     }
@@ -682,11 +711,11 @@ mod tests {
             // Every other query carries the previous answer in, which the seed
             // may only use to prune, never to settle on a worse leaf.
             let indexed = if step % 2 == 0 {
-                *table.find_value(target)
+                *table.find_value(target).unwrap()
             } else {
-                *table.find_value_from(target, &mut last)
+                *table.find_value_from(target, &mut last).unwrap()
             };
-            let scanned = *table.find_value_brute_force(target);
+            let scanned = *table.find_value_brute_force(target).unwrap();
             if indexed != scanned {
                 // Only a tie may differ, and then both must fit equally well.
                 assert_eq!(

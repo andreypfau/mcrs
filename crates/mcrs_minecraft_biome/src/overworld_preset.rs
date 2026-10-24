@@ -141,6 +141,65 @@ const OCEANS: [[BiomeKey; 5]; 2] = [
     [FROZEN_OCEAN, COLD_OCEAN, OCEAN, LUKEWARM_OCEAN, WARM_OCEAN],
 ];
 
+/// One temperature band `t` crossed with one humidity band `h`, with the grid
+/// entries at that pair.
+#[derive(Clone, Copy)]
+struct Cell {
+    t: usize,
+    h: usize,
+    temperature: Parameter,
+    humidity: Parameter,
+    middle: BiomeKey,
+    middle_variant: Option<BiomeKey>,
+    plateau: BiomeKey,
+    plateau_variant: Option<BiomeKey>,
+    shattered: Option<BiomeKey>,
+}
+
+/// Every cell, temperature outermost, which is the order the reference emits.
+fn cells(temperatures: [Parameter; 5], humidities: [Parameter; 5]) -> impl Iterator<Item = Cell> {
+    let rows = MIDDLE_BIOMES
+        .into_iter()
+        .zip(MIDDLE_BIOMES_VARIANT)
+        .zip(PLATEAU_BIOMES)
+        .zip(PLATEAU_BIOMES_VARIANT)
+        .zip(SHATTERED_BIOMES);
+    temperatures.into_iter().zip(rows).enumerate().flat_map(
+        move |(
+            t,
+            (temperature, ((((middle, middle_variant), plateau), plateau_variant), shattered)),
+        )| {
+            humidities
+                .into_iter()
+                .zip(middle)
+                .zip(middle_variant)
+                .zip(plateau)
+                .zip(plateau_variant)
+                .zip(shattered)
+                .enumerate()
+                .map(
+                    move |(
+                        h,
+                        (
+                            ((((humidity, middle), middle_variant), plateau), plateau_variant),
+                            shattered,
+                        ),
+                    )| Cell {
+                        t,
+                        h,
+                        temperature,
+                        humidity,
+                        middle,
+                        middle_variant,
+                        plateau,
+                        plateau_variant,
+                        shattered,
+                    },
+                )
+        },
+    )
+}
+
 struct Builder {
     full_range: Parameter,
     temperatures: [Parameter; 5],
@@ -312,11 +371,11 @@ impl Builder {
         ));
     }
 
-    fn middle(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
+    fn middle(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
         if weirdness.max < 0 {
-            return MIDDLE_BIOMES[t][h];
+            return c.middle;
         }
-        MIDDLE_BIOMES_VARIANT[t][h].unwrap_or(MIDDLE_BIOMES[t][h])
+        c.middle_variant.unwrap_or(c.middle)
     }
 
     fn badlands(&self, h: usize, weirdness: Parameter) -> BiomeKey {
@@ -333,35 +392,33 @@ impl Builder {
         }
     }
 
-    fn middle_or_badlands_if_hot(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
-        if t == 4 {
-            self.badlands(h, weirdness)
+    fn middle_or_badlands_if_hot(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
+        if c.t == 4 {
+            self.badlands(c.h, weirdness)
         } else {
-            self.middle(t, h, weirdness)
+            self.middle(c, weirdness)
         }
     }
 
     fn middle_or_badlands_if_hot_or_slope_if_cold(
         &self,
-        t: usize,
-        h: usize,
+        c: Cell,
         weirdness: Parameter,
     ) -> BiomeKey {
-        if t == 0 {
-            self.slope(t, h, weirdness)
+        if c.t == 0 {
+            self.slope(c, weirdness)
         } else {
-            self.middle_or_badlands_if_hot(t, h, weirdness)
+            self.middle_or_badlands_if_hot(c, weirdness)
         }
     }
 
     fn maybe_windswept_savanna(
         &self,
-        t: usize,
-        h: usize,
+        c: Cell,
         weirdness: Parameter,
         underlying: BiomeKey,
     ) -> BiomeKey {
-        if t > 1 && h < 4 && weirdness.max >= 0 {
+        if c.t > 1 && c.h < 4 && weirdness.max >= 0 {
             WINDSWEPT_SAVANNA
         } else {
             underlying
@@ -376,61 +433,63 @@ impl Builder {
         }
     }
 
-    fn shattered_coast(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
+    fn shattered_coast(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
         let underlying = if weirdness.max >= 0 {
-            self.middle(t, h, weirdness)
+            self.middle(c, weirdness)
         } else {
-            self.beach(t)
+            self.beach(c.t)
         };
-        self.maybe_windswept_savanna(t, h, weirdness, underlying)
+        self.maybe_windswept_savanna(c, weirdness, underlying)
     }
 
-    fn plateau(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
+    fn plateau(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
         if weirdness.max >= 0
-            && let Some(variant) = PLATEAU_BIOMES_VARIANT[t][h]
+            && let Some(variant) = c.plateau_variant
         {
             return variant;
         }
-        PLATEAU_BIOMES[t][h]
+        c.plateau
     }
 
-    fn peak(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
-        if t <= 2 {
+    fn peak(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
+        if c.t <= 2 {
             if weirdness.max < 0 {
                 JAGGED_PEAKS
             } else {
                 FROZEN_PEAKS
             }
-        } else if t == 3 {
+        } else if c.t == 3 {
             STONY_PEAKS
         } else {
-            self.badlands(h, weirdness)
+            self.badlands(c.h, weirdness)
         }
     }
 
-    fn slope(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
-        if t >= 3 {
-            self.plateau(t, h, weirdness)
-        } else if h <= 1 {
+    fn slope(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
+        if c.t >= 3 {
+            self.plateau(c, weirdness)
+        } else if c.h <= 1 {
             SNOWY_SLOPES
         } else {
             GROVE
         }
     }
 
-    fn shattered(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
-        SHATTERED_BIOMES[t][h].unwrap_or_else(|| self.middle(t, h, weirdness))
+    fn shattered(&self, c: Cell, weirdness: Parameter) -> BiomeKey {
+        c.shattered.unwrap_or_else(|| self.middle(c, weirdness))
     }
 
     fn add_off_coast_biomes(&mut self) {
         let (full, mushroom) = (self.full_range, self.mushroom_fields);
         self.surface(full, full, mushroom, full, full, 0.0, MUSHROOM_FIELDS);
-        for t in 0..5 {
-            let temperature = self.temperatures[t];
+        let [deep_oceans, oceans] = OCEANS;
+        for ((temperature, deep_biome), ocean_biome) in
+            self.temperatures.into_iter().zip(deep_oceans).zip(oceans)
+        {
             let deep = self.deep_ocean;
             let ocean = self.ocean;
-            self.surface(temperature, full, deep, full, full, 0.0, OCEANS[0][t]);
-            self.surface(temperature, full, ocean, full, full, 0.0, OCEANS[1][t]);
+            self.surface(temperature, full, deep, full, full, 0.0, deep_biome);
+            self.surface(temperature, full, ocean, full, full, 0.0, ocean_biome);
         }
     }
 
@@ -455,118 +514,115 @@ impl Builder {
         reason = "lists the peak-band biome entries in the reference's order, so the table reads against the reference's own"
     )]
     fn add_peaks(&mut self, weirdness: Parameter) {
-        for t in 0..5 {
-            for h in 0..5 {
-                let temperature = self.temperatures[t];
-                let humidity = self.humidities[h];
-                let middle = self.middle(t, h, weirdness);
-                let middle_or_badlands = self.middle_or_badlands_if_hot(t, h, weirdness);
-                let middle_or_badlands_or_slope =
-                    self.middle_or_badlands_if_hot_or_slope_if_cold(t, h, weirdness);
-                let plateau = self.plateau(t, h, weirdness);
-                let shattered = self.shattered(t, h, weirdness);
-                let shattered_or_savanna = self.maybe_windswept_savanna(t, h, weirdness, shattered);
-                let peak = self.peak(t, h, weirdness);
-                let (coast, near, mid, far) = (
-                    self.coast,
-                    self.near_inland,
-                    self.mid_inland,
-                    self.far_inland,
-                );
-                let (e0, e1, e2, e3, e4, e5, e6) = self.erosion_septet();
+        for c in cells(self.temperatures, self.humidities) {
+            let (temperature, humidity) = (c.temperature, c.humidity);
+            let middle = self.middle(c, weirdness);
+            let middle_or_badlands = self.middle_or_badlands_if_hot(c, weirdness);
+            let middle_or_badlands_or_slope =
+                self.middle_or_badlands_if_hot_or_slope_if_cold(c, weirdness);
+            let plateau = self.plateau(c, weirdness);
+            let shattered = self.shattered(c, weirdness);
+            let shattered_or_savanna = self.maybe_windswept_savanna(c, weirdness, shattered);
+            let peak = self.peak(c, weirdness);
+            let (coast, near, mid, far) = (
+                self.coast,
+                self.near_inland,
+                self.mid_inland,
+                self.far_inland,
+            );
+            let (e0, e1, e2, e3, e4, e5, e6) = self.erosion_septet();
 
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(far),
-                    e0,
-                    weirdness,
-                    0.0,
-                    peak,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e1,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e1,
-                    weirdness,
-                    0.0,
-                    peak,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e2.union(e3),
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e2,
-                    weirdness,
-                    0.0,
-                    plateau,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid,
-                    e3,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.surface(temperature, humidity, far, e3, weirdness, 0.0, plateau);
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(far),
-                    e4,
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e5,
-                    weirdness,
-                    0.0,
-                    shattered_or_savanna,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e5,
-                    weirdness,
-                    0.0,
-                    shattered,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(far),
-                    e6,
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-            }
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(far),
+                e0,
+                weirdness,
+                0.0,
+                peak,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e1,
+                weirdness,
+                0.0,
+                middle_or_badlands_or_slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e1,
+                weirdness,
+                0.0,
+                peak,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e2.union(e3),
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e2,
+                weirdness,
+                0.0,
+                plateau,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid,
+                e3,
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            self.surface(temperature, humidity, far, e3, weirdness, 0.0, plateau);
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(far),
+                e4,
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e5,
+                weirdness,
+                0.0,
+                shattered_or_savanna,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e5,
+                weirdness,
+                0.0,
+                shattered,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(far),
+                e6,
+                weirdness,
+                0.0,
+                middle,
+            );
         }
     }
 
@@ -575,129 +631,126 @@ impl Builder {
         reason = "lists the high-slice biome entries in the reference's order, so the table reads against the reference's own"
     )]
     fn add_high_slice(&mut self, weirdness: Parameter) {
-        for t in 0..5 {
-            for h in 0..5 {
-                let temperature = self.temperatures[t];
-                let humidity = self.humidities[h];
-                let middle = self.middle(t, h, weirdness);
-                let middle_or_badlands = self.middle_or_badlands_if_hot(t, h, weirdness);
-                let middle_or_badlands_or_slope =
-                    self.middle_or_badlands_if_hot_or_slope_if_cold(t, h, weirdness);
-                let plateau = self.plateau(t, h, weirdness);
-                let shattered = self.shattered(t, h, weirdness);
-                let middle_or_savanna = self.maybe_windswept_savanna(t, h, weirdness, middle);
-                let slope = self.slope(t, h, weirdness);
-                let peak = self.peak(t, h, weirdness);
-                let (coast, near, mid, far) = (
-                    self.coast,
-                    self.near_inland,
-                    self.mid_inland,
-                    self.far_inland,
-                );
-                let (e0, e1, e2, e3, e4, e5, e6) = self.erosion_septet();
+        for c in cells(self.temperatures, self.humidities) {
+            let (temperature, humidity) = (c.temperature, c.humidity);
+            let middle = self.middle(c, weirdness);
+            let middle_or_badlands = self.middle_or_badlands_if_hot(c, weirdness);
+            let middle_or_badlands_or_slope =
+                self.middle_or_badlands_if_hot_or_slope_if_cold(c, weirdness);
+            let plateau = self.plateau(c, weirdness);
+            let shattered = self.shattered(c, weirdness);
+            let middle_or_savanna = self.maybe_windswept_savanna(c, weirdness, middle);
+            let slope = self.slope(c, weirdness);
+            let peak = self.peak(c, weirdness);
+            let (coast, near, mid, far) = (
+                self.coast,
+                self.near_inland,
+                self.mid_inland,
+                self.far_inland,
+            );
+            let (e0, e1, e2, e3, e4, e5, e6) = self.erosion_septet();
 
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast,
-                    e0.union(e1),
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(temperature, humidity, near, e0, weirdness, 0.0, slope);
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e0,
-                    weirdness,
-                    0.0,
-                    peak,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    near,
-                    e1,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e1,
-                    weirdness,
-                    0.0,
-                    slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e2.union(e3),
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e2,
-                    weirdness,
-                    0.0,
-                    plateau,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid,
-                    e3,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.surface(temperature, humidity, far, e3, weirdness, 0.0, plateau);
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(far),
-                    e4,
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e5,
-                    weirdness,
-                    0.0,
-                    middle_or_savanna,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e5,
-                    weirdness,
-                    0.0,
-                    shattered,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(far),
-                    e6,
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-            }
+            self.surface(
+                temperature,
+                humidity,
+                coast,
+                e0.union(e1),
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(temperature, humidity, near, e0, weirdness, 0.0, slope);
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e0,
+                weirdness,
+                0.0,
+                peak,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near,
+                e1,
+                weirdness,
+                0.0,
+                middle_or_badlands_or_slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e1,
+                weirdness,
+                0.0,
+                slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e2.union(e3),
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e2,
+                weirdness,
+                0.0,
+                plateau,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid,
+                e3,
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            self.surface(temperature, humidity, far, e3, weirdness, 0.0, plateau);
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(far),
+                e4,
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e5,
+                weirdness,
+                0.0,
+                middle_or_savanna,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e5,
+                weirdness,
+                0.0,
+                shattered,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(far),
+                e6,
+                weirdness,
+                0.0,
+                middle,
+            );
         }
     }
 
@@ -729,142 +782,139 @@ impl Builder {
             MANGROVE_SWAMP,
         );
 
-        for t in 0..5 {
-            for h in 0..5 {
-                let temperature = self.temperatures[t];
-                let humidity = self.humidities[h];
-                let middle = self.middle(t, h, weirdness);
-                let middle_or_badlands = self.middle_or_badlands_if_hot(t, h, weirdness);
-                let middle_or_badlands_or_slope =
-                    self.middle_or_badlands_if_hot_or_slope_if_cold(t, h, weirdness);
-                let shattered = self.shattered(t, h, weirdness);
-                let plateau = self.plateau(t, h, weirdness);
-                let beach = self.beach(t);
-                let middle_or_savanna = self.maybe_windswept_savanna(t, h, weirdness, middle);
-                let shattered_coast = self.shattered_coast(t, h, weirdness);
-                let slope = self.slope(t, h, weirdness);
+        for c in cells(self.temperatures, self.humidities) {
+            let (temperature, humidity) = (c.temperature, c.humidity);
+            let middle = self.middle(c, weirdness);
+            let middle_or_badlands = self.middle_or_badlands_if_hot(c, weirdness);
+            let middle_or_badlands_or_slope =
+                self.middle_or_badlands_if_hot_or_slope_if_cold(c, weirdness);
+            let shattered = self.shattered(c, weirdness);
+            let plateau = self.plateau(c, weirdness);
+            let beach = self.beach(c.t);
+            let middle_or_savanna = self.maybe_windswept_savanna(c, weirdness, middle);
+            let shattered_coast = self.shattered_coast(c, weirdness);
+            let slope = self.slope(c, weirdness);
 
+            self.surface(
+                temperature,
+                humidity,
+                near.union(far),
+                e0,
+                weirdness,
+                0.0,
+                slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near.union(mid),
+                e1,
+                weirdness,
+                0.0,
+                middle_or_badlands_or_slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                far,
+                e1,
+                weirdness,
+                0.0,
+                if c.t == 0 { slope } else { plateau },
+            );
+            self.surface(temperature, humidity, near, e2, weirdness, 0.0, middle);
+            self.surface(
+                temperature,
+                humidity,
+                mid,
+                e2,
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            self.surface(temperature, humidity, far, e2, weirdness, 0.0, plateau);
+            self.surface(
+                temperature,
+                humidity,
+                coast.union(near),
+                e3,
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e3,
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            if weirdness.max < 0 {
+                self.surface(temperature, humidity, coast, e4, weirdness, 0.0, beach);
                 self.surface(
                     temperature,
                     humidity,
                     near.union(far),
-                    e0,
-                    weirdness,
-                    0.0,
-                    slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    near.union(mid),
-                    e1,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    far,
-                    e1,
-                    weirdness,
-                    0.0,
-                    if t == 0 { slope } else { plateau },
-                );
-                self.surface(temperature, humidity, near, e2, weirdness, 0.0, middle);
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid,
-                    e2,
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.surface(temperature, humidity, far, e2, weirdness, 0.0, plateau);
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast.union(near),
-                    e3,
+                    e4,
                     weirdness,
                     0.0,
                     middle,
                 );
+            } else {
                 self.surface(
                     temperature,
                     humidity,
-                    mid.union(far),
-                    e3,
+                    coast.union(far),
+                    e4,
                     weirdness,
                     0.0,
-                    middle_or_badlands,
+                    middle,
                 );
-                if weirdness.max < 0 {
-                    self.surface(temperature, humidity, coast, e4, weirdness, 0.0, beach);
-                    self.surface(
-                        temperature,
-                        humidity,
-                        near.union(far),
-                        e4,
-                        weirdness,
-                        0.0,
-                        middle,
-                    );
-                } else {
-                    self.surface(
-                        temperature,
-                        humidity,
-                        coast.union(far),
-                        e4,
-                        weirdness,
-                        0.0,
-                        middle,
-                    );
-                }
+            }
+            self.surface(
+                temperature,
+                humidity,
+                coast,
+                e5,
+                weirdness,
+                0.0,
+                shattered_coast,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near,
+                e5,
+                weirdness,
+                0.0,
+                middle_or_savanna,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e5,
+                weirdness,
+                0.0,
+                shattered,
+            );
+            if weirdness.max < 0 {
+                self.surface(temperature, humidity, coast, e6, weirdness, 0.0, beach);
+            } else {
+                self.surface(temperature, humidity, coast, e6, weirdness, 0.0, middle);
+            }
+            if c.t == 0 {
                 self.surface(
                     temperature,
                     humidity,
-                    coast,
-                    e5,
+                    near.union(far),
+                    e6,
                     weirdness,
                     0.0,
-                    shattered_coast,
+                    middle,
                 );
-                self.surface(
-                    temperature,
-                    humidity,
-                    near,
-                    e5,
-                    weirdness,
-                    0.0,
-                    middle_or_savanna,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e5,
-                    weirdness,
-                    0.0,
-                    shattered,
-                );
-                if weirdness.max < 0 {
-                    self.surface(temperature, humidity, coast, e6, weirdness, 0.0, beach);
-                } else {
-                    self.surface(temperature, humidity, coast, e6, weirdness, 0.0, middle);
-                }
-                if t == 0 {
-                    self.surface(
-                        temperature,
-                        humidity,
-                        near.union(far),
-                        e6,
-                        weirdness,
-                        0.0,
-                        middle,
-                    );
-                }
             }
         }
     }
@@ -897,111 +947,108 @@ impl Builder {
             MANGROVE_SWAMP,
         );
 
-        for t in 0..5 {
-            for h in 0..5 {
-                let temperature = self.temperatures[t];
-                let humidity = self.humidities[h];
-                let middle = self.middle(t, h, weirdness);
-                let middle_or_badlands = self.middle_or_badlands_if_hot(t, h, weirdness);
-                let middle_or_badlands_or_slope =
-                    self.middle_or_badlands_if_hot_or_slope_if_cold(t, h, weirdness);
-                let beach = self.beach(t);
-                let middle_or_savanna = self.maybe_windswept_savanna(t, h, weirdness, middle);
-                let shattered_coast = self.shattered_coast(t, h, weirdness);
+        for c in cells(self.temperatures, self.humidities) {
+            let (temperature, humidity) = (c.temperature, c.humidity);
+            let middle = self.middle(c, weirdness);
+            let middle_or_badlands = self.middle_or_badlands_if_hot(c, weirdness);
+            let middle_or_badlands_or_slope =
+                self.middle_or_badlands_if_hot_or_slope_if_cold(c, weirdness);
+            let beach = self.beach(c.t);
+            let middle_or_savanna = self.maybe_windswept_savanna(c, weirdness, middle);
+            let shattered_coast = self.shattered_coast(c, weirdness);
 
-                self.surface(
-                    temperature,
-                    humidity,
-                    near,
-                    e0.union(e1),
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e0.union(e1),
-                    weirdness,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    near,
-                    e2.union(e3),
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e2.union(e3),
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast,
-                    e3.union(e4),
-                    weirdness,
-                    0.0,
-                    beach,
-                );
+            self.surface(
+                temperature,
+                humidity,
+                near,
+                e0.union(e1),
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e0.union(e1),
+                weirdness,
+                0.0,
+                middle_or_badlands_or_slope,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near,
+                e2.union(e3),
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e2.union(e3),
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast,
+                e3.union(e4),
+                weirdness,
+                0.0,
+                beach,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near.union(far),
+                e4,
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                coast,
+                e5,
+                weirdness,
+                0.0,
+                shattered_coast,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                near,
+                e5,
+                weirdness,
+                0.0,
+                middle_or_savanna,
+            );
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e5,
+                weirdness,
+                0.0,
+                middle,
+            );
+            self.surface(temperature, humidity, coast, e6, weirdness, 0.0, beach);
+            if c.t == 0 {
                 self.surface(
                     temperature,
                     humidity,
                     near.union(far),
-                    e4,
+                    e6,
                     weirdness,
                     0.0,
                     middle,
                 );
-                self.surface(
-                    temperature,
-                    humidity,
-                    coast,
-                    e5,
-                    weirdness,
-                    0.0,
-                    shattered_coast,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    near,
-                    e5,
-                    weirdness,
-                    0.0,
-                    middle_or_savanna,
-                );
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e5,
-                    weirdness,
-                    0.0,
-                    middle,
-                );
-                self.surface(temperature, humidity, coast, e6, weirdness, 0.0, beach);
-                if t == 0 {
-                    self.surface(
-                        temperature,
-                        humidity,
-                        near.union(far),
-                        e6,
-                        weirdness,
-                        0.0,
-                        middle,
-                    );
-                }
             }
         }
     }
@@ -1110,21 +1157,18 @@ impl Builder {
             FROZEN_RIVER,
         );
 
-        for t in 0..5 {
-            for h in 0..5 {
-                let temperature = self.temperatures[t];
-                let humidity = self.humidities[h];
-                let middle_or_badlands = self.middle_or_badlands_if_hot(t, h, weirdness);
-                self.surface(
-                    temperature,
-                    humidity,
-                    mid.union(far),
-                    e0.union(e1),
-                    weirdness,
-                    0.0,
-                    middle_or_badlands,
-                );
-            }
+        for c in cells(self.temperatures, self.humidities) {
+            let (temperature, humidity) = (c.temperature, c.humidity);
+            let middle_or_badlands = self.middle_or_badlands_if_hot(c, weirdness);
+            self.surface(
+                temperature,
+                humidity,
+                mid.union(far),
+                e0.union(e1),
+                weirdness,
+                0.0,
+                middle_or_badlands,
+            );
         }
     }
 
@@ -1294,14 +1338,16 @@ mod tests {
     fn the_climate_search_lands_on_the_expected_biomes() {
         let table = overworld_parameter_list();
         let at = |temperature, humidity, continentalness, erosion, depth, weirdness| {
-            *table.find_value(TargetPoint::new(
-                temperature,
-                humidity,
-                continentalness,
-                erosion,
-                depth,
-                weirdness,
-            ))
+            *table
+                .find_value(TargetPoint::new(
+                    temperature,
+                    humidity,
+                    continentalness,
+                    erosion,
+                    depth,
+                    weirdness,
+                ))
+                .unwrap()
         };
         assert_eq!(
             at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
@@ -1346,7 +1392,9 @@ mod tests {
         let table = nether_parameter_list();
         assert_eq!(table.len(), 5);
         let at = |temperature, humidity| {
-            *table.find_value(TargetPoint::new(temperature, humidity, 0.0, 0.0, 0.0, 0.0))
+            *table
+                .find_value(TargetPoint::new(temperature, humidity, 0.0, 0.0, 0.0, 0.0))
+                .unwrap()
         };
         assert_eq!(
             at(0.0, 0.0),
@@ -1375,8 +1423,11 @@ mod tests {
     #[test]
     fn weirdness_selects_the_variant_grid() {
         let table = overworld_parameter_list();
-        let at =
-            |weirdness| *table.find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness));
+        let at = |weirdness| {
+            *table
+                .find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness))
+                .unwrap()
+        };
         assert_eq!(at(-0.2), crate::keys::biome::SNOWY_PLAINS.as_static_str());
         assert_eq!(at(0.2), crate::keys::biome::ICE_SPIKES.as_static_str());
     }

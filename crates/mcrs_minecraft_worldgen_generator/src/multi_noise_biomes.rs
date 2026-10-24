@@ -131,15 +131,15 @@ impl MultiNoiseBiomeTable {
     }
 
     #[inline]
-    pub fn biome_at(&self, target: TargetPoint) -> u8 {
-        *self.table.find_value(target)
+    pub fn biome_at(&self, target: TargetPoint) -> Option<u8> {
+        self.table.find_value(target).copied()
     }
 
     /// [`Self::biome_at`] over a run of neighbouring cells: `last` carries the
     /// previous answer into the next search.
     #[inline]
-    pub fn biome_at_from(&self, target: TargetPoint, last: &mut Option<usize>) -> u8 {
-        *self.table.find_value_from(target, last)
+    pub fn biome_at_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<u8> {
+        self.table.find_value_from(target, last).copied()
     }
 
     pub fn len(&self) -> usize {

@@ -76,9 +76,10 @@ pub fn beta_biome_from_climate(
     temp: f32,
     rain: f32,
 ) -> BetaLandBiome {
-    let ti = ((temp * 63.0) as usize).min(63);
-    let ri = ((rain * 63.0) as usize).min(63);
-    table[ti][ri]
+    let [.., last_row] = table;
+    let row = table.get((temp * 63.0) as usize).unwrap_or(last_row);
+    let [.., last] = row;
+    *row.get((rain * 63.0) as usize).unwrap_or(last)
 }
 
 // ===========================================================================

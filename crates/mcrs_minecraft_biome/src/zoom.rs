@@ -4,8 +4,9 @@ use sha2::{Digest, Sha256};
 /// The seed enters the digest as eight little-endian bytes and the first eight
 /// digest bytes are read back the same way; both orderings are part of the value.
 pub fn obfuscate_seed(seed: i64) -> i64 {
-    let digest = Sha256::digest(seed.to_le_bytes());
-    i64::from_le_bytes(digest[..8].try_into().unwrap())
+    let digest: [u8; 32] = Sha256::digest(seed.to_le_bytes()).into();
+    let [b0, b1, b2, b3, b4, b5, b6, b7, ..] = digest;
+    i64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7])
 }
 
 pub fn quart_cell(zoom_seed: i64, pos: BlockPos) -> QuartPos {
@@ -132,11 +133,13 @@ impl FiddleCache {
 
     #[inline]
     fn slot(&self, x: i32, y: i32, z: i32) -> Option<usize> {
-        let at = [x - self.origin[0], y - self.origin[1], z - self.origin[2]];
-        if (0..3).any(|axis| at[axis] < 0 || at[axis] >= self.size[axis]) {
+        let [ox, oy, oz] = self.origin;
+        let [sx, sy, sz] = self.size;
+        let (x, y, z) = (x - ox, y - oy, z - oz);
+        if !((0..sx).contains(&x) && (0..sy).contains(&y) && (0..sz).contains(&z)) {
             return None;
         }
-        Some(((at[2] * self.size[0] + at[0]) * self.size[1] + at[1]) as usize)
+        Some(((z * sx + x) * sy + y) as usize)
     }
 
     #[inline]
@@ -144,11 +147,15 @@ impl FiddleCache {
         let Some(slot) = self.slot(x, y, z) else {
             return corner_fiddles(self.seed, x, y, z);
         };
-        if self.stamps[slot] != self.generation {
-            self.stamps[slot] = self.generation;
-            self.values[slot] = corner_fiddles(self.seed, x, y, z);
+        let (Some(stamp), Some(value)) = (self.stamps.get_mut(slot), self.values.get_mut(slot))
+        else {
+            return corner_fiddles(self.seed, x, y, z);
+        };
+        if *stamp != self.generation {
+            *stamp = self.generation;
+            *value = corner_fiddles(self.seed, x, y, z);
         }
-        self.values[slot]
+        *value
     }
 
     pub fn quart_cell(&mut self, pos: BlockPos) -> QuartPos {

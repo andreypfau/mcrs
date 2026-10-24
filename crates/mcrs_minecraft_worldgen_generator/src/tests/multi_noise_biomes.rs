@@ -97,7 +97,7 @@ fn the_overworld_parameter_list_builds_the_overworld_table() {
                                 depth,
                                 weirdness,
                             );
-                            digest ^= u64::from(table.biome_at(target));
+                            digest ^= u64::from(table.biome_at(target).unwrap());
                             digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
                         }
                     }
@@ -174,13 +174,13 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             -1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
-        plains.narrow::<u8>().unwrap()
+        Some(plains.narrow::<u8>().unwrap())
     );
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
-        desert.narrow::<u8>().unwrap()
+        Some(desert.narrow::<u8>().unwrap())
     );
 }
 
@@ -443,7 +443,7 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
             grid.volume.block_z(gz) >> 2,
         );
         assert_eq!(
-            grid.get(gx, gy, gz),
+            Some(grid.get(gx, gy, gz)),
             table.biome_at(target),
             "grid cell {gx},{gy},{gz}"
         );
