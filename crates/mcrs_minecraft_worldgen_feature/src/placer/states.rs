@@ -144,8 +144,13 @@ impl BlockLayout {
         source: VoxelId,
     ) -> VoxelId {
         from.properties.iter().fold(state, |state, property| {
-            let value = &property.values[from.value_index(source, property) as usize];
-            self.try_set(state, &property.name, value)
+            match property
+                .values
+                .get(usize::from(from.value_index(source, property)))
+            {
+                Some(value) => self.try_set(state, &property.name, value),
+                None => state,
+            }
         })
     }
 }

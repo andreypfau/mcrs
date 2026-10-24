@@ -216,7 +216,9 @@ impl PlacementModifier<Predicate> {
             }
             RandomlySelected { placements } => {
                 let chosen = rng.next_i32_bound(placements.len() as i32) as usize;
-                placements[chosen].apply(volume, rng, origin, carries, out);
+                if let Some(placement) = placements.get(chosen) {
+                    placement.apply(volume, rng, origin, carries, out);
+                }
             }
             FixedPlacement { positions } => {
                 let chunk_x = origin.x >> 4;

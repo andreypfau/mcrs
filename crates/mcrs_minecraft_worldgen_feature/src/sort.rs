@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::hash::Hash;
 
-/// A vertex of the ordering graph: `(step, index)`, compared step first, where
-/// `index` counts distinct features in order of first encounter.
-type Vertex = (usize, usize);
+/// A vertex of the ordering graph: `(step, index, token)`, compared step first,
+/// where `index` counts distinct tokens in order of first encounter. One index
+/// always carries one token, so the token never decides an order.
+type Vertex<T> = (usize, usize, T);
 
 /// Orders every feature the given biomes carry into one list per decoration
 /// step, so that no biome's own list ever runs out of order.
@@ -11,43 +13,42 @@ type Vertex = (usize, usize);
 /// with the same token are the same feature and share a vertex, and equal
 /// tokens are the caller's statement of identity, not of equal shape. The
 /// error is the token the walk found a cycle through.
-pub fn build_features_per_step(biomes: &[Vec<Vec<usize>>]) -> Result<Vec<Vec<usize>>, usize> {
-    let mut vertex_of: HashMap<usize, usize> = HashMap::new();
-    let mut token_of: Vec<usize> = Vec::new();
-    let mut edges: BTreeMap<Vertex, BTreeSet<Vertex>> = BTreeMap::new();
+pub fn build_features_per_step<T: Clone + Eq + Hash + Ord>(
+    biomes: &[Vec<Vec<T>>],
+) -> Result<Vec<Vec<T>>, T> {
+    let mut vertex_of: HashMap<T, usize> = HashMap::new();
+    let mut edges: BTreeMap<Vertex<T>, BTreeSet<Vertex<T>>> = BTreeMap::new();
     let mut max_step = 0;
 
     for steps in biomes {
         max_step = max_step.max(steps.len());
 
-        let mut list: Vec<Vertex> = Vec::new();
+        let mut list: Vec<Vertex<T>> = Vec::new();
         for (step, entries) in steps.iter().enumerate() {
-            for &token in entries {
-                let index = *vertex_of.entry(token).or_insert_with(|| {
-                    token_of.push(token);
-                    token_of.len() - 1
-                });
-                list.push((step, index));
+            for token in entries {
+                let next_index = vertex_of.len();
+                let index = *vertex_of.entry(token.clone()).or_insert(next_index);
+                list.push((step, index, token.clone()));
             }
         }
 
-        for i in 0..list.len() {
-            let successors = edges.entry(list[i]).or_default();
-            if let Some(&next) = list.get(i + 1) {
-                successors.insert(next);
+        for (i, vertex) in list.iter().enumerate() {
+            let successors = edges.entry(vertex.clone()).or_default();
+            if let Some(next) = list.get(i + 1) {
+                successors.insert(next.clone());
             }
         }
     }
 
-    let mut discovered: BTreeSet<Vertex> = BTreeSet::new();
-    let mut visiting: BTreeSet<Vertex> = BTreeSet::new();
-    let mut sorted: Vec<Vertex> = Vec::new();
-    for &vertex in edges.keys() {
-        if !discovered.contains(&vertex)
+    let mut discovered: BTreeSet<Vertex<T>> = BTreeSet::new();
+    let mut visiting: BTreeSet<Vertex<T>> = BTreeSet::new();
+    let mut sorted: Vec<Vertex<T>> = Vec::new();
+    for vertex in edges.keys() {
+        if !discovered.contains(vertex)
             && let Some(cycle) =
                 depth_first(&edges, &mut discovered, &mut visiting, &mut sorted, vertex)
         {
-            return Err(token_of[cycle.1]);
+            return Err(cycle.2);
         }
     }
     sorted.reverse();
@@ -56,34 +57,34 @@ pub fn build_features_per_step(biomes: &[Vec<Vec<usize>>]) -> Result<Vec<Vec<usi
         .map(|step| {
             sorted
                 .iter()
-                .filter(|(vertex_step, _)| *vertex_step == step)
-                .map(|&(_, index)| token_of[index])
+                .filter(|(vertex_step, ..)| *vertex_step == step)
+                .map(|(_, _, token)| token.clone())
                 .collect()
         })
         .collect())
 }
 
-fn depth_first(
-    edges: &BTreeMap<Vertex, BTreeSet<Vertex>>,
-    discovered: &mut BTreeSet<Vertex>,
-    visiting: &mut BTreeSet<Vertex>,
-    out: &mut Vec<Vertex>,
-    current: Vertex,
-) -> Option<Vertex> {
-    if discovered.contains(&current) {
+fn depth_first<T: Clone + Ord>(
+    edges: &BTreeMap<Vertex<T>, BTreeSet<Vertex<T>>>,
+    discovered: &mut BTreeSet<Vertex<T>>,
+    visiting: &mut BTreeSet<Vertex<T>>,
+    out: &mut Vec<Vertex<T>>,
+    current: &Vertex<T>,
+) -> Option<Vertex<T>> {
+    if discovered.contains(current) {
         return None;
     }
-    if !visiting.insert(current) {
-        return Some(current);
+    if !visiting.insert(current.clone()) {
+        return Some(current.clone());
     }
-    for &next in edges.get(&current).into_iter().flatten() {
+    for next in edges.get(current).into_iter().flatten() {
         if let Some(cycle) = depth_first(edges, discovered, visiting, out, next) {
             return Some(cycle);
         }
     }
-    visiting.remove(&current);
-    discovered.insert(current);
-    out.push(current);
+    visiting.remove(current);
+    discovered.insert(current.clone());
+    out.push(current.clone());
     None
 }
 

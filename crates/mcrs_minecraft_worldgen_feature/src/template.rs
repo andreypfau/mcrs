@@ -400,7 +400,9 @@ impl Template {
                 }
             }
         };
-        let expected = palettes[0].len();
+        let Some(expected) = palettes.first().map(|palette| palette.len()) else {
+            return Err(TemplateError::NoPalette { id: err_id() });
+        };
         let mut resolved = Vec::with_capacity(palettes.len());
         for (index, palette) in palettes.iter().enumerate() {
             if palette.len() != expected {
@@ -414,21 +416,24 @@ impl Template {
             let states = palette
                 .iter()
                 .map(|state| {
-                    resolve(state).ok_or_else(|| TemplateError::UnknownState {
-                        id: err_id(),
-                        state: state.to_string(),
-                    })
+                    resolve(state)
+                        .map(|resolved| (state, resolved))
+                        .ok_or_else(|| TemplateError::UnknownState {
+                            id: err_id(),
+                            state: state.to_string(),
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             resolved.push(states);
         }
         let mut blocks = Vec::with_capacity(self.blocks.len());
         for (index, block) in self.blocks.iter().enumerate() {
-            let inside = |axis: usize| {
-                let p = block.pos[axis];
-                (p >= 0 && p < i32::from(size[axis])).then_some(p as u16)
-            };
-            let Some(pos) = inside(0).zip(inside(1)).zip(inside(2)) else {
+            let inside = |p: i32, size: u16| (p >= 0 && p < i32::from(size)).then_some(p as u16);
+            let ([x, y, z], [size_x, size_y, size_z]) = (block.pos, size);
+            let Some(pos) = inside(x, size_x)
+                .zip(inside(y, size_y))
+                .zip(inside(z, size_z))
+            else {
                 return Err(TemplateError::OutOfBounds {
                     id: err_id(),
                     index,
@@ -469,19 +474,23 @@ impl Template {
         let mut frozen = Vec::with_capacity(palettes.len());
         let mut jigsaws = Vec::with_capacity(palettes.len());
         let mut markers = Vec::with_capacity(palettes.len());
-        for (palette, states) in palettes.iter().zip(&resolved) {
+        for states in &resolved {
             let mut full = Vec::new();
             let mut other = Vec::new();
             let mut with_nbt = Vec::new();
             for &(pos, state, nbt) in &blocks {
+                // Every palette holds `expected` states and every block index is below it.
+                let Some(&(entry, resolved)) = states.get(state) else {
+                    continue;
+                };
                 let list = if nbt.is_some() {
                     &mut with_nbt
-                } else if states[state].full_block {
+                } else if resolved.full_block {
                     &mut full
                 } else {
                     &mut other
                 };
-                list.push((pos, state, nbt));
+                list.push((pos, entry, resolved, nbt));
             }
             let mut ordered = Vec::with_capacity(blocks.len());
             for mut list in [full, other, with_nbt] {
@@ -490,8 +499,8 @@ impl Template {
             }
             let mut palette_jigsaws = Vec::new();
             let mut palette_markers = Vec::new();
-            for &(pos, state, nbt) in &ordered {
-                if palette[state].id.as_str() == Block::StructureBlock.as_static_str() {
+            for &(pos, entry, _, nbt) in &ordered {
+                if entry.id.as_str() == Block::StructureBlock.as_static_str() {
                     let Some(nbt) = nbt else { continue };
                     match nbt.get_string("mode") {
                         Some("DATA") => palette_markers.push(DataMarker {
@@ -511,7 +520,7 @@ impl Template {
                         }
                     }
                 }
-                if palette[state].id.as_str() != Block::Jigsaw.as_static_str() {
+                if entry.id.as_str() != Block::Jigsaw.as_static_str() {
                     continue;
                 }
                 let jigsaw = |what: String| TemplateError::Jigsaw {
@@ -522,7 +531,7 @@ impl Template {
                 let Some(nbt) = nbt else {
                     return Err(jigsaw("missing nbt".into()));
                 };
-                let (front, top) = palette[state]
+                let (front, top) = entry
                     .properties
                     .as_ref()
                     .and_then(|p| p.get("orientation"))
@@ -570,9 +579,9 @@ impl Template {
             frozen.push(
                 ordered
                     .into_iter()
-                    .map(|(pos, state, nbt)| FrozenBlock {
+                    .map(|(pos, _, resolved, nbt)| FrozenBlock {
                         pos,
-                        state: states[state].id,
+                        state: resolved.id,
                         nbt: nbt.cloned(),
                     })
                     .collect(),

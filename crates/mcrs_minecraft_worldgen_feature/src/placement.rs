@@ -131,7 +131,7 @@ impl<P> PlacementModifier<P> {
                 .iter()
                 .map(|placement| placement.xz_domain(min..=max))
                 .reduce(|a, b| *a.start().min(b.start())..=*a.end().max(b.end()))
-                .expect("a random selection holds a placement"),
+                .unwrap_or(min..=max),
             FixedPlacement { positions } => {
                 let (min_section, max_section) = (min >> 4 << 4, max >> 4 << 4);
                 positions
@@ -139,8 +139,7 @@ impl<P> PlacementModifier<P> {
                     .map(|&[x, _, z]| (x & 15, z & 15))
                     .map(|(x, z)| (min_section + x.min(z), max_section + x.max(z)))
                     .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
-                    .map(|(low, high)| low..=high)
-                    .expect("a fixed placement holds a position")
+                    .map_or(min..=max, |(low, high)| low..=high)
             }
             BlockPredicateFilter { .. }
             | RarityFilter { .. }

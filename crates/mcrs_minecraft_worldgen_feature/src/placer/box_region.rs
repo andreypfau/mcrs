@@ -1,3 +1,8 @@
+#![expect(
+    clippy::expect_used,
+    reason = "test support reports a failure by panicking"
+)]
+
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};

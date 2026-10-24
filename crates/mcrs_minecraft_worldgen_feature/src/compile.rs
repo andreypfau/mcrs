@@ -129,7 +129,7 @@ pub fn build_feature_steps(
     registries: &LoadedFeatures,
 ) -> Result<FeatureSteps, FeatureCompileError> {
     let mut interner = Interner::new(registries);
-    let mut tokens_per_biome: Vec<Vec<Vec<usize>>> = Vec::with_capacity(biomes.len());
+    let mut tokens_per_biome: Vec<Vec<Vec<Token>>> = Vec::with_capacity(biomes.len());
 
     for biome in biomes {
         let mut steps = Vec::with_capacity(biome.len());
@@ -144,7 +144,7 @@ pub fn build_feature_steps(
     }
 
     let sorted = build_features_per_step(&tokens_per_biome).map_err(|token| {
-        FeatureCompileError::FeatureCycle(match &interner.entries[token].id {
+        FeatureCompileError::FeatureCycle(match &token.entry.id {
             Some(id) => id.to_string(),
             None => "an inline feature".to_owned(),
         })
@@ -155,7 +155,7 @@ pub fn build_feature_steps(
         .map(|step| {
             step.iter()
                 .enumerate()
-                .map(|(position, &token)| (token, position))
+                .map(|(position, token)| (token.index, position))
                 .collect()
         })
         .collect();
@@ -163,13 +163,15 @@ pub fn build_feature_steps(
     let per_biome = tokens_per_biome
         .iter()
         .map(|biome| {
-            sorted
+            position
                 .iter()
                 .enumerate()
-                .map(|(step, features)| {
-                    let mut bits = FixedBitSet::with_capacity(features.len());
+                .map(|(step, positions)| {
+                    let mut bits = FixedBitSet::with_capacity(positions.len());
                     for token in biome.get(step).into_iter().flatten() {
-                        bits.insert(position[step][token]);
+                        if let Some(&position) = positions.get(&token.index) {
+                            bits.insert(position);
+                        }
                     }
                     bits
                 })
@@ -179,47 +181,82 @@ pub fn build_feature_steps(
 
     let steps = sorted
         .iter()
-        .map(|step| {
-            step.iter()
-                .map(|&token| interner.entries[token].clone())
-                .collect()
-        })
+        .map(|step| step.iter().map(|token| Arc::clone(&token.entry)).collect())
+        .collect();
+
+    let token = sorted
+        .iter()
+        .map(|step| step.iter().map(|token| token.index).collect())
         .collect();
 
     Ok(FeatureSteps {
         steps,
         per_biome,
-        token: sorted,
+        token,
     })
+}
+
+/// A placed feature's identity in the ordering, carried with the feature
+/// itself. Equality, hash and order look only at `index`.
+#[derive(Clone)]
+struct Token {
+    index: usize,
+    entry: Arc<CompiledPlacedFeature>,
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
+}
+
+impl Eq for Token {}
+
+impl std::hash::Hash for Token {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+    }
+}
+
+impl PartialOrd for Token {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Token {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.index.cmp(&other.index)
+    }
 }
 
 /// Gives every distinct placed feature one identity: registry entries by id, so
 /// two biomes naming one id share a vertex, and every inline entry its own.
 struct Interner<'a> {
     registries: &'a LoadedFeatures,
-    entries: Vec<Arc<CompiledPlacedFeature>>,
-    by_id: HashMap<ResourceLocation, usize>,
+    next_index: usize,
+    by_id: HashMap<ResourceLocation, Token>,
 }
 
 impl<'a> Interner<'a> {
     fn new(registries: &'a LoadedFeatures) -> Self {
         Interner {
             registries,
-            entries: Vec::new(),
+            next_index: 0,
             by_id: HashMap::new(),
         }
     }
 
-    fn token(&mut self, holder: &Holder<PlacedFeature>) -> Result<usize, FeatureCompileError> {
+    fn token(&mut self, holder: &Holder<PlacedFeature>) -> Result<Token, FeatureCompileError> {
         match holder {
             Holder::Reference(id) => self.reference(id),
             Holder::Inline(placed) => Ok(self.push(None, placed)),
         }
     }
 
-    fn reference(&mut self, id: &ResourceLocation) -> Result<usize, FeatureCompileError> {
-        if let Some(&token) = self.by_id.get(id) {
-            return Ok(token);
+    fn reference(&mut self, id: &ResourceLocation) -> Result<Token, FeatureCompileError> {
+        if let Some(token) = self.by_id.get(id) {
+            return Ok(token.clone());
         }
         let placed = self
             .registries
@@ -227,16 +264,20 @@ impl<'a> Interner<'a> {
             .get(id)
             .ok_or_else(|| FeatureCompileError::UnknownPlacedFeature(id.clone()))?;
         let token = self.push(Some(id.clone()), placed);
-        self.by_id.insert(id.clone(), token);
+        self.by_id.insert(id.clone(), token.clone());
         Ok(token)
     }
 
-    fn push(&mut self, id: Option<ResourceLocation>, placed: &PlacedFeature) -> usize {
-        self.entries.push(Arc::new(CompiledPlacedFeature {
-            id,
-            placed: placed.clone(),
-        }));
-        self.entries.len() - 1
+    fn push(&mut self, id: Option<ResourceLocation>, placed: &PlacedFeature) -> Token {
+        let index = self.next_index;
+        self.next_index += 1;
+        Token {
+            index,
+            entry: Arc::new(CompiledPlacedFeature {
+                id,
+                placed: placed.clone(),
+            }),
+        }
     }
 }
 

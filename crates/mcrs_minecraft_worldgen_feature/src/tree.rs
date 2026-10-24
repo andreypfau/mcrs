@@ -140,8 +140,9 @@ pub enum TrunkPlacer {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
-        trunk_height_above_branches: IntProvider,
-        branch_amount: IntProvider,
+        trunk_height_above_branches: BoundedIntProvider<0, 8>,
+        /// Each branch takes one of the four horizontals, none twice.
+        branch_amount: BoundedIntProvider<1, 4>,
     },
 }
 
@@ -438,4 +439,20 @@ pub struct TreeConfig {
     #[serde(default)]
     pub ignore_vines: bool,
     pub below_trunk_provider: BlockStateProvider<Named>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_poplar_trunk_refuses_more_branches_than_horizontals() {
+        let poplar = |branch_amount: i32| {
+            serde_json::from_str::<TrunkPlacer>(&format!(
+                r#"{{"type":"minecraft:poplar_trunk_placer","base_height":9,"height_rand_a":3,"height_rand_b":0,"trunk_height_above_branches":1,"branch_amount":{branch_amount}}}"#
+            ))
+        };
+        assert!(poplar(4).is_ok());
+        assert!(poplar(5).is_err());
+    }
 }

@@ -143,7 +143,10 @@ pub fn place<W: WorldGenVolume, R: Random>(
 
     let mut placed_any = false;
     while let Some((pos, index)) = scratch.pending.pop() {
-        modifiers[index].apply(volume, rng, pos, carries, &mut scratch.outputs);
+        let Some(modifier) = modifiers.get(index) else {
+            continue;
+        };
+        modifier.apply(volume, rng, pos, carries, &mut scratch.outputs);
         let next = index + 1;
         if next < modifiers.len() {
             scratch
