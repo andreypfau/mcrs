@@ -9,22 +9,22 @@ use crate::harness::Sample;
 use crate::harness::entry;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PaintingVariantValue<M: Refs = Resolved> {
     pub width: Bounded<1, 16, 1>,
     pub height: Bounded<1, 16, 1>,
     pub asset_id: ResourceLocation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<Text<M>>,
+    pub title: Option<Text<M::Nbt>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub author: Option<Text<M>>,
+    pub author: Option<Text<M::Nbt>>,
 }
 
 /// The persistent form is the registry id alone; the wire form carries the
 /// variant inline.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PaintingVariant<M: Refs = Resolved>(
     pub WireRef<M, PaintingVariantValue, PaintingVariantValue<M>>,

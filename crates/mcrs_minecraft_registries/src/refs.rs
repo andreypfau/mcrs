@@ -14,6 +14,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 
 use crate::static_key::StaticEntry;
 use crate::tags::IdSet;
+use crate::wire::FromWire;
 
 pub trait Inline: Clone + fmt::Debug + PartialEq + Send + Sync + 'static {}
 
@@ -24,9 +25,18 @@ impl<T: Clone + fmt::Debug + PartialEq + Send + Sync + 'static> Inline for T {}
 pub trait Refs: Inline + Copy + Eq {
     type Id<R: Registered>: Inline;
     type Set<R: Registered>: Inline;
+    /// The mode of a value that this mode writes as named NBT.
+    type Nbt: Refs<Nbt = Self::Nbt>;
+    /// A value checked against something other than a registry, in this mode's form.
+    type Value<T: Checked>: Inline;
 
     fn id_of<R: StaticEntry>(entry: R) -> Self::Id<R>;
 }
+
+/// A value whose forms differ in each mode.
+pub trait Checked: Inline + Resolve<Named: Inline> + FromWire<Wire: Inline> {}
+
+impl<T: Inline + Resolve<Named: Inline> + FromWire<Wire: Inline>> Checked for T {}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Named;
@@ -37,6 +47,8 @@ pub struct Resolved;
 impl Refs for Named {
     type Id<R: Registered> = ResourceKey<R>;
     type Set<R: Registered> = KeySet<R>;
+    type Nbt = Named;
+    type Value<T: Checked> = T::Named;
 
     fn id_of<R: StaticEntry>(entry: R) -> ResourceKey<R> {
         ResourceKey::from_location(entry.location().to_arc())
@@ -46,6 +58,8 @@ impl Refs for Named {
 impl Refs for Resolved {
     type Id<R: Registered> = Id<R>;
     type Set<R: Registered> = IdSet<R>;
+    type Nbt = Resolved;
+    type Value<T: Checked> = T;
 
     fn id_of<R: StaticEntry>(entry: R) -> Id<R> {
         entry.id()
@@ -495,6 +509,24 @@ macro_rules! resolve_as_is {
             }
 
             fn name<C: $crate::Namer>(
+                &self,
+                _: &C,
+            ) -> ::core::result::Result<Self, $crate::ResolveError> {
+                ::core::result::Result::Ok(::core::clone::Clone::clone(self))
+            }
+        }
+
+        impl $crate::FromWire for $value {
+            type Wire = Self;
+
+            fn from_wire<C: $crate::WireNames>(
+                wire: Self,
+                _: &C,
+            ) -> ::core::result::Result<Self, $crate::ResolveError> {
+                ::core::result::Result::Ok(wire)
+            }
+
+            fn to_wire<C: $crate::WireNames>(
                 &self,
                 _: &C,
             ) -> ::core::result::Result<Self, $crate::ResolveError> {

@@ -1,11 +1,9 @@
 //! Wire forms of the data component types. The types themselves carry only
-//! serde; every `Encode`/`Decode`/`EncodeCtx`/`DecodeCtx` impl lives here.
+//! serde; every `Encode`/`Decode` impl of their `Wire` form lives here.
 
 pub use kind::decode_component_value;
 pub use patch::{decode_delimited_patch, encode_delimited_patch};
-pub use stack::{
-    HashedStack, RawDelimitedStack, RawStack, decode_delimited_ctx, encode_delimited_ctx,
-};
+pub use stack::{DelimitedStack, HashedStack};
 
 mod attribute;
 mod banner;
@@ -41,7 +39,7 @@ mod variants;
 
 /// A newtype over an `Encode + Decode` inner value.
 macro_rules! newtype_wire {
-    ($($ty:ident),* $(,)?) => {$(
+    ($($ty:ty),* $(,)?) => {$(
         impl $crate::Encode for $ty {
             fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
                 $crate::Encode::encode(&self.0, w)
@@ -50,11 +48,9 @@ macro_rules! newtype_wire {
 
         impl<'a> $crate::Decode<'a> for $ty {
             fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-                $crate::Decode::decode(r).map($ty)
+                $crate::Decode::decode(r).map(Self)
             }
         }
-
-        $crate::item::ctx::ctx_free!($ty);
     )*};
 }
 pub(crate) use newtype_wire;
@@ -73,8 +69,6 @@ macro_rules! var_int_wire {
                 Ok($ty($crate::VarInt::decode(r)?.0))
             }
         }
-
-        $crate::item::ctx::ctx_free!($ty);
     )*};
 }
 pub(crate) use var_int_wire;
@@ -93,8 +87,6 @@ macro_rules! bounded_var_int_wire {
                 Ok($ty(mcrs_minecraft_core::codec::Bounded($crate::VarInt::decode(r)?.0)))
             }
         }
-
-        $crate::item::ctx::ctx_free!($ty);
     )*};
 }
 pub(crate) use bounded_var_int_wire;
@@ -119,8 +111,6 @@ macro_rules! ordinal_enum_wire {
                     .unwrap_or(Self::ALL[0]))
             }
         }
-
-        $crate::item::ctx::ctx_free!($ty);
     )*};
 }
 pub(crate) use ordinal_enum_wire;
@@ -128,21 +118,14 @@ pub(crate) use ordinal_enum_wire;
 /// A value with no fields: nothing on the wire.
 macro_rules! unit_wire {
     ($($ty:ident),* $(,)?) => {$(
-        impl $crate::item::ctx::EncodeCtx for $ty {
-            fn encode_ctx(
-                &self,
-                _: &$crate::item::ctx::WireCtx<'_>,
-                _: impl std::io::Write,
-            ) -> anyhow::Result<()> {
+        impl $crate::Encode for $ty {
+            fn encode(&self, _: impl std::io::Write) -> anyhow::Result<()> {
                 Ok(())
             }
         }
 
-        impl $crate::item::ctx::DecodeCtx<'_> for $ty {
-            fn decode_ctx(
-                _: &$crate::item::ctx::WireCtx<'_>,
-                _: &mut &[u8],
-            ) -> anyhow::Result<Self> {
+        impl $crate::Decode<'_> for $ty {
+            fn decode(_: &mut &[u8]) -> anyhow::Result<Self> {
                 Ok($ty)
             }
         }
@@ -150,35 +133,10 @@ macro_rules! unit_wire {
 }
 pub(crate) use unit_wire;
 
-/// A newtype over an `EncodeCtx + DecodeCtx` inner value.
-macro_rules! newtype_ctx_wire {
-    ($($ty:ident),* $(,)?) => {$(
-        impl $crate::item::ctx::EncodeCtx for $ty {
-            fn encode_ctx(
-                &self,
-                ctx: &$crate::item::ctx::WireCtx<'_>,
-                w: impl std::io::Write,
-            ) -> anyhow::Result<()> {
-                $crate::item::ctx::EncodeCtx::encode_ctx(&self.0, ctx, w)
-            }
-        }
-
-        impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
-            fn decode_ctx(
-                ctx: &$crate::item::ctx::WireCtx<'_>,
-                r: &mut &'a [u8],
-            ) -> anyhow::Result<Self> {
-                $crate::item::ctx::DecodeCtx::decode_ctx(ctx, r).map($ty)
-            }
-        }
-    )*};
-}
-pub(crate) use newtype_ctx_wire;
-
 /// A record whose fields follow each other on the wire in the listed order,
 /// each in its own plain wire form.
 macro_rules! record_wire {
-    ($($ty:ident { $($field:ident),+ $(,)? }),* $(,)?) => {$(
+    ($($ty:ty { $($field:ident),+ $(,)? }),* $(,)?) => {$(
         impl $crate::Encode for $ty {
             fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
                 $($crate::Encode::encode(&self.$field, &mut w)?;)+
@@ -188,41 +146,11 @@ macro_rules! record_wire {
 
         impl<'a> $crate::Decode<'a> for $ty {
             fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-                Ok($ty {
+                Ok(Self {
                     $($field: $crate::Decode::decode(r)?,)+
                 })
             }
         }
-
-        $crate::item::ctx::ctx_free!($ty);
     )*};
 }
 pub(crate) use record_wire;
-
-/// A record whose fields follow each other on the wire in the listed order.
-macro_rules! record_ctx_wire {
-    ($($ty:ident { $($field:ident),+ $(,)? }),* $(,)?) => {$(
-        impl $crate::item::ctx::EncodeCtx for $ty {
-            fn encode_ctx(
-                &self,
-                ctx: &$crate::item::ctx::WireCtx<'_>,
-                mut w: impl std::io::Write,
-            ) -> anyhow::Result<()> {
-                $($crate::item::ctx::EncodeCtx::encode_ctx(&self.$field, ctx, &mut w)?;)+
-                Ok(())
-            }
-        }
-
-        impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
-            fn decode_ctx(
-                ctx: &$crate::item::ctx::WireCtx<'_>,
-                r: &mut &'a [u8],
-            ) -> anyhow::Result<Self> {
-                Ok($ty {
-                    $($field: $crate::item::ctx::DecodeCtx::decode_ctx(ctx, r)?,)+
-                })
-            }
-        }
-    )*};
-}
-pub(crate) use record_ctx_wire;

@@ -18,7 +18,7 @@ pub struct BannerPattern {
 mcrs_minecraft_registries::resolve_as_is!(BannerPattern);
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BannerLayer<M: Refs = Resolved> {
     pub pattern: Ref<M, BannerPattern, BannerPattern>,
@@ -26,7 +26,9 @@ pub struct BannerLayer<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct BannerPatterns<M: Refs = Resolved>(pub Vec<BannerLayer<M>>);
 

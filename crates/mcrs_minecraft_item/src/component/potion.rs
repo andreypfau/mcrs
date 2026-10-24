@@ -15,7 +15,7 @@ use crate::keys::Potion;
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder
 /// ever sees one.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionContents<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]

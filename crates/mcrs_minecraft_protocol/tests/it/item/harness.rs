@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::fmt;
 
@@ -12,27 +11,66 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
-use mcrs_minecraft_protocol::item::ctx::WireCtx;
+use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::harness::sample_registries;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemDataComponent};
+use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::{IdSet, Named, Registries, Resolve, Resolver};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
 
 pub use crate::common::{hex, nbt_tree};
 
+/// A value checked against the lookup and written in its wire form, or read in its wire form
+/// and checked.
+pub trait WireCodec: FromWire<Wire: Encode> {
+    fn encode_checked(
+        &self,
+        lookup: &WireLookup<'_>,
+        w: impl std::io::Write,
+    ) -> anyhow::Result<()> {
+        self.to_wire(lookup)?.encode(w)
+    }
+
+    fn decode_checked(lookup: &WireLookup<'_>, r: &mut &[u8]) -> anyhow::Result<Self>
+    where
+        Self::Wire: for<'a> Decode<'a>,
+    {
+        let wire = Self::Wire::decode(r)?;
+        Ok(Self::from_wire(wire, lookup)?)
+    }
+}
+
+impl<T: FromWire<Wire: Encode>> WireCodec for T {}
+
+pub fn wire_form<T: FromWire>(value: &T) -> T::Wire {
+    value.to_wire(&block_lookup()).unwrap()
+}
+
+pub fn decode_component(
+    kind: DataComponentType,
+    lookup: &WireLookup<'_>,
+    r: &mut &[u8],
+) -> anyhow::Result<ItemComponentValue> {
+    Ok(ItemComponentValue::from_wire(
+        decode_component_value(kind, r)?,
+        lookup,
+    )?)
+}
+
 pub fn registries() -> &'static Registries {
     test_registries()
 }
 
-pub fn ctx() -> WireCtx<'static> {
-    WireCtx::new(registries())
+pub fn lookup() -> WireLookup<'static> {
+    WireLookup::new(registries())
 }
 
-pub fn block_ctx() -> WireCtx<'static> {
-    ctx().with_blocks(&test_corpus().0)
+pub fn block_lookup() -> WireLookup<'static> {
+    lookup().with_blocks(&test_corpus().0)
 }
 
 pub fn named<T: Resolve + fmt::Debug>(value: &T) -> T::Named {
@@ -113,17 +151,17 @@ pub fn try_from_json(kind: DataComponentType, json: &str) -> Result<ItemComponen
     resolved(ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?)
 }
 
-pub fn wire(ctx: &WireCtx<'_>, value: &ItemComponentValue) -> Vec<u8> {
+pub fn wire(ctx: &WireLookup<'_>, value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
     value
-        .encode_ctx(ctx, &mut out)
+        .encode_checked(ctx, &mut out)
         .unwrap_or_else(|e| panic!("{:?}: encode {value:?}: {e}", value.kind()));
     out
 }
 
-pub fn decode(ctx: &WireCtx<'_>, kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
+pub fn decode(ctx: &WireLookup<'_>, kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
     let mut r = bytes;
-    let value = decode_component_value(kind, ctx, &mut r)
+    let value = decode_component(kind, ctx, &mut r)
         .unwrap_or_else(|e| panic!("{kind:?}: decode {bytes:02x?}: {e}"));
     assert!(r.is_empty(), "{kind:?}: {} trailing bytes", r.len());
     value
@@ -137,7 +175,7 @@ pub fn custom_data() -> item::CustomData {
 }
 
 pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
-    let lookup = ctx();
+    let lookup = lookup();
     let samples = T::samples();
     assert!(
         !samples.is_empty(),

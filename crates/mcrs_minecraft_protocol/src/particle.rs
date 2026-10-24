@@ -1,44 +1,32 @@
+use mcrs_minecraft_registries::Wire;
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
-use anyhow::Context;
 use mcrs_minecraft_core::codec;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::component::RgbInt;
 use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_particle::{
-    BlockParticle, BlockStateValue, ColorParticle, DustColorTransitionParticle, DustParticle,
-    GeyserBaseParticle, GeyserParticle, ItemParticle, ParticleOptions, ParticleScale,
-    PositionSource, PowerParticle, SculkChargeParticle, ShriekParticle, SpellParticle,
-    TrailParticle, VibrationParticle,
+    BlockParticle, ColorParticle, DustColorTransitionParticle, DustParticle, GeyserBaseParticle,
+    GeyserParticle, ItemParticle, ParticleOptions, ParticleScale, PositionSource, PowerParticle,
+    SculkChargeParticle, ShriekParticle, SpellParticle, TrailParticle, VibrationParticle,
 };
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
-use crate::item::wire::{record_ctx_wire, record_wire};
-use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
+use crate::item::wire::record_wire;
+use crate::registry::static_registry_wire;
 use crate::{Decode, Encode, VarInt};
 
 macro_rules! particle_wire {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
-        fn encode_payload(
-            options: &ParticleOptions,
-            ctx: &WireCtx<'_>,
-            w: impl Write,
-        ) -> anyhow::Result<()> {
+        fn encode_payload(options: &ParticleOptions<Wire>, w: impl Write) -> anyhow::Result<()> {
             match options {
                 $(variant_pattern!(ParticleOptions::$variant, payload $(: $payload)?) => {
-                    encode_arm!(payload, ctx, w $(, $payload)?)
+                    encode_arm!(payload, w $(, $payload)?)
                 })*
             }
         }
 
-        fn decode_payload(
-            kind: ParticleType,
-            ctx: &WireCtx<'_>,
-            r: &mut &[u8],
-        ) -> anyhow::Result<ParticleOptions> {
+        fn decode_payload(kind: ParticleType, r: &mut &[u8]) -> anyhow::Result<ParticleOptions<Wire>> {
             Ok(match kind {
-                $(ParticleType::$variant => decode_arm!(ParticleOptions::$variant, ctx, r $(, $payload)?)),*
+                $(ParticleType::$variant => decode_arm!(ParticleOptions::$variant, r $(, $payload)?)),*
             })
         }
     };
@@ -54,20 +42,20 @@ macro_rules! variant_pattern {
 }
 
 macro_rules! encode_arm {
-    ($binding:ident, $ctx:ident, $w:ident) => {
+    ($binding:ident, $w:ident) => {
         Ok(())
     };
-    ($binding:ident, $ctx:ident, $w:ident, $payload:ty) => {
-        $binding.encode_ctx($ctx, $w)
+    ($binding:ident, $w:ident, $payload:ty) => {
+        $binding.encode($w)
     };
 }
 
 macro_rules! decode_arm {
-    ($variant:path, $ctx:ident, $r:ident) => {
+    ($variant:path, $r:ident) => {
         $variant
     };
-    ($variant:path, $ctx:ident, $r:ident, $payload:ty) => {
-        $variant(DecodeCtx::decode_ctx($ctx, $r)?)
+    ($variant:path, $r:ident, $payload:ty) => {
+        $variant(Decode::decode($r)?)
     };
 }
 
@@ -75,56 +63,21 @@ mcrs_minecraft_particle::for_each_particle_type!(particle_wire);
 
 static_registry_wire!(ParticleType, "particle type");
 
-impl EncodeCtx for ParticleOptions {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for ParticleOptions<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.kind().encode(&mut w)?;
-        encode_payload(self, ctx, w)
+        encode_payload(self, w)
     }
 }
 
-impl DecodeCtx<'_> for ParticleOptions {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for ParticleOptions<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let kind = ParticleType::decode(r)?;
-        decode_payload(kind, ctx, r)
+        decode_payload(kind, r)
     }
 }
 
-impl EncodeCtx for BlockStateValue {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        let properties: Vec<(&str, &str)> = self
-            .properties
-            .iter()
-            .map(|(name, value)| (name.as_str(), value.as_str()))
-            .collect();
-        let id = ctx
-            .blocks()?
-            .state_id_of(self.block.location(), &properties)
-            .with_context(|| format!("{} has no block state {:?}", self.block, self.properties))?;
-        encode_registry_id(id, w)
-    }
-}
-
-impl DecodeCtx<'_> for BlockStateValue {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = decode_registry_id(r)?;
-        if ctx.walking() {
-            return Ok(BlockStateValue {
-                block: ResourceKey::from_location(ResourceLocation::read("mcrs:unresolved")?),
-                properties: Default::default(),
-            });
-        }
-        let (block, properties) = ctx
-            .blocks()?
-            .properties_of(id)
-            .with_context(|| format!("no block state has id {id}"))?;
-        Ok(BlockStateValue {
-            block: ResourceKey::from_location(block),
-            properties: properties.into_iter().collect(),
-        })
-    }
-}
-
-record_ctx_wire!(BlockParticle { block_state }, ItemParticle { item });
+record_wire!(BlockParticle<Wire> { block_state }, ItemParticle<Wire> { item });
 
 impl Encode for GeyserParticle {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
@@ -262,13 +215,3 @@ impl Decode<'_> for TrailParticle {
         })
     }
 }
-
-ctx_free!(
-    GeyserParticle,
-    GeyserBaseParticle,
-    ShriekParticle,
-    VibrationParticle,
-    TrailParticle,
-);
-
-pub type RawParticle = Raw<ParticleOptions>;

@@ -1,58 +1,63 @@
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use mcrs_minecraft_item::keys::DataComponentPredicateType;
-use mcrs_minecraft_registries::{Named, Resolve};
+use mcrs_minecraft_registries::{Named, Wire};
 use serde::de::DeserializeSeed;
 
+use crate::item::component::common::ValueMatcher;
 use crate::item::component::predicate::*;
-use crate::item::ctx::{
-    DecodeCtx, EncodeCtx, decode_named_nbt, decode_nbt_wire, encode_named_nbt, encode_nbt_wire,
-    read_nbt_wire, registries,
-};
+use crate::item::lookup::{decode_nbt_wire, encode_nbt_wire, nested, read_nbt_wire};
 use crate::item::patch::ComponentMap;
-use crate::item::wire::newtype_ctx_wire;
+use crate::item::wire::newtype_wire;
 use crate::registry::static_registry_wire;
 use crate::{Decode, Encode, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
 
-newtype_ctx_wire!(
-    CanPlaceOn,
-    CanBreak,
-    Lock,
-    AdventureModePredicate,
-    StatePropertiesPredicate,
+newtype_wire!(
+    CanPlaceOn<Wire>,
+    CanBreak<Wire>,
+    AdventureModePredicate<Wire>
 );
-impl EncodeCtx for ItemPredicate {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        encode_named_nbt(self, ctx, w)
+impl Encode for StatePropertiesPredicate {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        self.0.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for ItemPredicate {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        decode_named_nbt(ctx, r)
+impl Decode<'_> for StatePropertiesPredicate {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let properties: Vec<(String, ValueMatcher)> = Vec::decode(r)?;
+        for (at, (name, _)) in properties.iter().enumerate() {
+            ensure!(
+                properties[..at].iter().all(|(seen, _)| seen != name),
+                "duplicate key in a wire map"
+            );
+        }
+        Ok(StatePropertiesPredicate(properties))
     }
 }
 static_registry_wire!(DataComponentPredicateType, "data component predicate type");
 
-impl EncodeCtx for BlockPredicate {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.blocks.encode_ctx(ctx, &mut w)?;
-        self.state.encode_ctx(ctx, &mut w)?;
-        self.nbt.encode_ctx(ctx, &mut w)?;
-        self.matchers.encode_ctx(ctx, w)
+impl Encode for BlockPredicate<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.blocks.encode(&mut w)?;
+        self.state.encode(&mut w)?;
+        self.nbt.encode(&mut w)?;
+        self.matchers.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for BlockPredicate {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(BlockPredicate {
-            blocks: Option::decode_ctx(ctx, r)?,
-            state: Option::decode_ctx(ctx, r)?,
-            nbt: Option::decode_ctx(ctx, r)?,
-            matchers: DataComponentMatchers::decode_ctx(ctx, r)?,
+/// A matcher map holds components that hold block predicates again.
+impl Decode<'_> for BlockPredicate<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        nested(|| {
+            Ok(BlockPredicate {
+                blocks: Option::decode(r)?,
+                state: Option::decode(r)?,
+                nbt: Option::decode(r)?,
+                matchers: DataComponentMatchers::decode(r)?,
+            })
         })
     }
 }
@@ -61,10 +66,10 @@ impl DecodeCtx<'_> for BlockPredicate {
 /// `ComponentPatch` does: a generic `impl Write` would otherwise gain one
 /// `&mut` per level of a value that contains a value of its own kind and
 /// never reach a fixed type.
-impl EncodeCtx for DataComponentMatchers {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for DataComponentMatchers<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         let w: &mut dyn Write = &mut w;
-        self.components.encode_ctx(ctx, &mut *w)?;
+        self.components.encode(&mut *w)?;
         let predicates = &self.predicates.0;
         ensure!(
             predicates.len() <= MAX_PARTIAL_PREDICATES,
@@ -77,7 +82,7 @@ impl EncodeCtx for DataComponentMatchers {
                 ComponentPredicateEntry::Typed(predicate) => {
                     true.encode(&mut *w)?;
                     predicate.kind().encode(&mut *w)?;
-                    encode_nbt_wire(&predicate.name(registries(ctx)?)?, &mut *w)?;
+                    encode_nbt_wire(predicate, &mut *w)?;
                 }
                 ComponentPredicateEntry::AnyValue(kind) => {
                     false.encode(&mut *w)?;
@@ -90,9 +95,9 @@ impl EncodeCtx for DataComponentMatchers {
     }
 }
 
-impl DecodeCtx<'_> for DataComponentMatchers {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let components = ComponentMap::decode_ctx(ctx, r)?;
+impl Decode<'_> for DataComponentMatchers<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let components = ComponentMap::decode(r)?;
         let partial = VarInt::decode(r)?.0;
         ensure!(
             (0..=MAX_PARTIAL_PREDICATES as i32).contains(&partial),
@@ -103,14 +108,7 @@ impl DecodeCtx<'_> for DataComponentMatchers {
             let entry = match bool::decode(r)? {
                 true => {
                     let kind = DataComponentPredicateType::decode(r)?;
-                    let named = decode_predicate_wire(kind, r)?;
-                    if ctx.walking() {
-                        continue;
-                    }
-                    ComponentPredicateEntry::Typed(ComponentPredicate::resolve(
-                        named,
-                        registries(ctx)?,
-                    )?)
+                    ComponentPredicateEntry::Typed(decode_predicate_wire(kind, r)?)
                 }
                 false => {
                     let kind = DataComponentType::decode(r)?;

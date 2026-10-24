@@ -13,26 +13,26 @@ pub type TrimMaterialRef<M> = Ref<M, TrimMaterial, TrimMaterial<M>>;
 pub type TrimPatternRef<M> = Ref<M, TrimPattern, TrimPattern<M>>;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TrimMaterial<M: Refs = Resolved> {
     pub palette_id: ResourceLocation,
-    pub description: Text<M>,
+    pub description: Text<M::Nbt>,
 }
 
 /// `decal`: absent reads as false, always written.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TrimPattern<M: Refs = Resolved> {
     pub asset_id: ResourceLocation,
-    pub description: Text<M>,
+    pub description: Text<M::Nbt>,
     #[serde(default)]
     pub decal: bool,
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Trim<M: Refs = Resolved> {
     pub material: TrimMaterialRef<M>,
@@ -40,7 +40,7 @@ pub struct Trim<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProvidesTrimMaterial<M: Refs = Resolved>(pub TrimMaterialRef<M>);
 

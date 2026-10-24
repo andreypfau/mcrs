@@ -1,6 +1,5 @@
+use crate::item::harness::{WireCodec, decode_component};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_protocol::item::EncodeCtx;
-use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -11,7 +10,7 @@ use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 
 use crate::item::harness::{
-    ctx, entry, from_nbt, hex, json_value, named, nbt_tree, persistent_json, resolved,
+    entry, from_nbt, hex, json_value, lookup, named, nbt_tree, persistent_json, resolved,
     try_from_json,
 };
 
@@ -74,7 +73,7 @@ fn parse_fixture() -> Vec<Golden> {
 #[test]
 fn every_golden_sample_matches_vanilla() {
     let samples = parse_fixture();
-    let lookup = ctx();
+    let lookup = lookup();
     assert_eq!(samples.len(), 78);
     let mut kinds_seen = std::collections::BTreeSet::new();
     for sample in &samples {
@@ -127,10 +126,10 @@ fn every_golden_sample_matches_vanilla() {
                 assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind:?} {input}: NBT");
 
                 let mut our_wire = Vec::new();
-                value.encode_ctx(&lookup, &mut our_wire).unwrap();
+                value.encode_checked(&lookup, &mut our_wire).unwrap();
                 assert_eq!(our_wire, *wire, "{kind:?} {input}: wire");
                 let mut r = &wire[..];
-                let decoded = decode_component_value(*kind, &lookup, &mut r).unwrap();
+                let decoded = decode_component(*kind, &lookup, &mut r).unwrap();
                 assert!(r.is_empty(), "{kind:?}: trailing wire bytes");
                 assert_eq!(
                     persistent_json(&decoded),
@@ -193,14 +192,13 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     use mcrs_minecraft_protocol::entity::EquipmentSlot;
     use mcrs_minecraft_protocol::item::{AttributeDisplay, AttributeOperation, Equippable};
 
-    let lookup = ctx();
+    let lookup = lookup();
     let head = try_from_json(DataComponentType::Equippable, r#"{"slot":"head"}"#).unwrap();
     let mut wire = Vec::new();
-    head.encode_ctx(&lookup, &mut wire).unwrap();
+    head.encode_checked(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 4);
     wire[0] = 9;
-    let decoded =
-        decode_component_value(DataComponentType::Equippable, &lookup, &mut &wire[..]).unwrap();
+    let decoded = decode_component(DataComponentType::Equippable, &lookup, &mut &wire[..]).unwrap();
     let ItemComponentValue::Equippable(Equippable { slot, .. }) = decoded else {
         unreachable!()
     };
@@ -212,13 +210,13 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     )
     .unwrap();
     let mut wire = Vec::new();
-    entry.encode_ctx(&lookup, &mut wire).unwrap();
+    entry.encode_checked(&lookup, &mut wire).unwrap();
     let len = wire.len();
     assert_eq!(&wire[len - 3..], &[2, 10, 1]);
     wire[len - 3] = 7;
     wire[len - 2] = 11;
     wire[len - 1] = 3;
-    let decoded = decode_component_value(
+    let decoded = decode_component(
         DataComponentType::AttributeModifiers,
         &lookup,
         &mut &wire[..],
@@ -241,12 +239,11 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
 #[test]
 fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     use mcrs_minecraft_item::keys::Item;
-    use mcrs_minecraft_protocol::Decode;
-    use mcrs_minecraft_protocol::item::{
-        ComponentPatch, Enchantments, EncodeCtx, ProtoStack, RawStack,
-    };
+    use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, ProtoStack};
+    use mcrs_minecraft_protocol::{Decode, Encode};
+    use mcrs_minecraft_registries::{FromWire, Wire};
 
-    let lookup = ctx();
+    let lookup = lookup();
     let enchantments = try_from_json(
         DataComponentType::Enchantments,
         r#"{"minecraft:sharpness":5,"minecraft:unbreaking":3}"#,
@@ -261,10 +258,12 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
         },
     );
     let mut wire = Vec::new();
-    slot.encode_ctx(&lookup, &mut wire).unwrap();
-    let raw = RawStack::decode(&mut &wire[..]).unwrap();
-    assert_eq!(raw.0, wire);
-    assert_eq!(raw.resolve(&lookup).unwrap(), slot);
+    slot.encode_checked(&lookup, &mut wire).unwrap();
+    let unchecked = ProtoStack::<Wire>::decode(&mut &wire[..]).unwrap();
+    let mut out = Vec::new();
+    unchecked.encode(&mut out).unwrap();
+    assert_eq!(out, wire);
+    assert_eq!(ProtoStack::from_wire(unchecked, &lookup).unwrap(), slot);
 
     let ItemComponentValue::Enchantments(expected) = &slot.components.added[0] else {
         unreachable!()
@@ -276,10 +275,10 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
 
 #[test]
 fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
-    let lookup = ctx();
+    let lookup = lookup();
     let decode = |wire: &[u8]| {
         let mut r = wire;
-        decode_component_value(DataComponentType::Enchantments, &lookup, &mut r)
+        decode_component(DataComponentType::Enchantments, &lookup, &mut r)
             .map(|value| persistent_json(&value))
             .map_err(|e| e.to_string())
     };
@@ -294,7 +293,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
     );
     assert_eq!(
         decode(&[1, sharpness, 0x80, 0x02]).unwrap_err(),
-        "Enchantment minecraft:sharpness has invalid level 256"
+        format!("Enchantment #{sharpness} has invalid level 256")
     );
     assert!(
         try_from_json(
@@ -430,10 +429,10 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 
 #[test]
 fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
-    let lookup = ctx();
+    let lookup = lookup();
     let wire = [0x02, 0x9c, 0x01, 0x80, 0x00, 0x00, 0x00];
     let value =
-        decode_component_value(DataComponentType::MobVisibility, &lookup, &mut &wire[..]).unwrap();
+        decode_component(DataComponentType::MobVisibility, &lookup, &mut &wire[..]).unwrap();
     assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
@@ -444,7 +443,7 @@ fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
 
 #[test]
 fn non_finite_floats_cross_the_wire() {
-    let lookup = ctx();
+    let lookup = lookup();
     for (kind, wire, json) in [
         (
             DataComponentType::Tool,
@@ -458,11 +457,11 @@ fn non_finite_floats_cross_the_wire() {
         ),
     ] {
         let mut r = &wire[..];
-        let value = decode_component_value(kind, &lookup, &mut r).unwrap();
+        let value = decode_component(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty());
         assert_eq!(persistent_json(&value), json, "{kind:?}");
         let mut encoded = Vec::new();
-        value.encode_ctx(&lookup, &mut encoded).unwrap();
+        value.encode_checked(&lookup, &mut encoded).unwrap();
         assert_eq!(encoded, wire, "{kind:?}");
     }
     let mut nbt = Vec::new();
@@ -512,7 +511,7 @@ fn a_one_entry_list_is_the_bare_entry() {
     use mcrs_minecraft_protocol::item::DamageResistant;
     use mcrs_minecraft_registries::IdSet;
 
-    let lookup = ctx();
+    let lookup = lookup();
     let bare = try_from_json(
         DataComponentType::DamageResistant,
         r#"{"types":"minecraft:lava"}"#,
@@ -525,10 +524,9 @@ fn a_one_entry_list_is_the_bare_entry() {
     .unwrap();
     assert_eq!(bare, list);
     let mut wire = Vec::new();
-    bare.encode_ctx(&lookup, &mut wire).unwrap();
+    bare.encode_checked(&lookup, &mut wire).unwrap();
     let decoded =
-        decode_component_value(DataComponentType::DamageResistant, &lookup, &mut &wire[..])
-            .unwrap();
+        decode_component(DataComponentType::DamageResistant, &lookup, &mut &wire[..]).unwrap();
     assert_eq!(decoded, bare);
     let ItemComponentValue::DamageResistant(DamageResistant { types }) = decoded else {
         unreachable!()

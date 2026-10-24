@@ -62,10 +62,15 @@ macro_rules! static_registry {
             }
 
             pub fn find(location: &str) -> Option<$name> {
-                Self::ALL
-                    .iter()
-                    .find(|entry| entry.as_static_str() == location)
-                    .copied()
+                static INDEX: ::std::sync::LazyLock<
+                    ::std::collections::HashMap<&'static str, $name>,
+                > = ::std::sync::LazyLock::new(|| {
+                    $name::ALL
+                        .iter()
+                        .map(|&entry| (entry.as_static_str(), entry))
+                        .collect()
+                });
+                INDEX.get(location).copied()
             }
 
             pub fn read(text: &str) -> Option<$name> {

@@ -1,10 +1,8 @@
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use uuid::Uuid;
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use mcrs_minecraft_profile::*;
 
 use crate::{Bounded, Decode, Encode};
@@ -63,8 +61,8 @@ fn decode_properties(r: &mut &[u8]) -> anyhow::Result<Vec<Property>> {
     ))
 }
 
-impl EncodeCtx for Profile {
-    fn encode_ctx(&self, _: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for Profile {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         match &self.profile {
             ProfileIdentity::Full(profile) => {
                 true.encode(&mut w)?;
@@ -93,8 +91,8 @@ impl EncodeCtx for Profile {
     }
 }
 
-impl DecodeCtx<'_> for Profile {
-    fn decode_ctx(_: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for Profile {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let profile = if bool::decode(r)? {
             ProfileIdentity::Full(GameProfileValue {
                 id: Uuid::decode(r)?,

@@ -20,7 +20,7 @@ float_default! {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlocksAttacks<M: Refs = Resolved> {
     #[serde(
@@ -83,7 +83,7 @@ fn is_default_reductions<M: Refs>(reductions: &[DamageReduction<M>]) -> bool {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageReduction<M: Refs = Resolved> {
     #[serde(
@@ -135,7 +135,7 @@ impl ItemDamageFunction {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PiercingWeapon<M: Refs = Resolved> {
     #[serde(
@@ -163,7 +163,7 @@ impl<M: Refs> Default for PiercingWeapon<M> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct KineticWeapon<M: Refs = Resolved> {
     #[serde(default = "ten", skip_serializing_if = "is_ten")]

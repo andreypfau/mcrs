@@ -40,10 +40,47 @@ pub fn dispatch(args: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_derive(Resolve)]
 pub fn derive_resolve(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    resolve(&input)
+    resolve(&input, &RESOLVE)
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
+
+/// Converts the `Wire` form of a value into its `Resolved` form and back, field by field.
+#[proc_macro_derive(FromWire)]
+pub fn derive_from_wire(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    resolve(&input, &FROM_WIRE)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
+/// One conversion trait between the `Resolved` form and another form of a value.
+struct Form {
+    trait_name: &'static str,
+    mode: &'static str,
+    to_resolved: &'static str,
+    from_resolved: &'static str,
+    resolver: &'static str,
+    namer: &'static str,
+}
+
+const RESOLVE: Form = Form {
+    trait_name: "Resolve",
+    mode: "Named",
+    to_resolved: "resolve",
+    from_resolved: "name",
+    resolver: "Resolver",
+    namer: "Namer",
+};
+
+const FROM_WIRE: Form = Form {
+    trait_name: "FromWire",
+    mode: "Wire",
+    to_resolved: "from_wire",
+    from_resolved: "to_wire",
+    resolver: "WireNames",
+    namer: "WireNames",
+};
 
 fn has_serde_bound(attrs: &[Attribute]) -> bool {
     attrs
@@ -235,8 +272,11 @@ struct Conversion {
     named: Tokens,
 }
 
-fn convert(fields: &Fields, mode: &Ident, resolved_mode: &Type) -> Conversion {
+fn convert(fields: &Fields, mode: &Ident, resolved_mode: &Type, form: &Form) -> Conversion {
     let krate = quote!(::mcrs_minecraft_registries);
+    let trait_name = format_ident!("{}", form.trait_name);
+    let to_resolved_fn = format_ident!("{}", form.to_resolved);
+    let from_resolved_fn = format_ident!("{}", form.from_resolved);
     let mut patterns = Vec::new();
     let mut resolved = Vec::new();
     let mut named = Vec::new();
@@ -247,8 +287,8 @@ fn convert(fields: &Fields, mode: &Ident, resolved_mode: &Type) -> Conversion {
             true => {
                 let ty = substitute(&field.ty, mode, resolved_mode);
                 (
-                    quote!(<#ty as #krate::Resolve>::resolve(#binding, ctx).map_err(|e| e.at(#label))?),
-                    quote!(<#ty as #krate::Resolve>::name(#binding, names).map_err(|e| e.at(#label))?),
+                    quote!(<#ty as #krate::#trait_name>::#to_resolved_fn(#binding, ctx).map_err(|e| e.at(#label))?),
+                    quote!(<#ty as #krate::#trait_name>::#from_resolved_fn(#binding, names).map_err(|e| e.at(#label))?),
                 )
             }
             false => (
@@ -281,32 +321,38 @@ fn convert(fields: &Fields, mode: &Ident, resolved_mode: &Type) -> Conversion {
     }
 }
 
-fn resolve(input: &DeriveInput) -> Result<Tokens> {
+fn resolve(input: &DeriveInput, form: &Form) -> Result<Tokens> {
     let mode = mode_param(&input.generics)?;
     let krate = quote!(::mcrs_minecraft_registries);
     let resolved_mode: Type = parse_quote!(#krate::Resolved);
+    let other = format_ident!("{}", form.mode);
+    let trait_name = format_ident!("{}", form.trait_name);
+    let to_resolved_fn = format_ident!("{}", form.to_resolved);
+    let from_resolved_fn = format_ident!("{}", form.from_resolved);
+    let resolver = format_ident!("{}", form.resolver);
+    let namer = format_ident!("{}", form.namer);
     let name = &input.ident;
     let resolved_ty = quote!(#name<#krate::Resolved>);
-    let named_ty = quote!(#name<#krate::Named>);
+    let other_ty = quote!(#name<#krate::#other>);
     let mut resolve_arms = Vec::new();
     let mut name_arms = Vec::new();
     match &input.data {
         Data::Struct(data) => {
-            let c = convert(&data.fields, &mode, &resolved_mode);
+            let c = convert(&data.fields, &mode, &resolved_mode, form);
             let (pattern, resolved, named) = (&c.pattern, &c.resolved, &c.named);
             resolve_arms.push(
-                quote!(#name::<#krate::Named> #pattern => #name::<#krate::Resolved> #resolved),
+                quote!(#name::<#krate::#other> #pattern => #name::<#krate::Resolved> #resolved),
             );
             name_arms
-                .push(quote!(#name::<#krate::Resolved> #pattern => #name::<#krate::Named> #named));
+                .push(quote!(#name::<#krate::Resolved> #pattern => #name::<#krate::#other> #named));
         }
         Data::Enum(data) => {
             for variant in &data.variants {
                 let v = &variant.ident;
-                let c = convert(&variant.fields, &mode, &resolved_mode);
+                let c = convert(&variant.fields, &mode, &resolved_mode, form);
                 let (pattern, resolved, named) = (&c.pattern, &c.resolved, &c.named);
-                resolve_arms.push(quote!(#name::<#krate::Named>::#v #pattern => #name::<#krate::Resolved>::#v #resolved));
-                name_arms.push(quote!(#name::<#krate::Resolved>::#v #pattern => #name::<#krate::Named>::#v #named));
+                resolve_arms.push(quote!(#name::<#krate::#other>::#v #pattern => #name::<#krate::Resolved>::#v #resolved));
+                name_arms.push(quote!(#name::<#krate::Resolved>::#v #pattern => #name::<#krate::#other>::#v #named));
             }
         }
         Data::Union(_) => {
@@ -318,21 +364,21 @@ fn resolve(input: &DeriveInput) -> Result<Tokens> {
     }
     Ok(quote! {
         #[automatically_derived]
-        impl #krate::Resolve for #resolved_ty {
-            type Named = #named_ty;
+        impl #krate::#trait_name for #resolved_ty {
+            type #other = #other_ty;
 
-            fn resolve<C: #krate::Resolver>(
-                named: #named_ty,
+            fn #to_resolved_fn<C: #krate::#resolver>(
+                named: #other_ty,
                 ctx: &C,
             ) -> ::core::result::Result<Self, #krate::ResolveError> {
                 let _ = ctx;
                 ::core::result::Result::Ok(match named { #(#resolve_arms,)* })
             }
 
-            fn name<C: #krate::Namer>(
+            fn #from_resolved_fn<C: #krate::#namer>(
                 &self,
                 names: &C,
-            ) -> ::core::result::Result<#named_ty, #krate::ResolveError> {
+            ) -> ::core::result::Result<#other_ty, #krate::ResolveError> {
                 let _ = names;
                 ::core::result::Result::Ok(match self { #(#name_arms,)* })
             }

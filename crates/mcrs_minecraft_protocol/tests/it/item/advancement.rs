@@ -1,17 +1,19 @@
+use crate::item::harness::WireCodec;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::advancement::{
     Advancement, AdvancementProgress, AdvancementType, CriterionProgress, DisplayInfo,
-    PositionedAdvancement, RawAdvancement,
+    PositionedAdvancement,
 };
-use mcrs_minecraft_protocol::item::{ComponentPatch, DecodeCtx, EncodeCtx, Template, Text};
+use mcrs_minecraft_protocol::item::{ComponentPatch, Template, Text};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAdvancements;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     SeenAdvancementsAction, ServerboundSeenAdvancements,
 };
 use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_registries::FromWire;
 
-use crate::item::harness::{block_ctx, hex, json_of, read_json};
+use crate::item::harness::{block_lookup, hex, json_of, read_json};
 use crate::item::particle::{golden, to_hex};
 
 fn id(text: &str) -> ResourceLocation {
@@ -85,11 +87,11 @@ fn positioned(name: &str, value: Advancement, x: f32, y: f32) -> PositionedAdvan
 fn an_advancement_matches_the_vanilla_stream_codec() {
     let bytes = hex(golden("root.wire"));
     let mut r = &bytes[..];
-    let decoded = Advancement::decode_ctx(&block_ctx(), &mut r).unwrap();
+    let decoded = Advancement::decode_checked(&block_lookup(), &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(decoded, root());
     let mut out = Vec::new();
-    decoded.encode_ctx(&block_ctx(), &mut out).unwrap();
+    decoded.encode_checked(&block_lookup(), &mut out).unwrap();
     assert_eq!(to_hex(&out), to_hex(&bytes));
 }
 
@@ -156,7 +158,7 @@ fn update_advancements_packet_matches_vanilla() {
     let resolved: Vec<PositionedAdvancement> = packet
         .added
         .iter()
-        .map(|raw| raw.resolve(&block_ctx()).unwrap())
+        .map(|wire| PositionedAdvancement::from_wire(wire.clone(), &block_lookup()).unwrap())
         .collect();
     assert_eq!(
         resolved,
@@ -173,7 +175,7 @@ fn update_advancements_packet_matches_vanilla() {
     let rebuilt = ClientboundUpdateAdvancements {
         added: resolved
             .iter()
-            .map(|advancement| RawAdvancement::from_positioned(advancement, &block_ctx()).unwrap())
+            .map(|advancement| advancement.to_wire(&block_lookup()).unwrap())
             .collect(),
         ..packet
     };

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::harness::Sample;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BreakSound<M: Refs = Resolved>(pub Sound<M>);
 

@@ -1,30 +1,29 @@
+use mcrs_minecraft_registries::Wire;
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
 use anyhow::ensure;
 use mcrs_minecraft_core::codec;
 
 use crate::item::component::book::*;
 use crate::item::component::common::Filterable;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::item::wire::record_ctx_wire;
+use crate::item::wire::record_wire;
 use crate::{Decode, Encode, VarInt};
 
-record_ctx_wire!(WritableBookContent { pages });
+record_wire!(WritableBookContent { pages });
 
-impl EncodeCtx for WrittenBookContent {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.title.encode_ctx(ctx, &mut w)?;
+impl Encode for WrittenBookContent<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.title.encode(&mut w)?;
         self.author.encode(&mut w)?;
         VarInt(self.generation.0).encode(&mut w)?;
-        self.pages.encode_ctx(ctx, &mut w)?;
+        self.pages.encode(&mut w)?;
         self.resolved.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for WrittenBookContent {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let title = Filterable::decode_ctx(ctx, r)?;
+impl Decode<'_> for WrittenBookContent<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let title = Filterable::decode(r)?;
         let author = String::decode(r)?;
         let generation = VarInt::decode(r)?.0;
         ensure!(
@@ -35,7 +34,7 @@ impl DecodeCtx<'_> for WrittenBookContent {
             title,
             author,
             generation: codec::Bounded(generation),
-            pages: Vec::decode_ctx(ctx, r)?,
+            pages: Vec::decode(r)?,
             resolved: bool::decode(r)?,
         })
     }

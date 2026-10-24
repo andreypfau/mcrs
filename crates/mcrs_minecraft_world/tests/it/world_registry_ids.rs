@@ -4,11 +4,9 @@ use std::path::PathBuf;
 use bevy_app::App;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_protocol::item::ctx::WireCtx;
-use mcrs_minecraft_protocol::item::{DecodeCtx, EncodeCtx};
-use mcrs_minecraft_protocol::{Encode, VarInt};
-use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_registries::Resolved;
+use mcrs_minecraft_protocol::item::WireLookup;
+use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_registries::{CurrentRegistries, FromWire, Resolved};
 use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 use crate::common::{declared_registries, loaded_names};
@@ -98,7 +96,7 @@ fn a_world_registry_without_files_is_empty() {
 #[test]
 fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_trips() {
     let registries = test_registries();
-    let ctx = WireCtx::new(registries);
+    let ctx = WireLookup::new(registries);
     let past = |registry: &str, offset: usize| {
         let len = loaded_names(registries, registry).len();
         let mut wire = Vec::new();
@@ -109,24 +107,25 @@ fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_tr
     };
 
     let error =
-        Id::<DimensionType>::decode_ctx(&ctx, &mut &past("minecraft:dimension_type", 0)[..])
-            .unwrap_err();
-    assert!(
-        format!("{error:#}").contains("minecraft:dimension_type"),
-        "{error:#}"
-    );
+        checked::<Id<DimensionType>>(&ctx, &past("minecraft:dimension_type", 0)).unwrap_err();
+    assert!(error.contains("minecraft:dimension_type"), "{error}");
 
     type Sound = mcrs_minecraft_sound::Sound<Resolved>;
-    let error = Sound::decode_ctx(&ctx, &mut &past("minecraft:sound_event", 1)[..]).unwrap_err();
-    assert!(
-        format!("{error:#}").contains("minecraft:sound_event"),
-        "{error:#}"
-    );
+    let error = checked::<Sound>(&ctx, &past("minecraft:sound_event", 1)).unwrap_err();
+    assert!(error.contains("minecraft:sound_event"), "{error}");
 
     let sound = Sound::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id());
     let mut wire = Vec::new();
-    sound.encode_ctx(&ctx, &mut wire).unwrap();
-    let mut r = &wire[..];
-    assert_eq!(Sound::decode_ctx(&ctx, &mut r).unwrap(), sound);
-    assert!(r.is_empty());
+    sound.to_wire(&ctx).unwrap().encode(&mut wire).unwrap();
+    assert_eq!(checked::<Sound>(&ctx, &wire).unwrap(), sound);
+}
+
+fn checked<T: FromWire<Wire: for<'a> Decode<'a>>>(
+    lookup: &WireLookup<'_>,
+    wire: &[u8],
+) -> Result<T, String> {
+    let mut r = wire;
+    let value = T::Wire::decode(&mut r).map_err(|e| e.to_string())?;
+    assert!(r.is_empty(), "{} trailing bytes", r.len());
+    T::from_wire(value, lookup).map_err(|e| e.to_string())
 }

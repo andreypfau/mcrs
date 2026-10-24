@@ -13,12 +13,14 @@ use mcrs_minecraft_text::IntoText;
 use crate::Text;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct AttributeModifiers<M: Refs = Resolved>(pub Vec<AttributeEntry<M>>);
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeEntry<M: Refs = Resolved> {
     #[serde(rename = "type")]
@@ -71,14 +73,16 @@ ordinal_enum! {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AttributeDisplay<M: Refs = Resolved> {
     #[default]
     Default,
     Hidden,
     Override {
-        value: Text<M>,
+        value: Text<M::Nbt>,
     },
 }
 

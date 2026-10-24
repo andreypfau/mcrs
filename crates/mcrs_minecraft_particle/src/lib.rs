@@ -8,13 +8,17 @@ use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
-use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
+use mcrs_minecraft_registries::{
+    FromWire, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, WireNames, dispatch,
+    registry_value,
+};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! particle_types {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         #[registry_value]
+        #[derive(mcrs_minecraft_registries::FromWire)]
         #[dispatch(registry = crate::keys::ParticleType)]
         #[derive(Clone, Debug, PartialEq)]
         pub enum ParticleOptions<M: Refs = Resolved> {
@@ -30,8 +34,8 @@ macro_rules! for_each_particle_type {
     ($callback:ident) => {
         $callback! {
         AngryVillager,
-        Block(BlockParticle),
-        BlockMarker(BlockParticle),
+        Block(BlockParticle<M>),
+        BlockMarker(BlockParticle<M>),
         Bubble,
         SulfurBubbles,
         NoxiousGas,
@@ -66,7 +70,7 @@ macro_rules! for_each_particle_type {
         GustEmitterLarge,
         GustEmitterSmall,
         SonicBoom,
-        FallingDust(BlockParticle),
+        FallingDust(BlockParticle<M>),
         Firework,
         Fishing,
         Flame,
@@ -150,11 +154,11 @@ macro_rules! for_each_particle_type {
         TrialSpawnerDetection,
         TrialSpawnerDetectionOminous,
         VaultConnection,
-        DustPillar(BlockParticle),
+        DustPillar(BlockParticle<M>),
         OminousSpawning,
         RaidOmen,
         TrialOmen,
-        BlockCrumble(BlockParticle),
+        BlockCrumble(BlockParticle<M>),
         Firefly,
         SulfurCubeGoo,
         }
@@ -212,10 +216,49 @@ impl<'de> Deserialize<'de> for BlockStateValue {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// A block state number as the peer sent it, not yet checked against the block definitions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WireBlockState(pub u16);
+
+impl Resolve for BlockStateValue {
+    type Named = Self;
+
+    fn resolve<C: Resolver>(named: Self, _: &C) -> Result<Self, ResolveError> {
+        Ok(named)
+    }
+
+    fn name<C: Namer>(&self, _: &C) -> Result<Self, ResolveError> {
+        Ok(self.clone())
+    }
+}
+
+impl FromWire for BlockStateValue {
+    type Wire = WireBlockState;
+
+    fn from_wire<C: WireNames>(wire: WireBlockState, ctx: &C) -> Result<Self, ResolveError> {
+        let (block, properties) = ctx.block_state(wire.0)?;
+        Ok(BlockStateValue {
+            block: ResourceKey::from_location(block),
+            properties: properties.into_iter().collect(),
+        })
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<WireBlockState, ResolveError> {
+        let properties: Vec<(&str, &str)> = self
+            .properties
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
+        ctx.block_state_id(self.block.location(), &properties)
+            .map(WireBlockState)
+    }
+}
+
+#[registry_value]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BlockParticle {
-    pub block_state: BlockStateValue,
+pub struct BlockParticle<M: Refs = Resolved> {
+    pub block_state: M::Value<BlockStateValue>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -332,7 +375,7 @@ pub struct ShriekParticle {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ItemParticle<M: Refs = Resolved> {
     pub item: Template<M>,

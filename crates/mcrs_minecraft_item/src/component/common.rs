@@ -12,7 +12,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
 use mcrs_minecraft_registries::{
-    Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver,
+    FromWire, Named, Namer, Ref, Refs, Resolve, ResolveError, Resolved, Resolver, Wire, WireNames,
 };
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
@@ -61,6 +61,24 @@ impl<T: Resolve> Resolve for Filterable<T> {
         Ok(Filterable {
             raw: self.raw.name(names).map_err(|e| e.at("raw"))?,
             filtered: self.filtered.name(names).map_err(|e| e.at("filtered"))?,
+        })
+    }
+}
+
+impl<T: FromWire> FromWire for Filterable<T> {
+    type Wire = Filterable<T::Wire>;
+
+    fn from_wire<C: WireNames>(wire: Self::Wire, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(Filterable {
+            raw: T::from_wire(wire.raw, ctx).map_err(|e| e.at("raw"))?,
+            filtered: Option::from_wire(wire.filtered, ctx).map_err(|e| e.at("filtered"))?,
+        })
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<Self::Wire, ResolveError> {
+        Ok(Filterable {
+            raw: self.raw.to_wire(ctx).map_err(|e| e.at("raw"))?,
+            filtered: self.filtered.to_wire(ctx).map_err(|e| e.at("filtered"))?,
         })
     }
 }
@@ -163,6 +181,18 @@ impl<R: Registered, V: Resolve<Named: Clone>> Resolve for WireRef<Resolved, R, V
     }
 }
 
+impl<R: Registered, V: FromWire<Wire: Clone>> FromWire for WireRef<Resolved, R, V> {
+    type Wire = WireRef<Wire, R, V::Wire>;
+
+    fn from_wire<C: WireNames>(wire: Self::Wire, ctx: &C) -> Result<Self, ResolveError> {
+        Ref::from_wire(wire.0, ctx).map(WireRef)
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<Self::Wire, ResolveError> {
+        self.0.to_wire(ctx).map(WireRef)
+    }
+}
+
 macro_rules! resolvable {
     ($name:ident, $scalar:ty, $registry:ident, $expecting:literal, $number:ident) => {
         #[derive(Clone, Debug, PartialEq)]
@@ -239,7 +269,7 @@ resolvable!(
 );
 
 #[mcrs_minecraft_registries::registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobEffectInstance<M: Refs = Resolved> {
     pub id: M::Id<MobEffect>,

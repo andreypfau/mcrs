@@ -1,23 +1,24 @@
+use crate::item::harness::WireCodec;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{Id, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_protocol::item::ctx::WireCtx;
+use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::{
-    BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
-    EncodeCtx, ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, RawStack,
-    SulfurCubeContent, Template, UseRemainder,
+    BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container,
+    ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, SulfurCubeContent, Template,
+    UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registries::{Named, Ref, Resolved};
+use mcrs_minecraft_registries::{FromWire, Named, Ref, Resolved, Wire};
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 
 use crate::item::harness::{
-    ctx, decode, entry, from_json, from_nbt, json_of, named, persistent_json, read_json, resolved,
-    wire,
+    decode, entry, from_json, from_nbt, json_of, lookup, named, persistent_json, read_json,
+    resolved, wire,
 };
 use mcrs_minecraft_item::keys::Item;
 
@@ -160,26 +161,24 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     assert_eq!(&from_nbt(kind, &nbt), value, "{kind:?}: NBT round trip");
 }
 
-fn raw_stack_round_trip(lookup: &WireCtx<'_>, slot: &ProtoStack) {
+fn wire_stack_round_trip(lookup: &WireLookup<'_>, slot: &ProtoStack) {
     let mut wire = Vec::new();
-    slot.encode_ctx(lookup, &mut wire)
+    slot.encode_checked(lookup, &mut wire)
         .unwrap_or_else(|e| panic!("encode {slot:?}: {e}"));
     let mut r = &wire[..];
-    let raw = RawStack::decode(&mut r).unwrap_or_else(|e| panic!("measure {wire:02x?}: {e}"));
+    let unchecked = ProtoStack::<Wire>::decode(&mut r)
+        .unwrap_or_else(|e| panic!("read {wire:02x?} without registries: {e}"));
     assert!(r.is_empty(), "{} trailing bytes after {slot:?}", r.len());
-    assert_eq!(
-        &raw.0[..],
-        &wire[..],
-        "raw stack keeps the bytes of {slot:?}"
-    );
-    let back = raw
-        .resolve(lookup)
-        .unwrap_or_else(|e| panic!("resolve {wire:02x?} of {slot:?}: {e}"));
-    assert_eq!(&back, slot, "raw stack round trip");
+    let mut out = Vec::new();
+    unchecked.encode(&mut out).unwrap();
+    assert_eq!(out, wire, "the wire form keeps the bytes of {slot:?}");
+    let back = ProtoStack::from_wire(unchecked, lookup)
+        .unwrap_or_else(|e| panic!("check {wire:02x?} of {slot:?}: {e}"));
+    assert_eq!(&back, slot, "wire stack round trip");
 }
 
 fn check_kind(kind: DataComponentType, iterations: usize) {
-    let lookup = ctx();
+    let lookup = lookup();
     let mut generator = Gen::new(kind as u64);
     for _ in 0..iterations {
         let value = generator.value(kind, 2);
@@ -193,7 +192,7 @@ fn check_kind(kind: DataComponentType, iterations: usize) {
         }
         let mut slot = generator.slot(1);
         slot.components.set_value(value);
-        raw_stack_round_trip(&lookup, &slot);
+        wire_stack_round_trip(&lookup, &slot);
     }
 }
 
@@ -210,11 +209,11 @@ mod exhaustive {
 
 #[test]
 fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
-    let lookup = ctx();
+    let lookup = lookup();
     let mut generator = Gen::new(0x5107);
     for _ in 0..ITERATIONS {
         let slot = generator.slot(2);
-        raw_stack_round_trip(&lookup, &slot);
+        wire_stack_round_trip(&lookup, &slot);
 
         let template = generator.template(2);
         let json = json_of(&template);
@@ -235,9 +234,9 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
         );
 
         let mut wire = Vec::new();
-        template.encode_ctx(&lookup, &mut wire).unwrap();
+        template.encode_checked(&lookup, &mut wire).unwrap();
         let mut r = &wire[..];
-        let back = Template::decode_ctx(&lookup, &mut r)
+        let back = Template::decode_checked(&lookup, &mut r)
             .unwrap_or_else(|e| panic!("template from wire {wire:02x?}: {e}"));
         assert!(r.is_empty());
         assert_eq!(back, template, "template wire round trip");
@@ -247,23 +246,23 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
 #[test]
 fn inline_holders_are_a_zero_prefix_and_a_bare_prefix_fails() {
     type Pattern = Ref<Resolved, BannerPattern, BannerPattern>;
-    let lookup = ctx();
+    let lookup = lookup();
     let direct = Pattern::Inline(Arc::new(BannerPattern {
         asset_id: rl!("minecraft:globe").to_arc(),
         translation_key: "block.minecraft.banner.globe".into(),
     }));
     let mut wire = Vec::new();
-    direct.encode_ctx(&lookup, &mut wire).unwrap();
+    direct.encode_checked(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 0);
     let mut r = &wire[..];
-    assert_eq!(Pattern::decode_ctx(&lookup, &mut r).unwrap(), direct);
+    assert_eq!(Pattern::decode_checked(&lookup, &mut r).unwrap(), direct);
     assert!(r.is_empty());
 
-    assert!(Pattern::decode_ctx(&lookup, &mut &[0u8][..]).is_err());
+    assert!(Pattern::decode_checked(&lookup, &mut &[0u8][..]).is_err());
 
     let mut unknown = Vec::new();
     VarInt(ITEMS.len() as i32 + 100)
         .encode(&mut unknown)
         .unwrap();
-    assert!(Pattern::decode_ctx(&lookup, &mut &unknown[..]).is_err());
+    assert!(Pattern::decode_checked(&lookup, &mut &unknown[..]).is_err());
 }

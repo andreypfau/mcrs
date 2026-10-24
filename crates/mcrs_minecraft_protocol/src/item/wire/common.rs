@@ -1,38 +1,40 @@
+use mcrs_minecraft_registries::Wire;
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
-use anyhow::ensure;
-use mcrs_minecraft_core::{Registered, ResourceKey, ResourceLocation};
+use anyhow::{Context, ensure};
+use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 
 use crate::item::component::common::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::item::wire::{newtype_wire, ordinal_enum_wire, record_ctx_wire};
+use crate::item::lookup::nested;
+use crate::item::wire::{newtype_wire, ordinal_enum_wire, record_wire};
 use crate::{Bounded, Decode, Encode, VarInt};
 
 newtype_wire!(RgbInt, ArgbInt, NbtPredicate);
 ordinal_enum_wire!(EquipmentSlotGroup, ItemUseAnimation);
 
-impl<T: EncodeCtx> EncodeCtx for Filterable<T> {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.raw.encode_ctx(ctx, &mut w)?;
-        self.filtered.encode_ctx(ctx, w)
+impl<T: Encode> Encode for Filterable<T> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.raw.encode(&mut w)?;
+        self.filtered.encode(w)
     }
 }
 
-impl<'a, T: DecodeCtx<'a>> DecodeCtx<'a> for Filterable<T> {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+impl<'a, T: Decode<'a>> Decode<'a> for Filterable<T> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         Ok(Filterable {
-            raw: T::decode_ctx(ctx, r)?,
-            filtered: Option::decode_ctx(ctx, r)?,
+            raw: T::decode(r)?,
+            filtered: Option::decode(r)?,
         })
     }
 }
 
 macro_rules! resolvable_wire {
     ($($name:ident),* $(,)?) => {$(
-        impl EncodeCtx for $name {
-            fn encode_ctx(&self, _: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+        impl Encode for $name {
+            fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
                 match self {
                     Self::Constant(value) => {
                         true.encode(&mut w)?;
@@ -46,8 +48,8 @@ macro_rules! resolvable_wire {
             }
         }
 
-        impl DecodeCtx<'_> for $name {
-            fn decode_ctx(_: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+        impl Decode<'_> for $name {
+            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
                 Ok(match bool::decode(r)? {
                     true => Self::Constant(Decode::decode(r)?),
                     false => {
@@ -61,10 +63,10 @@ macro_rules! resolvable_wire {
 
 resolvable_wire!(ResolvableInt, ResolvableFloat);
 
-record_ctx_wire!(MobEffectInstance { id, details });
+record_wire!(MobEffectInstance<Wire> { id, details });
 
-impl EncodeCtx for MobEffectDetails {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for MobEffectDetails {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.amplifier() as i32).encode(&mut w)?;
         VarInt(self.duration).encode(&mut w)?;
         self.ambient.encode(&mut w)?;
@@ -73,26 +75,22 @@ impl EncodeCtx for MobEffectDetails {
         match &self.hidden_effect {
             Some(hidden) => {
                 true.encode(&mut w)?;
-                hidden.encode_ctx(ctx, w)
+                hidden.encode(w)
             }
             None => false.encode(w),
         }
     }
 }
 
-impl DecodeCtx<'_> for MobEffectDetails {
-    #[expect(
-        clippy::only_used_in_recursion,
-        reason = "the registry lookup is only handed to the hidden effect's nested decode, which the trait fixes to take it"
-    )]
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for MobEffectDetails {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let amplifier = VarInt::decode(r)?.0.clamp(0, 255);
         let duration = VarInt::decode(r)?.0;
         let ambient = bool::decode(r)?;
         let show_particles = bool::decode(r)?;
         let show_icon = bool::decode(r)?;
         let hidden_effect = match bool::decode(r)? {
-            true => Some(Box::new(MobEffectDetails::decode_ctx(ctx, r)?)),
+            true => Some(Box::new(nested(|| MobEffectDetails::decode(r))?)),
             false => None,
         };
         Ok(MobEffectDetails {
@@ -106,26 +104,36 @@ impl DecodeCtx<'_> for MobEffectDetails {
     }
 }
 
-impl<R: Registered> EncodeCtx for TypedEntityData<R> {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode_ctx(ctx, &mut w)?;
-        self.tag.encode(w)
-    }
+/// The type a typed entity data names is an entry of a static registry, numbered without the
+/// registries.
+macro_rules! typed_entity_data_wire {
+    ($($registry:ty),* $(,)?) => {$(
+        impl Encode for TypedEntityData<$registry> {
+            fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+                <$registry>::find(self.id.location().as_str())
+                    .with_context(|| format!("no {} is named {}", stringify!($registry), self.id))?
+                    .encode(&mut w)?;
+                self.tag.encode(w)
+            }
+        }
+
+        impl Decode<'_> for TypedEntityData<$registry> {
+            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+                let entry = <$registry>::decode(r)?;
+                ensure!(
+                    r.first() == Some(&mcrs_minecraft_nbt::COMPOUND_ID),
+                    "expected a compound tag"
+                );
+                Ok(TypedEntityData {
+                    id: ResourceKey::from_location(entry.location().to_arc()),
+                    tag: NbtCompound::decode(r)?,
+                })
+            }
+        }
+    )*};
 }
 
-impl<R: Registered> DecodeCtx<'_> for TypedEntityData<R> {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = ResourceKey::decode_ctx(ctx, r)?;
-        ensure!(
-            r.first() == Some(&mcrs_minecraft_nbt::COMPOUND_ID),
-            "expected a compound tag"
-        );
-        Ok(TypedEntityData {
-            id,
-            tag: NbtCompound::decode(r)?,
-        })
-    }
-}
+typed_entity_data_wire!(EntityType, BlockEntityType);
 
 impl<const MAX_CHARS: usize> Encode for BoundedString<MAX_CHARS> {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
@@ -141,32 +149,20 @@ impl<const MAX_CHARS: usize> Decode<'_> for BoundedString<MAX_CHARS> {
     }
 }
 
-impl<const MAX_CHARS: usize> EncodeCtx for BoundedString<MAX_CHARS> {
-    fn encode_ctx(&self, _: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        self.encode(w)
+impl<T: Encode> Encode for CompactList<T> {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        self.0.encode(w)
     }
 }
 
-impl<const MAX_CHARS: usize> DecodeCtx<'_> for BoundedString<MAX_CHARS> {
-    fn decode_ctx(_: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Self::decode(r)
+impl<'a, T: Decode<'a>> Decode<'a> for CompactList<T> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Vec::decode(r).map(CompactList)
     }
 }
 
-impl<T: EncodeCtx> EncodeCtx for CompactList<T> {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a, T: DecodeCtx<'a>> DecodeCtx<'a> for CompactList<T> {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(CompactList)
-    }
-}
-
-impl EncodeCtx for ValueMatcher {
-    fn encode_ctx(&self, _: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for ValueMatcher {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             ValueMatcher::Exact(value) => {
                 true.encode(&mut w)?;
@@ -181,8 +177,8 @@ impl EncodeCtx for ValueMatcher {
     }
 }
 
-impl DecodeCtx<'_> for ValueMatcher {
-    fn decode_ctx(_: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for ValueMatcher {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(match bool::decode(r)? {
             true => ValueMatcher::Exact(String::decode(r)?),
             false => ValueMatcher::Ranged {

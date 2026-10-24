@@ -15,7 +15,8 @@ use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registries::{
-    IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
+    FromWire, IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire,
+    WireNames, registry_value,
 };
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -29,6 +30,7 @@ use crate::harness::{entry, list_set, one_set, tag_set};
 macro_rules! registry_key_component {
     ($($ty:ident($registry:ty) [$($sample:literal),+]),* $(,)?) => {$(
         #[registry_value]
+#[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub M::Id<$registry>);
@@ -106,6 +108,29 @@ impl Resolve for Enchantments {
         self.0
             .iter()
             .map(|(id, level)| Ok((id.name(names)?, *level)))
+            .collect::<Result<_, _>>()
+            .map(Enchantments)
+    }
+}
+
+impl FromWire for Enchantments {
+    type Wire = Enchantments<Wire>;
+
+    fn from_wire<C: WireNames>(wire: Enchantments<Wire>, ctx: &C) -> Result<Self, ResolveError> {
+        wire.0
+            .into_iter()
+            .enumerate()
+            .map(|(at, (id, level))| {
+                Ok((Id::from_wire(id, ctx).map_err(|e| e.at_index(at))?, level))
+            })
+            .collect::<Result<_, _>>()
+            .map(Enchantments)
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<Enchantments<Wire>, ResolveError> {
+        self.0
+            .iter()
+            .map(|(id, level)| Ok((id.to_wire(ctx)?, *level)))
             .collect::<Result<_, _>>()
             .map(Enchantments)
     }
@@ -208,7 +233,9 @@ impl Sample for Enchantments {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct StoredEnchantments<M: Refs = Resolved>(pub Enchantments<M>);
 
@@ -226,7 +253,7 @@ impl Sample for StoredEnchantments {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant<M: Refs = Resolved> {
     pub types: M::Set<DamageType>,
@@ -253,7 +280,7 @@ impl Sample for DamageResistant {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Tool<M: Refs = Resolved> {
     pub rules: Vec<ToolRule<M>>,
@@ -303,7 +330,7 @@ impl<M: Refs> Default for Tool<M> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct ToolRule<M: Refs = Resolved> {
     pub blocks: M::Set<Block>,
@@ -374,7 +401,7 @@ impl Sample for Tool {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Repairable<M: Refs = Resolved> {
     pub items: M::Set<Item>,
@@ -403,7 +430,7 @@ impl Sample for Repairable {
 pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility<M: Refs = Resolved> {
     pub targeting_entity_types: M::Set<EntityType>,
@@ -446,7 +473,7 @@ impl Sample for MobVisibility {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProvidesBannerPatterns<M: Refs = Resolved>(pub M::Set<BannerPattern>);
 
@@ -465,14 +492,16 @@ impl Sample for ProvidesBannerPatterns {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct SuspiciousStewEffects<M: Refs = Resolved>(pub Vec<StewEntry<M>>);
 
 pub const DEFAULT_STEW_DURATION: i32 = 160;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StewEntry<M: Refs = Resolved> {
     pub id: M::Id<MobEffect>,

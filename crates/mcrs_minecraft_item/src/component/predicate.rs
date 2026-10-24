@@ -40,11 +40,12 @@ use crate::Text;
 pub const MAX_PARTIAL_PREDICATES: usize = 64;
 
 macro_rules! predicate_newtype {
-    ($($ty:ident($inner:ident)),* $(,)?) => {$(
+    ($($ty:ident($inner:ident<$mode:ty>)),* $(,)?) => {$(
         #[registry_value]
+        #[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $ty<M: Refs = Resolved>(pub $inner<M>);
+        pub struct $ty<M: Refs = Resolved>(pub $inner<$mode>);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -59,10 +60,13 @@ macro_rules! predicate_newtype {
 }
 
 predicate_newtype!(
-    CanPlaceOn(AdventureModePredicate),
-    CanBreak(AdventureModePredicate),
-    Lock(ItemPredicate),
+    CanPlaceOn(AdventureModePredicate<M>),
+    CanBreak(AdventureModePredicate<M>),
+    Lock(ItemPredicate<M::Nbt>),
 );
+
+mcrs_minecraft_registries::wire_as_named!(ItemPredicate);
+mcrs_minecraft_registries::wire_as_named!(ComponentPredicates);
 
 /// Every field absent: the derive would also demand a default of each reference type.
 macro_rules! empty_default {
@@ -78,7 +82,7 @@ macro_rules! empty_default {
 /// One predicate bare, otherwise a non-empty list; the wire allows an empty
 /// list.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct AdventureModePredicate<M: Refs = Resolved>(pub CompactList<BlockPredicate<M>>);
 
@@ -98,7 +102,9 @@ impl<'de> Deserialize<'de> for AdventureModePredicate<Named> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
+#[derive(
+    Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve, mcrs_minecraft_registries::FromWire,
+)]
 pub struct BlockPredicate<M: Refs = Resolved> {
     pub blocks: Option<M::Set<Block>>,
     pub state: Option<StatePropertiesPredicate>,
@@ -221,10 +227,12 @@ impl<'de> Deserialize<'de> for ItemPredicate<Named> {
 
 /// Exact values a component must equal and partial predicates it must
 /// satisfy, both flattened into the owning predicate.
-#[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
+#[derive(
+    Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve, mcrs_minecraft_registries::FromWire,
+)]
 pub struct DataComponentMatchers<M: Refs = Resolved> {
     pub components: ComponentMap<M>,
-    pub predicates: ComponentPredicates<M>,
+    pub predicates: ComponentPredicates<M::Nbt>,
 }
 
 empty_default! {

@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver};
+use mcrs_minecraft_registries::{
+    FromWire, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire, WireNames,
+};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -106,6 +108,41 @@ impl Resolve for ComponentPatch {
             removed: self.removed.clone(),
         })
     }
+}
+
+impl FromWire for ComponentPatch {
+    type Wire = ComponentPatch<Wire>;
+
+    fn from_wire<C: WireNames>(wire: ComponentPatch<Wire>, ctx: &C) -> Result<Self, ResolveError> {
+        Ok(ComponentPatch {
+            added: values_from_wire(wire.added, ctx)?,
+            removed: wire.removed,
+        })
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<ComponentPatch<Wire>, ResolveError> {
+        Ok(ComponentPatch {
+            added: values_to_wire(&self.added, ctx)?,
+            removed: self.removed.clone(),
+        })
+    }
+}
+
+/// Unlike `Vec::from_wire`, an error carries no index, as the `Resolve` impls of a patch do.
+fn values_from_wire<C: WireNames>(
+    wire: Vec<ItemComponentValue<Wire>>,
+    ctx: &C,
+) -> Result<Vec<ItemComponentValue>, ResolveError> {
+    wire.into_iter()
+        .map(|value| ItemComponentValue::from_wire(value, ctx))
+        .collect()
+}
+
+fn values_to_wire<C: WireNames>(
+    values: &[ItemComponentValue],
+    ctx: &C,
+) -> Result<Vec<ItemComponentValue<Wire>>, ResolveError> {
+    values.iter().map(|value| value.to_wire(ctx)).collect()
 }
 
 struct EmptyMapSeed;
@@ -223,6 +260,18 @@ impl Resolve for ComponentMap {
             .map(|value| value.name(names))
             .collect::<Result<_, _>>()
             .map(ComponentMap)
+    }
+}
+
+impl FromWire for ComponentMap {
+    type Wire = ComponentMap<Wire>;
+
+    fn from_wire<C: WireNames>(wire: ComponentMap<Wire>, ctx: &C) -> Result<Self, ResolveError> {
+        values_from_wire(wire.0, ctx).map(ComponentMap)
+    }
+
+    fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<ComponentMap<Wire>, ResolveError> {
+        values_to_wire(&self.0, ctx).map(ComponentMap)
     }
 }
 

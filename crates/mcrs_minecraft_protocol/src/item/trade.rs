@@ -1,48 +1,46 @@
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
 use anyhow::ensure;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
 use crate::item::patch::ComponentMap;
 use crate::{Decode, Encode, VarInt};
 
 /// An item a trade takes, matched by exact component values.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ItemCost {
-    pub item: ResourceKey<Item>,
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub struct ItemCost<M: Refs = Resolved> {
+    pub item: M::Id<Item>,
     pub count: i32,
-    pub components: ComponentMap,
+    pub components: ComponentMap<M>,
 }
 
-impl EncodeCtx for ItemCost {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.item.encode_ctx(ctx, &mut w)?;
+impl Encode for ItemCost<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.item.encode(&mut w)?;
         VarInt(self.count).encode(&mut w)?;
-        self.components.encode_ctx(ctx, w)
+        self.components.encode(w)
     }
 }
 
-impl<'a> DecodeCtx<'a> for ItemCost {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for ItemCost<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Self {
-            item: ResourceKey::decode_ctx(ctx, r)?,
+            item: Decode::decode(r)?,
             count: VarInt::decode(r)?.0,
-            components: ComponentMap::decode_ctx(ctx, r)?,
+            components: ComponentMap::decode(r)?,
         })
     }
 }
 
 /// Out of stock is `uses >= max_uses`; the wire carries the flag and the
 /// reader clamps `uses` to it, as vanilla does.
-#[derive(Clone, Debug, PartialEq)]
-pub struct MerchantOffer {
-    pub cost_a: ItemCost,
-    pub result: ProtoStack,
-    pub cost_b: Option<ItemCost>,
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub struct MerchantOffer<M: Refs = Resolved> {
+    pub cost_a: ItemCost<M>,
+    pub result: ProtoStack<M>,
+    pub cost_b: Option<ItemCost<M>>,
     pub uses: i32,
     pub max_uses: i32,
     pub xp: i32,
@@ -51,18 +49,18 @@ pub struct MerchantOffer {
     pub demand: i32,
 }
 
-impl MerchantOffer {
+impl<M: Refs> MerchantOffer<M> {
     pub fn is_out_of_stock(&self) -> bool {
         self.uses >= self.max_uses
     }
 }
 
-impl EncodeCtx for MerchantOffer {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for MerchantOffer<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         ensure!(!self.result.is_empty(), "Empty ItemStack not allowed");
-        self.cost_a.encode_ctx(ctx, &mut w)?;
-        self.result.encode_ctx(ctx, &mut w)?;
-        self.cost_b.encode_ctx(ctx, &mut w)?;
+        self.cost_a.encode(&mut w)?;
+        self.result.encode(&mut w)?;
+        self.cost_b.encode(&mut w)?;
         self.is_out_of_stock().encode(&mut w)?;
         self.uses.encode(&mut w)?;
         self.max_uses.encode(&mut w)?;
@@ -73,12 +71,12 @@ impl EncodeCtx for MerchantOffer {
     }
 }
 
-impl<'a> DecodeCtx<'a> for MerchantOffer {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let cost_a = ItemCost::decode_ctx(ctx, r)?;
-        let result = ProtoStack::decode_ctx(ctx, r)?;
+impl Decode<'_> for MerchantOffer<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let cost_a = ItemCost::decode(r)?;
+        let result = ProtoStack::decode(r)?;
         ensure!(!result.is_empty(), "Empty ItemStack not allowed");
-        let cost_b = Option::decode_ctx(ctx, r)?;
+        let cost_b = Option::decode(r)?;
         let out_of_stock = bool::decode(r)?;
         let uses = i32::decode(r)?;
         let max_uses = i32::decode(r)?;
@@ -93,13 +91,5 @@ impl<'a> DecodeCtx<'a> for MerchantOffer {
             price_multiplier: f32::decode(r)?,
             demand: i32::decode(r)?,
         })
-    }
-}
-
-pub type RawMerchantOffer = Raw<MerchantOffer>;
-
-impl RawMerchantOffer {
-    pub fn from_offer(offer: &MerchantOffer, ctx: &WireCtx<'_>) -> anyhow::Result<Self> {
-        Raw::from_value(offer, ctx)
     }
 }

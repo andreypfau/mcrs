@@ -1,18 +1,15 @@
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
+use mcrs_minecraft_registries::Wire;
 
-use crate::item::component::*;
-use crate::item::ctx::{
-    DecodeCtx, EncodeCtx, decode_named_nbt, decode_nbt_wire, encode_named_nbt, encode_nbt_wire,
-};
 use crate::item::kind::ItemComponentValue;
+use crate::item::lookup::{decode_nbt_wire, encode_nbt_wire};
 use crate::registry::static_registry_wire;
+use crate::{Decode, Encode};
+use mcrs_minecraft_item::for_each_data_component;
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_item::{for_each_data_component, if_refs};
 
 static_registry_wire!(DataComponentType, "data component type");
-crate::item::ctx::ctx_free!(DataComponentType);
 
 /// Expands to the first group when the flag list holds `nbt_wire`, else to the second.
 macro_rules! if_nbt_wire {
@@ -25,17 +22,13 @@ macro_rules! if_nbt_wire {
 
 macro_rules! value_wire {
     ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
-        impl EncodeCtx for ItemComponentValue {
-            fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
+        impl Encode for ItemComponentValue<Wire> {
+            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
                 match self {
                     $(Self::$ty(value) => if_nbt_wire!([$($flag),*] {
-                        if_refs!([$($flag),*] {
-                            encode_named_nbt(value, ctx, w)
-                        } {
-                            encode_nbt_wire(value, w)
-                        })
+                        encode_nbt_wire(value, w)
                     } {
-                        value.encode_ctx(ctx, w)
+                        value.encode(w)
                     }),)*
                 }
             }
@@ -44,18 +37,13 @@ macro_rules! value_wire {
         /// The value of `kind`, whose wire layout the kind alone selects.
         pub fn decode_component_value(
             kind: DataComponentType,
-            ctx: &WireCtx<'_>,
             r: &mut &[u8],
-        ) -> anyhow::Result<ItemComponentValue> {
+        ) -> anyhow::Result<ItemComponentValue<Wire>> {
             Ok(match kind {
                 $(DataComponentType::$kind => ItemComponentValue::$ty(if_nbt_wire!([$($flag),*] {
-                    if_refs!([$($flag),*] {
-                        decode_named_nbt::<$ty>(ctx, r)?
-                    } {
-                        decode_nbt_wire::<$ty>(r)?
-                    })
+                    decode_nbt_wire(r)?
                 } {
-                    <$ty>::decode_ctx(ctx, r)?
+                    Decode::decode(r)?
                 })),)*
             })
         }

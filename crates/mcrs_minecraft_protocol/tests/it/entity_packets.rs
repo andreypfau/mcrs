@@ -1,3 +1,4 @@
+use crate::item::harness::wire_form;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceLocation;
@@ -10,8 +11,6 @@ use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
 };
-use mcrs_minecraft_protocol::item::RawStack;
-use mcrs_minecraft_protocol::item::ctx::WireCtx;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
@@ -22,10 +21,6 @@ use uuid::Uuid;
 
 fn id<R>(number: u16) -> Id<R> {
     Id::checked(number, usize::from(u16::MAX) + 1).unwrap()
-}
-
-fn raw(slot: ProtoStack) -> RawStack {
-    RawStack::from_stack(&slot, &WireCtx::NONE).unwrap()
 }
 
 fn round_trip<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
@@ -69,7 +64,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         (4, MetaDataValue::OptionalText(None), 6),
         (
             5,
-            MetaDataValue::Slot(raw(ProtoStack::new(
+            MetaDataValue::Slot(wire_form(&ProtoStack::new(
                 Item::PhantomMembrane.id(),
                 1,
                 Default::default(),
@@ -179,16 +174,16 @@ fn equipment_chains_slots_with_the_continuation_bit() {
         slots: vec![
             (
                 EquipmentSlot::MainHand,
-                raw(ProtoStack::new(
+                wire_form(&ProtoStack::new(
                     Item::MusicDiscPrecipice.id(),
                     1,
                     Default::default(),
                 )),
             ),
-            (EquipmentSlot::OffHand, RawStack::EMPTY),
+            (EquipmentSlot::OffHand, ProtoStack::default()),
             (
                 EquipmentSlot::Head,
-                raw(ProtoStack::new(Item::Stone.id(), 3, Default::default())),
+                wire_form(&ProtoStack::new(Item::Stone.id(), 3, Default::default())),
             ),
         ],
     };
@@ -203,7 +198,7 @@ fn equipment_chains_slots_with_the_continuation_bit() {
 
     let single = ClientboundSetEquipment {
         entity_id: VarInt(1),
-        slots: vec![(EquipmentSlot::Saddle, RawStack::EMPTY)],
+        slots: vec![(EquipmentSlot::Saddle, ProtoStack::default())],
     };
     let mut buf = Vec::new();
     assert_eq!(round_trip(&single, &mut buf), [1, 7, 0]);

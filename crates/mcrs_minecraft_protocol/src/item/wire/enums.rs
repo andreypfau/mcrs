@@ -44,8 +44,6 @@ macro_rules! continuous_enum_wire {
                 Ok(Self::ALL[continuous_enum_wire!(@$strategy id, len) as usize])
             }
         }
-
-        crate::item::ctx::ctx_free!($name);
     )*};
     (@clamp $id:expr, $len:expr) => { $id.clamp(0, $len - 1) };
     (@wrap $id:expr, $len:expr) => { $id.rem_euclid($len) };
@@ -78,8 +76,6 @@ macro_rules! sparse_enum_wire {
                     .unwrap_or(Self::ALL[0]))
             }
         }
-
-        crate::item::ctx::ctx_free!($name);
     )*};
 }
 

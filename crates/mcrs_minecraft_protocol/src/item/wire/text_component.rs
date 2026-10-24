@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::item::ctx::{decode_nbt_wire, encode_nbt_wire};
+use crate::item::lookup::{decode_nbt_wire, encode_nbt_wire};
 use crate::{Decode, Encode};
 use mcrs_minecraft_text::{Text, TextSerde};
 

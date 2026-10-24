@@ -37,8 +37,6 @@ macro_rules! var_int_record_wire {
                 Ok($ty { $field: codec::Bounded($field) })
             }
         }
-
-        crate::item::ctx::ctx_free!($ty);
     )*};
 }
 

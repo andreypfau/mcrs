@@ -1,5 +1,5 @@
 use crate::block::BlockStateNumber;
-use crate::item::RawStack;
+use crate::item::WireLookup;
 pub use crate::item::component::enums::DyeColor;
 pub use crate::item::component::equippable::EquipmentSlot;
 use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
@@ -16,9 +16,11 @@ use mcrs_minecraft_entity::variant::{
 };
 pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
+use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registries::{Namer, Registries};
+use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_registries::{FromWire, ResolveError, Wire, WireId};
 use std::io::Write;
 use uuid::Uuid;
 
@@ -84,26 +86,28 @@ impl<'a> crate::Decode<'a> for Metadata<'a> {
 }
 
 impl Metadata<'_> {
-    /// Whether every registry id the entries hold numbers an entry of `registries`.
-    pub fn names_entries_of(&self, registries: &Registries) -> bool {
-        fn named<R: Registered>(registries: &Registries, id: Id<R>) -> bool {
-            Namer::name(registries, id).is_some()
+    /// Checks every registry id the entries hold against `registries`.
+    pub fn check(self, registries: &Registries) -> Result<(), ResolveError> {
+        fn named<R: Registered>(lookup: &WireLookup<'_>, id: Id<R>) -> Result<(), ResolveError> {
+            Id::<R>::from_wire(WireId::new(id.number()), lookup).map(drop)
         }
-        self.0.iter().all(|entry| match entry.value {
-            MetaDataValue::CatVariant(id) => named(registries, id),
-            MetaDataValue::CatSoundVariant(id) => named(registries, id),
-            MetaDataValue::CowVariant(id) => named(registries, id),
-            MetaDataValue::CowSoundVariant(id) => named(registries, id),
-            MetaDataValue::WolfVariant(id) => named(registries, id),
-            MetaDataValue::WolfSoundVariant(id) => named(registries, id),
-            MetaDataValue::FrogVariant(id) => named(registries, id),
-            MetaDataValue::PigVariant(id) => named(registries, id),
-            MetaDataValue::PigSoundVariant(id) => named(registries, id),
-            MetaDataValue::ChickenVariant(id) => named(registries, id),
-            MetaDataValue::ChickenSoundVariant(id) => named(registries, id),
-            MetaDataValue::ZombieNautilusVariant(id) => named(registries, id),
-            MetaDataValue::PaintingVariant(id) => named(registries, id),
-            _ => true,
+        let lookup = WireLookup::new(registries);
+        self.0.into_iter().try_for_each(|entry| match entry.value {
+            MetaDataValue::Slot(stack) => ProtoStack::from_wire(stack, &lookup).map(drop),
+            MetaDataValue::CatVariant(id) => named(&lookup, id),
+            MetaDataValue::CatSoundVariant(id) => named(&lookup, id),
+            MetaDataValue::CowVariant(id) => named(&lookup, id),
+            MetaDataValue::CowSoundVariant(id) => named(&lookup, id),
+            MetaDataValue::WolfVariant(id) => named(&lookup, id),
+            MetaDataValue::WolfSoundVariant(id) => named(&lookup, id),
+            MetaDataValue::FrogVariant(id) => named(&lookup, id),
+            MetaDataValue::PigVariant(id) => named(&lookup, id),
+            MetaDataValue::PigSoundVariant(id) => named(&lookup, id),
+            MetaDataValue::ChickenVariant(id) => named(&lookup, id),
+            MetaDataValue::ChickenSoundVariant(id) => named(&lookup, id),
+            MetaDataValue::ZombieNautilusVariant(id) => named(&lookup, id),
+            MetaDataValue::PaintingVariant(id) => named(&lookup, id),
+            _ => Ok(()),
         })
     }
 }
@@ -117,7 +121,7 @@ pub enum MetaDataValue<'a> {
     String(&'a str),
     Text(Text),
     OptionalText(Option<Text>),
-    Slot(RawStack),
+    Slot(ProtoStack<Wire>),
     Boolean(bool),
     Rotations(Vec3),
     BlockPos(BlockPos),

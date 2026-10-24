@@ -142,3 +142,7 @@ where
         self.map(&Naming(names))
     }
 }
+
+crate::wire_as_named!(impl<I: TextTypes> Text<I>);
+crate::wire_as_named!(impl<I: TextTypes> Style<I>);
+crate::wire_as_named!(impl<I: TextTypes> ClickEvent<I>);

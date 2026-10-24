@@ -1,19 +1,20 @@
 use crate::item::component::variants::*;
-use crate::item::wire::newtype_ctx_wire;
+use crate::item::wire::newtype_wire;
+use mcrs_minecraft_registries::Wire;
 
-newtype_ctx_wire!(
-    VillagerVariant,
-    WolfVariant,
-    WolfSoundVariant,
-    PigVariant,
-    PigSoundVariant,
-    CowVariant,
-    CowSoundVariant,
-    ChickenVariant,
-    ChickenSoundVariant,
-    ZombieNautilusVariant,
-    FrogVariant,
-    CatVariant,
-    CatSoundVariant,
-    ProvidesPotteryPattern,
+newtype_wire!(
+    VillagerVariant<Wire>,
+    WolfVariant<Wire>,
+    WolfSoundVariant<Wire>,
+    PigVariant<Wire>,
+    PigSoundVariant<Wire>,
+    CowVariant<Wire>,
+    CowSoundVariant<Wire>,
+    ChickenVariant<Wire>,
+    ChickenSoundVariant<Wire>,
+    ZombieNautilusVariant<Wire>,
+    FrogVariant<Wire>,
+    CatVariant<Wire>,
+    CatSoundVariant<Wire>,
+    ProvidesPotteryPattern<Wire>
 );

@@ -4,7 +4,7 @@ use std::fmt;
 use anyhow::ensure;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
-use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, Resolved};
+use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, Resolved, WireId};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -15,7 +15,7 @@ use crate::keys::Item;
 use crate::patch::ComponentPatch;
 
 /// Before prototype normalisation: the patch is re-emitted as read.
-#[derive(Clone, Debug, PartialEq, Resolve)]
+#[derive(Clone, Debug, PartialEq, Resolve, mcrs_minecraft_registries::FromWire)]
 pub struct ItemStackValue<M: Refs = Resolved> {
     pub item: M::Id<Item>,
     pub count: codec::Bounded<1, 99, 1>,
@@ -35,6 +35,12 @@ impl ItemRef for ResourceKey<Item> {
 impl ItemRef for Id<Item> {
     fn is_air(&self) -> bool {
         *self == Item::Air.id()
+    }
+}
+
+impl ItemRef for WireId<Item> {
+    fn is_air(&self) -> bool {
+        self.number() == Item::Air.id().number()
     }
 }
 
@@ -85,7 +91,7 @@ impl<'de> Deserialize<'de> for ItemStackValue<Named> {
 }
 
 /// A stack written as a map, or as the bare item id when it is one plain item.
-#[derive(Clone, Debug, PartialEq, Resolve)]
+#[derive(Clone, Debug, PartialEq, Resolve, mcrs_minecraft_registries::FromWire)]
 pub struct Template<M: Refs = Resolved>(pub ItemStackValue<M>);
 
 impl<M: Refs> mcrs_minecraft_text::TextTypes for Template<M> {
@@ -208,16 +214,31 @@ impl HashedPatchMap {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ProtoStack {
-    pub id: Id<Item>,
+/// A stack as a slot holds it: a count of zero or the air item is the empty stack.
+#[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::FromWire)]
+pub struct ProtoStack<M: Refs = Resolved> {
+    pub id: M::Id<Item>,
     pub count: i32,
-    pub components: ComponentPatch,
+    pub components: ComponentPatch<M>,
 }
 
-impl Default for ProtoStack {
+impl<M: Refs> Default for ProtoStack<M> {
     fn default() -> Self {
-        Self::EMPTY
+        ProtoStack {
+            id: M::id_of(Item::Air),
+            count: 0,
+            components: ComponentPatch::default(),
+        }
+    }
+}
+
+impl<M: Refs> ProtoStack<M>
+where
+    M::Id<Item>: ItemRef,
+{
+    /// No items, or the air item.
+    pub fn is_empty(&self) -> bool {
+        self.count <= 0 || self.id.is_air()
     }
 }
 
@@ -235,11 +256,6 @@ impl ProtoStack {
             count,
             components,
         }
-    }
-
-    /// No items, or the air item.
-    pub const fn is_empty(&self) -> bool {
-        self.count <= 0 || self.id.number() == 0
     }
 
     pub fn from_value(value: &ItemStackValue) -> Self {

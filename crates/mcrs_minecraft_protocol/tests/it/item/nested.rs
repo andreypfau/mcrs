@@ -1,19 +1,18 @@
+use crate::item::harness::{WireCodec, decode_component};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_protocol::item::EncodeCtx;
-use mcrs_minecraft_protocol::item::decode_component_value;
 
 use mcrs_minecraft_item::keys::{DataComponentType, Item};
-use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
+use mcrs_minecraft_protocol::item::lookup::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentValue, PotDecorations,
-    Template, hash_ops,
+    BundleContents, ChargedProjectiles, Container, ItemComponentValue, PotDecorations, Template,
+    hash_ops,
 };
 use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::Named;
 use serde::Deserialize;
 
 use crate::item::harness::{
-    ctx, from_json, from_nbt, hex, json_of, named, nbt_tree, persistent_json,
+    from_json, from_nbt, hex, json_of, lookup, named, nbt_tree, persistent_json,
 };
 
 #[derive(Deserialize)]
@@ -38,7 +37,7 @@ fn golden() -> Golden {
 #[test]
 fn nested_kinds_match_vanilla_in_every_form() {
     let golden = golden();
-    let lookup = ctx();
+    let lookup = lookup();
     for case in &golden.cases {
         let kind = DataComponentType::read(&case.kind).unwrap();
         let value = from_json(kind, &case.json);
@@ -57,10 +56,10 @@ fn nested_kinds_match_vanilla_in_every_form() {
         );
 
         let mut wire = Vec::new();
-        value.encode_ctx(&lookup, &mut wire).unwrap();
+        value.encode_checked(&lookup, &mut wire).unwrap();
         assert_eq!(wire, hex(&case.wire), "{} wire", case.name);
         let mut r = &wire[..];
-        let decoded = decode_component_value(kind, &lookup, &mut r).unwrap();
+        let decoded = decode_component(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty(), "{} trailing bytes", case.name);
         assert_eq!(decoded, value, "{} wire round trip", case.name);
 
@@ -76,7 +75,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
 #[test]
 fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let golden = golden();
-    let lookup = ctx();
+    let lookup = lookup();
     let sparse: Container<Named> = serde_json::from_str(
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )
@@ -97,7 +96,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     assert_eq!(serde_json::to_string(&sparse).unwrap(), case.json);
 
     let mut r = &hex("02010101000000")[..];
-    let trailing = decode_component_value(DataComponentType::Container, &lookup, &mut r).unwrap();
+    let trailing = decode_component(DataComponentType::Container, &lookup, &mut r).unwrap();
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
     };
@@ -109,14 +108,14 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     );
     let mut wire = Vec::new();
     ItemComponentValue::Container(trailing)
-        .encode_ctx(&lookup, &mut wire)
+        .encode_checked(&lookup, &mut wire)
         .unwrap();
     assert_eq!(wire, hex("02010101000000"));
 }
 
 #[test]
 fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
-    let lookup = ctx();
+    let lookup = lookup();
     let mut bundle = Vec::new();
     VarInt(i32::from(Item::Bundle.id().number()))
         .encode(&mut bundle)
@@ -133,10 +132,10 @@ fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
         wire
     };
     let wire = wrapped(MAX_NESTING - 1);
-    Template::decode_ctx(&lookup, &mut &wire[..]).unwrap();
-    let error = Template::decode_ctx(&lookup, &mut &wrapped(MAX_NESTING)[..]).unwrap_err();
+    Template::decode_checked(&lookup, &mut &wire[..]).unwrap();
+    let error = Template::decode_checked(&lookup, &mut &wrapped(MAX_NESTING)[..]).unwrap_err();
     assert_eq!(error.to_string(), "value nested deeper than 64 levels");
-    let error = Template::decode_ctx(&lookup, &mut &wrapped(10_000)[..]).unwrap_err();
+    let error = Template::decode_checked(&lookup, &mut &wrapped(10_000)[..]).unwrap_err();
     assert_eq!(error.to_string(), "value nested deeper than 64 levels");
 }
 
@@ -218,10 +217,10 @@ fn errors_read_like_vanilla() {
 
 #[test]
 fn wire_templates_are_checked_like_the_vanilla_constructor() {
-    let lookup = ctx();
+    let lookup = lookup();
     let decode = |kind, wire: &str| {
         let mut r = &hex(wire)[..];
-        decode_component_value(kind, &lookup, &mut r)
+        decode_component(kind, &lookup, &mut r)
     };
     let json = |value: &ItemComponentValue| {
         let mut out = Vec::new();
@@ -247,7 +246,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
         Err("Value must be within range [1;99]: -1".into())
     );
     let mut wire = Vec::new();
-    negative.encode_ctx(&lookup, &mut wire).unwrap();
+    negative.encode_checked(&lookup, &mut wire).unwrap();
     assert_eq!(wire, hex("0101ffffffff0f0000"));
 
     for flag in ["02", "ff"] {
@@ -258,4 +257,49 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
         .unwrap();
         assert_eq!(json(&back).unwrap(), r#"{"back":{"id":"minecraft:stone"}}"#);
     }
+}
+
+#[test]
+fn block_predicates_inside_their_own_matchers_stop_at_the_depth_bound() {
+    let can_break = DataComponentType::CanBreak as u8;
+    let wrapped = |levels: u32| {
+        let mut wire = Vec::new();
+        for _ in 0..levels {
+            wire.extend([1, 0, 0, 0, 1, can_break]);
+        }
+        wire.extend([1, 0, 0, 0, 0, 0]);
+        wire.extend(std::iter::repeat_n(0, levels as usize));
+        wire
+    };
+    let lookup = lookup();
+    decode_component(
+        DataComponentType::CanBreak,
+        &lookup,
+        &mut &wrapped(MAX_NESTING - 1)[..],
+    )
+    .unwrap();
+    for levels in [MAX_NESTING, 10_000] {
+        let error = decode_component(
+            DataComponentType::CanBreak,
+            &lookup,
+            &mut &wrapped(levels)[..],
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    }
+}
+
+#[test]
+fn hidden_effects_stop_at_the_depth_bound() {
+    use mcrs_minecraft_protocol::Decode;
+    use mcrs_minecraft_protocol::item::MobEffectDetails;
+
+    let wrapped = |levels: u32| {
+        let mut wire = [0, 0, 0, 0, 0, 1].repeat(levels as usize);
+        wire.extend([0, 0, 0, 0, 0, 0]);
+        wire
+    };
+    MobEffectDetails::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap();
+    let error = MobEffectDetails::decode(&mut &wrapped(10_000)[..]).unwrap_err();
+    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
 }

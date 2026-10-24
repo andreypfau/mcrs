@@ -1,16 +1,13 @@
-pub mod ctx;
+pub mod lookup;
 pub mod trade;
 pub(crate) mod wire;
 
-pub use ctx::{DecodeCtx, EncodeCtx, Raw};
+pub use lookup::WireLookup;
 pub use mcrs_minecraft_item::*;
 pub use mcrs_minecraft_item::{component, harness, hash_ops, kind, patch, stack};
-pub use trade::{ItemCost, MerchantOffer, RawMerchantOffer};
-pub use wire::{HashedStack, RawDelimitedStack, RawStack};
-pub use wire::{
-    decode_component_value, decode_delimited_ctx, decode_delimited_patch, encode_delimited_ctx,
-    encode_delimited_patch,
-};
+pub use trade::{ItemCost, MerchantOffer};
+pub use wire::{DelimitedStack, HashedStack};
+pub use wire::{decode_component_value, decode_delimited_patch, encode_delimited_patch};
 
 use crate::{Decode, Encode};
 

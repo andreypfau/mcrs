@@ -2,7 +2,7 @@ use crate::event::ReceivedPacketEvent;
 use crate::identity;
 use crate::packet_io::{ByteStream, PacketIo};
 use crate::{ConnectionState, RawConnection, SwitchMode};
-use anyhow::bail;
+use anyhow::{Context as _, bail};
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -682,11 +682,12 @@ fn handle_game_packet(
         }
     } else if let Some(Err(error)) = event.try_decode::<ClientboundSetEntityData>().map(|data| {
         let data = data?;
-        anyhow::ensure!(
-            session.is_some_and(|registries| data.metadata.names_entries_of(registries)),
-            "an id is not an entry of the session registries"
-        );
-        Ok(data)
+        let Some(registries) = session else {
+            anyhow::bail!("an id is not an entry of the session registries");
+        };
+        data.metadata
+            .check(registries)
+            .context("an id is not an entry of the session registries")
     }) {
         refuse_packet(
             &mut commands,

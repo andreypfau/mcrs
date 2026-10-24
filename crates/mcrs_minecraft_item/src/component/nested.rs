@@ -17,24 +17,26 @@ use crate::stack::Template;
 use mcrs_minecraft_core::Bounded;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UseRemainder<M: Refs = Resolved>(pub Template<M>);
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SulfurCubeContent<M: Refs = Resolved>(pub Template<M>);
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct BundleContents<M: Refs = Resolved>(pub Vec<Template<M>>);
 
 pub const MAX_CHARGED_PROJECTILES: usize = 1024;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize)]
 #[serde(transparent)]
 pub struct ChargedProjectiles<M: Refs = Resolved> {
     pub items: Bounded<Vec<Template<M>>, MAX_CHARGED_PROJECTILES>,
@@ -62,7 +64,9 @@ impl<'de> Deserialize<'de> for ChargedProjectiles<Named> {
 /// Sides are boxed so a rare four-template value does not size every
 /// `ItemComponentValue`.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct PotDecorations<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -85,7 +89,14 @@ pub const MAX_CONTAINER_SLOTS: usize = 256;
 
 /// Dense by slot index; the persistent form lists only the occupied slots, so
 /// trailing empty slots do not survive a save.
-#[derive(Clone, Debug, PartialEq, Default, mcrs_minecraft_registries::Resolve)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Default,
+    mcrs_minecraft_registries::Resolve,
+    mcrs_minecraft_registries::FromWire,
+)]
 pub struct Container<M: Refs = Resolved> {
     pub slots: Bounded<Vec<Option<Template<M>>>, MAX_CONTAINER_SLOTS>,
 }

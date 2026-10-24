@@ -1,9 +1,6 @@
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
-
 use crate::item::component::fireworks::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::wire::ordinal_enum_wire;
 use crate::{Bounded, Decode, Encode, VarInt};
 
@@ -31,20 +28,18 @@ impl Decode<'_> for FireworkExplosion {
     }
 }
 
-ctx_free!(FireworkExplosion);
-
-impl EncodeCtx for Fireworks {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for Fireworks {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(self.flight_duration).encode(&mut w)?;
-        self.explosions.encode_ctx(ctx, w)
+        self.explosions.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for Fireworks {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for Fireworks {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(Fireworks {
             flight_duration: VarInt::decode(r)?.0,
-            explosions: Bounded::decode_ctx(ctx, r)?,
+            explosions: Bounded::decode(r)?,
         })
     }
 }

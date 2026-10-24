@@ -1,7 +1,10 @@
 use crate::keys::Item;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::validated;
-use mcrs_minecraft_registries::{IdSet, KeySet, Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_core::{Id, ResourceKey};
+use mcrs_minecraft_registries::{
+    IdSet, KeySet, Named, Refs, Resolved, WireId, WireSet, registry_value,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::stack::ItemRef;
@@ -11,7 +14,7 @@ validated!(Ingredient<Named>);
 /// The items a slot accepts: one item, a list or a tag, never empty and never
 /// air.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", transparent)]
 pub struct Ingredient<M: Refs = Resolved>(pub M::Set<Item>);
 
@@ -25,20 +28,35 @@ fn check_items<T: ItemRef>(entries: &[T]) -> Result<(), String> {
     Ok(())
 }
 
-impl Validate for Ingredient<Named> {
-    fn validate(&self) -> Result<(), String> {
-        match &self.0 {
-            KeySet::Tag(_) => Ok(()),
-            KeySet::List(entries) => check_items(entries),
-        }
-    }
+/// The items a set lists, or `None` for a tag.
+pub trait ListedItems {
+    type Entry: ItemRef;
+
+    fn listed(&self) -> Option<&[Self::Entry]>;
 }
 
-impl Validate for Ingredient {
-    fn validate(&self) -> Result<(), String> {
-        match &self.0 {
-            IdSet::Tag(_) => Ok(()),
-            IdSet::List(entries) => check_items(entries),
+macro_rules! listed_items {
+    ($($set:ident: $entry:ty),* $(,)?) => {$(
+        impl ListedItems for $set<Item> {
+            type Entry = $entry;
+
+            fn listed(&self) -> Option<&[$entry]> {
+                match self {
+                    $set::Tag(_) => None,
+                    $set::List(entries) => Some(entries),
+                }
+            }
         }
+    )*};
+}
+
+listed_items!(KeySet: ResourceKey<Item>, IdSet: Id<Item>, WireSet: WireId<Item>);
+
+impl<M: Refs> Validate for Ingredient<M>
+where
+    M::Set<Item>: ListedItems,
+{
+    fn validate(&self) -> Result<(), String> {
+        self.0.listed().map_or(Ok(()), check_items)
     }
 }

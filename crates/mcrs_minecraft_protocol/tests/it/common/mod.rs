@@ -1,5 +1,11 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
 
+pub fn encoded(value: &impl mcrs_minecraft_protocol::Encode) -> Vec<u8> {
+    let mut out = Vec::new();
+    value.encode(&mut out).unwrap();
+    out
+}
+
 pub fn hex(text: &str) -> Vec<u8> {
     (0..text.len())
         .step_by(2)

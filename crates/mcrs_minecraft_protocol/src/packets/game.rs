@@ -1,14 +1,13 @@
 pub mod clientbound {
-    use crate::advancement::{AdvancementProgress, RawAdvancement};
+    use crate::advancement::{AdvancementProgress, PositionedAdvancement};
     use crate::block::BlockStateNumber;
     use crate::chunk::ChunkBlockUpdateEntry;
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
     use crate::entity::{EquipmentSlot, Metadata};
     use crate::game_event::GameEventKind;
-    use crate::item::{Raw, RawMerchantOffer, RawStack};
+    use crate::item::{MerchantOffer, ProtoStack};
     use crate::packets::common::clientbound::KeepAlive;
-    use crate::particle::RawParticle;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
@@ -21,8 +20,10 @@ pub mod clientbound {
     use mcrs_minecraft_core::SectionPos;
     use mcrs_minecraft_entity::keys::{Attribute, EntityType};
     use mcrs_minecraft_item::keys::MenuType;
+    use mcrs_minecraft_particle::ParticleOptions;
     use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_registries::Wire;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -70,8 +71,8 @@ pub mod clientbound {
     pub struct ClientboundContainerSetContent {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
-        pub slot_data: Vec<RawStack>,
-        pub carried_item: RawStack,
+        pub slot_data: Vec<ProtoStack<Wire>>,
+        pub carried_item: ProtoStack<Wire>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -86,7 +87,7 @@ pub mod clientbound {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
         pub slot: i16,
-        pub item: RawStack,
+        pub item: ProtoStack<Wire>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
@@ -143,7 +144,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundLevelParticles {
-        pub particle: RawParticle,
+        pub particle: ParticleOptions<Wire>,
         pub override_limiter: bool,
         pub always_show: bool,
         pub pos: DVec3,
@@ -326,7 +327,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundMerchantOffers {
         pub container_id: VarInt,
-        pub offers: Vec<RawMerchantOffer>,
+        pub offers: Vec<MerchantOffer<Wire>>,
         pub villager_level: VarInt,
         pub villager_xp: VarInt,
         pub show_progress: bool,
@@ -371,7 +372,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRecipeBookAdd {
-        pub entries: Vec<Raw<RecipeBookEntry>>,
+        pub entries: Vec<RecipeBookEntry<Wire>>,
         pub replace: bool,
     }
 
@@ -410,7 +411,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetCursorItem {
-        pub contents: RawStack,
+        pub contents: ProtoStack<Wire>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -424,7 +425,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq)]
     pub struct ClientboundSetEquipment {
         pub entity_id: VarInt,
-        pub slots: Vec<(EquipmentSlot, RawStack)>,
+        pub slots: Vec<(EquipmentSlot, ProtoStack<Wire>)>,
     }
 
     impl crate::Encode for ClientboundSetEquipment {
@@ -447,7 +448,10 @@ pub mod clientbound {
             let mut slots = Vec::new();
             loop {
                 let byte = u8::decode(r)?;
-                slots.push((EquipmentSlot::from_id(byte & 0x7F)?, RawStack::decode(r)?));
+                slots.push((
+                    EquipmentSlot::from_id(byte & 0x7F)?,
+                    ProtoStack::<Wire>::decode(r)?,
+                ));
                 if byte & 0x80 == 0 {
                     return Ok(Self { entity_id, slots });
                 }
@@ -469,7 +473,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetPlayerInventory {
         pub slot: VarInt,
-        pub contents: RawStack,
+        pub contents: ProtoStack<Wire>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -503,7 +507,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateAdvancements {
         pub reset: bool,
-        pub added: Vec<RawAdvancement>,
+        pub added: Vec<PositionedAdvancement<Wire>>,
         pub removed: Vec<ResourceLocation>,
         pub progress: Vec<(ResourceLocation, AdvancementProgress)>,
         pub show_advancements: bool,
@@ -519,8 +523,8 @@ pub mod clientbound {
     /// from a hash map, so the order is whatever was received.
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateRecipes {
-        pub item_sets: Vec<(ResourceLocation, Raw<RecipePropertySet>)>,
-        pub stonecutter_recipes: Vec<Raw<SelectableRecipe>>,
+        pub item_sets: Vec<(ResourceLocation, RecipePropertySet<Wire>)>,
+        pub stonecutter_recipes: Vec<SelectableRecipe<Wire>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
@@ -638,7 +642,7 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::entity::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
-    use crate::item::{ContainerInput, HashedStack, RawDelimitedStack};
+    use crate::item::{ContainerInput, DelimitedStack, HashedStack};
     use crate::packets::common::serverbound::{
         ClientInformation, CustomClickAction, KeepAlive, Payload, Pong, ResourcePack,
     };
@@ -997,7 +1001,7 @@ pub mod serverbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundSetCreativeModeSlot {
         pub slot: i16,
-        pub item: RawDelimitedStack,
+        pub item: DelimitedStack,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]

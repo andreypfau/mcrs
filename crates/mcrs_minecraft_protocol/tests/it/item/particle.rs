@@ -1,3 +1,4 @@
+use crate::item::harness::WireCodec;
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -11,16 +12,14 @@ use mcrs_minecraft_particle::{
     BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleOptions,
     ParticleScale, PositionSource, SpellParticle, TrailParticle, VibrationParticle,
 };
-use mcrs_minecraft_protocol::item::{
-    ArgbInt, ComponentPatch, DecodeCtx, EncodeCtx, RgbInt, Template,
-};
+use mcrs_minecraft_protocol::item::{ArgbInt, ComponentPatch, RgbInt, Template};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLevelParticles, ParticleRandomization,
 };
-use mcrs_minecraft_protocol::particle::RawParticle;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_registries::{FromWire, Wire};
 
-use crate::item::harness::{block_ctx, hex, named, read_json};
+use crate::item::harness::{block_lookup, hex, named, read_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("particles").text());
 
@@ -38,7 +37,7 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
 
 fn wire(particle: &ParticleOptions) -> Vec<u8> {
     let mut out = Vec::new();
-    particle.encode_ctx(&block_ctx(), &mut out).unwrap();
+    particle.encode_checked(&block_lookup(), &mut out).unwrap();
     out
 }
 
@@ -48,7 +47,7 @@ fn wire(particle: &ParticleOptions) -> Vec<u8> {
 fn check(label: &str) -> ParticleOptions {
     let bytes = hex(golden(&format!("{label}.wire")));
     let mut r = &bytes[..];
-    let decoded = ParticleOptions::decode_ctx(&block_ctx(), &mut r).unwrap();
+    let decoded = ParticleOptions::decode_checked(&block_lookup(), &mut r).unwrap();
     assert!(r.is_empty(), "{label}: {} trailing bytes", r.len());
     assert_eq!(to_hex(&wire(&decoded)), to_hex(&bytes), "{label}: wire");
 
@@ -59,9 +58,14 @@ fn check(label: &str) -> ParticleOptions {
     let vanilla: serde_json::Value = serde_json::from_str(json).unwrap();
     assert_eq!(back, vanilla, "{label}: json round trip");
 
-    let raw = RawParticle::decode(&mut &bytes[..]).unwrap();
-    assert_eq!(raw.0, bytes, "{label}: raw walk");
-    assert_eq!(raw.resolve(&block_ctx()).unwrap(), decoded);
+    let unchecked = ParticleOptions::<Wire>::decode(&mut &bytes[..]).unwrap();
+    let mut out = Vec::new();
+    unchecked.encode(&mut out).unwrap();
+    assert_eq!(out, bytes, "{label}: read without registries");
+    assert_eq!(
+        ParticleOptions::from_wire(unchecked, &block_lookup()).unwrap(),
+        decoded
+    );
     decoded
 }
 
@@ -217,14 +221,15 @@ fn data_forms_validate_like_vanilla() {
         read_json(r#"{"type":"block","block_state":"minecraft:nope"}"#).unwrap();
     assert!(
         unknown
-            .encode_ctx(&block_ctx(), &mut Vec::new())
+            .encode_checked(&block_lookup(), &mut Vec::new())
             .unwrap_err()
             .to_string()
             .contains("has no block state")
     );
 
     let clamped =
-        ParticleOptions::decode_ctx(&block_ctx(), &mut &hex("1500ff000041200000")[..]).unwrap();
+        ParticleOptions::decode_checked(&block_lookup(), &mut &hex("1500ff000041200000")[..])
+            .unwrap();
     assert_eq!(
         clamped,
         ParticleOptions::Dust(DustParticle {
@@ -243,7 +248,7 @@ fn level_particles_packet_matches_vanilla() {
     assert_eq!(
         packet,
         ClientboundLevelParticles {
-            particle: RawParticle::decode(&mut &hex(golden("dust.wire"))[..]).unwrap(),
+            particle: ParticleOptions::decode(&mut &hex(golden("dust.wire"))[..]).unwrap(),
             override_limiter: true,
             always_show: false,
             pos: DVec3::new(1.5, 64.25, -3.0),
@@ -254,7 +259,7 @@ fn level_particles_packet_matches_vanilla() {
         }
     );
     assert_eq!(
-        packet.particle.resolve(&block_ctx()).unwrap(),
+        ParticleOptions::from_wire(packet.particle.clone(), &block_lookup()).unwrap(),
         check("dust")
     );
     let mut out = Vec::new();
@@ -265,11 +270,11 @@ fn level_particles_packet_matches_vanilla() {
     let packet = ClientboundLevelParticles::decode(&mut &bytes[..]).unwrap();
     assert_eq!(packet.count, VarInt(3));
     assert_eq!(
-        packet.particle.resolve(&block_ctx()).unwrap(),
+        ParticleOptions::from_wire(packet.particle.clone(), &block_lookup()).unwrap(),
         check("item")
     );
     let rebuilt = ClientboundLevelParticles {
-        particle: RawParticle::from_value(&check("item"), &block_ctx()).unwrap(),
+        particle: check("item").to_wire(&block_lookup()).unwrap(),
         ..packet
     };
     let mut out = Vec::new();
@@ -304,10 +309,65 @@ fn block_states_read_from_data_resolve_like_vanilla() {
             golden(&format!("{label}.parsed_wire")),
             "{label}: wire"
         );
-        let resolved = ParticleOptions::decode_ctx(&block_ctx(), &mut &bytes[..]).unwrap();
+        let resolved = ParticleOptions::decode_checked(&block_lookup(), &mut &bytes[..]).unwrap();
         let json: serde_json::Value = serde_json::to_value(named(&resolved)).unwrap();
         let vanilla: serde_json::Value =
             serde_json::from_str(golden(&format!("{label}.parsed_json"))).unwrap();
         assert_eq!(json, vanilla, "{label}: json of the resolved state");
+    }
+}
+
+#[test]
+fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
+    use mcrs_minecraft_core::{ResourceLocation, TagKey};
+    use mcrs_minecraft_item::component::CompactList;
+    use mcrs_minecraft_item::component::{AdventureModePredicate, BlockPredicate, CanPlaceOn};
+    use mcrs_minecraft_item::keys::Item;
+    use mcrs_minecraft_item::kind::ItemComponentValue;
+    use mcrs_minecraft_item::stack::ItemStackValue;
+    use mcrs_minecraft_particle::WireBlockState;
+    use mcrs_minecraft_registries::{WireId, WireSet};
+
+    let item = |id: u16, components: ComponentPatch<Wire>| {
+        ParticleOptions::<Wire>::Item(ItemParticle {
+            item: Template(ItemStackValue {
+                item: WireId::new(id),
+                count: Bounded(1),
+                components,
+            }),
+        })
+    };
+    let mut unknown_tag = ComponentPatch::<Wire>::default();
+    unknown_tag.set_value(ItemComponentValue::CanPlaceOn(CanPlaceOn(
+        AdventureModePredicate(CompactList(vec![BlockPredicate {
+            blocks: Some(WireSet::Tag(TagKey::from_location(
+                ResourceLocation::read("mcrs:nope").unwrap(),
+            ))),
+            ..BlockPredicate::default()
+        }])),
+    )));
+    let stone = Item::Stone.id().number();
+    let cases = [
+        (
+            "unknown item id",
+            item(u16::MAX, ComponentPatch::default()),
+            "has no id 65535",
+        ),
+        ("unknown tag", item(stone, unknown_tag), "mcrs:nope"),
+        (
+            "unknown block state",
+            ParticleOptions::Block(BlockParticle {
+                block_state: WireBlockState(u16::MAX),
+            }),
+            "no block state has id 65535",
+        ),
+    ];
+    for (label, wire, message) in cases {
+        let mut bytes = Vec::new();
+        wire.encode(&mut bytes).unwrap();
+        let decoded = ParticleOptions::<Wire>::decode(&mut &bytes[..])
+            .unwrap_or_else(|e| panic!("{label}: the wire form reads without registries: {e}"));
+        let error = ParticleOptions::from_wire(decoded, &block_lookup()).unwrap_err();
+        assert!(error.to_string().contains(message), "{label}: {error}");
     }
 }

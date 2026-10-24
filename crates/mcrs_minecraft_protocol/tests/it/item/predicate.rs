@@ -1,10 +1,10 @@
+use crate::item::harness::decode_component;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;
 
-use crate::item::harness::{ctx, decode, from_json, hex, json_value, named, wire};
+use crate::item::harness::{decode, from_json, hex, json_value, lookup, named, wire};
 
 #[derive(Deserialize)]
 struct Case {
@@ -23,7 +23,7 @@ struct Case {
 fn predicates_match_the_vanilla_codecs() {
     let cases: Vec<Case> = serde_json::from_str(&fixture("item_predicate").text()).unwrap();
     assert_eq!(cases.len(), 81);
-    let lookup = ctx();
+    let lookup = lookup();
     for case in cases {
         let kind = DataComponentType::read(&case.kind).unwrap();
         let label = format!("{} {}", case.kind, case.input);
@@ -234,8 +234,7 @@ fn malformed_predicate_values_are_refused_on_the_wire() {
     ] {
         let bytes = hex(wire);
         let mut r = &bytes[..];
-        let error =
-            decode_component_value(DataComponentType::CanBreak, &ctx(), &mut r).unwrap_err();
+        let error = decode_component(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
         assert!(error.to_string().contains(expected), "{wire}: {error}");
     }
 }
@@ -245,7 +244,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     let mut wire = vec![0x01, 0x00, 0x00, 0x00, 0x00, 65];
     wire.extend(std::iter::repeat_n([0x00, 0x01, 0x0A, 0x00], 65).flatten());
     let mut r = &wire[..];
-    let error = decode_component_value(DataComponentType::CanBreak, &ctx(), &mut r).unwrap_err();
+    let error = decode_component(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
     assert!(
         error
             .to_string()
@@ -273,7 +272,7 @@ fn a_double_range_between_the_two_zeros_is_kept() {
 /// by position.
 #[test]
 fn predicate_order_does_not_affect_equality() {
-    let lookup = ctx();
+    let lookup = lookup();
     for (a, b) in [
         (
             "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
@@ -314,4 +313,19 @@ fn a_predicate_key_reads_with_or_without_its_namespace() {
         from_json(DataComponentType::CanBreak, &input)
     };
     assert_eq!(read("damage"), read("minecraft:damage"));
+}
+
+#[test]
+fn a_state_predicate_naming_a_property_twice_is_refused_on_the_wire() {
+    let mut wire = vec![1, 0, 1, 2];
+    for value in ["north", "south"] {
+        wire.extend([6]);
+        wire.extend(b"facing");
+        wire.extend([1, 5]);
+        wire.extend(value.as_bytes());
+    }
+    wire.extend([0, 0, 0]);
+    let error =
+        decode_component(DataComponentType::CanBreak, &lookup(), &mut &wire[..]).unwrap_err();
+    assert!(error.to_string().contains("duplicate key"), "{error}");
 }

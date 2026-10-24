@@ -59,6 +59,7 @@ float_default! {
 
 /// The map buffers on read, so the bools inside go through `nbt_flag`.
 #[registry_value]
+#[derive(mcrs_minecraft_registries::FromWire)]
 #[dispatch(registry = crate::keys::ConsumeEffectType, key_last)]
 #[derive(Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -96,7 +97,7 @@ pub enum ConsumeEffect<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Consumable<M: Refs = Resolved> {
     #[serde(
@@ -150,7 +151,9 @@ impl<M: Refs> Default for Consumable<M> {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(
+    mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct DeathProtection<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

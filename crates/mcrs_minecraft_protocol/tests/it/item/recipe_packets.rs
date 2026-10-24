@@ -12,10 +12,10 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
 use mcrs_minecraft_item::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
-use mcrs_minecraft_protocol::item::ctx::{MAX_NESTING, WireCtx};
+use mcrs_minecraft_protocol::item::WireLookup;
+use mcrs_minecraft_protocol::item::lookup::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, ItemComponentValue, Raw, Template, Text,
-    TrimPattern, TrimPatternRef,
+    ComponentPatch, Damage, ItemComponentValue, Template, Text, TrimPattern, TrimPatternRef,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,
@@ -26,16 +26,18 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::recipe::{
     RecipeBookEntry, RecipeBookSettings, RecipeBookType, RecipeBookTypeSettings, RecipeDisplay,
-    SelectableRecipe, SlotDisplay,
+    RecipePropertySet, SelectableRecipe, SlotDisplay,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registries::{IdSet, Ref, Resolved};
+use mcrs_minecraft_registries::{FromWire, IdSet, Ref, Resolved, Wire};
 
-use crate::item::harness::{ctx, entry, hex, list_set, one_set, read_json, tag_set};
+use crate::item::harness::{
+    WireCodec, entry, hex, list_set, lookup, one_set, read_json, tag_set, wire_form,
+};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("recipe_packets").text());
 
-fn golden() -> (WireCtx<'static>, BTreeMap<String, Vec<u8>>) {
+fn golden() -> (WireLookup<'static>, BTreeMap<String, Vec<u8>>) {
     let wires = GOLDEN
         .lines()
         .filter(|line| !line.starts_with("id "))
@@ -50,7 +52,7 @@ fn golden() -> (WireCtx<'static>, BTreeMap<String, Vec<u8>>) {
             (label.to_string(), hex(value))
         })
         .collect();
-    (ctx(), wires)
+    (lookup(), wires)
 }
 
 fn key(path: &str) -> Id<Item> {
@@ -203,8 +205,8 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(wire: &'a [u8
     assert_eq!(out, wire);
 }
 
-fn raw<T: EncodeCtx + for<'a> DecodeCtx<'a>>(value: &T, lookup: &WireCtx<'_>) -> Raw<T> {
-    Raw::from_value(value, lookup).unwrap()
+fn checked<T: FromWire<Wire: Clone>>(wire: &T::Wire, lookup: &WireLookup<'_>) -> T {
+    T::from_wire(wire.clone(), lookup).unwrap()
 }
 
 #[test]
@@ -212,7 +214,7 @@ fn recipe_book_add_matches_vanilla_and_resolves_every_display() {
     let (lookup, wires) = golden();
     let entries = expected_entries();
     let packet = ClientboundRecipeBookAdd {
-        entries: entries.iter().map(|entry| raw(entry, &lookup)).collect(),
+        entries: entries.iter().map(wire_form).collect(),
         replace: true,
     };
     check(&wires["recipe_book_add"], &packet);
@@ -222,7 +224,7 @@ fn recipe_book_add_matches_vanilla_and_resolves_every_display() {
     let resolved: Vec<RecipeBookEntry> = decoded
         .entries
         .iter()
-        .map(|entry| entry.resolve(&lookup).unwrap())
+        .map(|entry| checked(entry, &lookup))
         .collect();
     assert_eq!(resolved, entries);
     let kinds: Vec<RecipeDisplayType> = resolved.iter().map(|e| e.display.kind()).collect();
@@ -258,22 +260,22 @@ fn update_recipes_matches_vanilla() {
         item_sets: vec![
             (
                 rl!("minecraft:smithing_base").to_arc(),
-                raw(&smithing_base, &lookup),
+                wire_form(&smithing_base),
             ),
             (
                 rl!("minecraft:furnace_input").to_arc(),
-                raw(&Vec::new(), &lookup),
+                wire_form(&Vec::<Id<Item>>::new()),
             ),
         ],
-        stonecutter_recipes: stonecutter.iter().map(|e| raw(e, &lookup)).collect(),
+        stonecutter_recipes: stonecutter.iter().map(wire_form).collect(),
     };
     check(&wires["update_recipes"], &packet);
     assert_eq!(
-        packet.item_sets[0].1.resolve(&lookup).unwrap(),
+        checked::<RecipePropertySet>(&packet.item_sets[0].1, &lookup),
         smithing_base
     );
     assert_eq!(
-        packet.stonecutter_recipes[1].resolve(&lookup).unwrap(),
+        checked::<SelectableRecipe>(&packet.stonecutter_recipes[1], &lookup),
         stonecutter[1]
     );
 }
@@ -324,30 +326,28 @@ fn registry_free_recipe_packets_match_vanilla() {
 #[test]
 fn shaped_display_rejects_mismatched_dimensions() {
     let (lookup, _) = golden();
-    let bad = RecipeDisplay::CraftingShaped {
+    let bad: RecipeDisplay = RecipeDisplay::CraftingShaped {
         width: 2,
         height: 2,
         ingredients: vec![SlotDisplay::Empty],
         result: SlotDisplay::Empty,
         crafting_station: SlotDisplay::Empty,
     };
-    let error = Raw::from_value(&bad, &lookup).unwrap_err();
+    let error = bad.encode_checked(&lookup, &mut Vec::new()).unwrap_err();
     assert_eq!(error.to_string(), "Invalid shaped recipe display contents");
     let wire = [1u8, 2, 2, 1, 0, 0, 0];
-    let error = Raw::<RecipeDisplay>::decode(&mut &wire[..]).unwrap_err();
+    let error = RecipeDisplay::<Wire>::decode(&mut &wire[..]).unwrap_err();
     assert_eq!(error.to_string(), "Invalid shaped recipe display contents");
 }
 
 #[test]
 fn ingredient_rejects_what_vanilla_refuses_to_construct() {
-    let lookup = ctx();
     let air_id = Item::Air.id().number() as u8;
     let empty_stonecutter = [1, SlotDisplayType::Empty as u8];
-    let error = Raw::<SelectableRecipe>::decode(&mut &empty_stonecutter[..]).unwrap_err();
+    let error = SelectableRecipe::<Wire>::decode(&mut &empty_stonecutter[..]).unwrap_err();
     assert_eq!(error.to_string(), "Ingredients can't be empty");
     let air_stonecutter = [3, air_id, 1, SlotDisplayType::Empty as u8];
-    let raw = Raw::<SelectableRecipe>::decode(&mut &air_stonecutter[..]).unwrap();
-    let error = raw.resolve(&lookup).unwrap_err();
+    let error = SelectableRecipe::<Wire>::decode(&mut &air_stonecutter[..]).unwrap_err();
     assert_eq!(error.to_string(), "Ingredient can't contain air");
     let error = Ingredient::<Resolved>(IdSet::List(Box::new([])))
         .validate()
@@ -369,15 +369,15 @@ fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
         wire
     };
     let wire = wrapped(MAX_NESTING - 1);
-    let raw = Raw::<SlotDisplay>::decode(&mut &wire[..]).unwrap();
+    let unchecked = SlotDisplay::<Wire>::decode(&mut &wire[..]).unwrap();
     assert_eq!(
-        raw.resolve(&ctx()).unwrap().kind(),
+        checked::<SlotDisplay>(&unchecked, &lookup()).kind(),
         SlotDisplayType::WithAnyPotion
     );
-    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap_err();
+    let error = SlotDisplay::<Wire>::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap_err();
     assert_eq!(error.to_string(), "value nested deeper than 64 levels");
-    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(10_000)[..]).unwrap_err();
+    let error = SlotDisplay::<Wire>::decode(&mut &wrapped(10_000)[..]).unwrap_err();
     assert_eq!(error.to_string(), "value nested deeper than 64 levels");
-    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING - 1)[..]);
+    let error = SlotDisplay::<Wire>::decode(&mut &wrapped(MAX_NESTING - 1)[..]);
     assert!(error.is_ok(), "the bound is reset after a failed decode");
 }

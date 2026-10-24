@@ -74,7 +74,7 @@ pub const TITLE_CHARS: usize = 32;
 pub const WRITTEN_PAGE_CHARS: usize = 32767;
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WrittenBookContent<M: Refs = Resolved> {
     pub title: Filterable<BoundedString<TITLE_CHARS>>,
@@ -85,9 +85,9 @@ pub struct WrittenBookContent<M: Refs = Resolved> {
         default,
         deserialize_with = "restricted_pages",
         skip_serializing_if = "Vec::is_empty",
-        bound(deserialize = "Text<M>: Serialize + DeserializeOwned")
+        bound(deserialize = "Text<M::Nbt>: Serialize + DeserializeOwned")
     )]
-    pub pages: Vec<Filterable<Text<M>>>,
+    pub pages: Vec<Filterable<Text<M::Nbt>>>,
     #[serde(default, skip_serializing_if = "Not::not")]
     pub resolved: bool,
 }

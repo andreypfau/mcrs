@@ -77,7 +77,7 @@ impl EquipmentSlot {
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Equippable<M: Refs = Resolved> {
     pub slot: EquipmentSlot,

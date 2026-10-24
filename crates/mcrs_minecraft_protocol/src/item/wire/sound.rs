@@ -1,6 +1,7 @@
 use crate::item::component::sound::*;
-use crate::item::wire::{newtype_ctx_wire, record_ctx_wire};
+use crate::item::wire::{newtype_wire, record_wire};
+use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_sound::SoundEventValue;
 
-newtype_ctx_wire!(BreakSound);
-record_ctx_wire!(SoundEventValue { sound_id, range });
+newtype_wire!(BreakSound<Wire>);
+record_wire!(SoundEventValue { sound_id, range });

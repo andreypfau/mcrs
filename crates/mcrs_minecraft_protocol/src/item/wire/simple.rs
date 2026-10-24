@@ -1,7 +1,6 @@
 use mcrs_minecraft_core::codec::Bounded;
 
 use crate::item::component::simple::*;
-use crate::item::ctx::ctx_free;
 use crate::item::wire::{newtype_wire, record_wire};
 use crate::{Decode, Encode, VarInt};
 
@@ -32,8 +31,6 @@ impl Decode<'_> for TooltipDisplay {
     }
 }
 
-ctx_free!(TooltipDisplay);
-
 impl Encode for Food {
     fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
         VarInt(self.nutrition.0).encode(&mut w)?;
@@ -52,8 +49,6 @@ impl Decode<'_> for Food {
     }
 }
 
-ctx_free!(Food);
-
 impl Encode for Weapon {
     fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
         VarInt(self.item_damage_per_attack.0).encode(&mut w)?;
@@ -69,7 +64,5 @@ impl Decode<'_> for Weapon {
         })
     }
 }
-
-ctx_free!(Weapon);
 
 newtype_wire!(BlockState);

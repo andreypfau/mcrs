@@ -1,24 +1,26 @@
 //! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
 //! ids the capture session had.
+use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded as Range;
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::{Item, MenuType};
 use mcrs_minecraft_protocol::item::Text as ItemText;
 use mcrs_minecraft_protocol::item::{
-    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
-    MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
-    RawDelimitedStack, RawMerchantOffer, RawStack, Unbreakable,
+    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, DelimitedStack, HashedStack,
+    ItemCost, MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
+    Unbreakable,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
 
-use crate::item::harness::ctx;
+use crate::item::harness::{WireCodec, lookup, wire_form};
+use mcrs_minecraft_registries::{FromWire, Wire};
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("inventory_packets").text());
@@ -66,12 +68,6 @@ fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) 
     (packet, bytes)
 }
 
-fn encoded<P: Encode>(packet: &P) -> Vec<u8> {
-    let mut out = Vec::new();
-    packet.encode(&mut out).unwrap();
-    out
-}
-
 fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     fixture: &'a Fixture,
     name: &str,
@@ -90,12 +86,8 @@ fn sword(fixture: &Fixture) -> ProtoStack {
     ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
 }
 
-fn raw(slot: ProtoStack) -> RawStack {
-    RawStack::from_stack(&slot, &ctx()).unwrap()
-}
-
-fn plain(f: &Fixture, path: &str, n: i32) -> RawStack {
-    raw(ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
+fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
+    wire_form(&ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
 }
 
 #[test]
@@ -112,7 +104,7 @@ fn container_packets_are_the_games_bytes() {
             container_id: VarInt(3),
             state_seqno: VarInt(7),
             slot: 5,
-            item: raw(sword(f)),
+            item: wire_form(&sword(f)),
         },
     );
     check(
@@ -122,7 +114,7 @@ fn container_packets_are_the_games_bytes() {
             container_id: VarInt(0),
             state_seqno: VarInt(1),
             slot: -1,
-            item: RawStack::EMPTY,
+            item: ProtoStack::default(),
         },
     );
     check(
@@ -179,9 +171,9 @@ fn container_packets_are_the_games_bytes() {
             amount: VarInt(3),
         },
     );
-    let mut player = vec![RawStack::EMPTY; 46];
+    let mut player = vec![ProtoStack::default(); 46];
     player[9] = plain(f, "apple", 3);
-    player[36] = raw(sword(f));
+    player[36] = wire_form(&sword(f));
     player[45] = plain(f, "stone", 16);
     check(
         f,
@@ -193,7 +185,7 @@ fn container_packets_are_the_games_bytes() {
             carried_item: plain(f, "stone", 64),
         },
     );
-    let mut chest = vec![RawStack::EMPTY; 63];
+    let mut chest = vec![ProtoStack::default(); 63];
     chest[0] = plain(f, "diamond", 5);
     chest[26] = plain(f, "emerald", 1);
     chest[27] = plain(f, "apple", 2);
@@ -205,7 +197,7 @@ fn container_packets_are_the_games_bytes() {
             container_id: VarInt(1),
             state_seqno: VarInt(2),
             slot_data: chest,
-            carried_item: RawStack::EMPTY,
+            carried_item: ProtoStack::default(),
         },
     );
     check(
@@ -213,17 +205,17 @@ fn container_packets_are_the_games_bytes() {
         "set_creative_mode_slot",
         ServerboundSetCreativeModeSlot {
             slot: 36,
-            item: RawDelimitedStack::from_stack(&sword(f), &ctx()).unwrap(),
+            item: DelimitedStack(sword(f).to_wire(&lookup()).unwrap()),
         },
     );
     let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
-    assert_eq!(packet.item.resolve(&ctx()).unwrap(), sword(f));
+    assert_eq!(packet.item.check(&lookup()).unwrap(), sword(f));
     check(
         f,
         "set_creative_mode_slot_empty",
         ServerboundSetCreativeModeSlot {
             slot: -1,
-            item: RawDelimitedStack::EMPTY,
+            item: DelimitedStack::default(),
         },
     );
     check(
@@ -296,17 +288,13 @@ fn container_packets_are_the_games_bytes() {
     );
 }
 
-fn key(path: &str) -> ResourceKey<Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
-}
-
 fn offers(f: &Fixture) -> Vec<MerchantOffer> {
     let mut sell_patch = ComponentPatch::EMPTY;
     sell_patch.set(Damage(Range(3)));
     vec![
         MerchantOffer {
             cost_a: ItemCost {
-                item: key("emerald"),
+                item: item(f, "emerald"),
                 count: 3,
                 components: ComponentMap::default(),
             },
@@ -321,7 +309,7 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
         },
         MerchantOffer {
             cost_a: ItemCost {
-                item: key("diamond"),
+                item: item(f, "diamond"),
                 count: 1,
                 components: ComponentMap(vec![
                     MaxStackSize(Range(16)).into(),
@@ -330,7 +318,7 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
             },
             result: ProtoStack::new(item(f, "diamond_sword"), 1, sell_patch),
             cost_b: Some(ItemCost {
-                item: key("stone"),
+                item: item(f, "stone"),
                 count: 4,
                 components: ComponentMap::default(),
             }),
@@ -355,7 +343,7 @@ fn merchant_offers() {
             container_id: VarInt(5),
             offers: offers
                 .iter()
-                .map(|offer| RawMerchantOffer::from_offer(offer, &ctx()).unwrap())
+                .map(|offer| offer.to_wire(&lookup()).unwrap())
                 .collect(),
             villager_level: VarInt(2),
             villager_xp: VarInt(15),
@@ -366,8 +354,8 @@ fn merchant_offers() {
     let (packet, _) = decode::<ClientboundMerchantOffers>(f, "merchant_offers");
     let resolved: Vec<MerchantOffer> = packet
         .offers
-        .iter()
-        .map(|raw| raw.resolve(&ctx()).unwrap())
+        .into_iter()
+        .map(|wire| MerchantOffer::from_wire(wire, &lookup()).unwrap())
         .collect();
     assert_eq!(resolved, offers);
     assert!(!resolved[0].is_out_of_stock());
@@ -391,7 +379,9 @@ fn an_offer_never_sells_an_empty_stack() {
     let f = &fixture();
     let mut offer = offers(f).remove(0);
     offer.result = ProtoStack::EMPTY;
-    let error = RawMerchantOffer::from_offer(&offer, &ctx()).unwrap_err();
+    let error = offer
+        .encode_checked(&lookup(), &mut Vec::new())
+        .unwrap_err();
     assert!(error.to_string().contains("Empty ItemStack not allowed"));
     let mut bytes = f.packets["merchant_offers"].clone();
     let result_count = 6;
@@ -417,12 +407,12 @@ fn container_click_carries_hashed_slots() {
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
-    assert!(changed.matches(&sword(f), &ctx()));
+    assert!(changed.matches(&sword(f), &lookup()));
     assert_eq!(
         packet.carried_item,
         HashedStack::create(
             &ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY),
-            &ctx()
+            &lookup()
         )
         .unwrap()
     );

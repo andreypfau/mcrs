@@ -2,37 +2,29 @@ use mcrs_minecraft_item::keys::{RecipeBookCategory, RecipeDisplayType, SlotDispl
 use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
-use crate::item::ctx::WireCtx;
-use anyhow::ensure;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_item::component::trim::TrimPatternRef;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registries::{IdSet, Resolved};
+use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 
+use crate::VarInt;
 use crate::entity::OptionalUnsignedInt;
-use crate::item::ctx::nested;
-use crate::item::{DecodeCtx, EncodeCtx, Template};
+use crate::item::Template;
+use crate::item::lookup::nested;
 use crate::registry::static_registry_wire;
-use crate::{Decode as _, Encode as _, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
 
-impl EncodeCtx for Ingredient {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
+impl crate::Encode for Ingredient<Wire> {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         self.validate().map_err(anyhow::Error::msg)?;
-        self.0.encode_ctx(ctx, w)
+        self.0.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for Ingredient {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let announced = VarInt::decode(&mut &r[..])?.0;
-        let ingredient = Ingredient(DecodeCtx::decode_ctx(ctx, r)?);
-        if ctx.walking() {
-            ensure!(announced != 1, "Ingredients can't be empty");
-            return Ok(ingredient);
-        }
+impl crate::Decode<'_> for Ingredient<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let ingredient = Ingredient(crate::Decode::decode(r)?);
         ingredient.validate().map_err(anyhow::Error::msg)?;
         Ok(ingredient)
     }
@@ -42,45 +34,45 @@ static_registry_wire!(SlotDisplayType, "slot display type");
 static_registry_wire!(RecipeDisplayType, "recipe display type");
 static_registry_wire!(RecipeBookCategory, "recipe book category");
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum SlotDisplay {
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub enum SlotDisplay<M: Refs = Resolved> {
     Empty,
     AnyFuel,
     WithAnyPotion {
-        contents: Box<SlotDisplay>,
+        contents: Box<SlotDisplay<M>>,
     },
     OnlyWithComponent {
-        contents: Box<SlotDisplay>,
+        contents: Box<SlotDisplay<M>>,
         component: DataComponentType,
     },
     Item {
-        item: Id<Item>,
+        item: M::Id<Item>,
     },
     ItemStack {
-        item: Template,
+        item: Template<M>,
     },
     Tag {
-        tag: IdSet<Item>,
+        tag: M::Set<Item>,
     },
     Dyed {
-        dye: Box<SlotDisplay>,
-        target: Box<SlotDisplay>,
+        dye: Box<SlotDisplay<M>>,
+        target: Box<SlotDisplay<M>>,
     },
     SmithingTrim {
-        base: Box<SlotDisplay>,
-        material: Box<SlotDisplay>,
-        pattern: TrimPatternRef<Resolved>,
+        base: Box<SlotDisplay<M>>,
+        material: Box<SlotDisplay<M>>,
+        pattern: TrimPatternRef<M>,
     },
     WithRemainder {
-        input: Box<SlotDisplay>,
-        remainder: Box<SlotDisplay>,
+        input: Box<SlotDisplay<M>>,
+        remainder: Box<SlotDisplay<M>>,
     },
     Composite {
-        contents: Vec<SlotDisplay>,
+        contents: Vec<SlotDisplay<M>>,
     },
 }
 
-impl SlotDisplay {
+impl<M: Refs> SlotDisplay<M> {
     pub fn kind(&self) -> SlotDisplayType {
         match self {
             Self::Empty => SlotDisplayType::Empty,
@@ -98,49 +90,49 @@ impl SlotDisplay {
     }
 }
 
-impl EncodeCtx for SlotDisplay {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl crate::Encode for SlotDisplay<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         let w: &mut dyn Write = &mut w;
         self.kind().encode(&mut *w)?;
         match self {
             Self::Empty | Self::AnyFuel => Ok(()),
-            Self::WithAnyPotion { contents } => contents.encode_ctx(ctx, w),
+            Self::WithAnyPotion { contents } => contents.encode(w),
             Self::OnlyWithComponent {
                 contents,
                 component,
             } => {
-                contents.encode_ctx(ctx, &mut *w)?;
+                contents.encode(&mut *w)?;
                 component.encode(w)
             }
-            Self::Item { item } => item.encode_ctx(ctx, w),
-            Self::ItemStack { item } => item.encode_ctx(ctx, w),
-            Self::Tag { tag } => tag.encode_ctx(ctx, w),
+            Self::Item { item } => item.encode(w),
+            Self::ItemStack { item } => item.encode(w),
+            Self::Tag { tag } => tag.encode(w),
             Self::Dyed { dye, target } => {
-                dye.encode_ctx(ctx, &mut *w)?;
-                target.encode_ctx(ctx, w)
+                dye.encode(&mut *w)?;
+                target.encode(w)
             }
             Self::SmithingTrim {
                 base,
                 material,
                 pattern,
             } => {
-                base.encode_ctx(ctx, &mut *w)?;
-                material.encode_ctx(ctx, &mut *w)?;
-                pattern.encode_ctx(ctx, w)
+                base.encode(&mut *w)?;
+                material.encode(&mut *w)?;
+                pattern.encode(w)
             }
             Self::WithRemainder { input, remainder } => {
-                input.encode_ctx(ctx, &mut *w)?;
-                remainder.encode_ctx(ctx, w)
+                input.encode(&mut *w)?;
+                remainder.encode(w)
             }
-            Self::Composite { contents } => contents.encode_ctx(ctx, w),
+            Self::Composite { contents } => contents.encode(w),
         }
     }
 }
 
-impl DecodeCtx<'_> for SlotDisplay {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl crate::Decode<'_> for SlotDisplay<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         nested(|| {
-            let boxed = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r).map(Box::new);
+            let boxed = |r: &mut &[u8]| SlotDisplay::decode(r).map(Box::new);
             Ok(match SlotDisplayType::decode(r)? {
                 SlotDisplayType::Empty => Self::Empty,
                 SlotDisplayType::AnyFuel => Self::AnyFuel,
@@ -152,13 +144,13 @@ impl DecodeCtx<'_> for SlotDisplay {
                     component: DataComponentType::decode(r)?,
                 },
                 SlotDisplayType::Item => Self::Item {
-                    item: DecodeCtx::decode_ctx(ctx, r)?,
+                    item: crate::Decode::decode(r)?,
                 },
                 SlotDisplayType::ItemStack => Self::ItemStack {
-                    item: Template::decode_ctx(ctx, r)?,
+                    item: Template::decode(r)?,
                 },
                 SlotDisplayType::Tag => Self::Tag {
-                    tag: DecodeCtx::decode_ctx(ctx, r)?,
+                    tag: crate::Decode::decode(r)?,
                 },
                 SlotDisplayType::Dyed => Self::Dyed {
                     dye: boxed(r)?,
@@ -167,57 +159,57 @@ impl DecodeCtx<'_> for SlotDisplay {
                 SlotDisplayType::SmithingTrim => Self::SmithingTrim {
                     base: boxed(r)?,
                     material: boxed(r)?,
-                    pattern: DecodeCtx::decode_ctx(ctx, r)?,
+                    pattern: crate::Decode::decode(r)?,
                 },
                 SlotDisplayType::WithRemainder => Self::WithRemainder {
                     input: boxed(r)?,
                     remainder: boxed(r)?,
                 },
                 SlotDisplayType::Composite => Self::Composite {
-                    contents: Vec::decode_ctx(ctx, r)?,
+                    contents: Vec::decode(r)?,
                 },
             })
         })
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum RecipeDisplay {
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub enum RecipeDisplay<M: Refs = Resolved> {
     CraftingShapeless {
-        ingredients: Vec<SlotDisplay>,
-        result: SlotDisplay,
-        crafting_station: SlotDisplay,
+        ingredients: Vec<SlotDisplay<M>>,
+        result: SlotDisplay<M>,
+        crafting_station: SlotDisplay<M>,
     },
     CraftingShaped {
         width: i32,
         height: i32,
-        ingredients: Vec<SlotDisplay>,
-        result: SlotDisplay,
-        crafting_station: SlotDisplay,
+        ingredients: Vec<SlotDisplay<M>>,
+        result: SlotDisplay<M>,
+        crafting_station: SlotDisplay<M>,
     },
     Furnace {
-        ingredient: SlotDisplay,
-        fuel: SlotDisplay,
-        result: SlotDisplay,
-        crafting_station: SlotDisplay,
+        ingredient: SlotDisplay<M>,
+        fuel: SlotDisplay<M>,
+        result: SlotDisplay<M>,
+        crafting_station: SlotDisplay<M>,
         duration: i32,
         experience: f32,
     },
     Stonecutter {
-        input: SlotDisplay,
-        result: SlotDisplay,
-        crafting_station: SlotDisplay,
+        input: SlotDisplay<M>,
+        result: SlotDisplay<M>,
+        crafting_station: SlotDisplay<M>,
     },
     Smithing {
-        template: SlotDisplay,
-        base: SlotDisplay,
-        addition: SlotDisplay,
-        result: SlotDisplay,
-        crafting_station: SlotDisplay,
+        template: SlotDisplay<M>,
+        base: SlotDisplay<M>,
+        addition: SlotDisplay<M>,
+        result: SlotDisplay<M>,
+        crafting_station: SlotDisplay<M>,
     },
 }
 
-impl RecipeDisplay {
+impl<M: Refs> RecipeDisplay<M> {
     pub fn kind(&self) -> RecipeDisplayType {
         match self {
             Self::CraftingShapeless { .. } => RecipeDisplayType::CraftingShapeless,
@@ -229,7 +221,7 @@ impl RecipeDisplay {
     }
 }
 
-impl Validate for RecipeDisplay {
+impl<M: Refs> Validate for RecipeDisplay<M> {
     fn validate(&self) -> Result<(), String> {
         if let Self::CraftingShaped {
             width,
@@ -245,8 +237,8 @@ impl Validate for RecipeDisplay {
     }
 }
 
-impl EncodeCtx for RecipeDisplay {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl crate::Encode for RecipeDisplay<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.validate().map_err(anyhow::Error::msg)?;
         self.kind().encode(&mut w)?;
         match self {
@@ -255,9 +247,9 @@ impl EncodeCtx for RecipeDisplay {
                 result,
                 crafting_station,
             } => {
-                ingredients.encode_ctx(ctx, &mut w)?;
-                result.encode_ctx(ctx, &mut w)?;
-                crafting_station.encode_ctx(ctx, w)
+                ingredients.encode(&mut w)?;
+                result.encode(&mut w)?;
+                crafting_station.encode(w)
             }
             Self::CraftingShaped {
                 width,
@@ -268,9 +260,9 @@ impl EncodeCtx for RecipeDisplay {
             } => {
                 VarInt(*width).encode(&mut w)?;
                 VarInt(*height).encode(&mut w)?;
-                ingredients.encode_ctx(ctx, &mut w)?;
-                result.encode_ctx(ctx, &mut w)?;
-                crafting_station.encode_ctx(ctx, w)
+                ingredients.encode(&mut w)?;
+                result.encode(&mut w)?;
+                crafting_station.encode(w)
             }
             Self::Furnace {
                 ingredient,
@@ -280,10 +272,10 @@ impl EncodeCtx for RecipeDisplay {
                 duration,
                 experience,
             } => {
-                ingredient.encode_ctx(ctx, &mut w)?;
-                fuel.encode_ctx(ctx, &mut w)?;
-                result.encode_ctx(ctx, &mut w)?;
-                crafting_station.encode_ctx(ctx, &mut w)?;
+                ingredient.encode(&mut w)?;
+                fuel.encode(&mut w)?;
+                result.encode(&mut w)?;
+                crafting_station.encode(&mut w)?;
                 VarInt(*duration).encode(&mut w)?;
                 experience.encode(w)
             }
@@ -292,9 +284,9 @@ impl EncodeCtx for RecipeDisplay {
                 result,
                 crafting_station,
             } => {
-                input.encode_ctx(ctx, &mut w)?;
-                result.encode_ctx(ctx, &mut w)?;
-                crafting_station.encode_ctx(ctx, w)
+                input.encode(&mut w)?;
+                result.encode(&mut w)?;
+                crafting_station.encode(w)
             }
             Self::Smithing {
                 template,
@@ -303,29 +295,29 @@ impl EncodeCtx for RecipeDisplay {
                 result,
                 crafting_station,
             } => {
-                template.encode_ctx(ctx, &mut w)?;
-                base.encode_ctx(ctx, &mut w)?;
-                addition.encode_ctx(ctx, &mut w)?;
-                result.encode_ctx(ctx, &mut w)?;
-                crafting_station.encode_ctx(ctx, w)
+                template.encode(&mut w)?;
+                base.encode(&mut w)?;
+                addition.encode(&mut w)?;
+                result.encode(&mut w)?;
+                crafting_station.encode(w)
             }
         }
     }
 }
 
-impl DecodeCtx<'_> for RecipeDisplay {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let slot = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r);
+impl crate::Decode<'_> for RecipeDisplay<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let slot = |r: &mut &[u8]| SlotDisplay::decode(r);
         let display = match RecipeDisplayType::decode(r)? {
             RecipeDisplayType::CraftingShapeless => Self::CraftingShapeless {
-                ingredients: Vec::decode_ctx(ctx, r)?,
+                ingredients: Vec::decode(r)?,
                 result: slot(r)?,
                 crafting_station: slot(r)?,
             },
             RecipeDisplayType::CraftingShaped => Self::CraftingShaped {
                 width: VarInt::decode(r)?.0,
                 height: VarInt::decode(r)?.0,
-                ingredients: Vec::decode_ctx(ctx, r)?,
+                ingredients: Vec::decode(r)?,
                 result: slot(r)?,
                 crafting_station: slot(r)?,
             },
@@ -359,13 +351,13 @@ impl DecodeCtx<'_> for RecipeDisplay {
 /// its group, `crafting_requirements` is absent for recipes the book cannot
 /// place, and `flags` carries [`Self::FLAG_NOTIFICATION`] and
 /// [`Self::FLAG_HIGHLIGHT`].
-#[derive(Clone, Debug, PartialEq)]
-pub struct RecipeBookEntry {
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub struct RecipeBookEntry<M: Refs = Resolved> {
     pub id: VarInt,
-    pub display: RecipeDisplay,
+    pub display: RecipeDisplay<M>,
     pub group: Option<u32>,
     pub category: RecipeBookCategory,
-    pub crafting_requirements: Option<Vec<Ingredient>>,
+    pub crafting_requirements: Option<Vec<Ingredient<M>>>,
     pub flags: u8,
 }
 
@@ -374,25 +366,25 @@ impl RecipeBookEntry {
     pub const FLAG_HIGHLIGHT: u8 = 2;
 }
 
-impl EncodeCtx for RecipeBookEntry {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl crate::Encode for RecipeBookEntry<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.id.encode(&mut w)?;
-        self.display.encode_ctx(ctx, &mut w)?;
+        self.display.encode(&mut w)?;
         OptionalUnsignedInt(self.group).encode(&mut w)?;
         self.category.encode(&mut w)?;
-        self.crafting_requirements.encode_ctx(ctx, &mut w)?;
+        self.crafting_requirements.encode(&mut w)?;
         self.flags.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for RecipeBookEntry {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl crate::Decode<'_> for RecipeBookEntry<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(RecipeBookEntry {
             id: VarInt::decode(r)?,
-            display: RecipeDisplay::decode_ctx(ctx, r)?,
+            display: RecipeDisplay::decode(r)?,
             group: OptionalUnsignedInt::decode(r)?.0,
             category: RecipeBookCategory::decode(r)?,
-            crafting_requirements: Option::decode_ctx(ctx, r)?,
+            crafting_requirements: Option::decode(r)?,
             flags: u8::decode(r)?,
         })
     }
@@ -400,30 +392,19 @@ impl DecodeCtx<'_> for RecipeBookEntry {
 
 /// The items a `recipe_property_set` accepts, in the order vanilla's set
 /// iterates them.
-pub type RecipePropertySet = Vec<Id<Item>>;
+pub type RecipePropertySet<M = Resolved> = Vec<<M as Refs>::Id<Item>>;
 
 /// One stonecutter option: the input it accepts and what the button shows.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SelectableRecipe {
-    pub input: Ingredient,
-    pub option_display: SlotDisplay,
+#[derive(Clone, Debug, PartialEq, FromWire)]
+pub struct SelectableRecipe<M: Refs = Resolved> {
+    pub input: Ingredient<M>,
+    pub option_display: SlotDisplay<M>,
 }
 
-impl EncodeCtx for SelectableRecipe {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.input.encode_ctx(ctx, &mut w)?;
-        self.option_display.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for SelectableRecipe {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(SelectableRecipe {
-            input: Ingredient::decode_ctx(ctx, r)?,
-            option_display: SlotDisplay::decode_ctx(ctx, r)?,
-        })
-    }
-}
+crate::item::wire::record_wire!(SelectableRecipe<Wire> {
+    input,
+    option_display
+});
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum RecipeBookType {

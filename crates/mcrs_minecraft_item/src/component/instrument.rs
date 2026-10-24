@@ -13,7 +13,7 @@ use crate::harness::entry;
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentValue<M: Refs = Resolved> {
     pub sound_event: Sound<M>,
@@ -23,20 +23,20 @@ pub struct InstrumentValue<M: Refs = Resolved> {
     pub range: f32,
     #[serde(default, skip_serializing_if = "is_default")]
     pub durability_damage: NonNegativeInt,
-    pub description: Text<M>,
+    pub description: Text<M::Nbt>,
 }
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Instrument<M: Refs = Resolved>(pub Ref<M, InstrumentValue, InstrumentValue<M>>);
 
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JukeboxSong<M: Refs = Resolved> {
     pub sound_event: Sound<M>,
-    pub description: Text<M>,
+    pub description: Text<M::Nbt>,
     #[serde(deserialize_with = "positive_float")]
     pub length_in_seconds: f32,
     pub comparator_output: codec::Bounded<0, 15>,
@@ -45,7 +45,7 @@ pub struct JukeboxSong<M: Refs = Resolved> {
 /// The persistent form is the registry id alone; the wire form carries the
 /// song inline.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JukeboxPlayable<M: Refs = Resolved>(pub WireRef<M, JukeboxSong, JukeboxSong<M>>);
 

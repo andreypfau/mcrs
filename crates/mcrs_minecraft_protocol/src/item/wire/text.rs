@@ -1,44 +1,35 @@
+use mcrs_minecraft_registries::Wire;
 use std::io::Write;
-
-use crate::item::ctx::WireCtx;
 
 use crate::item::component::enums::DyeColor;
 use crate::item::component::text::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::item::wire::{newtype_ctx_wire, newtype_wire};
+use crate::item::wire::{newtype_wire, record_wire};
 use crate::{Decode, Encode};
 
 newtype_wire!(ItemModel, TooltipStyle, NoteBlockSound);
-newtype_ctx_wire!(CustomName, ItemName, SignTextFront, SignTextBack);
+newtype_wire!(
+    CustomName<Wire>,
+    ItemName<Wire>,
+    SignTextFront<Wire>,
+    SignTextBack<Wire>
+);
 
-impl EncodeCtx for Lore {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        self.lines.encode_ctx(ctx, w)
-    }
-}
+record_wire!(Lore<Wire> { lines });
 
-impl DecodeCtx<'_> for Lore {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Lore {
-            lines: DecodeCtx::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
-impl EncodeCtx for SignText {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
-        self.messages.encode_ctx(ctx, &mut w)?;
-        self.filtered_messages.encode_ctx(ctx, &mut w)?;
+impl Encode for SignText<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.messages.encode(&mut w)?;
+        self.filtered_messages.encode(&mut w)?;
         self.color.encode(&mut w)?;
         self.has_glowing_text.encode(w)
     }
 }
 
-impl DecodeCtx<'_> for SignText {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for SignText<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(SignText::new(
-            DecodeCtx::decode_ctx(ctx, r)?,
-            Option::decode_ctx(ctx, r)?,
+            Decode::decode(r)?,
+            Option::decode(r)?,
             DyeColor::decode(r)?,
             bool::decode(r)?,
         ))

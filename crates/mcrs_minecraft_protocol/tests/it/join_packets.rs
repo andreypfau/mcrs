@@ -1,6 +1,7 @@
 //! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
 //! ids the capture session had.
 
+use crate::common::encoded;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -55,12 +56,6 @@ fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) 
     let packet = P::decode(&mut r).unwrap_or_else(|e| panic!("{name}: {e:#}"));
     assert!(r.is_empty(), "{name}: {} trailing bytes", r.len());
     (packet, bytes)
-}
-
-fn encoded<P: Encode>(packet: &P) -> Vec<u8> {
-    let mut out = Vec::new();
-    packet.encode(&mut out).unwrap();
-    out
 }
 
 fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(

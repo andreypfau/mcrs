@@ -1,14 +1,11 @@
 use std::io::Write;
-use std::marker::PhantomData;
 
-use crate::item::ctx::WireCtx;
 use anyhow::ensure;
-use bytes::Bytes;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registries::{Named, Resolve};
+use mcrs_minecraft_registries::{FromWire, Named, Namer, Resolve, Wire, WireId};
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, nested, registries};
+use crate::item::lookup::{WireLookup, nested};
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{
     HashedPatchMap, ItemStackValue, MAX_HASHED_COMPONENTS, ProtoStack, Template,
@@ -17,152 +14,98 @@ use crate::item::wire::{decode_delimited_patch, encode_delimited_patch};
 use crate::{Decode, Encode, VarInt};
 use mcrs_minecraft_item::keys::DataComponentType;
 
-impl EncodeCtx for Template {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, mut w: impl Write) -> anyhow::Result<()> {
+impl Encode for Template<Wire> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.0.item.encode(&mut w)?;
         VarInt(self.0.count.0).encode(&mut w)?;
-        self.0.components.encode_ctx(ctx, w)
+        self.0.components.encode(w)
     }
 }
 
-impl<'a> DecodeCtx<'a> for Template {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+impl Decode<'_> for Template<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         nested(|| {
-            let item = Id::<Item>::decode(r)?;
+            let item = WireId::<Item>::decode(r)?;
             let count = VarInt::decode(r)?.0;
-            let components = ComponentPatch::decode_ctx(ctx, r)?;
+            let components = ComponentPatch::decode(r)?;
             Template::new(item, count, components).map_err(anyhow::Error::msg)
         })
     }
 }
 
 fn encode_with(
-    stack: &ProtoStack,
-    ctx: &WireCtx<'_>,
+    stack: &ProtoStack<Wire>,
     mut w: impl Write,
-    patch: impl FnOnce(&ComponentPatch, &WireCtx<'_>, &mut dyn Write) -> anyhow::Result<()>,
+    patch: impl FnOnce(&ComponentPatch<Wire>, &mut dyn Write) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     if stack.is_empty() {
         return VarInt(0).encode(w);
     }
     VarInt(stack.count).encode(&mut w)?;
     stack.id.encode(&mut w)?;
-    patch(&stack.components, ctx, &mut w)
+    patch(&stack.components, &mut w)
 }
 
 fn decode_with<'a>(
-    ctx: &WireCtx<'_>,
     r: &mut &'a [u8],
-    patch: impl FnOnce(&WireCtx<'_>, &mut &'a [u8]) -> anyhow::Result<ComponentPatch>,
-) -> anyhow::Result<ProtoStack> {
+    patch: impl FnOnce(&mut &'a [u8]) -> anyhow::Result<ComponentPatch<Wire>>,
+) -> anyhow::Result<ProtoStack<Wire>> {
     let count = VarInt::decode(r)?.0;
     if count <= 0 {
-        return Ok(ProtoStack::EMPTY);
+        return Ok(ProtoStack::default());
     }
     let stack = ProtoStack {
-        id: Id::<Item>::decode(r)?,
+        id: WireId::<Item>::decode(r)?,
         count,
-        components: patch(ctx, r)?,
+        components: patch(r)?,
     };
     Ok(if stack.is_empty() {
-        ProtoStack::EMPTY
+        ProtoStack::default()
     } else {
         stack
     })
 }
 
-pub fn encode_delimited_ctx(
-    stack: &ProtoStack,
-    ctx: &WireCtx<'_>,
-    w: impl Write,
-) -> anyhow::Result<()> {
-    encode_with(stack, ctx, w, |patch, ctx, w| {
-        encode_delimited_patch(patch, ctx, w)
-    })
-}
-
-pub fn decode_delimited_ctx(ctx: &WireCtx<'_>, r: &mut &[u8]) -> anyhow::Result<ProtoStack> {
-    decode_with(ctx, r, decode_delimited_patch)
-}
-
-impl EncodeCtx for ProtoStack {
-    fn encode_ctx(&self, ctx: &WireCtx<'_>, w: impl Write) -> anyhow::Result<()> {
-        encode_with(self, ctx, w, |patch, ctx, w| patch.encode_ctx(ctx, w))
+impl Encode for ProtoStack<Wire> {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        encode_with(self, w, |patch, w| patch.encode(w))
     }
 }
 
-impl<'a> DecodeCtx<'a> for ProtoStack {
-    fn decode_ctx(ctx: &WireCtx<'_>, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        decode_with(ctx, r, ComponentPatch::decode_ctx)
+impl Decode<'_> for ProtoStack<Wire> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        decode_with(r, ComponentPatch::decode)
     }
 }
 
-// chisle: every stack is parsed twice, once to measure and once to resolve; fine at inventory
-// sizes, replace with a macro-generated skip when it shows up in a profile.
-pub type RawStack = Raw<ProtoStack>;
+/// A stack whose component values carry a length prefix.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct DelimitedStack(pub ProtoStack<Wire>);
 
-impl Default for RawStack {
-    fn default() -> Self {
-        RawStack::EMPTY
-    }
-}
-
-impl RawStack {
-    pub const EMPTY: RawStack = Raw(Bytes::from_static(&[0]), PhantomData);
-
-    pub fn from_stack(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<RawStack> {
-        Raw::from_value(stack, ctx)
-    }
-}
-
-/// A stack whose component values carry a length prefix, validated on resolve.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawDelimitedStack(pub Bytes);
-
-impl Default for RawDelimitedStack {
-    fn default() -> Self {
-        RawDelimitedStack::EMPTY
-    }
-}
-
-impl RawDelimitedStack {
-    pub const EMPTY: RawDelimitedStack = RawDelimitedStack(Bytes::from_static(&[0]));
-
+impl DelimitedStack {
     /// Vanilla validates by re-encoding through the persistent codec; here every
     /// codec's checks sit on the read side, so the stack is read back from its
     /// persistent form instead.
-    pub fn resolve(&self, ctx: &WireCtx<'_>) -> anyhow::Result<ProtoStack> {
-        let mut r = &self.0[..];
-        let stack = decode_delimited_ctx(ctx, &mut r)?;
-        ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
+    pub fn check(self, lookup: &WireLookup<'_>) -> anyhow::Result<ProtoStack> {
+        let stack = ProtoStack::from_wire(self.0, lookup)?;
         if !stack.is_empty() {
-            let value = stack.to_value()?.name(registries(ctx)?)?;
+            let value = stack.to_value()?.name(lookup)?;
             let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
             mcrs_minecraft_nbt::from_tag::<ItemStackValue<Named>>(persistent.into())?;
         }
         Ok(stack)
     }
+}
 
-    pub fn from_stack(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<RawDelimitedStack> {
-        let mut bytes = Vec::new();
-        encode_delimited_ctx(stack, ctx, &mut bytes)?;
-        Ok(RawDelimitedStack(bytes.into()))
+impl Encode for DelimitedStack {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        encode_with(&self.0, w, |patch, w| encode_delimited_patch(patch, w))
     }
 }
 
-impl Encode for RawDelimitedStack {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        Ok(w.write_all(&self.0)?)
-    }
-}
-
-impl Decode<'_> for RawDelimitedStack {
+impl Decode<'_> for DelimitedStack {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let start = *r;
-        decode_delimited_ctx(&WireCtx::WALKING, r)?;
-        Ok(RawDelimitedStack(Bytes::copy_from_slice(
-            &start[..start.len() - r.len()],
-        )))
+        decode_with(r, decode_delimited_patch).map(DelimitedStack)
     }
 }
 
@@ -174,21 +117,21 @@ pub struct HashedStack {
 }
 
 impl HashedStack {
-    pub fn create(stack: &ProtoStack, ctx: &WireCtx<'_>) -> anyhow::Result<Option<Self>> {
+    pub fn create(stack: &ProtoStack, names: &impl Namer) -> anyhow::Result<Option<Self>> {
         if stack.is_empty() {
             return Ok(None);
         }
         Ok(Some(HashedStack {
             id: stack.id,
             count: stack.count,
-            components: HashedPatchMap::create(&stack.components, registries(ctx)?)?,
+            components: HashedPatchMap::create(&stack.components, names)?,
         }))
     }
 
-    pub fn matches(&self, stack: &ProtoStack, ctx: &WireCtx<'_>) -> bool {
+    pub fn matches(&self, stack: &ProtoStack, names: &impl Namer) -> bool {
         self.count == stack.count
             && self.id == stack.id
-            && registries(ctx).is_ok_and(|names| self.components.matches(&stack.components, names))
+            && self.components.matches(&stack.components, names)
     }
 }
 

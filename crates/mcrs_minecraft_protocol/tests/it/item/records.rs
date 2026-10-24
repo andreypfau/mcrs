@@ -1,6 +1,5 @@
+use crate::item::harness::{WireCodec, decode_component};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_protocol::item::EncodeCtx;
-use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
@@ -17,7 +16,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::profile::Property;
 
-use crate::item::harness::{ctx, from_json, from_nbt, hex, named, nbt_tree, persistent_json};
+use crate::item::harness::{from_json, from_nbt, hex, lookup, named, nbt_tree, persistent_json};
 
 type Row = HashMap<&'static str, &'static str>;
 
@@ -63,14 +62,14 @@ fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValu
 
     let vanilla_wire = hex(row["wire"]);
     let mut wire = Vec::new();
-    value.encode_ctx(&ctx(), &mut wire).unwrap();
+    value.encode_checked(&lookup(), &mut wire).unwrap();
     if kind.is_nbt_wire() {
         assert_eq!(nbt_tree(&wire), nbt_tree(&vanilla_wire), "{label}: wire");
     } else {
         assert_eq!(wire, vanilla_wire, "{label}: wire");
     }
     let mut r = &vanilla_wire[..];
-    let back = decode_component_value(kind, &ctx(), &mut r).unwrap();
+    let back = decode_component(kind, &lookup(), &mut r).unwrap();
     assert!(r.is_empty(), "{label}: trailing wire bytes");
     assert_eq!(back, value, "{label}: from wire");
 
@@ -109,7 +108,7 @@ fn wire_error(kind: DataComponentType, wire: &str) -> String {
     let mut r = &hex(wire)[..];
     format!(
         "{:#}",
-        decode_component_value(kind, &ctx(), &mut r).unwrap_err()
+        decode_component(kind, &lookup(), &mut r).unwrap_err()
     )
 }
 
@@ -246,7 +245,7 @@ fn text_bearing_records_match_vanilla() {
         ("015400026d65ffffffff0f0000", -1),
     ] {
         let mut r = &hex(wire)[..];
-        let err = decode_component_value(WrittenBookContent::KIND, &ctx(), &mut r)
+        let err = decode_component(WrittenBookContent::KIND, &lookup(), &mut r)
             .err()
             .unwrap();
         assert_eq!(
@@ -367,7 +366,7 @@ fn profiles_match_vanilla() {
     let mut wire = Vec::new();
     assert!(
         ItemComponentValue::from(eighteen)
-            .encode_ctx(&ctx(), &mut wire)
+            .encode_checked(&lookup(), &mut wire)
             .is_err()
     );
     let name65 = "n".repeat(65);
@@ -386,7 +385,7 @@ fn profiles_match_vanilla() {
         signature: None,
     });
     let err = ItemComponentValue::from(long_name)
-        .encode_ctx(&ctx(), &mut wire)
+        .encode_checked(&lookup(), &mut wire)
         .unwrap_err();
     assert!(
         format!("{err:#}").contains("expected <= 64, got 65"),
@@ -421,14 +420,14 @@ fn lodestone_and_fireworks_match_vanilla() {
     assert_eq!(wrapped.flight_duration, 44);
     check("fireworks_big", wrapped);
     let mut r = &hex("ac0200")[..];
-    let from_wire = decode_component_value(Fireworks::KIND, &ctx(), &mut r).unwrap();
+    let from_wire = decode_component(Fireworks::KIND, &lookup(), &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(
         Fireworks::from_value(&from_wire).unwrap().flight_duration,
         300
     );
     let mut wire = Vec::new();
-    from_wire.encode_ctx(&ctx(), &mut wire).unwrap();
+    from_wire.encode_checked(&lookup(), &mut wire).unwrap();
     assert_eq!(wire, hex("ac0200"));
     assert_eq!(
         json_error(from_wire),

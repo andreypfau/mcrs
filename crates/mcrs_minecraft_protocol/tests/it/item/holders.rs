@@ -1,6 +1,5 @@
+use crate::item::harness::{WireCodec, decode_component};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_protocol::item::EncodeCtx;
-use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_sound::SoundEventValue;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
@@ -11,12 +10,12 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, DecodeCtx, ItemComponentValue, JukeboxPlayable, JukeboxSong,
-    PaintingVariant, PaintingVariantValue, Text, WireRef, hash_ops,
+    Consumable, ConsumeEffect, ItemComponentValue, JukeboxPlayable, JukeboxSong, PaintingVariant,
+    PaintingVariantValue, Text, WireRef, hash_ops,
 };
 use mcrs_minecraft_registries::{Named, Ref};
 
-use crate::item::harness::{ctx, from_json, hex, named, nbt_tree, persistent_json};
+use crate::item::harness::{from_json, hex, lookup, named, nbt_tree, persistent_json};
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("item_holders").text());
 
@@ -52,7 +51,7 @@ fn kind_of(label: &str) -> DataComponentType {
 #[test]
 fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
     let Golden { samples } = golden();
-    let lookup = ctx();
+    let lookup = lookup();
     let mut checked = 0;
     for (label, fields) in &samples {
         let Some(input) = fields.get("in") else {
@@ -80,10 +79,10 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
 
         let wire = hex(&fields["wire"]);
         let mut out = Vec::new();
-        value.encode_ctx(&lookup, &mut out).unwrap();
+        value.encode_checked(&lookup, &mut out).unwrap();
         assert_eq!(out, wire, "{label} wire");
         let mut r = &wire[..];
-        let back = decode_component_value(kind, &lookup, &mut r).unwrap();
+        let back = decode_component(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty(), "{label} trailing bytes");
         assert_eq!(back, value, "{label} wire decode");
         checked += 1;
@@ -93,14 +92,14 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
 
 fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
     let Golden { samples } = golden();
-    let lookup = ctx();
+    let lookup = lookup();
     let value = value.into();
     let wire = hex(&samples[label]["wire"]);
     let mut out = Vec::new();
-    value.encode_ctx(&lookup, &mut out).unwrap();
+    value.encode_checked(&lookup, &mut out).unwrap();
     assert_eq!(out, wire, "{label} wire");
     let mut r = &wire[..];
-    let back = decode_component_value(value.kind(), &lookup, &mut r).unwrap();
+    let back = decode_component(value.kind(), &lookup, &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(back, value);
     let mut s = serde_json::Serializer::new(Vec::new());
@@ -161,7 +160,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
 
 #[test]
 fn errors_read_like_vanilla() {
-    let lookup = ctx();
+    let lookup = lookup();
     for (input, message) in [
         (
             r#"{"type":"minecraft:apply_effects","effects":[],"probability":1.5}"#,
@@ -225,7 +224,7 @@ fn errors_read_like_vanilla() {
         assert!(error.to_string().contains(message), "{input}: {error}");
     }
     let bad_type = [5u8];
-    let error = ConsumeEffect::decode_ctx(&lookup, &mut &bad_type[..]).unwrap_err();
+    let error = ConsumeEffect::decode_checked(&lookup, &mut &bad_type[..]).unwrap_err();
     assert_eq!(error.to_string(), "unknown consume effect type 5");
 }
 

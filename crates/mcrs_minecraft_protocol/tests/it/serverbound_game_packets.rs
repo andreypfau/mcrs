@@ -1,5 +1,6 @@
 //! Bytes written by the vanilla packet stream codecs for the serverbound game packets.
 
+use crate::common::encoded;
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::{LazyLock, OnceLock};
@@ -37,12 +38,6 @@ fn bytes(name: &str) -> &'static [u8] {
     labels()
         .get(name)
         .unwrap_or_else(|| panic!("the golden has no label {name}"))
-}
-
-fn encoded<P: Encode>(packet: &P) -> Vec<u8> {
-    let mut out = Vec::new();
-    packet.encode(&mut out).unwrap();
-    out
 }
 
 fn check<P>(name: &str, expected: P)

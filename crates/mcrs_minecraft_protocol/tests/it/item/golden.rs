@@ -1,14 +1,16 @@
+use crate::item::harness::WireCodec;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
-    ItemComponentValue, Lore, MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch,
-    encode_delimited_patch, hash_ops,
+    ComponentPatch, CreativeSlotLock, CustomName, Damage, HashedPatchMap, ItemComponentValue, Lore,
+    MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch,
+    hash_ops,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::Named;
 
-use crate::item::harness::{ctx, custom_data, hex, json_of, named, read_json, registries};
+use crate::item::harness::{custom_data, hex, json_of, lookup, named, read_json, registries};
 use mcrs_minecraft_item::keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
@@ -33,9 +35,9 @@ fn patch(with_transient: bool) -> ComponentPatch {
     patch
 }
 
-fn wire(value: &impl EncodeCtx) -> Vec<u8> {
+fn wire(value: &impl WireCodec) -> Vec<u8> {
     let mut out = Vec::new();
-    value.encode_ctx(&ctx(), &mut out).unwrap();
+    value.encode_checked(&lookup(), &mut out).unwrap();
     out
 }
 
@@ -45,15 +47,21 @@ fn a_patch_matches_the_vanilla_stream_codec() {
     let bytes = hex(PATCH_WIRE);
     assert_eq!(wire(&patch), bytes);
     let mut r = &bytes[..];
-    assert_eq!(ComponentPatch::decode_ctx(&ctx(), &mut r).unwrap(), patch);
+    assert_eq!(
+        ComponentPatch::decode_checked(&lookup(), &mut r).unwrap(),
+        patch
+    );
     assert!(r.is_empty());
 
     let delimited = hex(PATCH_DELIMITED_WIRE);
     let mut out = Vec::new();
-    encode_delimited_patch(&patch, &ctx(), &mut out).unwrap();
+    encode_delimited_patch(&patch.to_wire(&lookup()).unwrap(), &mut out).unwrap();
     assert_eq!(out, delimited);
     let mut r = &delimited[..];
-    assert_eq!(decode_delimited_patch(&ctx(), &mut r).unwrap(), patch);
+    assert_eq!(
+        ComponentPatch::from_wire(decode_delimited_patch(&mut r).unwrap(), &lookup()).unwrap(),
+        patch
+    );
     assert!(r.is_empty());
 }
 
@@ -132,10 +140,10 @@ fn the_hashed_map_wire_is_the_vanilla_layout() {
 
 #[test]
 fn a_template_matches_the_vanilla_stream_codec_and_json() {
-    let lookup = ctx();
+    let lookup = lookup();
     let template = Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap();
     let mut out = Vec::new();
-    template.encode_ctx(&lookup, &mut out).unwrap();
+    template.encode_checked(&lookup, &mut out).unwrap();
     // The capture numbered the sword 1050; a stack carries the item's number in this version.
     let mut expected = Vec::new();
     VarInt(i32::from(Item::DiamondSword.id().number()))
@@ -144,7 +152,7 @@ fn a_template_matches_the_vanilla_stream_codec_and_json() {
     expected.extend_from_slice(&hex(TEMPLATE_WIRE)[2..]);
     assert_eq!(out, expected);
     assert_eq!(
-        Template::decode_ctx(&lookup, &mut &out[..]).unwrap(),
+        Template::decode_checked(&lookup, &mut &out[..]).unwrap(),
         template
     );
 }

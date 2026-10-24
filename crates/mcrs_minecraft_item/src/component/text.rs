@@ -15,9 +15,10 @@ use crate::Text;
 macro_rules! text_newtype {
     ($($ty:ident),* $(,)?) => {$(
         #[registry_value]
+#[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $ty<M: Refs = Resolved>(pub Text<M>);
+        pub struct $ty<M: Refs = Resolved>(pub Text<M::Nbt>);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -51,14 +52,14 @@ text_newtype!(CustomName, ItemName);
 pub const MAX_LORE_LINES: usize = 256;
 
 #[registry_value]
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct Lore<M: Refs = Resolved> {
-    pub lines: Bounded<Vec<Text<M>>, MAX_LORE_LINES>,
+    pub lines: Bounded<Vec<Text<M::Nbt>>, MAX_LORE_LINES>,
 }
 
 impl<M: Refs> Lore<M> {
-    pub const fn new(lines: Vec<Text<M>>) -> Self {
+    pub const fn new(lines: Vec<Text<M::Nbt>>) -> Self {
         Self {
             lines: Bounded(lines),
         }
@@ -114,21 +115,21 @@ fn black() -> DyeColor {
 /// `filtered_messages` is absent whenever it equals `messages`, on read and
 /// on write alike, so two texts that render the same compare equal.
 #[registry_value]
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize)]
 pub struct SignText<M: Refs = Resolved> {
-    pub messages: [Text<M>; 4],
+    pub messages: [Text<M::Nbt>; 4],
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filtered_messages: Option<[Text<M>; 4]>,
+    pub filtered_messages: Option<[Text<M::Nbt>; 4]>,
     pub color: DyeColor,
     pub has_glowing_text: bool,
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields, bound = "Text<M>: DeserializeOwned")]
+#[serde(deny_unknown_fields, bound = "Text<M::Nbt>: DeserializeOwned")]
 struct SignTextRepr<M: Refs> {
-    messages: [Text<M>; 4],
+    messages: [Text<M::Nbt>; 4],
     #[serde(default, deserialize_with = "lenient")]
-    filtered_messages: Option<[Text<M>; 4]>,
+    filtered_messages: Option<[Text<M::Nbt>; 4]>,
     #[serde(default = "black")]
     color: DyeColor,
     #[serde(default)]
@@ -154,8 +155,8 @@ impl<M: Refs> From<SignTextRepr<M>> for SignText<M> {
 
 impl<M: Refs> SignText<M> {
     pub fn new(
-        messages: [Text<M>; 4],
-        filtered_messages: Option<[Text<M>; 4]>,
+        messages: [Text<M::Nbt>; 4],
+        filtered_messages: Option<[Text<M::Nbt>; 4]>,
         color: DyeColor,
         has_glowing_text: bool,
     ) -> Self {
@@ -207,6 +208,7 @@ impl Sample for SignText {
 macro_rules! sign_newtype {
     ($($ty:ident),* $(,)?) => {$(
         #[registry_value]
+#[derive(mcrs_minecraft_registries::FromWire)]
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty<M: Refs = Resolved>(pub SignText<M>);

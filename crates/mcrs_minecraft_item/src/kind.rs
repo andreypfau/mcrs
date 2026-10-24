@@ -1,6 +1,8 @@
 use std::fmt;
 
-use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver};
+use mcrs_minecraft_registries::{
+    FromWire, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire, WireNames,
+};
 use serde::de::DeserializeSeed;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -267,6 +269,35 @@ macro_rules! data_components {
                         [$($flag),*]
                         {value
                             .name(names)
+                            .map_err(|e| e.at(DataComponentType::$kind.as_static_str()))?}
+                        {value.clone()}
+                    ))),*
+                })
+            }
+        }
+
+        impl FromWire for ItemComponentValue {
+            type Wire = ItemComponentValue<Wire>;
+
+            fn from_wire<C: WireNames>(wire: Self::Wire, ctx: &C) -> Result<Self, ResolveError> {
+                let _ = ctx;
+                Ok(match wire {
+                    $(ItemComponentValue::<Wire>::$ty(value) => Self::$ty($crate::if_refs!(
+                        [$($flag),*]
+                        {FromWire::from_wire(value, ctx)
+                            .map_err(|e| e.at(DataComponentType::$kind.as_static_str()))?}
+                        {value}
+                    ))),*
+                })
+            }
+
+            fn to_wire<C: WireNames>(&self, ctx: &C) -> Result<Self::Wire, ResolveError> {
+                let _ = ctx;
+                Ok(match self {
+                    $(Self::$ty(value) => ItemComponentValue::<Wire>::$ty($crate::if_refs!(
+                        [$($flag),*]
+                        {value
+                            .to_wire(ctx)
                             .map_err(|e| e.at(DataComponentType::$kind.as_static_str()))?}
                         {value.clone()}
                     ))),*
