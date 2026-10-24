@@ -9,10 +9,12 @@ use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
 
 use crate::SectionBlocks;
+use crate::block::LightRegistry;
 use crate::level::{LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_volume::{SectionBox, Snapshot, Unavailable};
 
 /// Index of a cell within a [`FieldLayout`].
 pub type CellIndex = u32;
@@ -98,6 +100,17 @@ impl FieldLayout {
         let sz = (i / self.dim_x) % self.dim_z;
         let sy = i / (self.dim_x * self.dim_z);
         SectionPos::new(self.origin.x + sx, self.origin.y + sy, self.origin.z + sz)
+    }
+
+    pub fn section_box(&self) -> SectionBox {
+        SectionBox {
+            min: self.origin,
+            max: SectionPos::new(
+                self.origin.x + self.dim_x - 1,
+                self.origin.y + self.dim_y - 1,
+                self.origin.z + self.dim_z - 1,
+            ),
+        }
     }
 
     /// The block-coordinate box this layout spans.
@@ -199,6 +212,20 @@ impl BlockSnapshot {
     pub fn new(layout: &FieldLayout, sections: Vec<SectionSource>) -> Self {
         debug_assert_eq!(sections.len(), layout.section_count());
         Self { sections }
+    }
+
+    /// The sections of `layout` out of a volume snapshot that covers it: open space
+    /// where the snapshot lies outside the world, and absent where it is not loaded.
+    pub fn of(layout: &FieldLayout, blocks: &Snapshot, registry: &LightRegistry) -> Self {
+        let sections = layout
+            .sections()
+            .map(|(_, at)| match blocks.shared(at) {
+                Ok(section) => SectionSource::Loaded(Arc::clone(section)),
+                Err(Unavailable::Outside) => SectionSource::Open(registry.outside()),
+                Err(_) => SectionSource::Absent(registry.unloaded()),
+            })
+            .collect();
+        Self::new(layout, sections)
     }
 
     /// Resolved once per section by the seeding pass, which would otherwise

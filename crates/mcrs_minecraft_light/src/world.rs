@@ -11,6 +11,10 @@ use crate::level::{BlockColumn, LightBounds, LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_volume::{
+    Access, BlockVolume, ColumnLayout, PalettedSection, SectionBox, Snapshot, SnapshotVolume,
+    Unavailable, Volume,
+};
 
 /// One loaded section: its blocks, the entity that owns them, and the last
 /// published light for both layers.
@@ -513,6 +517,63 @@ impl LightWorld {
                 z: base_z + dz,
             })
         })
+    }
+}
+
+/// The light engine's own copy of the blocks it lights, as a volume: every section it
+/// holds is readable, and one it does not hold is unloaded inside the world and outside
+/// above and below it.
+impl Volume for LightWorld {
+    fn bounds(&self) -> BoundingBox {
+        BoundingBox {
+            min: BlockPos::new(i32::MIN, self.bounds.min_block_y(), i32::MIN),
+            max: BlockPos::new(i32::MAX, self.bounds.max_block_y(), i32::MAX),
+        }
+    }
+
+    fn access(&self, section: SectionPos) -> Access {
+        if self.is_outside_world(section) {
+            Access::Outside
+        } else if self.sections.contains_key(&section) {
+            Access::Read
+        } else {
+            Access::Unloaded
+        }
+    }
+
+    fn column_layout(&self) -> Option<ColumnLayout> {
+        Some(ColumnLayout {
+            min_section_y: self.bounds.min_section_y,
+            sections: self
+                .bounds
+                .max_section_y
+                .abs_diff(self.bounds.min_section_y)
+                .saturating_add(1),
+        })
+    }
+}
+
+impl LightWorld {
+    fn shared(&self, at: SectionPos) -> Result<&Arc<SectionBlocks>, Unavailable> {
+        match self.sections.get(&at) {
+            Some(section) => Ok(&section.blocks),
+            None if self.is_outside_world(at) => Err(Unavailable::Outside),
+            None => Err(Unavailable::Unloaded),
+        }
+    }
+}
+
+impl BlockVolume for LightWorld {
+    type Section<'a> = PalettedSection<'a>;
+
+    fn section(&self, at: SectionPos) -> Result<PalettedSection<'_>, Unavailable> {
+        self.shared(at).map(|blocks| PalettedSection(&blocks.0))
+    }
+}
+
+impl SnapshotVolume for LightWorld {
+    fn snapshot(&self, area: SectionBox) -> Snapshot {
+        Snapshot::take(area, self.column_layout(), |at| self.shared(at).cloned())
     }
 }
 

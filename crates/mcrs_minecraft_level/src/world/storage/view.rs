@@ -3,8 +3,10 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, HeightmapName, SectionPos};
 use mcrs_minecraft_volume::{
     Access, BiomeVolume, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, HeightVolume,
-    PalettedSection, PalettedSectionMut, SectionVolume, Unavailable, Volume,
+    PalettedSection, PalettedSectionMut, SectionBox, SectionVolume, Snapshot, SnapshotVolume,
+    Unavailable, Volume,
 };
+use std::sync::Arc;
 
 use crate::palette::{BiomePalette, ChunkBlocks};
 use crate::world::dimension::DimensionTypeConfig;
@@ -186,6 +188,20 @@ impl BlockVolume for DimensionView<'_, '_, '_> {
 }
 
 impl SectionVolume for DimensionView<'_, '_, '_> {}
+
+impl SnapshotVolume for DimensionView<'_, '_, '_> {
+    fn snapshot(&self, area: SectionBox) -> Snapshot {
+        Snapshot::take(area, Some(self.sections.layout), |at| {
+            let entity = self.sections.entity(at)?;
+            let blocks = self
+                .world
+                .sections
+                .get(entity)
+                .map_err(|_| Unavailable::Unloaded)?;
+            Ok(Arc::clone(&blocks.0))
+        })
+    }
+}
 
 impl HeightVolume for DimensionView<'_, '_, '_> {
     fn heightmap(&self, kind: HeightmapName, x: i32, z: i32) -> Result<i32, Unavailable> {
@@ -385,5 +401,43 @@ mod tests {
             view.biome_at(BlockPos::new(40, 4, 5)),
             Err(Unavailable::Unloaded)
         );
+    }
+
+    #[test]
+    fn a_snapshot_keeps_the_blocks_it_was_taken_with() {
+        let mut world = World::new();
+        let loaded = world.spawn(air_section()).id();
+        let mut index = SectionIndex::new();
+        index.insert(SectionPos::new(0, 0, 0), loaded);
+        let dimension = world.spawn((index, DimensionTypeConfig::new(0, 16))).id();
+        let area = SectionBox {
+            min: SectionPos::new(0, -1, 0),
+            max: SectionPos::new(1, 0, 0),
+        };
+
+        let mut read: SystemState<WorldView> = SystemState::new(&mut world);
+        let before = {
+            let view = read.get(&world).expect("valid params");
+            view.get(dimension).expect("a dimension").snapshot(area)
+        };
+        let stone = BlockStateId::checked(1, 2).expect("a state past air");
+        let mut write: SystemState<WorldViewMut> = SystemState::new(&mut world);
+        let mut blocks = write.get_mut(&mut world).expect("valid params");
+        let mut dimension_mut = blocks.get_mut(dimension).expect("a dimension");
+        assert_eq!(
+            dimension_mut.set_block(BlockPos::new(1, 2, 3), stone),
+            Ok(BlockStateId::AIR)
+        );
+        let after = {
+            let view = read.get(&world).expect("valid params");
+            view.get(dimension).expect("a dimension").snapshot(area)
+        };
+
+        assert_eq!(before.block(BlockPos::new(1, 2, 3)), Ok(BlockStateId::AIR));
+        assert_eq!(after.block(BlockPos::new(1, 2, 3)), Ok(stone));
+        assert_eq!(after.access(SectionPos::new(0, 0, 0)), Access::Read);
+        assert_eq!(after.access(SectionPos::new(1, 0, 0)), Access::Unloaded);
+        assert_eq!(after.access(SectionPos::new(0, -1, 0)), Access::Outside);
+        assert_eq!(after.access(SectionPos::new(2, 0, 0)), Access::Outside);
     }
 }

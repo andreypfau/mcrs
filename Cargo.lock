@@ -3834,6 +3834,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_volume",
  "rayon",
  "rustc-hash 2.1.1",
  "tracing",

@@ -12,7 +12,7 @@ use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block::LightRegistry;
-use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, SectionSource, block_in};
+use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, block_in};
 use crate::level::{BlockColumn, LightLevel};
 use crate::region::{ErasePlan, Influence, Regions, SectionErase};
 use crate::relax::relax;
@@ -20,6 +20,7 @@ use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_volume::SnapshotVolume;
 
 /// New light for one section, per layer. A layer the epoch recomputed to the
 /// light it already had is `None`: the world keeps the buffer it holds, and
@@ -480,7 +481,11 @@ impl LightWorld {
             .clamp_y(self.bounds().min_light_y(), self.bounds().max_light_y());
         let layout = FieldLayout::covering(area);
 
-        let mut sections: Vec<SectionSource> = Vec::with_capacity(layout.section_count());
+        let blocks = BlockSnapshot::of(
+            &layout,
+            &self.snapshot(layout.section_box()),
+            self.registry(),
+        );
         let mut published: Vec<Option<(LightStorage, LightStorage)>> =
             Vec::with_capacity(layout.section_count());
         // An absent section is never seeded, so it cannot be the source this asks
@@ -494,7 +499,6 @@ impl LightWorld {
             match self.section(section_pos) {
                 Some(section) => {
                     dark &= !section.emits && section.block_light == LightStorage::Empty;
-                    sections.push(SectionSource::Loaded(Arc::clone(&section.blocks)));
                     published.push(
                         section
                             .lit
@@ -503,14 +507,7 @@ impl LightWorld {
                 }
                 // Absent sections start dark whatever a reader would be told
                 // about them; what differs is whether they pass light.
-                None if self.is_outside_world(section_pos) => {
-                    sections.push(SectionSource::Open(self.registry().outside()));
-                    published.push(None);
-                }
-                None => {
-                    sections.push(SectionSource::Absent(self.registry().unloaded()));
-                    published.push(None);
-                }
+                None => published.push(None),
             }
         }
 
@@ -523,7 +520,7 @@ impl LightWorld {
         let erase_plan = regions.erase_plan(layout.cell_count() as u64, influenced);
         Some(LightJob {
             registry: Arc::clone(self.registry()),
-            blocks: BlockSnapshot::new(&layout, sections),
+            blocks,
             layout,
             published,
             erase_plan,
