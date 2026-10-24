@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
 use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer};
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 
 use crate::common::directory_packs;
 
@@ -138,7 +138,7 @@ fn each_broken_pack_over_vanilla_reports_its_one_error_with_pack_file_and_field(
         let packs = directory_packs()
             .with_only_pack(&write_pack(name, metadata, files))
             .unwrap();
-        let (failed, diagnostics) = match load_registries(&packs, Default::default()) {
+        let (failed, diagnostics) = match load_registries(&packs, test_additions()) {
             Ok((_, diagnostics)) => (false, diagnostics),
             Err(RegistryLoadError::Load(diagnostics)) => (true, diagnostics),
             Err(error) => panic!("{name}: {error}"),

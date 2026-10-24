@@ -72,18 +72,6 @@ fn entity_types_follow_the_registry_order() {
 }
 
 #[test]
-fn every_template_entity_kind_is_a_registered_entity_type() {
-    let entity_types = report_names("minecraft:entity_type");
-    for kind in mcrs_minecraft_worldgen_feature::template::EntityKind::KINDS {
-        let id = kind.as_static_str();
-        assert!(
-            entity_types.iter().any(|name| name == id),
-            "{id} is not an entity type"
-        );
-    }
-}
-
-#[test]
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
     assert_eq!(

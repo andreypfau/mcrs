@@ -33,7 +33,7 @@ mod text;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;
-pub use declaration::{DataDeclaration, Declaration, insert_entry};
+pub use declaration::{DataDeclaration, Declaration, RegistryAdditions, insert_entry};
 pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 pub use mcrs_minecraft_registries_derive::{Resolve, dispatch, registry_value};
 pub use network::NetworkSnapshot;

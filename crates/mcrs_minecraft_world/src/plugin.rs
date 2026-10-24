@@ -1,44 +1,12 @@
-use crate::data_pack::{
-    check_registry_assets_ready, request_data_pack_assets, start_loading_data_pack,
-};
+use crate::data_pack::{check_registry_assets_ready, start_loading_data_pack};
 use crate::registry_load::{self, AssetReaderPacks};
 use bevy_app::{App, AppExit, Plugin, PostStartup, Update};
-use bevy_asset::{AssetServer, UntypedHandle};
+use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::PACK_FILES;
+use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_registries::NetworkSnapshot;
-
-#[derive(Resource, Default)]
-pub struct LoadedRegistryAssets {
-    handles: Vec<UntypedHandle>,
-}
-
-impl LoadedRegistryAssets {
-    pub fn push(&mut self, handle: UntypedHandle) {
-        self.handles.push(handle);
-    }
-
-    /// True once every handle and everything it pulls in has either finished
-    /// loading successfully or failed to load. A tag file's nested `#tag`
-    /// references are dependencies of it, so waiting on the tag file alone
-    /// resolves it against a half-loaded tree. Missing or malformed files do not
-    /// stall the gate; they are logged once `WorldgenFreeze` proceeds.
-    ///
-    /// A recursive state turns `Failed` as soon as one dependency fails, while
-    /// its siblings may still be in flight, so leaf assets (templates) are
-    /// requested directly and gate on their own load state.
-    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
-        use bevy_asset::RecursiveDependencyLoadState;
-        self.handles.iter().all(|h| {
-            matches!(
-                asset_server.recursive_dependency_load_state(h.id()),
-                RecursiveDependencyLoadState::Loaded | RecursiveDependencyLoadState::Failed(_)
-            )
-        })
-    }
-}
 
 /// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]
@@ -49,11 +17,9 @@ pub struct MinecraftWorldPlugin;
 impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
-        app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
 
         app.add_systems(PostStartup, start_loading_data_pack)
-            .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
             .add_systems(
                 Update,
                 check_registry_assets_ready.run_if(in_state(AppState::LoadingDataPack)),
@@ -86,7 +52,7 @@ fn install(world: &mut World) -> Result<(), String> {
         .map_err(|error| format!("{}: {error}", path.display()))?;
 
     let additions = world
-        .remove_resource::<registry_load::RegistryAdditions>()
+        .remove_resource::<mcrs_minecraft_registries::RegistryAdditions>()
         .unwrap_or_default();
     let started = bevy_platform::time::Instant::now();
     let (registries, diagnostics) =

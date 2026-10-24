@@ -4,4 +4,4 @@ mod plugin;
 pub mod state;
 
 pub use plugin::MinecraftCorePlugin;
-pub use state::AppState;
+pub use state::{AppState, LoadedRegistryAssets};

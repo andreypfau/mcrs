@@ -1,21 +1,11 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
-    AvailablePack, Features, Level, PackFiles, PackSelection, PackSource, ReadError, RootPacks,
-    VANILLA_PACK, pack_stack, read_vanilla,
+    AvailablePack, Features, Level, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
+    read_vanilla,
 };
-use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_registries::{
-    DataValue, Declaration, Diagnostic, Diagnostics, Received, Registries, insert_entry,
-};
-use mcrs_minecraft_worldgen_builtin as builtin;
-use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
-use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
-use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Received, Registries, RegistryAdditions};
 
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;
@@ -107,19 +97,6 @@ pub(crate) fn log_diagnostics(diagnostics: &Diagnostics) {
     }
 }
 
-/// Registries and packs that a load adds to the vanilla declarations and the packs of a pack root.
-/// Each embedded pack is enabled, above `vanilla` and below the packs of the root, in the order of
-/// `embedded_packs`; `files` holds its files and values under its id. A plugin puts this resource
-/// in the app before `MinecraftWorldPlugin` finishes, which takes it. An embedded pack whose id is
-/// the id of another pack fails the load.
-#[derive(Default)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::prelude::Resource))]
-pub struct RegistryAdditions {
-    pub declarations: Vec<Declaration>,
-    pub embedded_packs: Vec<String>,
-    pub files: PackFiles,
-}
-
 /// The registries of every pack of `source` and of `additions`, over the vanilla declarations
 /// and those of `additions`.
 pub fn load_registries(
@@ -149,7 +126,6 @@ pub fn load_registries(
     let mut diagnostics = Diagnostics::default();
     let unavailable = packs.unavailable().iter().cloned();
     diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
-    insert_built_ins(&mut files);
     packs.read_files(source, &stack, &mut files)?;
 
     match Registries::load(declarations, Arc::new(stack), files) {
@@ -161,31 +137,6 @@ pub fn load_registries(
             diagnostics.extend(failed);
             Err(RegistryLoadError::Load(diagnostics))
         }
-    }
-}
-
-const BETA_PACK: &str = "file/beta";
-
-fn insert_built_ins(files: &mut PackFiles) {
-    insert_all::<BiomeFile>(files, VANILLA_PACK, builtin::biomes());
-    insert_all::<TemplatePool>(files, VANILLA_PACK, builtin::template_pools());
-    insert_all::<NoiseParam>(files, VANILLA_PACK, builtin::vanilla_noises());
-    insert_all::<NoiseParam>(files, BETA_PACK, builtin::beta_noises());
-    insert_all::<DensityFunctionHolder>(files, VANILLA_PACK, builtin::vanilla_density_functions());
-    insert_all::<DensityFunctionHolder>(files, BETA_PACK, builtin::beta_density_functions());
-    insert_all::<NoiseGeneratorSettings>(files, VANILLA_PACK, builtin::vanilla_noise_settings());
-    insert_all::<NoiseGeneratorSettings>(files, BETA_PACK, builtin::beta_noise_settings());
-}
-
-fn insert_all<V: DataValue>(
-    files: &mut PackFiles,
-    pack: &str,
-    values: BTreeMap<ResourceLocation, V::Named>,
-) where
-    V::Named: Send + Sync,
-{
-    for (name, value) in values {
-        insert_entry::<V>(files, pack, &name, value);
     }
 }
 
@@ -215,9 +166,17 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
     )
 }
 
+/// The additions of vanilla world generation, which the beta pack of the test packs needs.
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub fn test_additions() -> RegistryAdditions {
+    let mut additions = RegistryAdditions::default();
+    mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions);
+    additions
+}
+
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 static TEST_REGISTRIES: std::sync::LazyLock<Registries> = std::sync::LazyLock::new(|| {
-    load_registries(&test_packs(), RegistryAdditions::default())
+    load_registries(&test_packs(), test_additions())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 });
@@ -282,14 +241,20 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
 
 /// Registries over `declarations` alone: vanilla is the only pack and it holds no files.
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub fn registries_declaring(declarations: Vec<Declaration>) -> Registries {
+pub fn registries_declaring(
+    declarations: Vec<mcrs_minecraft_registries::Declaration>,
+) -> Registries {
     let (stack, _) = pack_stack(
         &PackSelection::default(),
         RootPacks::vanilla().available(),
         &Features::vanilla(),
         false,
     );
-    Registries::load(declarations, Arc::new(stack), PackFiles::default())
-        .map(|(registries, _)| registries)
-        .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
+    Registries::load(
+        declarations,
+        Arc::new(stack),
+        mcrs_minecraft_datapack::PackFiles::default(),
+    )
+    .map(|(registries, _)| registries)
+    .unwrap_or_else(|diagnostics| panic!("the declarations do not load:\n{diagnostics}"))
 }

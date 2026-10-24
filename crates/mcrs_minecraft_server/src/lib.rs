@@ -233,6 +233,7 @@ impl Plugin for MinecraftServerPlugin {
         }
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
+        app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,

@@ -159,7 +159,10 @@ rule and two names that make one constant stop the generator with the name.
 `crates/mcrs_minecraft_registry_catalog`, manifest included, is generated as
 well: `STATIC_REGISTRIES` lists every static registry with its `ENTRIES`. The
 catalog depends only on the crates that own a static registry. An owner that
-depends on the catalog cannot own a static registry.
+depends on the catalog cannot own a static registry. The catalog stays below
+world generation: an owner in `OWN_LISTS` of `src/owners.rs` gets the
+`STATIC_REGISTRIES` of its own static registries in its keys module, and the
+catalog does not list them.
 
 A test of this crate regenerates the sources from the stored reports and fails,
 naming the first file that differs, if a checked-in source is not what the

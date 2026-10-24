@@ -186,6 +186,7 @@ Provenance: `black_box_confirmed` (`assets/mcrs/reports/registries.json`;
   - Every registry, static or data-pack, accepts tag files (`"tags": true`).
   - A data-pack registry with `"stable": true` is reloadable: `/reload` re-reads its entries (REG-RELOAD-001). There are 8: `advancement`, `context_float_provider`, `context_int_provider`, `item_modifier`, `loot_table`, `predicate`, `recipe`, `slot_source`.
   - The other 52 are read only when the server starts.
+- **Local rule: registries that the world generation plugin declares.** This implementation declares the static registries of world generation in the world generation plugin. The plugin also declares the values of the data-pack registries that only world generation reads. Without the plugin, these static registries are not declared, and these data-pack registries hold the names of their entries only. A declaration of a plugin replaces the declaration of the same key that the implementation makes. The game declares every registry.
 - **Edge cases:**
   - `minecraft:dimension` is a data-pack registry. The game ships no files for it, and its default entries come from world presets (see `names.json`). A data pack may still add files under `data/<ns>/dimension/`.
   - The `others` section of the report (`function`, `structure`) describes pack content that is not a registry. It is out of scope.
@@ -577,7 +578,7 @@ Provenance: `source_suggested`. Confidence: medium. The experiment is under REG-
 - **Numeric semantics:** none.
 - **Postconditions:** a world pack file at the same path overrides one of them; a filter in a higher pack can hide one.
 - **Edge cases:** of these five, only `worldgen/biome` is synced (REG-NET-004). A vanilla client fills an absent-data biome from the same file in its own copy of the `vanilla` pack (REG-NET-007).
-- **Local rule: entries built in code.** This implementation can build an entry in code instead of reading its file. A built entry belongs to one pack and is at the path of its file in that pack, `data/<namespace>/<R path>/<path>.json`. It takes part in ordering, override, filtering and known-pack attribution as a file at that path does. It replaces a file at the same path in the same pack, and the implementation does not read that file. An entry built for a pack that is not in the stack does not exist. The game has no such entries; the observable result must equal the one the files give.
+- **Local rule: entries built in code.** This implementation can build an entry in code instead of reading its file. A built entry belongs to one pack and is at the path of its file in that pack, `data/<namespace>/<R path>/<path>.json`. It takes part in ordering, override, filtering and known-pack attribution as a file at that path does. It replaces a file at the same path in the same pack, and the implementation does not read that file. An entry built for a pack that is not in the stack does not exist. The world generation plugin adds the built entries; without it, the files give the entries. The game has no such entries; the observable result must equal the one the files give.
 - **Invariants:** the counts below equal the entry names `names.json` lists for each registry.
 - **Conformance tests:** on a stack with no pack other than `vanilla`, the entry counts are:
 

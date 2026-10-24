@@ -1,3 +1,5 @@
+use bevy_asset::{AssetServer, UntypedHandle};
+use bevy_ecs::prelude::Resource;
 use bevy_state::prelude::States;
 
 /// Top-level application lifecycle states.
@@ -22,4 +24,34 @@ pub enum AppState {
     LoadingDataPack,
     WorldgenFreeze,
     Playing,
+}
+
+#[derive(Resource, Default)]
+pub struct LoadedRegistryAssets {
+    handles: Vec<UntypedHandle>,
+}
+
+impl LoadedRegistryAssets {
+    pub fn push(&mut self, handle: UntypedHandle) {
+        self.handles.push(handle);
+    }
+
+    /// True once every handle and everything it pulls in has either finished
+    /// loading successfully or failed to load. A tag file's nested `#tag`
+    /// references are dependencies of it, so waiting on the tag file alone
+    /// resolves it against a half-loaded tree. Missing or malformed files do not
+    /// stall the gate; they are logged once `WorldgenFreeze` proceeds.
+    ///
+    /// A recursive state turns `Failed` as soon as one dependency fails, while
+    /// its siblings may still be in flight, so leaf assets (templates) are
+    /// requested directly and gate on their own load state.
+    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
+        use bevy_asset::RecursiveDependencyLoadState;
+        self.handles.iter().all(|h| {
+            matches!(
+                asset_server.recursive_dependency_load_state(h.id()),
+                RecursiveDependencyLoadState::Loaded | RecursiveDependencyLoadState::Failed(_)
+            )
+        })
+    }
 }

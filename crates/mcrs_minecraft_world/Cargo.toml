@@ -17,7 +17,7 @@ required-features = ["bevy"]
 
 [features]
 default = ["bevy"]
-test-support = ["dep:mcrs_minecraft_fixtures"]
+test-support = ["dep:mcrs_minecraft_fixtures", "dep:mcrs_minecraft_worldgen"]
 bevy = [
     "dep:bevy_app",
     "dep:bevy_asset",
@@ -26,30 +26,23 @@ bevy = [
     "dep:bevy_state",
     "dep:bevy_tasks",
     "dep:mcrs_minecraft_assets",
-    "dep:mcrs_minecraft_worldgen",
     "mcrs_minecraft_block/bevy",
     "mcrs_minecraft_core/bevy",
     "mcrs_minecraft_dimension_environment/bevy",
     "mcrs_minecraft_environment/bevy",
     "mcrs_minecraft_item/bevy",
     "mcrs_minecraft_registries/bevy",
-    "mcrs_minecraft_worldgen_carver/bevy",
 ]
 
 [dependencies]
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_value_provider.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_noise.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
-mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_dimension_environment.workspace = true
 mcrs_minecraft_biome.workspace = true
@@ -73,16 +66,22 @@ tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast", "bevy"] }
-mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_structure.workspace = true
 uuid.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_fixtures = { workspace = true, optional = true }
+mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["bevy", "fast"] }
 
 [dev-dependencies]
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_noise.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen_builtin.workspace = true
+mcrs_minecraft_worldgen_carver.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true

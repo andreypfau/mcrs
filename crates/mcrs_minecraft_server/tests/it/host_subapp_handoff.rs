@@ -586,9 +586,9 @@ fn registry_resources_changed_since(world: &World, since: Tick) -> bool {
 
 /// Registries equal to the host's but from a load of their own.
 fn separate_load() -> mcrs_minecraft_registries::Registries {
-    use mcrs_minecraft_world::registry_load::{load_registries, test_packs};
+    use mcrs_minecraft_world::registry_load::{load_registries, test_additions, test_packs};
 
-    load_registries(&test_packs(), Default::default())
+    load_registries(&test_packs(), test_additions())
         .map(|(registries, _)| registries)
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 }

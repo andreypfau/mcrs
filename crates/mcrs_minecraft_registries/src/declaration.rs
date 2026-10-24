@@ -269,3 +269,16 @@ impl<V: DataValue> From<DataDeclaration<V>> for Declaration {
         }
     }
 }
+
+/// Registries and packs that a load adds to the vanilla declarations and the packs of a pack root.
+/// A declaration replaces the vanilla declaration of its key. Each embedded pack is enabled, above
+/// `vanilla` and below the packs of the root, in the order of `embedded_packs`; `files` holds its
+/// files and values under its id. A plugin adds to this resource before `MinecraftWorldPlugin`
+/// finishes, which takes it. An embedded pack whose id is the id of another pack fails the load.
+#[derive(Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::prelude::Resource))]
+pub struct RegistryAdditions {
+    pub declarations: Vec<Declaration>,
+    pub embedded_packs: Vec<String>,
+    pub files: PackFiles,
+}

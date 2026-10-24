@@ -13,7 +13,7 @@ use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_read
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl};
-use mcrs_minecraft_datapack::{Level, PackDiagnostic, PackFiles, StackedPack, VANILLA_PACK};
+use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -21,12 +21,12 @@ use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
-    CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries, Resolve,
-    Resolver, Stage, insert_entry,
+    CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries,
+    RegistryAdditions, Resolve, Resolver, Stage, insert_entry,
 };
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{
-    RegistryAdditions, RegistryLoadError, load_registries, sent_by, test_network, test_registries,
+    RegistryLoadError, load_registries, sent_by, test_additions, test_network, test_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
@@ -223,6 +223,24 @@ fn pack_of<V: RegistryValue + 'static>(set: &Registries, name: &str) -> Option<S
 
 fn key_of<V: RegistryValue>() -> ResourceLocation {
     <V::Registry as Registered>::REGISTRY.location().into()
+}
+
+#[test]
+fn the_vanilla_pack_loads_without_world_generation_and_names_its_registries_only() {
+    let source = WithFiles::over_assets().hiding("mcrs/datapacks/beta");
+    let (registries, _) = load_registries(&source, RegistryAdditions::default())
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert!(registries.registry::<BiomeFile>().is_some());
+    assert!(registries.registry::<Feature>().is_none());
+    let placed = registries
+        .names_of(&key_of::<PlacedFeature>())
+        .expect("the placed features are declared by their names");
+    assert!(!placed.is_empty());
+    assert!(
+        registries
+            .names_of(&rl!("minecraft:worldgen/feature_type").into())
+            .is_none()
+    );
 }
 
 #[test]
@@ -630,16 +648,13 @@ fn an_embedded_pack_overrides_vanilla_below_the_root_packs_and_is_always_sent_wi
             pattern("world"),
         );
     let embedding = |ids: &[&str]| {
-        let mut files = PackFiles::default();
+        let mut additions = test_additions();
         for name in ["globe", "piglin"] {
             let path = format!("data/minecraft/banner_pattern/{name}.json");
-            files.insert("extra", path, pattern("embedded"));
+            additions.files.insert("extra", path, pattern("embedded"));
         }
-        RegistryAdditions {
-            embedded_packs: ids.iter().map(|id| id.to_string()).collect(),
-            files,
-            ..Default::default()
-        }
+        additions.embedded_packs = ids.iter().map(|id| id.to_string()).collect();
+        additions
     };
 
     let (registries, _) =

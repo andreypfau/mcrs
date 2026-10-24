@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::chat_type::ChatType;
 use crate::dimension::DimensionEntry;
@@ -31,17 +31,8 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_registries::{DataDeclaration, Declaration, Stage};
+use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
-use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
-use mcrs_minecraft_worldgen_feature::biome_domain::check_feature_domains;
-use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
-use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
-use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
-use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRuleHolder};
 use serde::Deserialize;
 
 use crate::registry_load::RegistryLoadError;
@@ -57,45 +48,12 @@ macro_rules! spawning_variants {
     };
 }
 
-fn biome_declaration() -> DataDeclaration<BiomeFile> {
-    Declaration::data::<BiomeFile>().validate(|registry, registries| {
-        let (Some(placed), Some(tags)) = (
-            registries.registry::<PlacedFeature>(),
-            registries.tags::<mcrs_minecraft_biome::PlacedFeature>(),
-        ) else {
-            return Vec::new();
-        };
-        let biomes = registry.values().iter().map(|biome| {
-            biome
-                .features
-                .iter()
-                .map(|step| {
-                    step.ids(&tags)
-                        .filter_map(|id| Some((placed.name(id)?, placed.get(id)?)))
-                        .collect()
-                })
-                .collect()
-        });
-        check_feature_domains(biomes)
-    })
-}
-
 /// Every data registry whose values this crate reads.
 fn typed_declarations() -> Vec<Declaration> {
     let mut declarations: Vec<Declaration> = vec![
-        biome_declaration().synced_via::<NetworkBiome>().into(),
-        Declaration::data::<Feature>().into(),
-        Declaration::data::<PlacedFeature>().into(),
-        Declaration::data::<StructureProcessorList>().into(),
-        Declaration::data::<Structure>().into(),
-        Declaration::data::<StructureSet>().into(),
-        Declaration::data::<CarverConfig>().into(),
-        Declaration::data::<TemplatePool>().into(),
-        Declaration::data::<NoiseParam>().into(),
-        Declaration::data::<DensityFunctionHolder>().into(),
-        Declaration::data::<NoiseGeneratorSettings>().into(),
-        Declaration::data::<MaterialRuleHolder>().into(),
-        Declaration::data::<MaterialConditionHolder>().into(),
+        Declaration::data::<BiomeFile>()
+            .synced_via::<NetworkBiome>()
+            .into(),
         Declaration::data::<ChatType>().synced().into(),
         Declaration::data::<TrimPattern>().synced().into(),
         Declaration::data::<TrimMaterial>().synced().into(),
@@ -194,29 +152,28 @@ fn data_registries(report: &[u8]) -> Result<BTreeMap<ResourceLocation, Stage>, R
 }
 
 /// Every registry a load declares: the static registries, the data registries this crate reads,
-/// `extra`, and every other data registry of the data pack `report` by its names alone. A data
+/// `extra`, and every other data registry of the data pack `report` by its names alone. A
+/// declaration of `extra` replaces the declaration of this crate for its key. A data
 /// registry that the report lists loads in the stage of the report; any other keeps its own.
 pub fn declarations(
     report: &[u8],
     extra: Vec<Declaration>,
 ) -> Result<Vec<Declaration>, RegistryLoadError> {
     let mut declarations = Vec::new();
-    let worldgen = [
-        mcrs_minecraft_worldgen_carver::keys::STATIC_REGISTRIES,
-        mcrs_minecraft_worldgen_density::keys::STATIC_REGISTRIES,
-        mcrs_minecraft_worldgen_feature::keys::STATIC_REGISTRIES,
-        mcrs_minecraft_worldgen_structure::keys::STATIC_REGISTRIES,
-        mcrs_minecraft_worldgen_surface::keys::STATIC_REGISTRIES,
-    ];
-    let statics =
-        std::iter::once(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES).chain(worldgen);
-    for (key, names) in statics.flatten() {
+    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES {
         let names = names.iter().map(|&name| name.into()).collect();
         declarations.push(Declaration::fixed((*key).into(), names));
     }
 
     let mut stages = data_registries(report)?;
-    for declaration in typed_declarations().into_iter().chain(extra) {
+    let replaced: BTreeSet<ResourceLocation> = extra
+        .iter()
+        .map(|declaration| declaration.key().clone())
+        .collect();
+    let typed = typed_declarations()
+        .into_iter()
+        .filter(|declaration| !replaced.contains(declaration.key()));
+    for declaration in typed.chain(extra) {
         declarations.push(match stages.remove(declaration.key()) {
             Some(stage) => declaration.in_stage(stage),
             None => declaration,

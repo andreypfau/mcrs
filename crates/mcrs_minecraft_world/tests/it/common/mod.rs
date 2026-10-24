@@ -16,7 +16,7 @@ use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, Resolve};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries};
+use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
@@ -127,6 +127,7 @@ pub fn run_to_playing() -> App {
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(MinecraftWorldPlugin);
+    app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
     app.finish();
     app.cleanup();
 
@@ -159,6 +160,7 @@ pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(plugins);
     app.add_plugins(MinecraftWorldPlugin);
+    app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
     app.finish();
     app.cleanup();
     app
@@ -227,7 +229,7 @@ impl WithFiles {
     }
 
     pub fn load(&self) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-        load_registries(self, Default::default())
+        load_registries(self, test_additions())
     }
 }
 
