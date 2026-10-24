@@ -29,6 +29,10 @@ pub struct Version {
 
 pub const VERSION_JSON: &str = include_str!("../../../assets/minecraft/version.json");
 
+#[expect(
+    clippy::expect_used,
+    reason = "the embedded version.json is fixed at build time, and the tests of this module parse it"
+)]
 pub static VERSION: LazyLock<Version> = LazyLock::new(|| {
     serde_json::from_str(VERSION_JSON).expect("assets/minecraft/version.json parses as a Version")
 });

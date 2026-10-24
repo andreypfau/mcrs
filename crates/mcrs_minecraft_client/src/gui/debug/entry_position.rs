@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_network::client::CurrentDimension;
@@ -7,8 +8,7 @@ use mcrs_minecraft_network::client::CurrentDimension;
 use super::DebugScreenDisplayer;
 use crate::player::Player;
 
-pub const GROUP: ResourceLocation<&'static str> =
-    ResourceLocation::new_static("minecraft:position");
+pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:position");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,

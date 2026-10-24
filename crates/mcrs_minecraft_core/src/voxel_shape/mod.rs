@@ -5,7 +5,7 @@ use bevy_math::Vec3;
 
 use self::block::block_shape;
 use self::empty::empty_shape;
-use crate::Direction;
+use crate::{Axis, Direction};
 
 /// Cells per axis of a face coverage mask. Every occlusion shape in the
 /// vanilla corpus is exact at 1/32; 1/16 is not enough for wall-mounted
@@ -70,7 +70,15 @@ impl VoxelShape {
     /// the two axes other than the face normal, in ascending axis order.
     #[inline]
     pub fn face_mask(&self, dir: Direction) -> &FaceMask {
-        &self.face_masks[dir.id()]
+        let [down, up, north, south, west, east] = &self.face_masks;
+        match dir {
+            Direction::Down => down,
+            Direction::Up => up,
+            Direction::North => north,
+            Direction::South => south,
+            Direction::West => west,
+            Direction::East => east,
+        }
     }
 
     /// Whether the seam between this block and the neighbour on `dir` is
@@ -125,22 +133,28 @@ impl VoxelShape {
             };
         }
 
-        let mut face_masks = [FACE_MASK_EMPTY; 6];
-        for dir in Direction::all() {
+        let face_masks = Direction::all().map(|dir| {
             let (axis, positive) = face_axis(dir);
             let (u, v) = tangent_axes(axis);
-            let mask = &mut face_masks[dir.id()];
+            let mut mask = FACE_MASK_EMPTY;
             for p in &prepared {
                 let reaches = if positive {
-                    p.hi[axis] >= 1.0 - EPSILON
+                    along(axis, p.hi) >= 1.0 - EPSILON
                 } else {
-                    p.lo[axis] <= EPSILON
+                    along(axis, p.lo) <= EPSILON
                 };
                 if reaches {
-                    fill(mask, p.cell_lo[u], p.cell_hi[u], p.cell_lo[v], p.cell_hi[v]);
+                    fill(
+                        &mut mask,
+                        along(u, p.cell_lo),
+                        along(u, p.cell_hi),
+                        along(v, p.cell_lo),
+                        along(v, p.cell_hi),
+                    );
                 }
             }
-        }
+            mask
+        });
 
         let mut min = Vec3::ONE;
         let mut max = Vec3::ZERO;
@@ -180,14 +194,12 @@ impl Prepared {
         if (hi - lo).min_element() < EPSILON {
             return None;
         }
-        let mut cell_lo = [0i32; 3];
-        let mut cell_hi = [0i32; 3];
-        for axis in 0..3 {
-            cell_lo[axis] = snap(lo[axis], off_grid);
-            cell_hi[axis] = snap(hi[axis], off_grid);
-            if cell_hi[axis] <= cell_lo[axis] {
-                cell_lo[axis] = cell_lo[axis].min(R - 1);
-                cell_hi[axis] = cell_lo[axis] + 1;
+        let mut cell_lo = lo.to_array().map(|c| snap(c, off_grid));
+        let mut cell_hi = hi.to_array().map(|c| snap(c, off_grid));
+        for (cell_lo, cell_hi) in cell_lo.iter_mut().zip(&mut cell_hi) {
+            if *cell_hi <= *cell_lo {
+                *cell_lo = (*cell_lo).min(R - 1);
+                *cell_hi = *cell_lo + 1;
             }
         }
         Some(Prepared {
@@ -208,22 +220,24 @@ fn snap(coord: f32, off_grid: &mut bool) -> i32 {
     (rounded as i32).clamp(0, R)
 }
 
-const fn face_axis(dir: Direction) -> (usize, bool) {
-    match dir {
-        Direction::Down => (1, false),
-        Direction::Up => (1, true),
-        Direction::North => (2, false),
-        Direction::South => (2, true),
-        Direction::West => (0, false),
-        Direction::East => (0, true),
+const fn face_axis(dir: Direction) -> (Axis, bool) {
+    (dir.axis(), dir.is_positive())
+}
+
+const fn along<T: Copy>(axis: Axis, v: [T; 3]) -> T {
+    let [x, y, z] = v;
+    match axis {
+        Axis::X => x,
+        Axis::Y => y,
+        Axis::Z => z,
     }
 }
 
-const fn tangent_axes(axis: usize) -> (usize, usize) {
+const fn tangent_axes(axis: Axis) -> (Axis, Axis) {
     match axis {
-        0 => (1, 2),
-        1 => (0, 2),
-        _ => (0, 1),
+        Axis::X => (Axis::Y, Axis::Z),
+        Axis::Y => (Axis::X, Axis::Z),
+        Axis::Z => (Axis::X, Axis::Y),
     }
 }
 
@@ -231,7 +245,9 @@ fn fill(mask: &mut FaceMask, u_lo: i32, u_hi: i32, v_lo: i32, v_hi: i32) {
     for v in v_lo..v_hi {
         for u in u_lo..u_hi {
             let bit = (v * R + u) as usize;
-            mask[bit >> 6] |= 1 << (bit & 63);
+            if let Some(word) = mask.get_mut(bit >> 6) {
+                *word |= 1 << (bit & 63);
+            }
         }
     }
 }

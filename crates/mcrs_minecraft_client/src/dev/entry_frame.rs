@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::rl;
 
 use crate::gui::debug::{DebugScreenDisplayer, entry_terrain};
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_render_probe::{DrawnTriangles, ReportedCounts};
 
-pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("mcrs:frame");
+pub const GROUP: ResourceLocation<&'static str> = rl!("mcrs:frame");
 
 #[derive(Resource)]
 pub struct UploadBudget(pub usize);

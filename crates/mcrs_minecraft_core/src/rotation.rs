@@ -34,7 +34,12 @@ impl Rotation {
 
     /// `Rotation.getRotated`: this rotation followed by `by`.
     pub fn rotated(self, by: Rotation) -> Rotation {
-        Self::ALL[(self as usize + by as usize) % 4]
+        match (self as u8 + by as u8) % 4 {
+            0 => Rotation::None,
+            1 => Rotation::Clockwise90,
+            2 => Rotation::Clockwise180,
+            _ => Rotation::Counterclockwise90,
+        }
     }
 
     pub fn rotate(self, direction: Direction) -> Direction {

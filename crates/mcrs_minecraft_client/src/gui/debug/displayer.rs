@@ -87,9 +87,10 @@ impl DebugScreenDisplayer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::rl;
 
-    const FIRST: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:first");
-    const SECOND: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:second");
+    const FIRST: ResourceLocation<&'static str> = rl!("minecraft:first");
+    const SECOND: ResourceLocation<&'static str> = rl!("minecraft:second");
 
     fn lines(of: &[&str]) -> Vec<String> {
         of.iter().map(|line| (*line).to_owned()).collect()

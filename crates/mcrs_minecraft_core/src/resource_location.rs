@@ -60,19 +60,17 @@ impl<S: AsRef<str>> ResourceLocation<S> {
 const DEFAULT_NAMESPACE: &str = "minecraft";
 
 const fn valid_namespace(bytes: &[u8]) -> bool {
-    !(bytes.len() == 2 && bytes[0] == b'.' && bytes[1] == b'.') && valid(bytes, false)
+    !matches!(bytes, [b'.', b'.']) && valid(bytes, false)
 }
 
-const fn valid(bytes: &[u8], slash: bool) -> bool {
-    let mut i = 0;
-    while i < bytes.len() {
-        let byte = bytes[i];
+const fn valid(mut bytes: &[u8], slash: bool) -> bool {
+    while let [byte, rest @ ..] = bytes {
         if !(matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-')
-            || slash && byte == b'/')
+            || slash && *byte == b'/')
         {
             return false;
         }
-        i += 1;
+        bytes = rest;
     }
     true
 }
@@ -124,39 +122,41 @@ fn split(text: &str) -> Result<Split<'_>, InvalidResourceLocation> {
 
 impl ResourceLocation<&'static str> {
     /// Const constructor for a literal that is already in canonical form:
-    /// panics unless `s` is `namespace:path` with a non-empty namespace in
-    /// `[a-z0-9_.-]` (not `..`) and a path in `[a-z0-9_.-/]`. Inside `rl!` the
-    /// panic is a compile error.
-    #[track_caller]
-    pub const fn new_static(s: &'static str) -> Self {
+    /// refuses unless `s` is `namespace:path` with a non-empty namespace in
+    /// `[a-z0-9_.-]` (not `..`) and a path in `[a-z0-9_.-/]`. `rl!` turns the
+    /// refusal into a compile error.
+    pub const fn new_static(s: &'static str) -> Result<Self, &'static str> {
         let bytes = s.as_bytes();
         let mut colon = 0;
-        while colon < bytes.len() && bytes[colon] != b':' {
+        let mut rest = bytes;
+        while let [byte, tail @ ..] = rest {
+            if *byte == b':' {
+                break;
+            }
             colon += 1;
+            rest = tail;
         }
-        if colon == bytes.len() {
-            panic!("ResourceLocation must contain ':'");
-        }
-        if colon == 0 {
-            panic!("resource location namespace must not be empty");
+        let Some((namespace, [b':', path @ ..])) = bytes.split_at_checked(colon) else {
+            return Err("ResourceLocation must contain ':'");
+        };
+        if namespace.is_empty() {
+            return Err("resource location namespace must not be empty");
         }
         if colon > u16::MAX as usize {
-            panic!("resource location namespace is too long");
+            return Err("resource location namespace is too long");
         }
-        let (namespace, rest) = bytes.split_at(colon);
-        let (_, path) = rest.split_at(1);
         if !valid_namespace(namespace) {
-            panic!(
-                "invalid character in resource location namespace (allowed: a-z 0-9 _ . -, not \"..\")"
+            return Err(
+                "invalid character in resource location namespace (allowed: a-z 0-9 _ . -, not \"..\")",
             );
         }
         if !valid(path, true) {
-            panic!("invalid character in resource location path (allowed: a-z 0-9 _ . - /)");
+            return Err("invalid character in resource location path (allowed: a-z 0-9 _ . - /)");
         }
-        ResourceLocation {
+        Ok(ResourceLocation {
             string: s,
             colon_pos: colon as u16,
-        }
+        })
     }
 
     /// `as_str` borrows from the value; this keeps the `'static` lifetime a
@@ -348,7 +348,12 @@ impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
 #[macro_export]
 macro_rules! rl {
     ($s:literal) => {
-        const { $crate::resource_location::ResourceLocation::new_static($s) }
+        const {
+            match $crate::resource_location::ResourceLocation::new_static($s) {
+                ::core::result::Result::Ok(location) => location,
+                ::core::result::Result::Err(reason) => ::core::panic!("{}", reason),
+            }
+        }
     };
 }
 
@@ -397,10 +402,7 @@ mod tests {
             "a/b:c",
             "..:alt",
         ] {
-            assert!(
-                std::panic::catch_unwind(|| ResourceLocation::new_static(bad)).is_err(),
-                "{bad}"
-            );
+            assert!(ResourceLocation::new_static(bad).is_err(), "{bad}");
         }
         assert_eq!(crate::rl!("minecraft:").path(), "");
         const TEXT: &str = crate::rl!("a.b-c_1:d/e.f-g_2").as_static_str();

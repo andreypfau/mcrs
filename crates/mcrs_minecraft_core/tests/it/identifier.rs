@@ -53,9 +53,10 @@ fn every_identifier_constructor_agrees_with_vanilla() {
             }
             _ => Refuses,
         };
-        let built =
-            std::panic::catch_unwind(|| outcome::<_, ()>(Ok(ResourceLocation::new_static(text))))
-                .unwrap_or(Refuses);
-        assert_eq!(built, literal, "new_static {text:?}");
+        assert_eq!(
+            outcome(ResourceLocation::new_static(text)),
+            literal,
+            "new_static {text:?}"
+        );
     }
 }

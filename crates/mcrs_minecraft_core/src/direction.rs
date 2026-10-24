@@ -153,38 +153,10 @@ impl std::fmt::Display for Direction {
     }
 }
 
-impl From<usize> for Direction {
-    fn from(id: usize) -> Self {
-        match id {
-            0 => Direction::Down,
-            1 => Direction::Up,
-            2 => Direction::North,
-            3 => Direction::South,
-            4 => Direction::West,
-            5 => Direction::East,
-            _ => panic!("Invalid block direction id"),
-        }
-    }
-}
-
 impl From<Direction> for usize {
     #[inline]
     fn from(dir: Direction) -> Self {
         dir.id()
-    }
-}
-
-impl From<IVec3> for Direction {
-    fn from(vec: IVec3) -> Self {
-        match vec {
-            IVec3::NEG_Y => Direction::Down,
-            IVec3::Y => Direction::Up,
-            IVec3::NEG_Z => Direction::North,
-            IVec3::Z => Direction::South,
-            IVec3::NEG_X => Direction::West,
-            IVec3::X => Direction::East,
-            _ => panic!("Invalid block direction vector"),
-        }
     }
 }
 
@@ -263,8 +235,7 @@ impl Iterator for DirectionSetIter {
     type Item = Direction;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.1 < 6 {
-            let direction = Direction::from(self.1);
+        while let Some(&direction) = Direction::all().get(self.1) {
             self.1 += 1;
             if self.0.contains(direction) {
                 return Some(direction);

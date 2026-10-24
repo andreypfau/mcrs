@@ -2,10 +2,11 @@ use bevy::prelude::*;
 use bevy::render::renderer::RenderAdapterInfo;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::rl;
 
 use super::DebugScreenDisplayer;
 
-pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:system");
+pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:system");
 
 /// Vanilla also names the Java runtime and the CPU model; neither has a source
 /// here, and a native binary has no runtime to name in the first place.

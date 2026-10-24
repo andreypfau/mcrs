@@ -162,23 +162,31 @@ pub fn wrap_degrees(angle: f32) -> f32 {
 /// not an approximation of that: it is the same value, without paying a `sin` per
 /// call.
 static SIN_TABLE: LazyLock<Box<[f32; 65536]>> = LazyLock::new(|| {
-    let mut table = vec![0.0f32; 65536].into_boxed_slice();
+    let mut table = Box::new([0.0f32; 65536]);
     for (index, entry) in table.iter_mut().enumerate() {
         *entry = f64::sin(index as f64 * (std::f64::consts::TAU / 65536.0)) as f32;
     }
-    table.try_into().expect("65536 entries")
+    table
 });
+
+#[inline]
+fn sin_table(index: u16) -> f32 {
+    SIN_TABLE
+        .get(usize::from(index))
+        .copied()
+        .unwrap_or_default()
+}
 
 /// Java beta `MathHelper.sin(x)`: `SIN_TABLE[(int)(x * 10430.378F) & 65535]`.
 #[inline]
 pub fn sin(x: f32) -> f32 {
-    SIN_TABLE[(((x * 10430.378_f32) as i32 as u32) & 0xFFFF) as usize]
+    sin_table((x * 10430.378_f32) as i32 as u16)
 }
 
 /// Java beta `MathHelper.cos(x)`: the same table, offset by a quarter turn.
 #[inline]
 pub fn cos(x: f32) -> f32 {
-    SIN_TABLE[(((x * 10430.378_f32 + 16384.0_f32) as i32 as u32) & 0xFFFF) as usize]
+    sin_table((x * 10430.378_f32 + 16384.0_f32) as i32 as u16)
 }
 
 /// Java 26.3 `Mth.sin(double)`: `SIN[(int)((long)(i * 10430.378350470453) & 65535L)]`.
@@ -186,13 +194,13 @@ pub fn cos(x: f32) -> f32 {
 /// form on arguments whose `f32` product rounds across an integer boundary.
 #[inline]
 pub fn sin_modern(x: f64) -> f32 {
-    SIN_TABLE[(((x * 10430.378350470453) as i64 as u64) & 0xFFFF) as usize]
+    sin_table((x * 10430.378350470453) as i64 as u16)
 }
 
 /// Java 26.3 `Mth.cos(double)`: the same table, offset by a quarter turn.
 #[inline]
 pub fn cos_modern(x: f64) -> f32 {
-    SIN_TABLE[(((x * 10430.378350470453 + 16384.0) as i64 as u64) & 0xFFFF) as usize]
+    sin_table((x * 10430.378350470453 + 16384.0) as i64 as u16)
 }
 
 /// A lerp over an inverse lerp, unclamped: a value outside the source range

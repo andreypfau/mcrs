@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::rl;
 
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
 use mcrs_minecraft_render::{DebugViews, SelectedView};
 
-pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:terrain");
+pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:terrain");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
