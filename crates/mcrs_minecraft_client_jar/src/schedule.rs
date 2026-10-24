@@ -181,7 +181,7 @@ impl Queue {
         progress
             .done
             .store(self.held.covered(&self.counted), Ordering::Relaxed);
-        *progress.status.lock().unwrap() = self.error.as_deref().unwrap_or(phase).to_owned();
+        *crate::lock(&progress.status) = self.error.as_deref().unwrap_or(phase).to_owned();
     }
 }
 

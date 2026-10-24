@@ -5,14 +5,15 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{
-    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, verify,
+    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, lock,
+    verify,
 };
 
 const CHUNK: u64 = 1 << 20;
@@ -96,7 +97,7 @@ pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Op
             return None;
         }
         progress.total.store(artifact.size, Ordering::Relaxed);
-        *progress.status.lock().unwrap() = format!("Checking {}", path.display());
+        *lock(&progress.status) = format!("Checking {}", path.display());
         let bytes = read_counting(path, progress).ok()?;
         if !verify(artifact, &bytes) {
             tracing::warn!(path = %path.display(), expected = artifact.sha1, "skipping a file with the wrong SHA-1");
@@ -125,8 +126,8 @@ pub fn resolve(
     pick: impl FnMut(&str) -> bool,
     fonts: impl FnMut(Files),
 ) -> Result<(Files, Option<Remainder>), VanillaDataError> {
-    Ok(match locate(&candidates(), &RELEASE.jar, progress) {
-        Some(jar) => (local(&jar, pick, fonts), None),
+    match locate(&candidates(), &RELEASE.jar, progress) {
+        Some(jar) => Ok((local(&jar, pick, fonts)?, None)),
         None => download(
             &RELEASE,
             &download_dir()?,
@@ -136,14 +137,19 @@ pub fn resolve(
             pick,
             fonts,
         ),
-    })
+    }
 }
 
-fn local(jar: &[u8], pick: impl FnMut(&str) -> bool, mut fonts: impl FnMut(Files)) -> Files {
-    const CORRUPT: &str = "a jar that matched its pinned SHA-1 is a readable zip";
-    let directory = Directory::of(jar).expect(CORRUPT);
-    fonts(font_files(&directory, &[(0, jar)]).expect(CORRUPT));
-    directory.unpack(&[(0, jar)], pick).expect(CORRUPT)
+fn local(
+    jar: &[u8],
+    pick: impl FnMut(&str) -> bool,
+    mut fonts: impl FnMut(Files),
+) -> Result<Files, VanillaDataError> {
+    let directory = Directory::of(jar).map_err(VanillaDataError::MalformedJar)?;
+    fonts(font_files(&directory, &[(0, jar)]).map_err(VanillaDataError::MalformedJar)?);
+    directory
+        .unpack(&[(0, jar)], pick)
+        .map_err(VanillaDataError::MalformedJar)
 }
 
 /// Downloads the release's jar into `dir` as a sparse `.part` file, which a `.ranges` sidecar
@@ -156,15 +162,15 @@ pub fn download(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
     mut fonts: impl FnMut(Files),
-) -> (Files, Option<Remainder>) {
+) -> Result<(Files, Option<Remainder>), VanillaDataError> {
     let jar = dir.join(format!("{}.jar", release.id));
     let part = with_suffix(&jar, ".part");
     let sidecar = with_suffix(&part, ".ranges");
-    *progress.status.lock().unwrap() = format!("Opening {}", part.display());
+    *lock(&progress.status) = format!("Opening {}", part.display());
     let (file, held) = match retry(progress, first_backoff, || {
         open(release, &jar, &part, &sidecar)
     }) {
-        Opened::Installed(bytes) => return (local(&bytes, pick, fonts), None),
+        Opened::Installed(bytes) => return Ok((local(&bytes, pick, fonts)?, None)),
         Opened::Part(file, held) => (file, held),
     };
     tracing::info!(part = %part.display(), ranges = ?held, "downloading {}", release.jar.url);
@@ -177,15 +183,21 @@ pub fn download(
         changed: Condvar::new(),
         stop: AtomicBool::new(false),
     });
-    let workers = (0..workers)
+    let workers: Result<Vec<_>, _> = (0..workers)
         .map(|id| {
             let shared = shared.clone();
             std::thread::Builder::new()
                 .name(format!("client jar {id}"))
                 .spawn(move || work(&shared, id))
-                .expect("a thread for a download worker")
         })
         .collect();
+    let workers = match workers {
+        Ok(workers) => workers,
+        Err(error) => {
+            shared.stop();
+            return Err(VanillaDataError::Worker(error));
+        }
+    };
     let files = block_on(schedule::assets(
         &*shared, release, progress, pick, &mut fonts,
     ));
@@ -198,7 +210,7 @@ pub fn download(
         jar,
         part,
     };
-    (files, Some(remainder))
+    Ok((files, Some(remainder)))
 }
 
 enum Opened {
@@ -246,17 +258,17 @@ struct Shared {
 
 impl Source for Shared {
     fn with_queue<R>(&self, act: impl FnOnce(&mut Queue) -> R) -> R {
-        let result = act(&mut self.queue.lock().unwrap());
+        let result = act(&mut lock(&self.queue));
         self.changed.notify_all();
         result
     }
 
     async fn wait(&self) {
-        let queue = self.queue.lock().unwrap();
+        let queue = lock(&self.queue);
         drop(
             self.changed
                 .wait_timeout(queue, Duration::from_millis(100))
-                .unwrap(),
+                .unwrap_or_else(PoisonError::into_inner),
         );
     }
 
@@ -269,7 +281,7 @@ impl Source for Shared {
 
 impl Shared {
     fn next_chunk(&self) -> Option<Chunk> {
-        let mut queue = self.queue.lock().unwrap();
+        let mut queue = lock(&self.queue);
         loop {
             if self.stop.load(Ordering::Relaxed) {
                 return None;
@@ -277,12 +289,15 @@ impl Shared {
             if let Some(chunk) = queue.next() {
                 return Some(chunk);
             }
-            queue = self.changed.wait(queue).unwrap();
+            queue = self
+                .changed
+                .wait(queue)
+                .unwrap_or_else(PoisonError::into_inner);
         }
     }
 
     fn stop(&self) {
-        let queue = self.queue.lock().unwrap();
+        let queue = lock(&self.queue);
         self.stop.store(true, Ordering::Relaxed);
         drop(queue);
         self.changed.notify_all();
@@ -335,9 +350,11 @@ impl Shared {
             let from = (*reached).max(position);
             let to = (position + read as u64).min(range.end);
             if from < to {
-                let bytes = &buffer[(from - position) as usize..(to - position) as usize];
+                let bytes = buffer
+                    .get((from - position) as usize..(to - position) as usize)
+                    .ok_or("a read overran its buffer")?;
                 write_at(&self.file, bytes, from).map_err(|error| error.to_string())?;
-                self.queue.lock().unwrap().wrote(from..to);
+                lock(&self.queue).wrote(from..to);
                 *reached = to;
             }
             position += read as u64;
@@ -391,7 +408,7 @@ fn work(shared: &Shared, id: usize) {
             .err()
             .map(|error| format!("{error}; retrying in {backoff:?}"));
         {
-            let mut queue = shared.queue.lock().unwrap();
+            let mut queue = lock(&shared.queue);
             queue.release(&chunk, reached);
             queue.error.clone_from(&failure);
             save_ranges(&shared.sidecar, queue.held());
@@ -504,7 +521,7 @@ fn retry<T>(
             Err(error) => {
                 let status = format!("{error}; retrying in {backoff:?}");
                 tracing::warn!("{status}");
-                *progress.status.lock().unwrap() = status;
+                *lock(&progress.status) = status;
                 std::thread::sleep(backoff);
                 backoff = (backoff * 2).min(MAX_BACKOFF);
             }
@@ -796,7 +813,7 @@ mod tests {
         let progress = Progress::default();
 
         assert_eq!(locate(&[jar], &artifact, &progress), None);
-        assert_eq!(*progress.status.lock().unwrap(), "");
+        assert_eq!(*lock(&progress.status), "");
         assert_eq!(progress.total.load(Ordering::Relaxed), 0);
     }
 
@@ -861,7 +878,8 @@ mod tests {
             &progress,
             |_| true,
             |fonts| delivered.push(fonts),
-        );
+        )
+        .unwrap();
         watching.store(false, Ordering::Relaxed);
         rest.unwrap().finish();
 
@@ -918,7 +936,8 @@ mod tests {
             &Progress::default(),
             |_| true,
             drop,
-        );
+        )
+        .unwrap();
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -971,7 +990,8 @@ mod tests {
                 &Progress::default(),
                 |_| true,
                 |f| delivered.push(f),
-            );
+            )
+            .unwrap();
             rest.unwrap().finish();
 
             assert_eq!(files, entries(&jar, |_| true), "{name}");
@@ -1009,7 +1029,8 @@ mod tests {
             &Progress::default(),
             |_| true,
             drop,
-        );
+        )
+        .unwrap();
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -1037,7 +1058,8 @@ mod tests {
             &Progress::default(),
             |_| true,
             drop,
-        );
+        )
+        .unwrap();
         rest.unwrap().finish();
 
         assert_eq!(files, entries(&jar, |_| true));
@@ -1066,7 +1088,8 @@ mod tests {
             &Progress::default(),
             |_| true,
             drop,
-        );
+        )
+        .unwrap();
         drop(rest);
         let before = server.requests.lock().unwrap().len();
         let held = load_ranges(&dir.join("sample.jar.part.ranges"), jar.len() as u64);
@@ -1079,7 +1102,8 @@ mod tests {
             &Progress::default(),
             |_| true,
             |f| delivered.push(f),
-        );
+        )
+        .unwrap();
         rest.unwrap().finish();
 
         assert_eq!(first, second);
@@ -1211,7 +1235,8 @@ mod tests {
                         progress.total.load(Ordering::Relaxed)
                     )
                 },
-            );
+            )
+            .unwrap();
             println!(
                 "ready: {} asset files after {:?} with {workers} workers, {} bytes of the jar needed",
                 files.len(),

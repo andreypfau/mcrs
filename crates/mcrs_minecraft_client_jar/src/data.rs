@@ -41,6 +41,8 @@ pub enum VanillaDataError {
     NoVersionFile,
     #[error("the client jar entry {name} is not a plain relative path")]
     UnsafeEntry { name: String },
+    #[error("a download worker thread did not start: {0}")]
+    Worker(std::io::Error),
     #[error("{}: {source}", path.display())]
     Io {
         path: PathBuf,
@@ -109,7 +111,7 @@ fn jar_bytes(jar: &ClientJar, progress: &Progress) -> Result<Vec<u8>, VanillaDat
                     progress,
                     |_| false,
                     drop,
-                );
+                )?;
                 if let Some(remainder) = remainder {
                     remainder.finish();
                 }

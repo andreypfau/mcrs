@@ -1,10 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::panic,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #![cfg_attr(
     test,
     expect(
@@ -17,7 +10,7 @@ use std::fmt::Write;
 use std::io::Read;
 use std::ops::Range;
 use std::sync::atomic::AtomicU64;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -63,17 +56,22 @@ pub struct Release<'a> {
     pub font_hint: &'a str,
 }
 
-pub static RELEASE: LazyLock<Release<'static>> = LazyLock::new(|| Release {
+pub const RELEASE: Release<'static> = Release {
     font_hint: include_str!("font_hint.json"),
-    ..serde_json::from_str(include_str!("release.json"))
-        .unwrap_or_else(|error| panic!("release.json is not a client jar descriptor: {error}"))
-});
+    ..include!(concat!(env!("OUT_DIR"), "/release.rs"))
+};
 
 #[derive(Default, Debug)]
 pub struct Progress {
     pub done: AtomicU64,
     pub total: AtomicU64,
     pub status: Mutex<String>,
+}
+
+/// A lock that a panicked holder left behind still guards plain progress and queue
+/// state, which every writer leaves consistent between statements.
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 pub fn verify(artifact: &Artifact, bytes: &[u8]) -> bool {
@@ -84,7 +82,7 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
     Sha1::digest(bytes)
         .iter()
         .fold(String::with_capacity(40), |mut hex, byte| {
-            write!(hex, "{byte:02x}").unwrap();
+            _ = write!(hex, "{byte:02x}");
             hex
         })
 }
@@ -94,19 +92,46 @@ pub type Files = Vec<(String, Vec<u8>)>;
 /// The SHA-1 and the size of a jar's central directory and end record, which are its last bytes.
 pub fn directory_digest(jar: &[u8]) -> Result<(String, u64), String> {
     let start = Directory::of(jar)?.start() as usize;
-    Ok((sha1_hex(&jar[start..]), (jar.len() - start) as u64))
+    let directory = jar
+        .get(start..)
+        .ok_or("the central directory lies past the end")?;
+    Ok((sha1_hex(directory), directory.len() as u64))
 }
 
 const CENTRAL_HEADER: u32 = 0x0201_4b50;
 const LOCAL_HEADER: u32 = 0x0403_4b50;
 const END_OF_DIRECTORY: [u8; 4] = [0x50, 0x4b, 0x05, 0x06];
 
-fn u16_at(bytes: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes([bytes[at], bytes[at + 1]])
+fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
+    bytes
+        .get(at..)?
+        .first_chunk()
+        .copied()
+        .map(u16::from_le_bytes)
 }
 
-fn u32_at(bytes: &[u8], at: usize) -> u32 {
-    u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap())
+fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
+    bytes
+        .get(at..)?
+        .first_chunk()
+        .copied()
+        .map(u32::from_le_bytes)
+}
+
+/// One central directory record and the offset just past it.
+fn record(bytes: &[u8]) -> Option<(Entry, usize)> {
+    let name_len = u16_at(bytes, 28)? as usize;
+    let end = 46 + name_len + u16_at(bytes, 30)? as usize + u16_at(bytes, 32)? as usize;
+    let name = std::str::from_utf8(bytes.get(46..46 + name_len)?).ok()?;
+    let entry = Entry {
+        name: name.to_owned(),
+        offset: u32_at(bytes, 42)? as u64,
+        method: u16_at(bytes, 10)?,
+        crc32: u32_at(bytes, 16)?,
+        compressed: u32_at(bytes, 20)? as u64,
+        size: u32_at(bytes, 24)? as u64,
+    };
+    Some((entry, end))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -154,21 +179,10 @@ impl Directory {
     pub fn parse(bytes: &[u8], start: u64) -> Result<Self, String> {
         let mut entries = Vec::new();
         let mut rest = bytes;
-        while rest.len() >= 46 && u32_at(rest, 0) == CENTRAL_HEADER {
-            let name_len = u16_at(rest, 28) as usize;
-            let end = 46 + name_len + u16_at(rest, 30) as usize + u16_at(rest, 32) as usize;
-            let name = rest
-                .get(46..46 + name_len)
-                .and_then(|name| std::str::from_utf8(name).ok())
-                .ok_or("a central directory record has no readable name")?;
-            entries.push(Entry {
-                name: name.to_owned(),
-                offset: u32_at(rest, 42) as u64,
-                method: u16_at(rest, 10),
-                crc32: u32_at(rest, 16),
-                compressed: u32_at(rest, 20) as u64,
-                size: u32_at(rest, 24) as u64,
-            });
+        while rest.len() >= 46 && u32_at(rest, 0) == Some(CENTRAL_HEADER) {
+            let (entry, end) =
+                record(rest).ok_or("a central directory record has no readable name")?;
+            entries.push(entry);
             rest = rest
                 .get(end..)
                 .ok_or("the central directory is truncated")?;
@@ -185,7 +199,7 @@ impl Directory {
             .rposition(|word| word == END_OF_DIRECTORY)
             .filter(|&end| zip.len() >= end + 22)
             .ok_or("no end of central directory record")?;
-        let start = u32_at(zip, end + 16) as u64;
+        let start = u32_at(zip, end + 16).ok_or("no end of central directory record")? as u64;
         let bytes = zip
             .get(start as usize..)
             .ok_or("the central directory lies past the end")?;
@@ -265,7 +279,9 @@ impl Directory {
                     (*start..*start + chunk.len() as u64).contains(&entry.offset)
                 })
                 .ok_or_else(|| format!("{} is not in the bytes held", entry.name))?;
-            let local = &chunk[(entry.offset - start) as usize..];
+            let local = chunk
+                .get((entry.offset - start) as usize..)
+                .ok_or_else(|| format!("{} is not in the bytes held", entry.name))?;
             files.push((name.to_owned(), inflate(entry, local)?));
         }
         Ok(files)
@@ -289,10 +305,12 @@ pub(crate) fn asset_name(name: &str) -> Option<&str> {
 }
 
 fn inflate(entry: &Entry, local: &[u8]) -> Result<Vec<u8>, String> {
-    if local.len() < 30 || u32_at(local, 0) != LOCAL_HEADER {
+    let (Some(LOCAL_HEADER), Some(name_len), Some(extra_len)) =
+        (u32_at(local, 0), u16_at(local, 26), u16_at(local, 28))
+    else {
         return Err(format!("{} has no local header", entry.name));
-    }
-    let data = 30 + u16_at(local, 26) as usize + u16_at(local, 28) as usize;
+    };
+    let data = 30 + name_len as usize + extra_len as usize;
     let data = local
         .get(data..data + entry.compressed as usize)
         .ok_or_else(|| format!("{} is truncated", entry.name))?;
@@ -462,7 +480,7 @@ pub(crate) mod tests {
         let directory = Directory::of(&jar).unwrap();
         let lang = directory.entry("assets/minecraft/lang/en_us.json").unwrap();
         let local = lang.offset as usize;
-        let data = local + 30 + lang.name.len() + u16_at(&jar, local + 28) as usize;
+        let data = local + 30 + lang.name.len() + u16_at(&jar, local + 28).unwrap() as usize;
         jar[data] ^= 0xff;
 
         let error = directory.read(&jar, |_| true).unwrap_err();

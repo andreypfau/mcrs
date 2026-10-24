@@ -88,9 +88,9 @@ impl FontHint {
             .map(|(name, _)| {
                 let entry = directory
                     .entry(&format!("assets/{name}"))
-                    .expect("an unpacked file has an entry");
+                    .ok_or_else(|| format!("assets/{name} has no entry"))?;
                 let extent = directory.extent(entry);
-                HintedFont {
+                Ok(HintedFont {
                     name: entry.name.clone(),
                     offset: entry.offset,
                     span: extent.end - extent.start,
@@ -98,9 +98,9 @@ impl FontHint {
                     crc32: entry.crc32,
                     compressed: entry.compressed,
                     size: entry.size,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<_, String>>()?;
         Ok(Self {
             jar_sha1: jar_sha1.to_owned(),
             fonts,

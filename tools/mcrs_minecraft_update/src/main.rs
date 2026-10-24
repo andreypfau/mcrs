@@ -157,7 +157,7 @@ fn recapture_in(root: &Path, target: &Recapture) -> Result<(), String> {
 
 fn names_report() -> Result<(), String> {
     let root = workspace_root();
-    let descriptor = &*RELEASE;
+    let descriptor = &RELEASE;
     let download = release::Download {
         url: descriptor.jar.url.to_owned(),
         sha1: descriptor.jar.sha1.to_owned(),
