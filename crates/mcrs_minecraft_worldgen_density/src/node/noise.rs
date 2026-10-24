@@ -112,8 +112,8 @@ impl NoiseFunctionParams {
                     }
                     return;
                 }
-                let x = base_x + xs[0] as f64;
-                let z = base_z + zs[0] as f64;
+                let x = base_x + at(xs, 0) as f64;
+                let z = base_z + at(zs, 0) as f64;
                 scaled_ys.clear();
                 scaled_ys.extend((0..run.len()).map(|i| block_y(i) + at(ys, i) as f64));
                 self.noise.fill_column(run, x, z, scaled_ys, scratch);

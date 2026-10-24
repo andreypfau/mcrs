@@ -35,7 +35,7 @@ impl GradientParams {
 
     /// The gradient at each of `coordinates`, in order.
     pub fn eval_coordinates<const N: usize>(&self, out: &mut [f32; N], coordinates: [i32; N]) {
-        self.fill(out, |i| coordinates[i]);
+        self.fill(out, |i| coordinates.get(i).copied().unwrap_or_default());
     }
 
     fn fill(&self, out: &mut [f32], coordinate: impl Fn(usize) -> i32) {

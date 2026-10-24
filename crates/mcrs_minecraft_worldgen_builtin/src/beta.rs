@@ -1,22 +1,23 @@
+use crate::density::{CELL_4, CELL_8};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
     NoiseGeneratorSettings, NoiseSettings, RouterFunctions,
 };
 
-const TEMPERATURE: &str = "beta/temperature";
-const VEGETATION: &str = "beta/vegetation";
-const CLIMATE_DETAIL: &str = "beta/climate_detail";
-const CLIMATE_FACTOR: &str = "beta/climate_factor";
-const SCALE: &str = "beta/scale";
-const DEPTH_CURVE: &str = "beta/depth_curve";
-const DEPTH: &str = "beta/depth";
-const EFFECTIVE_SCALE: &str = "beta/effective_scale";
-const FALLOFF: &str = "beta/falloff";
-const TOP_SLIDE: &str = "beta/top_slide";
+const TEMPERATURE: StaticResourceLocation = rl!("minecraft:beta/temperature");
+const VEGETATION: StaticResourceLocation = rl!("minecraft:beta/vegetation");
+const CLIMATE_DETAIL: StaticResourceLocation = rl!("minecraft:beta/climate_detail");
+const CLIMATE_FACTOR: StaticResourceLocation = rl!("minecraft:beta/climate_factor");
+const SCALE: StaticResourceLocation = rl!("minecraft:beta/scale");
+const DEPTH_CURVE: StaticResourceLocation = rl!("minecraft:beta/depth_curve");
+const DEPTH: StaticResourceLocation = rl!("minecraft:beta/depth");
+const EFFECTIVE_SCALE: StaticResourceLocation = rl!("minecraft:beta/effective_scale");
+const FALLOFF: StaticResourceLocation = rl!("minecraft:beta/falloff");
+const TOP_SLIDE: StaticResourceLocation = rl!("minecraft:beta/top_slide");
 
 const CELL_WIDTH: f64 = 4.0;
 const SIMPLEX_STRETCH: f64 = 1.5;
@@ -24,7 +25,7 @@ const SIMPLEX_STRETCH: f64 = 1.5;
 pub fn define(f: &mut Functions) {
     let detail = Df::reference(CLIMATE_DETAIL);
     let temperature = (Df::noise(
-        "mcrs:beta/temperature",
+        rl!("mcrs:beta/temperature"),
         0.025f32 as f64 / SIMPLEX_STRETCH,
         0.0,
     ) * 0.15
@@ -32,17 +33,17 @@ pub fn define(f: &mut Functions) {
         * 0.99
         + &detail * 0.01;
     let vegetation = (Df::noise(
-        "mcrs:beta/vegetation",
+        rl!("mcrs:beta/vegetation"),
         0.05f32 as f64 / SIMPLEX_STRETCH,
         0.0,
     ) * 0.15
         + 0.5)
         * 0.998
         + &detail * 0.002;
-    let scale = (Df::noise("mcrs:beta/scale", 1.121 / CELL_WIDTH, 0.0) + 256.0)
+    let scale = (Df::noise(rl!("mcrs:beta/scale"), 1.121 / CELL_WIDTH, 0.0) + 256.0)
         * (1.0 / 512.0)
         * Df::reference(CLIMATE_FACTOR);
-    let raw_depth = Df::noise("mcrs:beta/depth", 200.0 / CELL_WIDTH, 0.0) * (1.0 / 8000.0);
+    let raw_depth = Df::noise(rl!("mcrs:beta/depth"), 200.0 / CELL_WIDTH, 0.0) * (1.0 / 8000.0);
     let curve = Df::reference(DEPTH_CURVE);
     let depth = Df::range_choice(
         &curve,
@@ -56,7 +57,8 @@ pub fn define(f: &mut Functions) {
 
     f.define(
         CLIMATE_DETAIL,
-        (Df::noise("mcrs:beta/climate_detail", 0.25 / SIMPLEX_STRETCH, 0.0) * 1.1 + 0.5).cache(),
+        (Df::noise(rl!("mcrs:beta/climate_detail"), 0.25 / SIMPLEX_STRETCH, 0.0) * 1.1 + 0.5)
+            .cache(),
     );
     f.define(
         TEMPERATURE,
@@ -107,7 +109,7 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
         temperature: Df::reference(TEMPERATURE),
         vegetation: Df::reference(VEGETATION),
         ..RouterFunctions::of_density(
-            (density * (1.0 - &top_slide) + &top_slide * -10.0).interpolated(4, 8),
+            (density * (1.0 - &top_slide) + &top_slide * -10.0).interpolated(CELL_4, CELL_8),
         )
     };
     let settings = NoiseGeneratorSettings {

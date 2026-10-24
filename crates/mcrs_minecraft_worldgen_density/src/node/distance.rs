@@ -53,7 +53,9 @@ impl DistanceParams {
                 let dx = self.x.wrapping_sub(ext.block_x(ix)) as f32;
                 for iy in 0..size.y {
                     let dy = self.y.wrapping_sub(ext.block_y(iy)) as f32;
-                    out[i] = metric.compute(dx, dy, dz);
+                    if let Some(slot) = out.get_mut(i) {
+                        *slot = metric.compute(dx, dy, dz);
+                    }
                     i += 1;
                 }
             }

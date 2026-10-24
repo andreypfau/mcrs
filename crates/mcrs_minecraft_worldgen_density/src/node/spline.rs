@@ -50,24 +50,24 @@ fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) 
         SplineValue::Multipoint(m) => m,
     };
     let input = at(read(m.coord), i);
-    let last = m.locations.len() - 1;
-    let start = find_interval_start(&m.locations, input);
-    if start < 0 {
-        let value = sample(&m.values[0], read, i);
+    let Ok(start) = usize::try_from(find_interval_start(&m.locations, input)) else {
+        let value = m.values.first().map_or(0.0, |v| sample(v, read, i));
         return linear_extend(input, &m.locations, value, &m.derivatives, 0);
-    }
-    let start = start as usize;
-    if start == last {
-        let value = sample(&m.values[last], read, i);
-        return linear_extend(input, &m.locations, value, &m.derivatives, last);
-    }
-    let x1 = m.locations[start];
-    let x2 = m.locations[start + 1];
+    };
+    // Only the last point has no successor, so a missing pair is the extension
+    // past it.
+    let segment = start..start + 2;
+    let (Some(&[x1, x2]), Some([v1, v2]), Some(&[d1, d2])) = (
+        m.locations.get(segment.clone()),
+        m.values.get(segment.clone()),
+        m.derivatives.get(segment),
+    ) else {
+        let value = m.values.get(start).map_or(0.0, |v| sample(v, read, i));
+        return linear_extend(input, &m.locations, value, &m.derivatives, start);
+    };
     let t = (input - x1) / (x2 - x1);
-    let y1 = sample(&m.values[start], read, i);
-    let y2 = sample(&m.values[start + 1], read, i);
-    let d1 = m.derivatives[start];
-    let d2 = m.derivatives[start + 1];
+    let y1 = sample(v1, read, i);
+    let y2 = sample(v2, read, i);
     let a = mul_add(d1, x2 - x1, -(y2 - y1));
     let b = mul_add(-d2, x2 - x1, y2 - y1);
     mul_add(t * (1.0 - t), lerp(t, a, b), lerp(t, y1, y2))
@@ -82,11 +82,12 @@ fn find_interval_start(locations: &[f32], input: f32) -> isize {
     while len > 0 {
         let half = len / 2;
         let middle = from + half;
-        if input < locations[middle] {
-            len = half;
-        } else {
-            from = middle + 1;
-            len -= half + 1;
+        match locations.get(middle) {
+            Some(&location) if input < location => len = half,
+            _ => {
+                from = middle + 1;
+                len -= half + 1;
+            }
         }
     }
     from as isize - 1
@@ -102,11 +103,12 @@ fn linear_extend(
     derivatives: &[f32],
     index: usize,
 ) -> f32 {
-    let derivative = derivatives[index];
+    let derivative = derivatives.get(index).copied().unwrap_or_default();
     if derivative == 0.0 {
         value
     } else {
-        mul_add(derivative, input - locations[index], value)
+        let location = locations.get(index).copied().unwrap_or_default();
+        mul_add(derivative, input - location, value)
     }
 }
 
@@ -119,7 +121,11 @@ fn value_range(value: &SplineValue, coord_ranges: &[Interval]) -> Interval {
                 .iter()
                 .map(|v| value_range(v, coord_ranges))
                 .collect();
-            multipoint_range(coord_ranges[m.coord], &m.locations, &m.derivatives, &values)
+            let input = coord_ranges
+                .get(m.coord)
+                .copied()
+                .unwrap_or(Interval::INFINITE);
+            multipoint_range(input, &m.locations, &m.derivatives, &values)
         }
     }
 }
@@ -138,19 +144,25 @@ pub(crate) fn multipoint_range(
     if input.is_nai() {
         return input;
     }
+    let (Some(&first_location), Some(&last_location), Some(&first), Some(&end)) = (
+        locations.first(),
+        locations.last(),
+        value_ranges.first(),
+        value_ranges.last(),
+    ) else {
+        return Interval::NAI;
+    };
     let last = locations.len() - 1;
     let mut min_value = f32::INFINITY;
     let mut max_value = f32::NEG_INFINITY;
 
-    if input.min() < locations[0] {
-        let first = value_ranges[0];
+    if input.min() < first_location {
         let edge1 = linear_extend(input.min(), locations, first.min(), derivatives, 0);
         let edge2 = linear_extend(input.min(), locations, first.max(), derivatives, 0);
         min_value = jmin(min_value, jmin(edge1, edge2));
         max_value = jmax(max_value, jmax(edge1, edge2));
     }
-    if input.max() > locations[last] {
-        let end = value_ranges[last];
+    if input.max() > last_location {
         let edge1 = linear_extend(input.max(), locations, end.min(), derivatives, last);
         let edge2 = linear_extend(input.max(), locations, end.max(), derivatives, last);
         min_value = jmin(min_value, jmin(edge1, edge2));
@@ -160,17 +172,23 @@ pub(crate) fn multipoint_range(
         min_value = jmin(min_value, range.min());
         max_value = jmax(max_value, range.max());
     }
-    for i in 0..last {
-        let d1 = derivatives[i];
-        let d2 = derivatives[i + 1];
+    let segments = locations
+        .windows(2)
+        .zip(derivatives.windows(2))
+        .zip(value_ranges.windows(2));
+    for ((locations, derivatives), ranges) in segments {
+        let ([x1, x2], [d1, d2], [range1, range2]) = (locations, derivatives, ranges) else {
+            continue;
+        };
+        let (d1, d2) = (*d1, *d2);
         // Skipping this guard widens the interval on every flat segment of the
         // shipped continentalness and erosion splines.
         if d1 == 0.0 && d2 == 0.0 {
             continue;
         }
-        let x_diff = locations[i + 1] - locations[i];
-        let (min1, max1) = (value_ranges[i].min(), value_ranges[i].max());
-        let (min2, max2) = (value_ranges[i + 1].min(), value_ranges[i + 1].max());
+        let x_diff = x2 - x1;
+        let (min1, max1) = (range1.min(), range1.max());
+        let (min2, max2) = (range2.min(), range2.max());
         let p1 = d1 * x_diff;
         let p2 = d2 * x_diff;
         let min_lerp1 = jmin(min1, min2);
@@ -350,7 +368,11 @@ mod tests {
         };
         let ext = SampleGrid::new(IVec3::new(1, 3, 1), IVec3::ZERO, IVec3::ONE);
         let mut out = [0.0; 3];
-        spline.eval(&mut out, &|_| unreachable!(), &ext);
+        spline.eval(
+            &mut out,
+            &|_| panic!("a constant spline reads no coordinate"),
+            &ext,
+        );
         assert_eq!(out, [2.5; 3]);
         assert_eq!(spline.range(&[]), Interval::exact(2.5));
     }

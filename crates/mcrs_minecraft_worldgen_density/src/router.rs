@@ -251,8 +251,9 @@ impl NoiseRouter {
         let n = volume.len();
         assert_eq!(out.len(), roots.len() * n, "one row per root");
         for (k, &root) in roots.iter().enumerate() {
-            self.program
-                .fill(ws, volume, root, &mut out[k * n..(k + 1) * n]);
+            if let Some(row) = out.get_mut(k * n..(k + 1) * n) {
+                self.program.fill(ws, volume, root, row);
+            }
         }
     }
 
@@ -268,8 +269,9 @@ impl NoiseRouter {
         let n = volume.len();
         assert_eq!(out.len(), nodes.len() * n, "one row per node");
         for (k, &node) in nodes.iter().enumerate() {
-            self.program
-                .fill_node(ws, volume, node, &mut out[k * n..(k + 1) * n]);
+            if let Some(row) = out.get_mut(k * n..(k + 1) * n) {
+                self.program.fill_node(ws, volume, node, row);
+            }
         }
     }
 
@@ -296,10 +298,13 @@ impl NoiseRouter {
             "one row per interpolated wrapper"
         );
         for (k, &wrapper) in bounds.wrappers().iter().enumerate() {
-            let Node::Interpolated { cell, .. } = self.program.node(wrapper) else {
-                unreachable!("the wrapper list holds only interpolated nodes")
+            let (Node::Interpolated { cell, .. }, Some(row)) = (
+                self.program.node(wrapper),
+                values.get(k * stride..(k + 1) * stride),
+            ) else {
+                continue;
             };
-            ws.pin_lattice(*cell, volume, &values[k * stride..(k + 1) * stride]);
+            ws.pin_lattice(*cell, volume, row);
         }
     }
 
@@ -352,12 +357,12 @@ impl NoiseRouter {
         self.fill_roots(ws, &volume, &[TEMPERATURE, VEGETATION], &mut values);
         let mut temperature = [0.0f32; 256];
         let mut vegetation = [0.0f32; 256];
-        for x in 0..16i32 {
-            for z in 0..16i32 {
-                let source = volume.index_unchecked(x, 0, z);
-                temperature[(x * 16 + z) as usize] = values[source];
-                vegetation[(x * 16 + z) as usize] = values[volume.len() + source];
-            }
+        let read = |i: usize| values.get(i).copied().unwrap_or_default();
+        let columns = temperature.iter_mut().zip(vegetation.iter_mut());
+        for (column, (temperature, vegetation)) in (0..16i32 * 16).zip(columns) {
+            let source = volume.index_unchecked(column / 16, 0, column % 16);
+            *temperature = read(source);
+            *vegetation = read(volume.len() + source);
         }
         (temperature, vegetation)
     }

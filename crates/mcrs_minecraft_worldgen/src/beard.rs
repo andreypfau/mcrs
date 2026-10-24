@@ -340,6 +340,7 @@ fn contains_beardifier(
 mod tests {
     use super::*;
     use bevy_math::IVec3;
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_worldgen_density::proto::build::Df;
 
     const CHUNK: ColumnPos = ColumnPos::new(0, 0);
@@ -631,11 +632,11 @@ mod tests {
     #[test]
     fn the_root_and_its_addend_resolve_through_references() {
         let registry = [
-            ("final", terrain() + Df::reference("beard")),
+            ("final", terrain() + Df::reference(rl!("minecraft:beard"))),
             ("beard", Df::beardifier()),
         ];
         assert_eq!(
-            placement(Df::reference("final"), &registry),
+            placement(Df::reference(rl!("minecraft:final")), &registry),
             BeardifierPlacement::RootAddend
         );
     }
@@ -656,7 +657,10 @@ mod tests {
         );
         let registry = [("shared", terrain() + Df::beardifier())];
         assert_eq!(
-            placement(Df::reference("shared") + Df::beardifier(), &registry),
+            placement(
+                Df::reference(rl!("minecraft:shared")) + Df::beardifier(),
+                &registry
+            ),
             BeardifierPlacement::Misplaced
         );
         assert_eq!(
@@ -669,11 +673,11 @@ mod tests {
     fn a_graph_without_a_beardifier_is_absent_even_through_a_cycle() {
         assert_eq!(placement(terrain(), &[]), BeardifierPlacement::Absent);
         let registry = [
-            ("a", Df::reference("b").squeeze()),
-            ("b", Df::reference("a").squeeze()),
+            ("a", Df::reference(rl!("minecraft:b")).squeeze()),
+            ("b", Df::reference(rl!("minecraft:a")).squeeze()),
         ];
         assert_eq!(
-            placement(Df::reference("a") + terrain(), &registry),
+            placement(Df::reference(rl!("minecraft:a")) + terrain(), &registry),
             BeardifierPlacement::Absent
         );
     }

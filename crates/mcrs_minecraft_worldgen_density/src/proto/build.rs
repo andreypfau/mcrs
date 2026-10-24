@@ -8,17 +8,13 @@ use crate::proto::{
     SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
 };
 use crate::router::NoiseSettings;
-use mcrs_minecraft_core::{Axis, ResourceLocation};
+use mcrs_minecraft_core::{Axis, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::{Add, Bound, Div, Mul, RangeBounds, RangeInclusive, Sub};
 
 pub type Df = DensityFunctionHolder;
-
-fn id(name: &str) -> ResourceLocation {
-    ResourceLocation::read(name).expect("a valid id")
-}
 
 fn owned(function: P) -> Df {
     Df::Owned(Box::new(function))
@@ -124,9 +120,8 @@ impl DensityFunctionHolder {
         blend_density => BlendDensity,
     }
 
-    /// An id without a namespace is in `minecraft`.
-    pub fn reference(name: &str) -> Self {
-        Self::Reference(id(name))
+    pub fn reference(name: StaticResourceLocation) -> Self {
+        Self::Reference(name.into())
     }
 
     pub fn min(self, other: impl Into<Self>) -> Self {
@@ -151,11 +146,11 @@ impl DensityFunctionHolder {
         }))
     }
 
-    pub fn interpolated(self, cell_size_xz: u32, cell_size_y: u32) -> Self {
+    pub fn interpolated(self, cell_size_xz: NonZeroU32, cell_size_y: NonZeroU32) -> Self {
         owned(P::Interpolated {
             input: self,
-            cell_size_xz: NonZeroU32::new(cell_size_xz).expect("a cell has a width"),
-            cell_size_y: NonZeroU32::new(cell_size_y).expect("a cell has a height"),
+            cell_size_xz,
+            cell_size_y,
         })
     }
 
@@ -234,35 +229,40 @@ impl DensityFunctionHolder {
         owned(P::DistanceToPoint { point, metric })
     }
 
-    pub fn shift_a(noise: &str) -> Self {
+    pub fn shift_a(noise: StaticResourceLocation) -> Self {
         owned(P::ShiftA {
-            noise: NoiseHolder::Reference(id(noise)),
+            noise: NoiseHolder::Reference(noise.into()),
         })
     }
 
-    pub fn shift_b(noise: &str) -> Self {
+    pub fn shift_b(noise: StaticResourceLocation) -> Self {
         owned(P::ShiftB {
-            noise: NoiseHolder::Reference(id(noise)),
+            noise: NoiseHolder::Reference(noise.into()),
         })
     }
 
-    pub fn noise(noise: &str, xz_scale: f64, y_scale: f64) -> Self {
+    pub fn noise(noise: StaticResourceLocation, xz_scale: f64, y_scale: f64) -> Self {
         Self::shifted_noise(noise, xz_scale, y_scale, Self::ZERO, Self::ZERO)
     }
 
-    pub fn shifted_noise_2d(shift_x: &Self, shift_z: &Self, xz_scale: f64, noise: &str) -> Self {
+    pub fn shifted_noise_2d(
+        shift_x: &Self,
+        shift_z: &Self,
+        xz_scale: f64,
+        noise: StaticResourceLocation,
+    ) -> Self {
         Self::shifted_noise(noise, xz_scale, 0.0, shift_x.clone(), shift_z.clone())
     }
 
     fn shifted_noise(
-        noise: &str,
+        noise: StaticResourceLocation,
         xz_scale: f64,
         y_scale: f64,
         shift_x: Self,
         shift_z: Self,
     ) -> Self {
         owned(P::Noise {
-            noise: NoiseHolder::Reference(id(noise)),
+            noise: NoiseHolder::Reference(noise.into()),
             xz_scale: HashableF64(xz_scale),
             y_scale: HashableF64(y_scale),
             shift_x,
@@ -273,7 +273,7 @@ impl DensityFunctionHolder {
 
     /// A noise whose `[-1, 1]` is stretched onto `[min_target, max_target]`.
     pub fn mapped_noise(
-        noise: &str,
+        noise: StaticResourceLocation,
         xz_scale: f64,
         y_scale: f64,
         min_target: f32,
@@ -359,7 +359,7 @@ impl DensityFunctionHolder {
     /// it `1 / rarity` as often and scales the result back up by `rarity`.
     pub fn rarity_select(
         input: impl Into<Self>,
-        noise: &str,
+        noise: StaticResourceLocation,
         thresholds: &[f32],
         rarities: &[f32],
     ) -> Self {
@@ -377,13 +377,13 @@ impl DensityFunctionHolder {
         density: impl Into<Self>,
         upper_bound: impl Into<Self>,
         lower_bound: i32,
-        cell_height: u32,
+        cell_height: NonZeroU32,
     ) -> Self {
         owned(P::FindTopSurface(FindTopSurfaceArguments {
             density: density.into(),
             upper_bound: upper_bound.into(),
             lower_bound,
-            cell_height: NonZeroU32::new(cell_height).expect("a cell has a height"),
+            cell_height,
         }))
     }
 }
@@ -394,8 +394,8 @@ impl DensityFunctionHolder {
 pub struct Functions(pub BTreeMap<ResourceLocation, Df>);
 
 impl Functions {
-    pub fn define(&mut self, name: &str, function: Df) -> Df {
-        let replaced = self.0.insert(id(name), function);
+    pub fn define(&mut self, name: StaticResourceLocation, function: Df) -> Df {
+        let replaced = self.0.insert(name.into(), function);
         assert!(replaced.is_none(), "{name} is defined twice");
         Df::reference(name)
     }

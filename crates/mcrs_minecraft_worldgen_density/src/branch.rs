@@ -93,7 +93,10 @@ pub(crate) fn build(
 ) -> (Vec<NodeId>, Vec<Step>) {
     let mut cones: Vec<Cone> = Vec::new();
     for &site in column_order {
-        let Some(descriptor) = site_of(&nodes[site as usize], ranges, site) else {
+        let Some(descriptor) = nodes
+            .get(site as usize)
+            .and_then(|node| site_of(node, ranges, site))
+        else {
             continue;
         };
         let outside = reachable_past_arms(nodes, target, site, &descriptor.always);
@@ -102,15 +105,14 @@ pub(crate) fn build(
             .iter()
             .map(|arm| reachable(nodes, arm.target))
             .collect();
-        for (k, arm) in descriptor.arms.iter().enumerate() {
+        for (k, (arm, reach)) in descriptor.arms.iter().zip(&arms).enumerate() {
             let members: Vec<NodeId> = column_order
                 .iter()
                 .copied()
                 .filter(|&e| {
-                    let e = e as usize;
-                    arms[k][e]
-                        && !outside[e]
-                        && arms.iter().enumerate().all(|(j, r)| j == k || !r[e])
+                    is(reach, e)
+                        && !is(&outside, e)
+                        && arms.iter().enumerate().all(|(j, r)| j == k || !is(r, e))
                 })
                 .collect();
             if members.is_empty() {
@@ -118,7 +120,7 @@ pub(crate) fn build(
             }
             let mut member = vec![false; nodes.len()];
             for &n in &members {
-                member[n as usize] = true;
+                mark(&mut member, n);
             }
             cones.push(Cone {
                 site,
@@ -133,15 +135,14 @@ pub(crate) fn build(
     // Disjoint or nested is what makes a contiguous run correct, and the
     // argument runs through edge dominance rather than anything locally
     // visible; a violation would silently drop live nodes out of the schedule.
-    for a in 0..cones.len() {
-        for b in (a + 1)..cones.len() {
-            let (x, y) = (&cones[a], &cones[b]);
-            if !x.nodes.iter().any(|&n| y.member[n as usize]) {
+    for (a, x) in cones.iter().enumerate() {
+        for y in cones.iter().skip(a + 1) {
+            if !x.nodes.iter().any(|&n| is(&y.member, n)) {
                 continue;
             }
             assert!(
-                x.nodes.iter().all(|&n| y.member[n as usize])
-                    || y.nodes.iter().all(|&n| x.member[n as usize]),
+                x.nodes.iter().all(|&n| is(&y.member, n))
+                    || y.nodes.iter().all(|&n| is(&x.member, n)),
                 "guard cones overlap without nesting at nodes {} and {}",
                 x.site,
                 y.site
@@ -149,22 +150,32 @@ pub(crate) fn build(
         }
     }
 
-    let smallest = |candidates: &mut dyn Iterator<Item = usize>| -> Option<usize> {
-        candidates.min_by_key(|&c| cones[c].nodes.len())
+    let smallest = |candidates: &mut dyn Iterator<Item = (usize, &Cone)>| -> Option<usize> {
+        candidates
+            .min_by_key(|(_, cone)| cone.nodes.len())
+            .map(|(c, _)| c)
     };
-    let parents: Vec<Option<usize>> = (0..cones.len())
-        .map(|c| {
-            smallest(&mut (0..cones.len()).filter(|&p| {
+    let parents: Vec<Option<usize>> = cones
+        .iter()
+        .enumerate()
+        .map(|(c, cone)| {
+            smallest(&mut cones.iter().enumerate().filter(|&(p, parent)| {
                 p != c
-                    && cones[p].nodes.len() > cones[c].nodes.len()
-                    && cones[c].nodes.iter().all(|&n| cones[p].member[n as usize])
+                    && parent.nodes.len() > cone.nodes.len()
+                    && cone.nodes.iter().all(|&n| is(&parent.member, n))
             }))
         })
         .collect();
     let mut owner: Vec<Option<usize>> = vec![None; nodes.len()];
-    for n in column_order {
-        owner[*n as usize] =
-            smallest(&mut (0..cones.len()).filter(|&c| cones[c].member[*n as usize]));
+    for &n in column_order {
+        if let Some(owner) = owner.get_mut(n as usize) {
+            *owner = smallest(
+                &mut cones
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, cone)| is(&cone.member, n)),
+            );
+        }
     }
 
     let mut emit = Emit {
@@ -209,16 +220,17 @@ impl Emit<'_> {
     }
 
     fn region(&mut self, members: &[NodeId], region: Option<usize>) {
+        let (cones, parents) = (self.cones, self.parents);
         for &site in members {
-            if self.owner[site as usize] != region {
+            if self.owner.get(site as usize).copied().flatten() != region {
                 continue;
             }
             let mut covered = false;
-            for c in 0..self.cones.len() {
-                if self.cones[c].site != site || self.parents[c] != region {
+            for (c, (cone, &parent)) in cones.iter().zip(parents).enumerate() {
+                if cone.site != site || parent != region {
                     continue;
                 }
-                let (test, fallback) = (self.cones[c].test, self.cones[c].fallback);
+                let (test, fallback) = (cone.test, cone.fallback);
                 self.flush();
                 let guard = self.steps.len();
                 self.steps.push(Step::Guard {
@@ -228,21 +240,19 @@ impl Emit<'_> {
                     next_step: 0,
                 });
                 self.reads.push((test.selector(), self.order.len()));
-                let nodes = self.cones[c].nodes.clone();
-                self.region(&nodes, Some(c));
+                self.region(&cone.nodes, Some(c));
                 if fallback.is_some() {
                     self.order.push(site);
                     covered = true;
                 }
                 self.flush();
                 let (end, next) = (self.order.len() as u32, self.steps.len() as u32);
-                let Step::Guard {
+                if let Some(Step::Guard {
                     skip_to, next_step, ..
-                } = &mut self.steps[guard]
-                else {
-                    unreachable!("the placeholder is a guard")
-                };
-                (*skip_to, *next_step) = (end, next);
+                }) = self.steps.get_mut(guard)
+                {
+                    (*skip_to, *next_step) = (end, next);
+                }
             }
             if !covered {
                 self.order.push(site);
@@ -254,17 +264,23 @@ impl Emit<'_> {
 fn verify(nodes: &[Node], column_order: &[NodeId], order: &[NodeId], reads: &[(NodeId, usize)]) {
     let mut position = vec![usize::MAX; nodes.len()];
     for (p, &n) in order.iter().enumerate() {
-        assert_eq!(position[n as usize], usize::MAX, "node {n} scheduled twice");
-        position[n as usize] = p;
+        if let Some(at) = position.get_mut(n as usize) {
+            assert_eq!(*at, usize::MAX, "node {n} scheduled twice");
+            *at = p;
+        }
     }
+    let position_of = |id: NodeId| position.get(id as usize).copied().unwrap_or(usize::MAX);
     assert_eq!(
         order.len(),
         column_order.len(),
         "the schedule dropped nodes from the column order"
     );
     for (p, &n) in order.iter().enumerate() {
-        nodes[n as usize].visit_local_inputs(&mut |j| {
-            let at = position[j as usize];
+        let Some(node) = nodes.get(n as usize) else {
+            continue;
+        };
+        node.visit_local_inputs(&mut |j| {
+            let at = position_of(j);
             assert!(
                 at == usize::MAX || at < p,
                 "the schedule evaluates node {n} before its input {j}"
@@ -272,7 +288,7 @@ fn verify(nodes: &[Node], column_order: &[NodeId], order: &[NodeId], reads: &[(N
         });
     }
     for &(selector, at) in reads {
-        let p = position[selector as usize];
+        let p = position_of(selector);
         assert!(
             p == usize::MAX || p < at,
             "a guard reads node {selector} before it is evaluated"
@@ -321,7 +337,7 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
                 .collect(),
         }),
         Node::Binary { op, a, b } => {
-            let (left, right) = (*a, ranges[*b as usize]);
+            let (left, right) = (*a, ranges.get(*b as usize).copied()?);
             // A zero times a right operand of known sign is that same zero, sign
             // included; an infinite right would make it a NaN instead.
             let (test, negate) = match op {
@@ -365,12 +381,32 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
     }
 }
 
+fn is(set: &[bool], id: NodeId) -> bool {
+    set.get(id as usize).copied().unwrap_or(false)
+}
+
+fn mark(set: &mut [bool], id: NodeId) {
+    if let Some(member) = set.get_mut(id as usize) {
+        *member = true;
+    }
+}
+
+/// The nodes up to and including `last`, last first.
+fn walk_down(nodes: &[Node], last: NodeId) -> impl Iterator<Item = (usize, &Node)> {
+    nodes
+        .get(..=last as usize)
+        .unwrap_or_default()
+        .iter()
+        .enumerate()
+        .rev()
+}
+
 fn reachable(nodes: &[Node], start: NodeId) -> Vec<bool> {
     let mut seen = vec![false; nodes.len()];
-    seen[start as usize] = true;
-    for i in (0..=start as usize).rev() {
-        if seen[i] {
-            nodes[i].visit_local_inputs(&mut |j| seen[j as usize] = true);
+    mark(&mut seen, start);
+    for (i, node) in walk_down(nodes, start) {
+        if is(&seen, i as NodeId) {
+            node.visit_local_inputs(&mut |j| mark(&mut seen, j));
         }
     }
     seen
@@ -386,17 +422,17 @@ fn reachable_past_arms(
     always: &[NodeId],
 ) -> Vec<bool> {
     let mut seen = vec![false; nodes.len()];
-    seen[target as usize] = true;
-    for i in (0..=target as usize).rev() {
-        if !seen[i] {
+    mark(&mut seen, target);
+    for (i, node) in walk_down(nodes, target) {
+        if !is(&seen, i as NodeId) {
             continue;
         }
         if i as NodeId == site {
             for &j in always {
-                seen[j as usize] = true;
+                mark(&mut seen, j);
             }
         } else {
-            nodes[i].visit_local_inputs(&mut |j| seen[j as usize] = true);
+            node.visit_local_inputs(&mut |j| mark(&mut seen, j));
         }
     }
     seen

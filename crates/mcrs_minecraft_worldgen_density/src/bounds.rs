@@ -164,7 +164,8 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
                     position(input.min())..=position(input.max())
                 }
             };
-            arms[reachable]
+            arms.get(reachable)
+                .unwrap_or_default()
                 .iter()
                 .fold(Interval::NAI, |acc, &arm| acc.union(at(arm)))
         }
@@ -191,7 +192,7 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
         | Node::ShiftedNoise { .. }
         | Node::Spline { .. }
         | Node::FindTopSurface { .. } => match mode {
-            Bounds::Declared => declared_leaf(node, &at),
+            Bounds::Declared => declared_leaf(node, &at)?,
             Bounds::Cell { .. } => return None,
         },
     })
@@ -200,8 +201,8 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
 /// The bound each leaf publishes about itself, which for a noise is the
 /// six-sigma estimate its parameters declare rather than anything the sampler
 /// is held to.
-fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Interval {
-    match node {
+fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
+    Some(match node {
         Node::Noise { params } | Node::ShiftedNoise { params, .. } => params.range(),
         Node::ShiftB { params } => params.range() * Interval::exact(4.0),
         Node::DistanceToPoint(_) => Interval::of(0.0, f32::INFINITY),
@@ -221,8 +222,8 @@ fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Interval {
             let lower = *lower_bound as f32;
             Interval::of(lower, jmax(lower, at(*upper_bound).max()))
         }
-        _ => unreachable!("not a leaf"),
-    }
+        _ => return None,
+    })
 }
 
 /// A clamped gradient is monotone along its axis, so the box's two end

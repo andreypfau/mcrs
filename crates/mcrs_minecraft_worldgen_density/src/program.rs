@@ -423,7 +423,7 @@ impl Node {
 /// sheds an axis, the transposed shift and the end islands are flat, and the
 /// vertical surface search always answers per column.
 pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
-    let at = |id: NodeId| axes[id as usize];
+    let at = |id: NodeId| axes.get(id as usize).copied().unwrap_or(NO_AXES);
     match node {
         Node::Constant(_) => NO_AXES,
         Node::Gradient(g) => axis_bit(g.axis),
@@ -448,6 +448,8 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
         }
     }
 }
+
+static ZERO: Node = Node::Constant(0.0);
 
 /// A compiled density graph: nodes in topological order, each tagged with the
 /// axes it varies over.
@@ -574,7 +576,10 @@ impl Program {
                     ..
                 } => {
                     add(&mut entries, *density);
-                    if axes[*upper_bound as usize] & AXIS_Y != 0 {
+                    if axes
+                        .get(*upper_bound as usize)
+                        .is_some_and(|&axes| axes & AXIS_Y != 0)
+                    {
                         add(&mut entries, *upper_bound);
                     }
                 }
@@ -585,7 +590,9 @@ impl Program {
         let mut plan_of = vec![u32::MAX; nodes.len()];
         let mut plans = Vec::with_capacity(entries.len());
         for (index, &entry) in entries.iter().enumerate() {
-            plan_of[entry as usize] = index as u32;
+            if let Some(plan) = plan_of.get_mut(entry as usize) {
+                *plan = index as u32;
+            }
             plans.push(Plan::new(&nodes, &axes, &ranges, entry));
         }
 
@@ -605,23 +612,23 @@ impl Program {
 
     #[inline]
     pub fn root_node(&self, root: usize) -> NodeId {
-        self.roots[root]
+        self.roots.get(root).copied().unwrap_or_default()
     }
 
     #[inline]
     pub(crate) fn axes_of(&self, id: NodeId) -> Axes {
-        self.axes[id as usize]
+        self.axes.get(id as usize).copied().unwrap_or(NO_AXES)
     }
 
     #[inline]
     pub fn node(&self, id: NodeId) -> &Node {
-        &self.nodes[id as usize]
+        self.nodes.get(id as usize).unwrap_or(&ZERO)
     }
 
     /// Writes `volume.len()` values for `root` into `out`, laid out Y-fastest to
     /// match [`SampleGrid::index_unchecked`].
     pub fn fill(&self, ws: &mut Workspace, volume: &SampleGrid, root: usize, out: &mut [f32]) {
-        self.fill_node(ws, volume, self.roots[root], out);
+        self.fill_node(ws, volume, self.root_node(root), out);
     }
 
     /// [`Program::fill`] targeting any node that has a plan: a root, or the input
@@ -634,23 +641,26 @@ impl Program {
         out: &mut [f32],
     ) {
         debug_assert_eq!(out.len(), volume.len());
-        let plan = self.plan_of(target);
+        let Some(plan) = self.plan_of(target) else {
+            debug_assert!(false, "node {target} has no fill plan");
+            return;
+        };
         ws.prepare(self, plan, volume);
         self.fill_lattices(ws, volume, plan);
 
         let (mut k, mut step) = (0usize, 0usize);
-        while step < plan.steps.len() {
-            match plan.steps[step] {
+        while let Some(next) = plan.steps.get(step) {
+            match *next {
                 Step::Eval { end } => {
                     let end = end as usize;
                     #[cfg(any(test, feature = "eval-count"))]
                     {
                         ws.count.evaluated += (end - k) as u64;
                     }
-                    while k < end {
-                        self.eval(plan.order[k], ws, volume);
-                        k += 1;
+                    for &id in plan.order.get(k..end).unwrap_or_default() {
+                        self.eval(id, ws, volume);
                     }
+                    k = end;
                     step += 1;
                 }
                 Step::Guard {
@@ -688,10 +698,13 @@ impl Program {
                 for ix in 0..sx {
                     let base = (ix + iz * sx) * sy;
                     let run = runs.col(ix, iz);
+                    let Some(column) = out.get_mut(base..base + sy) else {
+                        continue;
+                    };
                     if run.len() == sy {
-                        out[base..base + sy].copy_from_slice(run);
-                    } else {
-                        out[base..base + sy].fill(run[0]);
+                        column.copy_from_slice(run);
+                    } else if let Some(&value) = run.first() {
+                        column.fill(value);
                     }
                 }
             }
@@ -703,10 +716,9 @@ impl Program {
         );
     }
 
-    fn plan_of(&self, target: NodeId) -> &Plan {
-        let index = self.plan_of[target as usize];
-        assert_ne!(index, u32::MAX, "node {target} has no fill plan");
-        &self.plans[index as usize]
+    fn plan_of(&self, target: NodeId) -> Option<&Plan> {
+        let index = *self.plan_of.get(target as usize)?;
+        self.plans.get(index as usize)
     }
 
     /// Samples each reached `Interpolated` node's input over the cell lattice
@@ -716,16 +728,15 @@ impl Program {
             return;
         }
         let mut nested = ws.nested.take().unwrap_or_default();
-        for k in 0..plan.lattice.len() {
-            let id = plan.lattice[k];
+        for &id in &plan.lattice {
             let &Node::Interpolated {
                 input,
                 cell_xz,
                 cell_y,
                 cell,
-            } = &self.nodes[id as usize]
+            } = self.node(id)
             else {
-                unreachable!("the lattice list holds only interpolated nodes")
+                continue;
             };
             let direct = is_lattice_volume(volume, cell_xz, cell_y);
             let lattice = if direct {
@@ -733,16 +744,18 @@ impl Program {
             } else {
                 lattice_volume(volume, self.axes_of(id), cell_xz, cell_y)
             };
-            if ws.lattices[cell].covers(&lattice) {
+            let Some(slot) = ws.lattices.get_mut(cell) else {
+                continue;
+            };
+            if slot.covers(&lattice) {
                 continue;
             }
-            let slot = &mut ws.lattices[cell];
             slot.volume = Some(lattice);
             slot.direct = direct;
             slot.pinned = false;
             slot.values.clear();
             slot.values.resize(lattice.len(), 0.0);
-            self.fill_node(&mut nested, &lattice, input, &mut ws.lattices[cell].values);
+            self.fill_node(&mut nested, &lattice, input, &mut slot.values);
         }
         #[cfg(any(test, feature = "eval-count"))]
         ws.absorb(&mut nested);
@@ -774,8 +787,10 @@ impl Program {
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
 
-        let off = ws.offset[id as usize] as usize;
-        ws.values[off..off + len].copy_from_slice(&sliced);
+        let off = ws.offset_of(id);
+        if let Some(out) = ws.values.get_mut(off..off + len) {
+            out.copy_from_slice(&sliced);
+        }
         ws.sliced = sliced;
     }
 
@@ -797,8 +812,7 @@ impl Program {
         let ext = stratum(axes, volume);
         let size = ext.size();
         debug_assert_eq!(size.y, 1, "a surface level does not vary along Y");
-        let off = ws.offset[id as usize] as usize;
-        let mut slot = off;
+        let mut slot = ws.offset_of(id);
         for iz in 0..size.z {
             for ix in 0..size.x {
                 let value = self.find_top_surface(
@@ -812,7 +826,9 @@ impl Program {
                     lower_bound,
                     cell_height,
                 );
-                ws.values[slot] = value;
+                if let Some(out) = ws.values.get_mut(slot) {
+                    *out = value;
+                }
                 slot += 1;
             }
         }
@@ -843,7 +859,11 @@ impl Program {
         let bz = ext.block_z(iz as i32);
         let upper = if self.axes_of(upper_bound) & AXIS_Y == 0 {
             let buf = ws.read(self, upper_bound, volume);
-            Runs::new(buf, self.axes_of(upper_bound), volume).col(ix, iz)[0]
+            Runs::new(buf, self.axes_of(upper_bound), volume)
+                .col(ix, iz)
+                .first()
+                .copied()
+                .unwrap_or_default()
         } else {
             let mut nested = ws.nested.take().unwrap_or_default();
             let mut pinned = [0.0f32];
@@ -852,7 +872,8 @@ impl Program {
             #[cfg(any(test, feature = "eval-count"))]
             ws.absorb(&mut nested);
             ws.nested = Some(nested);
-            pinned[0]
+            let [upper] = pinned;
+            upper
         };
 
         let top_y = mth::mth_floor(upper / cell_height as f32).wrapping_mul(cell_height);
@@ -876,7 +897,7 @@ impl Program {
                 IVec3::new(1, cell_height, 1),
             );
             self.fill_node(&mut nested, &span, density, &mut probe);
-            if let Some(k) = (0..count).rev().find(|&k| probe[k] > 0.0) {
+            if let Some(k) = probe.iter().rposition(|&v| v > 0.0) {
                 found = min_y + k as i32 * cell_height;
                 break;
             }
@@ -906,9 +927,9 @@ impl Program {
             } => {
                 let Node::IntervalSelect {
                     thresholds, arms, ..
-                } = &self.nodes[site as usize]
+                } = self.node(site)
                 else {
-                    unreachable!("an arm guard sits on an interval select")
+                    return true;
                 };
                 all(selector).iter().any(|&v| {
                     thresholds
@@ -928,8 +949,8 @@ impl Program {
         let axes = self.axes_of(fallback.site);
         let ext = stratum(axes, volume);
         let source_axes = self.axes_of(fallback.source);
-        let off = ws.offset[fallback.site as usize] as usize;
-        let source_off = ws.offset[fallback.source as usize] as usize;
+        let off = ws.offset_of(fallback.site);
+        let source_off = ws.offset_of(fallback.source);
 
         let len = extent(axes, volume);
         let (below, rest) = ws.values.split_at_mut(off);
@@ -963,11 +984,12 @@ impl Program {
         reason = "one arm per node kind, in the node's declaration order, so each fill reads against its kind"
     )]
     fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid) {
+        let node = self.node(id);
         if let &Node::Slice {
             input,
             axis,
             coordinate,
-        } = &self.nodes[id as usize]
+        } = node
         {
             self.fill_slice(ws, volume, id, input, axis, coordinate);
             return;
@@ -977,7 +999,7 @@ impl Program {
             upper_bound,
             lower_bound,
             cell_height,
-        } = &self.nodes[id as usize]
+        } = node
         {
             self.fill_top_surface(
                 ws,
@@ -992,7 +1014,7 @@ impl Program {
         }
         let axes = self.axes_of(id);
         let ext = stratum(axes, volume);
-        let off = ws.offset[id as usize] as usize;
+        let off = ws.offset_of(id);
 
         let Workspace {
             values,
@@ -1007,8 +1029,8 @@ impl Program {
         let end = off + len;
 
         let read = |j: NodeId| -> Runs<'_> {
-            let j_axes = self.axes[j as usize];
-            let j_off = offset[j as usize] as usize;
+            let j_axes = self.axes_of(j);
+            let j_off = offset.get(j as usize).map_or(0, |&off| off as usize);
             Runs::new(
                 other_slot(below, above, end, j_off, extent(j_axes, volume)),
                 j_axes,
@@ -1016,7 +1038,7 @@ impl Program {
             )
         };
 
-        match &self.nodes[id as usize] {
+        match node {
             Node::Constant(v) => out.fill(*v),
             Node::Gradient(p) => p.eval(out, &ext),
             Node::Noise { params } => params.eval_plain(out, &ext),
@@ -1169,11 +1191,19 @@ impl Program {
                             .iter()
                             .position(|&t| v < t)
                             .unwrap_or(arms.len() - 1);
-                        *o = at(read(arms[k]).col(ix, iz), i);
+                        *o = arms.get(k).map_or(0.0, |&arm| at(read(arm).col(ix, iz), i));
                     }
                 })
             }
-            Node::Spline { spline, coords } => spline.eval(out, &|k| read(coords[k]), &ext),
+            Node::Spline { spline, coords } => spline.eval(
+                out,
+                &|k| {
+                    coords
+                        .get(k)
+                        .map_or_else(|| Runs::new(&[], NO_AXES, volume), |&j| read(j))
+                },
+                &ext,
+            ),
 
             Node::Interpolated {
                 cell_xz,
@@ -1181,24 +1211,28 @@ impl Program {
                 cell,
                 ..
             } => {
-                let Lattice {
+                let Some(Lattice {
                     volume: Some(lattice),
                     direct,
                     values,
                     ..
-                } = &lattices[*cell]
+                }) = lattices.get(*cell)
                 else {
-                    unreachable!("every interpolated node in the plan holds a lattice")
+                    out.fill(0.0);
+                    return;
                 };
                 let (cell_xz, cell_y, direct) = (*cell_xz, *cell_y, *direct);
                 if direct {
                     each_column(out, &ext, |run, ix, iz| {
                         let bx = ext.block_x(ix as i32);
                         let bz = ext.block_z(iz as i32);
-                        let base = lattice
+                        let source = lattice
                             .index_of_block(bx, ext.min_block().y, bz)
-                            .expect("the lattice is the volume being filled");
-                        run.copy_from_slice(&values[base..base + run.len()]);
+                            .and_then(|base| values.get(base..base + run.len()));
+                        match source {
+                            Some(source) => run.copy_from_slice(source),
+                            None => run.fill(0.0),
+                        }
                     })
                 } else if ext.step_block() == IVec3::ONE {
                     interpolate_cells(out, &ext, lattice, values, cell_xz, cell_y)
@@ -1211,17 +1245,15 @@ impl Program {
                 }
             }
 
-            Node::Slice { .. } | Node::FindTopSurface { .. } => {
-                unreachable!("handled before the buffer split")
-            }
+            Node::Slice { .. } | Node::FindTopSurface { .. } => {}
         }
     }
 }
 
 /// A slot other than the one being written. Recycling puts a node's inputs on
 /// either side of its output, so the buffer splits in three and the read picks
-/// the side its offset falls on; an offset inside the output would mean a node
-/// aliasing its own input, and panics here rather than returning wrong values.
+/// the side its offset falls on. An offset inside the output would mean a node
+/// aliasing its own input, and reads as an empty slot.
 #[inline]
 fn other_slot<'a>(
     below: &'a [f32],
@@ -1231,9 +1263,11 @@ fn other_slot<'a>(
     len: usize,
 ) -> &'a [f32] {
     if off < below.len() {
-        &below[off..off + len]
+        below.get(off..off + len).unwrap_or_default()
     } else {
-        &above[off - end..off - end + len]
+        off.checked_sub(end)
+            .and_then(|off| above.get(off..off + len))
+            .unwrap_or_default()
     }
 }
 
@@ -1371,7 +1405,10 @@ fn interpolate(
         let mut block_y = min_y + i as i32 * step_y;
         let cell_base = mth::floor_div(block_y, cell_y) * cell_y;
         let iy = cell_base / cell_y - first_cell_y;
-        let corner = |dx, dy, dz| values[lattice.index_unchecked(ix + dx, iy + dy, iz + dz)];
+        let corner = |dx, dy, dz| {
+            let index = lattice.index_unchecked(ix + dx, iy + dy, iz + dz);
+            values.get(index).copied().unwrap_or_default()
+        };
         let v00 = jmath::lerp(alpha_z, corner(0, 0, 0), corner(0, 0, 1));
         let v10 = jmath::lerp(alpha_z, corner(1, 0, 0), corner(1, 0, 1));
         let v01 = jmath::lerp(alpha_z, corner(0, 1, 0), corner(0, 1, 1));
@@ -1383,7 +1420,9 @@ fn interpolate(
 
         let cell_end = cell_base + cell_y;
         while i < out.len() && block_y < cell_end {
-            out[i] = ramp.at(block_y - cell_base);
+            if let Some(slot) = out.get_mut(i) {
+                *slot = ramp.at(block_y - cell_base);
+            }
             i += 1;
             block_y += step_y;
         }
@@ -1429,8 +1468,10 @@ fn interpolate_cells(
                 let dy1 = (max.y - base_y).min(cell_y - 1);
                 let rows = (dy1 - dy0 + 1) as usize;
 
-                let corner =
-                    |dx, dy, dz| values[lattice.index_unchecked(lx + dx, ly + dy, lz + dz)];
+                let corner = |dx, dy, dz| {
+                    let index = lattice.index_unchecked(lx + dx, ly + dy, lz + dz);
+                    values.get(index).copied().unwrap_or_default()
+                };
                 let (c000, c001) = (corner(0, 0, 0), corner(0, 0, 1));
                 let (c100, c101) = (corner(1, 0, 0), corner(1, 0, 1));
                 let (c010, c011) = (corner(0, 1, 0), corner(0, 1, 1));
@@ -1450,7 +1491,8 @@ fn interpolate_cells(
                         let value_step = (top - bottom) * inv_y;
                         let start =
                             ext.index_unchecked(base_x + dx - min.x, base_y + dy0 - min.y, out_z);
-                        fill_rows(&mut out[start..start + rows], bottom, value_step, dy0);
+                        let run = out.get_mut(start..start + rows).unwrap_or_default();
+                        fill_rows(run, bottom, value_step, dy0);
                     }
                 }
             }
@@ -1461,15 +1503,21 @@ fn interpolate_cells(
 impl Plan {
     fn new(nodes: &[Node], axes: &[Axes], ranges: &[Interval], target: NodeId) -> Self {
         let mut live = vec![false; nodes.len()];
-        live[target as usize] = true;
-        for i in (0..nodes.len()).rev() {
-            if live[i] {
-                nodes[i].visit_local_inputs(&mut |j| live[j as usize] = true);
+        if let Some(live) = live.get_mut(target as usize) {
+            *live = true;
+        }
+        for (i, node) in nodes.iter().enumerate().rev() {
+            if live.get(i) == Some(&true) {
+                node.visit_local_inputs(&mut |j| {
+                    if let Some(live) = live.get_mut(j as usize) {
+                        *live = true;
+                    }
+                });
             }
         }
         let (mut order, mut lattice) = (Vec::new(), Vec::new());
-        for (i, node) in nodes.iter().enumerate() {
-            if !live[i] {
+        for (i, (node, &live)) in nodes.iter().zip(&live).enumerate() {
+            if !live {
                 continue;
             }
             order.push(i as NodeId);
@@ -1481,12 +1529,21 @@ impl Plan {
 
         let mut last_use = vec![usize::MAX; nodes.len()];
         for (p, &id) in order.iter().enumerate() {
-            nodes[id as usize].visit_local_inputs(&mut |j| last_use[j as usize] = p);
+            if let Some(node) = nodes.get(id as usize) {
+                node.visit_local_inputs(&mut |j| {
+                    if let Some(last) = last_use.get_mut(j as usize) {
+                        *last = p;
+                    }
+                });
+            }
         }
         // The fill reads the target after the schedule ends, so its slot outlives
         // every other and is never handed back.
-        last_use[target as usize] = usize::MAX;
+        if let Some(last) = last_use.get_mut(target as usize) {
+            *last = usize::MAX;
+        }
 
+        let axes_of = |id: NodeId| axes.get(id as usize).map_or(0, |&a| usize::from(a));
         let mut node_slot = vec![0u32; nodes.len()];
         let mut free: [Vec<u32>; 8] = Default::default();
         let mut slot_count = [0u32; 8];
@@ -1494,17 +1551,30 @@ impl Plan {
         for (p, &id) in order.iter().enumerate() {
             // Taking the output slot before releasing the inputs is what keeps a
             // node from writing over a buffer it still reads.
-            let a = axes[id as usize] as usize;
-            let taken = free[a].pop().unwrap_or_else(|| {
-                slot_count[a] += 1;
-                slot_count[a] - 1
-            });
-            node_slot[id as usize] = taken;
+            let a = axes_of(id);
+            let taken = match (free.get_mut(a), slot_count.get_mut(a)) {
+                (Some(free), Some(count)) => free.pop().unwrap_or_else(|| {
+                    *count += 1;
+                    *count - 1
+                }),
+                _ => 0,
+            };
+            if let Some(node_slot) = node_slot.get_mut(id as usize) {
+                *node_slot = taken;
+            }
             slot.push(taken);
-            nodes[id as usize].visit_local_inputs(&mut |j| {
-                if last_use[j as usize] == p {
-                    last_use[j as usize] = usize::MAX;
-                    free[axes[j as usize] as usize].push(node_slot[j as usize]);
+            let Some(node) = nodes.get(id as usize) else {
+                continue;
+            };
+            node.visit_local_inputs(&mut |j| {
+                let Some(last) = last_use.get_mut(j as usize).filter(|last| **last == p) else {
+                    return;
+                };
+                *last = usize::MAX;
+                if let (Some(free), Some(&released)) =
+                    (free.get_mut(axes_of(j)), node_slot.get(j as usize))
+                {
+                    free.push(released);
                 }
             });
         }
@@ -1547,13 +1617,18 @@ impl Workspace {
 
         let mut base = [0u32; 8];
         let mut len = 0usize;
-        for (axes, &count) in plan.slot_count.iter().enumerate() {
-            base[axes] = len as u32;
-            len += count as usize * extent(axes as Axes, volume);
+        for ((base, &count), axes) in base.iter_mut().zip(&plan.slot_count).zip(0..) {
+            *base = len as u32;
+            len += count as usize * extent(axes, volume);
         }
         for (&id, &slot) in plan.order.iter().zip(plan.slot.iter()) {
             let axes = program.axes_of(id);
-            self.offset[id as usize] = base[axes as usize] + slot * extent(axes, volume) as u32;
+            if let (Some(offset), Some(&base)) = (
+                self.offset.get_mut(id as usize),
+                base.get(usize::from(axes)),
+            ) {
+                *offset = base + slot * extent(axes, volume) as u32;
+            }
         }
         // Every node writes its whole stratum before anything reads it, so the
         // buffer is grown rather than cleared: re-zeroing it costs more than the
@@ -1574,7 +1649,9 @@ impl Workspace {
         if self.lattices.len() <= cell {
             self.lattices.resize_with(cell + 1, Lattice::default);
         }
-        let slot = &mut self.lattices[cell];
+        let Some(slot) = self.lattices.get_mut(cell) else {
+            return;
+        };
         slot.volume = Some(*volume);
         slot.direct = false;
         slot.pinned = true;
@@ -1583,8 +1660,15 @@ impl Workspace {
     }
 
     fn read<'a>(&'a self, program: &Program, id: NodeId, volume: &SampleGrid) -> &'a [f32] {
-        let off = self.offset[id as usize] as usize;
-        &self.values[off..off + extent(program.axes_of(id), volume)]
+        let off = self.offset_of(id);
+        self.values
+            .get(off..off + extent(program.axes_of(id), volume))
+            .unwrap_or_default()
+    }
+
+    #[inline]
+    fn offset_of(&self, id: NodeId) -> usize {
+        self.offset.get(id as usize).map_or(0, |&off| off as usize)
     }
 }
 

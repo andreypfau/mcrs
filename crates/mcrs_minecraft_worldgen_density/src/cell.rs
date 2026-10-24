@@ -74,12 +74,13 @@ pub fn sampled_range(cell: IVec3, corner: impl Fn(i32, i32, i32) -> f32) -> Inte
 pub fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Interval]) {
     let stride = lattice.len();
     for (k, bound) in out.iter_mut().enumerate() {
-        let row = &values[k * stride..(k + 1) * stride];
+        let row = values.get(k * stride..(k + 1) * stride).unwrap_or_default();
         let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
         for dz in 0..2 {
             for dx in 0..2 {
                 for dy in 0..2 {
-                    let v = row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
+                    let index = lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz);
+                    let v = row.get(index).copied().unwrap_or_default();
                     lo = lo.min(v);
                     hi = hi.max(v);
                 }
@@ -100,9 +101,10 @@ pub fn sampled_bounds(
 ) {
     let stride = lattice.len();
     for (k, bound) in out.iter_mut().enumerate() {
-        let row = &values[k * stride..(k + 1) * stride];
+        let row = values.get(k * stride..(k + 1) * stride).unwrap_or_default();
         *bound = sampled_range(cell, |dx, dy, dz| {
-            row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
+            let index = lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz);
+            row.get(index).copied().unwrap_or_default()
         });
     }
 }
@@ -129,37 +131,41 @@ impl CellBounds {
         let is_wrapper = |id: NodeId| matches!(program.node(id), Node::Interpolated { .. });
 
         let mut reached = vec![false; program.len()];
-        let mut pending = vec![root];
-        reached[root as usize] = true;
+        let mut pending = Vec::new();
+        if let Some(reached) = reached.get_mut(root as usize) {
+            *reached = true;
+            pending.push(root);
+        }
         while let Some(id) = pending.pop() {
             if is_wrapper(id) {
                 continue;
             }
             program.node(id).visit_inputs(&mut |dep| {
-                if !reached[dep as usize] {
-                    reached[dep as usize] = true;
+                if let Some(reached @ false) = reached.get_mut(dep as usize) {
+                    *reached = true;
                     pending.push(dep);
                 }
             });
         }
 
         let terms: Vec<NodeId> = (0..program.len() as NodeId)
-            .filter(|&id| reached[id as usize])
+            .zip(&reached)
+            .filter_map(|(id, &reached)| reached.then_some(id))
             .collect();
         let wrappers: Vec<NodeId> = terms.iter().copied().filter(|&id| is_wrapper(id)).collect();
         let inputs: Vec<NodeId> = wrappers
             .iter()
-            .map(|&id| match program.node(id) {
-                Node::Interpolated { input, .. } => *input,
-                _ => unreachable!("the wrapper list holds only interpolated nodes"),
+            .filter_map(|&id| match program.node(id) {
+                Node::Interpolated { input, .. } => Some(*input),
+                _ => None,
             })
             .collect();
 
-        let mut geometries = wrappers.iter().map(|&id| match program.node(id) {
+        let mut geometries = wrappers.iter().filter_map(|&id| match program.node(id) {
             Node::Interpolated {
                 cell_xz, cell_y, ..
-            } => IVec3::new(*cell_xz, *cell_y, *cell_xz),
-            _ => unreachable!("the wrapper list holds only interpolated nodes"),
+            } => Some(IVec3::new(*cell_xz, *cell_y, *cell_xz)),
+            _ => None,
         });
         let first = geometries.next();
         // Mixed geometries have no common lattice, so no whole-cell shortcut.
@@ -169,7 +175,9 @@ impl CellBounds {
 
         let mut slot = vec![NO_SLOT; program.len()];
         for (index, &id) in terms.iter().enumerate() {
-            slot[id as usize] = index as u32;
+            if let Some(slot) = slot.get_mut(id as usize) {
+                *slot = index as u32;
+            }
         }
 
         let mut bounds = Self {
@@ -237,8 +245,15 @@ impl CellBounds {
         );
         values.clear();
         values.resize(self.terms.len(), Interval::NAI);
-        for (k, &id) in self.wrappers.iter().enumerate() {
-            values[self.slot[id as usize] as usize] = corners[k];
+        let slot = |id: NodeId| {
+            self.slot
+                .get(id as usize)
+                .map_or(usize::MAX, |&s| s as usize)
+        };
+        for (&id, &corner) in self.wrappers.iter().zip(corners) {
+            if let Some(value) = values.get_mut(slot(id)) {
+                *value = corner;
+            }
         }
         for &id in self.terms.iter() {
             let node = program.node(id);
@@ -246,11 +261,13 @@ impl CellBounds {
                 continue;
             }
             let bound = node_bounds(node, Bounds::Cell { min, max }, |dep| {
-                values[self.slot[dep as usize] as usize]
+                values.get(slot(dep)).copied().unwrap_or(Interval::NAI)
             })?;
-            values[self.slot[id as usize] as usize] = bound;
+            if let Some(value) = values.get_mut(slot(id)) {
+                *value = bound;
+            }
         }
-        Some(values[self.slot[self.root as usize] as usize])
+        values.get(slot(self.root)).copied()
     }
 }
 

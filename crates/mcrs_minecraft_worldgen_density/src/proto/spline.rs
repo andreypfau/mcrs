@@ -254,11 +254,11 @@ impl From<ProtoMultipoint> for PointsForm {
         let points = values
             .into_vec()
             .into_iter()
-            .enumerate()
-            .map(|(i, value)| PointForm {
-                location: locations[i],
+            .zip(locations.iter().zip(derivatives.iter()))
+            .map(|(value, (&location, &derivative))| PointForm {
+                location,
                 value,
-                derivative: derivatives[i],
+                derivative,
             })
             .collect();
         PointsForm { coordinate, points }

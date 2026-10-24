@@ -105,7 +105,10 @@ fn compile_aquifer(
     let lava = root(&aquifers.lava)?;
     let exclusion = root(&aquifers.exclusion)?;
     let surface_level = root(&aquifers.surface_level)?;
-    let barrier_max = compiler.node_ranges[nodes[barrier] as usize].max();
+    let barrier_max = nodes
+        .get(barrier)
+        .map_or(Interval::INFINITE, |&id| compiler.range_of(id))
+        .max();
     let (margin_above, margin_below) = AquiferConfig::margins(barrier_max);
     Ok(AquiferConfig {
         barrier,
@@ -195,9 +198,19 @@ impl<'a> Compiler<'a> {
     }
 
     fn declared_range(&self, node: &Node) -> Interval {
-        let ranges = &self.node_ranges;
-        bounds::node_bounds(node, Bounds::Declared, |id| ranges[id as usize])
-            .expect("every kind declares a bound")
+        bounds::node_bounds(node, Bounds::Declared, |id| self.range_of(id))
+            .unwrap_or(Interval::INFINITE)
+    }
+
+    fn range_of(&self, id: NodeId) -> Interval {
+        self.node_ranges
+            .get(id as usize)
+            .copied()
+            .unwrap_or(Interval::INFINITE)
+    }
+
+    fn axes_of(&self, id: NodeId) -> Axes {
+        self.axes.get(id as usize).copied().unwrap_or(NO_AXES)
     }
 
     fn push(&mut self, key: Key, node: Node, axes: Axes, range: Interval) -> NodeId {
@@ -230,8 +243,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn as_constant(&self, id: NodeId) -> Option<f32> {
-        match self.nodes[id as usize] {
-            Node::Constant(value) => Some(value),
+        match self.nodes.get(id as usize) {
+            Some(&Node::Constant(value)) => Some(value),
             _ => None,
         }
     }
@@ -561,7 +574,7 @@ impl<'a> Compiler<'a> {
                 input,
             } => {
                 let input = self.compile(input)?;
-                if self.axes[input as usize] & axis_bit(*axis) == 0 {
+                if self.axes_of(input) & axis_bit(*axis) == 0 {
                     return Ok(input);
                 }
                 Ok(self.intern(
@@ -717,18 +730,20 @@ impl<'a> Compiler<'a> {
         // Multiplying by a power of two is exact, so `(v*m)*s` and `v*(m*s)`
         // round once on the same real number and the two slopes may absorb the
         // outer scale. The rectifier's are 0.5 and 0.25.
-        let fusion = match &self.nodes[input as usize] {
-            Node::Affine {
+        let fusion = match self.nodes.get(input as usize) {
+            Some(Node::Affine {
                 input: inner,
                 scale: inner_scale,
                 offset: inner_offset,
-            } if scale == 1.0 && *inner_offset == 0.0 => Some((*inner, *inner_scale, *inner_scale)),
-            Node::PiecewiseAffine {
+            }) if scale == 1.0 && *inner_offset == 0.0 => {
+                Some((*inner, *inner_scale, *inner_scale))
+            }
+            Some(Node::PiecewiseAffine {
                 input: inner,
                 neg_scale,
                 pos_scale,
                 offset: inner_offset,
-            } if *inner_offset == 0.0
+            }) if *inner_offset == 0.0
                 && (scale == 1.0
                     || (is_power_of_two(*neg_scale) && is_power_of_two(*pos_scale))) =>
             {
@@ -830,8 +845,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn extremum(&mut self, op: BinaryOp, left: NodeId, right: NodeId) -> NodeId {
-        let left_range = self.node_ranges[left as usize];
-        let right_range = self.node_ranges[right as usize];
+        let left_range = self.range_of(left);
+        let right_range = self.range_of(right);
         let constants = (self.as_constant(left), self.as_constant(right));
         // The accumulator is the operand that is not the baked-in constant, so
         // the fold takes the operands in the order the sampler would.
@@ -1152,20 +1167,25 @@ fn prune(
     roots: Vec<NodeId>,
 ) -> (Vec<Node>, Vec<Axes>, Vec<Interval>, Vec<NodeId>) {
     let mut live = vec![false; nodes.len()];
+    let mark = |live: &mut [bool], id: NodeId| {
+        if let Some(live) = live.get_mut(id as usize) {
+            *live = true;
+        }
+    };
     for &root in &roots {
-        live[root as usize] = true;
+        mark(&mut live, root);
     }
-    for i in (0..nodes.len()).rev() {
-        if live[i] {
-            nodes[i].visit_inputs(&mut |j| live[j as usize] = true);
+    for (i, node) in nodes.iter().enumerate().rev() {
+        if live.get(i) == Some(&true) {
+            node.visit_inputs(&mut |j| mark(&mut live, j));
         }
     }
 
     let mut map = vec![0 as NodeId; nodes.len()];
     let mut next = 0usize;
-    for i in 0..nodes.len() {
-        map[i] = next as NodeId;
-        if live[i] {
+    for (i, (slot, &live)) in map.iter_mut().zip(&live).enumerate() {
+        *slot = next as NodeId;
+        if live {
             nodes.swap(next, i);
             axes.swap(next, i);
             ranges.swap(next, i);
@@ -1178,7 +1198,10 @@ fn prune(
     for node in nodes.iter_mut() {
         remap_inputs(node, &map);
     }
-    let roots = roots.into_iter().map(|root| map[root as usize]).collect();
+    let roots = roots
+        .into_iter()
+        .map(|root| map.get(root as usize).copied().unwrap_or_default())
+        .collect();
     (nodes, axes, ranges, roots)
 }
 
@@ -1195,7 +1218,7 @@ fn spline_value(spline: &ProtoSpline, order: &[DensityFunctionHolder]) -> Spline
             let coord = order
                 .iter()
                 .position(|holder| holder == &multipoint.coordinate)
-                .expect("every coordinate was collected by the same pre-order walk");
+                .unwrap_or(order.len());
             SplineValue::Multipoint(Box::new(Multipoint {
                 coord,
                 locations: multipoint.locations.clone(),
@@ -1211,7 +1234,7 @@ fn spline_value(spline: &ProtoSpline, order: &[DensityFunctionHolder]) -> Spline
 }
 
 fn remap_inputs(node: &mut Node, map: &[NodeId]) {
-    node.visit_inputs_mut(&mut |id| *id = map[*id as usize]);
+    node.visit_inputs_mut(&mut |id| *id = map.get(*id as usize).copied().unwrap_or_default());
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1415,7 +1438,12 @@ pub(crate) mod tests {
         assert_eq!(sliced.axes(), AXIS_Y);
 
         let density = json(&inline_noise(1.0, 1.0));
-        let surface = build(Df::find_top_surface(density, 0.0, -64, 8));
+        let surface = build(Df::find_top_surface(
+            density,
+            0.0,
+            -64,
+            std::num::NonZeroU32::new(8).unwrap(),
+        ));
         assert_eq!(surface.axes(), AXIS_X | AXIS_Z);
     }
 

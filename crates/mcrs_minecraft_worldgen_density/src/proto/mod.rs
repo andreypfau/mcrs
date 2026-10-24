@@ -60,12 +60,7 @@ impl TryFrom<f64> for NoiseValue {
 /// nearest its bits: `0.1f32 as f64` is `0.10000000149011612`.
 impl From<f32> for NoiseValue {
     fn from(value: f32) -> Self {
-        NoiseValue(
-            value
-                .to_string()
-                .parse()
-                .expect("a float prints as a float"),
-        )
+        NoiseValue(value.to_string().parse().unwrap_or(f64::from(value)))
     }
 }
 
@@ -384,7 +379,7 @@ mod tests {
         assert_ne!(plain, negative);
 
         let ProtoDensityFunction::Noise { shift_x, .. } = &negative else {
-            unreachable!()
+            panic!("the parsed function is a noise")
         };
         assert!(!shift_x.is_zero_constant());
         // A zero shift is the default, so it never reaches the encoded form.

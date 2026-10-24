@@ -1,5 +1,6 @@
 use crate::density::{
-    BASE_3D_NOISE_END, END_ISLANDS, OVERWORLD, RIDGES, SLOPED_CHEESE_END, full_noise,
+    AMPLIFIED_TERRAIN, BASE_3D_NOISE_END, CELL_4, CELL_8, END_ISLANDS, LARGE_BIOMES_TERRAIN,
+    OVERWORLD, OVERWORLD_TERRAIN, RIDGES, SLOPED_CHEESE_END, Terrain, full_noise,
     peaks_and_valleys, slide_end_like, slide_nether_like,
 };
 use mcrs_minecraft_block::keys::Block;
@@ -12,6 +13,7 @@ use mcrs_minecraft_worldgen_density::router::{
     SpawnTargetPoint,
 };
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 /// The density functions an overworld preset reads its climate from.
 struct Climate {
@@ -35,18 +37,17 @@ const LARGE_BIOMES_CLIMATE: Climate = Climate {
     erosion: rl!("minecraft:overworld_large_biomes/erosion"),
 };
 
-fn overworld(climate: &Climate, terrain: &str) -> NoiseGeneratorSettings {
-    let terrain = |name: &str| Df::reference(&format!("{terrain}/{name}"));
-    let surface_level = terrain("preliminary_surface_level");
+fn overworld(climate: &Climate, terrain: &Terrain) -> NoiseGeneratorSettings {
+    let surface_level = Df::reference(terrain.preliminary_surface_level);
     let router = RouterFunctions {
-        temperature: Df::reference(climate.temperature.as_static_str()),
-        vegetation: Df::reference(climate.vegetation.as_static_str()),
-        continents: Df::reference(climate.continents.as_static_str()),
-        erosion: Df::reference(climate.erosion.as_static_str()),
-        depth: terrain("depth"),
-        ridges: Df::reference(RIDGES.as_static_str()),
-        chunk_surface_level: terrain("chunk_surface_level"),
-        final_density: terrain("final_density"),
+        temperature: Df::reference(climate.temperature),
+        vegetation: Df::reference(climate.vegetation),
+        continents: Df::reference(climate.continents),
+        erosion: Df::reference(climate.erosion),
+        depth: Df::reference(terrain.depth),
+        ridges: Df::reference(RIDGES),
+        chunk_surface_level: Df::reference(terrain.chunk_surface_level),
+        final_density: Df::reference(terrain.final_density),
     };
     let full_range = ValueRange::new(-1.0, 1.0);
     let spawn_target = [ValueRange::new(-1.0, -0.16), ValueRange::new(0.16, 1.0)]
@@ -61,11 +62,19 @@ fn overworld(climate: &Climate, terrain: &str) -> NoiseGeneratorSettings {
         })
         .into();
     let aquifers = Aquifers {
-        barrier: Df::noise("aquifer_barrier", 1.0, 0.5),
+        barrier: Df::noise(rl!("minecraft:aquifer_barrier"), 1.0, 0.5),
         exclusion: (-0.225 - &router.erosion).min((&router.depth - 0.9).max(0.0)),
-        fluid_level_floodedness: Df::noise("aquifer_fluid_level_floodedness", 1.0, 0.67),
-        fluid_level_spread: Df::noise("aquifer_fluid_level_spread", 1.0, 0.7142857142857143),
-        lava: Df::noise("aquifer_lava", 1.0, 1.0),
+        fluid_level_floodedness: Df::noise(
+            rl!("minecraft:aquifer_fluid_level_floodedness"),
+            1.0,
+            0.67,
+        ),
+        fluid_level_spread: Df::noise(
+            rl!("minecraft:aquifer_fluid_level_spread"),
+            1.0,
+            0.7142857142857143,
+        ),
+        lava: Df::noise(rl!("minecraft:aquifer_lava"), 1.0, 1.0),
         surface_level: surface_level.clone(),
     };
     NoiseGeneratorSettings {
@@ -95,9 +104,9 @@ fn overworld(climate: &Climate, terrain: &str) -> NoiseGeneratorSettings {
 fn nether() -> NoiseGeneratorSettings {
     let bounds = NoiseSettings::new(0, 128);
     let router = RouterFunctions {
-        temperature: Df::noise("nether/temperature", 0.25, 0.0),
-        vegetation: Df::noise("nether/vegetation", 0.25, 0.0),
-        ..RouterFunctions::of_density(full_noise(slide_nether_like(bounds), 4, 8))
+        temperature: Df::noise(rl!("minecraft:nether/temperature"), 0.25, 0.0),
+        vegetation: Df::noise(rl!("minecraft:nether/vegetation"), 0.25, 0.0),
+        ..RouterFunctions::of_density(full_noise(slide_nether_like(bounds), CELL_4, CELL_8))
     };
     NoiseGeneratorSettings {
         legacy_random_source: true,
@@ -121,7 +130,7 @@ fn end() -> NoiseGeneratorSettings {
     let slide = slide_end_like(Df::reference(SLOPED_CHEESE_END), bounds);
     let router = RouterFunctions {
         erosion: Df::reference(END_ISLANDS),
-        ..RouterFunctions::of_density(full_noise(slide, 8, 4))
+        ..RouterFunctions::of_density(full_noise(slide, CELL_8, CELL_4))
     };
     NoiseGeneratorSettings {
         disable_mob_generation: true,
@@ -143,8 +152,8 @@ fn end() -> NoiseGeneratorSettings {
 fn density_only(
     bounds: NoiseSettings,
     slide: Df,
-    cell_size_xz: u32,
-    cell_size_y: u32,
+    cell_size_xz: NonZeroU32,
+    cell_size_y: NonZeroU32,
     material_rule: StaticResourceLocation,
     sea_level: i32,
 ) -> NoiseGeneratorSettings {
@@ -167,8 +176,8 @@ fn caves() -> NoiseGeneratorSettings {
     density_only(
         bounds,
         slide_nether_like(bounds),
-        4,
-        8,
+        CELL_4,
+        CELL_8,
         rl!("minecraft:overworld_caves"),
         32,
     )
@@ -180,8 +189,8 @@ fn floating_islands() -> NoiseGeneratorSettings {
     density_only(
         bounds,
         slide,
-        8,
-        4,
+        CELL_8,
+        CELL_4,
         rl!("minecraft:overworld_floating_islands"),
         -64,
     )
@@ -190,14 +199,17 @@ fn floating_islands() -> NoiseGeneratorSettings {
 pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
     BTreeMap::from(
         [
-            (rl!("minecraft:overworld"), overworld(&CLIMATE, "overworld")),
+            (
+                rl!("minecraft:overworld"),
+                overworld(&CLIMATE, &OVERWORLD_TERRAIN),
+            ),
             (
                 rl!("minecraft:large_biomes"),
-                overworld(&LARGE_BIOMES_CLIMATE, "overworld_large_biomes"),
+                overworld(&LARGE_BIOMES_CLIMATE, &LARGE_BIOMES_TERRAIN),
             ),
             (
                 rl!("minecraft:amplified"),
-                overworld(&CLIMATE, "overworld_amplified"),
+                overworld(&CLIMATE, &AMPLIFIED_TERRAIN),
             ),
             (rl!("minecraft:nether"), nether()),
             (rl!("minecraft:end"), end()),

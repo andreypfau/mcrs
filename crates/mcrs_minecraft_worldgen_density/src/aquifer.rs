@@ -278,7 +278,10 @@ impl<'a> FluidField<'a> {
             (z >> 2) - self.surface_min_quart.1,
         );
         debug_assert!(qx >= 0 && qx < self.surface_quarts_x && qz >= 0);
-        self.surface[(qz * self.surface_quarts_x + qx) as usize]
+        self.surface
+            .get((qz * self.surface_quarts_x + qx) as usize)
+            .copied()
+            .unwrap_or_default()
     }
 
     #[inline]
@@ -290,15 +293,19 @@ impl<'a> FluidField<'a> {
         let mut out = [0.0f32];
         self.program
             .fill(&mut self.ws, &SampleGrid::point(at), root, &mut out);
-        out[0]
+        let [value] = out;
+        value
     }
 
     fn status(&mut self, index: usize) -> FluidStatus {
-        if let Some(status) = self.status[index] {
+        if let Some(&Some(status)) = self.status.get(index) {
             return status;
         }
-        let status = self.compute_status(self.centres[index]);
-        self.status[index] = Some(status);
+        let centre = self.centres.get(index).copied().unwrap_or_default();
+        let status = self.compute_status(centre);
+        if let Some(slot) = self.status.get_mut(index) {
+            *slot = Some(status);
+        }
         status
     }
 
@@ -343,7 +350,9 @@ impl<'a> FluidField<'a> {
         lowest_surface: i32,
         under_global_fluid: bool,
     ) -> i32 {
-        let config = self.config.expect("statuses exist only with a field");
+        let Some(config) = self.config else {
+            return global.level;
+        };
         let (exclusion, floodedness, spread) =
             (config.exclusion, config.floodedness, config.spread);
         let (partially, fully) = if f64::from(self.sample(exclusion, centre)) > 0.0 {
@@ -381,7 +390,10 @@ impl<'a> FluidField<'a> {
         if level > -10 || level == WAY_BELOW_MIN_Y || global.fluid == self.lava {
             return global.fluid;
         }
-        let root = self.config.expect("statuses exist only with a field").lava;
+        let Some(config) = self.config else {
+            return global.fluid;
+        };
+        let root = config.lava;
         let at = IVec3::new(
             floor_div(centre.x, 64),
             floor_div(centre.y, 40),
@@ -405,7 +417,10 @@ impl<'a> FluidField<'a> {
             for dy in -1..=1 {
                 for dz in 0..=1 {
                     let cell = self.cell_index(anchor + IVec3::new(dx, dy, dz));
-                    let d = self.centres[cell] - IVec3::new(x, y, z);
+                    let Some(&centre) = self.centres.get(cell) else {
+                        continue;
+                    };
+                    let d = centre - IVec3::new(x, y, z);
                     let new = d.x * d.x + d.y * d.y + d.z * d.z;
                     if distance[0] >= new {
                         index = [cell, index[0], index[1]];
@@ -535,7 +550,7 @@ impl<'a> FluidField<'a> {
             anchor - self.min_grid - IVec3::Y,
             self.grid_size - IVec3::new(1, 2, 1),
         );
-        if let Some(volume) = self.volumes[slot] {
+        if let Some(&Some(volume)) = self.volumes.get(slot) {
             return volume;
         }
         let mut fold: Option<Window> = None;
@@ -548,8 +563,12 @@ impl<'a> FluidField<'a> {
                 }
             }
         }
-        let volume = fold.expect("a volume covers twelve cells");
-        self.volumes[slot] = Some(volume);
+        let Some(volume) = fold else {
+            return Window::of(self.global.sea);
+        };
+        if let Some(slot) = self.volumes.get_mut(slot) {
+            *slot = Some(volume);
+        }
         volume
     }
 
@@ -580,9 +599,9 @@ impl<'a> FluidField<'a> {
         }
     }
 
-    fn margins(&self) -> (i32, i32) {
-        let config = self.config.expect("margins settle nothing without a field");
-        (config.margin_above, config.margin_below)
+    fn margins(&self) -> Option<(i32, i32)> {
+        let config = self.config?;
+        Some((config.margin_above, config.margin_below))
     }
 
     /// One status answering every block of `[min, max]`, both inclusive, for a
@@ -613,11 +632,11 @@ impl<'a> FluidField<'a> {
                 }
             }
         }
-        let volume = fold.expect("a box anchors to at least one volume");
+        let volume = fold?;
         if let Some(status) = volume.uniform() {
             return Some(status);
         }
-        let (margin_above, margin_below) = self.margins();
+        let (margin_above, margin_below) = self.margins()?;
         if min.y >= volume.lmax.saturating_add(margin_above) {
             return Some(FluidStatus {
                 level: min.y,
@@ -644,12 +663,15 @@ pub fn point_barrier<'a>(
 ) -> impl FnMut(i32, i32, i32) -> f64 + 'a {
     let root = router.aquifer.as_ref().map(|aquifer| aquifer.barrier);
     move |x, y, z| {
-        let root = root.expect("only a field with a barrier asks for it");
+        let Some(root) = root else {
+            return 0.0;
+        };
         let mut out = [0.0f32];
         router
             .program
             .fill(ws, &SampleGrid::point(IVec3::new(x, y, z)), root, &mut out);
-        f64::from(out[0])
+        let [value] = out;
+        f64::from(value)
     }
 }
 

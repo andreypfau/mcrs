@@ -128,8 +128,9 @@ impl Validate for IntervalSelectArguments {
         // below 0.0. A plain `<` on the payload would accept `[0.0, -0.0]`.
         let out_of_order = self
             .thresholds
-            .windows(2)
-            .any(|w| (w[0].0 as f32).total_cmp(&(w[1].0 as f32)).is_gt());
+            .iter()
+            .zip(self.thresholds.iter().skip(1))
+            .any(|(a, b)| (a.0 as f32).total_cmp(&(b.0 as f32)).is_gt());
         if out_of_order {
             return Err("Threshold values must be ordered from smallest to largest".to_string());
         }
