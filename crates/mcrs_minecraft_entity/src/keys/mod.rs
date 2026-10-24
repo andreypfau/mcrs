@@ -12,6 +12,9 @@ pub mod entity_type_tags;
 pub mod frog_variant;
 pub mod pig_sound_variant;
 pub mod pig_variant;
+pub mod spawn_condition_type;
+pub mod structure;
+pub mod structure_tags;
 pub mod villager_profession;
 pub mod villager_type;
 pub mod wolf_sound_variant;
@@ -20,6 +23,7 @@ pub mod zombie_nautilus_variant;
 
 pub use attribute::Attribute;
 pub use entity_type::EntityType;
+pub use spawn_condition_type::SpawnConditionType;
 pub use villager_profession::VillagerProfession;
 pub use villager_type::VillagerType;
 
@@ -91,6 +95,12 @@ impl Registered for crate::variant::PigVariant {
     const REGISTRY: RegistryKey<Self> = PIG_VARIANT;
 }
 
+pub const SPAWN_CONDITION_TYPE: RegistryKey<crate::keys::SpawnConditionType> =
+    RegistryKey::new(rl!("minecraft:spawn_condition_type"));
+impl Registered for crate::keys::SpawnConditionType {
+    const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
+}
+
 pub const VILLAGER_PROFESSION: RegistryKey<crate::keys::VillagerProfession> =
     RegistryKey::new(rl!("minecraft:villager_profession"));
 impl Registered for crate::keys::VillagerProfession {
@@ -113,6 +123,12 @@ pub const WOLF_VARIANT: RegistryKey<crate::variant::WolfVariant> =
     RegistryKey::new(rl!("minecraft:wolf_variant"));
 impl Registered for crate::variant::WolfVariant {
     const REGISTRY: RegistryKey<Self> = WOLF_VARIANT;
+}
+
+pub const STRUCTURE: RegistryKey<crate::spawn_condition::Structure> =
+    RegistryKey::new(rl!("minecraft:worldgen/structure"));
+impl Registered for crate::spawn_condition::Structure {
+    const REGISTRY: RegistryKey<Self> = STRUCTURE;
 }
 
 pub const ZOMBIE_NAUTILUS_VARIANT: RegistryKey<crate::variant::ZombieNautilusVariant> =

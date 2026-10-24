@@ -9,7 +9,7 @@ use mcrs_minecraft_entity::variant::{
 use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 
-pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
+pub use mcrs_minecraft_entity::spawn_condition::SpawnSelector;
 
 macro_rules! spawning_variant {
     (

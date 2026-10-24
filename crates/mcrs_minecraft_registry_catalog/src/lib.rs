@@ -336,8 +336,8 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
         mcrs_minecraft_environment::keys::TestInstanceType::ENTRIES,
     ),
     (
-        mcrs_minecraft_worldgen_structure::keys::SPAWN_CONDITION_TYPE.location(),
-        mcrs_minecraft_worldgen_structure::keys::SpawnConditionType::ENTRIES,
+        mcrs_minecraft_entity::keys::SPAWN_CONDITION_TYPE.location(),
+        mcrs_minecraft_entity::keys::SpawnConditionType::ENTRIES,
     ),
     (
         mcrs_minecraft_item::keys::DIALOG_TYPE.location(),

@@ -132,7 +132,7 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
 fn structure_id_set(
     inputs: &StructureInputs<'_>,
     frozen: &FrozenStructures,
-    keys: &KeySet<Structure>,
+    keys: &KeySet<mcrs_minecraft_entity::spawn_condition::Structure>,
 ) -> Result<IdSet, String> {
     let (set, tags) = resolved(inputs.registries, keys)?;
     let mut mask = FixedBitSet::with_capacity(frozen.structures.len());

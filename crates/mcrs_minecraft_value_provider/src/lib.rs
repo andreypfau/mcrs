@@ -3,6 +3,7 @@
     expect(clippy::disallowed_types, reason = "test input is written as JSON")
 )]
 
+pub mod bounds;
 #[rustfmt::skip]
 pub mod keys;
 

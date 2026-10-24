@@ -5,35 +5,9 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolved, dispatch, registry_value};
-use serde::{Deserialize, Serialize};
+use mcrs_minecraft_registries::{KeySet, Named};
 
-/// One `spawn_conditions` entry of a variant asset: a priority, and a
-/// condition that an absent field leaves always true.
-#[registry_value]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpawnSelector<M: Refs = Resolved> {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub condition: Option<SpawnCondition<M>>,
-    pub priority: i32,
-}
-
-#[registry_value]
-#[dispatch(registry = crate::keys::SpawnConditionType)]
-#[derive(Debug, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub enum SpawnCondition<M: Refs = Resolved> {
-    Structure {
-        structures: M::Set<crate::Structure>,
-    },
-    Biome {
-        biomes: M::Set<mcrs_minecraft_biome::Biome>,
-    },
-    MoonBrightness {
-        range: MinMaxBounds<f64>,
-    },
-}
+pub use mcrs_minecraft_entity::spawn_condition::{SpawnCondition, SpawnSelector};
 
 /// The ids a resolved holder set names, over a registry's index.
 pub type IdSet = Arc<FixedBitSet>;
@@ -87,7 +61,9 @@ impl VariantTable {
     /// set into the id set a condition tests.
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector<Named>])>,
-        structures: &dyn Fn(&KeySet<crate::Structure>) -> Result<IdSet, String>,
+        structures: &dyn Fn(
+            &KeySet<mcrs_minecraft_entity::spawn_condition::Structure>,
+        ) -> Result<IdSet, String>,
         biomes: &dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();

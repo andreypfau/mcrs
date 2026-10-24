@@ -228,8 +228,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/structure",
-        krate: "mcrs_minecraft_worldgen_structure",
-        value: ValueType::Defined("crate::Structure"),
+        krate: "mcrs_minecraft_entity",
+        value: ValueType::Defined("crate::spawn_condition::Structure"),
     },
     Owner {
         registry: "minecraft:worldgen/structure_set",
@@ -358,7 +358,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:spawn_condition_type",
-        krate: "mcrs_minecraft_worldgen_structure",
+        krate: "mcrs_minecraft_entity",
         value: ValueType::Enum("SpawnConditionType"),
     },
     Owner {

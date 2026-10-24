@@ -191,6 +191,10 @@ pub enum Structure {
     },
 }
 
+impl mcrs_minecraft_core::RegistryValue for Structure {
+    type Registry = mcrs_minecraft_entity::spawn_condition::Structure;
+}
+
 impl Structure {
     pub fn settings(&self) -> &StructureSettings {
         match self {
