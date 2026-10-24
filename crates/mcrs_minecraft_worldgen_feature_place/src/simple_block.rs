@@ -2,8 +2,9 @@ use crate::holds;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_simulation::{PendingTick, TickPriority};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
 use std::sync::Arc;
@@ -42,11 +43,36 @@ impl DoublePlant {
 pub struct CompiledSimpleBlock {
     pub to_place: StateProvider,
     pub tables: Arc<BlockTables>,
+    /// Whether the block placed gets a tick one game tick after the column loads, so a
+    /// state that depends on the time settles then.
+    pub schedule_tick: bool,
 }
 
 /// `SimpleBlockFeature.place`: one state from the provider, refused when it
 /// could not survive, and a second block for the upper half of a double plant.
 pub fn place_simple_block<W: WorldGenVolume>(
+    cfg: &CompiledSimpleBlock,
+    volume: &mut W,
+    rng: &mut WorldgenRandom,
+    at: BlockPos,
+) -> bool {
+    if !place_state(cfg, volume, rng, at) {
+        return false;
+    }
+    if cfg.schedule_tick
+        && let Some(block) = BlockStateId::checked(volume.get(at).0, volume.world().state_count.0)
+    {
+        let _ = volume.schedule_tick(PendingTick::Block {
+            pos: at,
+            block,
+            delay: 1,
+            priority: TickPriority::Normal,
+        });
+    }
+    true
+}
+
+fn place_state<W: WorldGenVolume>(
     cfg: &CompiledSimpleBlock,
     volume: &mut W,
     rng: &mut WorldgenRandom,
@@ -128,6 +154,7 @@ mod tests {
     fn config(to_place: StateProvider) -> CompiledSimpleBlock {
         CompiledSimpleBlock {
             to_place,
+            schedule_tick: false,
             tables: Arc::new(BlockTables {
                 double_plants: [TALL, TALL_WET_LOWER]
                     .into_iter()

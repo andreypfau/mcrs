@@ -22,6 +22,8 @@ use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_simulation::PendingTick;
+use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
@@ -242,6 +244,11 @@ pub(crate) fn carried_sections(
         .collect()
 }
 
+/// The ticks generation scheduled in a section, in the order it asked, held for the
+/// simulation that runs the section.
+#[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
+pub struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
+
 /// Squared XZ (column) distance from a chunk to the nearest player.
 pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
     if players.is_empty() {
@@ -413,12 +420,13 @@ pub(crate) fn deliver_merged_columns(
             .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
             .collect();
         sections_data.sort_by_key(|(_, pos)| pos.y);
-        let Some((carried, maps, source)) = scheduler.store.merged(col).map(|merged| {
+        let Some((carried, maps, source, ticks)) = scheduler.store.merged(col).map(|merged| {
             let bottom = merged.y_sections.first().copied().unwrap_or(0);
             (
                 carried_sections(&sections_data, &merged.sections, bottom),
                 merged.maps.clone(),
                 merged.source,
+                merged.ticks.clone(),
             )
         }) else {
             scheduler.store.forget(col);
@@ -464,12 +472,19 @@ pub(crate) fn deliver_merged_columns(
             pending_heightmaps.0.insert(col, maps);
         }
 
-        for (entity, _pos, section) in carried {
+        for (entity, pos, section) in carried {
             match (section, states) {
                 (Some((blocks, biomes)), Some(states)) => {
-                    commands
-                        .entity(entity)
-                        .try_insert((ChunkBlocks::new(section_states(&blocks, states)), biomes));
+                    let held: Vec<_> = ticks
+                        .iter()
+                        .filter(|tick| SectionPos::from(tick.pos()) == pos)
+                        .copied()
+                        .collect();
+                    let mut section = commands.entity(entity);
+                    section.try_insert((ChunkBlocks::new(section_states(&blocks, states)), biomes));
+                    if !held.is_empty() {
+                        section.try_insert(GeneratedTicks(held));
+                    }
                     // One cancelled while it generated keeps the blocks for a ticket that
                     // takes it back, but stays on its way out.
                     if stages.get(entity) == Some(SectionStage::Generating) {

@@ -1,8 +1,10 @@
 use crate::holds;
 use bevy_math::IVec3;
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_simulation::{PendingTick, TickPriority};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 /// `west`, `east`, `north`, `south`, `below` — the order both counts walk.
@@ -53,11 +55,23 @@ pub fn place_spring<W: WorldGenVolume>(
     {
         return false;
     }
-    // chisle: the delay-0 fluid tick of the placed fluid's type is not
-    // scheduled, because generation keeps no pending tick list and nothing ticks
-    // one; a column-held generation tick list, saved as `fluid_ticks` with
-    // `t: 0`, lifts this.
     volume.set(at, config.state);
+    let world = volume.world();
+    let fluid = if holds(&world.water_fluid, config.state) {
+        Some(Fluid::Water)
+    } else if holds(&world.lava_fluid, config.state) {
+        Some(Fluid::Lava)
+    } else {
+        None
+    };
+    if let Some(fluid) = fluid {
+        let _ = volume.schedule_tick(PendingTick::Fluid {
+            pos: at,
+            fluid,
+            delay: 0,
+            priority: TickPriority::Normal,
+        });
+    }
     true
 }
 
@@ -124,5 +138,26 @@ mod tests {
         let before = rng.clone();
         place_spring(&config(5, 0), &mut volume, &mut rng, ORIGIN);
         assert_eq!(rng, before, "a spring spends no draw");
+    }
+
+    #[test]
+    fn a_placed_spring_asks_for_a_tick_of_its_fluid_at_once() {
+        let mut volume = encased();
+        volume.world.lava_fluid = mask_of([LAVA]);
+        assert!(place_spring(
+            &config(5, 0),
+            &mut volume,
+            &mut WorldgenRandom::new(1),
+            ORIGIN
+        ));
+        assert_eq!(
+            volume.ticks,
+            [PendingTick::Fluid {
+                pos: ORIGIN,
+                fluid: Fluid::Lava,
+                delay: 0,
+                priority: TickPriority::Normal,
+            }]
+        );
     }
 }

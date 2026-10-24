@@ -385,7 +385,7 @@ pub(crate) mod fake {
     use mcrs_minecraft_volume::{
         Access, BiomeVolume, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
     };
-    use mcrs_minecraft_worldgen_feature::placer::WorldStates;
+    use mcrs_minecraft_worldgen_feature::placer::{GenerationKinds, WorldStates};
 
     use super::*;
 
@@ -398,6 +398,7 @@ pub(crate) mod fake {
         pub blocks: HashMap<(i32, i32, i32), VoxelId>,
         pub heights: HashMap<(i32, i32), i32>,
         pub writes: Vec<((i32, i32, i32), VoxelId)>,
+        pub ticks: Vec<mcrs_minecraft_simulation::PendingTick<GenerationKinds>>,
         pub world: WorldStates,
     }
 
@@ -409,6 +410,7 @@ pub(crate) mod fake {
                 blocks: HashMap::default(),
                 heights: HashMap::default(),
                 writes: Vec::new(),
+                ticks: Vec::new(),
                 world: WorldStates {
                     air: AIR,
                     air_states: Arc::new(air_states),
@@ -470,6 +472,16 @@ pub(crate) mod fake {
     impl BiomeVolume for FakeVolume {
         fn biome_at(&self, _: BlockPos) -> Result<u16, Unavailable> {
             Ok(0)
+        }
+    }
+
+    impl mcrs_minecraft_simulation::ScheduleTicks<GenerationKinds> for FakeVolume {
+        fn schedule_tick(
+            &mut self,
+            tick: mcrs_minecraft_simulation::PendingTick<GenerationKinds>,
+        ) -> Result<(), mcrs_minecraft_volume::Denied> {
+            self.ticks.push(tick);
+            Ok(())
         }
     }
 

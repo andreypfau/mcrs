@@ -325,6 +325,7 @@ pub fn flat_snapshot(
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
         entities: Vec::new(),
+        ticks: Vec::new(),
     }
 }
 

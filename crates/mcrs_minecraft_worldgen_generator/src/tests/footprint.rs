@@ -146,3 +146,33 @@ fn a_rewrite_answers_the_earlier_write() {
         assert_eq!(region.block(at), Ok(second), "{at}");
     }
 }
+
+/// A tick travels in the delta of the column that holds it; one past the ring is refused.
+#[test]
+fn a_tick_goes_to_the_column_it_falls_in() {
+    use mcrs_minecraft_block::keys::Fluid;
+    use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks, TickPriority};
+
+    let snapshots = empty_region();
+    let blocks = ColumnBlocks::new(&Y_SECTIONS);
+    let ctx = bare_fill_context(build_beta_router());
+    let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
+    let tick = |pos| PendingTick::Fluid {
+        pos,
+        fluid: Fluid::Water,
+        delay: 0,
+        priority: TickPriority::Normal,
+    };
+    let east = BlockPos::new(20, 8, 3);
+    assert_eq!(region.schedule_tick(tick(east)), Ok(()));
+    assert_eq!(
+        region.schedule_tick(tick(BlockPos::new(32, 8, 0))),
+        Err(Denied::Outside)
+    );
+
+    let deltas = region.finish();
+    assert_eq!(deltas.len(), 1);
+    let (col, delta) = &deltas[0];
+    assert_eq!(*col, ColumnPos::new(1, 0));
+    assert_eq!(delta.ticks, [tick(east)]);
+}

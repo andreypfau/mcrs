@@ -1365,22 +1365,11 @@ fn compile_generator(
         Feature::SimpleBlock {
             to_place,
             schedule_tick,
-        } => {
-            if *schedule_tick {
-                // The reference schedules a block tick so the state settles on
-                // the tick after generation — an eyeblossom opens or closes
-                // with the day. Nothing here schedules, so it stays as it went
-                // in. Named rather than dropped, so the gap is one grep away.
-                tracing::warn!(
-                    to_place = ?to_place,
-                    "a simple_block asks for a scheduled tick and this build has no block tick scheduler; the state is left as placed"
-                );
-            }
-            Generator::SimpleBlock(Box::new(CompiledSimpleBlock {
-                to_place: compile_provider(to_place, resolver)?,
-                tables: resolver.tables.clone(),
-            }))
-        }
+        } => Generator::SimpleBlock(Box::new(CompiledSimpleBlock {
+            to_place: compile_provider(to_place, resolver)?,
+            tables: resolver.tables.clone(),
+            schedule_tick: *schedule_tick,
+        })),
         Feature::BlockColumn {
             layers,
             direction,

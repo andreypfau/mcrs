@@ -8,7 +8,9 @@ use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_simulation::{Kinds, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{BiomeVolume, BlockVolumeMut, HeightVolume};
 
@@ -28,7 +30,18 @@ pub use states::{BlockLayout, PropertyLayout, StateCount, WorldStates, with_digi
 /// beyond the blocks themselves.
 ///
 /// World-absolute coordinates throughout.
-pub trait WorldGenVolume: BlockVolumeMut + HeightVolume + BiomeVolume {
+/// What generation schedules a tick for: a block, named by the state it placed, and a fluid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GenerationKinds;
+
+impl Kinds for GenerationKinds {
+    type Block = BlockStateId;
+    type Fluid = Fluid;
+}
+
+pub trait WorldGenVolume:
+    BlockVolumeMut + HeightVolume + BiomeVolume + ScheduleTicks<GenerationKinds>
+{
     fn world(&self) -> &WorldStates;
 
     /// Generation reads a block it cannot reach as air.

@@ -26,6 +26,7 @@ mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_volume.workspace = true
+mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_noise.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true

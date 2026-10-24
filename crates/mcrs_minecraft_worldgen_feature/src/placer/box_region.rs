@@ -8,7 +8,10 @@ use mcrs_minecraft_volume::{
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
 
-use super::{StateCount, WorldGenVolume, WorldStates};
+use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
+use mcrs_minecraft_volume::Denied;
+
+use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates};
 
 fn test_state(voxel: VoxelId) -> BlockStateId {
     BlockStateId::checked(voxel.0, StateCount::default().0).expect("a test world has no table")
@@ -26,6 +29,7 @@ pub struct BoxRegion {
     pub biome: u16,
     pub height: HeightFn,
     pub writes: Vec<(BlockPos, VoxelId)>,
+    pub ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl BoxRegion {
@@ -44,6 +48,7 @@ impl BoxRegion {
             biome: 0,
             height: Box::new(move |_, _, _, _| max.y + 1),
             writes: Vec::new(),
+            ticks: Vec::new(),
         }
     }
 
@@ -116,6 +121,16 @@ impl HeightVolume for BoxRegion {
 impl BiomeVolume for BoxRegion {
     fn biome_at(&self, _: BlockPos) -> Result<u16, Unavailable> {
         Ok(self.biome)
+    }
+}
+
+impl ScheduleTicks<GenerationKinds> for BoxRegion {
+    fn schedule_tick(&mut self, tick: PendingTick<GenerationKinds>) -> Result<(), Denied> {
+        if !self.contains(tick.pos()) {
+            return Err(Denied::Outside);
+        }
+        self.ticks.push(tick);
+        Ok(())
     }
 }
 

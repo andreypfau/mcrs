@@ -32,6 +32,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_volume.workspace = true
+mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_world = { workspace = true, optional = true }
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast", "bevy"] }

@@ -711,6 +711,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
                     bees: vec![BeeOccupant::bee(11)],
                 }],
                 entities: Vec::new(),
+                ticks: Vec::new(),
             }),
         );
         scheduler.store.set_stage(col, Stage::Merged(0));

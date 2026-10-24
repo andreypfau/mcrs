@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_simulation::PendingTick;
+use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use rustc_hash::FxHashMap;
@@ -85,6 +87,8 @@ pub struct ColumnDelta {
     pub block_entities: Vec<GeneratedBlockEntity>,
     /// The entities spawned into this column, delivered the same way.
     pub entities: Vec<GeneratedEntity>,
+    /// The ticks scheduled into this column, delivered the same way.
+    pub ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 /// A column at rest: filled, which the first rung of every run in its 3×3 reads
@@ -105,6 +109,9 @@ pub struct FilledSnapshot {
     /// What the merged deltas spawned; nothing is saved yet, so a column read
     /// off the save has none.
     pub entities: Vec<GeneratedEntity>,
+    /// What the merged deltas scheduled, in rank order, for the simulation that runs
+    /// the column.
+    pub ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl FilledSnapshot {
@@ -390,6 +397,7 @@ mod tests {
             source: ColumnSource::Generated,
             block_entities: Vec::new(),
             entities: Vec::new(),
+            ticks: Vec::new(),
         }
     }
 
@@ -471,6 +479,7 @@ mod tests {
                     writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(7))],
                     block_entities: Vec::new(),
                     entities: Vec::new(),
+                    ticks: Vec::new(),
                 },
             );
         }
@@ -489,6 +498,7 @@ mod tests {
                 writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(9))],
                 block_entities: Vec::new(),
                 entities: Vec::new(),
+                ticks: Vec::new(),
             },
         );
         assert_eq!(

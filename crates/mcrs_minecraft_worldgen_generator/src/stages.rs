@@ -13,14 +13,16 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{
-    Access, BiomeVolume, ColumnLayout, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
+    Access, BiomeVolume, ColumnLayout, Denied, HeightVolume, Unavailable, Volume, VoxelStore,
+    VoxelStoreMut,
 };
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
-    PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
+    GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
@@ -308,6 +310,7 @@ pub fn fill_column(
             source: ColumnSource::Saved,
             block_entities,
             entities: Vec::new(),
+            ticks: Vec::new(),
         });
     }
 
@@ -434,6 +437,7 @@ fn pack(
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
         entities: Vec::new(),
+        ticks: Vec::new(),
     }
 }
 
@@ -459,6 +463,8 @@ pub struct ColumnRegion<'a> {
     block_entities: Vec<GeneratedBlockEntity>,
     /// What the generators spawned, routed the same way by position.
     entities: Vec<GeneratedEntity>,
+    /// The ticks the generators asked for, routed the same way by position.
+    ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl<'a> ColumnRegion<'a> {
@@ -485,6 +491,7 @@ impl<'a> ColumnRegion<'a> {
             ring: Default::default(),
             block_entities: Vec::new(),
             entities: Vec::new(),
+            ticks: Vec::new(),
         }
     }
 
@@ -579,20 +586,33 @@ impl<'a> ColumnRegion<'a> {
                 ),
             }
         }
+        let mut ticks: [Vec<PendingTick<GenerationKinds>>; 9] = Default::default();
+        for tick in self.ticks {
+            let at = tick.pos();
+            let col = ColumnPos::new(at.x.div_euclid(16), at.z.div_euclid(16));
+            if let Some(slot) = region_slot(self.center, col) {
+                ticks[slot].push(tick);
+            }
+        }
         writes
             .into_iter()
             .zip(block_entities)
             .zip(entities)
+            .zip(ticks)
             .enumerate()
-            .filter(|(_, ((writes, block_entities), entities))| {
-                !writes.is_empty() || !block_entities.is_empty() || !entities.is_empty()
+            .filter(|(_, (((writes, block_entities), entities), ticks))| {
+                !writes.is_empty()
+                    || !block_entities.is_empty()
+                    || !entities.is_empty()
+                    || !ticks.is_empty()
             })
-            .map(|(slot, ((writes, block_entities), entities))| {
+            .map(|(slot, (((writes, block_entities), entities), ticks))| {
                 let delta = ColumnDelta {
                     source_rank,
                     writes,
                     block_entities,
                     entities,
+                    ticks,
                 };
                 (region_column(self.center, slot), delta)
             })
@@ -725,6 +745,15 @@ impl HeightVolume for ColumnRegion<'_> {
 impl BiomeVolume for ColumnRegion<'_> {
     fn biome_at(&self, p: BlockPos) -> Result<u16, Unavailable> {
         self.stored_biome(p)
+    }
+}
+
+impl ScheduleTicks<GenerationKinds> for ColumnRegion<'_> {
+    fn schedule_tick(&mut self, tick: PendingTick<GenerationKinds>) -> Result<(), Denied> {
+        let at = tick.pos();
+        self.access(SectionPos::from(at)).check_write()?;
+        self.ticks.push(tick);
+        Ok(())
     }
 }
 
@@ -866,6 +895,12 @@ pub fn merge_column(
         source: snapshot.source,
         block_entities: Vec::new(),
         entities: Vec::new(),
+        ticks: snapshot
+            .ticks
+            .iter()
+            .chain(deltas.iter().flat_map(|delta| delta.ticks.iter()))
+            .copied()
+            .collect(),
     };
     if deltas.iter().any(|delta| !delta.writes.is_empty()) {
         for &(cell, state) in deltas.iter().flat_map(|delta| &delta.writes) {
@@ -1096,6 +1131,7 @@ mod tests {
                 writes: Vec::new(),
                 block_entities: Vec::new(),
                 entities: of(west).entities.clone(),
+                ticks: Vec::new(),
             })],
             None,
             None,
@@ -1127,6 +1163,7 @@ mod tests {
                     writes: vec![(cell, VoxelId(rank as u16 * 10))],
                     block_entities: Vec::new(),
                     entities: Vec::new(),
+                    ticks: Vec::new(),
                 },
             );
         }
@@ -1170,6 +1207,7 @@ mod tests {
                 0,
             )],
             entities: Vec::new(),
+            ticks: Vec::new(),
         });
         let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None, None);
         assert_eq!(
@@ -1270,6 +1308,7 @@ mod tests {
             writes: vec![(cell, chest)],
             block_entities: vec![entity(1)],
             entities: Vec::new(),
+            ticks: Vec::new(),
         });
         let has_block_entity = mcrs_minecraft_worldgen_feature::placer::mask_of([chest.0]);
 
@@ -1286,6 +1325,7 @@ mod tests {
             writes: vec![(cell, chest)],
             block_entities: vec![entity(2)],
             entities: Vec::new(),
+            ticks: Vec::new(),
         });
         let merged = merge_column(
             &snapshot,
@@ -1304,6 +1344,7 @@ mod tests {
             writes: vec![(cell, stone)],
             block_entities: Vec::new(),
             entities: Vec::new(),
+            ticks: Vec::new(),
         });
         let merged = merge_column(&snapshot, &[placed, buried], None, Some(&has_block_entity));
         assert!(
