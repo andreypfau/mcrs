@@ -42,10 +42,13 @@ pub struct Emitter {
 
 pub fn pack(bricks: &SectionBricks) -> PackedBrick {
     let mut emitters: Vec<Emitter> = Vec::new();
-    let words = (0..SectionPos::VOLUME)
-        .map(|local| {
-            let (entry, veto, seed) =
-                (bricks.entry[local], bricks.veto[local], bricks.seeds[local]);
+    let words = bricks
+        .entry
+        .iter()
+        .zip(&bricks.veto)
+        .zip(&bricks.seeds)
+        .enumerate()
+        .map(|(local, ((&entry, &veto), &seed))| {
             assert!(entry <= 15, "entering a cell costs {entry}, past four bits");
             if seed.emission > 0 {
                 let at = [local & 15, local >> 8, local >> 4 & 15].map(|c| c as u8);
@@ -54,9 +57,9 @@ pub fn pack(bricks: &SectionBricks) -> PackedBrick {
                     .find(|e| e.light_type == seed.light_type && e.level == seed.emission);
                 match found {
                     Some(e) => {
-                        for axis in 0..3 {
-                            e.min[axis] = e.min[axis].min(at[axis]);
-                            e.max[axis] = e.max[axis].max(at[axis]);
+                        for ((min, max), at) in e.min.iter_mut().zip(&mut e.max).zip(at) {
+                            *min = (*min).min(at);
+                            *max = (*max).max(at);
                         }
                     }
                     None => emitters.push(Emitter {
@@ -105,11 +108,15 @@ pub fn reaching_types<'a>(
                 .into_iter()
                 .flatten()
                 .filter(move |e| {
-                    let gap: i32 = (0..3)
-                        .map(|axis| {
-                            let lo = base[axis] + e.min[axis] as i32;
-                            let hi = base[axis] + e.max[axis] as i32;
-                            (lo - high[axis]).max(low[axis] - hi).max(0)
+                    let gap: i32 = base
+                        .into_iter()
+                        .zip(e.min)
+                        .zip(e.max)
+                        .zip(low.into_iter().zip(high))
+                        .map(|(((base, min), max), (low, high))| {
+                            let lo = base + min as i32;
+                            let hi = base + max as i32;
+                            (lo - high).max(low - hi).max(0)
                         })
                         .sum();
                     gap < e.level as i32
@@ -171,10 +178,13 @@ pub fn job_words(
     words[SLOTS..LANE_TABLE].copy_from_slice(&slots);
     let mut table = [0xffu8; 256];
     for (lane, l) in lanes.iter().enumerate() {
-        table[l.light_type.0 as usize] = lane as u8;
+        if let Some(slot) = table.get_mut(l.light_type.0 as usize) {
+            *slot = lane as u8;
+        }
     }
-    for (word, bytes) in words[LANE_TABLE..COLOURS].iter_mut().zip(table.chunks(4)) {
-        *word = u32::from_le_bytes(bytes.try_into().unwrap());
+    let (table, _) = table.as_chunks::<4>();
+    for (word, bytes) in words[LANE_TABLE..COLOURS].iter_mut().zip(table) {
+        *word = u32::from_le_bytes(*bytes);
     }
     for (word, lane) in words[COLOURS..].iter_mut().zip(lanes) {
         *word = lane.colour.map_or(0, |[r, g, b]| {

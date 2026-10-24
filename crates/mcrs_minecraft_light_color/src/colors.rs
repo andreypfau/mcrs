@@ -161,20 +161,25 @@ mod load {
                     let members = members(entry, blocks, tags, &path)?;
                     check_predicate(entry, &members, &path)?;
                     let claimant = claimants.len();
-                    claimants.push(format!("`{entry}` in `{path}`"));
+                    let name = format!("`{entry}` in `{path}`");
                     let mut emits = false;
                     for block in members {
                         for id in states(block).filter(|&id| matches(block, id, entry)) {
                             let slot = id.index();
-                            if let Some(first) = claimed_by[slot] {
+                            let (Some(claim), Some(state_type)) =
+                                (claimed_by.get_mut(slot), types.get_mut(slot))
+                            else {
+                                continue;
+                            };
+                            if let Some(first) = *claim {
                                 return Err(LightColorError::TwoColours {
                                     state: describe(block, id),
-                                    first: claimants[first].clone(),
-                                    second: claimants[claimant].clone(),
+                                    first: claimants.get(first).cloned().unwrap_or_default(),
+                                    second: name,
                                 });
                             }
-                            claimed_by[slot] = Some(claimant);
-                            types[slot] = light_type;
+                            *claim = Some(claimant);
+                            *state_type = light_type;
                             emits |= blocks.state(id).light_emission > 0;
                         }
                     }
@@ -184,6 +189,7 @@ mod load {
                             entry: entry.to_string(),
                         });
                     }
+                    claimants.push(name);
                 }
             }
             Ok(LightColors::new(colours, types))
@@ -208,7 +214,7 @@ mod load {
                 .id(&TagKey::<Block, _>::from_location(id.clone()))
                 .map(|tag| {
                     tags.members(tag)
-                        .map(|member| &blocks.blocks()[member.index()])
+                        .filter_map(|member| blocks.blocks().get(member.index()))
                         .collect()
                 })
                 .ok_or_else(|| LightColorError::UnknownTag {
@@ -225,18 +231,14 @@ mod load {
     ) -> Result<(), LightColorError> {
         for block in members {
             for (name, text) in &entry.properties {
-                let Some(index) = block.properties.index_of(name) else {
+                let Some(property) = block.properties.0.iter().find(|p| &*p.name == name) else {
                     return Err(LightColorError::UnknownProperty {
                         path: path.to_owned(),
                         entry: entry.to_string(),
                         block: block.identifier.to_string(),
                     });
                 };
-                if !block.properties.0[index]
-                    .values
-                    .iter()
-                    .any(|value| value.renders_to(text))
-                {
+                if !property.values.iter().any(|value| value.renders_to(text)) {
                     return Err(LightColorError::UnknownValue {
                         path: path.to_owned(),
                         entry: entry.to_string(),

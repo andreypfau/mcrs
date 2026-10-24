@@ -10,9 +10,10 @@ pub struct Lanes {
 }
 
 impl Lanes {
+    /// `None` when the cell and lane lie past `levels`.
     #[inline]
-    pub fn level(&self, cell: usize, lane: usize) -> u8 {
-        self.levels[cell * self.bytes + lane]
+    pub fn level(&self, cell: usize, lane: usize) -> Option<u8> {
+        self.levels.get(cell * self.bytes + lane).copied()
     }
 }
 
@@ -52,7 +53,7 @@ pub fn resolve(
                 let mut rgb = [0f32; 3];
                 let (mut total, mut default) = (0f32, 0f32);
                 for (lane, colour) in known.iter().enumerate() {
-                    let weight = light_weight(lanes.level(cell, lane));
+                    let weight = lanes.level(cell, lane).map_or(0.0, light_weight);
                     total += weight;
                     match colour {
                         Some(colour) => {

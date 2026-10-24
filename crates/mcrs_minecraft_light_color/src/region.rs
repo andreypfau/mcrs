@@ -92,7 +92,9 @@ impl Region {
                                     Err(filler) => filler,
                                 };
                                 let index = region.index(x - min.x, y - min.y, z - min.z);
-                                region.blocks[index] = block;
+                                if let Some(cell) = region.blocks.get_mut(index) {
+                                    *cell = block;
+                                }
                             }
                         }
                     }
@@ -130,12 +132,15 @@ impl EdgeCosts {
         let mut entry = vec![0u8; cells];
         let mut veto = vec![0u8; cells];
         let mut record = |cell: usize, cost: u8| {
+            let Some(entry) = entry.get_mut(cell) else {
+                return;
+            };
             debug_assert!(
-                entry[cell] == 0 || entry[cell] == cost,
+                *entry == 0 || *entry == cost,
                 "entering a block costs {} from one side and {cost} from another",
-                entry[cell]
+                *entry
             );
-            entry[cell] = cost;
+            *entry = cost;
         };
 
         for y in 0..size {
@@ -152,7 +157,11 @@ impl EdgeCosts {
                             continue;
                         }
                         let there = here + stride;
-                        let (a, b) = (region.blocks[here], region.blocks[there]);
+                        let (Some(&a), Some(&b)) =
+                            (region.blocks.get(here), region.blocks.get(there))
+                        else {
+                            continue;
+                        };
                         let forward = registry.attenuation(a, b, dir);
                         let backward = registry.attenuation(b, a, dir.opposite());
                         debug_assert_eq!(
@@ -161,7 +170,11 @@ impl EdgeCosts {
                             "the shape veto between {a:?} and {b:?} depends on direction"
                         );
                         match forward {
-                            None => veto[here] |= bit,
+                            None => {
+                                if let Some(veto) = veto.get_mut(here) {
+                                    *veto |= bit;
+                                }
+                            }
                             Some(cost) => record(there, cost),
                         }
                         if let Some(cost) = backward {
@@ -187,13 +200,15 @@ impl Palette {
     pub fn of(region: &Region, registry: &LightRegistry, colours: &LightColors) -> Palette {
         let mut present = [false; 256];
         for &id in &region.blocks {
-            if !registry.emission(id).is_zero() {
-                present[colours.light_type(id).0 as usize] = true;
+            if !registry.emission(id).is_zero()
+                && let Some(present) = present.get_mut(colours.light_type(id).0 as usize)
+            {
+                *present = true;
             }
         }
         let types = (0..=u8::MAX)
-            .filter(|&t| present[t as usize])
-            .map(LightType)
+            .zip(present)
+            .filter_map(|(t, present)| present.then_some(LightType(t)))
             .collect();
         Palette { types }
     }
@@ -233,15 +248,27 @@ pub fn section_bricks(
         veto: vec![0; SectionPos::VOLUME].into_boxed_slice(),
         seeds: vec![Seed::default(); SectionPos::VOLUME].into_boxed_slice(),
     };
-    for local in 0..SectionPos::VOLUME {
+    let cells = bricks
+        .entry
+        .iter_mut()
+        .zip(bricks.veto.iter_mut())
+        .zip(bricks.seeds.iter_mut())
+        .enumerate();
+    for (local, ((entry, veto), seed)) in cells {
         let (x, z, y) = (local & 15, local >> 4 & 15, local >> 8);
         let cell = region.index(1 + x as i32, 1 + y as i32, 1 + z as i32);
-        let id = region.blocks[cell];
-        bricks.entry[local] = costs.entry[cell];
-        bricks.veto[local] = costs.veto[cell];
+        let (Some(&id), Some(&cell_entry), Some(&cell_veto)) = (
+            region.blocks.get(cell),
+            costs.entry.get(cell),
+            costs.veto.get(cell),
+        ) else {
+            continue;
+        };
+        *entry = cell_entry;
+        *veto = cell_veto;
         let emission = registry.emission(id);
         if !emission.is_zero() {
-            bricks.seeds[local] = Seed {
+            *seed = Seed {
                 light_type: colours.light_type(id),
                 emission: emission.get(),
             };

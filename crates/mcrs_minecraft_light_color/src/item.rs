@@ -157,21 +157,28 @@ impl ItemLights {
                     });
                 };
                 let slot = id.index();
-                if let Some(first) = mapped_in[slot].take() {
+                let (Some(state), Some(state_in)) = (mapped.get_mut(slot), mapped_in.get_mut(slot))
+                else {
+                    return Err(ItemLightError::UnknownItem {
+                        path,
+                        item: item.to_string(),
+                    });
+                };
+                if let Some(first) = state_in.take() {
                     return Err(ItemLightError::DuplicateItem {
                         item: item.to_string(),
                         first,
                         second: path,
                     });
                 }
-                mapped[slot] = Some(resolve(&target, blocks, &path, &item)?);
-                mapped_in[slot] = Some(path.clone());
+                *state = Some(resolve(&target, blocks, &path, &item)?);
+                *state_in = Some(path.clone());
             }
         }
 
         let missing: Vec<String> = items
             .iter()
-            .filter(|item| mapped[item.id.index()].is_none())
+            .filter(|item| mapped.get(item.id.index()).is_none_or(Option::is_none))
             .filter(|item| {
                 item.block_placer
                     .and_then(|state| blocks.owner(state))
