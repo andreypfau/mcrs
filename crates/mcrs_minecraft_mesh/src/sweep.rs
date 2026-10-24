@@ -1,9 +1,9 @@
-use crate::SECTION_SIZE;
-use crate::block::{BlockInfo, FACE_AXES};
+use crate::block::{BlockInfo, face_axes};
 use crate::pack::{
     FACE_WORDS, QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
     QUAD_X, QUAD_Y, QUAD_Z,
 };
+use crate::{SECTION_SIZE, axis_mut};
 
 use super::Sink;
 use super::scratch::{Columns, Scratch, column_index, face_axis};
@@ -27,18 +27,19 @@ pub(super) fn sweep(
     for quads in &mut scratch.simple_by_pass {
         quads.clear();
     }
-    let axes = FACE_AXES[face];
-    let n_axis = axes[0] as usize;
-    let n_positive = axes[1] == 1;
+    let [n_axis, n_positive, ..] = face_axes(face);
+    let n_positive = n_positive == 1;
 
     let mut occupied = 0u32;
     for gv in 0..SECTION_SIZE {
         for gu in 0..SECTION_SIZE {
             let mut local = [0i32; 3];
             face_axis(face, &mut local, gu, gv);
-            let column = column_index(n_axis, local[0], local[1], local[2]);
-            let visible = scratch.visible(columns, n_axis, column, n_positive);
-            scratch.faces[gv * SECTION_SIZE + gu] = visible;
+            let column = column_index(n_axis as usize, local[0], local[1], local[2]);
+            let visible = scratch.visible(columns, n_axis as usize, column, n_positive);
+            if let Some(faces) = scratch.faces.get_mut(gv * SECTION_SIZE + gu) {
+                *faces = visible;
+            }
             occupied |= visible;
         }
     }
@@ -52,21 +53,33 @@ pub(super) fn sweep(
         for gv in 0..SECTION_SIZE {
             for gu in 0..SECTION_SIZE {
                 let slot = gv * SECTION_SIZE + gu;
-                if scratch.faces[slot] & bit == 0 {
-                    scratch.used[slot] = true;
+                let shown = scratch
+                    .faces
+                    .get(slot)
+                    .is_some_and(|faces| faces & bit != 0);
+                let found = if shown {
+                    let mut local = [0i32; 3];
+                    face_axis(face, &mut local, gu, gv);
+                    *axis_mut(&mut local, n_axis) = n as i32;
+                    attr(catalog, scratch, local, face)
+                } else {
+                    None
+                };
+                let (Some(used), Some(pass), Some(attrs)) = (
+                    scratch.used.get_mut(slot),
+                    scratch.passes.get_mut(slot),
+                    scratch.attrs.get_mut(slot),
+                ) else {
                     continue;
-                }
-                let mut local = [0i32; 3];
-                face_axis(face, &mut local, gu, gv);
-                local[n_axis] = n as i32;
-                match attr(catalog, scratch, local, face) {
+                };
+                match found {
                     Some((key, packed)) => {
-                        scratch.used[slot] = false;
-                        scratch.passes[slot] = key;
-                        scratch.attrs[slot] = packed;
+                        *used = false;
+                        *pass = key;
+                        *attrs = packed;
                         any = true;
                     }
-                    None => scratch.used[slot] = true,
+                    None => *used = true,
                 }
             }
         }
@@ -85,17 +98,12 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
         let mut gu = 0usize;
         while gu < SECTION_SIZE {
             let slot = gv * SECTION_SIZE + gu;
-            if scratch.used[slot] {
+            let Some(key) = scratch.open(slot) else {
                 gu += 1;
                 continue;
-            }
-            let key = scratch.passes[slot];
+            };
             let mut w = 1;
-            while gu + w < SECTION_SIZE {
-                let probe = slot + w;
-                if scratch.used[probe] || scratch.passes[probe] != key {
-                    break;
-                }
+            while gu + w < SECTION_SIZE && scratch.open(slot + w) == Some(key) {
                 w += 1;
             }
             // A side cut down by a drop is cut at the top of its own cell, so only one row of
@@ -104,8 +112,7 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
             let mut h = 1;
             'grow: while !dropped_side && gv + h < SECTION_SIZE {
                 for i in 0..w {
-                    let probe = (gv + h) * SECTION_SIZE + gu + i;
-                    if scratch.used[probe] || scratch.passes[probe] != key {
+                    if scratch.open((gv + h) * SECTION_SIZE + gu + i) != Some(key) {
                         break 'grow;
                     }
                 }
@@ -113,24 +120,28 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
             }
             let base = scratch.section_faces.len() as u32;
             for dv in 0..h {
-                for du in 0..w {
-                    let cell = (gv + dv) * SECTION_SIZE + gu + du;
-                    scratch.used[cell] = true;
-                    let attr = scratch.attrs[cell];
-                    scratch.section_faces.push(attr);
+                let row = (gv + dv) * SECTION_SIZE + gu;
+                if let (Some(used), Some(attrs)) = (
+                    scratch.used.get_mut(row..row + w),
+                    scratch.attrs.get(row..row + w),
+                ) {
+                    used.fill(true);
+                    scratch.section_faces.extend_from_slice(attrs);
                 }
             }
-            scratch.simple_by_pass[(key & PASS_KEY) as usize].push(pack_quad(
-                face,
-                n,
-                gu,
-                gv,
-                w,
-                h,
-                base,
-                (key & !FLUID_KEY) >> PASS_KEY_BITS,
-                key & FLUID_KEY != 0,
-            ));
+            if let Some(quads) = scratch.simple_by_pass.get_mut((key & PASS_KEY) as usize) {
+                quads.push(pack_quad(
+                    face,
+                    n,
+                    gu,
+                    gv,
+                    w,
+                    h,
+                    base,
+                    (key & !FLUID_KEY) >> PASS_KEY_BITS,
+                    key & FLUID_KEY != 0,
+                ));
+            }
             gu += w;
         }
     }
@@ -138,15 +149,15 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
 
 #[inline]
 fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
-    let axes = FACE_AXES[face];
+    let [n_axis, n_positive, u_axis, u_positive, v_axis, v_positive] = face_axes(face);
     let mut local = [0i32; 3];
-    local[axes[0] as usize] = n as i32 + if axes[1] == 1 { 1 } else { 0 };
-    local[axes[2] as usize] = if axes[3] == 1 {
+    *axis_mut(&mut local, n_axis) = n as i32 + if n_positive == 1 { 1 } else { 0 };
+    *axis_mut(&mut local, u_axis) = if u_positive == 1 {
         gu as i32
     } else {
         SECTION_SIZE as i32 - gu as i32
     };
-    local[axes[4] as usize] = if axes[5] == 1 {
+    *axis_mut(&mut local, v_axis) = if v_positive == 1 {
         gv as i32
     } else {
         SECTION_SIZE as i32 - gv as i32

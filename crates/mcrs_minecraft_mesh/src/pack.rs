@@ -27,7 +27,9 @@ impl Field {
     }
 
     pub fn set(self, words: &mut [u32], value: u64) {
-        words[self.word as usize] |= self.pack(value) as u32;
+        if let Some(word) = words.get_mut(self.word as usize) {
+            *word |= self.pack(value) as u32;
+        }
     }
 
     #[cfg(test)]

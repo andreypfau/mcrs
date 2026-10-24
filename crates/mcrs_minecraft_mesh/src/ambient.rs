@@ -61,13 +61,28 @@ const FACE_CORNERS: [[[u8; 3]; 4]; 6] = [
     [[1, 1, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0]], // east
 ];
 
-pub fn corner(dir: Direction, index: usize, from: Vec3, to: Vec3) -> Vec3 {
-    let select = FACE_CORNERS[dir as usize][index];
-    Vec3::new(
-        if select[0] == 0 { from.x } else { to.x },
-        if select[1] == 0 { from.y } else { to.y },
-        if select[2] == 0 { from.z } else { to.z },
-    )
+/// The four vertices of the `dir` face of the box from `from` to `to`, in `FACE_CORNERS` order.
+pub fn corners(dir: Direction, from: Vec3, to: Vec3) -> [Vec3; 4] {
+    of_direction(&FACE_CORNERS, dir).map(|[x, y, z]| {
+        Vec3::new(
+            if x == 0 { from.x } else { to.x },
+            if y == 0 { from.y } else { to.y },
+            if z == 0 { from.z } else { to.z },
+        )
+    })
+}
+
+/// The entry of a table laid out in `Direction` order.
+pub(crate) const fn of_direction<T>(table: &[T; 6], dir: Direction) -> &T {
+    let [down, up, north, south, west, east] = table;
+    match dir {
+        Direction::Down => down,
+        Direction::Up => up,
+        Direction::North => north,
+        Direction::South => south,
+        Direction::West => west,
+        Direction::East => east,
+    }
 }
 
 const SIDES: [[Direction; 4]; 6] = [
@@ -256,33 +271,37 @@ pub fn smooth(
     let partial = face_partial(min, max, dir);
 
     let base = if cubic { dir.normal() } else { IVec3::ZERO };
-    let c = SIDES[dir as usize];
+    let c = of_direction(&SIDES, dir);
 
     let mut shade = [0.0f32; 4];
     let mut light = [0u32; 4];
     let mut permeable = [false; 4];
-    for i in 0..4 {
-        let side = at(base + c[i].normal());
-        shade[i] = side.neighbour.shade();
-        light[i] = side.light;
-        permeable[i] = !at(base + c[i].normal() + dir.normal())
+    for (((side, shade), light), permeable) in
+        c.iter().zip(&mut shade).zip(&mut light).zip(&mut permeable)
+    {
+        let sample = at(base + side.normal());
+        *shade = sample.neighbour.shade();
+        *light = sample.light;
+        *permeable = !at(base + side.normal() + dir.normal())
             .neighbour
             .light_opaque;
     }
+    let [side_0, side_1, side_2, side_3] = c;
+    let [permeable_0, permeable_1, permeable_2, permeable_3] = permeable;
     // The `0` side stands in for every blocked corner, including where symmetry would call for
     // the `1` side. "Fixing" it diverges from the client on every inside corner.
-    let diagonal = |a: usize, b: usize| {
-        if !permeable[a] && !permeable[b] {
+    let diagonal = |(a, a_permeable): (&Direction, bool), (b, b_permeable): (&Direction, bool)| {
+        if !a_permeable && !b_permeable {
             (shade[0], light[0])
         } else {
-            let sample = at(base + c[a].normal() + c[b].normal());
+            let sample = at(base + a.normal() + b.normal());
             (sample.neighbour.shade(), sample.light)
         }
     };
-    let (shade_02, light_02) = diagonal(0, 2);
-    let (shade_03, light_03) = diagonal(0, 3);
-    let (shade_12, light_12) = diagonal(1, 2);
-    let (shade_13, light_13) = diagonal(1, 3);
+    let (shade_02, light_02) = diagonal((side_0, permeable_0), (side_2, permeable_2));
+    let (shade_03, light_03) = diagonal((side_0, permeable_0), (side_3, permeable_3));
+    let (shade_12, light_12) = diagonal((side_1, permeable_1), (side_2, permeable_2));
+    let (shade_13, light_13) = diagonal((side_1, permeable_1), (side_3, permeable_3));
 
     let next = at(dir.normal());
     let center_light = if cubic || !next.neighbour.solid_render {
@@ -305,7 +324,7 @@ pub fn smooth(
         smooth_blend(light[3], light[1], light_13, center_light),
     ];
 
-    let remap = REMAP[dir as usize];
+    let remap = of_direction(&REMAP, dir);
     let mut lit = Lit {
         shade: [0.0; 4],
         light: [0; 4],
@@ -325,20 +344,27 @@ pub fn smooth(
             1.0 - min.x,
             1.0 - max.x,
         ];
-        for (vertex, table) in WEIGHTS[dir as usize].iter().enumerate() {
-            let weights: [f32; 4] =
-                std::array::from_fn(|k| shape[table[2 * k]] * shape[table[2 * k + 1]]);
+        let extent = |bound: &usize| shape.get(*bound).copied().unwrap_or(0.0);
+        for (table, &to) in of_direction(&WEIGHTS, dir).iter().zip(remap) {
+            let mut weights = [0.0f32; 4];
+            for (weight, [a, b]) in weights.iter_mut().zip(table.as_chunks::<2>().0) {
+                *weight = extent(a) * extent(b);
+            }
             let blended = slot[0] * weights[0]
                 + slot[1] * weights[1]
                 + slot[2] * weights[2]
                 + slot[3] * weights[3];
-            lit.shade[remap[vertex]] = blended.clamp(0.0, 1.0);
-            lit.light[remap[vertex]] = weighted_blend(coords, weights);
+            if let (Some(shade), Some(light)) = (lit.shade.get_mut(to), lit.light.get_mut(to)) {
+                *shade = blended.clamp(0.0, 1.0);
+                *light = weighted_blend(coords, weights);
+            }
         }
     } else {
-        for vertex in 0..4 {
-            lit.shade[remap[vertex]] = slot[vertex];
-            lit.light[remap[vertex]] = coords[vertex];
+        for ((&to, slot), coords) in remap.iter().zip(slot).zip(coords) {
+            if let (Some(shade), Some(light)) = (lit.shade.get_mut(to), lit.light.get_mut(to)) {
+                *shade = slot;
+                *light = coords;
+            }
         }
     }
     lit
@@ -358,7 +384,7 @@ mod tests {
     const OPEN_SKY: u32 = 240 << 16;
 
     fn west_face() -> [Vec3; 4] {
-        std::array::from_fn(|i| corner(Direction::West, i, Vec3::ZERO, Vec3::ONE))
+        corners(Direction::West, Vec3::ZERO, Vec3::ONE)
     }
 
     fn solid() -> Neighbour {
@@ -453,8 +479,7 @@ mod tests {
 
     #[test]
     fn a_partial_face_weighs_the_corners_by_its_extent() {
-        let slab_top: [Vec3; 4] =
-            std::array::from_fn(|i| corner(Direction::Up, i, Vec3::ZERO, Vec3::new(1.0, 0.5, 1.0)));
+        let slab_top = corners(Direction::Up, Vec3::ZERO, Vec3::new(1.0, 0.5, 1.0));
         let world = |p: IVec3| Sample {
             neighbour: Neighbour::default(),
             light: if p.x < 0 { 7 << 20 } else { OPEN_SKY },

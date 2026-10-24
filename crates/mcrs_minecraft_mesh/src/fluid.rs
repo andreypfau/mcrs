@@ -7,7 +7,8 @@ use crate::tint::Tint;
 
 use super::model::{self, SHADE_DOWN, SHADE_EAST_WEST, SHADE_NORTH_SOUTH, SHADE_UP, UNGROUPED};
 use super::scratch::{
-    COLUMNS, Columns, FLUID_KINDS, NOT_FLAT, Scratch, border_index, column_index, section_cell,
+    COLUMNS, Columns, FLUID_KINDS, NOT_FLAT, Scratch, block_info, border_index, cell, column_index,
+    put, section_cell, set_bit,
 };
 use super::sweep::{FLUID_KEY, PASS_KEY_BITS, sweep};
 use super::{Sink, cube, face_normal};
@@ -28,7 +29,7 @@ const SIDE_CORNERS: [[usize; 2]; 4] = [[0, 3], [2, 1], [1, 0], [3, 2]];
 #[inline]
 fn side_corner_xz(face: usize, corner: usize) -> [f32; 2] {
     let normal = face_normal(face);
-    let [x, z] = CORNER_XZ[corner];
+    let [x, z] = CORNER_XZ.get(corner).copied().unwrap_or_default();
     [
         x - normal[0] as f32 * FLUID_INSET,
         z - normal[2] as f32 * FLUID_INSET,
@@ -67,19 +68,18 @@ pub(super) fn surfaces(scratch: &mut Scratch) {
     for z in 0..SECTION_SIZE as i32 {
         for x in 0..SECTION_SIZE as i32 {
             let column = column_index(1, x, 0, z);
-            let mut rows = (scratch.fluid_columns[0][1][column]
-                | scratch.fluid_columns[1][1][column])
-                & IN_SECTION;
+            let [[_, water, _], [_, lava, _]] = &*scratch.fluid_columns;
+            let mut rows = (cell(water, column) | cell(lava, column)) & IN_SECTION;
             while rows != 0 {
                 let y = rows.trailing_zeros() as i32 - 1;
                 rows &= rows - 1;
-                let cell = scratch.fluid[border_index(x, y, z)];
-                let kind = fluid_kind(cell);
-                let above = scratch.fluid[border_index(x, y + 1, z)];
+                let here = cell(&*scratch.fluid, border_index(x, y, z));
+                let kind = fluid_kind(here);
+                let above = cell(&*scratch.fluid, border_index(x, y + 1, z));
                 let own = if same_fluid(above, kind) {
                     FLUID_FULL
                 } else {
-                    cell & FLUID_AMOUNT
+                    here & FLUID_AMOUNT
                 };
                 if own == FLUID_FULL {
                     mark_flat(scratch, [x, y, z], kind, 0);
@@ -114,10 +114,12 @@ pub(super) fn surfaces(scratch: &mut Scratch) {
 }
 
 fn mark_flat(scratch: &mut Scratch, [x, y, z]: [i32; 3], kind: usize, drop: u8) {
-    scratch.flat_drop[section_cell(x, y, z)] = drop;
-    let along = [x, y, z];
-    for axis in 0..3 {
-        scratch.flat_columns[kind][axis][column_index(axis, x, y, z)] |= 1 << (along[axis] + 1);
+    put(&mut *scratch.flat_drop, section_cell(x, y, z), drop);
+    let Some(flat) = scratch.flat_columns.get_mut(kind) else {
+        return;
+    };
+    for (axis, (columns, along)) in flat.iter_mut().zip([x, y, z]).enumerate() {
+        set_bit(columns, column_index(axis, x, y, z), 1 << (along + 1));
     }
 }
 
@@ -128,16 +130,16 @@ fn exact_ninths((num, den): (i32, i32)) -> Option<u8> {
 
 fn height_sample(scratch: &Scratch, x: i32, y: i32, z: i32, kind: usize) -> Option<u8> {
     let index = border_index(x, y, z);
-    let cell = scratch.fluid[index];
-    if same_fluid(cell, kind) {
-        let above = scratch.fluid[border_index(x, y + 1, z)];
+    let here = cell(&*scratch.fluid, index);
+    if same_fluid(here, kind) {
+        let above = cell(&*scratch.fluid, border_index(x, y + 1, z));
         return Some(if same_fluid(above, kind) {
             FLUID_FULL
         } else {
-            cell & FLUID_AMOUNT
+            here & FLUID_AMOUNT
         });
     }
-    (!scratch.occludes[index]).then_some(0)
+    (!cell(&*scratch.occludes, index)).then_some(0)
 }
 
 fn corner_height(
@@ -186,16 +188,16 @@ fn flow_angle(scratch: &Scratch, [x, y, z]: [i32; 3], kind: usize, own: u8) -> O
         let normal = face_normal(face);
         let side = [x + normal[0], y + normal[1], z + normal[2]];
         let index = border_index(side[0], side[1], side[2]);
-        let cell = scratch.fluid[index];
-        if cell != 0 && fluid_kind(cell) != kind {
+        let fluid = cell(&*scratch.fluid, index);
+        if fluid != 0 && fluid_kind(fluid) != kind {
             continue;
         }
-        let distance = if cell != 0 {
-            own_height - f32::from(cell & FLUID_AMOUNT) * ninth
-        } else if scratch.occludes[index] {
+        let distance = if fluid != 0 {
+            own_height - f32::from(fluid & FLUID_AMOUNT) * ninth
+        } else if cell(&*scratch.occludes, index) {
             0.0
         } else {
-            let below = scratch.fluid[border_index(side[0], side[1] - 1, side[2])];
+            let below = cell(&*scratch.fluid, border_index(side[0], side[1] - 1, side[2]));
             if same_fluid(below, kind) {
                 own_height - (f32::from(below & FLUID_AMOUNT) * ninth - 8.0 * ninth)
             } else {
@@ -243,11 +245,14 @@ fn face_attr(
     face: usize,
 ) -> Option<(u8, [u32; FACE_WORDS])> {
     let here = border_index(local[0], local[1], local[2]);
-    let state = scratch.states[here] as usize;
-    let fluid = catalog[state].fluid?;
-    let drop = scratch.flat_drop[section_cell(local[0], local[1], local[2])];
+    let info = block_info(catalog, cell(&*scratch.states, here));
+    let fluid = info.fluid?;
+    let drop = cell(
+        &*scratch.flat_drop,
+        section_cell(local[0], local[1], local[2]),
+    );
 
-    if scratch.cover[here] >> face & 1 == 1 {
+    if cell(&*scratch.cover, here) >> face & 1 == 1 {
         return None;
     }
     let normal = face_normal(face);
@@ -257,7 +262,7 @@ fn face_attr(
         local[2] + normal[2],
     ];
     let front_index = border_index(front[0], front[1], front[2]);
-    let front_cover = scratch.cover[front_index];
+    let front_cover = cell(&*scratch.cover, front_index);
     if front_cover >> (face ^ 1) & 1 == 1 && !(face == 1 && drop > 0) {
         return None;
     }
@@ -267,11 +272,9 @@ fn face_attr(
     } else {
         border_index(local[0], local[1] + 1, local[2])
     };
-    let mine = scratch.light[here] as u32;
-    let other = scratch.light[vertical] as u32;
-    let block_light = (mine >> 4)
-        .max(other >> 4)
-        .max(catalog[state].emission as u32);
+    let mine = cell(&*scratch.light, here) as u32;
+    let other = cell(&*scratch.light, vertical) as u32;
+    let block_light = (mine >> 4).max(other >> 4).max(info.emission as u32);
     let sky_light = (mine & 0xf).max(other & 0xf);
 
     let sprite = if face < 2 {
@@ -312,44 +315,47 @@ fn side_sprite(fluid: Fluid, front_cover: u8) -> u16 {
 )]
 pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     let sloped = std::mem::take(&mut scratch.sloped);
-    for cell in &sloped {
-        let [x, y, z] = cell.cell;
+    for slope in &sloped {
+        let [x, y, z] = slope.cell;
         let here = border_index(x, y, z);
-        let state = scratch.states[here] as usize;
-        let Some(fluid) = catalog[state].fluid else {
+        let info = block_info(catalog, cell(&*scratch.states, here));
+        let Some(fluid) = info.fluid else {
             continue;
         };
-        let kind = fluid_kind(scratch.fluid[here]);
-        let emission = catalog[state].emission as u32;
+        let kind = fluid_kind(cell(&*scratch.fluid, here));
+        let emission = info.emission as u32;
         let pass = if fluid.lava {
             Pass::Solid
         } else {
             Pass::Translucent
-        } as usize;
+        };
         let tint = if fluid.lava { 0 } else { Tint::Water.index() };
-        let out = &mut scratch.complex_by_pass[pass][UNGROUPED];
+        let out = &mut pass.of_mut(&mut scratch.complex_by_pass)[UNGROUPED];
 
-        let mut corners = cell.corners;
+        let mut corners = slope.corners;
         let facing = |face: usize| {
             let normal = face_normal(face);
             border_index(x + normal[0], y + normal[1], z + normal[2])
         };
         let open = |face: usize| {
             let index = facing(face);
-            scratch.cover[here] >> face & 1 == 0
-                && !same_fluid(scratch.fluid[index], kind)
-                && scratch.cover[index] >> (face ^ 1) & 1 == 0
+            cell(&*scratch.cover, here) >> face & 1 == 0
+                && !same_fluid(cell(&*scratch.fluid, index), kind)
+                && cell(&*scratch.cover, index) >> (face ^ 1) & 1 == 0
         };
         let lowest = corners.iter().copied().fold(f32::INFINITY, f32::min);
         let above = facing(1);
-        let up = scratch.cover[here] >> 1 & 1 == 0
-            && !same_fluid(scratch.fluid[above], kind)
-            && (scratch.cover[above] & 1 == 0 || lowest < 1.0);
+        let up = cell(&*scratch.cover, here) >> 1 & 1 == 0
+            && !same_fluid(cell(&*scratch.fluid, above), kind)
+            && (cell(&*scratch.cover, above) & 1 == 0 || lowest < 1.0);
         let down = open(0);
         let bottom = if down { FLUID_INSET } else { 0.0 };
 
         let light = |a: usize, b: usize| {
-            let (a, b) = (scratch.light[a] as u32, scratch.light[b] as u32);
+            let (a, b) = (
+                cell(&*scratch.light, a) as u32,
+                cell(&*scratch.light, b) as u32,
+            );
             let (block, sky) = ((a >> 4).max(b >> 4).max(emission), (a & 0xf).max(b & 0xf));
             [block << 4 | sky << 20; 4]
         };
@@ -359,7 +365,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
         if up {
             corners = corners.map(|corner| corner - FLUID_INSET);
             let [nw, sw, se, ne] = corners;
-            let (sprite, uvs) = match cell.flow {
+            let (sprite, uvs) = match slope.flow {
                 None => (
                     fluid.still,
                     [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
@@ -414,12 +420,13 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
             );
         }
 
-        for face in 2..6usize {
+        for (face, [i0, i1]) in (2..6usize).zip(SIDE_CORNERS) {
             if !open(face) {
                 continue;
             }
-            let [i0, i1] = SIDE_CORNERS[face - 2];
-            let (c0, c1) = (corners[i0], corners[i1]);
+            let (Some(&c0), Some(&c1)) = (corners.get(i0), corners.get(i1)) else {
+                continue;
+            };
             let [x0, z0] = side_corner_xz(face, i0);
             let [x1, z1] = side_corner_xz(face, i1);
             let (x0, z0) = (fx + x0, fz + z0);
@@ -446,7 +453,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
                     }; 4],
                     light: side_light,
                     tint,
-                    sprite: side_sprite(fluid, scratch.cover[facing(face)]),
+                    sprite: side_sprite(fluid, cell(&*scratch.cover, facing(face))),
                 },
             );
         }

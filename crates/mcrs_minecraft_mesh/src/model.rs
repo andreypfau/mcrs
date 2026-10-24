@@ -8,7 +8,7 @@ use crate::pack::{
 
 use super::Sink;
 use super::face_normal;
-use super::scratch::{FACE_GROUPS, Scratch, border_index};
+use super::scratch::{FACE_GROUPS, Scratch, block_info, border_index, cell};
 
 pub const WORDS_PER_QUAD: usize = 3 * 4;
 
@@ -30,24 +30,24 @@ pub(super) struct Quad {
 
 pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
     let scale = MODEL_U.max() as f32;
-    for corner in 0..4 {
+    for (((&[x, y, z], &[u, v]), light), shade) in quad
+        .positions
+        .iter()
+        .zip(&quad.uvs)
+        .zip(quad.light)
+        .zip(quad.shade)
+    {
         let mut words = [0u32; 3];
-        MODEL_X.set(&mut words, fixed(quad.positions[corner][0]) as u64);
-        MODEL_Y.set(&mut words, fixed(quad.positions[corner][1]) as u64);
-        MODEL_Z.set(&mut words, fixed(quad.positions[corner][2]) as u64);
-        MODEL_U.set(
-            &mut words,
-            (quad.uvs[corner][0].clamp(0.0, 1.0) * scale) as u64,
-        );
-        MODEL_V.set(
-            &mut words,
-            (quad.uvs[corner][1].clamp(0.0, 1.0) * scale) as u64,
-        );
+        MODEL_X.set(&mut words, fixed(x) as u64);
+        MODEL_Y.set(&mut words, fixed(y) as u64);
+        MODEL_Z.set(&mut words, fixed(z) as u64);
+        MODEL_U.set(&mut words, (u.clamp(0.0, 1.0) * scale) as u64);
+        MODEL_V.set(&mut words, (v.clamp(0.0, 1.0) * scale) as u64);
         MODEL_TINT.set(&mut words, quad.tint as u64 & MODEL_TINT.max());
         MODEL_TINT_HIGH.set(&mut words, quad.tint as u64 >> MODEL_TINT.bits);
-        MODEL_BLOCK_LIGHT.set(&mut words, ambient::block_light(quad.light[corner]) as u64);
-        MODEL_SKY_LIGHT.set(&mut words, ambient::sky_light(quad.light[corner]) as u64);
-        MODEL_SHADE.set(&mut words, quad.shade[corner] as u64);
+        MODEL_BLOCK_LIGHT.set(&mut words, ambient::block_light(light) as u64);
+        MODEL_SKY_LIGHT.set(&mut words, ambient::sky_light(light) as u64);
+        MODEL_SHADE.set(&mut words, shade as u64);
         MODEL_SPRITE.set(&mut words, quad.sprite as u64);
         out.extend_from_slice(&words);
     }
@@ -66,7 +66,7 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
                 let here = border_index(x as i32, y as i32, z as i32);
-                let info = &catalog[scratch.states[here] as usize];
+                let info = block_info(catalog, cell(&*scratch.states, here));
                 if info.quads.is_empty() {
                     continue;
                 }
@@ -80,11 +80,8 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                             y as i32 + normal[1],
                             z as i32 + normal[2],
                         );
-                        if face_hidden(
-                            info,
-                            &catalog[scratch.states[front] as usize],
-                            cull as usize,
-                        ) {
+                        let across = block_info(catalog, cell(&*scratch.states, front));
+                        if face_hidden(info, across, cull as usize) {
                             continue;
                         }
                         sample = front;
@@ -94,7 +91,7 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                             &quad.positions,
                             quad.facing,
                             info.neighbour.full_block,
-                            scratch.coords[here],
+                            cell(&*scratch.coords, here),
                             |o| scratch.sample(x as i32 + o.x, y as i32 + o.y, z as i32 + o.z),
                         );
                         (
@@ -119,19 +116,25 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                         let light = ambient::light_coords(
                             info.emissive,
                             info.emission,
-                            scratch.light[sample],
+                            cell(&*scratch.light, sample),
                         );
                         ([ambient::shade_byte(1.0, quad.shade); 4], [light; 4])
                     };
                     let group = quad.face.map_or(UNGROUPED, |group| group as usize);
+                    let Some(out) = quad
+                        .pass
+                        .of_mut(&mut scratch.complex_by_pass)
+                        .get_mut(group)
+                    else {
+                        continue;
+                    };
                     let offset = [x as f32, y as f32, z as f32];
                     push(
-                        &mut scratch.complex_by_pass[quad.pass as usize][group],
+                        out,
                         &Quad {
-                            positions: std::array::from_fn(|corner| {
-                                let p = quad.positions[corner];
-                                [p.x + offset[0], p.y + offset[1], p.z + offset[2]]
-                            }),
+                            positions: quad
+                                .positions
+                                .map(|p| [p.x + offset[0], p.y + offset[1], p.z + offset[2]]),
                             uvs: quad.uvs,
                             shade,
                             light,
@@ -168,7 +171,7 @@ pub(super) fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::fixed;
-    use crate::ambient::{Neighbour, corner};
+    use crate::ambient::{Neighbour, corners};
     use crate::block::{BlockInfo, ModelQuad, Pass};
     use crate::pack::{MODEL_OVERHANG, MODEL_SHADE, MODEL_STEPS};
     use crate::{SECTION_SIZE, SECTION_VOLUME};
@@ -234,7 +237,7 @@ mod tests {
         catalog[BLOCK as usize].neighbour = solid;
         catalog[BLOCK as usize].ambient_occlusion = ambient_occlusion;
         catalog[BLOCK as usize].quads = vec![ModelQuad {
-            positions: std::array::from_fn(|i| corner(Direction::West, i, Vec3::ZERO, Vec3::ONE)),
+            positions: corners(Direction::West, Vec3::ZERO, Vec3::ONE),
             uvs: [[0.0; 2]; 4],
             cull: None,
             facing: Direction::West,

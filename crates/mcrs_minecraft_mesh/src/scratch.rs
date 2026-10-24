@@ -1,5 +1,6 @@
 use crate::ambient::{self, Neighbour, Sample};
-use crate::block::{BlockInfo, FACE_AXES, Pass};
+use crate::axis_mut;
+use crate::block::{AIR, BlockInfo, Pass, face_axes};
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
 use crate::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
@@ -106,8 +107,9 @@ impl Scratch {
                 at.y - origin.y + 1,
                 at.z - origin.z + 1,
             );
-            around[(dy * 9 + dz * 3 + dx) as usize]
-                .as_ref()
+            around
+                .get((dy * 9 + dz * 3 + dx) as usize)
+                .and_then(Option::as_ref)
                 .map_or(0, |section| section.get(LocalPos::from(pos)).number())
         };
         *self.cube_columns = [[0; COLUMNS]; 3];
@@ -124,47 +126,53 @@ impl Scratch {
                     // A server whose block corpus differs from ours can name a state
                     // this catalog has no row for; it is drawn as air rather than
                     // taking the frame down.
-                    let state = if (state as usize) < catalog.len() {
-                        state
-                    } else {
-                        0
+                    let (state, info) = match catalog.get(state as usize) {
+                        Some(info) => (state, info),
+                        None => (0, block_info(catalog, 0)),
                     };
-                    let info = &catalog[state as usize];
-                    self.states[index] = state;
-                    self.occludes[index] = info.occludes;
-                    self.neighbours[apron_index(x, y, z)] = info.neighbour;
+                    put(&mut *self.states, index, state);
+                    put(&mut *self.occludes, index, info.occludes);
+                    put(&mut *self.neighbours, apron_index(x, y, z), info.neighbour);
                     // Light a store cannot give is open sky, as outside every loaded column.
                     let light = world.light(pos).unwrap_or(0x0f);
-                    self.light[index] = light;
-                    self.coords[index] = ambient::light_coords(info.emissive, info.emission, light);
+                    put(&mut *self.light, index, light);
+                    let coords = ambient::light_coords(info.emissive, info.emission, light);
+                    put(&mut *self.coords, index, coords);
                     let fluid = info.fluid.map_or(0, |fluid| {
                         fluid.amount | if fluid.lava { FLUID_LAVA } else { 0 }
                     });
-                    self.fluid[index] = fluid;
+                    put(&mut *self.fluid, index, fluid);
                     let see_through = info.cube.is_some() && info.drop == 0 && !info.occludes;
-                    self.cover[index] =
-                        info.sturdy | if see_through { COVER_SEE_THROUGH } else { 0 };
+                    let cover = info.sturdy | if see_through { COVER_SEE_THROUGH } else { 0 };
+                    put(&mut *self.cover, index, cover);
                     if !info.occludes && info.cube.is_none() && fluid == 0 {
                         continue;
                     }
                     if fluid != 0 && inside(x) && inside(y) && inside(z) {
                         self.fluid_kinds |= 1 << fluid_kind(fluid);
                     }
-                    let along = [x, y, z];
-                    for axis in 0..3 {
+                    let mut fluids = (fluid != 0)
+                        .then(|| self.fluid_columns.get_mut(fluid_kind(fluid)))
+                        .flatten();
+                    for (axis, ((along, cubes), occluders)) in [x, y, z]
+                        .into_iter()
+                        .zip(self.cube_columns.iter_mut())
+                        .zip(self.occlude_columns.iter_mut())
+                        .enumerate()
+                    {
                         let column = column_index(axis, x, y, z);
-                        let bit = 1u32 << (along[axis] + 1);
+                        let bit = 1u32 << (along + 1);
                         if info.cube.is_some() {
-                            self.cube_columns[axis][column] |= bit;
+                            set_bit(cubes, column, bit);
                             if axis == 1 && info.drop != 0 {
-                                self.lowered_columns[column] |= bit;
+                                set_bit(&mut *self.lowered_columns, column, bit);
                             }
                         }
                         if info.occludes {
-                            self.occlude_columns[axis][column] |= bit;
+                            set_bit(occluders, column, bit);
                         }
-                        if fluid != 0 {
-                            self.fluid_columns[fluid_kind(fluid)][axis][column] |= bit;
+                        if let Some(fluids) = fluids.as_mut().and_then(|f| f.get_mut(axis)) {
+                            set_bit(fluids, column, bit);
                         }
                     }
                 }
@@ -180,9 +188,10 @@ impl Scratch {
                     }
                     let state =
                         block(BlockPos::new(base[0] + x, base[1] + y, base[2] + z)) as usize;
-                    self.neighbours[apron_index(x, y, z)] = catalog
+                    let neighbour = catalog
                         .get(state)
                         .map_or(Neighbour::default(), |info| info.neighbour);
+                    put(&mut *self.neighbours, apron_index(x, y, z), neighbour);
                 }
             }
         }
@@ -190,9 +199,13 @@ impl Scratch {
 
     /// What smooth lighting reads of the block at a border position.
     pub(super) fn sample(&self, x: i32, y: i32, z: i32) -> Sample {
-        let neighbour = self.neighbours[apron_index(x, y, z)];
+        let neighbour = self
+            .neighbours
+            .get(apron_index(x, y, z))
+            .copied()
+            .unwrap_or_default();
         let light = if border(x) && border(y) && border(z) {
-            self.coords[border_index(x, y, z)]
+            cell(&*self.coords, border_index(x, y, z))
         } else {
             0
         };
@@ -206,14 +219,14 @@ impl Scratch {
         column: usize,
         n_positive: bool,
     ) -> u32 {
+        let along = |columns: &[[u32; COLUMNS]; 3]| {
+            columns.get(axis).map_or(0, |columns| cell(columns, column))
+        };
         let (own, blocker) = match columns {
-            Columns::Cubes => (
-                self.cube_columns[axis][column],
-                self.occlude_columns[axis][column],
-            ),
+            Columns::Cubes => (along(&self.cube_columns), along(&self.occlude_columns)),
             Columns::Fluid(kind) => (
-                self.flat_columns[kind][axis][column],
-                self.fluid_columns[kind][axis][column],
+                self.flat_columns.get(kind).map_or(0, along),
+                self.fluid_columns.get(kind).map_or(0, along),
             ),
         };
         let front = if n_positive {
@@ -222,16 +235,53 @@ impl Scratch {
             blocker << 1
         };
         let shown = match columns {
-            Columns::Cubes if axis == 1 && n_positive => !front | self.lowered_columns[column],
+            Columns::Cubes if axis == 1 && n_positive => {
+                !front | cell(&*self.lowered_columns, column)
+            }
             _ => !front,
         };
         own & shown
+    }
+
+    /// The pass key of a grid slot that holds a face no quad has taken yet.
+    #[inline]
+    pub(super) fn open(&self, slot: usize) -> Option<u8> {
+        match (self.used.get(slot), self.passes.get(slot)) {
+            (Some(false), Some(&key)) => Some(key),
+            _ => None,
+        }
     }
 }
 
 impl Default for Scratch {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The catalog row of a state, where a state the catalog has no row for is air.
+#[inline]
+pub(super) fn block_info(catalog: &[BlockInfo], state: u16) -> &BlockInfo {
+    catalog.get(state as usize).unwrap_or(&AIR)
+}
+
+/// A cell past the end of its array reads as the zero value, as an empty cell does.
+#[inline]
+pub(super) fn cell<T: Copy + Default>(cells: &[T], index: usize) -> T {
+    cells.get(index).copied().unwrap_or_default()
+}
+
+#[inline]
+pub(super) fn put<T>(cells: &mut [T], index: usize, value: T) {
+    if let Some(cell) = cells.get_mut(index) {
+        *cell = value;
+    }
+}
+
+#[inline]
+pub(super) fn set_bit(columns: &mut [u32], column: usize, bit: u32) {
+    if let Some(column) = columns.get_mut(column) {
+        *column |= bit;
     }
 }
 
@@ -281,7 +331,7 @@ pub(super) fn grid_to_local(grid: usize, positive: bool) -> i32 {
 
 #[inline]
 pub(super) fn face_axis(face: usize, local: &mut [i32; 3], gu: usize, gv: usize) {
-    let axes = FACE_AXES[face];
-    local[axes[2] as usize] = grid_to_local(gu, axes[3] == 1);
-    local[axes[4] as usize] = grid_to_local(gv, axes[5] == 1);
+    let [_, _, u_axis, u_positive, v_axis, v_positive] = face_axes(face);
+    *axis_mut(local, u_axis) = grid_to_local(gu, u_positive == 1);
+    *axis_mut(local, v_axis) = grid_to_local(gv, v_positive == 1);
 }

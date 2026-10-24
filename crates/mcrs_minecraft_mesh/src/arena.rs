@@ -26,9 +26,9 @@ impl Arena {
         let classes = class_of(capacity.max(1)) + 1;
         let mut free: Vec<BTreeSet<usize>> = (0..classes).map(|_| BTreeSet::new()).collect();
         let mut offset = 0;
-        for class in (0..classes).rev() {
+        for (class, blocks) in free.iter_mut().enumerate().rev() {
             if capacity & (1 << class) != 0 {
-                free[class].insert(offset);
+                blocks.insert(offset);
                 offset += 1 << class;
             }
         }
@@ -47,13 +47,19 @@ impl Arena {
         // The lowest free block of any class that fits, so what is handed out packs towards
         // offset zero: the GPU buffer behind the arena only grows to the highest block in use,
         // and a capacity that is not a power of two keeps its smallest blocks at the top.
-        let (mut class, offset) = (want..self.free.len())
-            .filter_map(|class| Some((class, *self.free[class].first()?)))
+        let (class, offset) = self
+            .free
+            .iter()
+            .enumerate()
+            .skip(want)
+            .filter_map(|(class, blocks)| Some((class, *blocks.first()?)))
             .min_by_key(|&(_, offset)| offset)?;
-        self.free[class].remove(&offset);
-        while class > want {
-            class -= 1;
-            self.free[class].insert(offset + (1 << class));
+        for (split, blocks) in self.free.iter_mut().enumerate().take(class + 1).skip(want) {
+            if split == class {
+                blocks.remove(&offset);
+            } else {
+                blocks.insert(offset + (1 << split));
+            }
         }
         self.held += 1 << want;
         Some(Block {
@@ -72,13 +78,20 @@ impl Arena {
         while class + 1 < self.free.len() {
             let buddy = offset ^ (1 << class);
             let merged = offset.min(buddy);
-            if merged + (2 << class) > self.capacity || !self.free[class].remove(&buddy) {
+            if merged + (2 << class) > self.capacity
+                || !self
+                    .free
+                    .get_mut(class)
+                    .is_some_and(|blocks| blocks.remove(&buddy))
+            {
                 break;
             }
             offset = merged;
             class += 1;
         }
-        self.free[class].insert(offset);
+        if let Some(blocks) = self.free.get_mut(class) {
+            blocks.insert(offset);
+        }
     }
 
     pub fn held(&self) -> usize {

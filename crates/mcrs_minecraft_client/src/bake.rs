@@ -5,7 +5,7 @@
 //! Ambient occlusion depends on the neighbours, so it is left to the mesher.
 
 use bevy::math::{Mat4, Vec3};
-use mcrs_minecraft_mesh::ambient::corner;
+use mcrs_minecraft_mesh::ambient::corners;
 
 use crate::model::{
     BlockStateFile, Element, ElementRotation, Face, Pack, ResolvedModel, resolve_model,
@@ -180,8 +180,7 @@ fn recalculate_winding(positions: &mut [Vec3; 4], uvs: &mut [[f32; 2]; 4], dir: 
         min = min.min(*p);
         max = max.max(*p);
     }
-    for slot in 0..4 {
-        let want = corner(dir, slot, min, max);
+    for (slot, want) in corners(dir, min, max).into_iter().enumerate() {
         let found = (slot..4).find(|&i| positions[i] == want);
         match found {
             Some(i) => {
@@ -250,13 +249,11 @@ pub(crate) fn face_geometry(
 
     let from = Vec3::from(element.from) / 16.0;
     let to = Vec3::from(element.to) / 16.0;
-    let mut positions = [Vec3::ZERO; 4];
-    let mut uvs = [[0.0f32; 2]; 4];
-    for i in 0..4 {
-        positions[i] = corner(dir, i, from, to);
+    let mut positions = corners(dir, from, to);
+    let mut uvs: [[f32; 2]; 4] = std::array::from_fn(|i| {
         let source = (i + shift) % 4;
-        uvs[i] = [uv_u(source, uv) / 16.0, uv_v(source, uv) / 16.0];
-    }
+        [uv_u(source, uv) / 16.0, uv_v(source, uv) / 16.0]
+    });
 
     if let Some(rot) = &element.rotation {
         let matrix = element_rotation_matrix(rot)?;
@@ -420,9 +417,7 @@ mod tests {
                 (Dir::East, 0.6),
             ] {
                 let q = quad(&baked, dir);
-                for (i, position) in q.positions.iter().enumerate().take(4) {
-                    assert_eq!(*position, corner(dir, i, Vec3::ZERO, Vec3::ONE));
-                }
+                assert_eq!(q.positions, corners(dir, Vec3::ZERO, Vec3::ONE));
                 assert_eq!(
                     q.uvs,
                     [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],

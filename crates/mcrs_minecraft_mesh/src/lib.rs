@@ -1,7 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #![cfg_attr(
     test,
     expect(
@@ -22,7 +18,7 @@ mod scratch;
 mod sweep;
 pub mod tint;
 
-use crate::block::{BlockInfo, FACE_AXES, Pass};
+use crate::block::{BlockInfo, Pass, face_axes};
 use crate::pack::{
     BOUNDS_HI_X, BOUNDS_HI_Y, BOUNDS_HI_Z, BOUNDS_LO_X, BOUNDS_LO_Y, BOUNDS_LO_Z, FACE_WORDS,
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
@@ -102,10 +98,24 @@ impl SectionMesh {
 
 #[inline]
 pub const fn face_normal(face: usize) -> [i32; 3] {
-    let axes = FACE_AXES[face];
-    let mut normal = [0i32; 3];
-    normal[axes[0] as usize] = if axes[1] == 1 { 1 } else { -1 };
-    normal
+    let [axis, positive, ..] = face_axes(face);
+    let sign = if positive == 1 { 1 } else { -1 };
+    match axis {
+        0 => [sign, 0, 0],
+        1 => [0, sign, 0],
+        _ => [0, 0, sign],
+    }
+}
+
+/// The coordinate of `point` along `axis`, the third axis standing for any past the second.
+#[inline]
+fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
+    let [x, y, z] = point;
+    match axis {
+        0 => x,
+        1 => y,
+        _ => z,
+    }
 }
 
 struct Sink {
@@ -180,9 +190,9 @@ impl Bounds {
     };
 
     fn cover(&mut self, point: [f32; 3]) {
-        for axis in 0..3 {
-            self.lo[axis] = self.lo[axis].min(point[axis]);
-            self.hi[axis] = self.hi[axis].max(point[axis]);
+        for ((lo, hi), at) in self.lo.iter_mut().zip(&mut self.hi).zip(point) {
+            *lo = lo.min(at);
+            *hi = hi.max(at);
         }
     }
 
@@ -192,24 +202,27 @@ impl Bounds {
     fn cover_greedy(&mut self, word: u32) {
         let word = word as u64;
         let corner = [QUAD_X, QUAD_Y, QUAD_Z].map(|field| field.get(word) as f32);
-        let axes = FACE_AXES[QUAD_FACE.get(word) as usize];
+        let [normal, _, u_axis, u_positive, v_axis, v_positive] =
+            face_axes(QUAD_FACE.get(word) as usize);
         let along = |axis: u8, positive: u8, size: Field| {
             let size = (size.get(word) + 1) as f32;
             let mut step = [0.0; 3];
-            step[axis as usize] = if positive == 1 { size } else { -size };
+            *axis_mut(&mut step, axis) = if positive == 1 { size } else { -size };
             step
         };
-        let u = along(axes[2], axes[3], QUAD_W);
-        let v = along(axes[4], axes[5], QUAD_H);
-        let far = std::array::from_fn(|axis| corner[axis] + u[axis] + v[axis]);
+        let u = along(u_axis, u_positive, QUAD_W);
+        let v = along(v_axis, v_positive, QUAD_H);
+        let mut far = corner;
+        for ((at, u), v) in far.iter_mut().zip(u).zip(v) {
+            *at = *at + u + v;
+        }
         self.cover(corner);
         self.cover(far);
         if QUAD_DROP.get(word) != 0 || QUAD_FLUID.get(word) != 0 {
-            let normal = axes[0] as usize;
             let mut below = corner;
-            below[normal] -= 1.0;
+            *axis_mut(&mut below, normal) -= 1.0;
             let mut above = corner;
-            above[normal] += 1.0;
+            *axis_mut(&mut above, normal) += 1.0;
             self.cover(below);
             self.cover(above);
         }
@@ -217,7 +230,8 @@ impl Bounds {
 
     fn cover_model(&mut self, vertex: &[u32]) {
         self.cover([MODEL_X, MODEL_Y, MODEL_Z].map(|field| {
-            field.get(vertex[field.word as usize] as u64) as f32 / MODEL_STEPS - MODEL_OVERHANG
+            let word = vertex.get(field.word as usize).copied().unwrap_or(0);
+            field.get(word as u64) as f32 / MODEL_STEPS - MODEL_OVERHANG
         }));
     }
 

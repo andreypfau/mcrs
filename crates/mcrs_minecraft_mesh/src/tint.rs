@@ -54,18 +54,21 @@ impl Tint {
 
 /// The fixed colours as `0xRRGGBB`, indexed like `Tint::Fixed`.
 pub fn fixed_colors() -> [u32; FIXED_TINTS] {
-    let mut colors = [0u32; FIXED_TINTS];
-    colors[SPRUCE_LEAVES as usize] = 0x619961;
-    colors[BIRCH_LEAVES as usize] = 0x80a755;
-    colors[ATTACHED_STEM as usize] = 0xe0c71c;
-    colors[LILY_PAD as usize] = 0x208030;
-    for age in 0..STEM_AGES as u32 {
-        colors[(STEM as u32 + age) as usize] = (age * 32) << 16 | (255 - age * 8) << 8 | (age * 4);
+    std::array::from_fn(|index| fixed_color(index as u8))
+}
+
+fn fixed_color(index: u8) -> u32 {
+    match index {
+        SPRUCE_LEAVES => 0x619961,
+        BIRCH_LEAVES => 0x80a755,
+        ATTACHED_STEM => 0xe0c71c,
+        LILY_PAD => 0x208030,
+        STEM..REDSTONE => {
+            let age = (index - STEM) as u32;
+            (age * 32) << 16 | (255 - age * 8) << 8 | (age * 4)
+        }
+        REDSTONE.. => redstone_color(index - REDSTONE),
     }
-    for power in 0..REDSTONE_POWERS {
-        colors[(REDSTONE + power) as usize] = redstone_color(power);
-    }
-    colors
 }
 
 fn redstone_color(power: u8) -> u32 {

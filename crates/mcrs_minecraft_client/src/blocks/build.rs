@@ -384,15 +384,11 @@ fn split_lowered(quads: &[bake::BakedQuad]) -> Option<(usize, usize, u8)> {
         if !(1.0..MODEL_STEPS).contains(&drop.round()) || (drop - drop.round()).abs() > 1e-3 {
             return None;
         }
-        let lowered = (0..4).all(|corner| {
-            let at = mcrs_minecraft_mesh::ambient::corner(
-                Dir::Up,
-                corner,
-                Vec3::ZERO,
-                Vec3::new(1.0, height, 1.0),
-            );
-            quad.positions[corner].distance_squared(at) <= 1e-6
-        });
+        let lowered =
+            mcrs_minecraft_mesh::ambient::corners(Dir::Up, Vec3::ZERO, Vec3::new(1.0, height, 1.0))
+                .iter()
+                .zip(&quad.positions)
+                .all(|(at, position)| position.distance_squared(*at) <= 1e-6);
         lowered.then_some((index, bottom, drop.round() as u8))
     })
 }

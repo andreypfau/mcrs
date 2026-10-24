@@ -1,6 +1,6 @@
-use crate::SECTION_SIZE;
+use crate::{SECTION_SIZE, axis_mut};
 
-use super::scratch::{BORDER_VOLUME, border_index};
+use super::scratch::{BORDER_VOLUME, border_index, cell};
 
 pub const CONNECT_ALL: u64 = (1 << 36) - 1;
 
@@ -41,7 +41,7 @@ pub fn along(connectivity: &Connectivity, stepped: u32) -> u64 {
     let mut mask = 0;
     for (octant, held) in OCTANTS {
         if octant & stepped == stepped {
-            mask |= connectivity[held];
+            mask |= connectivity.get(held).copied().unwrap_or(0);
         }
     }
     mask
@@ -52,7 +52,7 @@ pub(super) fn connectivity(occludes: &[bool; BORDER_VOLUME]) -> Connectivity {
     for y in 0..N {
         for z in 0..N {
             for x in 0..N {
-                filled += occludes[border_index(x, y, z)] as usize;
+                filled += cell(occludes, border_index(x, y, z)) as usize;
             }
         }
     }
@@ -88,24 +88,30 @@ fn resolve(occludes: &[bool; BORDER_VOLUME], steps: u32) -> u64 {
     for y in sweep(axes[1].0) {
         for z in sweep(axes[2].0) {
             for x in sweep(axes[0].0) {
-                if occludes[border_index(x, y, z)] {
+                if cell(occludes, border_index(x, y, z)) {
                     continue;
                 }
                 let mut entries = 0u8;
-                for (axis, (step, _, entry)) in axes.iter().copied().enumerate() {
+                for (axis, (step, _, entry)) in (0..).zip(axes) {
                     let mut behind = [x, y, z];
-                    behind[axis] -= step;
-                    entries |= match (0..N).contains(&behind[axis]) {
-                        true => reached[index(behind[0], behind[1], behind[2])],
+                    let along = axis_mut(&mut behind, axis);
+                    *along -= step;
+                    entries |= match (0..N).contains(along) {
+                        true => cell(&reached, index(behind[0], behind[1], behind[2])),
                         false => 1 << entry,
                     };
                 }
-                reached[index(x, y, z)] = entries;
-                for (axis, (step, exit, _)) in axes.iter().copied().enumerate() {
+                if let Some(reached) = reached.get_mut(index(x, y, z)) {
+                    *reached = entries;
+                }
+                for (axis, (step, exit, _)) in (0..).zip(axes) {
                     let mut ahead = [x, y, z];
-                    ahead[axis] += step;
-                    if !(0..N).contains(&ahead[axis]) {
-                        out[exit] |= entries;
+                    let along = axis_mut(&mut ahead, axis);
+                    *along += step;
+                    if !(0..N).contains(along)
+                        && let Some(out) = out.get_mut(exit)
+                    {
+                        *out |= entries;
                     }
                 }
             }

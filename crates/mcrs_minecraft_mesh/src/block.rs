@@ -40,6 +40,16 @@ impl Pass {
         !self.translucent()
     }
 
+    /// The entry of a table laid out in pass order.
+    pub(crate) fn of_mut<T>(self, table: &mut [T; Pass::COUNT]) -> &mut T {
+        let [solid, cutout, translucent] = table;
+        match self {
+            Pass::Solid => solid,
+            Pass::Cutout => cutout,
+            Pass::Translucent => translucent,
+        }
+    }
+
     pub const fn from_index(index: usize) -> Pass {
         match index {
             0 => Pass::Solid,
@@ -92,8 +102,9 @@ pub fn face_hidden(own: &BlockInfo, neighbour: &BlockInfo, side: usize) -> bool 
     let (Some(own), Some(across)) = (own.faces.as_deref(), neighbour.faces.as_deref()) else {
         return false;
     };
-    let face = &own.outer[side];
-    let cover = &across.inner[side ^ 1];
+    let (Some(face), Some(cover)) = (own.outer.get(side), across.inner.get(side ^ 1)) else {
+        return false;
+    };
     face.iter().any(|row| *row != 0) && face.iter().zip(cover).all(|(f, c)| f & !c == 0)
 }
 
@@ -117,6 +128,26 @@ pub struct BlockInfo {
     pub ambient_occlusion: bool,
 }
 
+/// What a cell is drawn as when the catalog has no row for its state.
+pub(crate) static AIR: BlockInfo = BlockInfo {
+    cube: None,
+    faces: None,
+    drop: 0,
+    quads: Vec::new(),
+    occludes: false,
+    self_culls: false,
+    sturdy: 0,
+    emission: 0,
+    emissive: false,
+    fluid: None,
+    neighbour: Neighbour {
+        full_block: false,
+        solid_render: false,
+        light_opaque: false,
+    },
+    ambient_occlusion: false,
+};
+
 pub const FACE_AXES: [[u8; 6]; 6] = [
     [1, 0, 0, 1, 2, 0],
     [1, 1, 0, 1, 2, 1],
@@ -125,5 +156,28 @@ pub const FACE_AXES: [[u8; 6]; 6] = [
     [0, 0, 2, 1, 1, 0],
     [0, 1, 2, 0, 1, 0],
 ];
+
+pub const fn face_axes(face: usize) -> [u8; 6] {
+    let [down, up, north, south, west, east] = FACE_AXES;
+    match face {
+        0 => down,
+        1 => up,
+        2 => north,
+        3 => south,
+        4 => west,
+        _ => east,
+    }
+}
+
+pub(crate) const fn face_direction(face: usize) -> Direction {
+    match face {
+        0 => Direction::Down,
+        1 => Direction::Up,
+        2 => Direction::North,
+        3 => Direction::South,
+        4 => Direction::West,
+        _ => Direction::East,
+    }
+}
 
 pub const CORNER_UV: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];

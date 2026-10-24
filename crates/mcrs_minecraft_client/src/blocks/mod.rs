@@ -79,7 +79,7 @@ pub struct Catalog {
 }
 
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
-    mcrs_minecraft_mesh::ambient::corner(dir, corner, Vec3::ZERO, Vec3::ONE)
+    mcrs_minecraft_mesh::ambient::corners(dir, Vec3::ZERO, Vec3::ONE)[corner]
 }
 
 pub fn empty() -> Catalog {
