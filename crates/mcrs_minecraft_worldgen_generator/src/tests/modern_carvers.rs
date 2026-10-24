@@ -234,7 +234,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     let router = super::build_beta_router();
     let (source, _) = super::beta_surface::build_beta_biome_source();
     let BiomeSource::Beta { land_biomes, .. } = &source else {
-        unreachable!("the helper builds a Beta source");
+        panic!("the helper builds a Beta source");
     };
     let cave: serde_json::Value =
         serde_json::from_slice(&std::fs::read(worldgen_dir().join("carver/cave.json")).unwrap())

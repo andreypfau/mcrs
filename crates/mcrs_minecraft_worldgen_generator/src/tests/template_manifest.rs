@@ -163,7 +163,7 @@ fn check_manifest(dump: &DumpManifest) {
     let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes) {
         (Some(p), None) => vec![p],
         (None, Some(ps)) => ps.iter().map(Vec::as_slice).collect(),
-        _ => unreachable!("freeze accepted it"),
+        _ => panic!("freeze accepted it"),
     };
     for (p, expected) in dump.palettes.iter().enumerate() {
         let entries: Vec<_> = file_palettes[p]

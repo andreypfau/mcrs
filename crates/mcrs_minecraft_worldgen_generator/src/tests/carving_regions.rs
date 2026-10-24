@@ -37,7 +37,7 @@ fn per_column(
     (x, z): (i32, i32),
 ) -> CarvingMask {
     carve_sources(
-        || unreachable!("no Beta carver runs in a modern dimension"),
+        || panic!("no Beta carver runs in a modern dimension"),
         x,
         z,
         seed as i64,
