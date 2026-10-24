@@ -96,10 +96,15 @@ impl AcceptGate {
 
     pub(crate) fn admit(&mut self, ip: IpAddr) -> Option<InflightGuard> {
         // A full bucket behaves as a new one, so dropping it bounds the map by the
-        // addresses seen within one refill period.
+        // addresses seen within the last two refill periods: a bucket drained just
+        // before a sweep is full only after it, and survives to the next one.
+        // Shrinking returns what a flood from many addresses grew the table to.
         if self.last_sweep.elapsed() >= BUCKET_REFILL_PERIOD {
             self.per_ip_buckets
                 .retain(|_, bucket| !bucket.is_full(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC));
+            if self.per_ip_buckets.capacity() > 4 * self.per_ip_buckets.len() {
+                self.per_ip_buckets.shrink_to_fit();
+            }
             self.last_sweep = Instant::now();
         }
         let current_inflight = self.inflight.load(Ordering::Relaxed);
