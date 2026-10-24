@@ -89,5 +89,7 @@ fn any_bit_from(mask: &[u64], bit_idx: usize) -> bool {
     let word_idx = bit_idx / 64;
     mask.get(word_idx)
         .is_some_and(|word| word >> (bit_idx % 64) != 0)
-        || mask.len() > word_idx + 1 && mask[word_idx + 1..].iter().any(|word| *word != 0)
+        || mask
+            .get(word_idx + 1..)
+            .is_some_and(|rest| rest.iter().any(|word| *word != 0))
 }

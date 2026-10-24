@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn every_rejected_frame_fails_and_only_the_first_increment_of_a_counter_is_logged() {
         let mut counts = GameDecodeCounts::default();
-        let keep_alive = row_of(game_serverbound::NAMES, "keep_alive");
+        let keep_alive = row_of(game_serverbound::NAMES, "keep_alive").unwrap();
 
         let line = log(&mut counts, keep_alive, &[1, 2]).expect("first failure is logged");
         assert!(line.starts_with("inbound packet: "), "{line}");
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn leftover_bytes_are_a_failure_of_the_row() {
         let mut counts = GameDecodeCounts::default();
-        let keep_alive = row_of(game_serverbound::NAMES, "keep_alive");
+        let keep_alive = row_of(game_serverbound::NAMES, "keep_alive").unwrap();
         assert_eq!(counts.record(keep_alive, &[0; 8]), Ok(()));
         let line = log(&mut counts, keep_alive, &[0; 9]).unwrap();
         assert!(line.contains("1 bytes left over"), "{line}");

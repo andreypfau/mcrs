@@ -110,15 +110,14 @@ impl<'a> DecodeTrait<'a> for LightChunk {
     fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len == 2048, "expected light section length 2048, got {len}");
-        ensure!(
-            r.len() >= 2048,
-            "not enough data to decode light section (need 2048, have {})",
-            r.len()
-        );
-        let mut bytes = [0u8; 2048];
-        bytes.copy_from_slice(&r[..2048]);
-        *r = &r[2048..];
-        Ok(LightChunk(bytes))
+        let Some((bytes, rest)) = r.split_first_chunk::<2048>() else {
+            bail!(
+                "not enough data to decode light section (need 2048, have {})",
+                r.len()
+            );
+        };
+        *r = rest;
+        Ok(LightChunk(*bytes))
     }
 }
 
@@ -149,7 +148,9 @@ fn decode_bit_set<'a>(r: &mut &'a [u8]) -> Result<Cow<'a, [u64]>> {
             .chunks(8)
             .map(|chunk| {
                 let mut word = [0u8; 8];
-                word[..chunk.len()].copy_from_slice(chunk);
+                for (byte, read) in word.iter_mut().zip(chunk) {
+                    *byte = *read;
+                }
                 u64::from_le_bytes(word)
             })
             .collect(),
@@ -243,7 +244,7 @@ pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
         PalettedContainer::Heterogeneous(data) => data,
     };
     let packed = match V::Section::network_form(data.palette.len(), direct_bits) {
-        PaletteForm::Single => unreachable!("a heterogeneous container holds two values"),
+        PaletteForm::Single => bail!("a heterogeneous container holds two values"),
         PaletteForm::Indirect { bits } => {
             (bits as u8).encode(&mut w)?;
             let (palette, packed) = container.to_palette_and_packed_data(bits as u8);
@@ -317,18 +318,27 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     let mut cells = vec![V::default(); entry_count];
     match palette {
         Some(entries) => {
-            if any_entry_past(storage_bits, &packed, entry_count, entries.len()) {
-                let index = first_entry_past(storage_bits, &packed, entry_count, entries.len())
-                    .expect("an entry is past the palette");
+            if any_entry_past(storage_bits, &packed, entry_count, entries.len())
+                && let Some(index) =
+                    first_entry_past(storage_bits, &packed, entry_count, entries.len())
+            {
                 bail!("palette index {index} of {}", entries.len());
             }
-            remap_into(storage_bits, &packed, &entries, &mut cells)
-                .expect("the packed length was read to fit");
+            remap_into(storage_bits, &packed, &entries, &mut cells).map_err(|length| {
+                crate::wire::Error::invalid(format!(
+                    "{} packed longs where {} fit",
+                    length.found, length.expected
+                ))
+            })?;
         }
         None => {
             let mut ids = vec![0u16; entry_count];
-            unpack_into(storage_bits, &packed, &mut ids)
-                .expect("the packed length was read to fit");
+            unpack_into(storage_bits, &packed, &mut ids).map_err(|length| {
+                crate::wire::Error::invalid(format!(
+                    "{} packed longs where {} fit",
+                    length.found, length.expected
+                ))
+            })?;
             for (cell, id) in cells.iter_mut().zip(ids) {
                 *cell = V::from_registry_id(id)?;
             }

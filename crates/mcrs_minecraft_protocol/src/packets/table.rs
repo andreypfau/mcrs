@@ -1,21 +1,26 @@
 use crate::{ConnectionState, PacketSide};
 
-pub const fn row_of(names: &[&str], name: &str) -> i32 {
+pub const fn row_of(names: &[&str], name: &str) -> Option<i32> {
     let mut row = 0;
-    while row < names.len() {
-        let (a, b) = (names[row].as_bytes(), name.as_bytes());
-        if a.len() == b.len() {
-            let mut i = 0;
-            while i < a.len() && a[i] == b[i] {
-                i += 1;
-            }
-            if i == a.len() {
-                return row as i32;
-            }
+    let mut rest = names;
+    while let [first, tail @ ..] = rest {
+        if same_bytes(first.as_bytes(), name.as_bytes()) {
+            return Some(row);
         }
         row += 1;
+        rest = tail;
     }
-    panic!("the name is not a row of its table")
+    None
+}
+
+const fn same_bytes(mut a: &[u8], mut b: &[u8]) -> bool {
+    loop {
+        match (a, b) {
+            ([], []) => return true,
+            ([x, a_tail @ ..], [y, b_tail @ ..]) if *x == *y => (a, b) = (a_tail, b_tail),
+            _ => return false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -358,7 +363,14 @@ macro_rules! tables {
 
                 $($(
                     impl $(<$lt>)? $crate::Packet for rows::$ty $(<$lt>)? {
-                        const ID: i32 = $crate::packets::table::row_of(NAMES, $name);
+                        const ID: i32 = const {
+                            let row = $crate::packets::table::row_of(NAMES, $name);
+                            assert!(row.is_some(), "the name is not a row of its table");
+                            match row {
+                                Some(row) => row,
+                                None => -1,
+                            }
+                        };
                         const NAME: &'static str = $name;
                         const SIDE: $crate::PacketSide = SIDE;
                         const STATE: $crate::ConnectionState = STATE;

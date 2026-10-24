@@ -93,7 +93,11 @@ fn deflate_stream(
         let read = (compress.total_in() - start_in) as usize;
         let out_before = compress.total_out();
         let status = compress
-            .compress_vec(&packet[read..], out, FlushCompress::Finish)
+            .compress_vec(
+                packet.get(read..).unwrap_or_default(),
+                out,
+                FlushCompress::Finish,
+            )
             .map_err(|_| FrameError::CompressionFailed)?;
         if status == Status::StreamEnd {
             return Ok(());
@@ -146,12 +150,12 @@ fn frame_in_place(
         return Err(FrameError::PacketTooLarge { len });
     }
     let deflate = deflate.get_or_insert_with(Deflate::new);
-    deflate.deflate(&buf[start..])?;
+    deflate.deflate(buf.get(start..).unwrap_or_default())?;
     let body = VarInt(len as i32).written_size() + deflate.scratch.len();
     check_body(body)?;
     buf.truncate(start);
     let (prefix, width) = body_prefix(body, Some(len));
-    buf.extend_from_slice(&prefix[..width]);
+    buf.extend_from_slice(prefix.get(..width).unwrap_or_default());
     buf.extend_from_slice(&deflate.scratch);
     Ok(())
 }
@@ -178,12 +182,14 @@ fn put_var_int(dst: &mut [u8], mut at: usize, mut value: usize) -> usize {
     loop {
         let low = (value & 0x7f) as u8;
         value >>= 7;
-        if value == 0 {
-            dst[at] = low;
-            return at + 1;
+        let last = value == 0;
+        if let Some(byte) = dst.get_mut(at) {
+            *byte = if last { low } else { low | 0x80 };
         }
-        dst[at] = low | 0x80;
         at += 1;
+        if last {
+            return at;
+        }
     }
 }
 
@@ -191,7 +197,9 @@ fn insert_before_packet(buf: &mut BytesMut, start: usize, (prefix, width): Prefi
     let end = buf.len();
     buf.put_bytes(0, width);
     buf.copy_within(start..end, start + width);
-    buf[start..start + width].copy_from_slice(&prefix[..width]);
+    if let (Some(slot), Some(prefix)) = (buf.get_mut(start..start + width), prefix.get(..width)) {
+        slot.copy_from_slice(prefix);
+    }
 }
 
 pub fn split_frame(buf: &mut BytesMut) -> Result<Bytes, FrameError> {
@@ -280,7 +288,10 @@ fn inflate_stream(
         let len = out.len();
         let remaining = declared - len;
         if remaining == 0 {
-            return check_stream_end(&input[consumed(inflater)..], inflater);
+            return check_stream_end(
+                input.get(consumed(inflater)..).unwrap_or_default(),
+                inflater,
+            );
         }
 
         let chunk = remaining.min(step.max(len));
@@ -289,7 +300,11 @@ fn inflate_stream(
 
         let read = consumed(inflater);
         let out_before = inflater.total_out();
-        let status = inflater.decompress(&input[read..], &mut out[len..], FlushDecompress::None);
+        let status = inflater.decompress(
+            input.get(read..).unwrap_or_default(),
+            out.get_mut(len..).unwrap_or_default(),
+            FlushDecompress::None,
+        );
         let produced = (inflater.total_out() - out_before) as usize;
         out.truncate(len + produced);
         let status = status.map_err(|_| FrameError::CorruptStream)?;
@@ -664,7 +679,7 @@ mod tests {
                         Accepted => Ok(Bytes::from(packet)),
                         Uncompressed => Ok(Bytes::from(stream)),
                         Refused(error) => Err(error),
-                        Compressed => unreachable!("{context}"),
+                        Compressed => panic!("{context}"),
                     };
                     let result = decompress(frame, CompressionThreshold(threshold), &mut None);
                     assert_eq!(result, expected, "{context}");
@@ -679,7 +694,7 @@ mod tests {
                     assert_eq!(result, Ok(Bytes::from(packet)), "{context}");
                     assert!(inflater.is_none(), "{context}");
                 }
-                _ => unreachable!("{context}"),
+                _ => panic!("{context}"),
             }
         }
     }

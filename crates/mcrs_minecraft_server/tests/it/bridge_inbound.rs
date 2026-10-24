@@ -328,7 +328,7 @@ fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
 }
 
 fn keep_alive_row() -> i32 {
-    row_of(game_serverbound::NAMES, "keep_alive")
+    row_of(game_serverbound::NAMES, "keep_alive").unwrap()
 }
 
 fn row_without_structure() -> i32 {
@@ -420,7 +420,7 @@ fn each_loop_counts_only_its_own_connections() {
 
 #[test]
 fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
-    let hello = row_of(login_serverbound::NAMES, "hello");
+    let hello = row_of(login_serverbound::NAMES, "hello").unwrap();
     let unknown = configuration_serverbound::NAMES.len() as i32;
     let decoder = "io.netty.handler.codec.DecoderException";
     for (state, sent, disconnect, cause) in [
