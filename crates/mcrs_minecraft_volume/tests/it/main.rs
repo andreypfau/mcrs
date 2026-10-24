@@ -1,7 +1,6 @@
 use mcrs_minecraft_core::BlockStateId;
 
 mod access;
-mod copy;
 mod sections;
 mod stores;
 mod views;

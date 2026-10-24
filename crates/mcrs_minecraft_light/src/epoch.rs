@@ -20,7 +20,6 @@ use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_volume::SnapshotVolume;
 
 /// New light for one section, per layer. A layer the epoch recomputed to the
 /// light it already had is `None`: the world keeps the buffer it holds, and

@@ -70,6 +70,16 @@ pub enum Denied {
     ReadOnly,
 }
 
+impl From<Unavailable> for Denied {
+    fn from(why: Unavailable) -> Self {
+        match why {
+            Unavailable::Outside => Denied::Outside,
+            Unavailable::Unloaded => Denied::Unloaded,
+            Unavailable::Foreign => Denied::Foreign,
+        }
+    }
+}
+
 /// A region of the world with fixed bounds, answering per section what its holder may do.
 /// Nothing is ever loaded on access.
 pub trait Volume {

@@ -511,16 +511,6 @@ pub(crate) mod fake {
             ))
         }
 
-        fn remove_block_entity(
-            &mut self,
-            at: BlockPos,
-        ) -> Result<Option<Self::BlockEntity>, mcrs_minecraft_volume::Denied> {
-            Ok(mcrs_minecraft_worldgen_feature::placer::remove_held(
-                &mut self.block_entities,
-                at,
-            ))
-        }
-
         fn block_entity_mut(
             &mut self,
             at: BlockPos,

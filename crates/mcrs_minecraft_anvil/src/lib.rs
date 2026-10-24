@@ -4,7 +4,6 @@ pub mod fixture;
 mod palette;
 mod region;
 mod retrogen;
-mod schematic;
 mod structures;
 mod ticks;
 #[rustfmt::skip]
@@ -21,7 +20,6 @@ pub use keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
-pub use schematic::{Schematic, SchematicBlockEntity, SchematicError, read_schematic};
 pub use structures::{ChunkStructures, DroppedStructure, StructureStart};
 pub use ticks::{DroppedFluidTick, SavedFluidTick};
 pub use write::{PaletteId, PaletteNames, write_chunk};

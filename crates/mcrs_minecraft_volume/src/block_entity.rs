@@ -19,8 +19,6 @@ pub trait BlockEntityVolumeMut: BlockEntityVolume {
         entity: Self::BlockEntity,
     ) -> Result<Option<Self::BlockEntity>, Denied>;
 
-    fn remove_block_entity(&mut self, at: BlockPos) -> Result<Option<Self::BlockEntity>, Denied>;
-
     /// `Ok(None)` where the position is writable and holds none.
     fn block_entity_mut(&mut self, at: BlockPos) -> Result<Option<&mut Self::BlockEntity>, Denied>;
 }

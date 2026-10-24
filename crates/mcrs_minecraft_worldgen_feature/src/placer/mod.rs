@@ -234,14 +234,6 @@ pub fn set_held(
     }
 }
 
-pub fn remove_held(
-    held: &mut Vec<GeneratedBlockEntity>,
-    at: BlockPos,
-) -> Option<GeneratedBlockEntity> {
-    let index = held.iter().position(|held| held.position() == at)?;
-    Some(held.remove(index))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,8 +12,7 @@ use crate::storage::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_volume::{
-    Access, BlockVolume, ColumnLayout, PalettedSection, SectionBox, Snapshot, SnapshotVolume,
-    Unavailable, Volume,
+    Access, BlockVolume, ColumnLayout, PalettedSection, SectionBox, Snapshot, Unavailable, Volume,
 };
 
 /// One loaded section: its blocks, the entity that owns them, and the last
@@ -571,8 +570,9 @@ impl BlockVolume for LightWorld {
     }
 }
 
-impl SnapshotVolume for LightWorld {
-    fn snapshot(&self, area: SectionBox) -> Snapshot {
+impl LightWorld {
+    /// The blocks of `area` as they stand, for a job that runs off the tick loop.
+    pub fn snapshot(&self, area: SectionBox) -> Snapshot {
         Snapshot::take(area, self.column_layout(), |at| self.shared(at).cloned())
     }
 }

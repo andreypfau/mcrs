@@ -22,8 +22,7 @@ use mcrs_minecraft_volume::{
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
-    GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate, remove_held,
-    set_held,
+    GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate, set_held,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
@@ -780,16 +779,6 @@ impl BlockEntityVolumeMut for ColumnRegion<'_> {
     ) -> Result<Option<GeneratedBlockEntity>, Denied> {
         self.access(SectionPos::from(at)).check_write()?;
         Ok(set_held(&mut self.block_entities, at, entity))
-    }
-
-    /// Takes back only the unit's own write: one a snapshot holds goes when the merge
-    /// settles the block that replaced it.
-    fn remove_block_entity(
-        &mut self,
-        at: BlockPos,
-    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
-        self.access(SectionPos::from(at)).check_write()?;
-        Ok(remove_held(&mut self.block_entities, at))
     }
 
     /// The unit's own write only, like a removal.

@@ -13,7 +13,7 @@ use mcrs_minecraft_volume::{BlockEntityVolume, BlockEntityVolumeMut, Denied};
 
 use crate::block_entity::GeneratedBlockEntity;
 
-use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates, remove_held, set_held};
+use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates, set_held};
 
 fn test_state(voxel: VoxelId) -> BlockStateId {
     BlockStateId::checked(voxel.0, StateCount::default().0).expect("a test world has no table")
@@ -163,16 +163,6 @@ impl BlockEntityVolumeMut for BoxRegion {
             return Err(Denied::Outside);
         }
         Ok(set_held(&mut self.block_entities, at, entity))
-    }
-
-    fn remove_block_entity(
-        &mut self,
-        at: BlockPos,
-    ) -> Result<Option<GeneratedBlockEntity>, Denied> {
-        if !self.contains(at) {
-            return Err(Denied::Outside);
-        }
-        Ok(remove_held(&mut self.block_entities, at))
     }
 
     fn block_entity_mut(

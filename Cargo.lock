@@ -3486,7 +3486,6 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_volume",
  "serde",
  "thiserror 2.0.18",
 ]

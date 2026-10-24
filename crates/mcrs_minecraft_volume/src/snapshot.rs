@@ -12,11 +12,6 @@ use crate::visit::{SectionVolume, VisitOrder};
 /// One section's block states, shared between a store and every snapshot taken of it.
 pub type SharedSection = Arc<VoxelPalette<BlockStateId, { SectionPos::SIZE }>>;
 
-/// A volume that hands out owned snapshots of its sections.
-pub trait SnapshotVolume: Volume {
-    fn snapshot(&self, area: SectionBox) -> Snapshot;
-}
-
 /// The sections of a box as they were when it was taken. Each held section shares its
 /// storage with the store it came from, so a snapshot costs a reference count per
 /// section and the store's later writes leave it as it was. Every section is
@@ -41,10 +36,6 @@ impl Snapshot {
         }
     }
 
-    pub fn area(&self) -> SectionBox {
-        self.area
-    }
-
     pub fn shared(&self, at: SectionPos) -> Result<&SharedSection, Unavailable> {
         match self
             .sections
@@ -54,14 +45,6 @@ impl Snapshot {
             Some(Err(why)) => Err(*why),
             None => Err(Unavailable::Outside),
         }
-    }
-
-    /// The sections in the order they were taken.
-    pub fn iter(&self) -> impl Iterator<Item = (SectionPos, Result<&SharedSection, Unavailable>)> {
-        self.area
-            .iter(VisitOrder::SectionMajor)
-            .zip(self.sections.iter())
-            .map(|(at, section)| (at, section.as_ref().map_err(|why| *why)))
     }
 
     fn index(&self, at: SectionPos) -> Option<usize> {

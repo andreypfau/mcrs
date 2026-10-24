@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
+use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -595,13 +595,18 @@ impl Template {
 }
 
 pub fn transform(pos: IVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -> IVec3 {
-    let transform = mcrs_minecraft_volume::Transform {
-        mirror,
-        rotation,
-        pivot: pivot.into(),
-        offset: BlockPos::new(0, 0, 0),
+    let IVec3 { x, y, z } = match mirror {
+        Mirror::None => pos,
+        Mirror::LeftRight => IVec3::new(pos.x, pos.y, -pos.z),
+        Mirror::FrontBack => IVec3::new(-pos.x, pos.y, pos.z),
     };
-    *transform.apply(pos.into())
+    let (px, pz) = (pivot.x, pivot.z);
+    match rotation {
+        Rotation::None => IVec3::new(x, y, z),
+        Rotation::Counterclockwise90 => IVec3::new(px - pz + z, y, px + pz - x),
+        Rotation::Clockwise90 => IVec3::new(px + pz - z, y, pz - px + x),
+        Rotation::Clockwise180 => IVec3::new(px + px - x, y, pz + pz - z),
+    }
 }
 
 /// The continuous form of [`transform`], for an entity inside its block: the
