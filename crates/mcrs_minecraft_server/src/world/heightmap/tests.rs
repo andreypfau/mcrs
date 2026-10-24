@@ -1,6 +1,6 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks, section_states};
 use mcrs_minecraft_worldgen_generator::heightmap::*;
 use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
@@ -288,9 +288,13 @@ fn spawn_column(
         })
         .collect();
 
+    let mut chunks = ColumnSections::new(first, y_sections.len());
+    for (&section_y, &entity) in y_sections.iter().zip(&section_entities) {
+        chunks.set_loaded(section_y, entity);
+    }
     let column = app
         .world_mut()
-        .spawn(ColumnHeightmapSet::new(height, min_y))
+        .spawn((chunks, ColumnHeightmapSet::new(height, min_y)))
         .id();
     let mut index = ColumnIndex::default();
     index.insert(ColumnPos::new(0, 0), slot(column));
