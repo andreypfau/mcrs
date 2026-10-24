@@ -78,11 +78,7 @@ impl PendingEdits {
         );
         admitted
             .into_iter()
-            .map(|column| {
-                self.columns
-                    .remove(column)
-                    .expect("an admitted column is waiting")
-            })
+            .filter_map(|column| self.columns.remove(column))
             .collect()
     }
 }

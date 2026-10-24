@@ -112,12 +112,15 @@ impl LightRegistry {
         };
         check(special.unloaded, "unloaded");
         check(special.outside, "outside");
+        let dampening = |id: VoxelId| properties.get(id.0 as usize).map(|p| p.dampening);
         assert_eq!(
-            properties[special.unloaded.0 as usize].dampening, 15,
+            dampening(special.unloaded),
+            Some(15),
             "the unloaded filler must stop light"
         );
         assert_eq!(
-            properties[special.outside.0 as usize].dampening, 0,
+            dampening(special.outside),
+            Some(0),
             "the outside filler must pass light"
         );
         Self {

@@ -448,7 +448,7 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
         let base = layout.section_base(section);
         for local in LocalPos::all() {
             let index = base | local.index() as u32;
-            let id = blocks.get(index);
+            let id = blocks.get(index).expect("a layout cell is in the snapshot");
             let emission = registry.emission(id);
             if !emission.is_zero() && colours.light_type(id) == t {
                 field.set(index, emission);
@@ -468,7 +468,10 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
     output_positions(centre)
         .map(|pos| {
             let base = layout.section_base(section_index(SectionPos::from(pos)));
-            field.get(base | LocalPos::from(pos).index() as u32).get()
+            field
+                .get(base | LocalPos::from(pos).index() as u32)
+                .expect("a layout cell is in the field")
+                .get()
         })
         .collect()
 }

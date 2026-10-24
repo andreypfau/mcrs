@@ -13,11 +13,6 @@
 //!   than fifteen cells and the work can be confined to a box;
 //! - lowering light is not something relaxation can do, so an edit erases its
 //!   box and fills it again rather than running a second, opposite algorithm.
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 
 pub mod block;
 pub mod block_light;

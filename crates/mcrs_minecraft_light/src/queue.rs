@@ -274,12 +274,11 @@ impl LightQueue {
         chosen
             .into_iter()
             .map(|batch| {
-                let mut taken = Vec::new();
-                for column in batch {
-                    let (_, work) = self.0.remove(column).expect("a chosen column is waiting");
-                    taken.extend(work.influences);
-                }
-                taken
+                batch
+                    .into_iter()
+                    .filter_map(|column| self.0.remove(column))
+                    .flat_map(|(_, work)| work.influences)
+                    .collect()
             })
             .collect()
     }

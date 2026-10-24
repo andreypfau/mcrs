@@ -228,23 +228,31 @@ impl BlockSnapshot {
 
     /// Resolved once per section by the seeding pass, which would otherwise
     /// re-index and re-match for each of the section's 4096 cells.
-    pub fn section(&self, section_index: usize) -> &SectionSource {
-        &self.sections[section_index]
+    pub fn section(&self, section_index: usize) -> Option<&SectionSource> {
+        self.sections.get(section_index)
     }
 
+    /// `None` when `index` lies outside the area the snapshot was taken for.
     #[inline]
-    pub fn get(&self, index: CellIndex) -> VoxelId {
-        self.sections[(index >> LOCAL_BITS) as usize]
-            .block_at(LocalPos::from_index((index & LOCAL_MASK) as usize))
+    pub fn get(&self, index: CellIndex) -> Option<VoxelId> {
+        self.sections
+            .get((index >> LOCAL_BITS) as usize)
+            .map(|section| section.block_at(LocalPos::from_index((index & LOCAL_MASK) as usize)))
     }
 
     pub fn section_loaded(&self, section_index: usize) -> bool {
-        matches!(self.sections[section_index], SectionSource::Loaded(_))
+        matches!(
+            self.sections.get(section_index),
+            Some(SectionSource::Loaded(_))
+        )
     }
 
     /// Whether this section may hold light at all.
     pub fn section_holds_light(&self, section_index: usize) -> bool {
-        !matches!(self.sections[section_index], SectionSource::Absent(_))
+        matches!(
+            self.sections.get(section_index),
+            Some(SectionSource::Loaded(_) | SectionSource::Open(_))
+        )
     }
 }
 
@@ -279,14 +287,20 @@ impl LightField {
         &self.layout
     }
 
+    /// `None` when `index` lies outside the field.
     #[inline]
-    pub fn get(&self, index: CellIndex) -> LightLevel {
-        LightLevel::new(self.cells[index as usize].load(Ordering::Relaxed))
+    pub fn get(&self, index: CellIndex) -> Option<LightLevel> {
+        self.cells
+            .get(index as usize)
+            .map(|cell| LightLevel::new(cell.load(Ordering::Relaxed)))
     }
 
+    /// Does nothing when `index` lies outside the field.
     #[inline]
     pub fn set(&self, index: CellIndex, level: LightLevel) {
-        self.cells[index as usize].store(level.get(), Ordering::Relaxed);
+        if let Some(cell) = self.cells.get(index as usize) {
+            cell.store(level.get(), Ordering::Relaxed);
+        }
     }
 
     /// Raises a cell to at least `level`, reporting whether it actually rose.
@@ -296,7 +310,9 @@ impl LightField {
     /// weaker claim, which some later write corrects.
     #[inline]
     pub fn raise(&self, index: CellIndex, level: LightLevel) -> bool {
-        self.cells[index as usize].fetch_max(level.get(), Ordering::Relaxed) < level.get()
+        self.cells
+            .get(index as usize)
+            .is_some_and(|cell| cell.fetch_max(level.get(), Ordering::Relaxed) < level.get())
     }
 
     pub fn fill_section(&mut self, section_index: usize, light: &LightStorage) {
@@ -305,40 +321,39 @@ impl LightField {
             return;
         }
         let base = section_index * SectionPos::VOLUME;
+        let Some(section) = self.cells.get_mut(base..base + SectionPos::VOLUME) else {
+            return;
+        };
         let mut cells = [0u8; SectionPos::VOLUME];
         light.write_field(&mut cells);
-        for (cell, value) in self.cells[base..base + SectionPos::VOLUME]
-            .iter_mut()
-            .zip(cells)
-        {
+        for (cell, value) in section.iter_mut().zip(cells) {
             *cell.get_mut() = value;
         }
     }
 
     /// The section's light, or `None` when it is bit for bit what was published
-    /// for it and the world has nothing to take.
+    /// for it and the world has nothing to take, or when the field holds no such
+    /// section.
     pub fn section_light_if_changed(
         &self,
         section_index: usize,
         published: Option<&LightStorage>,
     ) -> Option<LightStorage> {
-        let cells = self.section_cells(section_index);
+        let cells = self.section_cells(section_index)?;
         match published {
             Some(published) if published.matches_field(&cells) => None,
             _ => Some(LightStorage::from_field(&cells)),
         }
     }
 
-    fn section_cells(&self, section_index: usize) -> [u8; SectionPos::VOLUME] {
+    fn section_cells(&self, section_index: usize) -> Option<[u8; SectionPos::VOLUME]> {
         let base = section_index * SectionPos::VOLUME;
+        let section = self.cells.get(base..base + SectionPos::VOLUME)?;
         let mut cells = [0u8; SectionPos::VOLUME];
-        for (value, cell) in cells
-            .iter_mut()
-            .zip(&self.cells[base..base + SectionPos::VOLUME])
-        {
+        for (value, cell) in cells.iter_mut().zip(section) {
             *value = cell.load(Ordering::Relaxed);
         }
-        cells
+        Some(cells)
     }
 }
 

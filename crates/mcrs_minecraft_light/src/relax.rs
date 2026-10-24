@@ -31,8 +31,9 @@ fn spread(
     let mut raised = [0; 6];
     let mut count = 0;
 
-    let level = field.get(from);
-    let from_block = blocks.get(from);
+    let (Some(level), Some(from_block)) = (field.get(from), blocks.get(from)) else {
+        return (raised, count);
+    };
     for dir in Direction::all() {
         let Some(to) = field.layout().step(from, dir) else {
             continue;
@@ -41,16 +42,25 @@ fn spread(
         // Bail out before reading any block. Every step costs at least one
         // level, so a neighbour already this bright can never be improved — and
         // this is what keeps block reads down to roughly one per cell written.
-        if field.get(to).get() + 1 >= level.get() {
+        let Some(current) = field.get(to) else {
+            continue;
+        };
+        if current.get() + 1 >= level.get() {
             continue;
         }
 
-        let Some(cost) = registry.attenuation(from_block, blocks.get(to), dir) else {
+        let Some(to_block) = blocks.get(to) else {
+            continue;
+        };
+        let Some(cost) = registry.attenuation(from_block, to_block, dir) else {
             continue;
         };
         let want = level.saturating_sub(cost);
-        if !want.is_zero() && field.raise(to, want) {
-            raised[count] = to;
+        if !want.is_zero()
+            && field.raise(to, want)
+            && let Some(slot) = raised.get_mut(count)
+        {
+            *slot = to;
             count += 1;
         }
     }
@@ -75,12 +85,12 @@ pub fn relax(
         if frontier.len() < SEQUENTIAL_ROUND_LIMIT {
             for &from in &frontier {
                 let (raised, count) = spread(from, field, blocks, registry);
-                next.extend_from_slice(&raised[..count]);
+                next.extend_from_slice(raised.get(..count).unwrap_or_default());
             }
         } else {
             next.par_extend(frontier.par_iter().flat_map_iter(|&from| {
                 let (raised, count) = spread(from, field, blocks, registry);
-                (0..count).map(move |i| raised[i])
+                raised.into_iter().take(count)
             }));
         }
         std::mem::swap(&mut frontier, &mut next);

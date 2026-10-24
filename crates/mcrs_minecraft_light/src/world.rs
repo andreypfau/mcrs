@@ -73,13 +73,13 @@ impl Section {
 /// edit, and by the time the calculation runs the blocks have already changed.
 #[derive(Clone, Debug)]
 pub struct SkyFloor {
-    lowest_source_y: Box<[i32]>,
+    lowest_source_y: Box<[i32; SectionPos::AREA]>,
 }
 
 impl SkyFloor {
     pub(crate) fn new(default_y: i32) -> Self {
         Self {
-            lowest_source_y: vec![default_y; SectionPos::AREA].into_boxed_slice(),
+            lowest_source_y: Box::new([default_y; SectionPos::AREA]),
         }
     }
 
@@ -89,7 +89,11 @@ impl SkyFloor {
     }
 
     pub fn get(&self, column: BlockColumn) -> i32 {
-        self.lowest_source_y[Self::index(column)]
+        // The masked index always fits the table, so the fallback is never taken.
+        self.lowest_source_y
+            .get(Self::index(column))
+            .copied()
+            .unwrap_or(LightWorld::NO_SKY_SOURCES)
     }
 
     /// Whether every cell from `y` up this column is a sky source.
@@ -98,7 +102,9 @@ impl SkyFloor {
     }
 
     fn set(&mut self, column: BlockColumn, y: i32) {
-        self.lowest_source_y[Self::index(column)] = y;
+        if let Some(floor) = self.lowest_source_y.get_mut(Self::index(column)) {
+            *floor = y;
+        }
     }
 }
 
@@ -350,7 +356,7 @@ impl LightWorld {
             return None;
         }
         let stack: Vec<_> = self.sky_column_top_down(section_column).collect();
-        let (start, entering) = self.skip_uniform_sky(&stack);
+        let (below_uniform, entering) = self.skip_uniform_sky(&stack);
         let surfaces = self.column_surface(section_column);
         let published = self.sky_floors.get(&section_column);
         let mut floors = SkyFloor::new(self.bounds.min_light_y());
@@ -359,7 +365,7 @@ impl LightWorld {
             let (local_x, local_z) = (local_x_of(column), local_z_of(column));
             let floor = self.scan_sky_floor(
                 entering,
-                stack[start..].iter().copied(),
+                below_uniform.iter().copied(),
                 local_x,
                 local_z,
                 surfaces,
@@ -478,22 +484,21 @@ impl LightWorld {
     /// A uniform section that seals no seam is transparent to all 256 columns
     /// alike, so the empty sky above the terrain is walked once per stack
     /// instead of once per column.
-    fn skip_uniform_sky(&self, stack: &[(i32, SkyColumnSection<'_>)]) -> (usize, VoxelId) {
+    fn skip_uniform_sky<'s, 'a>(
+        &self,
+        mut stack: &'s [(i32, SkyColumnSection<'a>)],
+    ) -> (&'s [(i32, SkyColumnSection<'a>)], VoxelId) {
         let mut above = self.registry.outside();
-        let mut start = 0;
-        for (index, (_, section)) in stack.iter().enumerate() {
-            let SkyColumnSection::Uniform(block) = section else {
-                break;
-            };
+        while let Some(((_, SkyColumnSection::Uniform(block)), below)) = stack.split_first() {
             if self.registry.breaks_sky_column(above, *block)
                 || self.registry.breaks_sky_column(*block, *block)
             {
                 break;
             }
             above = *block;
-            start = index + 1;
+            stack = below;
         }
-        (start, above)
+        (stack, above)
     }
 
     pub(crate) fn forget_sky_floors(&mut self, section_column: ColumnPos) {

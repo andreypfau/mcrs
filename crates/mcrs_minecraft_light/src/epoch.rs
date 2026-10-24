@@ -91,11 +91,12 @@ impl SkyFrontier {
         let base_z = section_pos.z << SectionPos::BITS;
         let mut floor = [0i32; SectionPos::AREA];
         let mut neighbour_top = [i32::MIN; SectionPos::AREA];
-        for index in 0..SectionPos::AREA {
+        for (index, (floor, neighbour_top)) in floor.iter_mut().zip(&mut neighbour_top).enumerate()
+        {
             let lx = (index & SectionPos::MASK) as i32;
             let lz = (index >> SectionPos::BITS) as i32;
             let (x, z) = (base_x + lx, base_z + lz);
-            floor[index] = floors.get(BlockColumn { x, z });
+            *floor = floors.get(BlockColumn { x, z });
             for (dx, dz, side) in &sides {
                 let (nx, nz) = (lx + dx, lz + dz);
                 let inside = (0..SectionPos::SIZE as i32).contains(&nx)
@@ -114,7 +115,7 @@ impl SkyFrontier {
                     }),
                     None => i32::MAX,
                 };
-                neighbour_top[index] = neighbour_top[index].max(top);
+                *neighbour_top = (*neighbour_top).max(top);
             }
         }
         let clear_above = floor
@@ -136,10 +137,14 @@ impl SkyFrontier {
 
     fn holds(&self, local: LocalPos, y: i32) -> bool {
         let index = (local.x() as usize) | ((local.z() as usize) << SectionPos::BITS);
-        let floor = self.floor[index];
+        let (Some(&floor), Some(&neighbour_top)) =
+            (self.floor.get(index), self.neighbour_top.get(index))
+        else {
+            return true;
+        };
         // Below the floor it is not a source at all: its value came from
         // propagation, and relaxation still has to start from it.
-        y <= floor || y < self.neighbour_top[index]
+        y <= floor || y < neighbour_top
     }
 }
 
@@ -217,14 +222,14 @@ impl LightJob {
         let sky_frontiers: Vec<Option<SkyFrontier>> = (0..layout.column_count())
             .into_par_iter()
             .map(|column_index| {
-                let floors = sky_floors[column_index].as_deref()?;
+                let floors = sky_floors.get(column_index)?.as_deref()?;
                 Some(SkyFrontier::of(
                     floors,
                     layout.section_pos(column_index),
                     |dx, dz| {
                         layout
                             .column_step(column_index, dx, dz)
-                            .and_then(|neighbour| sky_floors[neighbour].as_deref())
+                            .and_then(|neighbour| sky_floors.get(neighbour)?.as_deref())
                     },
                 ))
             })
@@ -243,13 +248,15 @@ impl LightJob {
             if !blocks.section_holds_light(section_index) {
                 return (block_seeds, sky_seeds);
             }
+            let Some(source) = blocks.section(section_index) else {
+                return (block_seeds, sky_seeds);
+            };
 
             let section_base = layout.section_base(section_index);
             let section_pos = layout.section_pos(section_index);
             let column_index = layout.column_index(section_index);
-            let floors = sky_floors[column_index].as_deref();
-            let sky_frontier = sky_frontiers[column_index].as_ref();
-            let source = blocks.section(section_index);
+            let floors = sky_floors.get(column_index).and_then(Option::as_deref);
+            let sky_frontier = sky_frontiers.get(column_index).and_then(Option::as_ref);
             let erase = erase_plan.meets(BoundingBox::of_section(section_pos));
 
             // Clear of the terrain with no block layer to compute: every cell is
@@ -309,10 +316,10 @@ impl LightJob {
                     // Untouched cells are already at their final value and
                     // act as the fixed boundary that holds the calculation
                     // in place.
-                    if !dark && !block_field.get(index).is_zero() {
+                    if !dark && block_field.get(index).is_some_and(|level| !level.is_zero()) {
                         block_seeds.push(index);
                     }
-                    if !sky_field.get(index).is_zero()
+                    if sky_field.get(index).is_some_and(|level| !level.is_zero())
                         && sky_frontier.is_none_or(|f| f.holds(local, pos.y))
                     {
                         sky_seeds.push(index);
