@@ -78,9 +78,7 @@ fn build_modern_carver_biomes(
         };
         let dimension = dimension.location();
         let source = &generator.biome_source;
-        if let BiomeSource::Beta { .. } = source {
-            let table = CarverBiomeTable::beta(source, |biome| carvers_of(biome.index()))
-                .expect("a Beta source resolves to a Beta table");
+        if let Some(table) = CarverBiomeTable::beta(source, |biome| carvers_of(biome.index())) {
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
             continue;

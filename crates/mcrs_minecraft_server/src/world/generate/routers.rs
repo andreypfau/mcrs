@@ -58,13 +58,13 @@ pub(crate) fn build_dimension_routers(
             continue;
         };
         let dimension = dimension.location();
-        let Some(settings) = noise_settings.get(generator.settings) else {
+        let (Some(settings), Some(settings_name)) = (
+            noise_settings.get(generator.settings),
+            noise_settings.name(generator.settings),
+        ) else {
             error!(%dimension, id = ?generator.settings, "the dimension names noise settings the registry does not number");
             continue;
         };
-        let settings_name = noise_settings
-            .name(generator.settings)
-            .expect("an id of the registry has a name");
         if let Some(tables) = structures
             .as_ref()
             .and_then(|tables| tables.0.get(dimension))

@@ -70,11 +70,13 @@ fn handle_command(
     let mut parts = command.split_whitespace();
     match parts.next() {
         Some("tp") => {
-            let coords: Vec<f64> = parts.filter_map(|s| s.parse::<f64>().ok()).collect();
-            if coords.len() != 3 {
+            let mut coords = parts.filter_map(|s| s.parse::<f64>().ok());
+            let (Some(x), Some(y), Some(z), None) =
+                (coords.next(), coords.next(), coords.next(), coords.next())
+            else {
                 return;
-            }
-            let pos = DVec3::new(coords[0], coords[1], coords[2]);
+            };
+            let pos = DVec3::new(x, y, z);
             let Ok((host_anchor, mut transform, _, _)) = sender_query.get_mut(event.entity) else {
                 return;
             };

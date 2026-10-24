@@ -1,7 +1,7 @@
 use crate::world_options::DimensionList;
-use bevy_app::{App, Plugin};
+use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::{AssetServer, Assets, Handle};
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageWriter, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::AppState;
@@ -89,6 +89,7 @@ pub(crate) fn build_dimension_structures(
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
+    mut exit: MessageWriter<AppExit>,
 ) {
     let (Some(sets), Some(structures), Some(pools), Some(biomes)) = (
         registries.registry::<StructureSet>(),
@@ -113,30 +114,39 @@ pub(crate) fn build_dimension_structures(
         .iter()
         .map(|(_, name, pool)| (name.clone(), pool.clone()))
         .collect();
-    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> =
-        named_templates(&registries)
-            .unwrap_or_else(|error| {
-                panic!("the loaded registries cannot list their templates: {error}")
-            })
-            .into_iter()
-            .filter_map(|id| Some((id.clone(), template_handle(&asset_server, &id)?)))
-            .collect();
+    let template_names = match named_templates(&registries) {
+        Ok(names) => names,
+        Err(error) => {
+            tracing::error!("the loaded registries cannot list their templates: {error}");
+            exit.write(AppExit::error());
+            return;
+        }
+    };
+    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = template_names
+        .into_iter()
+        .filter_map(|id| Some((id.clone(), template_handle(&asset_server, &id)?)))
+        .collect();
 
     let template = |id: &ResourceLocation| {
         let handle = template_handles.get(id)?;
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let (cats, chickens, zombie_nautiluses) = (|| -> Result<_, String> {
+    let selectors = (|| -> Result<_, String> {
         Ok((
             spawn_selectors::<CatVariantFile>(&registries)?,
             spawn_selectors::<ChickenVariantFile>(&registries)?,
             spawn_selectors::<ZombieNautilusVariantFile>(&registries)?,
         ))
-    })()
-    .unwrap_or_else(|error| {
-        panic!("the loaded registries cannot list their spawn conditions: {error}")
-    });
+    })();
+    let (cats, chickens, zombie_nautiluses) = match selectors {
+        Ok(selectors) => selectors,
+        Err(error) => {
+            tracing::error!("the loaded registries cannot list their spawn conditions: {error}");
+            exit.write(AppExit::error());
+            return;
+        }
+    };
     fn names<R: Registered>(registries: &Registries) -> Vec<ResourceLocation> {
         registries
             .entries::<R>()
@@ -145,7 +155,7 @@ pub(crate) fn build_dimension_structures(
     }
     let cat_sounds = names::<CatSoundVariant>(&registries);
     let chicken_sounds = names::<ChickenSoundVariant>(&registries);
-    let frozen = freeze(&StructureInputs {
+    let frozen = match freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,
         pools: &pools,
@@ -159,8 +169,14 @@ pub(crate) fn build_dimension_structures(
             chicken_sounds: &chicken_sounds,
             zombie_nautiluses: Some(&zombie_nautiluses),
         },
-    })
-    .unwrap_or_else(|error| panic!("the structure registries do not resolve: {error}"));
+    }) {
+        Ok(frozen) => frozen,
+        Err(error) => {
+            tracing::error!("the structure registries do not resolve: {error}");
+            exit.write(AppExit::error());
+            return;
+        }
+    };
     tracing::info!(
         sets = frozen.sets.len(),
         structures = frozen.structures.len(),

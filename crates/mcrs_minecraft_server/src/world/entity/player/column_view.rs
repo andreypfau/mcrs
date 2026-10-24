@@ -100,17 +100,6 @@ enum ColumnState {
     Sent,
 }
 
-impl ColumnState {
-    fn unsent(self) -> Option<usize> {
-        match self {
-            Self::Queued => Some(0),
-            Self::Awaiting => Some(1),
-            Self::Ready => Some(2),
-            Self::Sent => None,
-        }
-    }
-}
-
 /// What a player is owed, column by column, and the view that decided it. A column the view
 /// wants has exactly one state, so this is the view's want list and no second copy of it is
 /// kept.
@@ -186,10 +175,26 @@ impl ColumnView {
     }
 
     fn in_state(&self, state: ColumnState) -> impl Iterator<Item = ColumnPos> + '_ {
-        state
-            .unsent()
+        let [queued, awaiting, ready] = &self.unsent;
+        let unsent = match state {
+            ColumnState::Queued => Some(queued),
+            ColumnState::Awaiting => Some(awaiting),
+            ColumnState::Ready => Some(ready),
+            ColumnState::Sent => None,
+        };
+        unsent
             .into_iter()
-            .flat_map(|index| self.unsent[index].iter().copied())
+            .flat_map(|columns| columns.iter().copied())
+    }
+
+    fn unsent_mut(&mut self, state: ColumnState) -> Option<&mut FxHashSet<ColumnPos>> {
+        let [queued, awaiting, ready] = &mut self.unsent;
+        match state {
+            ColumnState::Queued => Some(queued),
+            ColumnState::Awaiting => Some(awaiting),
+            ColumnState::Ready => Some(ready),
+            ColumnState::Sent => None,
+        }
     }
 
     fn set(&mut self, column: ColumnPos, state: Option<ColumnState>) -> Option<ColumnState> {
@@ -197,11 +202,11 @@ impl ColumnView {
             Some(state) => self.states.insert(column, state),
             None => self.states.remove(&column),
         };
-        if let Some(index) = previous.and_then(ColumnState::unsent) {
-            self.unsent[index].remove(&column);
+        if let Some(columns) = previous.and_then(|previous| self.unsent_mut(previous)) {
+            columns.remove(&column);
         }
-        if let Some(index) = state.and_then(ColumnState::unsent) {
-            self.unsent[index].insert(column);
+        if let Some(columns) = state.and_then(|state| self.unsent_mut(state)) {
+            columns.insert(column);
         }
         previous
     }
@@ -688,7 +693,7 @@ pub(crate) fn send_column_queue(
             let mut batch_bytes = 0usize;
             batch.clear();
 
-            for column_pos in nearest.drain(..) {
+            'columns: for column_pos in nearest.drain(..) {
                 if batch_bytes >= MAX_BATCH_BYTES {
                     break;
                 }
@@ -734,11 +739,12 @@ pub(crate) fn send_column_queue(
                             Err(err) => warn!(%err, "encoding a block entity for the wire"),
                         }
                     }
-                    // section and turns the rest of the column into garbage.
                     let non_air = PalettedSection(&blocks.0.0)
                         .palette(&mut PaletteBuffer::default())
                         .count(|state| state != BlockStateId::AIR);
-                    encode_section(
+                    // A section cut short shifts every section after it, so the client would
+                    // read the rest of the column as garbage.
+                    if let Err(err) = encode_section(
                         non_air,
                         0,
                         &blocks.0.0,
@@ -746,8 +752,15 @@ pub(crate) fn send_column_queue(
                         block_direct_bits,
                         biome_direct_bits,
                         &mut data,
-                    )
-                    .expect("Failed to encode chunk section");
+                    ) {
+                        warn!(
+                            %err,
+                            col_x = column_pos.x,
+                            col_z = column_pos.z,
+                            "encoding a chunk section for the wire"
+                        );
+                        continue 'columns;
+                    }
                 }
                 let light_data = if !light_status.is_installed() {
                     build_fullbright_light_data(wire_light_rows)

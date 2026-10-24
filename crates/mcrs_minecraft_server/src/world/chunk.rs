@@ -414,7 +414,10 @@ pub(crate) fn deliver_merged_columns(
         let col = key.chunk_column_pos;
         // No merged column means the store was evicted under the request; the
         // column keeps its place in the queue and climbs the ladder again.
-        let mut sections_data: Vec<(Entity, SectionPos)> = scheduler.pending[&key]
+        let Some(pending) = scheduler.pending.get(&key) else {
+            continue;
+        };
+        let mut sections_data: Vec<(Entity, SectionPos)> = pending
             .sections
             .iter()
             .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
@@ -433,10 +436,9 @@ pub(crate) fn deliver_merged_columns(
             continue;
         };
 
-        let entry = scheduler
-            .pending
-            .remove(&key)
-            .expect("the key was read off the queue this tick");
+        let Some(entry) = scheduler.pending.remove(&key) else {
+            continue;
+        };
         scheduler.priority_index.remove(&col);
         scheduler.store.set_stage(col, Stage::Delivered);
         let block_entities = scheduler.store.take_block_entities(col);
@@ -718,7 +720,10 @@ pub(crate) fn dispatch_column_generation(
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut wanted: Local<Vec<ColumnPos>>,
 ) {
-    let task_pool = CHUNK_TASK_POOL.get().unwrap();
+    let Some(task_pool) = CHUNK_TASK_POOL.get() else {
+        tracing::error!("column generation runs before its task pool is built");
+        return;
+    };
 
     let current_in_flight = scheduler.in_flight.len();
     let max_in_flight = scheduler.config.max_in_flight;

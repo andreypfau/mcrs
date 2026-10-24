@@ -10,8 +10,8 @@ use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
-    Some(n) => n,
-    None => unreachable!(),
+    Some(tps) => tps,
+    None => NonZeroU32::MIN,
 };
 
 pub fn run_server_loop(app: App) -> AppExit {

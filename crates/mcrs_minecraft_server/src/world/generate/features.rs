@@ -1,8 +1,8 @@
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
 use crate::world_options::{DimensionList, WorldSeed};
-use bevy_app::{App, Plugin};
+use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::{AssetServer, Assets};
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageWriter, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::TemperatureModifier;
@@ -146,13 +146,19 @@ fn build_dimension_features(
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
+    mut exit: MessageWriter<AppExit>,
 ) {
     // chisle: every named template is cloned, though only the templates a
     // template feature places are read from here; upgrade = collect those alone.
-    let template_values = named_templates(&registries)
-        .unwrap_or_else(|error| {
-            panic!("the loaded registries cannot list their templates: {error}")
-        })
+    let template_names = match named_templates(&registries) {
+        Ok(names) => names,
+        Err(error) => {
+            tracing::error!("the loaded registries cannot list their templates: {error}");
+            exit.write(AppExit::error());
+            return;
+        }
+    };
+    let template_values = template_names
         .into_iter()
         .filter_map(|id| {
             let handle = template_handle(&asset_server, &id)?;
@@ -197,48 +203,54 @@ fn build_dimension_features(
         };
         let dimension = dimension.location();
         let biome_order = possible_biomes(&generator.biome_source, &registries, &parameter_lists);
-        let mut steps = Vec::with_capacity(biome_order.len());
-        for id in &biome_order {
-            match by_id.get(id) {
-                Some(biome) => {
-                    steps.push(decoration_steps(&biome.features, &registries, &placed_tags))
-                }
-                // Dropping the biome would shorten the sort's input, and the
-                // sort's positions are the seeds, so a missing definition is a
-                // different world rather than one biome's worth less.
-                None => panic!("{dimension}: the biome {id} has no loaded definition"),
+        let program = (|| -> Result<FeatureProgram, String> {
+            // Dropping the biome would shorten the sort's input, and the
+            // sort's positions are the seeds, so a missing definition is a
+            // different world rather than one biome's worth less.
+            let steps = biome_order
+                .iter()
+                .map(|id| {
+                    by_id
+                        .get(id)
+                        .map(|biome| decoration_steps(&biome.features, &registries, &placed_tags))
+                        .ok_or_else(|| format!("the biome {id} has no loaded definition"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let entries: Vec<&[FeatureStepList]> = steps.iter().map(Vec::as_slice).collect();
+            let built = build_feature_steps(&entries, &loaded)
+                .map_err(|error| format!("the feature steps do not resolve: {error}"))?;
+            tracing::info!(
+                %dimension,
+                steps = built.steps.len(),
+                features = built.steps.iter().map(Vec::len).sum::<usize>(),
+                "resolved the feature steps"
+            );
+            let tables = FeatureTables {
+                features: built,
+                biome_order,
+                climate: climate.clone(),
+            };
+            FeatureProgram::build(
+                &tables,
+                &loaded,
+                &blocks.0,
+                &registries,
+                seed.0 as i64,
+                structures
+                    .as_ref()
+                    .and_then(|structures| structures.0.get(dimension))
+                    .map(|tables| &*tables.frozen),
+            )
+            .map_err(|error| format!("the feature program does not resolve: {error}"))
+        })();
+        let program = match program {
+            Ok(program) => program,
+            Err(error) => {
+                tracing::error!(%dimension, "{error}");
+                exit.write(AppExit::error());
+                return;
             }
-        }
-        let entries: Vec<&[FeatureStepList]> = steps.iter().map(Vec::as_slice).collect();
-
-        let built = build_feature_steps(&entries, &loaded).unwrap_or_else(|error| {
-            panic!("{dimension}: the feature steps do not resolve: {error}")
-        });
-        tracing::info!(
-            %dimension,
-            steps = built.steps.len(),
-            features = built.steps.iter().map(Vec::len).sum::<usize>(),
-            "resolved the feature steps"
-        );
-        let tables = FeatureTables {
-            features: built,
-            biome_order,
-            climate: climate.clone(),
         };
-        let program = FeatureProgram::build(
-            &tables,
-            &loaded,
-            &blocks.0,
-            &registries,
-            seed.0 as i64,
-            structures
-                .as_ref()
-                .and_then(|structures| structures.0.get(dimension))
-                .map(|tables| &*tables.frozen),
-        )
-        .unwrap_or_else(|error| {
-            panic!("{dimension}: the feature program does not resolve: {error}")
-        });
         programs.0.insert(dimension.clone(), Arc::new(program));
     }
     commands.insert_resource(programs);

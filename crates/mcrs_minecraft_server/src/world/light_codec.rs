@@ -129,7 +129,9 @@ fn set_bit(mask: &mut Vec<u64>, bit_idx: usize) {
     if mask.len() <= word_idx {
         mask.resize(word_idx + 1, 0);
     }
-    mask[word_idx] |= 1u64 << bit;
+    if let Some(word) = mask.get_mut(word_idx) {
+        *word |= 1u64 << bit;
+    }
 }
 
 #[derive(SystemParam)]
@@ -146,10 +148,9 @@ pub struct LightCodecParams<'w, 's> {
 /// light, and saying nothing renders the world black on the client.
 pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
     let words = rows.div_ceil(64);
-    let mut all_rows = vec![0u64; words];
-    for row in 0..rows {
-        all_rows[row / 64] |= 1 << (row % 64);
-    }
+    let all_rows: Vec<u64> = (0..words)
+        .map(|word| u64::MAX >> (64 - (rows - word * 64).min(64)))
+        .collect();
     LightData {
         sky_light_mask: Cow::Owned(all_rows.clone()),
         block_light_mask: Cow::Owned(vec![0; words]),
