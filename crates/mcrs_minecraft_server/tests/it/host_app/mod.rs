@@ -12,18 +12,18 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_engine::bus::{
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
+};
+use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::dim::pump_channels;
-use mcrs_minecraft_server::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
-};
-use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.

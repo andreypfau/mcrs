@@ -1,20 +1,20 @@
 use crate::mock_connection;
-use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, InboundPlayerSpawn};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, InboundPlayerSpawn};
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
+use mcrs_minecraft_engine::bridge::bridge_inbound_to_channel;
+use mcrs_minecraft_engine::bus::InboundPlayerPacket;
+use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
-use mcrs_minecraft_server::world::bus::InboundPlayerPacket;
-use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
 fn build_world() -> World {
     let mut world = World::new();
@@ -148,8 +148,8 @@ fn serverbound_full_disconnects_session() {
     );
 }
 
-fn transfer_snapshot() -> mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
-    mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
+fn transfer_snapshot() -> mcrs_minecraft_engine::bus::PlayerTransferSnapshot {
+    mcrs_minecraft_engine::bus::PlayerTransferSnapshot {
         uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
         username: "test".into(),
         position: bevy_math::DVec3::ZERO,

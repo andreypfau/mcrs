@@ -14,10 +14,6 @@ pub mod aoi;
 pub mod arrival;
 pub mod block_entity;
 pub mod block_update;
-pub mod bridge;
-pub mod bridge_queue;
-pub mod bus;
-pub mod channel_types;
 pub mod chunk;
 pub mod entity;
 pub mod generate;
@@ -26,7 +22,6 @@ mod generation_tests;
 pub mod heightmap;
 pub mod light;
 pub mod light_codec;
-pub mod session;
 pub mod sub_app_builder;
 
 pub struct WorldPlugin;
@@ -45,14 +40,14 @@ impl Plugin for WorldPlugin {
         // double-buffer was never initialised). Pairing with the per-sub-app
         // registrations in `spawn_dim_subapp` is what keeps the contract.
         app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
-        app.init_resource::<crate::world::channel_types::DimChannelsResource>();
+        app.init_resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         app.init_resource::<mcrs_minecraft_network::metrics::GameDecodeCounts>();
-        app.add_message::<crate::world::bus::OutboundPlayerPacket>();
-        app.add_message::<crate::world::bus::InboundPlayerPacket>();
-        app.add_message::<crate::world::bus::OutboundPlayerAttached>();
-        app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
+        app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerPacket>();
+        app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerPacket>();
+        app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerAttached>();
+        app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerDisconnect>();
         // `attach_outbound_queue` runs in FixedPreUpdate after the network
         // crate's `spawn_new_raw_connections` system (in NetworkSet::SpawnConnections)
         // has populated the world with new `ServerSideConnection` entities.
@@ -61,27 +56,27 @@ impl Plugin for WorldPlugin {
         // every connection entity carries `OutboundQueue`.
         app.add_systems(
             FixedPreUpdate,
-            crate::world::bridge::attach_outbound_queue
+            mcrs_minecraft_engine::bridge::attach_outbound_queue
                 .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
 
         app.add_schedule(bevy_ecs::schedule::Schedule::new(
-            crate::world::bridge::OutboundFlush,
+            mcrs_minecraft_engine::bridge::OutboundFlush,
         ));
         app.add_systems(
-            crate::world::bridge::OutboundFlush,
+            mcrs_minecraft_engine::bridge::OutboundFlush,
             (
-                crate::world::bridge::bridge_outbound,
-                crate::world::bridge::dispatch_encode,
+                mcrs_minecraft_engine::bridge::bridge_outbound,
+                mcrs_minecraft_engine::bridge::dispatch_encode,
             )
                 .chain(),
         );
         app.add_systems(
             FixedPostUpdate,
             (
-                crate::world::bridge::run_outbound_flush
+                mcrs_minecraft_engine::bridge::run_outbound_flush
                     .after(bevy_ecs::message::signal_message_update_system),
-                crate::world::bridge::bridge_inbound,
+                mcrs_minecraft_engine::bridge::bridge_inbound,
             )
                 .chain(),
         );
@@ -89,9 +84,9 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             bevy_app::Update,
             (
-                crate::world::bridge::bridge_inbound_to_channel,
-                crate::world::bridge::bridge_player_attach,
-                crate::world::bridge::forward_pending_inbound,
+                mcrs_minecraft_engine::bridge::bridge_inbound_to_channel,
+                mcrs_minecraft_engine::bridge::bridge_player_attach,
+                mcrs_minecraft_engine::bridge::forward_pending_inbound,
             )
                 .chain(),
         );

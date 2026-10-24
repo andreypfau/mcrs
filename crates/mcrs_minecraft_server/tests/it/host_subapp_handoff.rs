@@ -9,15 +9,15 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, bridge_player_attach};
+use mcrs_minecraft_engine::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
+use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
-use mcrs_minecraft_server::world::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
-use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
@@ -101,10 +101,10 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// A live dimension label on the host with its channels registered; returns the label and the
 /// receiving end of its control channel.
 fn live_dimension(app: &mut App, key: ResourceKey<Dimension>) -> (Entity, flume::Receiver<ToDim>) {
+    use mcrs_minecraft_engine::channel_types::FromDim;
     use mcrs_minecraft_level::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
-    use mcrs_minecraft_server::world::channel_types::FromDim;
 
     let label = app.world_mut().spawn((DimSubAppHandle, key)).id();
     let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);

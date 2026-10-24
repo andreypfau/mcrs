@@ -90,7 +90,7 @@ pub enum PacketPriority {
     Low,
 }
 
-pub(crate) fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
+pub fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
     OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(anchor),
         priority: PacketPriority::Normal,
@@ -101,7 +101,7 @@ pub(crate) fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
 }
 
 impl OutboundPlayerPacket {
-    pub(crate) fn critical(self) -> Self {
+    pub fn critical(self) -> Self {
         Self {
             priority: PacketPriority::Critical,
             ..self

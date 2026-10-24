@@ -17,7 +17,6 @@
 //! `drain_pending_disconnects` runs in `First` to refill the budget and
 //! process whatever was queued in earlier ticks.
 
-use crate::world::bus::InboundPlayerDespawn;
 use bevy_app::{App, First, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -27,6 +26,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query, ResMut, SystemParam};
+use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
 use mcrs_minecraft_network::ServerSideConnection;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
@@ -34,9 +34,9 @@ use tracing::warn;
 
 use crate::dim::send_control_or_teardown;
 use crate::login::GameProfile;
-use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
-use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::session::{HostAnchorRef, SessionConnection};
+use mcrs_minecraft_engine::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
+use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -236,7 +236,7 @@ pub fn process_disconnect(
     if let Some(connection) = connection
         && let Ok(mut socket_entity) = commands.get_entity(connection.entity())
     {
-        socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
+        socket_entity.try_remove::<mcrs_minecraft_engine::bridge_queue::OutboundQueue>();
     }
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
@@ -362,8 +362,8 @@ impl Plugin for DisconnectProtocolPlugin {
         app.add_systems(
             Update,
             filter_inflight_for_disconnect
-                .after(crate::world::bridge::bridge_inbound_to_channel)
-                .before(crate::world::bridge::bridge_player_attach),
+                .after(mcrs_minecraft_engine::bridge::bridge_inbound_to_channel)
+                .before(mcrs_minecraft_engine::bridge::bridge_player_attach),
         );
     }
 }

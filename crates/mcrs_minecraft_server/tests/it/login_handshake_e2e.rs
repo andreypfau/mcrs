@@ -13,6 +13,13 @@ use bevy_app::{App, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::bridge::{
+    bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
+    forward_pending_inbound,
+};
+use mcrs_minecraft_engine::bridge_queue::{InboundRateBucket, OutboundQueue};
+use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
+use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
@@ -20,13 +27,6 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft_server::world::bridge::{
-    bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
-    forward_pending_inbound,
-};
-use mcrs_minecraft_server::world::bridge_queue::{InboundRateBucket, OutboundQueue};
-use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
-use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 // ---------------------------------------------------------------------------

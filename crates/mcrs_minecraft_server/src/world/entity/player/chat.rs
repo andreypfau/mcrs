@@ -1,14 +1,14 @@
 use crate::login::GameProfile;
-use crate::world::bus::to;
-use crate::world::bus::{
-    ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
 use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_engine::bus::to;
+use mcrs_minecraft_engine::bus::{
+    ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
 use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
@@ -54,7 +54,9 @@ fn handle_command(
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     move_sender: Res<
-        mcrs_minecraft_level::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
+        mcrs_minecraft_level::world::channels::FromDimSender<
+            mcrs_minecraft_engine::channel_types::FromDim,
+        >,
     >,
     mut commands: Commands,
     fill: Option<Res<FillContext>>,
@@ -135,17 +137,18 @@ fn handle_command(
             // source-dim system until the target confirms (despawn) or the move is
             // rolled back (un-hide). The entity is never despawned here.
             commands.entity(event.entity).insert(InTransit { move_id });
-            let _ = move_sender
-                .0
-                .try_send(crate::world::channel_types::FromDim::MoveEntity {
-                    move_id,
-                    target,
-                    cause: ArrivalCause::CommandTeleport {
-                        pos: DVec3::new(0.0, 128.0, 0.0),
-                    },
-                    payload,
-                    player: Some(session),
-                });
+            let _ =
+                move_sender
+                    .0
+                    .try_send(mcrs_minecraft_engine::channel_types::FromDim::MoveEntity {
+                        move_id,
+                        target,
+                        cause: ArrivalCause::CommandTeleport {
+                            pos: DVec3::new(0.0, 128.0, 0.0),
+                        },
+                        payload,
+                        player: Some(session),
+                    });
         }
         Some("locate") => {
             let (Some("structure"), Some(raw)) = (parts.next(), parts.next()) else {

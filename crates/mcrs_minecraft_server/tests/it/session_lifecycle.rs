@@ -2,13 +2,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Res};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
+use mcrs_minecraft_engine::channel_types::DimChannelsResource;
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::disconnect::{LeavingSessions, process_disconnect};
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft_server::world::bus::InboundPlayerDespawn;
-use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionConnection};
 
 fn make_app() -> App {
     let mut app = App::new();
@@ -108,15 +108,14 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
+        use mcrs_minecraft_engine::channel_types::FromDim;
         use mcrs_minecraft_level::world::channels::{
             FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
-        use mcrs_minecraft_server::world::channel_types::FromDim;
         let (srv_tx, _srv_rx) =
-            flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(
-            TO_DIM_CONTROL_CAPACITY,
-        );
+            flume::bounded::<mcrs_minecraft_engine::channel_types::ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) =
+            flume::bounded::<mcrs_minecraft_engine::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
@@ -179,7 +178,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         "exactly one despawn routed to control channel (second call routes nothing)",
     );
     match &despawn_msgs[0] {
-        mcrs_minecraft_server::world::channel_types::ToDim::Despawn(InboundPlayerDespawn {
+        mcrs_minecraft_engine::channel_types::ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: ha,
             session: sess,
         }) => {

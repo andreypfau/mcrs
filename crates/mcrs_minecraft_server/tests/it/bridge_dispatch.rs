@@ -24,17 +24,17 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_engine::bridge::dispatch_encode;
+use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
+use mcrs_minecraft_engine::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::world::bridge::dispatch_encode;
-use mcrs_minecraft_server::world::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
-use mcrs_minecraft_server::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
-};
 use tokio::sync::mpsc;
 
 // ---------------------------------------------------------------------------

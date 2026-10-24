@@ -2,6 +2,11 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{IntoSystem, System};
 use bytes::{Bytes, BytesMut};
+use mcrs_minecraft_engine::bus::{
+    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
+};
+use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
+use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -31,11 +36,6 @@ use mcrs_minecraft_server::configuration::on_configuration_ack;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::disconnect::DisconnectProtocolPlugin;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState, SingleplayerProfile};
-use mcrs_minecraft_server::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-};
-use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-use mcrs_minecraft_server::world::session::HostAnchorRef;
 use tokio::sync::mpsc;
 
 use crate::mock_connection;

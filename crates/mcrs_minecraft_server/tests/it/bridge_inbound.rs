@@ -11,6 +11,13 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use bytes::BytesMut;
+use mcrs_minecraft_engine::bridge::bridge_inbound;
+use mcrs_minecraft_engine::bridge_queue::{
+    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
+};
+use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
+use mcrs_minecraft_engine::channel_types::DimChannelsResource;
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::event::run_event_loop;
@@ -24,13 +31,6 @@ use mcrs_minecraft_protocol::packets::table::{
     configuration_serverbound, game_serverbound, login_serverbound, row_of,
 };
 use mcrs_minecraft_protocol::packets::{configuration, game};
-use mcrs_minecraft_server::world::bridge::bridge_inbound;
-use mcrs_minecraft_server::world::bridge_queue::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
-};
-use mcrs_minecraft_server::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
-use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -215,7 +215,7 @@ fn inbound_rate_kick() {
 #[test]
 fn no_unattached_outbound_queue_after_fixed_preupdate() {
     use bevy_ecs::query::{With, Without};
-    use mcrs_minecraft_server::world::bridge::attach_outbound_queue;
+    use mcrs_minecraft_engine::bridge::attach_outbound_queue;
 
     let mut world = World::new();
     // Spawn a bare ServerSideConnection without OutboundQueue (simulates

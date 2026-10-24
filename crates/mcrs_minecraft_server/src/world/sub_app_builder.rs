@@ -13,11 +13,11 @@ use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{debug, error, warn};
 
-use crate::world::bus::{
+use mcrs_minecraft_engine::bus::{
     InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
     InboundRollbackMove, OutboundPlayerPacket,
 };
-use crate::world::channel_types::{FromDim, ToDim};
+use mcrs_minecraft_engine::channel_types::{FromDim, ToDim};
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -242,16 +242,16 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundPlayerSpawn>();
     // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
-    sub_app.add_message::<crate::world::bus::InboundPlayerDespawn>();
+    sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerDespawn>();
     // Written by `despawn_inbound_player` once the player is saved and drained into the
     // `FromDim` channel by `flush_from_dim_outbox`.
-    sub_app.add_message::<crate::world::bus::OutboundPlayerReleased>();
+    sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
-    sub_app.add_message::<crate::world::bus::InboundPlayerPacket>();
+    sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerPacket>();
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
     // extracted by the host to attach the session.
-    sub_app.add_message::<crate::world::bus::OutboundPlayerAttached>();
+    sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerAttached>();
     // Confirmed-move inbound messages drained from the control channel and read
     // by the arrival systems (SpawnEntity) and source-dim systems (ConfirmMove,
     // RollbackMove).
@@ -538,7 +538,7 @@ pub fn spawn_dim_subapp(
     sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
-        use crate::world::bus::OutboundPlayerAttached;
+        use mcrs_minecraft_engine::bus::OutboundPlayerAttached;
 
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
@@ -641,7 +641,7 @@ fn drain_to_dim_inbox(
     rx: Res<ToDimReceiver<ToDim>>,
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
-    mut serverbound_msgs: ResMut<Messages<crate::world::bus::InboundPlayerPacket>>,
+    mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
     mut entity_spawn_msgs: ResMut<Messages<InboundEntitySpawn>>,
     mut confirm_msgs: ResMut<Messages<InboundConfirmMove>>,
     mut rollback_msgs: ResMut<Messages<InboundRollbackMove>>,
@@ -685,7 +685,7 @@ fn drain_to_dim_inbox(
 /// costs the acknowledgement the whole column stream is paced by.
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
-    mut released: ResMut<Messages<crate::world::bus::OutboundPlayerReleased>>,
+    mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
@@ -792,8 +792,8 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
     use bevy_ecs::system::{IntoSystem, System};
+    use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
 
     /// A tick that writes more than the channel holds must not cost a packet: a column is
     /// recorded as sent when it is queued and never offered again.
@@ -803,7 +803,9 @@ mod tests {
         let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
-        world.insert_resource(Messages::<crate::world::bus::OutboundPlayerReleased>::default());
+        world.insert_resource(
+            Messages::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>::default(),
+        );
         world.insert_resource(FromDimSender(tx));
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {

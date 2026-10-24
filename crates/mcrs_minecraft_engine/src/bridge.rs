@@ -28,13 +28,11 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{trace, warn};
 
-use crate::world::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
-};
-use crate::world::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::world::bus::{PacketPayload, PacketTarget};
-use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::session::{HostAnchorRef, PendingInbound, SessionConnection};
+use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
+use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
+use crate::bus::{PacketPayload, PacketTarget};
+use crate::channel_types::{DimChannelsResource, ToDim};
+use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 
 /// Attach `OutboundQueue` to any connection entity that carries
@@ -241,7 +239,7 @@ fn encode_and_send(
     for sub_queue in encode_queues {
         for pkt in sub_queue {
             trace!(
-                target: "mcrs_minecraft_server::bridge",
+                target: "mcrs_minecraft_engine::bridge",
                 conn = ?entity,
                 kind = ?std::mem::discriminant(&pkt.data),
                 "dispatch_encode"
@@ -500,8 +498,8 @@ mod tests {
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
 
-    use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-    use crate::world::session::SessionBundle;
+    use crate::channel_types::{DimChannelsResource, FromDim, ToDim};
+    use crate::session::SessionBundle;
 
     use bytes::Bytes;
     use mcrs_minecraft_level::session::PlayerSession;

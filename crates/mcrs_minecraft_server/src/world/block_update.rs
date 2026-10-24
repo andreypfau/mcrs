@@ -35,8 +35,10 @@ use smallvec::SmallVec;
 
 pub use mcrs_minecraft_level::block_update::BlockUpdatePlugin;
 
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
+use mcrs_minecraft_engine::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
 
 /// Per-dim wire emitter. Reads the blocks placed this tick that notify
 /// clients, resolves the observer set through the section's column

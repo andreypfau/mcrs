@@ -10,16 +10,16 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::dim::pump_channels;
-use mcrs_minecraft_server::world::bus::{
+use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PlayerTransferSnapshot,
 };
-use mcrs_minecraft_server::world::session::SessionBundle;
+use mcrs_minecraft_engine::session::SessionBundle;
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 use crate::support;
@@ -43,7 +43,7 @@ fn build_host_app() -> App {
     support::insert_registries(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
+    app.init_resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>();
     app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
@@ -102,9 +102,9 @@ fn play_login_targets_host_anchor() {
     }
 
     {
-        use mcrs_minecraft_server::world::channel_types::ToDim;
+        use mcrs_minecraft_engine::channel_types::ToDim;
         app.world()
-            .resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>()
+            .resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered for dim_label")
             .control_sender

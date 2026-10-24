@@ -11,18 +11,18 @@
 //! per-dim wire emitters that want a belt-and-braces liveness filter
 //! before fan-out.
 
-use crate::world::bus::to;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, Query, With};
+use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
-use crate::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::column_view::ColumnView;
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:

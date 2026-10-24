@@ -76,6 +76,7 @@ mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
+mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }

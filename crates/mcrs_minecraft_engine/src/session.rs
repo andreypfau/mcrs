@@ -3,7 +3,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use smallvec::SmallVec;
 
-use crate::world::bus::InboundPlayerPacket;
+use crate::bus::InboundPlayerPacket;
 use mcrs_minecraft_level::session::{PlayerSession, Session, SessionPlacement};
 
 /// Serverbound packets that arrived while the session had no dimension to take them, handed

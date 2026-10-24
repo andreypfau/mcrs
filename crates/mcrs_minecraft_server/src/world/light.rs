@@ -25,8 +25,10 @@ use mcrs_minecraft_worldgen_generator::heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
+use mcrs_minecraft_engine::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
 
 /// A dimension's side of the light engine: what it hands the light world before intake, and
 /// what it sends once the light world has published.

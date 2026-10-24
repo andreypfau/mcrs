@@ -2,7 +2,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_level::session::{MoveId, PlayerSession};
 use mcrs_minecraft_level::world::channels::DimChannels;
 
-use crate::world::bus::{
+use crate::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
     InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload,
     OutboundPlayerPacket,

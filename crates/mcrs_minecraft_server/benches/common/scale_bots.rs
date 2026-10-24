@@ -24,17 +24,17 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
+use mcrs_minecraft_engine::bridge::bridge_outbound;
+use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_level::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::block::BlockStateNumber;
-use mcrs_minecraft_server::world::bridge::bridge_outbound;
-use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft_server::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
-use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
 /// Per-run report: the functional invariants the bench asserts on, all local
 /// to this run's `World`, alongside soft observational telemetry.

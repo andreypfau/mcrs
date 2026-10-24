@@ -6,9 +6,9 @@
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_server::world::bridge::bridge_outbound;
-use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft_server::world::bus::{PacketPriority, PacketTarget};
+use mcrs_minecraft_engine::bridge::bridge_outbound;
+use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::bus::{PacketPriority, PacketTarget};
 use smallvec::SmallVec;
 
 use mcrs_minecraft_level::session::PlayerSession;
@@ -173,7 +173,7 @@ fn priority_drain_order() {
     let seqs: Vec<u32> = packets
         .iter()
         .map(|p| match &p.data {
-            mcrs_minecraft_server::world::bus::PacketPayload::Test(t) => t.seq,
+            mcrs_minecraft_engine::bus::PacketPayload::Test(t) => t.seq,
             _ => panic!("expected Test payload"),
         })
         .collect();

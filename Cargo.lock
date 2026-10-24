@@ -3715,6 +3715,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "bevy_math",
+ "bytes",
+ "flume",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_entity"
 version = "0.5.8"
 dependencies = [
@@ -4132,6 +4150,7 @@ dependencies = [
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_engine",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",

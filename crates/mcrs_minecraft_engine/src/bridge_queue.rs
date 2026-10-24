@@ -5,7 +5,7 @@ pub use mcrs_minecraft_network::inbound_rate::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, INBOUND_REFILL_PER_SECOND, InboundRateBucket,
 };
 
-use crate::world::bus::{OutboundPlayerPacket, PacketPriority};
+use crate::bus::{OutboundPlayerPacket, PacketPriority};
 
 // Outbound depth thresholds shared by bridge_outbound and dispatch_encode.
 // Keeping them here avoids a circular import and ensures both sides enforce

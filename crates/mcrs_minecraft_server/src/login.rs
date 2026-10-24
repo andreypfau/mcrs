@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Text, uuid};
 use std::borrow::Cow;
 
 use crate::disconnect::Departing;
-use crate::world::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.

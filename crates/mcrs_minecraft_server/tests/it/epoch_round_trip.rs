@@ -18,10 +18,10 @@ use crate::mock_connection;
 
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine::bridge::bridge_outbound;
+use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPriority};
 use mcrs_minecraft_level::session::{PlayerSession, SessionPlacement};
-use mcrs_minecraft_server::world::bridge::bridge_outbound;
-use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPriority};
 
 use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
