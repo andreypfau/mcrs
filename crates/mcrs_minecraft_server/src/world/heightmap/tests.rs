@@ -294,7 +294,9 @@ fn spawn_column(
         .id();
     let mut index = ColumnIndex::default();
     index.insert(ColumnPos::new(0, 0), slot(column));
-    app.world_mut().entity_mut(dim).insert((index, section_index));
+    app.world_mut()
+        .entity_mut(dim)
+        .insert((index, section_index));
 
     (app, column, section_entities)
 }
@@ -387,18 +389,31 @@ fn priming_merges_partial_ranges_with_max() {
     app.init_resource::<PendingColumnHeightmaps>();
     app.add_systems(bevy_app::Update, prime_column_heightmaps);
 
+    let slot = |entity| ColumnSlot {
+        entity,
+        section_count: 1,
+    };
+    // Spawned first, so priming that ignores the dimension finds this column.
+    let other_column = app.world_mut().spawn_empty().id();
+    let mut other_index = ColumnIndex::default();
+    other_index.insert(ColumnPos::new(2, -3), slot(other_column));
+    let other_dim = app
+        .world_mut()
+        .spawn((other_index, DimensionTypeConfig::new(0, 256)))
+        .id();
+    app.world_mut()
+        .entity_mut(other_column)
+        .insert(InDimension(other_dim));
+
     let dim = app
         .world_mut()
         .spawn((ColumnIndex::default(), DimensionTypeConfig::new(-64, 384)))
         .id();
     let column = app.world_mut().spawn(InDimension(dim)).id();
-    app.world_mut().get_mut::<ColumnIndex>(dim).unwrap().insert(
-        ColumnPos::new(2, -3),
-        ColumnSlot {
-            entity: column,
-            section_count: 1,
-        },
-    );
+    app.world_mut()
+        .get_mut::<ColumnIndex>(dim)
+        .unwrap()
+        .insert(ColumnPos::new(2, -3), slot(column));
 
     let mut upper = ColumnHeightmapSet::new(64, 64);
     upper.surface.0.set(1, 1, 90);
@@ -413,10 +428,11 @@ fn priming_merges_partial_ranges_with_max() {
         app.world_mut()
             .resource_mut::<PendingColumnHeightmaps>()
             .0
-            .insert(ColumnPos::new(2, -3), built);
+            .insert((dim, ColumnPos::new(2, -3)), built);
         app.update();
     }
 
+    assert!(app.world().get::<SurfaceHeightmap>(other_column).is_none());
     let entity = app.world().entity(column);
     let surface = entity
         .get::<SurfaceHeightmap>()

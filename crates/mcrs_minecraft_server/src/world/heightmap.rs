@@ -71,7 +71,7 @@ pub fn client_heightmaps(
 
 /// Maps built by the column task, waiting for their column entity to exist.
 #[derive(Resource, Default, Debug)]
-pub struct PendingColumnHeightmaps(pub FxHashMap<ColumnPos, ColumnHeightmapSet>);
+pub struct PendingColumnHeightmaps(pub FxHashMap<(Entity, ColumnPos), ColumnHeightmapSet>);
 
 pub struct DimHeightmapPlugin;
 
@@ -94,31 +94,32 @@ pub fn prime_column_heightmaps(
     mut pending: ResMut<PendingColumnHeightmaps>,
     indices: Query<&ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
-    columns: Query<(
-        &InDimension,
+    columns: Query<
         Option<(
             &SurfaceHeightmap,
             &SolidHeightmap,
             &MotionHeightmap,
             &NoLeavesHeightmap,
         )>,
-    )>,
+    >,
     mut commands: Commands,
 ) {
     if pending.0.is_empty() {
         return;
     }
-    for (col, built) in pending.0.drain() {
+    for ((dimension, col), built) in pending.0.drain() {
         let Some(entity) = indices
-            .iter()
-            .find_map(|index| index.get(&col).map(|slot| slot.entity))
+            .get(dimension)
+            .ok()
+            .and_then(|index| index.get(&col))
+            .map(|slot| slot.entity)
         else {
             continue;
         };
-        let Ok((in_dim, existing)) = columns.get(entity) else {
+        let Ok(existing) = columns.get(entity) else {
             continue;
         };
-        let Ok(config) = dim_configs.get(in_dim.0) else {
+        let Ok(config) = dim_configs.get(dimension) else {
             continue;
         };
         let mut set = match existing {

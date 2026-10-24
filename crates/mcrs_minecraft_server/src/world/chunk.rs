@@ -444,14 +444,15 @@ pub(crate) fn deliver_merged_columns(
         // Any live section of the column answers for the whole column. The
         // first-enqueued one may already have been despawned while the rest of
         // the column still stands, and taking it alone would drop the lot.
-        match entry
+        let dim = entry
             .sections
             .iter()
             .find_map(|(section, _)| section_dimensions.get(*section).ok())
-        {
+            .copied();
+        match dim {
             Some(dim) => {
                 // No plugin spawns generated entities yet, so they are dropped here.
-                spawn_block_entities(&mut commands, *dim, block_entities);
+                spawn_block_entities(&mut commands, dim, block_entities);
             }
             None => tracing::debug!(
                 dropped = block_entities.len() + entities.len(),
@@ -468,8 +469,8 @@ pub(crate) fn deliver_merged_columns(
         );
         column_trace::mark(&mut traces, col, ColumnStage::Loaded);
         column_trace::set_source(&mut traces, col, source.label());
-        if let Some(maps) = maps {
-            pending_heightmaps.0.insert(col, maps);
+        if let (Some(dim), Some(maps)) = (dim, maps) {
+            pending_heightmaps.0.insert((dim.0, col), maps);
         }
 
         for (entity, pos, section) in carried {
