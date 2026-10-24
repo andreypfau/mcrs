@@ -10,7 +10,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::{Mirror, Rotation};
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, TagKey};
 use mcrs_minecraft_registries::{IdSet as Ids, KeySet, Named, Namer, Registries, Resolve, Tags};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
@@ -361,10 +361,10 @@ fn freeze_structure_templates(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
     structure: &ResourceLocation,
-    paths: &[&str],
+    names: &[StaticResourceLocation],
 ) -> Result<(), String> {
-    for path in paths {
-        let location = ResourceLocation::minecraft(path).expect("a hardcoded template name");
+    for name in names {
+        let location = name.to_arc();
         if frozen.template_ids.contains_key(&location) {
             continue;
         }
@@ -447,13 +447,10 @@ fn freeze_structures(
         let biomes =
             biome_mask(inputs, &settings.biomes).map_err(|error| format!("{id}: {error}"))?;
         freeze_structure_templates(inputs, frozen, id, structure.templates())?;
-        let templates = |names: &[&str]| {
+        let templates = |names: &[StaticResourceLocation]| {
             names
                 .iter()
-                .map(|name| {
-                    frozen.template_ids
-                        [&ResourceLocation::minecraft(name).expect("a hardcoded template name")]
-                })
+                .map(|name| frozen.template_ids[name.as_str()])
                 .collect::<Vec<TemplateId>>()
         };
         let kind = match structure {

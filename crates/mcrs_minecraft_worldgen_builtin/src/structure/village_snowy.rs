@@ -1,7 +1,7 @@
 use super::*;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, top_stairs};
+use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Furnace, Hinge, Patch, top_stairs};
 
 const DIORITE_STAIRS: &str = Block::DioriteStairs.as_static_str();
 
@@ -230,7 +230,7 @@ fn small_house_1(c: &mut Canvas, v: Village) {
 
 /// A wooden room under a steep roof, its door on the north, and `oven` in the
 /// far corner under a cobblestone flue.
-fn steep_cottage(c: &mut Canvas, oven: &str) {
+fn steep_cottage(c: &mut Canvas, oven: Furnace) {
     c.walls(&K.wood, &K.wood, [1, 0, 1], [5, 2, 5]);
     c.fill(&K.wood_x, [1, 5], 2, 2..=4);
     c.solid(&S.spruce_planks, [2, 0, 2], [4, 0, 4]);
@@ -269,7 +269,7 @@ fn ridge_lanterns(c: &mut Canvas) {
 }
 
 fn small_house_2(c: &mut Canvas, v: Village) {
-    steep_cottage(c, "furnace");
+    steep_cottage(c, Furnace::Furnace);
     c.bed(BLUE_BED, [2, 1, 3], South);
     c.place(&wall_torch(North), 3, 3, 0);
     c.place(&wall_torch(South), 3, 5, 2);
@@ -287,7 +287,7 @@ fn small_house_2(c: &mut Canvas, v: Village) {
 }
 
 fn snowy_armorer_house_2(c: &mut Canvas) {
-    steep_cottage(c, "blast_furnace");
+    steep_cottage(c, Furnace::BlastFurnace);
     ridge_lanterns(c);
     c.open_door(SPRUCE_DOOR, [3, 1, 1], South, Hinge::Left);
     c.place(&stairs(SPRUCE_STAIRS, North), 2, 1, 2);
@@ -296,7 +296,7 @@ fn snowy_armorer_house_2(c: &mut Canvas) {
 
 fn snowy_butchers_shop_1(c: &mut Canvas) {
     let counter = block("minecraft:smooth_stone_slab[type=top,waterlogged=false]");
-    steep_cottage(c, "smoker");
+    steep_cottage(c, Furnace::Smoker);
     ridge_lanterns(c);
     c.fill(&counter, 2..=3, 0, [2, 4]);
     c.place(&counter, 3, 0, 3);
@@ -344,7 +344,7 @@ fn small_house_3(c: &mut Canvas, v: Village) {
     c.entrance([3, 0, 6], EMPTY, NOTHING);
     c.bed(BLUE_BED, [2, 1, 3], North);
     for z in [2, 3] {
-        c.furnace([4, 1, z], "furnace", West);
+        c.furnace([4, 1, z], Furnace::Furnace, West);
     }
     c.solid(&wall_torch(North), [2, 3, 3], [3, 3, 3]);
     villagers(c, v, PLANKS, &[[3, 0, 2]]);
@@ -397,7 +397,7 @@ fn small_house_4(c: &mut Canvas, v: Village) {
     c.door(SPRUCE_DOOR, [1, 1, 3], West, Hinge::Right);
     c.entrance([0, 1, 3], EMPTY, NOTHING);
     c.bed(WHITE_BED, [3, 1, 2], East);
-    c.furnace([3, 1, 4], "furnace", North);
+    c.furnace([3, 1, 4], Furnace::Furnace, North);
     c.fill(&stairs(SPRUCE_STAIRS, South), [2, 4], 1, 4);
     c.fill(&wall_torch(East), 2, 2, [2, 4]);
     c.place(&K.hanging_lantern, 6, 2, 3);
@@ -465,7 +465,7 @@ fn small_house_6(c: &mut Canvas, v: Village) {
     stoop(c, [0, 0, 3]);
     c.bed(BLUE_BED, [3, 1, 4], East);
     chest(c, [4, 1, 2], West, "village_snowy_house");
-    c.furnace([2, 1, 2], "furnace", South);
+    c.furnace([2, 1, 2], Furnace::Furnace, South);
     c.solid(
         &wall_joined(Block::CobblestoneWall.as_static_str(), &[North, West], &[]),
         [2, 2, 2],
@@ -592,7 +592,7 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
     c.entrance([7, 0, 0], EMPTY, SNOW_BLOCK);
     c.bed(RED_BED, [4, 1, 2], South);
     c.bed(BLUE_BED, [10, 1, 2], South);
-    c.furnace([4, 4, 3], "furnace", East);
+    c.furnace([4, 4, 3], Furnace::Furnace, East);
     c.place(&stairs(SPRUCE_STAIRS, West), 4, 4, 2);
     c.place(&wall_torch(North), 7, 2, 3);
     c.fill(&wall_torch(East), 4, 5, [2, 3]);
@@ -736,7 +736,7 @@ fn medium_house_3(c: &mut Canvas, v: Village) {
     c.place(&K.ice, 2, 4, 3);
     c.door(SPRUCE_DOOR, [0, 1, 3], West, Hinge::Right);
     c.entrance([0, 1, 2], EMPTY, Block::PackedIce.as_static_str());
-    c.furnace([3, 1, 3], "furnace", West);
+    c.furnace([3, 1, 3], Furnace::Furnace, West);
     c.snow_on(&["soil"]);
 }
 
@@ -754,7 +754,7 @@ fn snowy_armorer_house_1(c: &mut Canvas) {
 
     c.fill(diorite, 5, 1, [2, 4]);
     c.solid(diorite, [5, 2, 3], [5, 6, 3]);
-    c.furnace([5, 1, 3], "blast_furnace", West);
+    c.furnace([5, 1, 3], Furnace::BlastFurnace, West);
     c.place(&stairs(DIORITE_STAIRS, South), 5, 2, 2);
     c.place(&stairs(DIORITE_STAIRS, North), 5, 2, 4);
     c.place(&K.diorite_wall, 5, 7, 3);
@@ -791,7 +791,7 @@ fn snowy_butchers_shop_2(c: &mut Canvas) {
     c.solid(&S.spruce_fence, [6, 2, 4], [6, 4, 4]);
     c.place(&S.spruce_fence, 6, 4, 3);
     c.place(&K.hanging_lantern, 6, 3, 3);
-    c.furnace([7, 1, 2], "smoker", West);
+    c.furnace([7, 1, 2], Furnace::Smoker, West);
     c.place(&fence(&[North, South]), 8, 1, 2);
     c.spot([5, 0, 2], BUTCHER_ANIMALS, DIRT);
     c.each(
@@ -1072,7 +1072,7 @@ fn snowy_masons_house_1(c: &mut Canvas) {
     c.place(&stairs(SPRUCE_STAIRS, North), 5, 0, 8);
     c.entrance([4, 0, 8], EMPTY, "minecraft:spruce_stairs[facing=north]");
     for z in 3..=5 {
-        c.furnace([2, 2, z], "furnace", East);
+        c.furnace([2, 2, z], Furnace::Furnace, East);
         let (near, far) = if z == 4 {
             ("red", "blue")
         } else {
@@ -1140,7 +1140,7 @@ fn snowy_masons_house_2(c: &mut Canvas) {
     c.fill(diorite, 6..=7, 1, [3, 5]);
     c.solid(diorite, [7, 1, 3], [7, 3, 5]);
     c.solid(diorite, [7, 4, 4], [7, 6, 4]);
-    c.furnace([6, 1, 4], "furnace", West);
+    c.furnace([6, 1, 4], Furnace::Furnace, West);
     c.solid(
         &wall_joined(Block::DioriteWall.as_static_str(), &[East], &[]),
         [6, 2, 4],
@@ -1199,7 +1199,7 @@ fn snowy_tannery_1(c: &mut Canvas) {
     );
     c.place(&K.diorite_wall, 4, 8, 4);
     chimney_collar(c, [4, 7, 4]);
-    c.furnace([4, 1, 4], "furnace", West);
+    c.furnace([4, 1, 4], Furnace::Furnace, West);
     c.place(&K.log, 5, 1, 4);
     c.door(SPRUCE_DOOR, [1, 1, 4], East, Hinge::Right);
     c.entrance([0, 0, 4], EMPTY, SPRUCE_STEP);

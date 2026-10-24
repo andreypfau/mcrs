@@ -1,5 +1,5 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{Direction, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{Direction, Mirror, Rotation, StaticResourceLocation, rl};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::template::{
@@ -7,84 +7,97 @@ use mcrs_minecraft_worldgen_feature::template::{
 };
 
 use super::lowest_corner_site;
-use crate::frozen::{FrozenStructures, TemplateId};
+use crate::frozen::FrozenStructures;
 use crate::piece::{Piece, WoodlandMansionPiece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[&str] = &[
-    "woodland_mansion/1x1_a1",
-    "woodland_mansion/1x1_a2",
-    "woodland_mansion/1x1_a3",
-    "woodland_mansion/1x1_a4",
-    "woodland_mansion/1x1_a5",
-    "woodland_mansion/1x1_as1",
-    "woodland_mansion/1x1_as2",
-    "woodland_mansion/1x1_as3",
-    "woodland_mansion/1x1_as4",
-    "woodland_mansion/1x1_b1",
-    "woodland_mansion/1x1_b2",
-    "woodland_mansion/1x1_b3",
-    "woodland_mansion/1x1_b4",
-    "woodland_mansion/1x1_b5",
-    "woodland_mansion/1x2_a1",
-    "woodland_mansion/1x2_a2",
-    "woodland_mansion/1x2_a3",
-    "woodland_mansion/1x2_a4",
-    "woodland_mansion/1x2_a5",
-    "woodland_mansion/1x2_a6",
-    "woodland_mansion/1x2_a7",
-    "woodland_mansion/1x2_a8",
-    "woodland_mansion/1x2_a9",
-    "woodland_mansion/1x2_b1",
-    "woodland_mansion/1x2_b2",
-    "woodland_mansion/1x2_b3",
-    "woodland_mansion/1x2_b4",
-    "woodland_mansion/1x2_b5",
-    "woodland_mansion/1x2_c_stairs",
-    "woodland_mansion/1x2_c1",
-    "woodland_mansion/1x2_c2",
-    "woodland_mansion/1x2_c3",
-    "woodland_mansion/1x2_c4",
-    "woodland_mansion/1x2_d_stairs",
-    "woodland_mansion/1x2_d1",
-    "woodland_mansion/1x2_d2",
-    "woodland_mansion/1x2_d3",
-    "woodland_mansion/1x2_d4",
-    "woodland_mansion/1x2_d5",
-    "woodland_mansion/1x2_s1",
-    "woodland_mansion/1x2_s2",
-    "woodland_mansion/1x2_se1",
-    "woodland_mansion/2x2_a1",
-    "woodland_mansion/2x2_a2",
-    "woodland_mansion/2x2_a3",
-    "woodland_mansion/2x2_a4",
-    "woodland_mansion/2x2_b1",
-    "woodland_mansion/2x2_b2",
-    "woodland_mansion/2x2_b3",
-    "woodland_mansion/2x2_b4",
-    "woodland_mansion/2x2_b5",
-    "woodland_mansion/2x2_s1",
-    "woodland_mansion/carpet_east",
-    "woodland_mansion/carpet_north",
-    "woodland_mansion/carpet_south_1",
-    "woodland_mansion/carpet_south_2",
-    "woodland_mansion/carpet_west_1",
-    "woodland_mansion/carpet_west_2",
-    "woodland_mansion/corridor_floor",
-    "woodland_mansion/entrance",
-    "woodland_mansion/indoors_door_1",
-    "woodland_mansion/indoors_door_2",
-    "woodland_mansion/indoors_wall_1",
-    "woodland_mansion/indoors_wall_2",
-    "woodland_mansion/roof",
-    "woodland_mansion/roof_corner",
-    "woodland_mansion/roof_front",
-    "woodland_mansion/roof_inner_corner",
-    "woodland_mansion/small_wall",
-    "woodland_mansion/small_wall_corner",
-    "woodland_mansion/wall_corner",
-    "woodland_mansion/wall_flat",
-    "woodland_mansion/wall_window",
+/// A mansion template's name, checked when the crate compiles.
+macro_rules! mansion {
+    ($path:literal) => {
+        const {
+            match StaticResourceLocation::new_static(concat!("minecraft:woodland_mansion/", $path))
+            {
+                Ok(name) => name,
+                Err(reason) => panic!("{}", reason),
+            }
+        }
+    };
+}
+
+pub const TEMPLATES: &[StaticResourceLocation] = &[
+    rl!("minecraft:woodland_mansion/1x1_a1"),
+    rl!("minecraft:woodland_mansion/1x1_a2"),
+    rl!("minecraft:woodland_mansion/1x1_a3"),
+    rl!("minecraft:woodland_mansion/1x1_a4"),
+    rl!("minecraft:woodland_mansion/1x1_a5"),
+    rl!("minecraft:woodland_mansion/1x1_as1"),
+    rl!("minecraft:woodland_mansion/1x1_as2"),
+    rl!("minecraft:woodland_mansion/1x1_as3"),
+    rl!("minecraft:woodland_mansion/1x1_as4"),
+    rl!("minecraft:woodland_mansion/1x1_b1"),
+    rl!("minecraft:woodland_mansion/1x1_b2"),
+    rl!("minecraft:woodland_mansion/1x1_b3"),
+    rl!("minecraft:woodland_mansion/1x1_b4"),
+    rl!("minecraft:woodland_mansion/1x1_b5"),
+    rl!("minecraft:woodland_mansion/1x2_a1"),
+    rl!("minecraft:woodland_mansion/1x2_a2"),
+    rl!("minecraft:woodland_mansion/1x2_a3"),
+    rl!("minecraft:woodland_mansion/1x2_a4"),
+    rl!("minecraft:woodland_mansion/1x2_a5"),
+    rl!("minecraft:woodland_mansion/1x2_a6"),
+    rl!("minecraft:woodland_mansion/1x2_a7"),
+    rl!("minecraft:woodland_mansion/1x2_a8"),
+    rl!("minecraft:woodland_mansion/1x2_a9"),
+    rl!("minecraft:woodland_mansion/1x2_b1"),
+    rl!("minecraft:woodland_mansion/1x2_b2"),
+    rl!("minecraft:woodland_mansion/1x2_b3"),
+    rl!("minecraft:woodland_mansion/1x2_b4"),
+    rl!("minecraft:woodland_mansion/1x2_b5"),
+    rl!("minecraft:woodland_mansion/1x2_c_stairs"),
+    rl!("minecraft:woodland_mansion/1x2_c1"),
+    rl!("minecraft:woodland_mansion/1x2_c2"),
+    rl!("minecraft:woodland_mansion/1x2_c3"),
+    rl!("minecraft:woodland_mansion/1x2_c4"),
+    rl!("minecraft:woodland_mansion/1x2_d_stairs"),
+    rl!("minecraft:woodland_mansion/1x2_d1"),
+    rl!("minecraft:woodland_mansion/1x2_d2"),
+    rl!("minecraft:woodland_mansion/1x2_d3"),
+    rl!("minecraft:woodland_mansion/1x2_d4"),
+    rl!("minecraft:woodland_mansion/1x2_d5"),
+    rl!("minecraft:woodland_mansion/1x2_s1"),
+    rl!("minecraft:woodland_mansion/1x2_s2"),
+    rl!("minecraft:woodland_mansion/1x2_se1"),
+    rl!("minecraft:woodland_mansion/2x2_a1"),
+    rl!("minecraft:woodland_mansion/2x2_a2"),
+    rl!("minecraft:woodland_mansion/2x2_a3"),
+    rl!("minecraft:woodland_mansion/2x2_a4"),
+    rl!("minecraft:woodland_mansion/2x2_b1"),
+    rl!("minecraft:woodland_mansion/2x2_b2"),
+    rl!("minecraft:woodland_mansion/2x2_b3"),
+    rl!("minecraft:woodland_mansion/2x2_b4"),
+    rl!("minecraft:woodland_mansion/2x2_b5"),
+    rl!("minecraft:woodland_mansion/2x2_s1"),
+    rl!("minecraft:woodland_mansion/carpet_east"),
+    rl!("minecraft:woodland_mansion/carpet_north"),
+    rl!("minecraft:woodland_mansion/carpet_south_1"),
+    rl!("minecraft:woodland_mansion/carpet_south_2"),
+    rl!("minecraft:woodland_mansion/carpet_west_1"),
+    rl!("minecraft:woodland_mansion/carpet_west_2"),
+    rl!("minecraft:woodland_mansion/corridor_floor"),
+    rl!("minecraft:woodland_mansion/entrance"),
+    rl!("minecraft:woodland_mansion/indoors_door_1"),
+    rl!("minecraft:woodland_mansion/indoors_door_2"),
+    rl!("minecraft:woodland_mansion/indoors_wall_1"),
+    rl!("minecraft:woodland_mansion/indoors_wall_2"),
+    rl!("minecraft:woodland_mansion/roof"),
+    rl!("minecraft:woodland_mansion/roof_corner"),
+    rl!("minecraft:woodland_mansion/roof_front"),
+    rl!("minecraft:woodland_mansion/roof_inner_corner"),
+    rl!("minecraft:woodland_mansion/small_wall"),
+    rl!("minecraft:woodland_mansion/small_wall_corner"),
+    rl!("minecraft:woodland_mansion/wall_corner"),
+    rl!("minecraft:woodland_mansion/wall_flat"),
+    rl!("minecraft:woodland_mansion/wall_window"),
 ];
 
 pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
@@ -93,7 +106,7 @@ pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stu
 
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let Stub::Rotated(rotation) = site.stub else {
-        unreachable!("the mansion site is a rotation");
+        return Vec::new();
     };
     let grid = MansionGrid::new(&mut site.rng);
     let mut placer = Placer {
@@ -124,13 +137,15 @@ const ROOM_CORRIDOR: i32 = 1 << 23;
 const ROOM_TYPE_MASK: i32 = 0xF_0000;
 const ROOM_ID_MASK: i32 = 0xFFFF;
 
-/// `Direction.from2DDataValue`, the order `nextInt(4)` indexes.
-const BY_2D_DATA: [Direction; 4] = [
-    Direction::South,
-    Direction::West,
-    Direction::North,
-    Direction::East,
-];
+/// `Direction.from2DDataValue` of a `nextInt(4)` draw.
+fn from_2d_data(value: i32) -> Direction {
+    match value {
+        0 => Direction::South,
+        1 => Direction::West,
+        2 => Direction::North,
+        _ => Direction::East,
+    }
+}
 
 fn step(direction: Direction) -> (i32, i32) {
     let normal = direction.normal();
@@ -152,14 +167,21 @@ impl Grid {
 
     fn get(&self, x: i32, y: i32) -> i32 {
         match (usize::try_from(x), usize::try_from(y)) {
-            (Ok(x @ ..SIZE), Ok(y @ ..SIZE)) => self.cells[x][y],
+            (Ok(x), Ok(y)) => self
+                .cells
+                .get(x)
+                .and_then(|column| column.get(y))
+                .copied()
+                .unwrap_or(BLOCKED),
             _ => BLOCKED,
         }
     }
 
     fn set(&mut self, x: i32, y: i32, value: i32) {
-        if let (Ok(x @ ..SIZE), Ok(y @ ..SIZE)) = (usize::try_from(x), usize::try_from(y)) {
-            self.cells[x][y] = value;
+        if let (Ok(x), Ok(y)) = (usize::try_from(x), usize::try_from(y))
+            && let Some(cell) = self.cells.get_mut(x).and_then(|column| column.get_mut(y))
+        {
+            *cell = value;
         }
     }
 
@@ -216,29 +238,27 @@ impl MansionGrid {
         recursive_corridor(&mut base, rng, ex - 2, ey + 2, Direction::West, 3);
         while clean_edges(&mut base) {}
 
-        let mut rooms = [Grid::new(), Grid::new(), Grid::new()];
-        identify_rooms(&base, &mut rooms[0], rng);
-        identify_rooms(&base, &mut rooms[1], rng);
-        rooms[0].fill(ex + 1, ey, ex + 1, ey + 1, ROOM_CORRIDOR);
-        rooms[1].fill(ex + 1, ey, ex + 1, ey + 1, ROOM_CORRIDOR);
+        let [mut first_rooms, mut second_rooms, mut third_rooms] =
+            [Grid::new(), Grid::new(), Grid::new()];
+        identify_rooms(&base, &mut first_rooms, rng);
+        identify_rooms(&base, &mut second_rooms, rng);
+        first_rooms.fill(ex + 1, ey, ex + 1, ey + 1, ROOM_CORRIDOR);
+        second_rooms.fill(ex + 1, ey, ex + 1, ey + 1, ROOM_CORRIDOR);
         let mut third = Grid::new();
-        {
-            let (lower, upper) = rooms.split_at_mut(2);
-            setup_third_floor(&base, &mut third, &mut lower[1], &mut upper[0], rng);
-        }
-        identify_rooms(&third, &mut rooms[2], rng);
+        setup_third_floor(&base, &mut third, &mut second_rooms, &mut third_rooms, rng);
+        identify_rooms(&third, &mut third_rooms, rng);
         MansionGrid {
             base,
             third,
-            rooms,
+            rooms: [first_rooms, second_rooms, third_rooms],
             entrance_x: ex,
             entrance_y: ey,
         }
     }
+}
 
-    fn is_room_id(&self, x: i32, y: i32, floor: usize, room_id: i32) -> bool {
-        (self.rooms[floor].get(x, y) & ROOM_ID_MASK) == room_id
-    }
+fn is_room_id(rooms: &Grid, x: i32, y: i32, room_id: i32) -> bool {
+    (rooms.get(x, y) & ROOM_ID_MASK) == room_id
 }
 
 fn room_1x2_direction(rooms: &Grid, x: i32, y: i32, room_id: i32) -> Option<Direction> {
@@ -263,7 +283,7 @@ fn recursive_corridor(
     let (hx, hz) = step(heading);
     grid.set_if(x + hx, y + hz, CLEAR, CORRIDOR);
     for _ in 0..8 {
-        let next = BY_2D_DATA[rng.next_i32_bound(4) as usize];
+        let next = from_2d_data(rng.next_i32_bound(4));
         if next != heading.opposite() && (next != Direction::East || !rng.next_bool()) {
             let (nx, ny) = (x + hx, y + hz);
             let (sx, sz) = step(next);
@@ -338,12 +358,17 @@ fn setup_third_floor(
         third.fill(0, 0, SIZE as i32, SIZE as i32, BLOCKED);
         return;
     }
-    let (room_x, room_y) =
-        potential_rooms[rng.next_i32_bound(potential_rooms.len() as i32) as usize];
+    let Some(&(room_x, room_y)) =
+        potential_rooms.get(rng.next_i32_bound(potential_rooms.len() as i32) as usize)
+    else {
+        return;
+    };
     let room_data = second_rooms.get(room_x, room_y);
     second_rooms.set(room_x, room_y, room_data | ROOM_STAIRS);
-    let room_dir = room_1x2_direction(second_rooms, room_x, room_y, room_data & ROOM_ID_MASK)
-        .expect("a 1x2 room has a second cell");
+    let Some(room_dir) = room_1x2_direction(second_rooms, room_x, room_y, room_data & ROOM_ID_MASK)
+    else {
+        return;
+    };
     let (sx, sz) = step(room_dir);
     let (end_x, end_y) = (room_x + sx, room_y + sz);
     for y in 0..SIZE as i32 {
@@ -370,8 +395,11 @@ fn setup_third_floor(
         second_rooms.set(room_x, room_y, room_data);
         return;
     }
-    let corridor_dir =
-        potential_corridors[rng.next_i32_bound(potential_corridors.len() as i32) as usize];
+    let Some(&corridor_dir) =
+        potential_corridors.get(rng.next_i32_bound(potential_corridors.len() as i32) as usize)
+    else {
+        return;
+    };
     let (sx, sz) = step(corridor_dir);
     recursive_corridor(third, rng, end_x + sx, end_y + sz, corridor_dir, 4);
     while clean_edges(third) {}
@@ -469,6 +497,73 @@ fn identify_rooms(from: &Grid, rooms: &mut Grid, rng: &mut LegacyRandom) {
     }
 }
 
+const ROOMS_1X1_A: &[StaticResourceLocation] = &[
+    mansion!("1x1_a1"),
+    mansion!("1x1_a2"),
+    mansion!("1x1_a3"),
+    mansion!("1x1_a4"),
+    mansion!("1x1_a5"),
+];
+const ROOMS_1X1_B: &[StaticResourceLocation] = &[
+    mansion!("1x1_b1"),
+    mansion!("1x1_b2"),
+    mansion!("1x1_b3"),
+    mansion!("1x1_b4"),
+    mansion!("1x1_b5"),
+];
+const ROOMS_1X1_AS: &[StaticResourceLocation] = &[
+    mansion!("1x1_as1"),
+    mansion!("1x1_as2"),
+    mansion!("1x1_as3"),
+    mansion!("1x1_as4"),
+];
+const ROOMS_1X2_A: &[StaticResourceLocation] = &[
+    mansion!("1x2_a1"),
+    mansion!("1x2_a2"),
+    mansion!("1x2_a3"),
+    mansion!("1x2_a4"),
+    mansion!("1x2_a5"),
+    mansion!("1x2_a6"),
+    mansion!("1x2_a7"),
+    mansion!("1x2_a8"),
+    mansion!("1x2_a9"),
+];
+const ROOMS_1X2_C: &[StaticResourceLocation] = &[
+    mansion!("1x2_c1"),
+    mansion!("1x2_c2"),
+    mansion!("1x2_c3"),
+    mansion!("1x2_c4"),
+];
+const ROOMS_1X2_B: &[StaticResourceLocation] = &[
+    mansion!("1x2_b1"),
+    mansion!("1x2_b2"),
+    mansion!("1x2_b3"),
+    mansion!("1x2_b4"),
+    mansion!("1x2_b5"),
+];
+const ROOMS_1X2_D: &[StaticResourceLocation] = &[
+    mansion!("1x2_d1"),
+    mansion!("1x2_d2"),
+    mansion!("1x2_d3"),
+    mansion!("1x2_d4"),
+    mansion!("1x2_d5"),
+];
+const ROOMS_1X2_S: &[StaticResourceLocation] = &[mansion!("1x2_s1"), mansion!("1x2_s2")];
+const ROOMS_1X2_SE: &[StaticResourceLocation] = &[mansion!("1x2_se1")];
+const ROOMS_2X2_A: &[StaticResourceLocation] = &[
+    mansion!("2x2_a1"),
+    mansion!("2x2_a2"),
+    mansion!("2x2_a3"),
+    mansion!("2x2_a4"),
+];
+const ROOMS_2X2_B: &[StaticResourceLocation] = &[
+    mansion!("2x2_b1"),
+    mansion!("2x2_b2"),
+    mansion!("2x2_b3"),
+    mansion!("2x2_b4"),
+    mansion!("2x2_b5"),
+];
+
 /// The three floors' room pools; the second and third share one.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FloorRooms {
@@ -485,60 +580,73 @@ impl FloorRooms {
         }
     }
 
-    fn numbered(prefix: &str, rng: &mut LegacyRandom, count: i32) -> String {
-        format!("{prefix}{}", rng.next_i32_bound(count) + 1)
+    fn numbered(
+        names: &[StaticResourceLocation],
+        rng: &mut LegacyRandom,
+    ) -> Option<StaticResourceLocation> {
+        names
+            .get(rng.next_i32_bound(names.len() as i32) as usize)
+            .copied()
     }
 
-    fn room_1x1(self, rng: &mut LegacyRandom) -> String {
+    fn room_1x1(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
         match self {
-            FloorRooms::First => Self::numbered("1x1_a", rng, 5),
-            FloorRooms::Upper => Self::numbered("1x1_b", rng, 5),
+            FloorRooms::First => Self::numbered(ROOMS_1X1_A, rng),
+            FloorRooms::Upper => Self::numbered(ROOMS_1X1_B, rng),
         }
     }
 
-    fn room_1x1_secret(self, rng: &mut LegacyRandom) -> String {
-        Self::numbered("1x1_as", rng, 4)
+    fn room_1x1_secret(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
+        Self::numbered(ROOMS_1X1_AS, rng)
     }
 
-    fn room_1x2_side_entrance(self, rng: &mut LegacyRandom, stairs: bool) -> String {
+    fn room_1x2_side_entrance(
+        self,
+        rng: &mut LegacyRandom,
+        stairs: bool,
+    ) -> Option<StaticResourceLocation> {
         match self {
-            FloorRooms::First => Self::numbered("1x2_a", rng, 9),
-            FloorRooms::Upper if stairs => "1x2_c_stairs".to_owned(),
-            FloorRooms::Upper => Self::numbered("1x2_c", rng, 4),
+            FloorRooms::First => Self::numbered(ROOMS_1X2_A, rng),
+            FloorRooms::Upper if stairs => Some(mansion!("1x2_c_stairs")),
+            FloorRooms::Upper => Self::numbered(ROOMS_1X2_C, rng),
         }
     }
 
-    fn room_1x2_front_entrance(self, rng: &mut LegacyRandom, stairs: bool) -> String {
+    fn room_1x2_front_entrance(
+        self,
+        rng: &mut LegacyRandom,
+        stairs: bool,
+    ) -> Option<StaticResourceLocation> {
         match self {
-            FloorRooms::First => Self::numbered("1x2_b", rng, 5),
-            FloorRooms::Upper if stairs => "1x2_d_stairs".to_owned(),
-            FloorRooms::Upper => Self::numbered("1x2_d", rng, 5),
+            FloorRooms::First => Self::numbered(ROOMS_1X2_B, rng),
+            FloorRooms::Upper if stairs => Some(mansion!("1x2_d_stairs")),
+            FloorRooms::Upper => Self::numbered(ROOMS_1X2_D, rng),
         }
     }
 
-    fn room_1x2_secret(self, rng: &mut LegacyRandom) -> String {
+    fn room_1x2_secret(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
         match self {
-            FloorRooms::First => Self::numbered("1x2_s", rng, 2),
-            FloorRooms::Upper => Self::numbered("1x2_se", rng, 1),
+            FloorRooms::First => Self::numbered(ROOMS_1X2_S, rng),
+            FloorRooms::Upper => Self::numbered(ROOMS_1X2_SE, rng),
         }
     }
 
-    fn room_2x2(self, rng: &mut LegacyRandom) -> String {
+    fn room_2x2(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
         match self {
-            FloorRooms::First => Self::numbered("2x2_a", rng, 4),
-            FloorRooms::Upper => Self::numbered("2x2_b", rng, 5),
+            FloorRooms::First => Self::numbered(ROOMS_2X2_A, rng),
+            FloorRooms::Upper => Self::numbered(ROOMS_2X2_B, rng),
         }
     }
 
-    fn room_2x2_secret(self) -> String {
-        "2x2_s1".to_owned()
+    fn room_2x2_secret(self) -> StaticResourceLocation {
+        mansion!("2x2_s1")
     }
 }
 
 struct PlacementData {
     position: IVec3,
     rotation: Rotation,
-    wall: &'static str,
+    wall: StaticResourceLocation,
 }
 
 struct Placer<'a> {
@@ -550,22 +658,16 @@ struct Placer<'a> {
 }
 
 impl Placer<'_> {
-    fn template(&self, name: &str) -> TemplateId {
-        let id = ResourceLocation::minecraft(&format!(
-            "{}{name}",
-            WoodlandMansionPiece::TEMPLATE_PREFIX
-        ))
-        .expect("a hardcoded template name");
-        *self
-            .frozen
-            .template_ids
-            .get(&id)
-            .unwrap_or_else(|| panic!("the mansion template {id} is not frozen"))
-    }
-
-    fn add(&mut self, name: &str, position: IVec3, rotation: Rotation, mirror: Mirror) {
-        let template = self.template(name);
-        let size = self.frozen.manifests[template.0 as usize].size;
+    fn add(
+        &mut self,
+        name: StaticResourceLocation,
+        position: IVec3,
+        rotation: Rotation,
+        mirror: Mirror,
+    ) {
+        let Some((template, size)) = self.frozen.sized_template(name.as_str()) else {
+            return;
+        };
         self.pieces
             .push(Piece::WoodlandMansion(WoodlandMansionPiece {
                 template,
@@ -588,13 +690,13 @@ impl Placer<'_> {
         let mut data = PlacementData {
             position: origin,
             rotation,
-            wall: "wall_flat",
+            wall: mansion!("wall_flat"),
         };
         self.entrance(&mut data);
         let mut second = PlacementData {
             position: data.position + IVec3::Y * 8,
             rotation: data.rotation,
-            wall: "wall_window",
+            wall: mansion!("wall_window"),
         };
         let base = &mansion.base;
         let third = &mansion.third;
@@ -623,7 +725,7 @@ impl Placer<'_> {
         let mut third_data = PlacementData {
             position: data.position + IVec3::Y * 19,
             rotation: data.rotation,
-            wall: "wall_window",
+            wall: mansion!("wall_window"),
         };
         'third: for y in 0..SIZE as i32 {
             for x in (0..SIZE as i32).rev() {
@@ -639,21 +741,20 @@ impl Placer<'_> {
         self.create_roof(origin + IVec3::Y * 16, rotation, base, Some(third));
         self.create_roof(origin + IVec3::Y * 27, rotation, third, None);
 
-        for floor in 0..3 {
+        for (floor, rooms) in mansion.rooms.iter().enumerate() {
             let floor_origin =
                 origin + IVec3::Y * (8 * floor as i32 + if floor == 2 { 3 } else { 0 });
-            let rooms = &mansion.rooms[floor];
             let grid = if floor == 2 { third } else { base };
             let pool = FloorRooms::of(floor);
             let south_piece = if floor == 0 {
-                "carpet_south_1"
+                mansion!("carpet_south_1")
             } else {
-                "carpet_south_2"
+                mansion!("carpet_south_2")
             };
             let west_piece = if floor == 0 {
-                "carpet_west_1"
+                mansion!("carpet_west_1")
             } else {
-                "carpet_west_2"
+                mansion!("carpet_west_2")
             };
             let corridor_or_flagged = |x: i32, y: i32| {
                 grid.get(x, y) == CORRIDOR || rooms.get(x, y) & ROOM_CORRIDOR == ROOM_CORRIDOR
@@ -665,10 +766,10 @@ impl Placer<'_> {
                         continue;
                     }
                     let pos = self.grid_pos(floor_origin, rotation, x, y);
-                    self.add("corridor_floor", pos, rotation, Mirror::None);
+                    self.add(mansion!("corridor_floor"), pos, rotation, Mirror::None);
                     if corridor_or_flagged(x, y - 1) {
                         self.add(
-                            "carpet_north",
+                            mansion!("carpet_north"),
                             rotation.rotate(Direction::East).relative(pos, 1) + IVec3::Y,
                             rotation,
                             Mirror::None,
@@ -677,7 +778,7 @@ impl Placer<'_> {
                     if corridor_or_flagged(x + 1, y) {
                         let at = rotation.rotate(Direction::South).relative(pos, 1);
                         let at = rotation.rotate(Direction::East).relative(at, 5) + IVec3::Y;
-                        self.add("carpet_east", at, rotation, Mirror::None);
+                        self.add(mansion!("carpet_east"), at, rotation, Mirror::None);
                     }
                     if corridor_or_flagged(x, y + 1) {
                         let at = rotation.rotate(Direction::South).relative(pos, 5);
@@ -693,14 +794,14 @@ impl Placer<'_> {
             }
 
             let wall_piece = if floor == 0 {
-                "indoors_wall_1"
+                mansion!("indoors_wall_1")
             } else {
-                "indoors_wall_2"
+                mansion!("indoors_wall_2")
             };
             let door_piece = if floor == 0 {
-                "indoors_door_1"
+                mansion!("indoors_door_1")
             } else {
-                "indoors_door_2"
+                mansion!("indoors_door_2")
             };
             for y in 0..SIZE as i32 {
                 for x in 0..SIZE as i32 {
@@ -725,7 +826,9 @@ impl Placer<'_> {
                         Vec::new()
                     };
                     let door_dir = if !door_dirs.is_empty() {
-                        Some(door_dirs[self.rng.next_i32_bound(door_dirs.len() as i32) as usize])
+                        door_dirs
+                            .get(self.rng.next_i32_bound(door_dirs.len() as i32) as usize)
+                            .copied()
                     } else if room_data & ROOM_ORIGIN == ROOM_ORIGIN {
                         Some(Direction::Up)
                     } else {
@@ -745,7 +848,7 @@ impl Placer<'_> {
                             wall_piece
                         }
                     };
-                    if grid.is_house(x - 1, y) && !mansion.is_room_id(x - 1, y, floor, room_id) {
+                    if grid.is_house(x - 1, y) && !is_room_id(rooms, x - 1, y, room_id) {
                         self.add(
                             wall_or_door(Direction::West),
                             room_pos,
@@ -757,7 +860,7 @@ impl Placer<'_> {
                         let at = rotation.rotate(Direction::East).relative(room_pos, 8);
                         self.add(wall_or_door(Direction::East), at, rotation, Mirror::None);
                     }
-                    if grid.is_house(x, y + 1) && !mansion.is_room_id(x, y + 1, floor, room_id) {
+                    if grid.is_house(x, y + 1) && !is_room_id(rooms, x, y + 1, room_id) {
                         let at = rotation.rotate(Direction::South).relative(room_pos, 7);
                         let at = rotation.rotate(Direction::East).relative(at, 7);
                         self.add(
@@ -778,30 +881,25 @@ impl Placer<'_> {
                         );
                     }
 
-                    if room_type == ROOM_1X1 {
-                        self.add_room_1x1(room_pos, rotation, door_dir, pool);
-                    } else if room_type == ROOM_1X2 && door_dir.is_some() {
-                        let room_dir = room_1x2_direction(&mansion.rooms[floor], x, y, room_id);
-                        let stairs = room_data & ROOM_STAIRS == ROOM_STAIRS;
-                        self.add_room_1x2(
-                            room_pos,
-                            rotation,
-                            room_dir,
-                            door_dir.expect("checked above"),
-                            pool,
-                            stairs,
-                        );
-                    } else if room_type == ROOM_2X2 && door_dir.is_some_and(|d| d != Direction::Up)
-                    {
-                        let door_dir = door_dir.expect("checked above");
-                        let mut room_dir = door_dir.clockwise();
-                        let (sx, sz) = step(room_dir);
-                        if !mansion.is_room_id(x + sx, y + sz, floor, room_id) {
-                            room_dir = room_dir.opposite();
+                    match (room_type, door_dir) {
+                        (ROOM_1X1, _) => self.add_room_1x1(room_pos, rotation, door_dir, pool),
+                        (ROOM_1X2, Some(door_dir)) => {
+                            let room_dir = room_1x2_direction(rooms, x, y, room_id);
+                            let stairs = room_data & ROOM_STAIRS == ROOM_STAIRS;
+                            self.add_room_1x2(room_pos, rotation, room_dir, door_dir, pool, stairs);
                         }
-                        self.add_room_2x2(room_pos, rotation, room_dir, door_dir, pool);
-                    } else if room_type == ROOM_2X2 && door_dir == Some(Direction::Up) {
-                        self.add_room_2x2_secret(room_pos, rotation, pool);
+                        (ROOM_2X2, Some(Direction::Up)) => {
+                            self.add_room_2x2_secret(room_pos, rotation, pool);
+                        }
+                        (ROOM_2X2, Some(door_dir)) => {
+                            let mut room_dir = door_dir.clockwise();
+                            let (sx, sz) = step(room_dir);
+                            if !is_room_id(rooms, x + sx, y + sz, room_id) {
+                                room_dir = room_dir.opposite();
+                            }
+                            self.add_room_2x2(room_pos, rotation, room_dir, door_dir, pool);
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -887,14 +985,24 @@ impl Placer<'_> {
                 if !grid.is_house(x, y) || is_above(x, y) {
                     continue;
                 }
-                self.add("roof", position + IVec3::Y * 3, rotation, Mirror::None);
+                self.add(
+                    mansion!("roof"),
+                    position + IVec3::Y * 3,
+                    rotation,
+                    Mirror::None,
+                );
                 if !grid.is_house(x + 1, y) {
-                    self.add("roof_front", east(position, 6), rotation, Mirror::None);
+                    self.add(
+                        mansion!("roof_front"),
+                        east(position, 6),
+                        rotation,
+                        Mirror::None,
+                    );
                 }
                 if !grid.is_house(x - 1, y) {
                     let at = south(east(position, 0), 7);
                     self.add(
-                        "roof_front",
+                        mansion!("roof_front"),
                         at,
                         rotation.rotated(Rotation::Clockwise180),
                         Mirror::None,
@@ -902,7 +1010,7 @@ impl Placer<'_> {
                 }
                 if !grid.is_house(x, y - 1) {
                     self.add(
-                        "roof_front",
+                        mansion!("roof_front"),
                         west(position, 1),
                         rotation.rotated(Rotation::Counterclockwise90),
                         Mirror::None,
@@ -911,7 +1019,7 @@ impl Placer<'_> {
                 if !grid.is_house(x, y + 1) {
                     let at = south(east(position, 6), 6);
                     self.add(
-                        "roof_front",
+                        mansion!("roof_front"),
                         at,
                         rotation.rotated(Rotation::Clockwise90),
                         Mirror::None,
@@ -928,12 +1036,17 @@ impl Placer<'_> {
                         continue;
                     }
                     if !grid.is_house(x + 1, y) {
-                        self.add("small_wall", east(position, 7), rotation, Mirror::None);
+                        self.add(
+                            mansion!("small_wall"),
+                            east(position, 7),
+                            rotation,
+                            Mirror::None,
+                        );
                     }
                     if !grid.is_house(x - 1, y) {
                         let at = south(west(position, 1), 6);
                         self.add(
-                            "small_wall",
+                            mansion!("small_wall"),
                             at,
                             rotation.rotated(Rotation::Clockwise180),
                             Mirror::None,
@@ -942,7 +1055,7 @@ impl Placer<'_> {
                     if !grid.is_house(x, y - 1) {
                         let at = north(west(position, 0), 1);
                         self.add(
-                            "small_wall",
+                            mansion!("small_wall"),
                             at,
                             rotation.rotated(Rotation::Counterclockwise90),
                             Mirror::None,
@@ -951,7 +1064,7 @@ impl Placer<'_> {
                     if !grid.is_house(x, y + 1) {
                         let at = south(east(position, 6), 7);
                         self.add(
-                            "small_wall",
+                            mansion!("small_wall"),
                             at,
                             rotation.rotated(Rotation::Clockwise90),
                             Mirror::None,
@@ -960,12 +1073,12 @@ impl Placer<'_> {
                     if !grid.is_house(x + 1, y) {
                         if !grid.is_house(x, y - 1) {
                             let at = north(east(position, 7), 2);
-                            self.add("small_wall_corner", at, rotation, Mirror::None);
+                            self.add(mansion!("small_wall_corner"), at, rotation, Mirror::None);
                         }
                         if !grid.is_house(x, y + 1) {
                             let at = south(east(position, 8), 7);
                             self.add(
-                                "small_wall_corner",
+                                mansion!("small_wall_corner"),
                                 at,
                                 rotation.rotated(Rotation::Clockwise90),
                                 Mirror::None,
@@ -976,7 +1089,7 @@ impl Placer<'_> {
                         if !grid.is_house(x, y - 1) {
                             let at = north(west(position, 2), 1);
                             self.add(
-                                "small_wall_corner",
+                                mansion!("small_wall_corner"),
                                 at,
                                 rotation.rotated(Rotation::Counterclockwise90),
                                 Mirror::None,
@@ -985,7 +1098,7 @@ impl Placer<'_> {
                         if !grid.is_house(x, y + 1) {
                             let at = south(west(position, 1), 8);
                             self.add(
-                                "small_wall_corner",
+                                mansion!("small_wall_corner"),
                                 at,
                                 rotation.rotated(Rotation::Clockwise180),
                                 Mirror::None,
@@ -1005,13 +1118,23 @@ impl Placer<'_> {
                 if !grid.is_house(x + 1, y) {
                     let p2 = east(position, 6);
                     if !grid.is_house(x, y + 1) {
-                        self.add("roof_corner", south(p2, 6), rotation, Mirror::None);
+                        self.add(
+                            mansion!("roof_corner"),
+                            south(p2, 6),
+                            rotation,
+                            Mirror::None,
+                        );
                     } else if grid.is_house(x + 1, y + 1) {
-                        self.add("roof_inner_corner", south(p2, 5), rotation, Mirror::None);
+                        self.add(
+                            mansion!("roof_inner_corner"),
+                            south(p2, 5),
+                            rotation,
+                            Mirror::None,
+                        );
                     }
                     if !grid.is_house(x, y - 1) {
                         self.add(
-                            "roof_corner",
+                            mansion!("roof_corner"),
                             p2,
                             rotation.rotated(Rotation::Counterclockwise90),
                             Mirror::None,
@@ -1019,7 +1142,7 @@ impl Placer<'_> {
                     } else if grid.is_house(x + 1, y - 1) {
                         let at = north(east(position, 9), 2);
                         self.add(
-                            "roof_inner_corner",
+                            mansion!("roof_inner_corner"),
                             at,
                             rotation.rotated(Rotation::Clockwise90),
                             Mirror::None,
@@ -1030,7 +1153,7 @@ impl Placer<'_> {
                     let p2 = south(east(position, 0), 0);
                     if !grid.is_house(x, y + 1) {
                         self.add(
-                            "roof_corner",
+                            mansion!("roof_corner"),
                             south(p2, 6),
                             rotation.rotated(Rotation::Clockwise90),
                             Mirror::None,
@@ -1038,7 +1161,7 @@ impl Placer<'_> {
                     } else if grid.is_house(x - 1, y + 1) {
                         let at = west(south(p2, 8), 3);
                         self.add(
-                            "roof_inner_corner",
+                            mansion!("roof_inner_corner"),
                             at,
                             rotation.rotated(Rotation::Counterclockwise90),
                             Mirror::None,
@@ -1046,14 +1169,14 @@ impl Placer<'_> {
                     }
                     if !grid.is_house(x, y - 1) {
                         self.add(
-                            "roof_corner",
+                            mansion!("roof_corner"),
                             p2,
                             rotation.rotated(Rotation::Clockwise180),
                             Mirror::None,
                         );
                     } else if grid.is_house(x - 1, y - 1) {
                         self.add(
-                            "roof_inner_corner",
+                            mansion!("roof_inner_corner"),
                             south(p2, 1),
                             rotation.rotated(Rotation::Clockwise180),
                             Mirror::None,
@@ -1067,7 +1190,7 @@ impl Placer<'_> {
     fn entrance(&mut self, data: &mut PlacementData) {
         let west = data.rotation.rotate(Direction::West);
         self.add(
-            "entrance",
+            mansion!("entrance"),
             west.relative(data.position, 9),
             data.rotation,
             Mirror::None,
@@ -1098,7 +1221,12 @@ impl Placer<'_> {
             .rotation
             .rotate(Direction::South)
             .relative(data.position, -1);
-        self.add("wall_corner", data.position, data.rotation, Mirror::None);
+        self.add(
+            mansion!("wall_corner"),
+            data.position,
+            data.rotation,
+            Mirror::None,
+        );
         data.position = data
             .rotation
             .rotate(Direction::South)
@@ -1143,7 +1271,9 @@ impl Placer<'_> {
         let piece_rot = piece_rot.rotated(rotation);
         let orientation = transform(orientation, Mirror::None, rotation, IVec3::ZERO);
         let pos = room_pos + IVec3::new(orientation.x, 0, orientation.z);
-        self.add(&name, pos, piece_rot, Mirror::None);
+        if let Some(name) = name {
+            self.add(name, pos, piece_rot, Mirror::None);
+        }
     }
 
     fn add_room_1x2(
@@ -1250,7 +1380,9 @@ impl Placer<'_> {
             ),
             _ => return,
         };
-        self.add(&name, pos, rot, mirror);
+        if let Some(name) = name {
+            self.add(name, pos, rot, mirror);
+        }
     }
 
     fn add_room_2x2(
@@ -1296,11 +1428,13 @@ impl Placer<'_> {
         let pos = rotation.rotate(East).relative(room_pos, east);
         let pos = rotation.rotate(South).relative(pos, south);
         let name = pool.room_2x2(self.rng);
-        self.add(&name, pos, rot, mirror);
+        if let Some(name) = name {
+            self.add(name, pos, rot, mirror);
+        }
     }
 
     fn add_room_2x2_secret(&mut self, room_pos: IVec3, rotation: Rotation, pool: FloorRooms) {
         let pos = rotation.rotate(Direction::East).relative(room_pos, 1);
-        self.add(&pool.room_2x2_secret(), pos, rotation, Mirror::None);
+        self.add(pool.room_2x2_secret(), pos, rotation, Mirror::None);
     }
 }

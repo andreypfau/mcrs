@@ -116,7 +116,7 @@ impl VariantTable {
             return None;
         }
         let index = rng.next_i32_bound(candidates.len() as i32) as usize;
-        Some(&self.ids[usize::from(candidates[index])])
+        self.ids.get(usize::from(*candidates.get(index)?))
     }
 }
 /// The variant registries the spawned kinds draw from, each in registry

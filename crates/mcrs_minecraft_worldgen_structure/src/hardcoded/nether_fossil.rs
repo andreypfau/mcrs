@@ -1,5 +1,5 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::Mirror;
+use mcrs_minecraft_core::{Mirror, StaticResourceLocation, rl};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::HeightProvider;
@@ -10,21 +10,21 @@ use crate::orient::random_rotation;
 use crate::piece::{NetherFossilPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[&str] = &[
-    "nether_fossils/fossil_1",
-    "nether_fossils/fossil_2",
-    "nether_fossils/fossil_3",
-    "nether_fossils/fossil_4",
-    "nether_fossils/fossil_5",
-    "nether_fossils/fossil_6",
-    "nether_fossils/fossil_7",
-    "nether_fossils/fossil_8",
-    "nether_fossils/fossil_9",
-    "nether_fossils/fossil_10",
-    "nether_fossils/fossil_11",
-    "nether_fossils/fossil_12",
-    "nether_fossils/fossil_13",
-    "nether_fossils/fossil_14",
+pub const TEMPLATES: &[StaticResourceLocation] = &[
+    rl!("minecraft:nether_fossils/fossil_1"),
+    rl!("minecraft:nether_fossils/fossil_2"),
+    rl!("minecraft:nether_fossils/fossil_3"),
+    rl!("minecraft:nether_fossils/fossil_4"),
+    rl!("minecraft:nether_fossils/fossil_5"),
+    rl!("minecraft:nether_fossils/fossil_6"),
+    rl!("minecraft:nether_fossils/fossil_7"),
+    rl!("minecraft:nether_fossils/fossil_8"),
+    rl!("minecraft:nether_fossils/fossil_9"),
+    rl!("minecraft:nether_fossils/fossil_10"),
+    rl!("minecraft:nether_fossils/fossil_11"),
+    rl!("minecraft:nether_fossils/fossil_12"),
+    rl!("minecraft:nether_fossils/fossil_13"),
+    rl!("minecraft:nether_fossils/fossil_14"),
 ];
 
 pub fn site(
@@ -58,8 +58,14 @@ pub fn site(
 
 pub fn layout(templates: &[TemplateId], ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let rotation = random_rotation(&mut site.rng);
-    let template = templates[site.rng.next_i32_bound(templates.len() as i32) as usize];
-    let size = ctx.frozen.manifests[template.0 as usize].size;
+    let Some(&template) = templates.get(site.rng.next_i32_bound(templates.len() as i32) as usize)
+    else {
+        return Vec::new();
+    };
+    let Some(manifest) = ctx.frozen.manifest(template) else {
+        return Vec::new();
+    };
+    let size = manifest.size;
     vec![Piece::NetherFossil(NetherFossilPiece {
         template,
         position: site.position,

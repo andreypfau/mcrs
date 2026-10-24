@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::{Mirror, ResourceLocation};
+use mcrs_minecraft_core::{Mirror, ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
@@ -11,7 +11,11 @@ use crate::orient::random_rotation;
 use crate::piece::{IglooPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[&str] = &["igloo/top", "igloo/middle", "igloo/bottom"];
+pub const TEMPLATES: &[StaticResourceLocation] = &[
+    IglooTemplate::Top.location(),
+    IglooTemplate::Middle.location(),
+    IglooTemplate::Bottom.location(),
+];
 
 const LAYOUT_HEIGHT: i32 = 90;
 
@@ -23,8 +27,12 @@ pub enum IglooTemplate {
 }
 
 impl IglooTemplate {
-    pub fn location(self) -> ResourceLocation {
-        ResourceLocation::minecraft(TEMPLATES[self as usize]).expect("a hardcoded template name")
+    pub const fn location(self) -> StaticResourceLocation {
+        match self {
+            IglooTemplate::Top => rl!("minecraft:igloo/top"),
+            IglooTemplate::Middle => rl!("minecraft:igloo/middle"),
+            IglooTemplate::Bottom => rl!("minecraft:igloo/bottom"),
+        }
     }
 
     pub fn from_location(location: &ResourceLocation) -> Option<Self> {
@@ -33,8 +41,8 @@ impl IglooTemplate {
             .find(|template| template.location() == *location)
     }
 
-    pub fn id(self, frozen: &FrozenStructures) -> TemplateId {
-        frozen.template_ids[&self.location()]
+    pub fn id(self, frozen: &FrozenStructures) -> Option<TemplateId> {
+        frozen.template_id(self.location().as_str())
     }
 
     pub const fn pivot(self) -> IVec3 {
@@ -80,9 +88,26 @@ pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
         .free_height(entrance.x, entrance.z, HeightmapName::WorldSurfaceWg)
         - LAYOUT_HEIGHT
         - 1;
+    let size = |template: IglooTemplate| {
+        template
+            .id(ctx.frozen)
+            .and_then(|id| ctx.frozen.manifest(id))
+            .map(|manifest| manifest.size)
+    };
+    let (Some(top), Some(middle), Some(bottom)) = (
+        size(IglooTemplate::Top),
+        size(IglooTemplate::Middle),
+        size(IglooTemplate::Bottom),
+    ) else {
+        return Vec::new();
+    };
     let piece = |template: IglooTemplate, depth: i32| {
         let position = start + template.offset() - IVec3::new(0, depth, 0);
-        let size = ctx.frozen.manifests[template.id(ctx.frozen).0 as usize].size;
+        let size = match template {
+            IglooTemplate::Top => top,
+            IglooTemplate::Middle => middle,
+            IglooTemplate::Bottom => bottom,
+        };
         Piece::Igloo(IglooPiece {
             template,
             position,

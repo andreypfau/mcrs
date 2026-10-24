@@ -27,26 +27,38 @@ pub(crate) trait PieceWeight: Copy {
     fn max_place_count(&self) -> i32;
 }
 
-/// A piece table: its weights, how often each entry has been placed, and
-/// which entries are still offered.
+/// One piece table entry and how often it has been placed.
+#[derive(Clone, Copy)]
+pub(crate) struct TableEntry<W> {
+    pub weight: W,
+    pub place_count: i32,
+}
+
+impl<W: PieceWeight> TableEntry<W> {
+    pub fn valid(&self) -> bool {
+        let max = self.weight.max_place_count();
+        max == 0 || self.place_count < max
+    }
+}
+
+/// A piece table: the entries in table order, each tagged with its index in
+/// the reference's full list, of which only the still offered ones remain.
 pub(crate) struct WeightTable<W> {
-    pub weights: Vec<W>,
-    pub place_count: Vec<i32>,
-    pub available: Vec<usize>,
+    pub available: Vec<(usize, TableEntry<W>)>,
 }
 
 impl<W: PieceWeight> WeightTable<W> {
     pub fn new(weights: &[W]) -> Self {
         WeightTable {
-            weights: weights.to_vec(),
-            place_count: vec![0; weights.len()],
-            available: (0..weights.len()).collect(),
+            available: weights
+                .iter()
+                .map(|&weight| TableEntry {
+                    weight,
+                    place_count: 0,
+                })
+                .enumerate()
+                .collect(),
         }
-    }
-
-    pub fn valid(&self, entry: usize) -> bool {
-        let max = self.weights[entry].max_place_count();
-        max == 0 || self.place_count[entry] < max
     }
 
     /// `updatePieceWeight`: the offered weight, or `None` when no entry with
@@ -54,20 +66,22 @@ impl<W: PieceWeight> WeightTable<W> {
     pub fn total_weight(&self) -> Option<i32> {
         let mut any = false;
         let mut total = 0;
-        for &entry in &self.available {
-            let weight = &self.weights[entry];
-            if weight.max_place_count() > 0 && self.place_count[entry] < weight.max_place_count() {
+        for (_, entry) in &self.available {
+            let max = entry.weight.max_place_count();
+            if max > 0 && entry.place_count < max {
                 any = true;
             }
-            total += weight.weight();
+            total += entry.weight.weight();
         }
         any.then_some(total)
     }
 
     pub fn placed(&mut self, position: usize) {
-        let entry = self.available[position];
-        self.place_count[entry] += 1;
-        if !self.valid(entry) {
+        let Some((_, entry)) = self.available.get_mut(position) else {
+            return;
+        };
+        entry.place_count += 1;
+        if !entry.valid() {
             self.available.remove(position);
         }
     }
@@ -131,10 +145,8 @@ pub(crate) fn lowest_y(
     size_x: i32,
     size_z: i32,
 ) -> i32 {
-    corner_heights(ctx, min_x, size_x, min_z, size_z)
-        .into_iter()
-        .min()
-        .expect("four corners")
+    let [first, rest @ ..] = corner_heights(ctx, min_x, size_x, min_z, size_z);
+    rest.into_iter().fold(first, i32::min)
 }
 
 pub(crate) fn lowest_y_in_5_by_5(ctx: &mut Context<'_>, x: i32, z: i32, rotation: Rotation) -> i32 {

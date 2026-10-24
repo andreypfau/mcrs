@@ -11,7 +11,7 @@ use mcrs_minecraft_random::{shuffle, shuffled};
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 
-use super::frozen::{ElementId, FrozenStructures, PoolId};
+use super::frozen::{ElementId, FrozenElement, FrozenPool, FrozenStructures, PoolId};
 use super::piece::{JigsawPiece, Junction};
 use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, shuffled_jigsaws};
 
@@ -73,14 +73,18 @@ pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<J
     let Stub::Jigsaw { centre, aliases } = site.stub else {
         return Vec::new();
     };
+    let Some(projection) = frozen
+        .element(centre.element)
+        .and_then(FrozenElement::projection)
+    else {
+        return Vec::new();
+    };
     let centre_piece = JigsawPiece {
         element: centre.element,
         position: centre.position,
         rotation: centre.rotation,
         bounds: centre.bounds,
-        projection: frozen.elements[centre.element.0 as usize]
-            .projection()
-            .expect("the site rejects an empty centre"),
+        projection,
         ground_level_delta: centre.ground_level_delta,
         junctions: Vec::new(),
     };
@@ -122,6 +126,11 @@ pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<J
     assembly.pieces
 }
 
+fn pool_is_usable(pool: &FrozenPool) -> bool {
+    !pool.expanded.is_empty()
+        || pool.id.as_str() == mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_str()
+}
+
 fn can_attach(source: &PlacedJigsaw<'_>, target: &PlacedJigsaw<'_>) -> bool {
     source.front == target.front.opposite()
         && (source.block.joint == Joint::Rollable || source.top == target.top)
@@ -138,13 +147,6 @@ impl Assembly<'_> {
             .copied()
     }
 
-    fn pool_is_usable(&self, pool: PoolId) -> bool {
-        let pool = &self.frozen.pools[usize::from(pool.0)];
-        !pool.expanded.is_empty()
-            || pool.id.as_str()
-                == mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_str()
-    }
-
     fn expansion_of(
         &self,
         candidate: ElementId,
@@ -154,8 +156,9 @@ impl Assembly<'_> {
         if !self.config.use_expansion_hack {
             return 0;
         }
-        let hack_box = element_bounds(self.frozen, candidate, IVec3::ZERO, rotation)
-            .expect("an empty element never reaches the candidate loop");
+        let Some(hack_box) = element_bounds(self.frozen, candidate, IVec3::ZERO, rotation) else {
+            return 0;
+        };
         if hack_box.y_span() > EXPANSION_HACK_MAX_HEIGHT {
             return 0;
         }
@@ -165,12 +168,17 @@ impl Assembly<'_> {
                 if !hack_box.is_inside((jigsaw.pos + jigsaw.front.normal()).into()) {
                     return 0;
                 }
-                let Some(pool) = self.pool(&jigsaw.block.pool) else {
+                let Some(pool) = self
+                    .pool(&jigsaw.block.pool)
+                    .and_then(|pool| self.frozen.pool(pool))
+                else {
                     return 0;
                 };
-                let pool = &self.frozen.pools[usize::from(pool.0)];
-                pool.max_size
-                    .max(self.frozen.pools[usize::from(pool.fallback.0)].max_size)
+                self.frozen
+                    .pool(pool.fallback)
+                    .map_or(pool.max_size, |fallback| {
+                        pool.max_size.max(fallback.max_size)
+                    })
             })
             .max()
             .unwrap_or(0)
@@ -187,7 +195,9 @@ impl Assembly<'_> {
     fn attach_children(&mut self, source: usize, space: usize, depth: i32) {
         let frozen = self.frozen;
         let size = self.config.size.0;
-        let source_piece = &self.pieces[source];
+        let Some(source_piece) = self.pieces.get(source) else {
+            return;
+        };
         let (source_element, source_position, source_rotation) = (
             source_piece.element,
             source_piece.position,
@@ -213,14 +223,19 @@ impl Assembly<'_> {
             let target_jigsaw_pos = source_jigsaw_pos + front.normal();
             let source_jigsaw_local_y = source_jigsaw_pos.y - source_box_y;
             let mut base_height: Option<i32> = None;
-            let Some(pool) = self.pool(&source_jigsaw.block.pool) else {
+            let Some(pool) = self
+                .pool(&source_jigsaw.block.pool)
+                .and_then(|pool| frozen.pool(pool))
+            else {
                 continue;
             };
-            if !self.pool_is_usable(pool) {
+            if !pool_is_usable(pool) {
                 continue;
             }
-            let fallback = frozen.pools[usize::from(pool.0)].fallback;
-            if !self.pool_is_usable(fallback) {
+            let Some(fallback) = frozen.pool(pool.fallback) else {
+                continue;
+            };
+            if !pool_is_usable(fallback) {
                 continue;
             }
             let children_space = if source_bounds.is_inside(target_jigsaw_pos.into()) {
@@ -237,19 +252,15 @@ impl Assembly<'_> {
 
             let mut candidates = Vec::new();
             if depth != size {
-                candidates.extend(shuffled(
-                    &frozen.pools[usize::from(pool.0)].expanded,
-                    &mut self.rng,
-                ));
+                candidates.extend(shuffled(&pool.expanded, &mut self.rng));
             }
-            candidates.extend(shuffled(
-                &frozen.pools[usize::from(fallback.0)].expanded,
-                &mut self.rng,
-            ));
+            candidates.extend(shuffled(&fallback.expanded, &mut self.rng));
             let placement_priority = source_jigsaw.block.placement_priority;
 
             'candidates: for candidate in candidates {
-                let Some(target_projection) = frozen.elements[candidate.0 as usize].projection()
+                let Some(target_projection) = frozen
+                    .element(candidate)
+                    .and_then(FrozenElement::projection)
                 else {
                     break;
                 };
@@ -271,9 +282,11 @@ impl Assembly<'_> {
                         }
                         let target_jigsaw_local = target_jigsaw.pos;
                         let raw_target_box_pos = target_jigsaw_pos - target_jigsaw_local;
-                        let raw_target_bounds =
+                        let Some(raw_target_bounds) =
                             element_bounds(frozen, candidate, raw_target_box_pos, target_rotation)
-                                .expect("an empty element never reaches the candidate loop");
+                        else {
+                            continue;
+                        };
                         let target_jigsaw_local_y = target_jigsaw_local.y;
                         let delta_y =
                             source_jigsaw_local_y - target_jigsaw_local_y + front.normal().y;
@@ -295,10 +308,13 @@ impl Assembly<'_> {
                                 target_bounds.min.z,
                             ));
                         }
-                        if !self.spaces[children_space].fits(&target_bounds) {
+                        let Some(free) = self.spaces.get_mut(children_space) else {
+                            continue;
+                        };
+                        if !free.fits(&target_bounds) {
                             continue;
                         }
-                        self.spaces[children_space].holes.push(target_bounds);
+                        free.holes.push(target_bounds);
 
                         let target_ground_level_delta = if target_rigid {
                             source_ground_level_delta - delta_y
@@ -312,14 +328,16 @@ impl Assembly<'_> {
                         } else {
                             self.surface_at(&mut base_height, source_jigsaw_pos) + delta_y / 2
                         };
-                        self.pieces[source].junctions.push(Junction {
-                            source_x: target_jigsaw_pos.x,
-                            source_ground_y: junction_y - source_jigsaw_local_y
-                                + source_ground_level_delta,
-                            source_z: target_jigsaw_pos.z,
-                            delta_y,
-                            dest_projection: target_projection,
-                        });
+                        if let Some(source_piece) = self.pieces.get_mut(source) {
+                            source_piece.junctions.push(Junction {
+                                source_x: target_jigsaw_pos.x,
+                                source_ground_y: junction_y - source_jigsaw_local_y
+                                    + source_ground_level_delta,
+                                source_z: target_jigsaw_pos.z,
+                                delta_y,
+                                dest_projection: target_projection,
+                            });
+                        }
                         self.pieces.push(JigsawPiece {
                             element: candidate,
                             position: target_box_pos,

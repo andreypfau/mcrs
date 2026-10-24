@@ -258,7 +258,7 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     let frozen = frozen();
     for structure in corpus_registries().structures.values() {
         for path in structure.templates() {
-            let id = frozen.template_ids[&ResourceLocation::minecraft(path).unwrap()];
+            let id = frozen.template_ids[path.as_str()];
             assert_ne!(frozen.templates[id.0 as usize].size, [0; 3], "{path}");
         }
     }

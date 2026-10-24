@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::Mirror;
+use mcrs_minecraft_core::{Mirror, StaticResourceLocation, rl};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
@@ -11,45 +11,45 @@ use crate::orient::random_rotation;
 use crate::piece::{Piece, ShipwreckPiece};
 use crate::site::{Context, Site, Stub};
 
-pub const BEACHED: &[&str] = &[
-    "shipwreck/with_mast",
-    "shipwreck/sideways_full",
-    "shipwreck/sideways_fronthalf",
-    "shipwreck/sideways_backhalf",
-    "shipwreck/rightsideup_full",
-    "shipwreck/rightsideup_fronthalf",
-    "shipwreck/rightsideup_backhalf",
-    "shipwreck/with_mast_degraded",
-    "shipwreck/rightsideup_full_degraded",
-    "shipwreck/rightsideup_fronthalf_degraded",
-    "shipwreck/rightsideup_backhalf_degraded",
+pub const BEACHED: &[StaticResourceLocation] = &[
+    rl!("minecraft:shipwreck/with_mast"),
+    rl!("minecraft:shipwreck/sideways_full"),
+    rl!("minecraft:shipwreck/sideways_fronthalf"),
+    rl!("minecraft:shipwreck/sideways_backhalf"),
+    rl!("minecraft:shipwreck/rightsideup_full"),
+    rl!("minecraft:shipwreck/rightsideup_fronthalf"),
+    rl!("minecraft:shipwreck/rightsideup_backhalf"),
+    rl!("minecraft:shipwreck/with_mast_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_full_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_fronthalf_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_backhalf_degraded"),
 ];
 
-pub const OCEAN: &[&str] = &[
-    "shipwreck/with_mast",
-    "shipwreck/upsidedown_full",
-    "shipwreck/upsidedown_fronthalf",
-    "shipwreck/upsidedown_backhalf",
-    "shipwreck/sideways_full",
-    "shipwreck/sideways_fronthalf",
-    "shipwreck/sideways_backhalf",
-    "shipwreck/rightsideup_full",
-    "shipwreck/rightsideup_fronthalf",
-    "shipwreck/rightsideup_backhalf",
-    "shipwreck/with_mast_degraded",
-    "shipwreck/upsidedown_full_degraded",
-    "shipwreck/upsidedown_fronthalf_degraded",
-    "shipwreck/upsidedown_backhalf_degraded",
-    "shipwreck/sideways_full_degraded",
-    "shipwreck/sideways_fronthalf_degraded",
-    "shipwreck/sideways_backhalf_degraded",
-    "shipwreck/rightsideup_full_degraded",
-    "shipwreck/rightsideup_fronthalf_degraded",
-    "shipwreck/rightsideup_backhalf_degraded",
+pub const OCEAN: &[StaticResourceLocation] = &[
+    rl!("minecraft:shipwreck/with_mast"),
+    rl!("minecraft:shipwreck/upsidedown_full"),
+    rl!("minecraft:shipwreck/upsidedown_fronthalf"),
+    rl!("minecraft:shipwreck/upsidedown_backhalf"),
+    rl!("minecraft:shipwreck/sideways_full"),
+    rl!("minecraft:shipwreck/sideways_fronthalf"),
+    rl!("minecraft:shipwreck/sideways_backhalf"),
+    rl!("minecraft:shipwreck/rightsideup_full"),
+    rl!("minecraft:shipwreck/rightsideup_fronthalf"),
+    rl!("minecraft:shipwreck/rightsideup_backhalf"),
+    rl!("minecraft:shipwreck/with_mast_degraded"),
+    rl!("minecraft:shipwreck/upsidedown_full_degraded"),
+    rl!("minecraft:shipwreck/upsidedown_fronthalf_degraded"),
+    rl!("minecraft:shipwreck/upsidedown_backhalf_degraded"),
+    rl!("minecraft:shipwreck/sideways_full_degraded"),
+    rl!("minecraft:shipwreck/sideways_fronthalf_degraded"),
+    rl!("minecraft:shipwreck/sideways_backhalf_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_full_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_fronthalf_degraded"),
+    rl!("minecraft:shipwreck/rightsideup_backhalf_degraded"),
 ];
 
 /// The beached list is a subset of the ocean one.
-pub const TEMPLATES: &[&str] = OCEAN;
+pub const TEMPLATES: &[StaticResourceLocation] = OCEAN;
 
 const REGION_FIT: i32 = 32;
 
@@ -82,24 +82,28 @@ pub fn layout(
     mut site: Site,
 ) -> Vec<Piece> {
     let rotation = random_rotation(&mut site.rng);
-    let template = templates[site.rng.next_i32_bound(templates.len() as i32) as usize];
+    let Some(&template) = templates.get(site.rng.next_i32_bound(templates.len() as i32) as usize)
+    else {
+        return Vec::new();
+    };
+    let Some(manifest) = ctx.frozen.manifest(template) else {
+        return Vec::new();
+    };
     let position = IVec3::new(
         ctx.chunk.min_block_x(),
         ShipwreckPiece::LAYOUT_FLOOR,
         ctx.chunk.min_block_z(),
     );
-    let size = ctx.frozen.manifests[template.0 as usize]
-        .size
-        .map(i32::from);
+    let [size_x, size_y, size_z] = manifest.size.map(i32::from);
     let bounds = bounding_box(
-        ctx.frozen.manifests[template.0 as usize].size,
+        manifest.size,
         position,
         rotation,
         Mirror::None,
         ShipwreckPiece::PIVOT,
     );
-    let half_height = size[1] / 2;
-    let height = if size[0] > REGION_FIT || size[1] > REGION_FIT {
+    let half_height = size_y / 2;
+    let height = if size_x > REGION_FIT || size_y > REGION_FIT {
         let x_span = bounds.max.x - bounds.min.x + 1;
         let z_span = bounds.max.z - bounds.min.z + 1;
         if is_beached {
@@ -117,8 +121,8 @@ pub fn layout(
         let heightmap = heightmap(is_beached);
         let mut lowest = ctx.accessor_min_y + ctx.accessor_height;
         let mut sum = 0;
-        for x in position.x..position.x + size[0] {
-            for z in position.z..position.z + size[2] {
+        for x in position.x..position.x + size_x {
+            for z in position.z..position.z + size_z {
                 let free = ctx.world.free_height(x, z, heightmap);
                 sum += free;
                 lowest = lowest.min(free);
@@ -127,7 +131,7 @@ pub fn layout(
         if is_beached {
             lowest - half_height - site.rng.next_i32_bound(3)
         } else {
-            sum / (size[0] * size[2])
+            sum / (size_x * size_z)
         }
     };
     vec![Piece::Shipwreck(ShipwreckPiece {

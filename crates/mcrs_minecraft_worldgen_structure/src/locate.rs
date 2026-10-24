@@ -27,8 +27,9 @@ pub fn locate<'r>(
     for entry in placements {
         match entry.placement {
             StructurePlacement::ConcentricRings { .. } => {
-                let positions =
-                    rings(entry.set).expect("a live concentric_rings set has ring positions");
+                let Some(positions) = rings(entry.set) else {
+                    continue;
+                };
                 let mut closest = None;
                 let mut closest_sqr = f64::MAX;
                 for &chunk in positions {
@@ -49,7 +50,9 @@ pub fn locate<'r>(
                     }
                 }
             }
-            StructurePlacement::RandomSpread { .. } => spread.push(entry),
+            StructurePlacement::RandomSpread { .. } => {
+                spread.extend(SpreadPlacement::of(entry.placement).map(|config| (entry, config)));
+            }
             StructurePlacement::DimensionOrigin {} => {}
         }
     }
@@ -59,9 +62,8 @@ pub fn locate<'r>(
     let chunk_origin = ColumnPos::from(BlockPos::from(origin));
     for r in 0..=radius {
         let mut found = false;
-        for entry in &spread {
-            let config = SpreadPlacement::of(entry.placement).expect("a random_spread placement");
-            let Some(hit) = perimeter_hit(seed, chunk_origin, r, entry, &config, &mut present)
+        for (entry, config) in &spread {
+            let Some(hit) = perimeter_hit(seed, chunk_origin, r, entry, config, &mut present)
             else {
                 continue;
             };

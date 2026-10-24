@@ -153,6 +153,34 @@ pub struct FrozenStructures {
     pub variants: VariantTables,
 }
 
+impl FrozenStructures {
+    pub fn structure(&self, id: StructureId) -> Option<&FrozenStructure> {
+        self.structures.get(usize::from(id.0))
+    }
+
+    pub fn pool(&self, id: PoolId) -> Option<&FrozenPool> {
+        self.pools.get(usize::from(id.0))
+    }
+
+    pub fn element(&self, id: ElementId) -> Option<&FrozenElement> {
+        self.elements.get(id.0 as usize)
+    }
+
+    pub fn manifest(&self, id: TemplateId) -> Option<&TemplateManifest> {
+        self.manifests.get(id.0 as usize).map(Arc::as_ref)
+    }
+
+    pub fn template_id(&self, name: &str) -> Option<TemplateId> {
+        self.template_ids.get(name).copied()
+    }
+
+    /// The template named `name` and the size of its manifest.
+    pub fn sized_template(&self, name: &str) -> Option<(TemplateId, [u16; 3])> {
+        let id = self.template_id(name)?;
+        Some((id, self.manifest(id)?.size))
+    }
+}
+
 pub struct DimensionStructureTables {
     pub frozen: Arc<FrozenStructures>,
     pub live: Vec<(SetId, Vec<StructureId>)>,
@@ -163,7 +191,7 @@ impl DimensionStructureTables {
         self.live
             .iter()
             .flat_map(|(_, structures)| structures.iter())
-            .map(|id| &self.frozen.structures[id.0 as usize])
+            .filter_map(|id| self.frozen.structure(*id))
             .filter(|structure| structure.adaptation != TerrainAdaptation::None)
     }
 }

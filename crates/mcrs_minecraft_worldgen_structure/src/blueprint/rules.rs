@@ -4,19 +4,19 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mcrs_minecraft_core::{Axis, Direction, ResourceLocation};
+use mcrs_minecraft_core::{Direction, ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 
-use super::Pos;
 use super::turn::direction;
+use super::{BlueprintError, Pos};
 
 pub type World = HashMap<Pos, PaletteState>;
 
-const GROUND: &str = "ground";
+const GROUND: StaticResourceLocation = rl!("minecraft:ground");
 
-pub fn block(path: &str) -> PaletteState {
+pub fn block(id: StaticResourceLocation) -> PaletteState {
     PaletteState {
-        id: ResourceLocation::minecraft(path).expect("a hardcoded block name"),
+        id: id.to_arc(),
         properties: None,
     }
 }
@@ -203,9 +203,10 @@ fn counter_clockwise(side: Direction) -> Direction {
     side.clockwise().opposite()
 }
 
-fn stair_state(grid: &World, pos: Pos) -> PaletteState {
-    let state = &grid[&pos];
-    let facing = facing(state).expect("stairs face a side");
+/// `None` for a stair that faces no side, which the neighbours leave as it is.
+fn stair_state(grid: &World, pos: Pos) -> Option<PaletteState> {
+    let state = grid.get(&pos)?;
+    let facing = facing(state)?;
     let half = property(state, "half");
     let neighbour = |side: Direction| {
         grid.get(&toward(pos, side))
@@ -233,7 +234,7 @@ fn stair_state(grid: &World, pos: Pos) -> PaletteState {
     } else {
         "straight"
     };
-    with(state, "shape", shape)
+    Some(with(state, "shape", shape))
 }
 
 /// Completes stripped states from their neighbours in `grid`.
@@ -357,19 +358,23 @@ impl<'a> Settle<'a> {
         let grid = self.grid;
         let bare = name(state);
         if is_stairs(state) {
-            return Some(stair_state(grid, pos));
+            return stair_state(grid, pos);
         }
         if bare == "jigsaw" {
             return Some(self.jigsaw(pos, state));
         }
-        if bare == GROUND {
+        if bare == GROUND.path() {
             let buried = grid
                 .get(&above(pos))
                 .is_some_and(|a| is_cube(a) || matches!(name(a), "water" | "lava"));
             if buried {
-                return Some(block("dirt"));
+                return Some(block(rl!("minecraft:dirt")));
             }
-            return Some(with(&block("grass_block"), "snowy", self.snowy(pos)));
+            return Some(with(
+                &block(rl!("minecraft:grass_block")),
+                "snowy",
+                self.snowy(pos),
+            ));
         }
         if bare == "grass_block" {
             return Some(with(state, "snowy", self.snowy(pos)));
@@ -461,7 +466,7 @@ fn is_thin_snow(state: &PaletteState) -> bool {
 }
 
 pub fn thin_snow() -> PaletteState {
-    with(&block("snow"), "layers", "1")
+    with(&block(rl!("minecraft:snow")), "layers", "1")
 }
 
 /// Every air or thin snow cell open to the sky, with the kind of block it
@@ -488,7 +493,8 @@ pub fn snow_supports(world: &World) -> Vec<(Pos, String)> {
             .all(is_air);
         if open {
             let class = match support {
-                "grass_block" | "dirt" | GROUND => "soil",
+                "grass_block" | "dirt" => "soil",
+                ground if ground == GROUND.path() => "soil",
                 other => other,
             };
             out.push((pos, class.to_owned()));
@@ -497,19 +503,18 @@ pub fn snow_supports(world: &World) -> Vec<(Pos, String)> {
     out
 }
 
-pub fn stairs(block: &str, facing: Direction) -> PaletteState {
+pub fn stairs(block: &str, facing: Direction) -> Result<PaletteState, BlueprintError> {
     let stairs = PaletteState {
-        id: ResourceLocation::read(block).expect("a block id"),
+        id: ResourceLocation::read(block).map_err(|reason| BlueprintError::State {
+            text: block.to_owned(),
+            reason: reason.to_string(),
+        })?,
         properties: None,
     };
     let stairs = with(&stairs, "facing", facing.name());
-    with(&with(&stairs, "half", "bottom"), "waterlogged", "false")
-}
-
-pub fn axis_index(axis: Axis) -> usize {
-    match axis {
-        Axis::X => 0,
-        Axis::Y => 1,
-        Axis::Z => 2,
-    }
+    Ok(with(
+        &with(&stairs, "half", "bottom"),
+        "waterlogged",
+        "false",
+    ))
 }

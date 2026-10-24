@@ -11,15 +11,40 @@ mod turn;
 
 pub use canvas::{Canvas, Gable};
 pub use data::{Fields, Tag, compound};
+pub use machines::Furnace;
 pub use parts::{
     Coords, Hinge, Patch, Slopes, corner_stairs, fence_joined, top_stairs, wall_joined,
 };
 pub use turn::turned;
 
+use std::fmt;
+
 use mcrs_minecraft_core::{Axis, Direction, Mirror, Rotation};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 
 pub type Pos = (i32, i32, i32);
+
+/// What keeps a canvas from building its template.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlueprintError {
+    /// A block state or block id that does not parse.
+    State { text: String, reason: String },
+    /// A cell painted outside the box.
+    Outside(Pos),
+}
+
+impl fmt::Display for BlueprintError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BlueprintError::State { text, reason } => write!(f, "block state `{text}`: {reason}"),
+            BlueprintError::Outside(pos) => {
+                write!(f, "a block is painted outside the box at {pos:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BlueprintError {}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Cell {
@@ -31,31 +56,43 @@ pub enum Cell {
     Ground,
     /// No block: the cell is absent from the template.
     Void,
+    /// A state that does not parse; the canvas reports it when it builds.
+    Invalid(BlueprintError),
 }
 
 pub const GROUND: Cell = Cell::Ground;
 pub const VOID: Cell = Cell::Void;
 
-fn state(text: &str) -> PaletteState {
-    text.parse()
-        .unwrap_or_else(|e| panic!("block state `{text}`: {e}"))
+fn state(text: &str) -> Result<PaletteState, BlueprintError> {
+    text.parse::<PaletteState>()
+        .map_err(|reason| BlueprintError::State {
+            text: text.to_owned(),
+            reason: reason.to_string(),
+        })
+}
+
+fn cell(state: Result<PaletteState, BlueprintError>, wrap: fn(PaletteState) -> Cell) -> Cell {
+    state.map_or_else(Cell::Invalid, wrap)
 }
 
 pub fn block(state_text: &str) -> Cell {
-    Cell::Exact(state(state_text))
+    cell(state(state_text), Cell::Exact)
 }
 
 pub fn settled(state_text: &str) -> Cell {
-    Cell::Settled(state(state_text))
+    cell(state(state_text), Cell::Settled)
 }
 
 /// Bottom stairs facing `facing`, their shape left to the neighbours.
 pub fn stairs(block: &str, facing: Direction) -> Cell {
-    Cell::Settled(rules::stairs(block, facing))
+    cell(rules::stairs(block, facing), Cell::Settled)
 }
 
 pub fn log(block: &str, axis: Axis) -> Cell {
-    Cell::Exact(rules::with(&state(block), "axis", axis.name()))
+    cell(
+        state(block).map(|state| rules::with(&state, "axis", axis.name())),
+        Cell::Exact,
+    )
 }
 
 impl Cell {

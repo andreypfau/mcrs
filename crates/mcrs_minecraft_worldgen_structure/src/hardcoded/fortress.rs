@@ -64,7 +64,7 @@ enum Side {
 }
 
 struct Layout {
-    pieces: Vec<Piece>,
+    pieces: Vec<FortressPiece>,
     pending: Vec<usize>,
     bridge: Table,
     castle: Table,
@@ -106,7 +106,7 @@ pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     };
     let mut layout = Layout {
         start_min: *start.bounds.min,
-        pieces: vec![Piece::Fortress(start)],
+        pieces: vec![start],
         pending: Vec::new(),
         bridge: Table::new(&bridge_weights),
         castle: Table::new(&castle_weights),
@@ -119,7 +119,7 @@ pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
         layout.add_children(piece, rng);
     }
     move_inside_heights(&mut layout.pieces, rng, 48, 70);
-    layout.pieces
+    layout.pieces.into_iter().map(Piece::Fortress).collect()
 }
 
 impl Layout {
@@ -127,18 +127,13 @@ impl Layout {
         if castle { &self.castle } else { &self.bridge }
     }
 
-    fn piece(&self, index: usize) -> &FortressPiece {
-        match &self.pieces[index] {
-            Piece::Fortress(piece) => piece,
-            _ => unreachable!("a fortress lays out fortress pieces only"),
-        }
-    }
-
     /// Each type's `addChildren`.
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use FortressKind::*;
         use Side::*;
-        let piece = self.piece(index);
+        let Some(piece) = self.pieces.get(index) else {
+            return;
+        };
         let orientation = piece.orientation;
         match piece.kind {
             BridgeCrossing => {
@@ -192,7 +187,9 @@ impl Layout {
         b: i32,
         castle: bool,
     ) {
-        let piece = self.piece(parent);
+        let Some(piece) = self.pieces.get(parent) else {
+            return;
+        };
         let (min, max) = (*piece.bounds.min, *piece.bounds.max);
         let facing = piece.orientation;
         let depth = piece.gen_depth;
@@ -245,7 +242,7 @@ impl Layout {
         }
         if let Some(piece) = self.generate_piece(rng, foot, direction, depth + 1, castle) {
             self.pending.push(self.pieces.len());
-            self.pieces.push(Piece::Fortress(piece));
+            self.pieces.push(piece);
         }
     }
 
@@ -265,15 +262,14 @@ impl Layout {
             for _ in 0..5 {
                 let mut selection = rng.next_i32_bound(total);
                 let table = self.table(castle);
-                for position in 0..table.available.len() {
-                    let entry = table.available[position];
-                    let weight = table.weights[entry];
+                for (position, &(entry, table_entry)) in table.available.iter().enumerate() {
+                    let weight = table_entry.weight;
                     selection -= weight.weight;
                     if selection >= 0 {
                         continue;
                     }
                     let previous = self.previous == Some((castle, entry));
-                    if !table.valid(entry) || (previous && !weight.allow_in_row) {
+                    if !table_entry.valid() || (previous && !weight.allow_in_row) {
                         break;
                     }
                     let Some(piece) = self.create(rng, weight.kind, foot, direction, depth) else {

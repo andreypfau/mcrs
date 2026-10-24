@@ -1,6 +1,6 @@
 use super::*;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, top_stairs};
+use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Furnace, Hinge, top_stairs};
 
 const PURPLE_BED: &str = Block::PurpleBed.as_static_str();
 
@@ -484,7 +484,7 @@ fn medium_house_4(c: &mut Canvas, v: Village) {
     log_roof(c, Gable::new(Z, [0, 8], [0, 8], 2, 4));
     c.fill(&K.log_z, 4, 5, [0..=2, 6..=8]);
 
-    c.furnace([4, 1, 4], "furnace", South);
+    c.furnace([4, 1, 4], Furnace::Furnace, South);
     c.solid(&S.cobble, [4, 2, 4], [4, 3, 4]);
     let collar = |facing| top_stairs(COBBLE_STAIRS, facing);
     stair_ring(c, collar, [4, 4, 4], [South, West, North, West]);
@@ -548,7 +548,7 @@ fn taiga_armorer_2(c: &mut Canvas) {
     let hearth = |facing| stairs(COBBLE_STAIRS, facing);
     stair_ring(c, hearth, [4, 1, 3], [East, West, East, West]);
     c.place(&S.air, 3, 1, 3);
-    c.furnace([4, 1, 3], "blast_furnace", West);
+    c.furnace([4, 1, 3], Furnace::BlastFurnace, West);
     c.solid(&S.cobble_wall, [4, 2, 3], [4, 7, 3]);
     c.posts(&S.cobble_wall, &[3], &[0, 6], [1, 3]);
     c.solid(&K.log_z, [3, 4, 0], [3, 4, 6]);
@@ -592,7 +592,7 @@ fn taiga_armorer_house_1(c: &mut Canvas) {
 
     c.fill(&S.cobble, [3, 6], 1, 4);
     for x in [4, 5] {
-        c.furnace([x, 1, 4], "blast_furnace", North);
+        c.furnace([x, 1, 4], Furnace::BlastFurnace, North);
         c.solid(&S.cobble, [x, 2, 4], [x, 3, 4]);
     }
     c.place(&stairs(COBBLE_STAIRS, East), 3, 2, 4);
@@ -636,7 +636,7 @@ fn taiga_butcher_shop_1(c: &mut Canvas) {
     c.place(&K.log, 3, 5, 4);
     c.place(&K.log_z, 3, 5, 5);
 
-    c.furnace([5, 1, 2], "smoker", South);
+    c.furnace([5, 1, 2], Furnace::Smoker, South);
     c.place(&wall_post(&[], &[North]), 5, 2, 2);
     let pillar = "minecraft:cobblestone_wall[east=tall,north=tall,south=tall,up=false,waterlogged=false,west=tall]";
     c.place(&block(pillar), 5, 3, 2);

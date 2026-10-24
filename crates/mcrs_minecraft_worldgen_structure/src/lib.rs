@@ -1,10 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::panic,
-    clippy::unreachable,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]
@@ -28,10 +21,10 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::predicate::Offset;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, PositiveFloat, PositiveInt, is_default, non_empty,
 };
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registries::{KeySet, dispatch};
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
@@ -226,7 +219,7 @@ impl Structure {
 
     /// The `minecraft:` template paths the type's generator draws from, which
     /// no datapack file names.
-    pub fn templates(&self) -> &'static [&'static str] {
+    pub fn templates(&self) -> &'static [StaticResourceLocation] {
         match self {
             Structure::EndCity { .. } => hardcoded::end_city::TEMPLATES,
             Structure::Igloo { .. } => hardcoded::igloo::TEMPLATES,

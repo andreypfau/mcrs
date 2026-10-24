@@ -1,6 +1,6 @@
 use super::*;
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Coords, Hinge, Patch};
+use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Coords, Furnace, Hinge, Patch};
 
 const STAIRS: &str = Block::AcaciaStairs.as_static_str();
 const DOOR: &str = Block::AcaciaDoor.as_static_str();
@@ -982,7 +982,7 @@ fn savanna_armorer_1(c: &mut Canvas) {
 
     c.fill(&terracotta, 4, 1..=2, [2, 4]);
     c.solid(&terracotta, [4, 3, 3], [4, 5, 3]);
-    c.furnace([4, 1, 3], "blast_furnace", West);
+    c.furnace([4, 1, 3], Furnace::BlastFurnace, West);
     c.place(
         &block("minecraft:orange_glazed_terracotta[facing=west]"),
         4,
@@ -1514,7 +1514,7 @@ fn savanna_butchers_shop_1(c: &mut Canvas) {
     c.solid(&K.planks, [4, 5, 6], [5, 5, 8]);
     c.place(&K.planks, 5, 5, 2);
 
-    c.furnace([4, 1, 2], "smoker", South);
+    c.furnace([4, 1, 2], Furnace::Smoker, South);
     c.solid(&chimney("tall", &[North, West]), [4, 2, 2], [4, 4, 2]);
     c.place(&chimney("low", &[East, North, South, West]), 4, 5, 2);
     c.place(&chimney("low", &[]), 4, 6, 2);
@@ -1583,7 +1583,7 @@ fn savanna_butchers_shop_2(c: &mut Canvas) {
 
     c.solid(&stairs(STAIRS, North), [5, 4, 3], [6, 4, 3]);
     chest(c, [6, 4, 5], North, "village_butcher");
-    c.furnace([8, 4, 3], "smoker", East);
+    c.furnace([8, 4, 3], Furnace::Smoker, East);
     c.fill(&S.wall_torch, 3, 5, [3, 5]);
     c.fill(&S.wall_torch, [6, 8], 6, 4);
     c.spot([10, 0, 2], BUTCHER_ANIMALS, GRASS);

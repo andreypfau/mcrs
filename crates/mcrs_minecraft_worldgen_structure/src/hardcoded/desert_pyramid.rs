@@ -28,19 +28,17 @@ pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
         DesertPyramidPiece::HEIGHT,
         DesertPyramidPiece::DEPTH,
     );
-    let height_position = [
+    let [first, rest @ ..] = [
         (bounds.min.x, bounds.min.z),
         (bounds.min.x, bounds.max.z),
         (bounds.max.x, bounds.min.z),
         (bounds.max.x, bounds.max.z),
     ]
-    .into_iter()
     .map(|(x, z)| {
         ctx.world
             .free_height(x, z, HeightmapName::MotionBlockingNoLeaves)
-    })
-    .min()
-    .expect("four corners");
+    });
+    let height_position = rest.into_iter().fold(first, i32::min);
     vec![Piece::DesertPyramid(DesertPyramidPiece {
         bounds,
         orientation,

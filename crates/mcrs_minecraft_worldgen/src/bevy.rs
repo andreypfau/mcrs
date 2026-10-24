@@ -127,12 +127,8 @@ struct TemplateNames(BTreeSet<ResourceLocation>);
 
 impl TemplateNames {
     fn visit_structure(&mut self, structure: &Structure) {
-        self.0.extend(
-            structure
-                .templates()
-                .iter()
-                .map(|path| ResourceLocation::minecraft(path).expect("a hardcoded template name")),
-        );
+        self.0
+            .extend(structure.templates().iter().map(ResourceLocation::to_arc));
     }
 
     fn visit_feature(&mut self, feature: &Feature) {

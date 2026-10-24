@@ -2,11 +2,68 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 
-use crate::piece::Piece;
+use crate::piece::{FortressPiece, MineshaftKind, MineshaftPiece, Piece, StrongholdPiece};
 
 /// `Rotation.getRandom`.
 pub fn random_rotation<R: Random>(rng: &mut R) -> Rotation {
-    Rotation::ALL[rng.next_i32_bound(4) as usize]
+    match rng.next_i32_bound(4) {
+        0 => Rotation::None,
+        1 => Rotation::Clockwise90,
+        2 => Rotation::Clockwise180,
+        _ => Rotation::Counterclockwise90,
+    }
+}
+
+/// A laid out piece's box, which the piece builders test and move.
+pub trait Boxed {
+    fn bounds(&self) -> BoundingBox;
+    /// `StructurePiece.move`.
+    fn move_by(&mut self, delta: IVec3);
+}
+
+impl Boxed for Piece {
+    fn bounds(&self) -> BoundingBox {
+        Piece::bounds(self)
+    }
+
+    fn move_by(&mut self, delta: IVec3) {
+        Piece::move_by(self, delta);
+    }
+}
+
+impl Boxed for FortressPiece {
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
+    }
+
+    fn move_by(&mut self, delta: IVec3) {
+        self.bounds = self.bounds.moved(delta);
+    }
+}
+
+impl Boxed for StrongholdPiece {
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
+    }
+
+    fn move_by(&mut self, delta: IVec3) {
+        self.bounds = self.bounds.moved(delta);
+    }
+}
+
+impl Boxed for MineshaftPiece {
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
+    }
+
+    fn move_by(&mut self, delta: IVec3) {
+        self.bounds = self.bounds.moved(delta);
+        if let MineshaftKind::Room { entrances } = &mut self.kind {
+            for entrance in entrances {
+                *entrance = entrance.moved(delta);
+            }
+        }
+    }
 }
 
 /// A grid piece's facing, numbered by `Direction.get2DDataValue`.
@@ -37,7 +94,12 @@ impl Orientation {
 
     /// `StructurePiece.getRandomHorizontalDirection`.
     pub fn random<R: Random>(rng: &mut R) -> Self {
-        Self::HORIZONTAL[rng.next_i32_bound(4) as usize]
+        match rng.next_i32_bound(4) {
+            0 => Orientation::North,
+            1 => Orientation::East,
+            2 => Orientation::South,
+            _ => Orientation::West,
+        }
     }
 
     pub fn from_data_2d(value: i32) -> Option<Self> {
@@ -126,31 +188,31 @@ pub fn world_pos(orientation: Option<Orientation>, bounds: BoundingBox, local: I
     BlockPos::new(world_x, y + min.y, world_z)
 }
 
-pub(crate) fn union_of(pieces: &[Piece]) -> BoundingBox {
-    pieces
-        .iter()
-        .map(Piece::bounds)
-        .reduce(BoundingBox::union)
-        .expect("a box needs a piece")
+/// The box around every piece; `None` for no pieces.
+pub(crate) fn union_of<P: Boxed>(pieces: &[P]) -> Option<BoundingBox> {
+    pieces.iter().map(Boxed::bounds).reduce(BoundingBox::union)
 }
 
 /// `StructurePiecesBuilder.offsetPiecesVertically`.
-pub fn offset_vertically(pieces: &mut [Piece], dy: i32) {
+pub fn offset_vertically<P: Boxed>(pieces: &mut [P], dy: i32) {
     for piece in pieces {
         piece.move_by(IVec3::new(0, dy, 0));
     }
 }
 
-/// `StructurePiecesBuilder.moveBelowSeaLevel`: the moved distance.
-pub fn move_below_sea_level<R: Random>(
-    pieces: &mut [Piece],
+/// `StructurePiecesBuilder.moveBelowSeaLevel`: the moved distance, zero for
+/// no pieces.
+pub fn move_below_sea_level<P: Boxed, R: Random>(
+    pieces: &mut [P],
     sea_level: i32,
     min_y: i32,
     rng: &mut R,
     offset: i32,
 ) -> i32 {
     let max_y = sea_level - offset;
-    let bounds = union_of(pieces);
+    let Some(bounds) = union_of(pieces) else {
+        return 0;
+    };
     let mut top = bounds.y_span() + min_y + 1;
     if top < max_y {
         top += rng.next_i32_bound(max_y - top);
@@ -161,13 +223,15 @@ pub fn move_below_sea_level<R: Random>(
 }
 
 /// `StructurePiecesBuilder.moveInsideHeights`.
-pub fn move_inside_heights<R: Random>(
-    pieces: &mut [Piece],
+pub fn move_inside_heights<P: Boxed, R: Random>(
+    pieces: &mut [P],
     rng: &mut R,
     lowest_allowed: i32,
     highest_allowed: i32,
 ) {
-    let bounds = union_of(pieces);
+    let Some(bounds) = union_of(pieces) else {
+        return;
+    };
     let span = highest_allowed - lowest_allowed + 1 - bounds.y_span();
     let bottom = if span > 1 {
         lowest_allowed + rng.next_i32_bound(span)
@@ -178,7 +242,7 @@ pub fn move_inside_heights<R: Random>(
 }
 
 /// `StructurePiece.findCollisionPiece`: the first piece whose box meets `probe`.
-pub fn find_collision(pieces: &[Piece], probe: BoundingBox) -> Option<&Piece> {
+pub fn find_collision<P: Boxed>(pieces: &[P], probe: BoundingBox) -> Option<&P> {
     pieces.iter().find(|piece| piece.bounds().intersects(probe))
 }
 

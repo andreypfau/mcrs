@@ -7,8 +7,8 @@ use mcrs_minecraft_worldgen_feature::template::{
 };
 
 use super::data::{BlockData, chest, compound, layered};
-use super::rules::{self, Settle, World, axis_index};
-use super::{Cell, Fields, Pos, Turn, block, state};
+use super::rules::{self, Settle, World};
+use super::{BlueprintError, Cell, Fields, Pos, Turn, state};
 use mcrs_minecraft_block::keys::Block;
 
 /// The box a template fills, painted in order: a later call overwrites an
@@ -22,6 +22,8 @@ pub struct Canvas {
     bare: Vec<([i32; 3], [i32; 3])>,
     block_data: HashMap<Pos, BlockData>,
     entities: Vec<TemplateEntity>,
+    /// The first mistake painted, which the template reports.
+    fault: Option<BlueprintError>,
 }
 
 /// Two slopes climbing towards the middle of `span`, extruded over `length`
@@ -66,17 +68,20 @@ fn moved(pos: Pos, turn: Turn, shift: [i32; 3]) -> Pos {
 impl Canvas {
     /// A box of air.
     pub fn new(size: [i32; 3]) -> Self {
-        let air = block(Block::Air.as_static_str());
-        let last = [size[0] - 1, size[1] - 1, size[2] - 1];
+        let air = Cell::Exact(rules::block(Block::Air.location()));
+        let [x, y, z] = size;
         Canvas {
-            size: (size[0], size[1], size[2]),
-            world: boxed([0; 3], last).map(|pos| (pos, air.clone())).collect(),
+            size: (x, y, z),
+            world: boxed([0; 3], [x - 1, y - 1, z - 1])
+                .map(|pos| (pos, air.clone()))
+                .collect(),
             pad_void: None,
             kept: Vec::new(),
             snow: Vec::new(),
             bare: Vec::new(),
             block_data: HashMap::new(),
             entities: Vec::new(),
+            fault: None,
         }
     }
 
@@ -84,12 +89,18 @@ impl Canvas {
         [self.size.0, self.size.1, self.size.2]
     }
 
+    fn fail(&mut self, fault: BlueprintError) {
+        self.fault.get_or_insert(fault);
+    }
+
     fn put(&mut self, pos: Pos, cell: Cell) {
-        let slot = self
-            .world
-            .get_mut(&pos)
-            .unwrap_or_else(|| panic!("a block is painted outside the box at {pos:?}"));
-        *slot = cell;
+        if let Cell::Invalid(fault) = &cell {
+            self.fail(fault.clone());
+        }
+        match self.world.get_mut(&pos) {
+            Some(slot) => *slot = cell,
+            None => self.fail(BlueprintError::Outside(pos)),
+        }
     }
 
     pub fn place(&mut self, block: &Cell, x: i32, y: i32, z: i32) {
@@ -245,8 +256,12 @@ impl Canvas {
             Mirror::LeftRight
         };
         let other = block.turned(Turn::new(mirror, Rotation::None));
-        let mut shift = [0; 3];
-        shift[axis_index(axis)] = to - min[axis_index(axis)];
+        let [min_x, min_y, min_z] = min;
+        let shift = match axis {
+            Axis::X => [to - min_x, 0, 0],
+            Axis::Y => [0, to - min_y, 0],
+            Axis::Z => [0, 0, to - min_z],
+        };
         self.solid(block, min, max);
         for (x, y, z) in boxed(min, max) {
             self.put((x + shift[0], y + shift[1], z + shift[2]), other.clone());
@@ -290,6 +305,9 @@ impl Canvas {
     pub fn variant_of(&mut self, size: [i32; 3], turn: Turn, paint: impl FnOnce(&mut Canvas)) {
         let mut original = Canvas::new(size);
         paint(&mut original);
+        if let Some(fault) = original.fault.take() {
+            self.fail(fault);
+        }
         let corner =
             zero_position_with_transform(IVec3::ZERO, turn.mirror, turn.rotation, size[0], size[2]);
         for cell in self.world.values_mut() {
@@ -304,7 +322,16 @@ impl Canvas {
 
     /// Replaces one block by another wherever it stands, keeping its properties.
     pub fn rename(&mut self, from: &str, to: &str) {
-        let to = ResourceLocation::read(to).expect("a block id");
+        let to = match ResourceLocation::read(to) {
+            Ok(to) => to,
+            Err(reason) => {
+                self.fail(BlueprintError::State {
+                    text: to.to_owned(),
+                    reason: reason.to_string(),
+                });
+                return;
+            }
+        };
         for cell in self.world.values_mut() {
             if let Cell::Exact(state) | Cell::Settled(state) = cell
                 && state.id.as_str() == from
@@ -321,7 +348,10 @@ impl Canvas {
 
     /// A block the pad rule must leave in place.
     pub fn keep(&mut self, block_state: &str, min: [i32; 3], max: [i32; 3]) {
-        self.kept.push((min, max, state(block_state)));
+        match state(block_state) {
+            Ok(state) => self.kept.push((min, max, state)),
+            Err(fault) => self.fail(fault),
+        }
     }
 
     /// Thin snow on every cell open to the sky that stands on one of these
@@ -388,13 +418,17 @@ impl Canvas {
         &self.world
     }
 
-    /// Every block of the finished template.
-    pub fn cells(&self) -> BTreeMap<Pos, PaletteState> {
+    /// Every block of the finished template, or the first mistake painted.
+    pub fn cells(&self) -> Result<BTreeMap<Pos, PaletteState>, BlueprintError> {
+        if let Some(fault) = &self.fault {
+            return Err(fault.clone());
+        }
         let mut settled: HashSet<Pos> = HashSet::new();
         let mut world: World = HashMap::new();
         for (pos, cell) in &self.world {
             let state = match cell {
                 Cell::Void => continue,
+                Cell::Invalid(fault) => return Err(fault.clone()),
                 Cell::Exact(state) => state.clone(),
                 Cell::Settled(state) => {
                     settled.insert(*pos);
@@ -414,7 +448,9 @@ impl Canvas {
             .collect();
         sources.sort();
         for (_, pos) in sources {
-            if let Some((_, to, state)) = rules::partner(&world[&pos], pos) {
+            if let Some((_, to, state)) =
+                world.get(&pos).and_then(|state| rules::partner(state, pos))
+            {
                 world.insert(to, state);
                 settled.remove(&to);
             }
@@ -457,7 +493,7 @@ impl Canvas {
             })
             .collect();
         let mut settle = Settle::new(&stripped, self.size);
-        world
+        Ok(world
             .into_iter()
             .map(|(pos, state)| {
                 let state = if settled.contains(&pos) {
@@ -467,14 +503,14 @@ impl Canvas {
                 };
                 (pos, state)
             })
-            .collect()
+            .collect())
     }
 
-    pub fn template(&self) -> Template {
+    pub fn template(&self) -> Result<Template, BlueprintError> {
         let mut palette: Vec<PaletteState> = Vec::new();
         let mut indices: HashMap<PaletteState, i32> = HashMap::new();
         let mut cells: Vec<(u8, Pos, PaletteState)> = self
-            .cells()
+            .cells()?
             .into_iter()
             .map(|(pos, state)| {
                 let section = if self.block_data.contains_key(&pos) {
@@ -506,13 +542,13 @@ impl Canvas {
             })
             .collect();
         let (x, y, z) = self.size;
-        Template {
+        Ok(Template {
             size: [x, y, z],
             entities: self.entities.clone(),
             blocks,
             palette: Some(palette),
             palettes: None,
             data_version: VERSION.world_version,
-        }
+        })
     }
 }

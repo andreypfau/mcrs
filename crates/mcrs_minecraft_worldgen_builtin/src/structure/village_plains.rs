@@ -1,7 +1,9 @@
 use super::*;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, Slopes, top_stairs};
+use mcrs_minecraft_worldgen_structure::blueprint::{
+    Cell, Furnace, Hinge, Patch, Slopes, top_stairs,
+};
 
 const OAK_STAIRS: &str = Block::OakStairs.as_static_str();
 const OAK_DOOR: &str = Block::OakDoor.as_static_str();
@@ -690,7 +692,7 @@ fn plains_armorer_house_1(c: &mut Canvas) {
     c.boxes(&smooth, &[([2, 1, 2], [6, 1, 2]), ([6, 1, 3], [6, 1, 5])]);
 
     c.place(&bricks, 4, 0, 5);
-    c.furnace([4, 1, 6], "blast_furnace", North);
+    c.furnace([4, 1, 6], Furnace::BlastFurnace, North);
     c.place(&bricks, 4, 2, 6);
     chimney(c, [4, 6], [3, 7]);
     for (x, facing) in [(3, East), (5, West)] {
@@ -1048,7 +1050,7 @@ fn plains_butcher_shop_1(c: &mut Canvas) {
     c.solid(&smooth_slab("double"), [7, 1, 2], [7, 1, 3]);
     c.place(&K.planks, 2, 1, 5);
     c.place(&block(Block::PottedDandelion.as_static_str()), 2, 2, 5);
-    c.furnace([8, 1, 5], "smoker", West);
+    c.furnace([8, 1, 5], Furnace::Smoker, West);
     c.solid(&low_wall(&[East, South]), [8, 2, 5], [8, 3, 5]);
     c.place(&low_wall(&[East, South, West]), 8, 4, 5);
     chimney(c, [8, 5], [5, 7]);
@@ -1109,7 +1111,7 @@ fn butcher_shop_2(c: &mut Canvas, v: Village) {
     c.solid(&K.planks, [5, 4, 3], [7, 4, 4]);
     c.solid(&top_stairs(OAK_STAIRS, East), [4, 4, 3], [4, 4, 4]);
     c.place(&smooth_slab("double"), 4, 1, 4);
-    c.furnace([5, 5, 4], "smoker", East);
+    c.furnace([5, 5, 4], Furnace::Smoker, East);
     c.solid(&low_wall(&[South, West]), [5, 6, 4], [5, 9, 4]);
     chimney(c, [5, 4], [10, 11]);
     c.fill(&S.wall_torch, [5, 7], 7, 3);
@@ -1524,7 +1526,7 @@ fn plains_weaponsmith_1(c: &mut Canvas) {
     c.solid(&lava, [6, 1, 1], [6, 1, 2]);
     c.solid(&bars, [5, 2, 0], [6, 2, 0]);
     for y in [2, 3] {
-        c.furnace([4, y, 3], "furnace", West);
+        c.furnace([4, y, 3], Furnace::Furnace, West);
     }
     c.place(&grindstone, 2, 1, 1);
     chest(c, [6, 1, 4], South, "village_weaponsmith");

@@ -328,7 +328,10 @@ pub fn place_start<W: WorldGenVolume>(
                 else {
                     continue;
                 };
-                let template = piece.template.id(frozen).0 as usize;
+                let Some(template) = piece.template.id(frozen) else {
+                    continue;
+                };
+                let template = template.0 as usize;
                 paint_igloo(
                     blocks,
                     &frozen.templates[template],

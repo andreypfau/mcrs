@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation, StaticResourceLocation, rl};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
@@ -11,24 +11,24 @@ use crate::piece::{Piece, PortalProperties, RuinedPortalPiece};
 use crate::site::{Context, Site, Stub};
 use crate::{PortalPlacement, RuinedPortalSetup};
 
-pub const TEMPLATES: &[&str] = &[
-    "ruined_portal/portal_1",
-    "ruined_portal/portal_2",
-    "ruined_portal/portal_3",
-    "ruined_portal/portal_4",
-    "ruined_portal/portal_5",
-    "ruined_portal/portal_6",
-    "ruined_portal/portal_7",
-    "ruined_portal/portal_8",
-    "ruined_portal/portal_9",
-    "ruined_portal/portal_10",
-    "ruined_portal/giant_portal_1",
-    "ruined_portal/giant_portal_2",
-    "ruined_portal/giant_portal_3",
+pub const TEMPLATES: &[StaticResourceLocation] = &[
+    rl!("minecraft:ruined_portal/portal_1"),
+    rl!("minecraft:ruined_portal/portal_2"),
+    rl!("minecraft:ruined_portal/portal_3"),
+    rl!("minecraft:ruined_portal/portal_4"),
+    rl!("minecraft:ruined_portal/portal_5"),
+    rl!("minecraft:ruined_portal/portal_6"),
+    rl!("minecraft:ruined_portal/portal_7"),
+    rl!("minecraft:ruined_portal/portal_8"),
+    rl!("minecraft:ruined_portal/portal_9"),
+    rl!("minecraft:ruined_portal/portal_10"),
+    rl!("minecraft:ruined_portal/giant_portal_1"),
+    rl!("minecraft:ruined_portal/giant_portal_2"),
+    rl!("minecraft:ruined_portal/giant_portal_3"),
 ];
 
-pub const PORTALS: &[&str] = TEMPLATES.split_at(10).0;
-pub const GIANT_PORTALS: &[&str] = TEMPLATES.split_at(10).1;
+pub const PORTALS: &[StaticResourceLocation] = TEMPLATES.split_at(10).0;
+pub const GIANT_PORTALS: &[StaticResourceLocation] = TEMPLATES.split_at(10).1;
 
 const GIANT_PORTAL_PROBABILITY: f32 = 0.05;
 const MIN_Y_INDEX: i32 = 15;
@@ -50,23 +50,23 @@ pub fn site(
     let setup = if setups.len() > 1 {
         let total: f32 = setups.iter().map(|s| s.weight.0).sum();
         let mut pick = rng.next_f32();
-        setups
-            .iter()
-            .position(|s| {
-                pick -= s.weight.0 / total;
-                pick < 0.0
-            })
-            .expect("a draw below one lands on a setup")
+        // Rounding can leave the draw past the last setup, where the reference
+        // throws; the start is refused instead.
+        setups.iter().position(|s| {
+            pick -= s.weight.0 / total;
+            pick < 0.0
+        })?
     } else {
         0
     };
-    let chosen = &setups[setup];
+    let chosen = setups.get(setup)?;
     let air_pocket = sample(rng, chosen.air_pocket_probability.0 as f32);
-    let template = if rng.next_f32() < GIANT_PORTAL_PROBABILITY {
-        giant_portals[rng.next_i32_bound(giant_portals.len() as i32) as usize]
+    let templates = if rng.next_f32() < GIANT_PORTAL_PROBABILITY {
+        giant_portals
     } else {
-        portals[rng.next_i32_bound(portals.len() as i32) as usize]
+        portals
     };
+    let template = *templates.get(rng.next_i32_bound(templates.len() as i32) as usize)?;
     let rotation = random_rotation(rng);
     let mirror = if rng.next_f32() < 0.5 {
         Mirror::None
@@ -74,7 +74,7 @@ pub fn site(
         Mirror::FrontBack
     };
     let base = IVec3::new(ctx.chunk.min_block_x(), 0, ctx.chunk.min_block_z());
-    let bounds = template_bounds(ctx, template, base, rotation, mirror);
+    let bounds = template_bounds(ctx, template, base, rotation, mirror)?;
     let centre = bounds.center();
     let surface_y = ctx
         .world
@@ -156,10 +156,11 @@ fn template_bounds(
     position: IVec3,
     rotation: Rotation,
     mirror: Mirror,
-) -> BoundingBox {
-    let size = ctx.frozen.manifests[template.0 as usize].size;
-    let pivot = IVec3::new(i32::from(size[0]) / 2, 0, i32::from(size[2]) / 2);
-    bounding_box(size, position, rotation, mirror, pivot)
+) -> Option<BoundingBox> {
+    let size = ctx.frozen.manifest(template)?.size;
+    let [size_x, _, size_z] = size;
+    let pivot = IVec3::new(i32::from(size_x) / 2, 0, i32::from(size_z) / 2);
+    Some(bounding_box(size, position, rotation, mirror, pivot))
 }
 
 fn sample(rng: &mut LegacyRandom, limit: f32) -> bool {
@@ -189,9 +190,14 @@ pub fn layout(setups: &[RuinedPortalSetup], ctx: &mut Context<'_>, site: Site) -
         mirror,
     } = site.stub
     else {
-        unreachable!("a ruined portal site carries a portal stub")
+        return Vec::new();
     };
-    let setup = &setups[setup];
+    let (Some(setup), Some(bounds)) = (
+        setups.get(setup),
+        template_bounds(ctx, template, site.position, rotation, mirror),
+    ) else {
+        return Vec::new();
+    };
     let cold = setup.can_be_cold
         && ctx
             .world
@@ -201,7 +207,7 @@ pub fn layout(setups: &[RuinedPortalSetup], ctx: &mut Context<'_>, site: Site) -
         position: site.position,
         rotation,
         mirror,
-        bounds: template_bounds(ctx, template, site.position, rotation, mirror),
+        bounds,
         placement: setup.placement,
         properties: PortalProperties {
             cold,

@@ -71,18 +71,20 @@ pub fn turned(state: &PaletteState, turn: Turn) -> PaletteState {
                 (key.clone(), swap_left_right(value))
             }
             "shape" if name.ends_with("_stairs") && flip => (key.clone(), swap_left_right(value)),
-            "rotation" => {
-                let rotation: i32 = value.parse().expect("a sixteenth turn");
-                let rotation = if flip { (16 - rotation) % 16 } else { rotation };
-                (key.clone(), ((rotation + 4 * quarters) % 16).to_string())
-            }
+            "rotation" => match value.parse::<i32>() {
+                Ok(rotation) => {
+                    let rotation = if flip { (16 - rotation) % 16 } else { rotation };
+                    (key.clone(), ((rotation + 4 * quarters) % 16).to_string())
+                }
+                Err(_) => (key.clone(), value.clone()),
+            },
             "orientation" => {
                 let parts: Vec<String> = value.split('_').map(|part| turn.side(part)).collect();
                 (key.clone(), parts.join("_"))
             }
             "shape" if name.contains("rail") => {
                 let mut parts: Vec<String> = value.split('_').map(|part| turn.side(part)).collect();
-                if parts[0] != "ascending" {
+                if parts.first().map(String::as_str) != Some("ascending") {
                     parts.sort_by_key(|side| side == "east" || side == "west");
                 }
                 if parts == ["south", "north"] {

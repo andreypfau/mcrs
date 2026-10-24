@@ -3,7 +3,7 @@
 use mcrs_minecraft_core::Direction;
 
 use super::{Canvas, Fields, Tag, block};
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::keys::{Block, BlockEntityType};
 
 #[rustfmt::skip]
 const BARREL: Fields = &[("Items", Tag::List(&[])), ("id", Tag::String(BlockEntityType::Barrel.as_static_str()))];
@@ -26,6 +26,14 @@ const LECTERN: Fields = &[("id", Tag::String(BlockEntityType::Lectern.as_static_
 #[rustfmt::skip]
 const SMOKER: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(BlockEntityType::Smoker.as_static_str())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
 
+/// The blocks that cook: each keeps its own block entity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Furnace {
+    Furnace,
+    BlastFurnace,
+    Smoker,
+}
+
 impl Canvas {
     /// A block and the data it carries.
     pub fn machine(&mut self, at: [i32; 3], state: &str, data: Fields) {
@@ -33,15 +41,17 @@ impl Canvas {
         self.block_entity(at, data);
     }
 
-    /// A `furnace`, `blast_furnace` or `smoker`.
-    pub fn furnace(&mut self, at: [i32; 3], kind: &str, facing: Direction) {
-        let data = match kind {
-            "furnace" => FURNACE,
-            "blast_furnace" => BLAST_FURNACE,
-            "smoker" => SMOKER,
-            other => panic!("`{other}` is not a furnace"),
+    pub fn furnace(&mut self, at: [i32; 3], kind: Furnace, facing: Direction) {
+        let (block, data) = match kind {
+            Furnace::Furnace => (Block::Furnace, FURNACE),
+            Furnace::BlastFurnace => (Block::BlastFurnace, BLAST_FURNACE),
+            Furnace::Smoker => (Block::Smoker, SMOKER),
         };
-        let state = format!("minecraft:{kind}[facing={},lit=false]", facing.name());
+        let state = format!(
+            "{}[facing={},lit=false]",
+            block.as_static_str(),
+            facing.name()
+        );
         self.machine(at, &state, data);
     }
 

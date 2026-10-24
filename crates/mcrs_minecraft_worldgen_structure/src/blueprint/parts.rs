@@ -128,10 +128,10 @@ impl<T: Coords, const N: usize> Coords for [T; N] {
 
 /// Upside-down stairs facing `facing`, their shape left to the neighbours.
 pub fn top_stairs(stairs_block: &str, facing: Direction) -> Cell {
-    let Cell::Settled(state) = stairs(stairs_block, facing) else {
-        unreachable!("stairs are settled")
-    };
-    Cell::Settled(super::rules::with(&state, "half", "top"))
+    match super::rules::stairs(stairs_block, facing) {
+        Ok(state) => Cell::Settled(super::rules::with(&state, "half", "top")),
+        Err(error) => Cell::Invalid(error),
+    }
 }
 
 /// Bottom stairs whose corner is spelled out, where the neighbours that

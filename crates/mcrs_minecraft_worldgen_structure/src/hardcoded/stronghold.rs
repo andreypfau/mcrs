@@ -7,7 +7,7 @@ use crate::orient::{Orientation, find_collision, move_below_sea_level, orient_bo
 use crate::piece::{Piece, SmallDoor, StrongholdKind, StrongholdPiece};
 use crate::site::{Context, Site, Stub};
 
-use super::{PieceWeight, WeightTable};
+use super::{PieceWeight, TableEntry, WeightTable};
 
 const MAX_DEPTH: i32 = 50;
 const LOWEST_Y: i32 = 10;
@@ -59,7 +59,7 @@ enum Side {
 }
 
 struct Layout {
-    pieces: Vec<Piece>,
+    pieces: Vec<StrongholdPiece>,
     pending: Vec<usize>,
     table: WeightTable<Weight>,
     previous: Option<usize>,
@@ -120,7 +120,7 @@ pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
         };
         let mut layout = Layout {
             start_min: *start.bounds.min,
-            pieces: vec![Piece::Stronghold(start)],
+            pieces: vec![start],
             pending: Vec::new(),
             table: WeightTable::new(&weights),
             previous: None,
@@ -141,28 +141,23 @@ pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
             SEA_LEVEL_OFFSET,
         );
         if layout.portal_room {
-            return layout.pieces;
+            return layout.pieces.into_iter().map(Piece::Stronghold).collect();
         }
     }
 }
 
 impl Layout {
-    fn piece(&self, index: usize) -> &StrongholdPiece {
-        match &self.pieces[index] {
-            Piece::Stronghold(piece) => piece,
-            _ => unreachable!("a stronghold lays out stronghold pieces only"),
-        }
-    }
-
-    fn do_place(&self, entry: usize, depth: i32) -> bool {
-        self.table.valid(entry) && depth > self.table.weights[entry].min_depth
+    fn do_place(entry: &TableEntry<Weight>, depth: i32) -> bool {
+        entry.valid() && depth > entry.weight.min_depth
     }
 
     /// Each type's `addChildren`.
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use Side::*;
         use StrongholdKind::*;
-        let piece = self.piece(index);
+        let Some(piece) = self.pieces.get(index) else {
+            return;
+        };
         let orientation = piece.orientation;
         let turns_left = matches!(orientation, Orientation::North | Orientation::East);
         match piece.kind {
@@ -234,7 +229,9 @@ impl Layout {
     /// the side child's y offset, `b` the forward child's y offset or the side
     /// child's z offset.
     fn child(&mut self, parent: usize, rng: &mut LegacyRandom, side: Side, a: i32, b: i32) {
-        let piece = self.piece(parent);
+        let Some(piece) = self.pieces.get(parent) else {
+            return;
+        };
         let (min, max) = (*piece.bounds.min, *piece.bounds.max);
         let facing = piece.orientation;
         let depth = piece.gen_depth;
@@ -287,7 +284,7 @@ impl Layout {
         }
         if let Some(piece) = self.generate_piece(rng, foot, direction, depth + 1) {
             self.pending.push(self.pieces.len());
-            self.pieces.push(Piece::Stronghold(piece));
+            self.pieces.push(piece);
         }
     }
 
@@ -309,14 +306,13 @@ impl Layout {
         }
         for _ in 0..5 {
             let mut selection = rng.next_i32_bound(total);
-            for position in 0..self.table.available.len() {
-                let entry = self.table.available[position];
-                let weight = self.table.weights[entry];
+            for (position, &(entry, table_entry)) in self.table.available.iter().enumerate() {
+                let weight = table_entry.weight;
                 selection -= weight.weight;
                 if selection >= 0 {
                     continue;
                 }
-                if !self.do_place(entry, depth) || self.previous == Some(entry) {
+                if !Self::do_place(&table_entry, depth) || self.previous == Some(entry) {
                     break;
                 }
                 let Some(piece) = self.create(rng, weight.kind, foot, direction, depth) else {
@@ -340,7 +336,7 @@ impl Layout {
     ) -> Option<StrongholdPiece> {
         let offset = IVec3::new(-1, -1, 0);
         let probe = orient_box_at(direction, foot, offset, 5, 5, 4);
-        let collision = find_collision(&self.pieces, probe)?.bounds();
+        let collision = find_collision(&self.pieces, probe)?.bounds;
         if collision.min.y != probe.min.y {
             return None;
         }
@@ -389,9 +385,10 @@ impl Layout {
             FiveCrossing { .. } => ([-4, -3], [10, 9, 11]),
             Library { .. } => ([-4, -1], [14, 11, 15]),
             PortalRoom => ([-4, -1], [11, 8, 16]),
-            Start | FillerCorridor { .. } => unreachable!("never drawn from the table"),
+            Start | FillerCorridor { .. } => return None,
         };
-        let offset = IVec3::new(offset[0], offset[1], 0);
+        let [offset_x, offset_y] = offset;
+        let offset = IVec3::new(offset_x, offset_y, 0);
         let ok = |bounds: BoundingBox| {
             bounds.min.y > LOWEST_Y && find_collision(&self.pieces, bounds).is_none()
         };

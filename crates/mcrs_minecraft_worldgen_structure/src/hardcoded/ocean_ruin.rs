@@ -1,67 +1,81 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation, StaticResourceLocation, rl};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::on_top_of_chunk_centre;
 use crate::OceanTemperature;
-use crate::frozen::{OceanRuinConfig, TemplateId};
+use crate::frozen::OceanRuinConfig;
 use crate::orient::random_rotation;
 use crate::piece::{OceanRuinPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[&str] = &[
-    "underwater_ruin/warm_1",
-    "underwater_ruin/warm_2",
-    "underwater_ruin/warm_3",
-    "underwater_ruin/warm_4",
-    "underwater_ruin/warm_5",
-    "underwater_ruin/warm_6",
-    "underwater_ruin/warm_7",
-    "underwater_ruin/warm_8",
-    "underwater_ruin/brick_1",
-    "underwater_ruin/brick_2",
-    "underwater_ruin/brick_3",
-    "underwater_ruin/brick_4",
-    "underwater_ruin/brick_5",
-    "underwater_ruin/brick_6",
-    "underwater_ruin/brick_7",
-    "underwater_ruin/brick_8",
-    "underwater_ruin/cracked_1",
-    "underwater_ruin/cracked_2",
-    "underwater_ruin/cracked_3",
-    "underwater_ruin/cracked_4",
-    "underwater_ruin/cracked_5",
-    "underwater_ruin/cracked_6",
-    "underwater_ruin/cracked_7",
-    "underwater_ruin/cracked_8",
-    "underwater_ruin/mossy_1",
-    "underwater_ruin/mossy_2",
-    "underwater_ruin/mossy_3",
-    "underwater_ruin/mossy_4",
-    "underwater_ruin/mossy_5",
-    "underwater_ruin/mossy_6",
-    "underwater_ruin/mossy_7",
-    "underwater_ruin/mossy_8",
-    "underwater_ruin/big_brick_1",
-    "underwater_ruin/big_brick_2",
-    "underwater_ruin/big_brick_3",
-    "underwater_ruin/big_brick_8",
-    "underwater_ruin/big_mossy_1",
-    "underwater_ruin/big_mossy_2",
-    "underwater_ruin/big_mossy_3",
-    "underwater_ruin/big_mossy_8",
-    "underwater_ruin/big_cracked_1",
-    "underwater_ruin/big_cracked_2",
-    "underwater_ruin/big_cracked_3",
-    "underwater_ruin/big_cracked_8",
-    "underwater_ruin/big_warm_4",
-    "underwater_ruin/big_warm_5",
-    "underwater_ruin/big_warm_6",
-    "underwater_ruin/big_warm_7",
+pub const TEMPLATES: &[StaticResourceLocation] = &[
+    rl!("minecraft:underwater_ruin/warm_1"),
+    rl!("minecraft:underwater_ruin/warm_2"),
+    rl!("minecraft:underwater_ruin/warm_3"),
+    rl!("minecraft:underwater_ruin/warm_4"),
+    rl!("minecraft:underwater_ruin/warm_5"),
+    rl!("minecraft:underwater_ruin/warm_6"),
+    rl!("minecraft:underwater_ruin/warm_7"),
+    rl!("minecraft:underwater_ruin/warm_8"),
+    rl!("minecraft:underwater_ruin/brick_1"),
+    rl!("minecraft:underwater_ruin/brick_2"),
+    rl!("minecraft:underwater_ruin/brick_3"),
+    rl!("minecraft:underwater_ruin/brick_4"),
+    rl!("minecraft:underwater_ruin/brick_5"),
+    rl!("minecraft:underwater_ruin/brick_6"),
+    rl!("minecraft:underwater_ruin/brick_7"),
+    rl!("minecraft:underwater_ruin/brick_8"),
+    rl!("minecraft:underwater_ruin/cracked_1"),
+    rl!("minecraft:underwater_ruin/cracked_2"),
+    rl!("minecraft:underwater_ruin/cracked_3"),
+    rl!("minecraft:underwater_ruin/cracked_4"),
+    rl!("minecraft:underwater_ruin/cracked_5"),
+    rl!("minecraft:underwater_ruin/cracked_6"),
+    rl!("minecraft:underwater_ruin/cracked_7"),
+    rl!("minecraft:underwater_ruin/cracked_8"),
+    rl!("minecraft:underwater_ruin/mossy_1"),
+    rl!("minecraft:underwater_ruin/mossy_2"),
+    rl!("minecraft:underwater_ruin/mossy_3"),
+    rl!("minecraft:underwater_ruin/mossy_4"),
+    rl!("minecraft:underwater_ruin/mossy_5"),
+    rl!("minecraft:underwater_ruin/mossy_6"),
+    rl!("minecraft:underwater_ruin/mossy_7"),
+    rl!("minecraft:underwater_ruin/mossy_8"),
+    rl!("minecraft:underwater_ruin/big_brick_1"),
+    rl!("minecraft:underwater_ruin/big_brick_2"),
+    rl!("minecraft:underwater_ruin/big_brick_3"),
+    rl!("minecraft:underwater_ruin/big_brick_8"),
+    rl!("minecraft:underwater_ruin/big_mossy_1"),
+    rl!("minecraft:underwater_ruin/big_mossy_2"),
+    rl!("minecraft:underwater_ruin/big_mossy_3"),
+    rl!("minecraft:underwater_ruin/big_mossy_8"),
+    rl!("minecraft:underwater_ruin/big_cracked_1"),
+    rl!("minecraft:underwater_ruin/big_cracked_2"),
+    rl!("minecraft:underwater_ruin/big_cracked_3"),
+    rl!("minecraft:underwater_ruin/big_cracked_8"),
+    rl!("minecraft:underwater_ruin/big_warm_4"),
+    rl!("minecraft:underwater_ruin/big_warm_5"),
+    rl!("minecraft:underwater_ruin/big_warm_6"),
+    rl!("minecraft:underwater_ruin/big_warm_7"),
 ];
+
+const WARM: &[StaticResourceLocation] = family(0, 8);
+const BRICK: &[StaticResourceLocation] = family(8, 8);
+const CRACKED: &[StaticResourceLocation] = family(16, 8);
+const MOSSY: &[StaticResourceLocation] = family(24, 8);
+const BIG_BRICK: &[StaticResourceLocation] = family(32, 4);
+const BIG_MOSSY: &[StaticResourceLocation] = family(36, 4);
+const BIG_CRACKED: &[StaticResourceLocation] = family(40, 4);
+const BIG_WARM: &[StaticResourceLocation] = family(44, 4);
+
+/// The ruins of one family, in the order the reference's arrays list them.
+const fn family(start: usize, len: usize) -> &'static [StaticResourceLocation] {
+    TEMPLATES.split_at(start).1.split_at(len).0
+}
 
 pub fn site(
     _config: &OceanRuinConfig,
@@ -172,24 +186,6 @@ fn all_positions(rng: &mut LegacyRandom, origin: IVec3) -> Vec<IVec3> {
         .collect()
 }
 
-/// The ruins of one family, in the order the reference's arrays list them.
-fn templates(family: &str, large: bool) -> Vec<&'static str> {
-    let prefix = if large {
-        format!("underwater_ruin/big_{family}_")
-    } else {
-        format!("underwater_ruin/{family}_")
-    };
-    TEMPLATES
-        .iter()
-        .copied()
-        .filter(|name| name.starts_with(&prefix))
-        .collect()
-}
-
-fn template_id(ctx: &Context<'_>, name: &str) -> TemplateId {
-    ctx.frozen.template_ids[&ResourceLocation::minecraft(name).expect("a hardcoded template name")]
-}
-
 #[expect(
     clippy::too_many_arguments,
     reason = "the ruin's configuration, context and random source, the piece list, and the position, rotation, size flag and integrity of one placement"
@@ -206,9 +202,11 @@ fn add_piece(
 ) {
     match config.biome_temp {
         OceanTemperature::Warm => {
-            let warm = templates("warm", large);
-            let name = warm[rng.next_i32_bound(warm.len() as i32) as usize];
-            pieces.push(piece(
+            let warm = if large { BIG_WARM } else { WARM };
+            let Some(&name) = warm.get(rng.next_i32_bound(warm.len() as i32) as usize) else {
+                return;
+            };
+            pieces.extend(piece(
                 config,
                 ctx,
                 name,
@@ -219,37 +217,28 @@ fn add_piece(
             ));
         }
         OceanTemperature::Cold => {
-            let bricks = templates("brick", large);
-            let cracked = templates("cracked", large);
-            let mossy = templates("mossy", large);
+            let (bricks, cracked, mossy) = if large {
+                (BIG_BRICK, BIG_CRACKED, BIG_MOSSY)
+            } else {
+                (BRICK, CRACKED, MOSSY)
+            };
             let index = rng.next_i32_bound(bricks.len() as i32) as usize;
-            pieces.push(piece(
+            let (Some(&brick), Some(&cracked), Some(&mossy)) =
+                (bricks.get(index), cracked.get(index), mossy.get(index))
+            else {
+                return;
+            };
+            pieces.extend(piece(
                 config,
                 ctx,
-                bricks[index],
+                brick,
                 position,
                 rotation,
                 base_integrity,
                 large,
             ));
-            pieces.push(piece(
-                config,
-                ctx,
-                cracked[index],
-                position,
-                rotation,
-                0.7,
-                large,
-            ));
-            pieces.push(piece(
-                config,
-                ctx,
-                mossy[index],
-                position,
-                rotation,
-                0.5,
-                large,
-            ));
+            pieces.extend(piece(config, ctx, cracked, position, rotation, 0.7, large));
+            pieces.extend(piece(config, ctx, mossy, position, rotation, 0.5, large));
         }
     }
 }
@@ -257,16 +246,15 @@ fn add_piece(
 fn piece(
     config: &OceanRuinConfig,
     ctx: &mut Context<'_>,
-    name: &str,
+    name: StaticResourceLocation,
     position: IVec3,
     rotation: Rotation,
     integrity: f32,
     large: bool,
-) -> Piece {
-    let template = template_id(ctx, name);
-    let size = ctx.frozen.manifests[template.0 as usize].size;
+) -> Option<Piece> {
+    let (template, size) = ctx.frozen.sized_template(name.as_str())?;
     let bounds = bounding_box(size, position, rotation, Mirror::None, IVec3::ZERO);
-    Piece::OceanRuin(OceanRuinPiece {
+    Some(Piece::OceanRuin(OceanRuinPiece {
         template,
         position,
         rotation,
@@ -275,20 +263,25 @@ fn piece(
         biome_temp: config.biome_temp,
         large,
         floor_y: floor(ctx, position, rotation, size),
-    })
+    }))
 }
 
 /// `OceanRuinPiece.postProcess`'s height: the ocean floor at the template's
 /// corner, lowered to one above the footprint's deepest column when the
 /// footprint is mostly a drop of more than two, read here from the base
 /// columns rather than the live world.
-fn floor(ctx: &mut Context<'_>, position: IVec3, rotation: Rotation, size: [u16; 3]) -> i32 {
+fn floor(
+    ctx: &mut Context<'_>,
+    position: IVec3,
+    rotation: Rotation,
+    [size_x, _, size_z]: [u16; 3],
+) -> i32 {
     let height = ctx
         .world
         .free_height(position.x, position.z, HeightmapName::OceanFloorWg);
     let pos = IVec3::new(position.x, height, position.z);
     let corner = transform(
-        IVec3::new(i32::from(size[0]) - 1, 0, i32::from(size[2]) - 1),
+        IVec3::new(i32::from(size_x) - 1, 0, i32::from(size_z) - 1),
         Mirror::None,
         rotation,
         IVec3::ZERO,

@@ -257,7 +257,7 @@ impl StructureIndex {
             .site_in(&mut view, chunk, structure)
             .filter(|site| site.biome_ok)?;
         let pieces = layout(&mut self.context(&mut view, chunk, structure), site);
-        (!pieces.is_empty()).then(|| Start::new(&self.tables.frozen, structure, pieces))
+        Start::new(&self.tables.frozen, structure, pieces)
     }
 
     fn starts_of(&self, view: &mut View<'_>, chunk: ColumnPos) -> Vec<Start> {
@@ -283,7 +283,7 @@ impl StructureIndex {
         let frozen = &self.tables.frozen;
         let (structure, site) = self.selected_site(view, set, chunk)?;
         let pieces = layout(&mut self.context(view, chunk, structure), site);
-        (!pieces.is_empty()).then(|| Start::new(frozen, structure, pieces))
+        Start::new(frozen, structure, pieces)
     }
 
     /// Whether any live structure places in one of `steps`.

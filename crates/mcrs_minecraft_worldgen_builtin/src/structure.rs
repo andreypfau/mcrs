@@ -65,8 +65,8 @@ use mcrs_minecraft_core::Direction::{East, North, South, West};
 use mcrs_minecraft_core::{Axis, Direction, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
-    Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs, fence_joined, log,
-    settled, stairs, wall_joined,
+    BlueprintError, Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs,
+    fence_joined, log, settled, stairs, wall_joined,
 };
 
 /// A template's name under `structure`, its size and the procedure that paints it.
@@ -90,15 +90,18 @@ pub fn keys() -> impl Iterator<Item = ResourceLocation> {
     listed().map(|(name, ..)| (*name).into())
 }
 
-pub fn all() -> impl Iterator<Item = (ResourceLocation, Template)> {
+pub fn all() -> impl Iterator<Item = (ResourceLocation, Result<Template, BlueprintError>)> {
     listed().map(|entry| (entry.0.into(), paint(entry)))
 }
 
+/// `None` for a name no procedure paints or a procedure that paints a mistake.
 pub fn build(id: &ResourceLocation) -> Option<Template> {
-    listed().find(|(name, ..)| name == id).map(paint)
+    listed()
+        .find(|(name, ..)| name == id)
+        .and_then(|entry| paint(entry).ok())
 }
 
-fn paint((_, size, paint): &Entry) -> Template {
+fn paint((_, size, paint): &Entry) -> Result<Template, BlueprintError> {
     let mut canvas = Canvas::new(*size);
     paint(&mut canvas);
     canvas.template()

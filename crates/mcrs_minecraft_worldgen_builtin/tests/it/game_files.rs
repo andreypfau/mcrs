@@ -82,7 +82,7 @@ fn every_built_in_entry_equals_the_file_the_game_ships_for_it() {
         });
     }
 
-    let templates = builtin::templates();
+    let templates = builtin::templates().unwrap();
     assert!(!templates.is_empty());
     for (id, built) in &templates {
         differences.compare(&format!("structure/{}.nbt", id.path()), |shipped| {

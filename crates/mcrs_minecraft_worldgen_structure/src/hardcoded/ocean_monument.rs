@@ -36,20 +36,11 @@ pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let west = ctx.chunk.min_block_x() - BIOME_RANGE_CHECK;
     let north = ctx.chunk.min_block_z() - BIOME_RANGE_CHECK;
     let orientation = Orientation::random(rng);
-    vec![Piece::OceanMonument(building(
-        rng,
-        west,
-        north,
-        orientation,
-    ))]
+    building(rng, west, north, orientation)
+        .map(Piece::OceanMonument)
+        .into_iter()
+        .collect()
 }
-
-const DOWN: usize = Direction::Down.id();
-const UP: usize = Direction::Up.id();
-const NORTH: usize = Direction::North.id();
-const SOUTH: usize = Direction::South.id();
-const WEST: usize = Direction::West.id();
-const EAST: usize = Direction::East.id();
 
 const fn room_index(x: i32, y: i32, z: i32) -> i32 {
     y * 25 + z * 5 + x
@@ -67,22 +58,40 @@ struct Graph {
 }
 
 impl Graph {
-    fn connect(&mut self, from: usize, direction: usize, to: usize) {
-        self.rooms[from].connections[direction] = Some(to as u8);
-        self.rooms[to].connections[OPPOSITE[direction]] = Some(from as u8);
+    fn connect(&mut self, from: usize, direction: Direction, to: usize) {
+        if let Some(room) = self.rooms.get_mut(from) {
+            room.set_connection(direction, to as u8);
+        }
+        if let Some(room) = self.rooms.get_mut(to) {
+            room.set_connection(direction.opposite(), from as u8);
+        }
     }
 
-    fn neighbour(&self, room: usize, direction: usize) -> Option<usize> {
-        self.rooms[room].connections[direction].map(usize::from)
+    /// The room past `direction`.
+    fn past(&self, room: usize, direction: Direction) -> Option<usize> {
+        self.rooms.get(room)?.connection(direction)
     }
 
-    fn opening(&self, room: usize, direction: usize) -> bool {
-        self.rooms[room].has_opening[direction]
+    fn opening(&self, room: usize, direction: Direction) -> bool {
+        self.rooms
+            .get(room)
+            .is_some_and(|room| room.opens(direction))
     }
 
-    fn past(&self, room: usize, direction: usize) -> usize {
-        self.neighbour(room, direction)
-            .expect("an open face leads to a room")
+    fn set_opening(&mut self, room: usize, direction: Direction, open: bool) {
+        if let Some(room) = self.rooms.get_mut(room) {
+            room.set_opening(direction, open);
+        }
+    }
+
+    fn unclaimed(&self, room: usize) -> bool {
+        self.claimed.get(room) == Some(&false)
+    }
+
+    fn claim(&mut self, room: usize) {
+        if let Some(claimed) = self.claimed.get_mut(room) {
+            *claimed = true;
+        }
     }
 
     /// `RoomDefinition.findSource`: a walk over open faces stamped by the scan.
@@ -90,11 +99,13 @@ impl Graph {
         if room == self.source {
             return true;
         }
-        self.scan_index[room] = scan;
-        for direction in 0..6 {
-            if let Some(next) = self.neighbour(room, direction)
+        if let Some(stamp) = self.scan_index.get_mut(room) {
+            *stamp = scan;
+        }
+        for direction in Direction::all() {
+            if let Some(next) = self.past(room, direction)
                 && self.opening(room, direction)
-                && self.scan_index[next] != scan
+                && self.scan_index.get(next) != Some(&scan)
                 && self.find_source(next, scan)
             {
                 return true;
@@ -104,7 +115,17 @@ impl Graph {
     }
 }
 
-const OPPOSITE: [usize; 6] = [UP, DOWN, SOUTH, NORTH, EAST, WEST];
+/// `Direction.from3DDataValue` of a `nextInt(6)` draw.
+fn from_3d_data(value: i32) -> Direction {
+    match value {
+        0 => Direction::Down,
+        1 => Direction::Up,
+        2 => Direction::North,
+        3 => Direction::South,
+        4 => Direction::West,
+        _ => Direction::East,
+    }
+}
 
 fn grid_has_room(x: i32, y: i32, z: i32) -> bool {
     match y {
@@ -119,14 +140,16 @@ fn grid_has_room(x: i32, y: i32, z: i32) -> bool {
     clippy::too_many_lines,
     reason = "builds the monument's room graph and draws its openings in the reference's order, so the random draws match it"
 )]
-fn room_graph(rng: &mut LegacyRandom) -> Graph {
+fn room_graph(rng: &mut LegacyRandom) -> Option<Graph> {
     let mut slot = [None; 75];
     let mut rooms = Vec::new();
     for y in 0..3 {
         for z in 0..5 {
             for x in 0..5 {
-                if grid_has_room(x, y, z) {
-                    slot[room_index(x, y, z) as usize] = Some(rooms.len());
+                if grid_has_room(x, y, z)
+                    && let Some(slot) = slot.get_mut(room_index(x, y, z) as usize)
+                {
+                    *slot = Some(rooms.len());
                     rooms.push(MonumentRoom {
                         index: room_index(x, y, z),
                         has_opening: [false; 6],
@@ -150,23 +173,23 @@ fn room_graph(rng: &mut LegacyRandom) -> Graph {
     }
     let (roof, left_wing, right_wing) = (grid_count, grid_count + 1, grid_count + 2);
     let count = rooms.len();
-    let at = |x: i32, y: i32, z: i32| slot[room_index(x, y, z) as usize].expect("a grid room");
+    let at = |x: i32, y: i32, z: i32| slot.get(room_index(x, y, z) as usize).copied().flatten();
     let mut graph = Graph {
         rooms,
         claimed: vec![false; count],
         scan_index: vec![0; count],
-        source: at(2, 0, 0),
+        source: at(2, 0, 0)?,
         core: 0,
         order: (0..grid_count).collect(),
     };
     // The reference wires the z axis backwards: north is the room at z + 1.
     let steps = [
-        (IVec3::NEG_Y, DOWN),
-        (IVec3::Y, UP),
-        (IVec3::NEG_Z, SOUTH),
-        (IVec3::Z, NORTH),
-        (IVec3::NEG_X, WEST),
-        (IVec3::X, EAST),
+        (IVec3::NEG_Y, Direction::Down),
+        (IVec3::Y, Direction::Up),
+        (IVec3::NEG_Z, Direction::South),
+        (IVec3::Z, Direction::North),
+        (IVec3::NEG_X, Direction::West),
+        (IVec3::X, Direction::East),
     ];
     for x in 0..5 {
         for z in 0..5 {
@@ -177,54 +200,54 @@ fn room_graph(rng: &mut LegacyRandom) -> Graph {
                 for (step, wired) in steps {
                     let (nx, ny, nz) = (x + step.x, y + step.y, z + step.z);
                     if grid_has_room(nx, ny, nz) {
-                        graph.connect(at(x, y, z), wired, at(nx, ny, nz));
+                        graph.connect(at(x, y, z)?, wired, at(nx, ny, nz)?);
                     }
                 }
             }
         }
     }
-    graph.connect(at(2, 2, 0), UP, roof);
-    graph.connect(at(0, 1, 0), SOUTH, left_wing);
-    graph.connect(at(4, 1, 0), SOUTH, right_wing);
+    graph.connect(at(2, 2, 0)?, Direction::Up, roof);
+    graph.connect(at(0, 1, 0)?, Direction::South, left_wing);
+    graph.connect(at(4, 1, 0)?, Direction::South, right_wing);
     for special in [roof, left_wing, right_wing] {
-        graph.claimed[special] = true;
+        graph.claim(special);
     }
-    let core = at(rng.next_i32_bound(4), 0, 2);
+    let core = at(rng.next_i32_bound(4), 0, 2)?;
     graph.core = core;
-    let core_east = graph.past(core, EAST);
-    let core_north = graph.past(core, NORTH);
-    let core_east_north = graph.past(core_east, NORTH);
+    let core_east = graph.past(core, Direction::East)?;
+    let core_north = graph.past(core, Direction::North)?;
+    let core_east_north = graph.past(core_east, Direction::North)?;
     for room in [
         core,
         core_east,
         core_north,
         core_east_north,
-        graph.past(core, UP),
-        graph.past(core_east, UP),
-        graph.past(core_north, UP),
-        graph.past(core_east_north, UP),
+        graph.past(core, Direction::Up)?,
+        graph.past(core_east, Direction::Up)?,
+        graph.past(core_north, Direction::Up)?,
+        graph.past(core_east_north, Direction::Up)?,
     ] {
-        graph.claimed[room] = true;
+        graph.claim(room);
     }
-    for room in (0..grid_count).chain([roof]) {
-        graph.rooms[room].has_opening = graph.rooms[room].connections.map(|next| next.is_some());
+    for room in graph.rooms.iter_mut().take(roof + 1) {
+        room.has_opening = room.connections.map(|next| next.is_some());
     }
     shuffle(&mut graph.order, rng);
+    let order = std::mem::take(&mut graph.order);
     let mut scan = 1;
-    for position in 0..graph.order.len() {
-        let room = graph.order[position];
+    for &room in &order {
         let mut closed = 0;
         let mut attempts = 0;
         while closed < 2 && attempts < 5 {
             attempts += 1;
-            let face = rng.next_i32_bound(6) as usize;
+            let face = from_3d_data(rng.next_i32_bound(6));
             if !graph.opening(room, face) {
                 continue;
             }
-            let other = graph.past(room, face);
-            let back = OPPOSITE[face];
-            graph.rooms[room].has_opening[face] = false;
-            graph.rooms[other].has_opening[back] = false;
+            let other = graph.past(room, face)?;
+            let back = face.opposite();
+            graph.set_opening(room, face, false);
+            graph.set_opening(other, back, false);
             let mut reachable = graph.find_source(room, scan);
             scan += 1;
             if reachable {
@@ -234,13 +257,14 @@ fn room_graph(rng: &mut LegacyRandom) -> Graph {
             if reachable {
                 closed += 1;
             } else {
-                graph.rooms[room].has_opening[face] = true;
-                graph.rooms[other].has_opening[back] = true;
+                graph.set_opening(room, face, true);
+                graph.set_opening(other, back, true);
             }
         }
     }
+    graph.order = order;
     graph.order.extend([roof, left_wing, right_wing]);
-    graph
+    Some(graph)
 }
 
 #[derive(Clone, Copy)]
@@ -266,24 +290,29 @@ const FITTERS: [Fitter; 7] = [
 
 impl Fitter {
     fn fits(self, graph: &Graph, room: usize) -> bool {
-        let open_unclaimed = |room: usize, direction: usize| {
-            graph.opening(room, direction) && !graph.claimed[graph.past(room, direction)]
+        use Direction::{East, North, South, Up, West};
+        let open_unclaimed = |room: usize, direction: Direction| {
+            graph.opening(room, direction)
+                && graph
+                    .past(room, direction)
+                    .is_some_and(|next| graph.unclaimed(next))
+        };
+        let past = |room: usize, direction: Direction, then: Direction| {
+            graph
+                .past(room, direction)
+                .is_some_and(|next| open_unclaimed(next, then))
         };
         match self {
             Fitter::DoubleXY => {
-                open_unclaimed(room, EAST)
-                    && open_unclaimed(room, UP)
-                    && open_unclaimed(graph.past(room, EAST), UP)
+                open_unclaimed(room, East) && open_unclaimed(room, Up) && past(room, East, Up)
             }
             Fitter::DoubleYZ => {
-                open_unclaimed(room, NORTH)
-                    && open_unclaimed(room, UP)
-                    && open_unclaimed(graph.past(room, NORTH), UP)
+                open_unclaimed(room, North) && open_unclaimed(room, Up) && past(room, North, Up)
             }
-            Fitter::DoubleZ => open_unclaimed(room, NORTH),
-            Fitter::DoubleX => open_unclaimed(room, EAST),
-            Fitter::DoubleY => open_unclaimed(room, UP),
-            Fitter::SimpleTop => [WEST, EAST, NORTH, SOUTH, UP]
+            Fitter::DoubleZ => open_unclaimed(room, North),
+            Fitter::DoubleX => open_unclaimed(room, East),
+            Fitter::DoubleY => open_unclaimed(room, Up),
+            Fitter::SimpleTop => [West, East, North, South, Up]
                 .iter()
                 .all(|&direction| !graph.opening(room, direction)),
             Fitter::Simple => true,
@@ -291,48 +320,55 @@ impl Fitter {
     }
 
     /// Each fitter's `create`: the cells it claims and the piece it builds.
-    fn create(self, graph: &mut Graph, room: usize, rng: &mut LegacyRandom) -> MonumentRoomKind {
+    fn create(
+        self,
+        graph: &mut Graph,
+        room: usize,
+        rng: &mut LegacyRandom,
+    ) -> Option<MonumentRoomKind> {
+        use Direction::{East, North, Up};
         let cell = room as u8;
         let (claimed, kind) = match self {
             Fitter::DoubleXY => {
-                let east = graph.past(room, EAST);
+                let east = graph.past(room, East)?;
                 (
-                    vec![room, east, graph.past(room, UP), graph.past(east, UP)],
+                    [Some(east), graph.past(room, Up), graph.past(east, Up)],
                     MonumentRoomKind::DoubleXY { room: cell },
                 )
             }
             Fitter::DoubleYZ => {
-                let north = graph.past(room, NORTH);
+                let north = graph.past(room, North)?;
                 (
-                    vec![room, north, graph.past(room, UP), graph.past(north, UP)],
+                    [Some(north), graph.past(room, Up), graph.past(north, Up)],
                     MonumentRoomKind::DoubleYZ { room: cell },
                 )
             }
             Fitter::DoubleZ => (
-                vec![room, graph.past(room, NORTH)],
+                [graph.past(room, North), None, None],
                 MonumentRoomKind::DoubleZ { room: cell },
             ),
             Fitter::DoubleX => (
-                vec![room, graph.past(room, EAST)],
+                [graph.past(room, East), None, None],
                 MonumentRoomKind::DoubleX { room: cell },
             ),
             Fitter::DoubleY => (
-                vec![room, graph.past(room, UP)],
+                [graph.past(room, Up), None, None],
                 MonumentRoomKind::DoubleY { room: cell },
             ),
-            Fitter::SimpleTop => (vec![room], MonumentRoomKind::SimpleTop { room: cell }),
+            Fitter::SimpleTop => ([None; 3], MonumentRoomKind::SimpleTop { room: cell }),
             Fitter::Simple => (
-                vec![room],
+                [None; 3],
                 MonumentRoomKind::Simple {
                     room: cell,
                     main_design: rng.next_i32_bound(3),
                 },
             ),
         };
-        for room in claimed {
-            graph.claimed[room] = true;
+        graph.claim(room);
+        for room in claimed.into_iter().flatten() {
+            graph.claim(room);
         }
-        kind
+        Some(kind)
     }
 }
 
@@ -358,21 +394,22 @@ fn room_box(
     unmoved.moved(delta)
 }
 
-fn room_size(kind: MonumentRoomKind) -> (i32, i32, i32) {
-    match kind {
-        MonumentRoomKind::Core { .. } => (2, 2, 2),
-        MonumentRoomKind::DoubleX { .. } => (2, 1, 1),
-        MonumentRoomKind::DoubleXY { .. } => (2, 2, 1),
-        MonumentRoomKind::DoubleY { .. } => (1, 2, 1),
-        MonumentRoomKind::DoubleYZ { .. } => (1, 2, 2),
-        MonumentRoomKind::DoubleZ { .. } => (1, 1, 2),
-        MonumentRoomKind::Entry { .. }
-        | MonumentRoomKind::Simple { .. }
-        | MonumentRoomKind::SimpleTop { .. } => (1, 1, 1),
-        MonumentRoomKind::Wing { .. } | MonumentRoomKind::Penthouse => {
-            unreachable!("wings and the penthouse take their box from the building")
-        }
-    }
+/// The cell a room grows from and its size in cells; `None` for the wings
+/// and the penthouse, which take their box from the building.
+fn room_cells(kind: MonumentRoomKind) -> Option<(usize, (i32, i32, i32))> {
+    let (room, size) = match kind {
+        MonumentRoomKind::Core { room } => (room, (2, 2, 2)),
+        MonumentRoomKind::DoubleX { room } => (room, (2, 1, 1)),
+        MonumentRoomKind::DoubleXY { room } => (room, (2, 2, 1)),
+        MonumentRoomKind::DoubleY { room } => (room, (1, 2, 1)),
+        MonumentRoomKind::DoubleYZ { room } => (room, (1, 2, 2)),
+        MonumentRoomKind::DoubleZ { room } => (room, (1, 1, 2)),
+        MonumentRoomKind::Entry { room }
+        | MonumentRoomKind::Simple { room, .. }
+        | MonumentRoomKind::SimpleTop { room } => (room, (1, 1, 1)),
+        MonumentRoomKind::Wing { .. } | MonumentRoomKind::Penthouse => return None,
+    };
+    Some((usize::from(room), size))
 }
 
 /// `MonumentBuilding`'s constructor.
@@ -381,7 +418,7 @@ fn building(
     west: i32,
     north: i32,
     orientation: Orientation,
-) -> OceanMonumentPiece {
+) -> Option<OceanMonumentPiece> {
     let bounds = orient_box(
         orientation,
         IVec3::new(west, OceanMonumentPiece::FLOOR, north),
@@ -389,8 +426,8 @@ fn building(
         OceanMonumentPiece::HEIGHT,
         OceanMonumentPiece::DEPTH,
     );
-    let mut graph = room_graph(rng);
-    graph.claimed[graph.source] = true;
+    let mut graph = room_graph(rng)?;
+    graph.claim(graph.source);
     let mut kinds = vec![
         MonumentRoomKind::Entry {
             room: graph.source as u8,
@@ -399,27 +436,27 @@ fn building(
             room: graph.core as u8,
         },
     ];
-    for position in 0..graph.order.len() {
-        let room = graph.order[position];
-        if graph.claimed[room] || graph.rooms[room].is_special() {
+    let order = std::mem::take(&mut graph.order);
+    for &room in &order {
+        if !graph.unclaimed(room) || graph.rooms.get(room).is_none_or(MonumentRoom::is_special) {
             continue;
         }
         if let Some(fitter) = FITTERS.iter().find(|fitter| fitter.fits(&graph, room)) {
-            kinds.push(fitter.create(&mut graph, room, rng));
+            kinds.push(fitter.create(&mut graph, room, rng)?);
         }
     }
     let offset = *world_pos(Some(orientation), bounds, IVec3::new(9, 0, 22));
     let mut children: Vec<MonumentChild> = kinds
         .into_iter()
         .map(|kind| {
-            let (width, height, depth) = room_size(kind);
-            let index = graph.rooms[room_of(kind)].index;
-            MonumentChild {
+            let (room, (width, height, depth)) = room_cells(kind)?;
+            let index = graph.rooms.get(room)?.index;
+            Some(MonumentChild {
                 kind,
                 bounds: room_box(orientation, index, width, height, depth).moved(offset),
-            }
+            })
         })
-        .collect();
+        .collect::<Option<_>>()?;
     let corner = |a: [i32; 3], b: [i32; 3]| {
         BoundingBox::from_corners(
             world_pos(Some(orientation), bounds, a.into()),
@@ -447,27 +484,10 @@ fn building(
     ] {
         children.push(MonumentChild { kind, bounds });
     }
-    OceanMonumentPiece {
+    Some(OceanMonumentPiece {
         bounds,
         orientation,
         rooms: graph.rooms,
         children,
-    }
-}
-
-fn room_of(kind: MonumentRoomKind) -> usize {
-    match kind {
-        MonumentRoomKind::Entry { room }
-        | MonumentRoomKind::Core { room }
-        | MonumentRoomKind::DoubleX { room }
-        | MonumentRoomKind::DoubleXY { room }
-        | MonumentRoomKind::DoubleY { room }
-        | MonumentRoomKind::DoubleYZ { room }
-        | MonumentRoomKind::DoubleZ { room }
-        | MonumentRoomKind::Simple { room, .. }
-        | MonumentRoomKind::SimpleTop { room } => usize::from(room),
-        MonumentRoomKind::Wing { .. } | MonumentRoomKind::Penthouse => {
-            unreachable!("wings and the penthouse grow from no cell")
-        }
-    }
+    })
 }

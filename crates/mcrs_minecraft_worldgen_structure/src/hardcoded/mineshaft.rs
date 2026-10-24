@@ -8,7 +8,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::MineshaftType;
 use crate::orient::{
-    Orientation, find_collision, move_below_sea_level, offset_vertically, world_pos,
+    Orientation, find_collision, move_below_sea_level, offset_vertically, union_of, world_pos,
 };
 use crate::piece::{MineshaftKind, MineshaftPiece, Piece};
 use crate::site::{Context, Site, SiteWorld, Stub};
@@ -31,11 +31,7 @@ pub fn site(
     let sea_level = ctx.height.sea_level;
     let dy = match mineshaft_type {
         MineshaftType::Mesa => {
-            let bounds = pieces
-                .iter()
-                .map(Piece::bounds)
-                .reduce(BoundingBox::union)
-                .expect("the room");
+            let bounds = union_of(&pieces)?;
             let centre = bounds.center();
             let surface = ctx
                 .world
@@ -58,7 +54,7 @@ pub fn site(
 
 pub fn layout(_mineshaft_type: MineshaftType, ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
     let Stub::Mineshaft(mut pieces) = site.stub else {
-        unreachable!("a mineshaft site carries its pieces")
+        return Vec::new();
     };
     for piece in &mut pieces {
         let Piece::Mineshaft(MineshaftPiece {
@@ -112,7 +108,8 @@ fn spawner_host_of(
     for section in 0..num_sections {
         let z = 2 + section * 5;
         let cells = [-1, 0, 1].map(|dz| world_pos(direction, bounds, IVec3::new(1, 0, z + dz)));
-        let column = ColumnPos::new(cells[0].x >> 4, cells[0].z >> 4);
+        let [first, ..] = cells;
+        let column = ColumnPos::new(first.x >> 4, first.z >> 4);
         if host.is_some_and(|host| decorates_first(column, host) != Ordering::Less) {
             continue;
         }
@@ -131,41 +128,37 @@ fn piece_tree(rng: &mut LegacyRandom, west: i32, north: i32) -> Vec<Piece> {
     let max_x = west + 7 + rng.next_i32_bound(6);
     let max_y = 54 + rng.next_i32_bound(6);
     let max_z = north + 7 + rng.next_i32_bound(6);
-    let room = MineshaftPiece {
-        kind: MineshaftKind::Room {
-            entrances: Vec::new(),
-        },
-        bounds: BoundingBox {
-            min: BlockPos::new(west, START_Y, north),
-            max: BlockPos::new(max_x, max_y, max_z),
-        },
-        direction: None,
-        gen_depth: 0,
+    let room = BoundingBox {
+        min: BlockPos::new(west, START_Y, north),
+        max: BlockPos::new(max_x, max_y, max_z),
     };
     let mut layout = Layout {
-        pieces: vec![Piece::Mineshaft(room)],
+        room,
+        pieces: vec![MineshaftPiece {
+            kind: MineshaftKind::Room {
+                entrances: Vec::new(),
+            },
+            bounds: room,
+            direction: None,
+            gen_depth: 0,
+        }],
     };
     layout.room_children(rng);
-    layout.pieces
+    layout.pieces.into_iter().map(Piece::Mineshaft).collect()
 }
 
+/// The pieces in placement order, the room first.
 struct Layout {
-    pieces: Vec<Piece>,
+    room: BoundingBox,
+    pieces: Vec<MineshaftPiece>,
 }
 
 impl Layout {
-    fn piece(&self, index: usize) -> &MineshaftPiece {
-        match &self.pieces[index] {
-            Piece::Mineshaft(piece) => piece,
-            _ => unreachable!("a mineshaft lays out mineshaft pieces only"),
-        }
-    }
-
     /// `MineShaftRoom.addChildren`: a walk along each wall, every child's
     /// entrance box recorded on the room.
     fn room_children(&mut self, rng: &mut LegacyRandom) {
         use Orientation::*;
-        let bounds = self.piece(0).bounds;
+        let bounds = self.room;
         let (min, max) = (*bounds.min, *bounds.max);
         let height_space = (bounds.y_span() - 3 - 1).max(1);
         let x_span = max.x - min.x + 1;
@@ -192,7 +185,6 @@ impl Layout {
                     East => IVec3::new(max.x + 1, y, min.z + pos),
                 };
                 if let Some(child) = self.generate_and_add(rng, foot, direction, 0) {
-                    let child = self.piece(child).bounds;
                     let (cmin, cmax) = (*child.min, *child.max);
                     let (entrance_min, entrance_max) = match direction {
                         North => (
@@ -220,36 +212,37 @@ impl Layout {
                 pos += 4;
             }
         }
-        if let Piece::Mineshaft(MineshaftPiece {
+        if let Some(MineshaftPiece {
             kind: MineshaftKind::Room { entrances: held },
             ..
-        }) = &mut self.pieces[0]
+        }) = self.pieces.first_mut()
         {
             *held = entrances;
         }
     }
 
     /// `generateAndAddPiece`: within the depth and the reach of the room, a
-    /// piece is built and its children added before the caller continues.
+    /// piece is built and its children added before the caller continues; the
+    /// built piece's box.
     fn generate_and_add(
         &mut self,
         rng: &mut LegacyRandom,
         foot: IVec3,
         direction: Orientation,
         depth: i32,
-    ) -> Option<usize> {
+    ) -> Option<BoundingBox> {
         if depth > MAX_DEPTH {
             return None;
         }
-        let start = self.piece(0).bounds.min;
+        let start = self.room.min;
         if (foot.x - start.x).abs() > REACH || (foot.z - start.z).abs() > REACH {
             return None;
         }
         let piece = self.create_random(rng, foot, direction, depth + 1)?;
-        let index = self.pieces.len();
-        self.pieces.push(Piece::Mineshaft(piece));
-        self.add_children(index, rng);
-        Some(index)
+        let (bounds, gen_depth, kind) = (piece.bounds, piece.gen_depth, piece.kind.clone());
+        self.pieces.push(piece);
+        self.add_children(bounds, gen_depth, direction, kind, rng);
+        Some(bounds)
     }
 
     /// `createRandomShaftPiece`.
@@ -344,15 +337,19 @@ impl Layout {
         clippy::excessive_nesting,
         reason = "dispatches each mineshaft piece's child placement by piece type and direction, kept whole so it reads against the reference's addChildren"
     )]
-    fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
+    fn add_children(
+        &mut self,
+        bounds: BoundingBox,
+        depth: i32,
+        facing: Orientation,
+        kind: MineshaftKind,
+        rng: &mut LegacyRandom,
+    ) {
         use Orientation::*;
-        let piece = self.piece(index);
-        let bounds = piece.bounds;
         let (min, max) = (*bounds.min, *bounds.max);
-        let depth = piece.gen_depth;
-        let facing = piece.direction.expect("every child piece faces somewhere");
-        match piece.kind.clone() {
-            MineshaftKind::Room { .. } => unreachable!("the room is the start"),
+        match kind {
+            // The room's children come from `room_children`.
+            MineshaftKind::Room { .. } => {}
             MineshaftKind::Corridor { .. } => {
                 let end = rng.next_i32_bound(4);
                 let y = |rng: &mut LegacyRandom| min.y - 1 + rng.next_i32_bound(3);

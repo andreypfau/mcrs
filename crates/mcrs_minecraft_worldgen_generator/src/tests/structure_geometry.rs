@@ -304,7 +304,7 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
     };
     let site = site(&mut ctx).filter(|site| site.biome_ok)?;
     let pieces = layout(&mut ctx, site);
-    (!pieces.is_empty()).then(|| Start::new(frozen, id, pieces))
+    Start::new(frozen, id, pieces)
 }
 
 /// The oracle's stub level around the start: the base layers, heights answered

@@ -24,6 +24,7 @@ use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::Template;
+use mcrs_minecraft_worldgen_structure::blueprint::BlueprintError;
 use std::collections::BTreeMap;
 
 pub fn vanilla_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
@@ -70,6 +71,11 @@ pub enum BuiltinError {
     },
     #[error("a built-in template pool: {0}")]
     TemplatePool(#[from] InvalidResourceLocation),
+    #[error("the built-in structure template `{template}`: {painted}")]
+    Template {
+        template: ResourceLocation,
+        painted: BlueprintError,
+    },
 }
 
 pub fn biomes() -> Result<BTreeMap<ResourceLocation, BiomeFile<Named>>, BuiltinError> {
@@ -97,8 +103,13 @@ pub fn template_pools() -> Result<BTreeMap<ResourceLocation, TemplatePool>, Buil
     Ok(template_pool::all().collect::<Result<_, _>>()?)
 }
 
-pub fn templates() -> BTreeMap<ResourceLocation, Template> {
-    structure::all().collect()
+pub fn templates() -> Result<BTreeMap<ResourceLocation, Template>, BuiltinError> {
+    structure::all()
+        .map(|(template, painted)| match painted {
+            Ok(painted) => Ok((template, painted)),
+            Err(painted) => Err(BuiltinError::Template { template, painted }),
+        })
+        .collect()
 }
 
 /// The path of every built-in structure template under one namespace's

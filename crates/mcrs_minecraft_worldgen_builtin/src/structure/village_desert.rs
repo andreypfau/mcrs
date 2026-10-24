@@ -1,6 +1,6 @@
 use super::*;
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, top_stairs};
+use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Furnace, Hinge, Patch, top_stairs};
 
 const SAND: &str = Block::Sand.as_static_str();
 const SMOOTH: &str = Block::SmoothSandstone.as_static_str();
@@ -633,7 +633,7 @@ fn desert_armorer_1(c: &mut Canvas) {
     c.place(&stairs(SMOOTH_STAIRS, South), 3, 1, 5);
     c.solid(&granite, [5, 1, 2], [5, 2, 4]);
     c.solid(&granite, [5, 3, 3], [5, 4, 3]);
-    c.furnace([5, 1, 3], "blast_furnace", West);
+    c.furnace([5, 1, 3], Furnace::BlastFurnace, West);
     c.solid(&button, [4, 2, 2], [4, 2, 4]);
     c.place(
         &stairs(Block::GraniteStairs.as_static_str(), South),
@@ -668,7 +668,7 @@ fn desert_butcher_shop_1(c: &mut Canvas) {
     c.solid(&K.slab, [2, 4, 1], [3, 4, 3]);
     c.door(JUNGLE_DOOR, [1, 1, 2], West, Hinge::Right);
     c.door(JUNGLE_DOOR, [4, 1, 2], East, Hinge::Right);
-    c.furnace([3, 1, 1], "smoker", South);
+    c.furnace([3, 1, 1], Furnace::Smoker, South);
     c.solid(&K.terracotta, [3, 2, 1], [3, 4, 1]);
     c.solid(&counter, [2, 1, 3], [3, 1, 3]);
     c.place(&S.wall_torch, 0, 3, 2);
@@ -860,7 +860,7 @@ fn desert_weaponsmith_1(c: &mut Canvas) {
     c.solid(&K.smooth, [5, 1, 6], [8, 4, 6]);
     c.posts(&K.cut, &[4, 9], &[6], [1, 5]);
     for y in [2, 3] {
-        c.furnace([5, y, 4], "furnace", North);
+        c.furnace([5, y, 4], Furnace::Furnace, North);
     }
     c.solid(&low_wall(&[]), [8, 2, 1], [8, 4, 1]);
     c.solid(&end_bars, [8, 2, 2], [8, 4, 2]);

@@ -130,14 +130,14 @@ pub fn select_with_removal<T: Copy>(
     let mut total: i32 = options.iter().map(|(_, weight)| weight).sum();
     while !options.is_empty() {
         let mut choice = rng.next_i32_bound(total);
-        let index = options
-            .iter()
-            .position(|(_, weight)| {
+        let Some((index, &(selected, weight))) =
+            options.iter().enumerate().find(|(_, (_, weight))| {
                 choice -= weight;
                 choice < 0
             })
-            .expect("a draw below the total lands on an entry");
-        let (selected, weight) = options[index];
+        else {
+            break;
+        };
         if try_start(selected) {
             return Some(selected);
         }
@@ -218,9 +218,9 @@ pub fn scan_biome_window(
     debug_assert_eq!(cells.len(), (side * side) as usize);
     let mut result = None;
     let mut found = 0;
-    for row in 0..side {
-        for column in 0..side {
-            if !cells[(row * side + column) as usize] {
+    for (row, line) in (0..side).zip(cells.chunks_exact(side as usize)) {
+        for (column, &admitted) in (0..side).zip(line) {
+            if !admitted {
                 continue;
             }
             if result.is_none() || fork.next_i32_bound(found + 1) == 0 {

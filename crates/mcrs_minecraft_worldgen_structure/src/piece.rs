@@ -3,18 +3,19 @@ use std::fmt;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{
-    BoundingBox, ColumnPos, Mirror, ResourceLocation, Rotation, mirror, rotation,
+    BoundingBox, ColumnPos, Direction, Mirror, ResourceLocation, Rotation, mirror, rotation,
 };
 use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use serde::de::{DeserializeSeed, Error as _};
+use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
 use crate::hardcoded::igloo::IglooTemplate;
-use crate::orient::{Orientation, union_of};
+use crate::orient::{Boxed, Orientation, union_of};
 use crate::{MineshaftType, OceanTemperature, PortalPlacement, TerrainAdaptation};
 use mcrs_minecraft_worldgen_feature::pool::{LiquidSettings, PoolElement, SingleElement};
 
@@ -267,6 +268,47 @@ impl MonumentRoom {
     pub fn is_special(&self) -> bool {
         self.index >= 75
     }
+
+    /// The room past `direction`, its faces indexed by `Direction::id`.
+    pub fn connection(&self, direction: Direction) -> Option<usize> {
+        face(&self.connections, direction).map(usize::from)
+    }
+
+    pub fn set_connection(&mut self, direction: Direction, room: u8) {
+        *face_mut(&mut self.connections, direction) = Some(room);
+    }
+
+    pub fn opens(&self, direction: Direction) -> bool {
+        face(&self.has_opening, direction)
+    }
+
+    pub fn set_opening(&mut self, direction: Direction, open: bool) {
+        *face_mut(&mut self.has_opening, direction) = open;
+    }
+}
+
+fn face<T: Copy>(faces: &[T; 6], direction: Direction) -> T {
+    let [down, up, north, south, west, east] = *faces;
+    match direction {
+        Direction::Down => down,
+        Direction::Up => up,
+        Direction::North => north,
+        Direction::South => south,
+        Direction::West => west,
+        Direction::East => east,
+    }
+}
+
+fn face_mut<T>(faces: &mut [T; 6], direction: Direction) -> &mut T {
+    let [down, up, north, south, west, east] = faces;
+    match direction {
+        Direction::Down => down,
+        Direction::Up => up,
+        Direction::North => north,
+        Direction::South => south,
+        Direction::West => west,
+        Direction::East => east,
+    }
 }
 
 /// The rooms fitted into the graph, each naming the cell it grows from.
@@ -496,14 +538,7 @@ impl Piece {
                     child.bounds = child.bounds.moved(delta);
                 }
             }
-            Piece::Mineshaft(piece) => {
-                piece.bounds = piece.bounds.moved(delta);
-                if let MineshaftKind::Room { entrances } = &mut piece.kind {
-                    for entrance in entrances {
-                        *entrance = entrance.moved(delta);
-                    }
-                }
-            }
+            Piece::Mineshaft(piece) => Boxed::move_by(piece, delta),
             Piece::Igloo(piece) => {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
@@ -541,19 +576,23 @@ pub struct Start {
 }
 
 impl Start {
-    pub fn new(frozen: &FrozenStructures, structure: StructureId, pieces: Vec<Piece>) -> Self {
-        let union = union_of(&pieces);
-        let bounds =
-            if frozen.structures[usize::from(structure.0)].adaptation == TerrainAdaptation::None {
-                union
-            } else {
-                union.inflated(TERRAIN_MARGIN)
-            };
-        Start {
+    /// `None` for no pieces or a structure `frozen` does not hold.
+    pub fn new(
+        frozen: &FrozenStructures,
+        structure: StructureId,
+        pieces: Vec<Piece>,
+    ) -> Option<Self> {
+        let union = union_of(&pieces)?;
+        let bounds = if frozen.structure(structure)?.adaptation == TerrainAdaptation::None {
+            union
+        } else {
+            union.inflated(TERRAIN_MARGIN)
+        };
+        Some(Start {
             structure,
             pieces,
             bounds,
-        }
+        })
     }
 }
 
@@ -566,9 +605,15 @@ pub struct PieceContext<'a> {
 }
 
 impl PieceContext<'_> {
+    fn kind(&self) -> Option<&StructureKind> {
+        self.frozen
+            .structure(self.structure)
+            .map(|structure| &structure.kind)
+    }
+
     fn liquid_settings(&self) -> LiquidSettings {
-        match &self.frozen.structures[usize::from(self.structure.0)].kind {
-            StructureKind::Jigsaw { config, .. } => config.liquid_settings,
+        match self.kind() {
+            Some(StructureKind::Jigsaw { config, .. }) => config.liquid_settings,
             _ => LiquidSettings::default(),
         }
     }
@@ -576,11 +621,11 @@ impl PieceContext<'_> {
     /// `MST`: the structure's `mineshaft_type` ordinal, which every piece
     /// writes and none holds.
     fn mineshaft_type(&self) -> i32 {
-        match &self.frozen.structures[usize::from(self.structure.0)].kind {
-            StructureKind::Mineshaft {
+        match self.kind() {
+            Some(StructureKind::Mineshaft {
                 mineshaft_type: MineshaftType::Mesa,
                 ..
-            } => 1,
+            }) => 1,
             _ => 0,
         }
     }
@@ -596,17 +641,39 @@ impl PieceContext<'_> {
         Ok(Piece::Mineshaft(piece))
     }
 
-    pub fn template_name(&self, template: TemplateId) -> ResourceLocation {
+    /// `None` for a template the context's tables do not name.
+    pub fn template_name(&self, template: TemplateId) -> Option<ResourceLocation> {
         self.frozen
             .template_ids
             .iter()
             .find(|(_, id)| **id == template)
             .map(|(location, _)| location.clone())
-            .expect("every frozen template has a name")
     }
 
-    fn pool_element(&self, element: ElementId) -> PoolElement {
-        match &self.frozen.elements[element.0 as usize] {
+    fn template_name_or<E: serde::ser::Error>(
+        &self,
+        template: TemplateId,
+    ) -> Result<ResourceLocation, E> {
+        self.template_name(template)
+            .ok_or_else(|| E::custom("a piece names a template no loaded pool holds"))
+    }
+
+    /// The template's path under `prefix`, the name a save of a piece that
+    /// only draws from one directory carries.
+    fn template_suffix<E: serde::ser::Error>(
+        &self,
+        template: TemplateId,
+        prefix: &str,
+    ) -> Result<String, E> {
+        let name = self.template_name_or::<E>(template)?;
+        name.path()
+            .strip_prefix(prefix)
+            .map(str::to_owned)
+            .ok_or_else(|| E::custom(format!("the piece's template {name} is not under {prefix}")))
+    }
+
+    fn pool_element(&self, element: ElementId) -> Option<PoolElement> {
+        Some(match self.frozen.element(element)? {
             FrozenElement::Single {
                 template,
                 legacy,
@@ -615,7 +682,7 @@ impl PieceContext<'_> {
                 liquid_settings,
             } => {
                 let single = SingleElement {
-                    location: self.template_name(*template),
+                    location: self.template_name(*template)?,
                     processors: processors.clone(),
                     projection: *projection,
                     override_liquid_settings: *liquid_settings,
@@ -630,7 +697,10 @@ impl PieceContext<'_> {
                 elements,
                 projection,
             } => PoolElement::List {
-                elements: elements.iter().map(|id| self.pool_element(*id)).collect(),
+                elements: elements
+                    .iter()
+                    .map(|id| self.pool_element(*id))
+                    .collect::<Option<_>>()?,
                 projection: *projection,
             },
             FrozenElement::Feature {
@@ -641,21 +711,26 @@ impl PieceContext<'_> {
                 projection: *projection,
             },
             FrozenElement::Empty => PoolElement::Empty {},
-        }
+        })
     }
 
     // chisle: a scan of every frozen element per loaded piece; an index keyed
     // on element content if loading a saved region ever shows up in a profile.
-    fn element_id<E: serde::de::Error>(&self, wanted: &PoolElement) -> Result<ElementId, E> {
-        let frozen = self.frozen;
-        (0..frozen.elements.len())
-            .map(|index| ElementId(index as u32))
-            .find(|id| self.element_matches(*id, wanted))
+    fn element_id<E: serde::de::Error>(
+        &self,
+        wanted: &PoolElement,
+    ) -> Result<(ElementId, &FrozenElement), E> {
+        self.frozen
+            .elements
+            .iter()
+            .enumerate()
+            .find(|(_, element)| self.element_matches(element, wanted))
+            .map(|(index, element)| (ElementId(index as u32), element))
             .ok_or_else(|| E::custom("the pool element is not one any loaded pool holds"))
     }
 
-    fn element_matches(&self, id: ElementId, wanted: &PoolElement) -> bool {
-        match (&self.frozen.elements[id.0 as usize], wanted) {
+    fn element_matches(&self, element: &FrozenElement, wanted: &PoolElement) -> bool {
+        match (element, wanted) {
             (
                 FrozenElement::Single {
                     template,
@@ -684,10 +759,11 @@ impl PieceContext<'_> {
             ) => {
                 projection == wanted_projection
                     && elements.len() == wanted.len()
-                    && elements
-                        .iter()
-                        .zip(wanted)
-                        .all(|(id, element)| self.element_matches(*id, element))
+                    && elements.iter().zip(wanted).all(|(id, wanted)| {
+                        self.frozen
+                            .element(*id)
+                            .is_some_and(|element| self.element_matches(element, wanted))
+                    })
             }
             (
                 FrozenElement::Feature {
@@ -1379,7 +1455,9 @@ impl Serialize for PieceNbt<'_> {
                     pos_y: piece.position.y,
                     pos_z: piece.position.z,
                     ground_level_delta: piece.ground_level_delta,
-                    pool_element: self.context.pool_element(piece.element),
+                    pool_element: self.context.pool_element(piece.element).ok_or_else(|| {
+                        S::Error::custom("a jigsaw piece of an element no loaded pool holds")
+                    })?,
                     rotation: piece.rotation,
                     junctions: piece.junctions.clone(),
                     liquid_settings: (liquid != LiquidSettings::default()).then_some(liquid),
@@ -1484,7 +1562,7 @@ impl Serialize for PieceNbt<'_> {
                 template_x: piece.position.x,
                 template_y: piece.height,
                 template_z: piece.position.z,
-                template: self.context.template_name(piece.template),
+                template: self.context.template_name_or(piece.template)?,
                 is_beached: piece.is_beached,
                 rotation: piece.rotation,
                 height_adjusted: true,
@@ -1496,7 +1574,7 @@ impl Serialize for PieceNbt<'_> {
                 template_x: piece.position.x,
                 template_y: piece.floor_y,
                 template_z: piece.position.z,
-                template: self.context.template_name(piece.template),
+                template: self.context.template_name_or(piece.template)?,
                 rotation: piece.rotation,
                 integrity: piece.integrity,
                 biome_temp: piece.biome_temp,
@@ -1509,7 +1587,7 @@ impl Serialize for PieceNbt<'_> {
                 pos_x: piece.position.x,
                 pos_y: piece.position.y,
                 pos_z: piece.position.z,
-                template: self.context.template_name(piece.template),
+                template: self.context.template_name_or(piece.template)?,
                 rotation: piece.rotation,
                 mirror: piece.mirror,
                 placement: piece.placement,
@@ -1558,7 +1636,9 @@ impl Serialize for PieceNbt<'_> {
                         two_floored: *two_floored,
                         direction: piece
                             .direction
-                            .expect("a crossing keeps its direction")
+                            .ok_or_else(|| {
+                                S::Error::custom("a mineshaft crossing without a direction")
+                            })?
                             .data_2d() as i8,
                     },
                     MineshaftKind::Stairs => PieceTag::MineshaftStairs {
@@ -1576,7 +1656,7 @@ impl Serialize for PieceNbt<'_> {
                 template_x: piece.position.x,
                 template_y: piece.height,
                 template_z: piece.position.z,
-                template: piece.template.location(),
+                template: piece.template.location().to_arc(),
                 rotation: piece.rotation,
             },
             Piece::NetherFossil(piece) => PieceTag::NetherFossil {
@@ -1586,7 +1666,7 @@ impl Serialize for PieceNbt<'_> {
                 template_x: piece.position.x,
                 template_y: piece.position.y,
                 template_z: piece.position.z,
-                template: self.context.template_name(piece.template),
+                template: self.context.template_name_or(piece.template)?,
                 rotation: piece.rotation,
             },
             Piece::EndCity(piece) => PieceTag::EndCity {
@@ -1598,11 +1678,7 @@ impl Serialize for PieceNbt<'_> {
                 template_z: piece.position.z,
                 template: self
                     .context
-                    .template_name(piece.template)
-                    .path()
-                    .strip_prefix(END_CITY_TEMPLATE_PREFIX)
-                    .expect("an end city piece names an end city template")
-                    .to_owned(),
+                    .template_suffix(piece.template, END_CITY_TEMPLATE_PREFIX)?,
                 rotation: piece.rotation,
                 overwrite: piece.overwrite,
             },
@@ -1615,11 +1691,7 @@ impl Serialize for PieceNbt<'_> {
                 template_z: piece.position.z,
                 template: self
                     .context
-                    .template_name(piece.template)
-                    .path()
-                    .strip_prefix(WoodlandMansionPiece::TEMPLATE_PREFIX)
-                    .expect("a mansion piece names a mansion template")
-                    .to_owned(),
+                    .template_suffix(piece.template, WoodlandMansionPiece::TEMPLATE_PREFIX)?,
                 rotation: piece.rotation,
                 mirror: piece.mirror,
             },
@@ -1745,8 +1817,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 junctions,
                 ..
             } => {
-                let element = self.0.element_id(&pool_element)?;
-                let projection = self.0.frozen.elements[element.0 as usize]
+                let (element, frozen_element) = self.0.element_id(&pool_element)?;
+                let projection = frozen_element
                     .projection()
                     .ok_or_else(|| D::Error::custom("a jigsaw piece of an empty element"))?;
                 Ok(Piece::Jigsaw(JigsawPiece {
@@ -2235,7 +2307,7 @@ mod tests {
                 .unwrap()
         );
         let Structure::Jigsaw { jigsaw, .. } = serde_json::from_str(&json).unwrap() else {
-            unreachable!()
+            panic!("the structure is a jigsaw")
         };
         frozen.structures.push(FrozenStructure {
             id: ResourceLocation::read("minecraft:village_plains").unwrap(),
@@ -2797,7 +2869,7 @@ mod tests {
             ..
         }) = &moved
         else {
-            unreachable!()
+            panic!("the moved piece is a mineshaft room")
         };
         assert_eq!(entrances[0].min.y, 31);
 

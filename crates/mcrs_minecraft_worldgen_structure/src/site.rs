@@ -257,12 +257,12 @@ fn jigsaw_site(
         .get(&config.start_pool)
         .copied()
         .unwrap_or(start_pool);
-    let expanded = &frozen.pools[usize::from(pool.0)].expanded;
+    let expanded = &frozen.pool(pool)?.expanded;
     if expanded.is_empty() {
         return None;
     }
-    let element = expanded[rng.next_i32_bound(expanded.len() as i32) as usize];
-    if matches!(frozen.elements[element.0 as usize], FrozenElement::Empty) {
+    let element = *expanded.get(rng.next_i32_bound(expanded.len() as i32) as usize)?;
+    if matches!(frozen.element(element)?, FrozenElement::Empty) {
         return None;
     }
 
@@ -328,17 +328,21 @@ fn resolve_aliases(
     for binding in bindings {
         match binding {
             PoolAlias::Direct { alias, target } => {
-                out.insert(alias.clone(), frozen.pool_ids[target]);
+                if let Some(&pool) = frozen.pool_ids.get(target) {
+                    out.insert(alias.clone(), pool);
+                }
             }
             PoolAlias::Random { alias, targets } => {
-                let target = pick_weighted_by(targets, |w| w.weight.0, rng)
-                    .expect("the freeze keeps only alias lists with weight");
-                out.insert(alias.clone(), frozen.pool_ids[&target.data]);
+                if let Some(target) = pick_weighted_by(targets, |w| w.weight.0, rng)
+                    && let Some(&pool) = frozen.pool_ids.get(&target.data)
+                {
+                    out.insert(alias.clone(), pool);
+                }
             }
             PoolAlias::RandomGroup { groups } => {
-                let group = pick_weighted_by(groups, |w| w.weight.0, rng)
-                    .expect("the freeze keeps only alias lists with weight");
-                resolve_aliases(frozen, &group.data, rng, out);
+                if let Some(group) = pick_weighted_by(groups, |w| w.weight.0, rng) {
+                    resolve_aliases(frozen, &group.data, rng, out);
+                }
             }
         }
     }
@@ -353,15 +357,21 @@ pub fn shuffled_jigsaws<'a>(
     rotation: Rotation,
     rng: &mut LegacyRandom,
 ) -> Vec<PlacedJigsaw<'a>> {
-    let mut jigsaws: Vec<PlacedJigsaw<'a>> = match &frozen.elements[element.0 as usize] {
-        FrozenElement::Single { template, .. } => {
-            let palettes = &frozen.manifests[template.0 as usize].jigsaws;
+    let mut jigsaws: Vec<PlacedJigsaw<'a>> = match frozen.element(element) {
+        Some(FrozenElement::Single { template, .. }) => {
+            let Some(manifest) = frozen.manifest(*template) else {
+                return Vec::new();
+            };
+            let palettes = &manifest.jigsaws;
             if palettes.is_empty() {
                 return Vec::new();
             }
             let palette = LegacyRandom::new(block_pos_seed(position))
                 .next_i32_bound(palettes.len() as i32) as usize;
-            palettes[palette]
+            let Some(palette) = palettes.get(palette) else {
+                return Vec::new();
+            };
+            palette
                 .iter()
                 .map(|block| PlacedJigsaw {
                     block,
@@ -376,10 +386,14 @@ pub fn shuffled_jigsaws<'a>(
                 })
                 .collect()
         }
-        FrozenElement::List { elements, .. } => {
-            return shuffled_jigsaws(frozen, elements[0], position, rotation, rng);
+        // A datapack may hand in a list with no elements, which has no jigsaws.
+        Some(FrozenElement::List { elements, .. }) => {
+            return match elements.first() {
+                Some(&first) => shuffled_jigsaws(frozen, first, position, rotation, rng),
+                None => Vec::new(),
+            };
         }
-        FrozenElement::Feature { .. } => {
+        Some(FrozenElement::Feature { .. }) => {
             return vec![PlacedJigsaw {
                 block: &FEATURE_JIGSAW,
                 pos: position,
@@ -387,7 +401,7 @@ pub fn shuffled_jigsaws<'a>(
                 top: Direction::South,
             }];
         }
-        FrozenElement::Empty => return Vec::new(),
+        Some(FrozenElement::Empty) | None => return Vec::new(),
     };
     shuffle(&mut jigsaws, rng);
     jigsaws.sort_by_key(|jigsaw| std::cmp::Reverse(jigsaw.block.selection_priority));
@@ -402,9 +416,9 @@ pub fn element_bounds(
     position: IVec3,
     rotation: Rotation,
 ) -> Option<BoundingBox> {
-    match &frozen.elements[element.0 as usize] {
+    match frozen.element(element)? {
         FrozenElement::Single { template, .. } => Some(bounding_box(
-            frozen.manifests[template.0 as usize].size,
+            frozen.manifest(*template)?.size,
             position,
             rotation,
             Mirror::None,
@@ -416,5 +430,30 @@ pub fn element_bounds(
             .reduce(BoundingBox::union),
         FrozenElement::Feature { .. } => Some(BoundingBox::point(position.into())),
         FrozenElement::Empty => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_worldgen_feature::template::Projection;
+
+    #[test]
+    fn a_list_element_with_no_elements_has_no_jigsaws() {
+        let frozen = FrozenStructures {
+            elements: vec![FrozenElement::List {
+                elements: Vec::new(),
+                projection: Projection::Rigid,
+            }],
+            ..FrozenStructures::default()
+        };
+        let mut rng = LegacyRandom::new(0);
+        let jigsaws =
+            shuffled_jigsaws(&frozen, ElementId(0), IVec3::ZERO, Rotation::None, &mut rng);
+        assert!(jigsaws.is_empty());
+        assert_eq!(
+            element_bounds(&frozen, ElementId(0), IVec3::ZERO, Rotation::None),
+            None
+        );
     }
 }
