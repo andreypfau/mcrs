@@ -40,7 +40,10 @@ pub fn display(
         },
         format!(
             "View: {}",
-            selected.0.map_or("final", |view| views.name(view))
+            selected
+                .0
+                .and_then(|view| views.name(view))
+                .unwrap_or("final")
         ),
     ];
     lines.extend(gpu_memory_line());

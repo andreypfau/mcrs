@@ -47,7 +47,7 @@ impl Animation {
 }
 
 pub struct Sprites {
-    pub atlases: Vec<AtlasSlot>,
+    pub atlases: [AtlasSlot; MAX_SPRITE_ARRAYS],
     pub atlas_sampler: Sampler,
     pub(crate) tints: Texture,
     pub(crate) tints_view: TextureView,
@@ -66,9 +66,7 @@ impl Sprites {
         let (tints, tint_sampler) = create_tints(budget, device);
         let (lightmap, lightmap_sampler) = create_lightmap(device);
         Self {
-            atlases: (0..MAX_SPRITE_ARRAYS)
-                .map(|index| blank_atlas(index, device))
-                .collect(),
+            atlases: std::array::from_fn(|index| blank_atlas(index, device)),
             atlas_sampler: atlas_sampler(device),
             tints_view: array_view(&tints),
             tints,
@@ -110,17 +108,17 @@ impl Sprites {
             animations,
         } = upload;
         let mut rebound = false;
-        for (index, update) in atlases.iter().enumerate() {
-            rebound |= writer.apply(index, &mut self.atlases[index], update);
+        for (index, (slot, update)) in self.atlases.iter_mut().zip(atlases).enumerate() {
+            rebound |= writer.apply(index, slot, update);
         }
         let mut spent = writer.used as usize;
-        if !table.is_empty() {
-            let bytes: &[u8] = bytemuck::cast_slice(table);
+        let bytes: &[u8] = bytemuck::cast_slice(table);
+        if let Some(size) = BufferSize::new(bytes.len() as u64) {
             belt.write_buffer(
                 encoder,
                 &self.table,
                 u64::from(*table_from) * size_of::<SpriteEntry>() as u64,
-                BufferSize::new(bytes.len() as u64).expect("at least one entry"),
+                size,
             )
             .copy_from_slice(bytes);
             spent += bytes.len();

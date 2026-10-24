@@ -142,7 +142,8 @@ pub(super) fn write_camera(
         view.world_from_view.rotation(),
         origin.offset,
     );
-    let frustum = ViewFrustum::from_clip_from_world(&clip_from_relative);
+    let [side_planes @ .., _far] =
+        ViewFrustum::from_clip_from_world(&clip_from_relative).half_spaces;
     // The tint window wraps, so only the camera section's place inside it matters, and that
     // stays exact in i32 where the section's absolute position would not in f32.
     let tint_origin = [
@@ -156,7 +157,7 @@ pub(super) fn write_camera(
         0,
         bytemuck::bytes_of(&CameraUniform {
             clip_from_relative: clip_from_relative.to_cols_array(),
-            frustum: std::array::from_fn(|plane| frustum.half_spaces[plane].normal_d().to_array()),
+            frustum: side_planes.map(|plane| plane.normal_d().to_array()),
             section: origin.section.to_array(),
             offset: origin.offset.to_array(),
             tint_origin,

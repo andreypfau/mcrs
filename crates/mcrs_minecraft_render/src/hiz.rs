@@ -114,19 +114,18 @@ impl Hiz {
                 ..default()
             });
             self.binds.clear();
-            self.binds.push(device.create_bind_group(
-                "hiz from depth",
-                &pipeline_cache.get_bind_group_layout(&self.from_depth_layout),
-                &BindGroupEntries::sequential((&depth_view, &self.levels[0])),
-            ));
-            for level in 1..self.levels.len() {
+            if let Some(finest) = self.levels.first() {
+                self.binds.push(device.create_bind_group(
+                    "hiz from depth",
+                    &pipeline_cache.get_bind_group_layout(&self.from_depth_layout),
+                    &BindGroupEntries::sequential((&depth_view, finest)),
+                ));
+            }
+            for (finer, level) in self.levels.iter().zip(self.levels.iter().skip(1)) {
                 self.binds.push(device.create_bind_group(
                     "hiz down",
                     &pipeline_cache.get_bind_group_layout(&self.down_layout),
-                    &BindGroupEntries::with_indices((
-                        (1, &self.levels[level]),
-                        (2, &self.levels[level - 1]),
-                    )),
+                    &BindGroupEntries::with_indices(((1, level), (2, finer))),
                 ));
             }
         }

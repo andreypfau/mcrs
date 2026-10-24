@@ -261,6 +261,7 @@ fn draw_bind_group(
     device: &RenderDevice,
     pipeline_cache: &PipelineCache,
 ) -> BindGroup {
+    let [first, second, third, fourth] = &sprites.atlases;
     device.create_bind_group(
         "terrain draw",
         &pipeline_cache.get_bind_group_layout(layout),
@@ -268,10 +269,10 @@ fn draw_bind_group(
             arenas.quads.buffer.as_entire_buffer_binding(),
             arenas.vertices.buffer.as_entire_buffer_binding(),
             arenas.visible.as_entire_buffer_binding(),
-            &sprites.atlases[0].view,
-            &sprites.atlases[1].view,
-            &sprites.atlases[2].view,
-            &sprites.atlases[3].view,
+            &first.view,
+            &second.view,
+            &third.view,
+            &fourth.view,
             &sprites.atlas_sampler,
             &sprites.tints_view,
             &sprites.tint_sampler,

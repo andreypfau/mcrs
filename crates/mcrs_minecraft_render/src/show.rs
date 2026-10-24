@@ -115,11 +115,9 @@ pub(crate) fn prepare_depth_display(
                 None,
             )
         };
-        descriptor
-            .fragment
-            .as_mut()
-            .expect("the display has a fragment stage")
-            .shader_defs = defs;
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            fragment.shader_defs = defs;
+        }
         cache.queue_render_pipeline(descriptor)
     };
     let depth = queue("show depth", &display.depth_layout, Vec::new());

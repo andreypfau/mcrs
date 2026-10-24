@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResource;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct DebugView(u16);
+pub struct DebugView(usize);
 
 /// Every view shown in place of final shading, in registration order.
 #[derive(Resource, Default)]
@@ -12,13 +12,13 @@ impl DebugViews {
     /// Views cycle in the order registered, so a crate registers each view where it belongs in
     /// the list.
     pub fn register(&mut self, name: &'static str) -> DebugView {
-        let view = DebugView(u16::try_from(self.0.len()).expect("fewer than 65536 debug views"));
+        let view = DebugView(self.0.len());
         self.0.push(name);
         view
     }
 
-    pub fn name(&self, view: DebugView) -> &'static str {
-        self.0[view.0 as usize]
+    pub fn name(&self, view: DebugView) -> Option<&'static str> {
+        self.0.get(view.0).copied()
     }
 
     /// The view after `current`, or before it when `back`; final shading (`None`) closes the
@@ -26,13 +26,13 @@ impl DebugViews {
     pub fn step(&self, current: Option<DebugView>, back: bool) -> Option<DebugView> {
         let final_shading = self.0.len();
         let len = final_shading + 1;
-        let at = current.map_or(final_shading, |view| final_shading.min(view.0 as usize));
+        let at = current.map_or(final_shading, |view| final_shading.min(view.0));
         let next = if back {
             (at + len - 1) % len
         } else {
             (at + 1) % len
         };
-        (next != final_shading).then_some(DebugView(next as u16))
+        (next != final_shading).then_some(DebugView(next))
     }
 }
 
@@ -189,7 +189,7 @@ mod tests {
             DeferredViews::register(&mut views, occlusion);
             let names: Vec<_> = cycle(&views)
                 .into_iter()
-                .map(|view| views.name(view))
+                .map(|view| views.name(view).unwrap())
                 .collect();
             let mut expected = vec![
                 "wireframe",
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(deferred.display(SelectedView(None)), Display::FINAL);
         for view in cycle(&views) {
             let display = deferred.display(SelectedView(Some(view)));
-            let name = views.name(view);
+            let name = views.name(view).unwrap();
             assert_eq!(display.forward, name == "forward translucents", "{name}");
             assert_eq!(display.wireframe, name == "wireframe", "{name}");
             assert_ne!(display.lighting, Lighting::Lit, "{name}");

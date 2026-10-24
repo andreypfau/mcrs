@@ -145,6 +145,13 @@ fn copy_dispatches(terrain: &Terrain, encoder: &mut CommandEncoder) {
     );
 }
 
+fn stream_name(stream: u32) -> &'static str {
+    STREAM_NAMES
+        .get(stream as usize)
+        .copied()
+        .unwrap_or("terrain")
+}
+
 /// Dispatches `pipeline` once a draw of `group`, as many workgroups as the cull counted into the
 /// draw's row of `table`.
 fn cull_indirect<'pass>(
@@ -157,7 +164,7 @@ fn cull_indirect<'pass>(
 ) {
     pass.set_pipeline(pipeline);
     for (index, draw) in terrain.list.drawn(group, mask) {
-        pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
+        pass.push_debug_group(stream_name(draw.stream));
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
         pass.dispatch_workgroups_indirect(
             &terrain.frame.dispatch,
@@ -220,7 +227,7 @@ fn cull_group<'pass>(
             if open.is_some() {
                 pass.pop_debug_group();
             }
-            pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
+            pass.push_debug_group(stream_name(draw.stream));
             open = Some(draw.stream);
         }
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
@@ -376,7 +383,7 @@ pub fn draw_layer_group<'pass>(
             if open.is_some() {
                 pass.pop_debug_group();
             }
-            pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
+            pass.push_debug_group(stream_name(draw.stream));
             open = Some(draw.stream);
         }
         pass.set_render_pipeline(pipeline);

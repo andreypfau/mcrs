@@ -1,9 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 // wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
 // `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
@@ -329,13 +323,13 @@ impl Plugin for TerrainPlugin {
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
         // which the world pass then loads back; without it the world pass does the clear.
-        render_app
-            .remove_systems_in_set(
-                Core3d,
-                main_opaque_pass_3d,
-                ScheduleCleanupPolicy::RemoveSystemsOnly,
-            )
-            .expect("the 3d core pipeline adds its opaque pass");
+        if let Err(error) = render_app.remove_systems_in_set(
+            Core3d,
+            main_opaque_pass_3d,
+            ScheduleCleanupPolicy::RemoveSystemsOnly,
+        ) {
+            error!("bevy's opaque pass stays in the 3d core pipeline: {error}");
+        }
     }
 
     fn finish(&self, app: &mut App) {

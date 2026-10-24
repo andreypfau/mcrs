@@ -397,8 +397,10 @@ impl SkyDraws<'_> {
         };
         pass.set_bind_group(1, &binds.textures, &[]);
         let mut draws = 0;
-        for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
-            draws += issue(pass, index, pipelines, extracted, binds, view_offset, cache) as u32;
+        for (index, (draw, &pipeline)) in SKY_DRAWS.iter().zip(pipelines).enumerate() {
+            if index != CLOUDS {
+                draws += issue(pass, draw, pipeline, extracted, binds, view_offset, cache) as u32;
+            }
         }
         self.counts.sky_draws.store(draws, Ordering::Relaxed);
     }
@@ -415,8 +417,8 @@ impl SkyDraws<'_> {
         pass.set_bind_group(1, &binds.textures, &[]);
         issue(
             pass,
-            CLOUDS,
-            pipelines,
+            &SKY_DRAWS[CLOUDS],
+            pipelines[CLOUDS],
             extracted,
             binds,
             view_offset,
@@ -427,18 +429,17 @@ impl SkyDraws<'_> {
 
 fn issue<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
-    index: usize,
-    pipelines: &[Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
+    draw: &SkyDraw,
+    pipeline: Option<CachedRenderPipelineId>,
     extracted: &ExtractedSky,
     binds: &'pass SkyBindGroups,
     view_offset: u32,
     cache: &'pass PipelineCache,
 ) -> bool {
-    let draw = &SKY_DRAWS[index];
     if !(draw.visible)(&extracted.uniform) {
         return false;
     }
-    let Some(pipeline) = pipelines[index].and_then(|id| cache.get_render_pipeline(id)) else {
+    let Some(pipeline) = pipeline.and_then(|id| cache.get_render_pipeline(id)) else {
         return false;
     };
     pass.set_render_pipeline(pipeline);

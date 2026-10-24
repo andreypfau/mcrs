@@ -166,20 +166,18 @@ impl AtlasWriter<'_> {
             let row = (side * 4) as usize;
             let pitch = pitch(side);
             let image = pitch as usize * side as usize;
-            let size = image as u64 * u64::from(layers);
+            let Some(size) = BufferSize::new(image as u64 * u64::from(layers)) else {
+                return;
+            };
             let offset = self.used;
-            let mut view = self.belt.write_buffer(
-                self.encoder,
-                self.staging,
-                offset,
-                BufferSize::new(size).expect("at least one layer"),
-            );
-            for layer in 0..layers as usize {
-                let src = &data[layer * row * side as usize..][..row * side as usize];
-                for y in 0..side as usize {
+            let mut view = self
+                .belt
+                .write_buffer(self.encoder, self.staging, offset, size);
+            let layer_rows = data.chunks_exact(row * side as usize).take(layers as usize);
+            for (layer, src) in layer_rows.enumerate() {
+                for (y, src) in src.chunks_exact(row).enumerate() {
                     let at = layer * image + y * pitch as usize;
-                    view.slice(at..at + row)
-                        .copy_from_slice(&src[y * row..][..row]);
+                    view.slice(at..at + row).copy_from_slice(src);
                 }
             }
             drop(view);
@@ -208,7 +206,7 @@ impl AtlasWriter<'_> {
                     depth_or_array_layers: layers,
                 },
             );
-            self.used += size;
+            self.used += size.get();
         }
     }
 }
@@ -267,7 +265,7 @@ pub(super) fn write_tint_square(
     data: &[u8],
 ) {
     let layer = (size * size * 4) as usize;
-    for kind in 0..TINT_LAYERS {
+    for (kind, data) in (0..TINT_LAYERS).zip(data.chunks_exact(layer)) {
         queue.write_texture(
             TexelCopyTextureInfo {
                 texture: tints,
@@ -279,7 +277,7 @@ pub(super) fn write_tint_square(
                 },
                 aspect: TextureAspect::All,
             },
-            &data[kind as usize * layer..(kind as usize + 1) * layer],
+            data,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(size * 4),
@@ -328,10 +326,9 @@ pub(super) fn write_lightmap(
 ) {
     let levels = LIGHT_LEVELS as usize;
     let mut texels = [[0u8; 4]; (LIGHT_LEVELS * LIGHT_LEVELS) as usize];
-    for sky_level in 0..levels {
-        for block_level in 0..levels {
-            texels[sky_level * levels + block_level] =
-                lit_color(sky, brightness, block_level as f32, sky_level as f32);
+    for (sky_level, row) in texels.chunks_exact_mut(levels).enumerate() {
+        for (block_level, texel) in row.iter_mut().enumerate() {
+            *texel = lit_color(sky, brightness, block_level as f32, sky_level as f32);
         }
     }
     queue.write_texture(

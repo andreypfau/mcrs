@@ -172,23 +172,21 @@ pub(crate) fn terrain_descriptor(
             blend(layer),
         )
     };
-    let fragment = descriptor
-        .fragment
-        .as_mut()
-        .expect("common sets a fragment");
-    if wireframe {
-        fragment.shader_defs.push("WIREFRAME".into());
-    }
-    if layer != Pass::Translucent {
-        fragment.targets = GBUFFER_FORMATS
-            .map(|format| {
-                Some(ColorTargetState {
-                    format,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
+    if let Some(fragment) = descriptor.fragment.as_mut() {
+        if wireframe {
+            fragment.shader_defs.push("WIREFRAME".into());
+        }
+        if layer != Pass::Translucent {
+            fragment.targets = GBUFFER_FORMATS
+                .map(|format| {
+                    Some(ColorTargetState {
+                        format,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    })
                 })
-            })
-            .into();
+                .into();
+        }
     }
     descriptor
 }
@@ -239,7 +237,7 @@ impl DeferredPipelines {
         variant: Variant,
         cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        cache.get_render_pipeline(self.variants[variant as usize]?)
+        cache.get_render_pipeline((*self.variants.get(variant as usize)?)?)
     }
 
     pub fn terrain<'cache>(
@@ -247,7 +245,7 @@ impl DeferredPipelines {
         slot: usize,
         cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        cache.get_render_pipeline(self.terrain[slot]?)
+        cache.get_render_pipeline((*self.terrain.get(slot)?)?)
     }
 
     pub fn ready(&self, cache: &PipelineCache) -> bool {
@@ -364,12 +362,13 @@ fn queue_pipelines(
                 None,
             )
         };
-        let fragment = descriptor.fragment.as_mut().expect("a fullscreen fragment");
-        if !def.is_empty() {
-            fragment.shader_defs.push(def.into());
-        }
-        if tint_layout.is_some() {
-            fragment.shader_defs.push("LIGHT_TINT".into());
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            if !def.is_empty() {
+                fragment.shader_defs.push(def.into());
+            }
+            if tint_layout.is_some() {
+                fragment.shader_defs.push("LIGHT_TINT".into());
+            }
         }
         cache.queue_render_pipeline(descriptor)
     };
@@ -390,12 +389,14 @@ fn queue_pipelines(
             Variant::SkyLight => (&show, "show", "SHOW_SKY_LIGHT", "sky light"),
             Variant::Grid => (&show, "show", "SHOW_GRID", "block grid"),
         };
-        pipelines.variants[variant as usize] = Some(fullscreen_pipeline(
-            &format!("deferred {label}"),
-            shader,
-            entry,
-            def,
-        ));
+        if let Some(slot) = pipelines.variants.get_mut(variant as usize) {
+            *slot = Some(fullscreen_pipeline(
+                &format!("deferred {label}"),
+                shader,
+                entry,
+                def,
+            ));
+        }
     }
     for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
         let descriptor = terrain_descriptor(
@@ -406,8 +407,12 @@ fn queue_pipelines(
             wireframe,
             view,
         );
-        pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
-            Some(cache.queue_render_pipeline(descriptor));
+        if let Some(slot) = pipelines
+            .terrain
+            .get_mut(terrain_slot(layer, shape, wireframe))
+        {
+            *slot = Some(cache.queue_render_pipeline(descriptor));
+        }
     }
     info!("queued the deferred pipelines");
 }

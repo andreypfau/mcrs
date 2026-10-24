@@ -91,9 +91,10 @@ impl DrawList {
         };
         // One write rather than one per draw: every write stages through a buffer of its own.
         let mut bytes = vec![0u8; last * PARAMS_STRIDE as usize + PARAMS_SIZE as usize];
-        for (index, entry) in self.params.iter().enumerate() {
-            let at = index * PARAMS_STRIDE as usize;
-            bytes[at..at + PARAMS_SIZE as usize].copy_from_slice(bytemuck::bytes_of(entry));
+        for (chunk, entry) in bytes.chunks_mut(PARAMS_STRIDE as usize).zip(&self.params) {
+            if let Some(at) = chunk.get_mut(..PARAMS_SIZE as usize) {
+                at.copy_from_slice(bytemuck::bytes_of(entry));
+            }
         }
         queue.write_buffer(params, 0, &bytes);
     }
