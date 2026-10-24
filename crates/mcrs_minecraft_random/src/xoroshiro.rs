@@ -98,9 +98,8 @@ impl Random for XoroshiroRandom {
         let h = self.next_u64();
         let mut hasher = Md5::new();
         hasher.update(seed);
-        let hash = hasher.finalize();
-        let lo = u64::from_be_bytes(hash[0..8].try_into().unwrap());
-        let hi = u64::from_be_bytes(hash[8..16].try_into().unwrap());
+        let hash = u128::from_be_bytes(hasher.finalize().into());
+        let (lo, hi) = ((hash >> 64) as u64, hash as u64);
         XoroshiroRandom::from_u128_seed(lo ^ l, hi ^ h)
     }
 }

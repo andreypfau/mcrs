@@ -81,17 +81,10 @@ impl TryRng for LegacyRandom {
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        // Implement fill_bytes using next_u64
-        let mut i = 0;
-        while i + 8 <= dest.len() {
-            let bytes = self.next_u64().to_le_bytes();
-            dest[i..i + 8].copy_from_slice(&bytes);
-            i += 8;
-        }
-        if i < dest.len() {
-            let bytes = self.next_u64().to_le_bytes();
-            let remaining = dest.len() - i;
-            dest[i..].copy_from_slice(&bytes[..remaining]);
+        for chunk in dest.chunks_mut(8) {
+            for (byte, drawn) in chunk.iter_mut().zip(self.next_u64().to_le_bytes()) {
+                *byte = drawn;
+            }
         }
         Ok(())
     }
