@@ -102,7 +102,7 @@ impl<'a, T: Decode<'a>> Decode<'a> for Vec<T> {
     fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let len = decode_len(r)?;
 
-        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len));
+        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len, r));
 
         for _ in 0..len {
             vec.push(T::decode(r)?);
@@ -123,7 +123,7 @@ impl<'a, T: Decode<'a>, const MAX_LEN: usize> Decode<'a> for Bounded<Vec<T>, MAX
         let len = decode_len(r)?;
         check_len(len, MAX_LEN)?;
 
-        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len));
+        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len, r));
 
         for _ in 0..len {
             vec.push(T::decode(r)?);

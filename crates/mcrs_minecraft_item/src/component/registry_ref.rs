@@ -693,6 +693,8 @@ impl Decode<'_> for Enchantments<Wire> {
         ensure!(len >= 0, "attempt to decode a map with negative length");
         let mut entries: Vec<(WireId<EnchantmentData>, i32)> =
             Vec::with_capacity((len as usize).min(r.len()));
+        let mut at: std::collections::HashMap<_, usize> =
+            std::collections::HashMap::with_capacity(entries.capacity());
         for _ in 0..len {
             let enchantment = WireId::decode(r)?;
             let level = VarInt::decode(r)?.0;
@@ -700,9 +702,11 @@ impl Decode<'_> for Enchantments<Wire> {
                 (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
                 "Enchantment {enchantment:?} has invalid level {level}"
             );
-            match entries.iter_mut().find(|(k, _)| *k == enchantment) {
-                Some(entry) => entry.1 = level,
-                None => entries.push((enchantment, level)),
+            if let Some(&index) = at.get(&enchantment) {
+                entries[index].1 = level;
+            } else {
+                at.insert(enchantment, entries.len());
+                entries.push((enchantment, level));
             }
         }
         Ok(Enchantments(entries))

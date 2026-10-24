@@ -85,7 +85,6 @@ impl<'a> crate::Decode<'a> for Metadata<'a> {
 }
 
 impl Metadata<'_> {
-    /// Checks every registry id the entries hold against `registries`.
     pub fn check(self, registries: &Registries) -> Result<(), ResolveError> {
         fn named<R: Registered>(lookup: &WireLookup<'_>, id: Id<R>) -> Result<(), ResolveError> {
             Id::<R>::from_wire(WireId::new(id.number()), lookup).map(drop)

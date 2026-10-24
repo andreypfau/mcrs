@@ -13,8 +13,9 @@ impl Encode for StatePropertiesPredicate {
 impl Decode<'_> for StatePropertiesPredicate {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let properties: Vec<(String, ValueMatcher)> = Vec::decode(r)?;
-        for (at, (name, _)) in properties.iter().enumerate() {
-            if properties[..at].iter().any(|(seen, _)| seen == name) {
+        let mut seen = std::collections::HashSet::with_capacity(properties.len());
+        for (name, _) in &properties {
+            if !seen.insert(name.as_str()) {
                 return Err(ErrorKind::DuplicateKey.into());
             }
         }

@@ -18,8 +18,11 @@ mod uuid;
 /// sequence length.
 const MAX_PREALLOC_BYTES: usize = 1024 * 1024;
 
-fn cautious_capacity<T>(declared: usize) -> usize {
-    declared.min(MAX_PREALLOC_BYTES / size_of::<T>().max(1))
+/// Input left bounds an honest length: nested lists otherwise reserve megabytes from a few bytes.
+fn cautious_capacity<T>(declared: usize, r: &[u8]) -> usize {
+    declared
+        .min(r.len())
+        .min(MAX_PREALLOC_BYTES / size_of::<T>().max(1))
 }
 
 fn decode_len(r: &mut &[u8]) -> crate::Result<usize> {
@@ -38,4 +41,12 @@ pub(crate) fn check_len(len: usize, max: usize) -> crate::Result<()> {
         return Err(crate::ErrorKind::TooLong { len, max }.into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_declared_length_reserves_no_more_than_the_input_left() {
+        assert_eq!(super::cautious_capacity::<u64>(1 << 30, &[0; 10]), 10);
+    }
 }
