@@ -2,10 +2,12 @@ use std::sync::{Arc, LazyLock};
 
 use bevy::ecs::resource::Resource;
 
-use crate::columns::{BlockSource, SECTION_SIZE};
+use crate::columns::{Columns, SECTION_SIZE};
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_volume::BiomeVolume;
 
 use crate::model::{self, Pack};
 use mcrs_minecraft_biome::GrassColorModifier;
@@ -173,7 +175,11 @@ pub(crate) fn colormap_rgba(
     Some(crate::sky::rgb(color).extend(1.0).to_array())
 }
 
-pub fn tint_column(store: &impl BlockSource, tints: &[BiomeTint], column: ColumnPos) -> Vec<u8> {
+pub fn tint_column(
+    store: &(impl Columns + BiomeVolume),
+    tints: &[BiomeTint],
+    column: ColumnPos,
+) -> Vec<u8> {
     const SIZE: usize = SECTION_SIZE;
     let mut out = vec![0u8; SIZE * SIZE * 4 * BIOME_TINTS.len()];
     for z in 0..SIZE {
@@ -200,15 +206,29 @@ pub fn tint_column(store: &impl BlockSource, tints: &[BiomeTint], column: Column
     out
 }
 
-fn surface_biome(store: &impl BlockSource, column: ColumnPos, x: usize, z: usize) -> u8 {
+/// The biome atop the highest section the server sent with blocks in it.
+fn surface_biome(
+    store: &(impl Columns + BiomeVolume),
+    column: ColumnPos,
+    x: usize,
+    z: usize,
+) -> u16 {
     let Some(extent) = store.extent() else {
         return 0;
     };
-    let cell = (x, 15, z);
     for step in (0..extent.sections).rev() {
         let sy = extent.min_section_y + step as i32;
-        if store.section(column.x, sy, column.z).is_some() {
-            return store.biome(column.x, sy, column.z, cell);
+        if store
+            .stored_section(SectionPos::new(column.x, sy, column.z))
+            .is_some()
+        {
+            let size = SECTION_SIZE as i32;
+            let at = BlockPos::new(
+                column.x * size + x as i32,
+                sy * size + size - 1,
+                column.z * size + z as i32,
+            );
+            return store.biome_at(at).unwrap_or(0);
         }
     }
     0
@@ -320,9 +340,9 @@ mod tests {
 
     fn section_holding(biomes: PalettedContainer<u8, { Biomes::SIZE }>) -> Section {
         Section {
-            blocks: Box::new([0; SECTION_VOLUME]),
+            blocks: Box::new([crate::columns::AIR; SECTION_VOLUME]),
             biomes,
-            states: vec![0],
+            states: vec![crate::columns::AIR],
         }
     }
 

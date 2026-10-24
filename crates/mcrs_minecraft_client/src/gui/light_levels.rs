@@ -1,9 +1,11 @@
-use crate::columns::{BlockSource, ColumnStore};
+use crate::columns::ColumnStore;
 use bevy::color::Mix;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
 use bevy::ui::{ComputedNode, UiSystems};
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_volume::LightVolume;
 
 use crate::player::PlayerCamera;
 
@@ -188,7 +190,9 @@ fn render(
         for dz in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
                 let block = origin + IVec3::new(dx, dy, dz);
-                let light = store.light(block.x, block.y, block.z);
+                let light = store
+                    .light(BlockPos::new(block.x, block.y, block.z))
+                    .unwrap_or(0x0f);
                 let centre = block.as_vec3() + Vec3::splat(0.5);
                 let block_level = light >> 4;
                 if levels.block() && block_level != 0 {

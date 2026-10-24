@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bytes::Bytes;
 use mcrs_minecraft_client::blocks::BiomeTints;
 use mcrs_minecraft_client::columns::{
-    BlockSource, Column, ColumnCachePlugin, ColumnStore, Dimension, Extent,
+    Column, ColumnCachePlugin, ColumnStore, Columns, Dimension, Extent,
 };
 use mcrs_minecraft_client::player::{Player, PlayerCamera};
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};

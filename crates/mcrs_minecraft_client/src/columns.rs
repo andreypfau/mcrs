@@ -15,7 +15,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, LocalPos, SectionPos};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -34,12 +34,15 @@ use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, CurrentDimension};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_volume::{
+    Access, BiomeVolume, BlockVolume, DenseSection, LightVolume, SectionVolume, Unavailable, Volume,
+};
 
 use crate::registries::{SessionSet, entered_configuration};
 
-/// Block state 0. The network palette is the server's global one, so no remap
-/// stands between a stored value and the block catalog.
-pub const AIR: u16 = 0;
+/// The network palette is the server's global one, so no remap stands between a
+/// stored state and the block catalog.
+pub const AIR: BlockStateId = BlockStateId::AIR;
 
 /// Sky nibble full, block nibble dark: what a block outside every resident
 /// column is lit by.
@@ -70,10 +73,10 @@ impl From<Extent> for Dimension {
 
 #[derive(Clone)]
 pub struct Section {
-    pub blocks: Box<[u16; SECTION_VOLUME]>,
+    pub blocks: Box<[BlockStateId; SECTION_VOLUME]>,
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
     /// Every state the blocks hold.
-    pub states: Vec<u16>,
+    pub states: Vec<BlockStateId>,
 }
 
 #[derive(Clone)]
@@ -200,7 +203,7 @@ impl ColumnStore {
     }
 }
 
-impl BlockSource for ColumnStore {
+impl Columns for ColumnStore {
     fn extent(&self) -> Option<Extent> {
         self.dimension.as_ref().map(|dimension| dimension.extent)
     }
@@ -217,7 +220,7 @@ pub struct Neighbourhood {
     columns: [Option<Arc<Column>>; 9],
 }
 
-impl BlockSource for Neighbourhood {
+impl Columns for Neighbourhood {
     fn extent(&self) -> Option<Extent> {
         self.extent
     }
@@ -232,68 +235,99 @@ impl BlockSource for Neighbourhood {
     }
 }
 
-impl mcrs_minecraft_mesh::BlockView for ColumnStore {
-    #[inline]
-    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
-        BlockSource::block(self, x, y, z)
-    }
-
-    #[inline]
-    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
-        BlockSource::light(self, x, y, z)
-    }
-}
-
-impl mcrs_minecraft_mesh::BlockView for Neighbourhood {
-    #[inline]
-    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
-        BlockSource::block(self, x, y, z)
-    }
-
-    #[inline]
-    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
-        BlockSource::light(self, x, y, z)
-    }
-}
-
-/// Blocks, light and biomes read by section and cell, from whatever columns are held.
-pub trait BlockSource {
+/// The columns a reader holds, by section column, within the dimension's extent.
+pub trait Columns {
     fn extent(&self) -> Option<Extent>;
 
     fn column(&self, sx: i32, sz: i32) -> Option<&Column>;
 
+    /// The section's stored blocks; `None` for one the server sent empty or never sent.
     #[inline]
-    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
-        let pos = BlockPos::new(x, y, z);
-        let at = SectionPos::from(pos);
-        match self.section(at.x, at.y, at.z) {
-            Some(section) => section.blocks[LocalPos::from(pos).index()],
-            None => AIR,
-        }
-    }
-
-    #[inline]
-    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
-        let pos = BlockPos::new(x, y, z);
-        let at = SectionPos::from(pos);
-        match self.column(at.x, at.z) {
-            Some(column) => column.light(at.y, LocalPos::from(pos).index()),
-            None => OPEN_SKY,
-        }
-    }
-
-    #[inline]
-    fn section(&self, sx: i32, sy: i32, sz: i32) -> Option<&Section> {
-        self.column(sx, sz)?.section(sy)
-    }
-
-    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: (usize, usize, usize)) -> u8 {
-        match self.section(sx, sy, sz) {
-            Some(section) => section.biomes.get(cell.0, cell.1, cell.2),
-            None => 0,
-        }
+    fn stored_section(&self, at: SectionPos) -> Option<&Section> {
+        self.column(at.x, at.z)?.section(at.y)
     }
 }
+
+fn column_bounds(extent: Option<Extent>) -> BoundingBox {
+    let (min_y, max_y) = extent.map_or((0, -1), |extent| {
+        let min_y = extent.min_section_y * SECTION_SIZE as i32;
+        (min_y, min_y + (extent.sections * SECTION_SIZE) as i32 - 1)
+    });
+    BoundingBox {
+        min: BlockPos::new(i32::MIN, min_y, i32::MIN),
+        max: BlockPos::new(i32::MAX, max_y, i32::MAX),
+    }
+}
+
+/// Every column the reader holds is loaded whole: a section the server sent empty is air,
+/// and only a missing column is unloaded. Light reaches one row past the extent at each
+/// end, and past that it is open sky.
+macro_rules! column_volume {
+    ($store:ty) => {
+        impl Volume for $store {
+            fn bounds(&self) -> BoundingBox {
+                column_bounds(Columns::extent(self))
+            }
+
+            fn access(&self, at: SectionPos) -> Access {
+                let inside = Columns::extent(self).is_some_and(|extent| {
+                    (extent.min_section_y..extent.min_section_y + extent.sections as i32)
+                        .contains(&at.y)
+                });
+                if !inside {
+                    Access::Outside
+                } else if Columns::column(self, at.x, at.z).is_some() {
+                    Access::Read
+                } else {
+                    Access::Unloaded
+                }
+            }
+        }
+
+        impl BlockVolume for $store {
+            type Section<'a> = DenseSection<'a>;
+
+            #[inline]
+            fn section(&self, at: SectionPos) -> Result<DenseSection<'_>, Unavailable> {
+                self.access(at).check_read()?;
+                Ok(self
+                    .stored_section(at)
+                    .map_or(DenseSection::air(), |section| DenseSection(&section.blocks)))
+            }
+        }
+
+        impl SectionVolume for $store {}
+
+        impl LightVolume for $store {
+            #[inline]
+            fn light(&self, at: BlockPos) -> Result<u8, Unavailable> {
+                let section = SectionPos::from(at);
+                let column =
+                    Columns::column(self, section.x, section.z).ok_or(Unavailable::Unloaded)?;
+                Ok(column.light(section.y, LocalPos::from(at).index()))
+            }
+        }
+
+        impl BiomeVolume for $store {
+            fn biome_at(&self, at: BlockPos) -> Result<u16, Unavailable> {
+                let section = SectionPos::from(at);
+                self.access(section).check_read()?;
+                let cell = LocalPos::from(at);
+                let cell = (
+                    usize::from(cell.x()),
+                    usize::from(cell.y()),
+                    usize::from(cell.z()),
+                );
+                Ok(self.stored_section(section).map_or(0, |stored| {
+                    u16::from(stored.biomes.get(cell.0, cell.1, cell.2))
+                }))
+            }
+        }
+    };
+}
+
+column_volume!(ColumnStore);
+column_volume!(Neighbourhood);
 
 impl Column {
     /// A column nobody has lit: every block in it reads as dark.
@@ -320,12 +354,17 @@ impl Column {
                 if section.non_empty_block_count == 0 {
                     return Ok(None);
                 }
+                // A server whose block corpus differs from ours can name a state past our
+                // table; it reads as air rather than taking the frame down.
+                let state = |id: mcrs_minecraft_chunk::VoxelId| {
+                    BlockStateId::checked(id.0, block_state_count).unwrap_or(AIR)
+                };
                 let mut blocks = Box::new([AIR; SECTION_VOLUME]);
-                expand(&section.blocks, blocks.as_mut_slice(), |id| id.0);
+                expand(&section.blocks, blocks.as_mut_slice(), state);
                 let states = match &section.blocks {
-                    PalettedContainer::Homogeneous(id) => vec![id.0],
+                    PalettedContainer::Homogeneous(id) => vec![state(*id)],
                     PalettedContainer::Heterogeneous(data) => {
-                        data.palette.iter().map(|id| id.0).collect()
+                        data.palette.iter().map(|id| state(*id)).collect()
                     }
                 };
                 Ok(Some(Section {
@@ -727,6 +766,24 @@ fn settle_columns(
 
 #[cfg(test)]
 mod tests {
+    fn state(number: u16) -> BlockStateId {
+        BlockStateId::checked(number, 1 << 16).expect("every u16 names a state")
+    }
+
+    fn block(store: &impl BlockVolume, x: i32, y: i32, z: i32) -> BlockStateId {
+        store.block(BlockPos::new(x, y, z)).unwrap_or(AIR)
+    }
+
+    fn light(store: &impl LightVolume, x: i32, y: i32, z: i32) -> u8 {
+        store.light(BlockPos::new(x, y, z)).unwrap_or(OPEN_SKY)
+    }
+
+    fn biome(store: &impl BiomeVolume, sx: i32, sy: i32, sz: i32, cell: (i32, i32, i32)) -> u16 {
+        let size = SECTION_SIZE as i32;
+        let at = BlockPos::new(sx * size + cell.0, sy * size + cell.1, sz * size + cell.2);
+        store.biome_at(at).unwrap_or(0)
+    }
+
     use super::*;
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
@@ -767,7 +824,7 @@ mod tests {
         ChunkSection {
             non_empty_block_count: 0,
             fluid_count: 0,
-            blocks: PalettedContainer::Homogeneous(VoxelId(AIR)),
+            blocks: PalettedContainer::Homogeneous(VoxelId(0)),
             biomes: PalettedContainer::Homogeneous(3),
         }
     }
@@ -814,7 +871,7 @@ mod tests {
     #[test]
     fn a_decoded_packet_reads_back_where_it_put_its_blocks_and_its_light() {
         let cell = LocalPos::new(3, 5, 7).index();
-        let mut states = vec![u32::from(AIR); SECTION_VOLUME];
+        let mut states = vec![0u32; SECTION_VOLUME];
         states[cell] = 42;
         let blob = [air_section(), section_of_states(&states)]
             .iter()
@@ -855,22 +912,26 @@ mod tests {
         store.insert(packet.pos, column);
 
         let (x, z) = ((SECTION_SIZE as i32) + 3, -2 * SECTION_SIZE as i32 + 7);
-        assert_eq!(store.block(x, 5, z), 42, "the state the packet carried");
-        assert_eq!(store.block(x + 1, 5, z), AIR, "its neighbour");
-        assert_eq!(store.block(x + 64, 5, z), AIR, "a column nobody sent");
-        assert_eq!(store.light(x, 5, z), 0x27, "sky 7 low, block 2 high");
         assert_eq!(
-            store.light(x, 5, z + 1),
+            block(&store, x, 5, z),
+            state(42),
+            "the state the packet carried"
+        );
+        assert_eq!(block(&store, x + 1, 5, z), AIR, "its neighbour");
+        assert_eq!(block(&store, x + 64, 5, z), AIR, "a column nobody sent");
+        assert_eq!(light(&store, x, 5, z), 0x27, "sky 7 low, block 2 high");
+        assert_eq!(
+            light(&store, x, 5, z + 1),
             0x00,
             "an unlit cell of a lit section"
         );
-        assert_eq!(store.light(x, 5 + 32, z), OPEN_SKY, "above the dimension");
+        assert_eq!(light(&store, x, 5 + 32, z), OPEN_SKY, "above the dimension");
         assert!(
-            store.section(1, -1, -2).is_none(),
+            store.stored_section(SectionPos::new(1, -1, -2)).is_none(),
             "a section of nothing but air is not resident"
         );
-        assert!(store.section(1, 0, -2).is_some());
-        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
+        assert!(store.stored_section(SectionPos::new(1, 0, -2)).is_some());
+        assert_eq!(biome(&store, 1, 0, -2, (0, 0, 0)), 3);
 
         store.remove(packet.pos);
         assert!(store.is_empty(), "the forget packet takes the column back");
@@ -922,9 +983,9 @@ mod tests {
         store.enter(EXTENT);
         store.insert(pos, column);
 
-        assert_eq!(store.biome(1, -1, -2, (0, 0, 0)), 3);
-        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
-        assert_eq!(store.biome(1, 0, -2, (3, 2, 1)), 0);
+        assert_eq!(biome(&store, 1, -1, -2, (0, 0, 0)), 3);
+        assert_eq!(biome(&store, 1, 0, -2, (0, 0, 0)), 3);
+        assert_eq!(biome(&store, 1, 0, -2, (3, 2, 1)), 0);
     }
 
     #[test]
@@ -1029,12 +1090,12 @@ mod tests {
 
         let (x, y, z) = lit_at(0);
         assert_eq!(
-            store.light(x, y, z),
+            light(&store, x, y, z),
             0x53,
             "sky 7 fell to 3, which an or-merge could not do"
         );
         let (x, y, z) = lit_at(-1);
-        assert_eq!(store.light(x, y, z), 0x16, "the row the update left out");
+        assert_eq!(light(&store, x, y, z), 0x16, "the row the update left out");
     }
 
     #[test]
@@ -1050,9 +1111,9 @@ mod tests {
         store.relight(pos, &update);
 
         let (x, y, z) = lit_at(0);
-        assert_eq!(store.light(x, y, z), 0x20, "sky dark, block untouched");
+        assert_eq!(light(&store, x, y, z), 0x20, "sky dark, block untouched");
         let (x, y, z) = lit_at(-1);
-        assert_eq!(store.light(x, y, z), 0x16);
+        assert_eq!(light(&store, x, y, z), 0x16);
     }
 
     fn drained(store: &mut ColumnStore) -> Vec<ColumnChange> {
@@ -1115,7 +1176,7 @@ mod tests {
 
         let (x, y, z) = lit_at(0);
         assert_eq!(
-            store.light(x, y, z),
+            light(&store, x, y, z),
             0x27,
             "the resident column is untouched"
         );

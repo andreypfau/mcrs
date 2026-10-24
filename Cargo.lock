@@ -3614,6 +3614,7 @@ dependencies = [
  "mcrs_minecraft_render_light_color",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
@@ -3855,6 +3856,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_light",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_testing",
  "proptest",
@@ -3879,6 +3881,7 @@ dependencies = [
  "bevy_math",
  "bytemuck",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_volume",
 ]
 
 [[package]]

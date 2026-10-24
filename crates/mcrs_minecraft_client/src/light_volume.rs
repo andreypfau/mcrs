@@ -5,7 +5,6 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::block_light::block_light_registry;
@@ -21,11 +20,7 @@ use mcrs_minecraft_render_light_color::{
 };
 
 use crate::Unsettled;
-use crate::columns::{
-    AIR, BlockSource, ClientTerrainSet, Column, ColumnChange, ColumnStore, Extent, SECTION_VOLUME,
-};
-
-static AIR_SECTION: [u16; SECTION_VOLUME] = [AIR; SECTION_VOLUME];
+use crate::columns::{ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent};
 
 pub struct LightVolumePlugin {
     /// Columns around the camera whose block light is coloured; 0 is off.
@@ -153,7 +148,7 @@ fn emitter_rows(column: &Column, registry: &LightRegistry) -> Vec<i32> {
             section?
                 .states
                 .iter()
-                .any(|&state| !registry.emission(VoxelId(state)).is_zero())
+                .any(|&state| !registry.emission(state.into()).is_zero())
                 .then_some(y)
         })
         .collect()
@@ -198,20 +193,6 @@ fn dirtied_by(at: ColumnPos, extent: Extent) -> impl Iterator<Item = IVec3> {
     rows.flat_map(move |y| {
         (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| IVec3::new(at.x + dx, y, at.z + dz)))
     })
-}
-
-/// A loaded column's empty section is air; only a missing column is unloaded.
-fn cells<'a, S: BlockSource>(
-    source: &'a S,
-) -> impl Fn(SectionPos) -> Option<&'a [u16; SECTION_VOLUME]> + 'a {
-    move |at| {
-        let column = source.column(at.x, at.z)?;
-        Some(
-            column
-                .section(at.y)
-                .map_or(&AIR_SECTION, |section| &*section.blocks),
-        )
-    }
 }
 
 impl LightVolumeFeed {
@@ -440,13 +421,7 @@ impl LightVolumeFeed {
             let (registry, colours) = (registry.clone(), colours.clone());
             let task = pool.spawn(async move {
                 let at = SectionPos(section);
-                pack(&section_bricks(
-                    at,
-                    bounds,
-                    &registry,
-                    &colours,
-                    cells(&world),
-                ))
+                pack(&section_bricks(at, bounds, &registry, &colours, &world))
             });
             self.building.insert(section, task);
         }
@@ -560,8 +535,9 @@ fn report_unsettled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{Dimension, Section};
+    use crate::columns::{AIR, Dimension, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::PalettedContainer;
+    use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_light_color::colors::LightType;
     use std::time::Duration;
 
@@ -664,23 +640,35 @@ mod tests {
 
     #[test]
     fn an_empty_section_of_a_loaded_column_is_air_and_a_missing_column_is_unloaded() {
+        use mcrs_minecraft_volume::{BlockVolume, SectionBlocks, Unavailable};
+
+        fn check(source: &impl BlockVolume, stone: BlockStateId) {
+            let air = source
+                .section(SectionPos::new(2, 0, -1))
+                .expect("a loaded column");
+            assert_eq!(air.uniform(), Some(AIR));
+            let blocks = source
+                .section(SectionPos::new(2, 1, -1))
+                .expect("a loaded column");
+            assert_eq!(blocks.uniform(), Some(stone));
+            assert_eq!(
+                source.section(SectionPos::new(3, 0, -1)).err(),
+                Some(Unavailable::Unloaded)
+            );
+        }
+
+        let stone_state = BlockStateId::checked(1, 2).expect("a state past air");
         let mut store = ColumnStore::default();
         store.enter(EXTENT);
         let stone = Section {
-            blocks: Box::new([1; SECTION_VOLUME]),
+            blocks: Box::new([stone_state; SECTION_VOLUME]),
             biomes: PalettedContainer::Homogeneous(0),
-            states: vec![1],
+            states: vec![stone_state],
         };
         let at = ColumnPos::new(2, -1);
         store.insert(at, Column::unlit(0, vec![None, Some(stone), None, None]));
-        let world = store.around(at);
-        for source in [&cells(&store) as &dyn Fn(SectionPos) -> _, &cells(&world)] {
-            let air = source(SectionPos::new(2, 0, -1)).expect("a loaded column");
-            assert!(air.iter().all(|&block| block == AIR));
-            let blocks = source(SectionPos::new(2, 1, -1)).expect("a loaded column");
-            assert!(blocks.iter().all(|&block| block == 1));
-            assert!(source(SectionPos::new(3, 0, -1)).is_none());
-        }
+        check(&store, stone_state);
+        check(&store.around(at), stone_state);
     }
 
     #[test]
@@ -765,14 +753,12 @@ mod tests {
         changes.write_batch(drained);
     }
 
-    fn glowstone() -> u16 {
-        crate::blocks::corpus()
-            .default_state("minecraft:glowstone")
-            .number()
+    fn glowstone() -> BlockStateId {
+        crate::blocks::corpus().default_state("minecraft:glowstone")
     }
 
     fn light_colours(rgb: [u8; 3]) -> LightColors {
-        let lamp = glowstone() as usize;
+        let lamp = glowstone().index();
         let mut types = vec![LightType::DEFAULT; lamp + 1];
         types[lamp] = LightType(1);
         LightColors::new(vec![rgb], types)

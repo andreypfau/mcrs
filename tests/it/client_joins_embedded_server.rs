@@ -1,6 +1,6 @@
 use bevy_app::{App, Update};
 use bevy_ecs::prelude::{Local, Res};
-use mcrs_minecraft_client::columns::{BlockSource, ColumnStore};
+use mcrs_minecraft_client::columns::{ColumnStore, Columns};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, CurrentDimension, JoinedGame, PendingTeleports,

@@ -24,19 +24,13 @@ use crate::pack::{
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
     QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
 };
+use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
 
 pub const SECTION_SIZE: usize = mcrs_minecraft_core::SectionPos::SIZE;
 pub const SECTION_VOLUME: usize = mcrs_minecraft_core::SectionPos::VOLUME;
-
-/// The two things a section's mesh reads of the world around it, by block.
-pub trait BlockView {
-    fn block(&self, x: i32, y: i32, z: i32) -> u16;
-
-    fn light(&self, x: i32, y: i32, z: i32) -> u8;
-}
 
 pub const STREAMS: usize = Pass::COUNT * 2;
 
@@ -236,8 +230,10 @@ impl Bounds {
     }
 }
 
+/// A section's mesh reads the blocks and light of the section and the blocks around it.
+/// A block the world cannot give is air.
 pub fn mesh_section(
-    world: &impl BlockView,
+    world: &(impl BlockVolume + LightVolume),
     catalog: &[BlockInfo],
     section: [i32; 3],
     slot: u32,
@@ -292,11 +288,14 @@ pub fn mesh_section(
 /// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSection {
-    let mut blocks = Box::new([0u16; SECTION_VOLUME]);
+    let mut blocks = Box::new([mcrs_minecraft_core::BlockStateId::AIR; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
-                blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] = pick(x, y, z);
+                // A test catalog row is any u16, so every one of them is a state.
+                let state = mcrs_minecraft_core::BlockStateId::checked(pick(x, y, z), 1 << 16);
+                blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] =
+                    state.unwrap_or(mcrs_minecraft_core::BlockStateId::AIR);
             }
         }
     }
@@ -306,27 +305,48 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSectio
 /// The section at the origin, alone in its column: the rows beside it in the
 /// column are dark, and everything past the column is open sky.
 #[cfg(test)]
-pub struct OneSection(Box<[u16; SECTION_VOLUME]>);
+pub struct OneSection(Box<[mcrs_minecraft_core::BlockStateId; SECTION_VOLUME]>);
 
 #[cfg(test)]
-impl BlockView for OneSection {
-    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
-        let pos = mcrs_minecraft_core::BlockPos::new(x, y, z);
-        let at = mcrs_minecraft_core::SectionPos::from(pos);
-        if at.x == 0 && at.y == 0 && at.z == 0 {
-            self.0[mcrs_minecraft_core::LocalPos::from(pos).index()]
-        } else {
-            0
-        }
+impl mcrs_minecraft_volume::Volume for OneSection {
+    fn bounds(&self) -> mcrs_minecraft_core::BoundingBox {
+        mcrs_minecraft_core::BoundingBox::of_section(mcrs_minecraft_core::SectionPos::new(0, 0, 0))
     }
 
-    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
-        let at = mcrs_minecraft_core::SectionPos::from(mcrs_minecraft_core::BlockPos::new(x, y, z));
-        if at.x != 0 || at.z != 0 || at.y > 1 {
+    fn access(&self, at: mcrs_minecraft_core::SectionPos) -> mcrs_minecraft_volume::Access {
+        if at == mcrs_minecraft_core::SectionPos::new(0, 0, 0) {
+            mcrs_minecraft_volume::Access::Read
+        } else {
+            mcrs_minecraft_volume::Access::Outside
+        }
+    }
+}
+
+#[cfg(test)]
+impl BlockVolume for OneSection {
+    type Section<'a> = mcrs_minecraft_volume::DenseSection<'a>;
+
+    fn section(
+        &self,
+        at: mcrs_minecraft_core::SectionPos,
+    ) -> Result<Self::Section<'_>, mcrs_minecraft_volume::Unavailable> {
+        mcrs_minecraft_volume::Volume::access(self, at).check_read()?;
+        Ok(mcrs_minecraft_volume::DenseSection(&self.0))
+    }
+}
+
+#[cfg(test)]
+impl LightVolume for OneSection {
+    fn light(
+        &self,
+        at: mcrs_minecraft_core::BlockPos,
+    ) -> Result<u8, mcrs_minecraft_volume::Unavailable> {
+        let at = mcrs_minecraft_core::SectionPos::from(at);
+        Ok(if at.x != 0 || at.z != 0 || at.y > 1 {
             0x0f
         } else {
             0
-        }
+        })
     }
 }
 
@@ -349,7 +369,7 @@ impl Batch {
 /// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
 pub fn mesh_world(
-    world: &impl BlockView,
+    world: &(impl BlockVolume + LightVolume),
     catalog: &[BlockInfo],
     sections: &[[i32; 3]],
     scratch: &mut Scratch,

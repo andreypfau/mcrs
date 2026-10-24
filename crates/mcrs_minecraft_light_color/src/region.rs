@@ -1,7 +1,8 @@
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
+use mcrs_minecraft_core::{BlockPos, Direction, LocalPos, SectionPos};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::level::LightBounds;
+use mcrs_minecraft_volume::{BlockVolume, SectionBlocks};
 
 use crate::colors::{LightColors, LightType};
 
@@ -33,31 +34,32 @@ pub struct Region {
 }
 
 impl Region {
-    pub fn new<'a>(
+    pub fn new(
         output_min: BlockPos,
         output_size: i32,
         bounds: LightBounds,
         registry: &LightRegistry,
-        cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+        blocks: &impl BlockVolume,
     ) -> Region {
         let min = BlockPos::new(
             output_min.x - REACH,
             output_min.y - REACH,
             output_min.z - REACH,
         );
-        Region::covering(min, output_size + 2 * REACH, bounds, registry, cells)
+        Region::covering(min, output_size + 2 * REACH, bounds, registry, blocks)
     }
 
     #[expect(
         clippy::excessive_nesting,
         reason = "copies the cells of each overlapping section into the region across the three axes, so the index arithmetic of the source reads once"
     )]
-    pub fn covering<'a>(
+    /// A section `blocks` cannot give is unloaded inside `bounds`.
+    pub fn covering(
         min: BlockPos,
         size: i32,
         bounds: LightBounds,
         registry: &LightRegistry,
-        cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+        blocks: &impl BlockVolume,
     ) -> Region {
         let max = BlockPos::new(min.x + size - 1, min.y + size - 1, min.z + size - 1);
         let mut region = Region {
@@ -75,17 +77,17 @@ impl Region {
                     let source = if sy < bounds.min_section_y || sy > bounds.max_section_y {
                         Err(registry.outside())
                     } else {
-                        cells(section).ok_or(registry.unloaded())
+                        blocks.section(section).map_err(|_| registry.unloaded())
                     };
                     let base = BlockPos::new(sx * width, sy * width, sz * width);
                     for y in base.y.max(min.y)..(base.y + width).min(max.y + 1) {
                         for z in base.z.max(min.z)..(base.z + width).min(max.z + 1) {
                             for x in base.x.max(min.x)..(base.x + width).min(max.x + 1) {
                                 let block = match source {
-                                    Ok(cells) => {
+                                    Ok(ref cells) => {
                                         let local =
                                             (x - base.x) | (z - base.z) << 4 | (y - base.y) << 8;
-                                        VoxelId(cells[local as usize])
+                                        cells.get(LocalPos::from_index(local as usize)).into()
                                     }
                                     Err(filler) => filler,
                                 };
@@ -216,15 +218,15 @@ pub struct SectionBricks {
     pub seeds: Box<[Seed]>,
 }
 
-pub fn section_bricks<'a>(
+pub fn section_bricks(
     section: SectionPos,
     bounds: LightBounds,
     registry: &LightRegistry,
     colours: &LightColors,
-    cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+    blocks: &impl BlockVolume,
 ) -> SectionBricks {
     let (min, size) = section_output(section);
-    let region = Region::covering(min, size, bounds, registry, cells);
+    let region = Region::covering(min, size, bounds, registry, blocks);
     let costs = EdgeCosts::new(&region, registry);
     let mut bricks = SectionBricks {
         entry: vec![0; SectionPos::VOLUME].into_boxed_slice(),

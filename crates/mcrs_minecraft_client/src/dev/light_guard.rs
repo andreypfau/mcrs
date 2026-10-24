@@ -10,13 +10,14 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Weak};
 
-use crate::columns::{BlockSource, Column, ColumnStore, Neighbourhood, SECTION_SIZE};
+use crate::columns::{Column, ColumnStore, Columns, Neighbourhood, SECTION_SIZE};
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::{BlockPos, BlockStateId};
+use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 use super::knobs::Guard;
 
@@ -215,6 +216,12 @@ fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[b
         };
     };
     let is_air = |state: u16| air.get(state as usize).copied().unwrap_or(false);
+    let block = |at: IVec3| {
+        world
+            .block(BlockPos::new(at.x, at.y, at.z))
+            .map_or(0, |state| state.number())
+    };
+    let sky = |at: IVec3| world.light(BlockPos::new(at.x, at.y, at.z)).unwrap_or(0x0f) & 0x0f;
     let bottom = extent.min_section_y * SECTION_SIZE as i32;
     let top = bottom + extent.sections as i32 * SECTION_SIZE as i32 - 1;
 
@@ -226,10 +233,10 @@ fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[b
                     y,
                     pos.z * SECTION_SIZE as i32 + local_z,
                 );
-                if !is_air(world.block(at.x, at.y, at.z)) {
+                if !is_air(block(at)) {
                     continue;
                 }
-                let sky = world.light(at.x, at.y, at.z) & 0x0f;
+                let here = sky(at);
                 for step in [
                     IVec3::X,
                     IVec3::NEG_X,
@@ -244,18 +251,18 @@ fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[b
                     if toward.y < bottom || toward.y > top {
                         continue;
                     }
-                    if !is_air(world.block(toward.x, toward.y, toward.z)) {
+                    if !is_air(block(toward)) {
                         continue;
                     }
-                    let neighbour_sky = world.light(toward.x, toward.y, toward.z) & 0x0f;
-                    if sky.abs_diff(neighbour_sky) > 1 {
+                    let neighbour_sky = sky(toward);
+                    if here.abs_diff(neighbour_sky) > 1 {
                         faults.push(Fault {
                             at,
-                            sky,
-                            state: world.block(at.x, at.y, at.z),
+                            sky: here,
+                            state: block(at),
                             toward,
                             neighbour_sky,
-                            neighbour_state: world.block(toward.x, toward.y, toward.z),
+                            neighbour_state: block(toward),
                         });
                         if faults.len() >= 64 {
                             return Report {

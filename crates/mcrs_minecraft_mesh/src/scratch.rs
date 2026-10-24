@@ -1,7 +1,9 @@
 use crate::ambient::{self, Neighbour, Sample};
 use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
-use crate::{BlockView, SECTION_SIZE, SECTION_VOLUME};
+use crate::{SECTION_SIZE, SECTION_VOLUME};
+use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_minecraft_volume::{BlockVolume, LightVolume, SectionBlocks};
 
 use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
 
@@ -85,7 +87,29 @@ impl Scratch {
         clippy::excessive_nesting,
         reason = "loads the section and its apron cell by cell, filling the light, fluid and cube column bits in the same pass so each cell is read once"
     )]
-    pub(super) fn load(&mut self, world: &impl BlockView, catalog: &[BlockInfo], base: [i32; 3]) {
+    pub(super) fn load<W>(&mut self, world: &W, catalog: &[BlockInfo], base: [i32; 3])
+    where
+        W: BlockVolume + LightVolume,
+    {
+        // The section and its apron fall in the 3³ sections around it, each looked up once.
+        let origin = SectionPos::from(BlockPos::new(base[0], base[1], base[2]));
+        let around: [_; 27] = std::array::from_fn(|i| {
+            let (dx, dy, dz) = (i as i32 % 3 - 1, i as i32 / 9 - 1, i as i32 / 3 % 3 - 1);
+            world
+                .section(SectionPos::new(origin.x + dx, origin.y + dy, origin.z + dz))
+                .ok()
+        });
+        let block = |pos: BlockPos| {
+            let at = SectionPos::from(pos);
+            let (dx, dy, dz) = (
+                at.x - origin.x + 1,
+                at.y - origin.y + 1,
+                at.z - origin.z + 1,
+            );
+            around[(dy * 9 + dz * 3 + dx) as usize]
+                .as_ref()
+                .map_or(0, |section| section.get(LocalPos::from(pos)).number())
+        };
         *self.cube_columns = [[0; COLUMNS]; 3];
         *self.occlude_columns = [[0; COLUMNS]; 3];
         *self.lowered_columns = [0; COLUMNS];
@@ -95,7 +119,8 @@ impl Scratch {
             for z in -1..=SECTION_SIZE as i32 {
                 for x in -1..=SECTION_SIZE as i32 {
                     let index = border_index(x, y, z);
-                    let state = world.block(base[0] + x, base[1] + y, base[2] + z);
+                    let pos = BlockPos::new(base[0] + x, base[1] + y, base[2] + z);
+                    let state = block(pos);
                     // A server whose block corpus differs from ours can name a state
                     // this catalog has no row for; it is drawn as air rather than
                     // taking the frame down.
@@ -108,7 +133,8 @@ impl Scratch {
                     self.states[index] = state;
                     self.occludes[index] = info.occludes;
                     self.neighbours[apron_index(x, y, z)] = info.neighbour;
-                    let light = world.light(base[0] + x, base[1] + y, base[2] + z);
+                    // Light a store cannot give is open sky, as outside every loaded column.
+                    let light = world.light(pos).unwrap_or(0x0f);
                     self.light[index] = light;
                     self.coords[index] = ambient::light_coords(info.emissive, info.emission, light);
                     let fluid = info.fluid.map_or(0, |fluid| {
@@ -152,7 +178,8 @@ impl Scratch {
                     if border(x) && border(y) && border(z) {
                         continue;
                     }
-                    let state = world.block(base[0] + x, base[1] + y, base[2] + z) as usize;
+                    let state =
+                        block(BlockPos::new(base[0] + x, base[1] + y, base[2] + z)) as usize;
                     self.neighbours[apron_index(x, y, z)] = catalog
                         .get(state)
                         .map_or(Neighbour::default(), |info| info.neighbour);

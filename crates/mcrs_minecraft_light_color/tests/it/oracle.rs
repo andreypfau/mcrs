@@ -8,12 +8,6 @@ use mcrs_minecraft_light_color::region::{Palette, Region, section_bricks, sectio
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use proptest::prelude::*;
 
-impl Neighbourhood {
-    fn cells<'a>(&'a self) -> impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]> + 'a {
-        |pos| self.section(pos)
-    }
-}
-
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
 
 fn resolve_one(levels: &[(LightType, u8)]) -> [u8; 4] {
@@ -82,7 +76,7 @@ fn every_brick_matches_the_region_edge_costs() {
     ];
     let (registry, colours) = (registry(), colours());
     for world in &worlds {
-        let found = brick_mismatch(CENTRE, world.bounds, &registry, &colours, world.cells());
+        let found = brick_mismatch(CENTRE, world.bounds, &registry, &colours, world);
         assert_eq!(found, None);
     }
 }
@@ -101,7 +95,7 @@ fn a_packed_brick_holds_the_section_bricks() {
     let mut emitting = 0;
     for world in &worlds {
         for section in neighbours(CENTRE) {
-            let bricks = section_bricks(section, world.bounds, &registry, &colours, world.cells());
+            let bricks = section_bricks(section, world.bounds, &registry, &colours, world);
             let packed = pack(&bricks);
             let mut boxes: BTreeMap<(LightType, u8), ([u8; 3], [u8; 3])> = BTreeMap::new();
             for (local, &word) in packed.words.iter().enumerate() {
@@ -162,7 +156,7 @@ mod exhaustive {
         #[test]
         fn every_brick_matches_the_region_edge_costs_on_random_regions(parts in world_parts()) {
             let world = random_world(CENTRE, parts);
-            let found = brick_mismatch(CENTRE, world.bounds, &registry(), &colours(), world.cells());
+            let found = brick_mismatch(CENTRE, world.bounds, &registry(), &colours(), &world);
             prop_assert_eq!(found, None);
         }
 
@@ -171,11 +165,11 @@ mod exhaustive {
             let world = random_world(CENTRE, parts);
             let (registry, colours) = (registry(), colours());
             let packed: HashMap<SectionPos, PackedBrick> = neighbours(CENTRE)
-                .map(|s| (s, pack(&section_bricks(s, world.bounds, &registry, &colours, world.cells()))))
+                .map(|s| (s, pack(&section_bricks(s, world.bounds, &registry, &colours, &world))))
                 .collect();
             let reach = reaching_types(CENTRE, |s| packed.get(&s).map(|b| b.emitters.as_slice()));
             let (min, size) = section_output(CENTRE);
-            let region = Region::new(min, size, world.bounds, &registry, world.cells());
+            let region = Region::new(min, size, world.bounds, &registry, &world);
             let present = Palette::of(&region, &registry, &colours).types;
             for t in &reach {
                 prop_assert!(present.contains(t), "type {} has no emitter in the region", t.0);

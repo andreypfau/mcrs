@@ -1,15 +1,13 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
-use crate::columns::{
-    BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
-};
+use crate::columns::{ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent, SECTION_SIZE};
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
 #[cfg(feature = "dev")]
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -302,7 +300,9 @@ impl Loader {
         !matches!(
             self.sections.state(at),
             Some(SectionState::Resident(_) | SectionState::Meshing { .. })
-        ) && store.section(at[0], at[1], at[2]).is_some()
+        ) && store
+            .stored_section(SectionPos::new(at[0], at[1], at[2]))
+            .is_some()
             && self.surrounded(ColumnPos::new(at[0], at[2]), store)
     }
 
@@ -538,7 +538,7 @@ impl Loader {
                         let Some(section) = section else { continue };
                         self.sections_total += 1;
                         for &state in &section.states {
-                            catalog.owe(state);
+                            catalog.owe(state.number());
                         }
                     }
                     if let Some(extent) = extent {
@@ -1930,9 +1930,15 @@ mod tests {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    blocks: Box::new(
+                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
+                            .expect("a state past air");
+                            crate::columns::SECTION_VOLUME],
+                    ),
                     biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![1],
+                    states: vec![
+                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                    ],
                 })],
             )
         };
@@ -1982,9 +1988,15 @@ mod tests {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    blocks: Box::new(
+                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
+                            .expect("a state past air");
+                            crate::columns::SECTION_VOLUME],
+                    ),
                     biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![1],
+                    states: vec![
+                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                    ],
                 })],
             )
         };
@@ -2055,9 +2067,15 @@ mod tests {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    blocks: Box::new(
+                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
+                            .expect("a state past air");
+                            crate::columns::SECTION_VOLUME],
+                    ),
                     biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![1],
+                    states: vec![
+                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                    ],
                 })],
             ),
         );

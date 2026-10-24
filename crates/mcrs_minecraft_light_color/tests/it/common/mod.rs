@@ -9,6 +9,7 @@ use mcrs_minecraft_light::prelude::*;
 use mcrs_minecraft_light::relax;
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_light_color::region::{EdgeCosts, Region, Seed, section_bricks, section_output};
+use mcrs_minecraft_volume::{Access, Volume, VoxelStore};
 use proptest::prelude::*;
 
 pub const AIR: VoxelId = VoxelId(0);
@@ -188,6 +189,38 @@ impl Neighbourhood {
     }
 }
 
+/// The sections the neighbourhood holds are readable; the rest are unloaded.
+impl Volume for Neighbourhood {
+    fn bounds(&self) -> BoundingBox {
+        BoundingBox::of_section(SectionPos::new(
+            self.centre.x - 1,
+            self.centre.y - 1,
+            self.centre.z - 1,
+        ))
+        .union(BoundingBox::of_section(SectionPos::new(
+            self.centre.x + 1,
+            self.centre.y + 1,
+            self.centre.z + 1,
+        )))
+    }
+
+    fn access(&self, at: SectionPos) -> Access {
+        match self.slot(at) {
+            None => Access::Outside,
+            Some(_) if self.section(at).is_some() => Access::Read,
+            Some(_) => Access::Unloaded,
+        }
+    }
+}
+
+impl VoxelStore for Neighbourhood {
+    fn voxel(&self, at: BlockPos) -> BlockStateId {
+        self.section(SectionPos::from(at))
+            .and_then(|cells| BlockStateId::checked(cells[LocalPos::from(at).index()], 1 << 16))
+            .unwrap_or(BlockStateId::AIR)
+    }
+}
+
 fn neighbours(centre: SectionPos) -> impl Iterator<Item = SectionPos> {
     (-1..=1).flat_map(move |dy| {
         (-1..=1).flat_map(move |dz| {
@@ -210,19 +243,19 @@ pub fn output_positions(centre: SectionPos) -> impl Iterator<Item = BlockPos> {
 /// edge costs or sources of the centre's region. Costs are compared where the
 /// cell and its six neighbours lie inside the region, sources wherever the
 /// cell does.
-pub fn brick_mismatch<'a>(
+pub fn brick_mismatch(
     centre: SectionPos,
     bounds: LightBounds,
     registry: &LightRegistry,
     colours: &LightColors,
-    cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+    blocks: &Neighbourhood,
 ) -> Option<String> {
     let (min, size) = section_output(centre);
-    let region = Region::new(min, size, bounds, registry, &cells);
+    let region = Region::new(min, size, bounds, registry, blocks);
     let costs = EdgeCosts::new(&region, registry);
     let width = SectionPos::SIZE as i32;
     neighbours(centre).find_map(|section| {
-        let bricks = section_bricks(section, bounds, registry, colours, &cells);
+        let bricks = section_bricks(section, bounds, registry, colours, blocks);
         LocalPos::all().find_map(|local| {
             let at = [
                 section.x * width + local.x() as i32 - region.min.x,
