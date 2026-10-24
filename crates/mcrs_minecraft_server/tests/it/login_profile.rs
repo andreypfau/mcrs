@@ -389,6 +389,24 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
 }
 
 #[test]
+fn a_client_silent_after_the_handshake_is_disconnected_after_six_hundred_ticks() {
+    let mut app = server(None);
+    let mut client = connect(&mut app);
+
+    for _ in 0..600 {
+        app.update();
+    }
+    assert!(connected(&app, &client));
+
+    app.update();
+    assert!(!connected(&app, &client));
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.slow_login"})
+    );
+}
+
+#[test]
 fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
     let mut app = server(None);
     let (dim, to_dim, _from_dim) = dimension(&mut app);
