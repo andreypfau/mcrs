@@ -16,17 +16,15 @@ const AFFECTED_MARGIN: i32 = 24;
 
 pub static KERNEL: LazyLock<[f32; KERNEL_LEN]> = LazyLock::new(|| {
     let mut kernel = [0.0f32; KERNEL_LEN];
-    for zi in 0..KERNEL_SIZE {
-        for xi in 0..KERNEL_SIZE {
-            for yi in 0..KERNEL_SIZE {
-                let dx = (xi - KERNEL_RADIUS) as f64;
-                let dy = (yi - KERNEL_RADIUS) as f64 + 0.5;
-                let dz = (zi - KERNEL_RADIUS) as f64;
-                let distance_sq = dx * dx + dy * dy + dz * dz;
-                kernel[kernel_index(xi, yi, zi)] =
-                    std::f64::consts::E.powf(-distance_sq / 16.0) as f32;
-            }
-        }
+    for (index, weight) in (0..).zip(kernel.iter_mut()) {
+        let yi = index % KERNEL_SIZE;
+        let xi = index / KERNEL_SIZE % KERNEL_SIZE;
+        let zi = index / (KERNEL_SIZE * KERNEL_SIZE);
+        let dx = (xi - KERNEL_RADIUS) as f64;
+        let dy = (yi - KERNEL_RADIUS) as f64 + 0.5;
+        let dz = (zi - KERNEL_RADIUS) as f64;
+        let distance_sq = dx * dx + dy * dy + dz * dz;
+        *weight = std::f64::consts::E.powf(-distance_sq / 16.0) as f32;
     }
     kernel
 });
@@ -174,8 +172,9 @@ impl Beard {
             for x in lo_x..=hi_x {
                 let block_x = grid.block_x(x);
                 for y in lo_y..=hi_y {
-                    out[grid.index_unchecked(x, y, z)] +=
-                        self.sample_unchecked(kernel, block_x, grid.block_y(y), block_z);
+                    if let Some(cell) = out.get_mut(grid.index_unchecked(x, y, z)) {
+                        *cell += self.sample_unchecked(kernel, block_x, grid.block_y(y), block_z);
+                    }
                 }
             }
         }
@@ -242,7 +241,9 @@ fn beard_contribution(
     let (dx, dz) = (dx as f32, dz as f32);
     let distance_sq = dx * dx + dy_offset * dy_offset + dz * dz;
     let value = -dy_offset * fast_inv_sqrt((distance_sq / 2.0) as f64) as f32 / 2.0;
-    value * kernel[kernel_index(xi, yi, zi)]
+    kernel
+        .get(kernel_index(xi, yi, zi))
+        .map_or(0.0, |weight| value * weight)
 }
 
 /// Where `minecraft:beardifier` sits in a `final_density` graph. The fill adds
