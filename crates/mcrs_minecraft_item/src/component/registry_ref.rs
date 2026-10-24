@@ -702,8 +702,11 @@ impl Decode<'_> for Enchantments<Wire> {
                 (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
                 "Enchantment {enchantment:?} has invalid level {level}"
             );
-            if let Some(&index) = at.get(&enchantment) {
-                entries[index].1 = level;
+            if let Some(entry) = at
+                .get(&enchantment)
+                .and_then(|&index| entries.get_mut(index))
+            {
+                entry.1 = level;
             } else {
                 at.insert(enchantment, entries.len());
                 entries.push((enchantment, level));

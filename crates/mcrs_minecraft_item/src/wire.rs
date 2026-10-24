@@ -29,11 +29,14 @@ macro_rules! ordinal_enum_wire {
         impl mcrs_minecraft_wire::Decode<'_> for $ty {
             fn decode(r: &mut &[u8]) -> mcrs_minecraft_wire::Result<Self> {
                 let id = mcrs_minecraft_wire::VarInt::decode(r)?.0;
-                Ok(usize::try_from(id)
+                usize::try_from(id)
                     .ok()
                     .and_then(|id| Self::ALL.get(id))
+                    .or(Self::ALL.first())
                     .copied()
-                    .unwrap_or(Self::ALL[0]))
+                    .ok_or_else(|| {
+                        mcrs_minecraft_wire::Error::invalid(concat!(stringify!($ty), " has no variants"))
+                    })
             }
         }
     )*};

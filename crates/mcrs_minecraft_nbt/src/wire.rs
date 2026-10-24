@@ -8,6 +8,15 @@ use crate::deserializer::NbtReadHelper;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
 
+/// The input past what a cursor over it read, or an error when the read ran
+/// past the end of it.
+fn rest_after(r: &[u8], position: u64) -> Result<&[u8]> {
+    usize::try_from(position)
+        .ok()
+        .and_then(|position| r.get(position..))
+        .ok_or_else(|| ErrorKind::UnexpectedEnd.into())
+}
+
 impl Encode for NbtCompound {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         let mut writer = WriteAdaptor::new(&mut w);
@@ -22,7 +31,7 @@ impl Decode<'_> for NbtCompound {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let mut cursor = Cursor::new(*r);
         let nbt = Nbt::read_unnamed(&mut NbtReadHelper::new(&mut cursor)).map_err(Error::other)?;
-        *r = &r[cursor.position() as usize..];
+        *r = rest_after(r, cursor.position())?;
         Ok(nbt.root_tag)
     }
 }
@@ -39,7 +48,7 @@ impl Decode<'_> for NbtTag {
         let mut cursor = Cursor::new(*r);
         let tag =
             NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor)).map_err(Error::other)?;
-        *r = &r[cursor.position() as usize..];
+        *r = rest_after(r, cursor.position())?;
         Ok(tag)
     }
 }
@@ -67,7 +76,7 @@ pub fn read_wire<T>(
     let mut cursor = Cursor::new(*r);
     let mut d = crate::deserializer::Deserializer::new(&mut cursor, false);
     let value = read(&mut d)?;
-    *r = &r[cursor.position() as usize..];
+    *r = rest_after(r, cursor.position())?;
     Ok(value)
 }
 

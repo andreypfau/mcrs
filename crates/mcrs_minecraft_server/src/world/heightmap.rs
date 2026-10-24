@@ -226,7 +226,7 @@ fn block_at(
     match palettes.get(section) {
         Ok(blocks) => blocks
             .get_cell(x, y.rem_euclid(SectionPos::SIZE as i32) as usize, z)
-            .into(),
+            .map_or_else(VoxelId::default, Into::into),
         Err(_) => VoxelId::default(),
     }
 }

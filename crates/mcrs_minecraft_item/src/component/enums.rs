@@ -232,7 +232,12 @@ macro_rules! continuous_enum_wire {
             fn decode(r: &mut &[u8]) -> Result<Self> {
                 let id = VarInt::decode(r)?.0;
                 let len = Self::ALL.len() as i32;
-                Ok(Self::ALL[continuous_enum_wire!(@$strategy id, len) as usize])
+                Self::ALL
+                    .get(continuous_enum_wire!(@$strategy id, len) as usize)
+                    .copied()
+                    .ok_or_else(|| {
+                        mcrs_minecraft_wire::Error::invalid(concat!(stringify!($name), " has no variants"))
+                    })
             }
         }
     )*};
@@ -260,11 +265,14 @@ macro_rules! sparse_enum_wire {
         impl Decode<'_> for $name {
             fn decode(r: &mut &[u8]) -> Result<Self> {
                 let id = VarInt::decode(r)?.0;
-                Ok(Self::ALL
+                Self::ALL
                     .iter()
-                    .copied()
                     .find(|variant| variant.id() == id)
-                    .unwrap_or(Self::ALL[0]))
+                    .or(Self::ALL.first())
+                    .copied()
+                    .ok_or_else(|| {
+                        mcrs_minecraft_wire::Error::invalid(concat!(stringify!($name), " has no variants"))
+                    })
             }
         }
     )*};
