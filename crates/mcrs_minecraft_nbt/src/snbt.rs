@@ -41,12 +41,12 @@ pub fn write_compound(compound: &NbtCompound) -> String {
 fn write_tag(tag: &NbtTag, out: &mut String) {
     match tag {
         NbtTag::End => out.push_str("END"),
-        NbtTag::Byte(v) => write!(out, "{v}b").unwrap(),
-        NbtTag::Short(v) => write!(out, "{v}s").unwrap(),
-        NbtTag::Int(v) => write!(out, "{v}").unwrap(),
-        NbtTag::Long(v) => write!(out, "{v}L").unwrap(),
-        NbtTag::Float(v) => write!(out, "{}f", java_float(*v)).unwrap(),
-        NbtTag::Double(v) => write!(out, "{}d", java_double(*v)).unwrap(),
+        NbtTag::Byte(v) => _ = write!(out, "{v}b"),
+        NbtTag::Short(v) => _ = write!(out, "{v}s"),
+        NbtTag::Int(v) => _ = write!(out, "{v}"),
+        NbtTag::Long(v) => _ = write!(out, "{v}L"),
+        NbtTag::Float(v) => _ = write!(out, "{}f", java_float(*v)),
+        NbtTag::Double(v) => _ = write!(out, "{}d", java_double(*v)),
         NbtTag::String(v) => quote_and_escape(v, out),
         NbtTag::ByteArray(v) => {
             out.push_str("[B;");
@@ -54,7 +54,7 @@ fn write_tag(tag: &NbtTag, out: &mut String) {
                 if i > 0 {
                     out.push(',');
                 }
-                write!(out, "{}B", *b as i8).unwrap();
+                _ = write!(out, "{}B", *b as i8);
             }
             out.push(']');
         }
@@ -64,7 +64,7 @@ fn write_tag(tag: &NbtTag, out: &mut String) {
                 if i > 0 {
                     out.push(',');
                 }
-                write!(out, "{n}").unwrap();
+                _ = write!(out, "{n}");
             }
             out.push(']');
         }
@@ -74,7 +74,7 @@ fn write_tag(tag: &NbtTag, out: &mut String) {
                 if i > 0 {
                     out.push(',');
                 }
-                write!(out, "{n}L").unwrap();
+                _ = write!(out, "{n}L");
             }
             out.push(']');
         }
@@ -139,7 +139,7 @@ fn quote_and_escape(input: &str, out: &mut String) {
             '\n' => out.push_str("\\n"),
             '\u{c}' => out.push_str("\\f"),
             '\r' => out.push_str("\\r"),
-            c if c < ' ' => write!(out, "\\x{:02X}", c as u32).unwrap(),
+            c if c < ' ' => _ = write!(out, "\\x{:02X}", c as u32),
             _ => out.push(c),
         }
     }
@@ -178,12 +178,12 @@ fn java_number(
         return if v > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
     }
     let split = |text: &str| -> (String, i32) {
-        let (mantissa, exponent) = text.split_once('e').unwrap();
+        let (mantissa, exponent) = text.split_once('e').unwrap_or((text, "0"));
         let mut digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
         while digits.len() > 1 && digits.ends_with('0') {
             digits.pop();
         }
-        (digits, exponent.parse().unwrap())
+        (digits, exponent.parse().unwrap_or(0))
     };
     let (mut digits, mut exponent) = split(&shortest);
     if digits.len() == 1 && two_digits_round_trip {
@@ -221,7 +221,7 @@ fn java_number(
         } else {
             out.push('0');
         }
-        write!(out, "E{exponent}").unwrap();
+        _ = write!(out, "E{exponent}");
     }
     out
 }
@@ -621,7 +621,9 @@ impl<'a> Parser<'a> {
 
     fn quoted_string(&mut self) -> Result<String> {
         self.skip_ws();
-        let quote = self.bump().unwrap();
+        let Some(quote) = self.bump() else {
+            return self.err("expected a string");
+        };
         let mut out = String::new();
         loop {
             let Some(c) = self.bump() else {

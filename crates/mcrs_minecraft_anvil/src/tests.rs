@@ -105,6 +105,7 @@ fn compress(version: u8, nbt: &[u8]) -> Vec<u8> {
 fn nbt_bytes(compound: &NbtCompound) -> Vec<u8> {
     mcrs_minecraft_nbt::Nbt::new(String::new(), compound.clone())
         .write()
+        .unwrap()
         .to_vec()
 }
 

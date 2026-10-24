@@ -108,7 +108,7 @@ impl<R: Read + Seek> NbtReadHelper<R> {
             let filled = buf.len();
             buf.resize(count.min(filled + READ_STEP), 0);
             self.reader
-                .read_exact(&mut buf[filled..])
+                .read_exact(buf.get_mut(filled..).unwrap_or_default())
                 .map_err(Error::Incomplete)?;
         }
         Ok(())
@@ -166,9 +166,10 @@ impl<R: Read + Seek> Deserializer<R> {
 
     /// A named (file) root must be a compound; a network root may be any tag
     /// but TAG_End.
-    fn read_root(&mut self) -> Result<()> {
-        if self.tag_to_deserialize_stack.is_some() {
-            return Ok(());
+    /// The id of the tag to deserialize next, read off the input the first time.
+    fn read_root(&mut self) -> Result<u8> {
+        if let Some(tag) = self.tag_to_deserialize_stack {
+            return Ok(tag);
         }
         let tag = self.input.get_u8_be()?;
         if tag == END_ID {
@@ -182,7 +183,7 @@ impl<R: Read + Seek> Deserializer<R> {
             self.input.skip_bytes(length)?;
         }
         self.tag_to_deserialize_stack = Some(tag);
-        Ok(())
+        Ok(tag)
     }
 }
 
@@ -214,8 +215,7 @@ macro_rules! define_in_list_number {
                 let value = self.input.$read()?;
                 return visitor.$visit::<Error>(value);
             }
-            self.read_root()?;
-            let tag = self.tag_to_deserialize_stack.unwrap();
+            let tag = self.read_root()?;
             match tag {
                 BYTE_ID | SHORT_ID | INT_ID | LONG_ID | FLOAT_ID | DOUBLE_ID => {
                     NbtTag::deserialize_data(&mut self.input, tag)?.$name(visitor)
@@ -288,15 +288,13 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     define_in_list_number!(deserialize_f64, DOUBLE_ID, get_f64_be, visit_f64);
 
     fn deserialize_ignored_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let tag = self.tag_to_deserialize_stack.unwrap();
+        let tag = self.read_root()?;
         NbtTag::skip_data(&mut self.input, tag)?;
         visitor.visit_unit()
     }
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let tag_to_deserialize = self.tag_to_deserialize_stack.unwrap();
+        let tag_to_deserialize = self.read_root()?;
 
         match tag_to_deserialize {
             END_ID => Err(Error::SerdeError(
@@ -340,7 +338,12 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                     NbtTag::Long(value) => visitor.visit_i64::<Error>(value)?,
                     NbtTag::Float(value) => visitor.visit_f32::<Error>(value)?,
                     NbtTag::Double(value) => visitor.visit_f64::<Error>(value)?,
-                    _ => unreachable!(),
+                    other => {
+                        return Err(Error::SerdeError(format!(
+                            "tag {} is not a number",
+                            other.get_type_id()
+                        )));
+                    }
                 };
                 Ok(result)
             }
@@ -377,8 +380,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
 
     /// `NbtOps.getBooleanValue`: any numeric tag, true when non-zero.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let tag = self.tag_to_deserialize_stack.unwrap();
+        let tag = self.read_root()?;
         NbtTag::deserialize_data(&mut self.input, tag)?.deserialize_bool(visitor)
     }
 
@@ -402,8 +404,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let tag_id = self.tag_to_deserialize_stack.unwrap();
+        let tag_id = self.read_root()?;
         if tag_id != COMPOUND_ID {
             return Err(Error::SerdeError(format!(
                 "Trying to deserialize a map without a compound ID (id {tag_id})"

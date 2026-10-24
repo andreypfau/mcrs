@@ -450,9 +450,10 @@ impl Template {
 
         let mut entities = Vec::with_capacity(self.entities.len());
         for (index, entity) in self.entities.iter().enumerate() {
-            let bytes = Nbt::new(String::new(), entity.nbt.clone()).write_unnamed();
-            let tag: EntityTag =
-                from_bytes_unnamed(Cursor::new(bytes)).map_err(|error| TemplateError::Entity {
+            let tag: EntityTag = Nbt::new(String::new(), entity.nbt.clone())
+                .write_unnamed()
+                .and_then(|bytes| from_bytes_unnamed(Cursor::new(bytes)))
+                .map_err(|error| TemplateError::Entity {
                     id: err_id(),
                     index,
                     what: error.to_string(),

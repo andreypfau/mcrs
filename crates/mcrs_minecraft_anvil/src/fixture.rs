@@ -69,6 +69,7 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
 
     mcrs_minecraft_nbt::Nbt::new(String::new(), root)
         .write()
+        .expect("a generated fixture fits the NBT length limits")
         .to_vec()
 }
 

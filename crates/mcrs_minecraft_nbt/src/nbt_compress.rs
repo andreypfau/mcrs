@@ -15,7 +15,7 @@ pub fn read_gzip_compound_tag(input: impl Read + Seek) -> Result<NbtCompound, Er
 pub fn write_gzip_compound_tag_to_bytes(compound: &NbtCompound) -> Result<Vec<u8>, Error> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder
-        .write_all(&Nbt::new(String::new(), compound.clone()).write())
+        .write_all(&Nbt::new(String::new(), compound.clone()).write()?)
         .map_err(Error::Incomplete)?;
     encoder.finish().map_err(Error::Incomplete)
 }

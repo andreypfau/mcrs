@@ -235,7 +235,10 @@ impl NbtTag {
                 for _ in 0..len {
                     list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
                         NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
-                            compound.child_tags.pop().unwrap().1
+                            match compound.child_tags.pop() {
+                                Some((_, tag)) => tag,
+                                None => NbtTag::Compound(compound),
+                            }
                         }
                         tag => tag,
                     });

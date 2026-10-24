@@ -1,9 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    clippy::unreachable,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #![cfg_attr(
     test,
     expect(clippy::disallowed_macros, reason = "test input is written as JSON")
@@ -167,27 +161,25 @@ impl Nbt {
         })
     }
 
-    pub fn write(&self) -> Bytes {
+    pub fn write(&self) -> Result<Bytes, Error> {
         let mut bytes = Vec::new();
         let mut writer = WriteAdaptor::new(&mut bytes);
-        writer.write_u8_be(COMPOUND_ID).unwrap();
-        NbtTag::String(self.name.to_string())
-            .serialize_data(&mut writer)
-            .unwrap();
-        self.root_tag.serialize_content(&mut writer).unwrap();
+        writer.write_u8_be(COMPOUND_ID)?;
+        NbtTag::String(self.name.to_string()).serialize_data(&mut writer)?;
+        self.root_tag.serialize_content(&mut writer)?;
 
-        bytes.into()
+        Ok(bytes.into())
     }
 
     /// Writes an NBT tag without a root `Compound` name.
-    pub fn write_unnamed(&self) -> Bytes {
+    pub fn write_unnamed(&self) -> Result<Bytes, Error> {
         let mut bytes = Vec::new();
         let mut writer = WriteAdaptor::new(&mut bytes);
 
-        writer.write_u8_be(COMPOUND_ID).unwrap();
-        self.root_tag.serialize_content(&mut writer).unwrap();
+        writer.write_u8_be(COMPOUND_ID)?;
+        self.root_tag.serialize_content(&mut writer)?;
 
-        bytes.into()
+        Ok(bytes.into())
     }
 }
 
@@ -395,7 +387,7 @@ mod test {
             palette: Vec<Entry>,
         }
 
-        let bytes = Nbt::new(String::new(), root).write().to_vec();
+        let bytes = Nbt::new(String::new(), root).write().unwrap().to_vec();
         let read: Palette = from_bytes(Cursor::new(bytes)).unwrap();
         assert_eq!(
             read.palette,
@@ -783,7 +775,7 @@ mod test {
         root.put_int("long", -9);
         root.put_double("float", 0.5);
         root.put_float("double", 0.25);
-        let bytes = Nbt::new(String::new(), root.clone()).write();
+        let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
 
         let streamed: Fields = from_bytes(Cursor::new(bytes)).unwrap();
         let in_memory: Fields = crate::from_tag(tag::NbtTag::Compound(root)).unwrap();
@@ -813,7 +805,7 @@ mod test {
 
         let mut root = compound::NbtCompound::new();
         root.put_string("value", "4".to_string());
-        let bytes = Nbt::new(String::new(), root).write();
+        let bytes = Nbt::new(String::new(), root).write().unwrap();
         assert!(from_bytes::<Fields>(Cursor::new(bytes)).is_err());
     }
 
@@ -830,7 +822,7 @@ mod test {
         let mut root = compound::NbtCompound::new();
         root.put("longs", tag::NbtTag::LongArray(longs.clone()));
         root.put("ints", tag::NbtTag::IntArray(ints.clone()));
-        let bytes = Nbt::new(String::new(), root).write();
+        let bytes = Nbt::new(String::new(), root).write().unwrap();
 
         let read: Fields = from_bytes(Cursor::new(bytes)).unwrap();
         assert_eq!(read, Fields { longs, ints });
@@ -848,7 +840,7 @@ mod test {
     #[test]
     fn a_compound_keeps_its_array_tags_through_serde() {
         let root = compound_with_arrays();
-        let bytes = Nbt::new(String::new(), root.clone()).write();
+        let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
 
         let read: compound::NbtCompound = from_bytes(Cursor::new(bytes.clone())).unwrap();
         assert_eq!(read, root);
@@ -883,7 +875,7 @@ mod test {
                 tag::NbtTag::LongArray(vec![7, 8]),
             ],
         );
-        let bytes = Nbt::new(String::new(), root.clone()).write();
+        let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
 
         let mut written = Vec::new();
         to_bytes(&root, &mut written).unwrap();

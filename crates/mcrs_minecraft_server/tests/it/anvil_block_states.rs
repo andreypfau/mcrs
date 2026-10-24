@@ -105,6 +105,7 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     root.put_list("sections", sections);
     let bytes = mcrs_minecraft_nbt::Nbt::new(String::new(), root)
         .write()
+        .unwrap()
         .to_vec();
     parse_chunk(
         &bytes,

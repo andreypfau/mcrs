@@ -101,7 +101,7 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
             .map(NbtTag::Compound)
             .collect::<Vec<_>>(),
     );
-    let bytes = Nbt::new(String::new(), root).write();
+    let bytes = Nbt::new(String::new(), root).write().unwrap();
     parse_chunk(&bytes, &NoPalette, &NoPalette).expect("the saved column parses")
 }
 

@@ -49,7 +49,7 @@ fn holding(value: NbtTag) -> NbtCompound {
 /// What the value reads as from a file and from a tag held in memory.
 fn seen(value: NbtTag) -> [Seen; 2] {
     let root = holding(value);
-    let bytes = Nbt::new(String::new(), root.clone()).write();
+    let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
     let stored: Holder = from_bytes(Cursor::new(&bytes[..])).unwrap();
     let held: Holder = from_tag(NbtTag::Compound(root)).unwrap();
     assert_eq!((stored.after, held.after), (7, 7));
@@ -108,7 +108,7 @@ fn an_unsigned_byte_is_read_from_bytes_and_from_nothing_wider() {
     }
 
     let read = |value| {
-        let bytes = Nbt::new(String::new(), holding(value)).write();
+        let bytes = Nbt::new(String::new(), holding(value)).write().unwrap();
         from_bytes::<Unsigned>(Cursor::new(&bytes[..]))
     };
 
@@ -182,7 +182,7 @@ fn status_or_none<'de, D: serde::Deserializer<'de>>(
 /// value or the text of its error.
 fn both<T: DeserializeOwned>(value: NbtTag) -> [Result<T, String>; 2] {
     let root = holding(value);
-    let bytes = Nbt::new(String::new(), root.clone()).write();
+    let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
     [
         from_bytes(Cursor::new(&bytes[..])).map_err(|error| error.to_string()),
         from_tag(NbtTag::Compound(root)).map_err(|error| error.to_string()),
