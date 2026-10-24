@@ -22,6 +22,7 @@ mod blocks;
 mod corpus;
 mod definitions;
 mod fixtures;
+mod game_rules;
 mod gradle;
 mod keys;
 mod names;
@@ -289,7 +290,7 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
     };
     let registries = registries::read(&stored.join("registries.json"))?;
     let above = keys::above_catalog(root, owners::OWNERS)?;
-    keys::generate(
+    let mut files = keys::generate(
         &registries,
         &datapack_report(&stored)?,
         names,
@@ -299,7 +300,15 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
             .iter()
             .map(|krate| (*krate).to_owned())
             .collect(),
-    )
+    )?;
+    let path = root.join(game_rules::DEFINITIONS);
+    let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+    let rules = files
+        .get_mut(game_rules::ENUM_FILE)
+        .ok_or_else(|| format!("{}: not generated", game_rules::ENUM_FILE))?;
+    rules.push_str(&game_rules::definition_impl(&json)?);
+    *rules = keys::rustfmt(game_rules::ENUM_FILE, rules)?;
+    Ok(files)
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {

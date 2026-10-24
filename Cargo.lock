@@ -3787,8 +3787,6 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
- "serde",
- "serde_json",
 ]
 
 [[package]]

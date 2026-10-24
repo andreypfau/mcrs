@@ -261,7 +261,7 @@ pub fn generate(
 /// rustfmt checks a file given by path without its parent module, so a
 /// `#[rustfmt::skip]` there cannot shield a generated source: it is written
 /// formatted.
-fn rustfmt(path: &str, text: &str) -> Result<String, String> {
+pub fn rustfmt(path: &str, text: &str) -> Result<String, String> {
     let mut child = Command::new("rustfmt")
         .args(["--edition", "2024", "--emit", "stdout"])
         .stdin(Stdio::piped())
@@ -406,7 +406,7 @@ fn location(context: &str, name: &str) -> Result<ResourceLocation<std::sync::Arc
     Ok(location)
 }
 
-fn constant(registry: &str, name: &str) -> Result<String, String> {
+pub fn constant(registry: &str, name: &str) -> Result<String, String> {
     let location = location(registry, name)?;
     let (namespace, path) = (location.namespace(), location.path());
     let Some((_, prefix)) = PREFIXES.iter().find(|(known, _)| *known == namespace) else {
@@ -542,7 +542,7 @@ fn enum_module(
     Ok(out)
 }
 
-fn variant(constant: &str) -> String {
+pub fn variant(constant: &str) -> String {
     constant
         .split('_')
         .map(|word| {

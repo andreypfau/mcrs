@@ -55,6 +55,7 @@ pub(crate) fn regenerates(paths: &[String]) -> bool {
     paths.iter().any(|path| {
         is_marked(path)
             || path.starts_with("assets/mcrs/reports/")
+            || path == "assets/mcrs/registry_definition/game_rule.json"
             || path.starts_with("tools/mcrs_minecraft_update/")
             || path == "Cargo.lock"
             || path == "Cargo.toml"

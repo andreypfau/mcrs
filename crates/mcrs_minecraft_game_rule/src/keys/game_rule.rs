@@ -62,3 +62,360 @@ mcrs_minecraft_registries::static_registry! {
     UniversalAnger = "minecraft:universal_anger",
     WaterSourceConversion = "minecraft:water_source_conversion",
 }
+
+use crate::{GameRuleCategory, GameRuleDefinition, GameRuleValueType};
+use mcrs_minecraft_core::rl;
+
+impl GameRule {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per game rule the game ships"
+    )]
+    pub const fn definition(self) -> &'static GameRuleDefinition {
+        match self {
+            Self::AdvanceTime => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::AdvanceWeather => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::AllowEnteringNetherUsingPortals => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::BlockDrops => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::BlockExplosionDropDecay => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::CommandBlockOutput => &GameRuleDefinition {
+                category: GameRuleCategory::Chat,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::CommandBlocksWork => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::DrowningDamage => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::ElytraMovementCheck => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::EnderPearlsVanishOnDeath => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::EntityDrops => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::FallDamage => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::FireDamage => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::FireSpreadRadiusAroundPlayer => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Int {
+                    default: 128,
+                    min: -1,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::ForgiveDeadPlayers => &GameRuleDefinition {
+                category: GameRuleCategory::Mobs,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::FreezeDamage => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::GlobalSoundEvents => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::ImmediateRespawn => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::KeepInventory => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::LavaSourceConversion => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::LimitedCrafting => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::LocatorBar => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::LogAdminCommands => &GameRuleDefinition {
+                category: GameRuleCategory::Chat,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::MaxBlockModifications => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Int {
+                    default: 32768,
+                    min: 1,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::MaxCommandForks => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Int {
+                    default: 65536,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::MaxCommandSequenceLength => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Int {
+                    default: 65536,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::MaxEntityCramming => &GameRuleDefinition {
+                category: GameRuleCategory::Mobs,
+                value: GameRuleValueType::Int {
+                    default: 24,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::MaxMinecartSpeed => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Int {
+                    default: 8,
+                    min: 1,
+                    max: 1000,
+                },
+                required_features: &[rl!("minecraft:minecart_improvements")],
+            },
+            Self::MaxSnowAccumulationHeight => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Int {
+                    default: 1,
+                    min: 0,
+                    max: 8,
+                },
+                required_features: &[],
+            },
+            Self::MobDrops => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::MobExplosionDropDecay => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::MobGriefing => &GameRuleDefinition {
+                category: GameRuleCategory::Mobs,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::NaturalHealthRegeneration => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::PlayerMovementCheck => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::PlayersNetherPortalCreativeDelay => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Int {
+                    default: 0,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::PlayersNetherPortalDefaultDelay => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Int {
+                    default: 80,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::PlayersSleepingPercentage => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Int {
+                    default: 100,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::ProjectilesCanBreakBlocks => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::Pvp => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::Raids => &GameRuleDefinition {
+                category: GameRuleCategory::Mobs,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::RandomTickSpeed => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Int {
+                    default: 3,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::ReducedDebugInfo => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::RespawnRadius => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Int {
+                    default: 10,
+                    min: 0,
+                    max: 2147483647,
+                },
+                required_features: &[],
+            },
+            Self::SendCommandFeedback => &GameRuleDefinition {
+                category: GameRuleCategory::Chat,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::ShowAdvancementMessages => &GameRuleDefinition {
+                category: GameRuleCategory::Chat,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::ShowDeathMessages => &GameRuleDefinition {
+                category: GameRuleCategory::Chat,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnMobs => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnMonsters => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnPatrols => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnPhantoms => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnWanderingTraders => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnWardens => &GameRuleDefinition {
+                category: GameRuleCategory::Spawning,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpawnerBlocksWork => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpectatorsGenerateChunks => &GameRuleDefinition {
+                category: GameRuleCategory::Player,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::SpreadVines => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::TntExplodes => &GameRuleDefinition {
+                category: GameRuleCategory::Misc,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+            Self::TntExplosionDropDecay => &GameRuleDefinition {
+                category: GameRuleCategory::Drops,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::UniversalAnger => &GameRuleDefinition {
+                category: GameRuleCategory::Mobs,
+                value: GameRuleValueType::Bool { default: false },
+                required_features: &[],
+            },
+            Self::WaterSourceConversion => &GameRuleDefinition {
+                category: GameRuleCategory::Updates,
+                value: GameRuleValueType::Bool { default: true },
+                required_features: &[],
+            },
+        }
+    }
+}
