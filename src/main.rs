@@ -3,11 +3,12 @@
     reason = "the server binary reads its settings from the environment"
 )]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use bevy_app::{App, AppExit};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_minecraft_server::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_server::{GameMode, Lighting, MinecraftServerPlugin};
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
@@ -32,8 +33,16 @@ async fn main() -> AppExit {
         bevy_diagnostic::FrameTimeDiagnosticsPlugin::default(),
         bevy_diagnostic::EntityCountDiagnosticsPlugin::default(),
     ));
+    let ops = match OpList::read(Path::new(OPS_FILE)) {
+        Ok(ops) => ops,
+        Err(error) => {
+            bevy_log::error!("{error}");
+            return AppExit::error();
+        }
+    };
     app.add_plugins(MinecraftServerPlugin {
         world: world_folder(),
+        ops,
         announce_on_lan: on_off(
             "MCRS_LAN_ANNOUNCE",
             variable("MCRS_LAN_ANNOUNCE").as_deref(),

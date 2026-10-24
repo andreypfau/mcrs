@@ -12,9 +12,9 @@ use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::config::TerrainLimits;
+use crate::config::{Knobs, TerrainLimits};
 use crate::registries::SessionSet;
-use crate::{ClientPlugins, ClientTerrainPlugin, config, local_player, player, vanilla};
+use crate::{ClientPlugins, ClientTerrainPlugin, local_player, player, vanilla};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -65,9 +65,9 @@ fn take(bytes: &[u8]) -> (&[u8], &[u8]) {
 /// `?server=` is the WebTransport URL and `?cert=` the hex SHA-256 of the
 /// certificate the server minted at startup, which it prints on its own
 /// listening line. There is no discovery endpoint to fetch them from.
-fn server() -> Option<mcrs_minecraft_network::client::ServerAddress> {
-    let (url, hash) = (config::server()?, config::server_certificate()?);
-    match target_from_query(&url, &hash) {
+fn server(knobs: &Knobs) -> Option<mcrs_minecraft_network::client::ServerAddress> {
+    let (url, hash) = (knobs.server()?, knobs.server_certificate()?);
+    match target_from_query(url, hash) {
         Ok(target) => Some(target),
         Err(error) => {
             error!("?cert={hash}: {error}");
@@ -78,12 +78,21 @@ fn server() -> Option<mcrs_minecraft_network::client::ServerAddress> {
 
 /// The browser has no environment, so the knobs the native binary reads from
 /// `MCRS_*` variables are taken from the query string instead: `?time=6000`.
-pub fn query(name: &str) -> Option<String> {
-    let search = web_sys::window()?.location().search().ok()?;
-    let value = web_sys::UrlSearchParams::new_with_str(&search)
-        .ok()?
-        .get(name)?;
-    (!value.is_empty()).then_some(value)
+fn query_knobs() -> Knobs {
+    let Some(entries) = web_sys::window()
+        .and_then(|window| window.location().search().ok())
+        .and_then(|search| web_sys::UrlSearchParams::new_with_str(&search).ok())
+        .and_then(|params| web_sys::js_sys::try_iter(&params).ok()?)
+    else {
+        return Knobs::default();
+    };
+    let knobs = entries.filter_map(|entry| {
+        let entry = web_sys::js_sys::Array::from(&entry.ok()?);
+        let (name, value) = (entry.get(0).as_string()?, entry.get(1).as_string()?);
+        let lowercase = !name.bytes().any(|byte| byte.is_ascii_uppercase());
+        (lowercase && !value.is_empty()).then(|| (name.to_ascii_uppercase(), value))
+    });
+    Knobs::new(knobs, false)
 }
 
 #[derive(Resource)]
@@ -95,9 +104,11 @@ struct FrozenTicks(i64);
 pub fn run() {
     console_error_panic_hook::set_once();
 
-    let frozen_at = config::frozen_time();
+    let knobs = query_knobs();
+    let frozen_at = knobs.frozen_time();
 
     let mut app = App::new();
+    app.insert_resource(knobs.clone());
     register_asset_source(&mut app);
     vanilla::register(&mut app);
     app.add_plugins(
@@ -131,13 +142,13 @@ pub fn run() {
     #[cfg(feature = "dev")]
     app.add_plugins(crate::dev::DevPlugin);
 
-    match server() {
+    match server(&knobs) {
         Some(server) => {
             app.add_plugins(ClientNetworkPlugin {
                 server,
-                username: config::username(),
+                username: knobs.username(),
                 profile_id: None,
-                view_distance: config::view_distance(),
+                view_distance: knobs.view_distance(),
             });
             app.add_plugins(crate::columns::ColumnCachePlugin);
         }
@@ -146,7 +157,7 @@ pub fn run() {
              The server logs both at startup."
         ),
     }
-    let (yaw, pitch) = config::look_override().unwrap_or((0.0, 0.0));
+    let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
     player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     app.run();
 }

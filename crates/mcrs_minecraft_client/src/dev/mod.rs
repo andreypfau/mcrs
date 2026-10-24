@@ -1,11 +1,10 @@
-use std::num::NonZeroU32;
-
 use bevy::prelude::*;
 use bevy::window::{Monitor, PrimaryMonitor, WindowPosition};
 use mcrs_minecraft_render::DrawMask;
 use mcrs_minecraft_render::sky::SkyDrawsOnly;
 
 use crate::columns::ClientTerrainSet;
+use crate::config::Knobs;
 use crate::gui::debug::{DebugScreenSet, collecting, entry_fps, entry_system_specs, entry_terrain};
 use crate::local_player::FlyingSpeed;
 use crate::stream;
@@ -27,29 +26,31 @@ pub struct DevPlugin;
 
 impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
+        let knobs = Knobs::of(app);
         app.add_plugins(raster::RasterPlugin).insert_resource(
-            knobs::raster_fraction()
+            knobs
+                .raster_fraction()
                 .map(raster::Raster)
                 .unwrap_or_default(),
         );
-        if let Some(bits) = knobs::draw_mask() {
+        if let Some(bits) = knobs.draw_mask() {
             app.insert_resource(DrawMask(bits));
         }
-        if let Some(only) = knobs::sky_draws_only() {
+        if let Some(only) = knobs.sky_draws_only() {
             app.insert_resource(SkyDrawsOnly(only));
         }
         #[cfg(target_os = "macos")]
-        app.insert_resource(gputrace::AutoTrace(knobs::gputrace_path()))
+        app.insert_resource(gputrace::AutoTrace(knobs.gputrace_path()))
             .add_systems(Update, gputrace::gputrace);
         #[cfg(not(target_family = "wasm"))]
         {
-            if let Some(level) = knobs::light_guard() {
+            if let Some(level) = knobs.light_guard() {
                 app.add_plugins(light_guard::LightGuardPlugin { level });
             }
-            if let Some(level) = knobs::chunk_guard() {
+            if let Some(level) = knobs.chunk_guard() {
                 app.add_plugins(chunk_guard::ChunkGuardPlugin { level });
             }
-            if knobs::hot_clocks() {
+            if knobs.hot_clocks() {
                 std::thread::Builder::new()
                     .name("hot clocks".into())
                     .spawn(|| {
@@ -59,16 +60,16 @@ impl Plugin for DevPlugin {
                     })
                     .expect("a thread");
             }
-            if !knobs::monitor_primary() {
+            if !knobs.monitor_primary() {
                 app.add_systems(PostStartup, place_window);
             }
         }
-        if let Some(seconds) = knobs::census_interval() {
+        if let Some(seconds) = knobs.census_interval() {
             app.insert_resource(census::Census::every(seconds))
                 .add_systems(Update, census::census);
         }
         #[cfg(feature = "telemetry-tracy")]
-        if knobs::tracy_preview() {
+        if knobs.tracy_preview() {
             app.init_resource::<tracy_preview::Preview>()
                 .add_systems(Update, tracy_preview::request);
         }
@@ -79,7 +80,7 @@ impl Plugin for DevPlugin {
                 .after(stream::flush_streams)
                 .run_if(stream::can_stream),
         )
-        .insert_resource(entry_frame::UploadBudget(crate::config::upload_budget()))
+        .insert_resource(entry_frame::UploadBudget(knobs.upload_budget()))
         .add_systems(
             Update,
             (
@@ -97,16 +98,13 @@ impl Plugin for DevPlugin {
     }
 }
 
-pub fn frame_latency() -> Option<NonZeroU32> {
-    knobs::frame_latency()
-}
-
 pub fn script_flight(app: &mut App, player: Entity) {
-    let Some(speed) = knobs::scripted_flight() else {
+    let knobs = Knobs::of(app);
+    let Some(speed) = knobs.scripted_flight() else {
         return;
     };
     app.insert_resource(flight::ScriptedFlight {
-        turn_at: knobs::turn_after(),
+        turn_at: knobs.turn_after(),
         turned: false,
     });
     app.world_mut()

@@ -484,13 +484,14 @@ pub struct GuiPlugin;
 
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
+        let knobs = crate::config::Knobs::of(app);
         let config = GuiConfig {
-            scale: crate::config::gui_scale(),
-            cursor: crate::config::gui_cursor(),
-            frozen_ticks: crate::config::frozen_time(),
+            scale: knobs.gui_scale(),
+            cursor: knobs.gui_cursor(),
+            frozen_ticks: knobs.frozen_time(),
         };
         app.insert_resource(config)
-            .insert_resource(if crate::config::opens_inventory() {
+            .insert_resource(if knobs.opens_inventory() {
                 Screen::Inventory
             } else {
                 Screen::None

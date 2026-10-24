@@ -85,9 +85,10 @@ impl JoinedTraces<'_, '_> {
 
 impl Plugin for ChunkMapPlugin {
     fn build(&self, app: &mut App) {
+        let knobs = crate::config::Knobs::of(app);
         app.init_resource::<ColumnTraceSink>()
             .insert_resource(ChunkMap {
-                visible: crate::config::chunk_map(),
+                visible: knobs.chunk_map(),
             })
             .add_systems(Startup, spawn)
             .add_systems(Update, (toggle, render).chain());

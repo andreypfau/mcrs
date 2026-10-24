@@ -112,7 +112,8 @@ pub struct MinecraftServerPlugin {
     pub seed: u64,
     /// The world preset that names the dimensions when neither the save nor `dimensions` does.
     pub preset: String,
-    /// Operator level of a player who has no entry in `ops.json`.
+    pub ops: ops::OpList,
+    /// Operator level of a player who has no entry in `ops`.
     pub default_op_level: u8,
     /// Game mode of a player joining for the first time.
     pub default_game_mode: GameMode,
@@ -156,6 +157,7 @@ impl Default for MinecraftServerPlugin {
             lighting: Lighting::default(),
             seed: 0,
             preset: "normal".to_owned(),
+            ops: ops::OpList::default(),
             default_op_level: 0,
             default_game_mode: GameMode::Creative,
             slow_column_threshold: Duration::from_millis(250),
@@ -215,9 +217,7 @@ impl Plugin for MinecraftServerPlugin {
             app.insert_resource(crate::world_options::PluginDimensions(dimensions.clone()));
         }
         app.insert_resource(self.lighting);
-        let ops = ops::OpList::read(std::path::Path::new(ops::OPS_FILE))
-            .unwrap_or_else(|err| panic!("{err}"));
-        app.insert_resource(ops);
+        app.insert_resource(self.ops.clone());
         app.insert_resource(ops::DefaultOpLevel(
             crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
         ));

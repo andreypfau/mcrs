@@ -87,24 +87,25 @@ pub struct ClientTerrainPlugin(pub config::TerrainLimits);
 
 impl Plugin for ClientTerrainPlugin {
     fn build(&self, app: &mut App) {
-        let (budget, uploads, cave) = config::terrain(self.0);
+        let knobs = config::Knobs::of(app);
+        let (budget, uploads, cave) = knobs.terrain(self.0);
         app.add_plugins(mcrs_minecraft_render::TerrainPlugin {
             budget: budget.clone(),
             uploads: uploads.clone(),
         })
         .add_plugins(mcrs_minecraft_render_probe::ProbePlugin {
-            heat: config::gpu_hot(),
-            timestamps: config::pass_timestamps(),
+            heat: knobs.gpu_hot(),
+            timestamps: knobs.pass_timestamps(),
         })
         .add_plugins(render::GuiItemsPlugin)
-        .insert_resource(mcrs_minecraft_render::Occlusion(config::occlusion()))
-        .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
+        .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
+        .insert_resource(mcrs_minecraft_render::Brightness(knobs.brightness()))
         .add_plugins(stream::StreamPlugin::new(
             budget,
             uploads,
             stream::MeshPacing {
-                per_frame: config::mesh_per_frame(),
-                in_flight: config::mesh_in_flight(),
+                per_frame: knobs.mesh_per_frame(),
+                in_flight: knobs.mesh_in_flight(),
             },
         ))
         .insert_resource(cave)
@@ -113,7 +114,7 @@ impl Plugin for ClientTerrainPlugin {
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
         );
-        if let Some(tick) = config::frozen_time() {
+        if let Some(tick) = knobs.frozen_time() {
             app.insert_resource(mcrs_minecraft_render::PinnedTick(tick));
         }
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {

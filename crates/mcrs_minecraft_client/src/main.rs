@@ -34,7 +34,7 @@ use mcrs_minecraft_world::save::{self, SaveError};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::columns::SECTION_SIZE;
-use mcrs_minecraft_client::config::TerrainLimits;
+use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_client::registries::SessionSet;
@@ -53,7 +53,10 @@ use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_server::{BoundAddress, DataPack, MinecraftServerPlugin};
+use mcrs_minecraft_server::{
+    BoundAddress, DataPack, MinecraftServerPlugin,
+    ops::{OPS_FILE, OpList},
+};
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -94,9 +97,12 @@ fn main() {
 fn main() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
+    let knobs = knobs();
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
-    let frozen_at = config::frozen_time();
+    let frozen_at = knobs.frozen_time();
+    let resolution = knobs.resolution();
+    let view_distance = knobs.view_distance();
     let assets = AssetPlugin::default().file_path;
     // The client cannot run without the jar, so the first start fetches it before the window
     // opens and the resource thread then finds it installed.
@@ -131,10 +137,11 @@ fn main() -> AppExit {
         wgpu
     };
     let mut task_pool_options = bevy::app::TaskPoolOptions::default();
-    task_pool_options.async_compute.max_threads = config::async_threads();
+    task_pool_options.async_compute.max_threads = knobs.async_threads();
     task_pool_options.async_compute.percent = 1.0;
     task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
+    app.insert_resource(knobs.clone());
     app.register_asset_source(
         AssetSourceId::Default,
         asset_source(&PackRoots {
@@ -164,7 +171,7 @@ fn main() -> AppExit {
                         Some(world) => format!("mcrs — {}", world.display()),
                         None => "mcrs".to_owned(),
                     },
-                    mode: if config::fullscreen() && config::resolution().is_none() {
+                    mode: if knobs.fullscreen() && resolution.is_none() {
                         WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
                     } else {
                         WindowMode::Windowed
@@ -173,24 +180,24 @@ fn main() -> AppExit {
                     // A window another one covers stops being presented, and a frame that gets no
                     // swapchain texture is a frame that is never drawn, so a sized window stays on
                     // top for the length of the measurement.
-                    window_level: if config::resolution().is_some() {
+                    window_level: if resolution.is_some() {
                         WindowLevel::AlwaysOnTop
                     } else {
                         WindowLevel::Normal
                     },
-                    resolution: match config::resolution() {
+                    resolution: match resolution {
                         Some((width, height)) => {
                             WindowResolution::new(width, height).with_scale_factor_override(1.0)
                         }
                         None => WindowResolution::default(),
                     },
-                    present_mode: if config::vsync() {
+                    present_mode: if knobs.vsync() {
                         PresentMode::AutoVsync
                     } else {
                         PresentMode::AutoNoVsync
                     },
                     #[cfg(feature = "dev")]
-                    desired_maximum_frame_latency: mcrs_minecraft_client::dev::frame_latency(),
+                    desired_maximum_frame_latency: knobs.frame_latency(),
                     ..default()
                 }),
                 ..default()
@@ -234,9 +241,9 @@ fn main() -> AppExit {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
-    let username = config::username();
+    let username = knobs.username();
     #[cfg(feature = "singleplayer")]
-    let server = server_address().unwrap_or_else(|| {
+    let server = server_address(&knobs).unwrap_or_else(|| {
         #[cfg(feature = "dev")]
         let traces = {
             let traces = ColumnTraceSink::default();
@@ -251,16 +258,16 @@ fn main() -> AppExit {
                 .player_uuid
                 .unwrap_or_else(|| offline_player_uuid(&username)),
         };
-        host_integrated_server(world.as_deref(), &assets, &data_pack, traces, host)
+        host_integrated_server(&knobs, world.as_deref(), &assets, &data_pack, traces, host)
     });
     #[cfg(not(feature = "singleplayer"))]
-    let server = server_address()
+    let server = server_address(&knobs)
         .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
         username,
         profile_id: save_data.player_uuid,
-        view_distance: config::view_distance(),
+        view_distance,
     });
     app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
     app.init_resource::<mcrs_minecraft_client::screen::Screen>();
@@ -285,18 +292,19 @@ fn main() -> AppExit {
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
 
-    app.add_plugins(ClientTerrainPlugin(terrain_limits(config::view_distance())));
+    app.add_plugins(ClientTerrainPlugin(terrain_limits(view_distance)));
     #[cfg(feature = "dev")]
     app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
 
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
 
-    let (yaw, pitch) = config::look_override().unwrap_or((save_data.yaw, save_data.pitch));
-    if config::look_override().is_some() {
+    let look = knobs.look_override();
+    let (yaw, pitch) = look.unwrap_or((save_data.yaw, save_data.pitch));
+    if look.is_some() {
         app.insert_resource(local_player::LookOverride { yaw, pitch });
     }
-    let position = config::position_override();
+    let position = knobs.position_override();
     if let Some(position) = position {
         app.insert_resource(local_player::PositionOverride(position));
     }
@@ -347,13 +355,14 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
 /// opens it to the local network, where it then announces itself.
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 fn host_integrated_server(
+    knobs: &Knobs,
     world: Option<&Path>,
     assets: &str,
     data_pack: &Path,
     traces: Option<ColumnTraceSink>,
     host: SingleplayerProfile,
 ) -> SocketAddr {
-    let open_to_lan = config::open_to_lan();
+    let open_to_lan = knobs.open_to_lan();
     let mut server = App::new();
     server.add_plugins(MinecraftServerPlugin {
         bind_address: config::integrated_bind_address(open_to_lan),
@@ -362,11 +371,15 @@ fn host_integrated_server(
         world: world.map(Path::to_path_buf),
         column_traces: traces,
         singleplayer_profile: Some(host),
-        seed: config::world_seed(),
-        preset: config::world_preset(),
-        lighting: config::lighting(),
-        default_game_mode: config::default_game_mode(),
-        slow_column_threshold: config::slow_column_threshold(),
+        ops: OpList::read(Path::new(OPS_FILE)).unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }),
+        seed: knobs.world_seed(),
+        preset: knobs.world_preset(),
+        lighting: knobs.lighting(),
+        default_game_mode: knobs.default_game_mode(),
+        slow_column_threshold: knobs.slow_column_threshold(),
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;
@@ -389,8 +402,8 @@ fn host_integrated_server(
 }
 
 /// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.
-fn server_address() -> Option<SocketAddr> {
-    let address = config::server()?;
+fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
+    let address = knobs.server()?;
     match address.to_socket_addrs().map(|mut a| a.next()) {
         Ok(Some(address)) => Some(address),
         Ok(None) | Err(_) => {
@@ -398,6 +411,29 @@ fn server_address() -> Option<SocketAddr> {
             std::process::exit(1);
         }
     }
+}
+
+/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders.
+#[cfg(not(target_family = "wasm"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the client binary reads its settings from the environment"
+)]
+fn knobs() -> Knobs {
+    let variables = std::env::vars_os().filter_map(|(name, value)| {
+        let name = name.into_string().ok()?;
+        // Windows matches variable names in any case, as `std::env::var` does there.
+        #[cfg(windows)]
+        let name = name.to_ascii_uppercase();
+        Some((
+            name.strip_prefix("MCRS_")?.to_owned(),
+            value.into_string().ok()?,
+        ))
+    });
+    Knobs::new(
+        variables,
+        std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0"),
+    )
 }
 
 /// A world folder seeds the clocks, the weather and the spawn, and gives the

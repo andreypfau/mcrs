@@ -97,6 +97,7 @@ pub struct DebugScreenPlugin;
 
 impl Plugin for DebugScreenPlugin {
     fn build(&self, app: &mut App) {
+        let knobs = crate::config::Knobs::of(app);
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(FrameTimeDiagnosticsPlugin::new(entry_fps::HISTORY));
         }
@@ -120,8 +121,8 @@ impl Plugin for DebugScreenPlugin {
                     .run_if(ui_needed),
             )
             .insert_resource(Refresh::new(
-                crate::config::stats_interval(),
-                crate::config::always_time_passes(),
+                knobs.stats_interval(),
+                knobs.always_time_passes(),
             ))
             .configure_sets(
                 Update,

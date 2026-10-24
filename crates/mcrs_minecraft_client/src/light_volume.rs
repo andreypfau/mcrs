@@ -58,11 +58,12 @@ impl Default for LightVolumePlugin {
 
 impl Plugin for LightVolumePlugin {
     fn build(&self, app: &mut App) {
+        let knobs = crate::config::Knobs::of(app);
         app.add_plugins(mcrs_minecraft_light_color::plugin::LightColorPlugin)
             .add_plugins(LightVolumeRenderPlugin {
                 settings: VolumeSettings {
                     radius: self.radius,
-                    view_distance: crate::config::view_distance(),
+                    view_distance: knobs.view_distance(),
                     sections_per_frame: self.sections_per_frame,
                 },
             })

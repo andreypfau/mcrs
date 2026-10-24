@@ -37,11 +37,14 @@ pub struct ScreenshotPlugin;
 
 impl Plugin for ScreenshotPlugin {
     fn build(&self, app: &mut App) {
-        let dir = crate::config::screenshot_dir().unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
+        let knobs = crate::config::Knobs::of(app);
+        let dir = knobs
+            .screenshot_dir()
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
         app.insert_resource(ScreenshotDir(dir))
             .add_systems(Startup, prepare_dir)
             .add_systems(Update, capture);
-        if let Some(path) = crate::config::capture_path() {
+        if let Some(path) = knobs.capture_path() {
             app.insert_resource(SceneCapture(path))
                 .add_message::<Unsettled>()
                 .add_systems(Update, capture_scene);

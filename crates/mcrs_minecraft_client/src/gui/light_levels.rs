@@ -75,7 +75,8 @@ pub struct LightLevelsPlugin;
 
 impl Plugin for LightLevelsPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(if crate::config::light_levels() {
+        let knobs = crate::config::Knobs::of(app);
+        app.insert_resource(if knobs.light_levels() {
             LightLevels::Both
         } else {
             LightLevels::Off
