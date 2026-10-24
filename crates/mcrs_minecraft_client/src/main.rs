@@ -403,12 +403,16 @@ fn host_integrated_server(
     }
     server.add_plugins(plugins);
     let address = server.world().resource::<BoundAddress>().0;
-    mcrs_minecraft_server::spawn_server_thread(server, |app| {
+    let spawned = mcrs_minecraft_server::spawn_server_thread(server, |app| {
         if let AppExit::Error(code) = mcrs_minecraft_server::run_server_loop(app) {
             error!("the integrated server stopped with an error");
             std::process::exit(i32::from(code.get()));
         }
     });
+    if let Err(error) = spawned {
+        error!(%error, "the integrated server thread did not start");
+        std::process::exit(1);
+    }
     match world {
         Some(world) => info!(
             world = %world.display(),

@@ -53,14 +53,15 @@ impl ColumnSections {
         }
     }
 
+    fn index(&self, chunk_y: i32) -> Option<usize> {
+        usize::try_from(chunk_y - self.min_section_y).ok()
+    }
+
     pub fn lookup(&self, chunk_y: i32) -> SectionLookup {
-        let rel = chunk_y - self.min_section_y;
-        if rel < 0 || rel as usize >= self.sections.len() {
-            return SectionLookup::OutOfRange;
-        }
-        match self.sections[rel as usize] {
-            Some(e) => SectionLookup::Loaded(e),
-            None => SectionLookup::Unloaded,
+        match self.index(chunk_y).and_then(|i| self.sections.get(i)) {
+            Some(Some(e)) => SectionLookup::Loaded(*e),
+            Some(None) => SectionLookup::Unloaded,
+            None => SectionLookup::OutOfRange,
         }
     }
 
@@ -73,8 +74,7 @@ impl ColumnSections {
     }
 
     pub fn set_loaded(&mut self, chunk_y: i32, entity: Entity) {
-        let rel = chunk_y - self.min_section_y;
-        if rel < 0 || (rel as usize) >= self.sections.len() {
+        let Some(slot) = self.index(chunk_y).and_then(|i| self.sections.get_mut(i)) else {
             tracing::warn!(
                 chunk_y,
                 min_section_y = self.min_section_y,
@@ -82,13 +82,12 @@ impl ColumnSections {
                 "set_loaded chunk_y out of range; ignored"
             );
             return;
-        }
-        self.sections[rel as usize] = Some(entity);
+        };
+        *slot = Some(entity);
     }
 
     pub fn set_unloaded(&mut self, chunk_y: i32) {
-        let rel = chunk_y - self.min_section_y;
-        if rel < 0 || (rel as usize) >= self.sections.len() {
+        let Some(slot) = self.index(chunk_y).and_then(|i| self.sections.get_mut(i)) else {
             tracing::warn!(
                 chunk_y,
                 min_section_y = self.min_section_y,
@@ -96,8 +95,8 @@ impl ColumnSections {
                 "set_unloaded chunk_y out of range; ignored"
             );
             return;
-        }
-        self.sections[rel as usize] = None;
+        };
+        *slot = None;
     }
 }
 
@@ -204,22 +203,26 @@ pub fn reconcile_columns(
             });
             let sections = match spawned.get_mut(&slot.entity) {
                 Some(sections) => sections,
-                None => columns
-                    .get_mut(slot.entity)
-                    .unwrap_or_else(|_| {
-                        panic!("column {col_pos:?} is in the index without its ColumnSections")
-                    })
-                    .into_inner(),
+                None => match columns.get_mut(slot.entity) {
+                    Ok(sections) => sections.into_inner(),
+                    Err(error) => {
+                        tracing::error!(
+                            ?col_pos,
+                            %error,
+                            "the column is in the index without its ColumnSections"
+                        );
+                        continue;
+                    }
+                },
             };
             if sections.lookup(y) == SectionLookup::Unloaded {
                 slot.section_count += 1;
             }
             sections.set_loaded(y, change.section);
         } else if !loaded && counted {
-            let slot = column_index
-                .0
-                .get_mut(&col_pos)
-                .expect("a counted section's column is in the index");
+            let Some(slot) = column_index.0.get_mut(&col_pos) else {
+                continue;
+            };
             assert!(
                 slot.section_count > 0,
                 "column {col_pos:?} counts fewer sections than it holds",

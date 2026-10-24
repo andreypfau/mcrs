@@ -132,8 +132,11 @@ impl SectionTickets {
         let Some(i) = held.iter().position(|(held, _)| *held == ticket) else {
             return;
         };
-        held[i].1 -= 1;
-        if held[i].1 == 0 {
+        let Some((_, count)) = held.get_mut(i) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
             held.swap_remove(i);
             if held.is_empty() {
                 self.held.remove(&pos);

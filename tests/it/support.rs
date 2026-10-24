@@ -37,7 +37,8 @@ pub fn start_server(mut server: App) -> impl FnOnce() {
     let server_thread = mcrs_minecraft_server::spawn_server_thread(server, move |app| {
         mcrs_minecraft_server::run_server_loop(app);
         finished_send.send(()).ok();
-    });
+    })
+    .expect("the embedded server thread starts");
     move || {
         stop.store(true, Ordering::Relaxed);
         finished_recv

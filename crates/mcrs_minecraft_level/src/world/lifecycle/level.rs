@@ -93,20 +93,27 @@ impl LevelField {
                 if level == old + 1 && source(neighbour) > level {
                     self.set(neighbour, absent, before);
                     self.unlight.push((neighbour, level));
-                } else if level <= old + 1 {
-                    self.relight[level as usize].push(neighbour);
+                } else if level <= old + 1
+                    && let Some(seeds) = self.relight.get_mut(level as usize)
+                {
+                    seeds.push(neighbour);
                 }
             }
         }
         for &pos in changed {
             let level = source(pos);
-            if level < absent && level < self.level(pos) {
+            if level < self.level(pos)
+                && let Some(seeds) = self.relight.get_mut(level as usize)
+            {
+                seeds.push(pos);
                 self.set(pos, level, before);
-                self.relight[level as usize].push(pos);
             }
         }
         for level in 0..absent {
-            let mut seeds = std::mem::take(&mut self.relight[level as usize]);
+            let Some(slot) = self.relight.get_mut(level as usize) else {
+                break;
+            };
+            let mut seeds = std::mem::take(slot);
             let next = level + 1;
             if next < absent {
                 for &pos in &seeds {
@@ -114,15 +121,19 @@ impl LevelField {
                         continue;
                     }
                     for neighbour in neighbours(pos, &section_y) {
-                        if next < self.level(neighbour) {
+                        if next < self.level(neighbour)
+                            && let Some(next_seeds) = self.relight.get_mut(next as usize)
+                        {
+                            next_seeds.push(neighbour);
                             self.set(neighbour, next, before);
-                            self.relight[next as usize].push(neighbour);
                         }
                     }
                 }
             }
             seeds.clear();
-            self.relight[level as usize] = seeds;
+            if let Some(slot) = self.relight.get_mut(level as usize) {
+                *slot = seeds;
+            }
         }
     }
 

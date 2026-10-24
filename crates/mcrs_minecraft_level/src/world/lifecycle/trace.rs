@@ -87,9 +87,11 @@ impl ColumnSample {
     /// How long the column spent getting from the stage before `stage` to `stage`, or
     /// `None` when it has not reached it.
     pub fn hop(&self, stage: ColumnStage) -> Option<Duration> {
-        let at = self.reached[stage as usize]?;
-        let before = self.reached[..stage as usize]
+        let at = (*self.reached.get(stage as usize)?)?;
+        let before = self
+            .reached
             .iter()
+            .take(stage as usize)
             .rev()
             .find_map(|earlier| *earlier)
             .unwrap_or(Duration::ZERO);
@@ -151,7 +153,9 @@ impl ColumnTraces {
                 }
                 trace.stage = stage;
                 trace.entered = now;
-                trace.reached[stage as usize] = Some(now - trace.first);
+                if let Some(reached) = trace.reached.get_mut(stage as usize) {
+                    *reached = Some(now - trace.first);
+                }
                 if stage == ColumnStage::Sent {
                     trace.sent_after = Some(now - trace.first);
                 }
@@ -161,7 +165,9 @@ impl ColumnTraces {
                     self.0.clear();
                 }
                 let mut reached = [None; STAGES];
-                reached[stage as usize] = Some(Duration::ZERO);
+                if let Some(entered) = reached.get_mut(stage as usize) {
+                    *entered = Some(Duration::ZERO);
+                }
                 self.0.insert(
                     pos,
                     Trace {

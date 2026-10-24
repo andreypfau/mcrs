@@ -20,7 +20,8 @@ fn run_server_loop_exits_on_app_exit() {
     let handle = spawn_server_thread(app, move |app| {
         run_server_loop(app);
         tx.send(()).ok();
-    });
+    })
+    .expect("the loop thread starts");
 
     match rx.recv_timeout(Duration::from_secs(5)) {
         Ok(()) => {

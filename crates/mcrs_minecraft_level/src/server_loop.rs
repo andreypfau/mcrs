@@ -68,12 +68,11 @@ impl SendableApp {
 pub fn spawn_server_thread(
     app: App,
     run: impl FnOnce(App) + Send + 'static,
-) -> std::thread::JoinHandle<()> {
+) -> std::io::Result<std::thread::JoinHandle<()>> {
     let app = SendableApp(app);
     std::thread::Builder::new()
         .name("voxel-server".to_string())
         .spawn(move || run(app.into_inner()))
-        .expect("failed to spawn the server thread")
 }
 
 /// How long the loop sleeps between two calls of `idle` while it waits for the next tick.
