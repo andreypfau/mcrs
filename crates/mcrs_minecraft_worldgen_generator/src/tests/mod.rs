@@ -1,3 +1,11 @@
+#![expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::unwrap_used,
+    reason = "test support reports a failure by panicking"
+)]
 #[cfg(test)]
 mod base_height;
 #[cfg(test)]

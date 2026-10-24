@@ -190,7 +190,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
             })
             .unwrap(),
         ),
-        _ => unreachable!(),
+        _ => panic!(),
     };
     StructureIndex::new(
         Arc::new(tables),
