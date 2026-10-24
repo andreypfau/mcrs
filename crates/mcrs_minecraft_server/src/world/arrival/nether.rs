@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_level::world::storage::view::DimensionBlocks;
+use mcrs_minecraft_level::world::storage::view::WorldView;
 use mcrs_minecraft_volume::Cursor;
 
 /// Scale a horizontal overworld coordinate into the nether by the vanilla
@@ -21,7 +21,7 @@ fn nether_scale(coord: i32) -> i32 {
 pub fn find_or_create_nether_landing(
     dim_entity: Entity,
     source_pos: BlockPos,
-    blocks: &DimensionBlocks,
+    blocks: &WorldView,
 ) -> DVec3 {
     let scaled_x = nether_scale(source_pos.x);
     let scaled_z = nether_scale(source_pos.z);

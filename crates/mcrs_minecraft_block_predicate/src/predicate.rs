@@ -132,16 +132,7 @@ impl<M: Refs> Validate for VolumeMatch<M> {
 
 validated!(VolumeMatch<Named>);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum HeightmapName {
-    WorldSurfaceWg,
-    WorldSurface,
-    OceanFloorWg,
-    OceanFloor,
-    MotionBlocking,
-    MotionBlockingNoLeaves,
-}
+pub use mcrs_minecraft_core::HeightmapName;
 
 #[cfg(test)]
 mod tests {

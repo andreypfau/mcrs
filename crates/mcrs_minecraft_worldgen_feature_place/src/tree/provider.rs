@@ -382,7 +382,9 @@ pub(crate) mod fake {
     use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_core::{BoundingBox, SectionPos};
     use mcrs_minecraft_value_provider::HeightContext;
-    use mcrs_minecraft_volume::{Access, Volume, VoxelStore, VoxelStoreMut};
+    use mcrs_minecraft_volume::{
+        Access, BiomeVolume, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
+    };
     use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 
     use super::*;
@@ -459,17 +461,21 @@ pub(crate) mod fake {
         }
     }
 
+    impl HeightVolume for FakeVolume {
+        fn heightmap(&self, _kind: HeightmapName, x: i32, z: i32) -> Result<i32, Unavailable> {
+            Ok(self.heights.get(&(x, z)).copied().unwrap_or(i32::MIN))
+        }
+    }
+
+    impl BiomeVolume for FakeVolume {
+        fn biome_at(&self, _: BlockPos) -> Result<u16, Unavailable> {
+            Ok(0)
+        }
+    }
+
     impl WorldGenVolume for FakeVolume {
         fn world(&self) -> &WorldStates {
             &self.world
-        }
-
-        fn height(&self, _kind: HeightmapName, x: i32, z: i32) -> i32 {
-            self.heights.get(&(x, z)).copied().unwrap_or(i32::MIN)
-        }
-
-        fn biome(&self, _: BlockPos) -> u16 {
-            0
         }
 
         fn extent(&self) -> HeightContext {

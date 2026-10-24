@@ -1,7 +1,9 @@
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
-use mcrs_minecraft_volume::{Access, BoxVolume, Volume, VoxelStore, VoxelStoreMut};
+use mcrs_minecraft_volume::{
+    Access, BiomeVolume, BoxVolume, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
+};
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -105,17 +107,21 @@ impl VoxelStoreMut for BoxRegion {
     }
 }
 
+impl HeightVolume for BoxRegion {
+    fn heightmap(&self, kind: HeightmapName, x: i32, z: i32) -> Result<i32, Unavailable> {
+        Ok((self.height)(&self.blocks, kind, x, z))
+    }
+}
+
+impl BiomeVolume for BoxRegion {
+    fn biome_at(&self, _: BlockPos) -> Result<u16, Unavailable> {
+        Ok(self.biome)
+    }
+}
+
 impl WorldGenVolume for BoxRegion {
     fn world(&self) -> &WorldStates {
         &self.world
-    }
-
-    fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
-        (self.height)(&self.blocks, kind, x, z)
-    }
-
-    fn biome(&self, _: BlockPos) -> u16 {
-        self.biome
     }
 
     fn extent(&self) -> HeightContext {

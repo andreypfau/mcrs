@@ -11,6 +11,7 @@ mod access;
 mod block;
 mod bounds;
 mod box_volume;
+mod columns;
 mod cursor;
 mod paletted;
 mod restrict;
@@ -24,6 +25,7 @@ pub use block::{
 };
 pub use bounds::{ColumnLayout, SectionBox};
 pub use box_volume::BoxVolume;
+pub use columns::{BiomeVolume, HeightVolume};
 pub use cursor::Cursor;
 pub use paletted::{PalettedSection, PalettedSectionMut};
 pub use restrict::{AccessPolicy, Restricted};

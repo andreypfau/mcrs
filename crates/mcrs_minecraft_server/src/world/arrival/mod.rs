@@ -17,7 +17,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_level::world::channels::FromDimSender;
 use mcrs_minecraft_level::world::dimension::{Dimension, InDimension};
-use mcrs_minecraft_level::world::storage::view::DimensionBlocks;
+use mcrs_minecraft_level::world::storage::view::WorldView;
 
 // Platform at x=8, z=8 ensures the 5×5 floor (6..=10 in each axis) stays
 // within a single 16-block chunk section at these default coordinates.
@@ -41,7 +41,7 @@ fn resolve_arrivals(
     blocks: Res<Blocks>,
     sender: Res<FromDimSender<FromDim>>,
     dims: Query<Entity, With<Dimension>>,
-    dimension_blocks: DimensionBlocks,
+    dimension_blocks: WorldView,
     mut dim_player_index: ResMut<DimPlayerIndex>,
     mut commands: Commands,
 ) {
@@ -99,7 +99,7 @@ fn resolve_position(
     cause: &ArrivalCause,
     block_writer: &mut MessageWriter<BlockSetRequest>,
     blocks: &Blocks,
-    dimension_blocks: &DimensionBlocks,
+    dimension_blocks: &WorldView,
 ) -> DVec3 {
     match cause {
         ArrivalCause::EndPlatform => place_end_platform(

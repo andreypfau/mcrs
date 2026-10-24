@@ -14,7 +14,9 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::HeightContext;
-use mcrs_minecraft_volume::{Access, ColumnLayout, Volume, VoxelStore, VoxelStoreMut};
+use mcrs_minecraft_volume::{
+    Access, BiomeVolume, ColumnLayout, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
+};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
@@ -526,26 +528,25 @@ impl<'a> ColumnRegion<'a> {
     }
 
     /// The stored biome of the block, with the height clamped to the column.
-    fn biome_at(&self, p: BlockPos) -> u16 {
-        let Some(slot) = region_slot(
+    fn stored_biome(&self, p: BlockPos) -> Result<u16, Unavailable> {
+        let slot = region_slot(
             self.center,
             ColumnPos::new(p.x.div_euclid(16), p.z.div_euclid(16)),
-        ) else {
-            return 0;
-        };
-        let snapshot = &self.snapshots[slot];
-        let Some(&first) = snapshot.y_sections.first() else {
-            return 0;
-        };
-        let (section, y) = column_cell(first, snapshot.y_sections.len(), p.y);
-        let Some((_, biomes)) = snapshot.sections.get(section).and_then(Option::as_ref) else {
-            return 0;
-        };
-        u16::from(
-            biomes
-                .0
-                .get(p.x.rem_euclid(16) as usize, y, p.z.rem_euclid(16) as usize),
         )
+        .ok_or(Unavailable::Outside)?;
+        let snapshot = &self.snapshots[slot];
+        let &first = snapshot.y_sections.first().ok_or(Unavailable::Unloaded)?;
+        let (section, y) = column_cell(first, snapshot.y_sections.len(), p.y);
+        let (_, biomes) = snapshot
+            .sections
+            .get(section)
+            .and_then(Option::as_ref)
+            .ok_or(Unavailable::Unloaded)?;
+        Ok(u16::from(biomes.0.get(
+            p.x.rem_euclid(16) as usize,
+            y,
+            p.z.rem_euclid(16) as usize,
+        )))
     }
 
     /// One delta per column this unit wrote into, its own included: the merge of
@@ -712,6 +713,21 @@ impl VoxelStoreMut for ColumnRegion<'_> {
     }
 }
 
+impl HeightVolume for ColumnRegion<'_> {
+    fn heightmap(&self, kind: HeightmapName, x: i32, z: i32) -> Result<i32, Unavailable> {
+        if !self.contains(BlockPos::new(x, self.layout.min_y(), z)) {
+            return Err(Unavailable::Outside);
+        }
+        self.map_height(kind, x, z).ok_or(Unavailable::Unloaded)
+    }
+}
+
+impl BiomeVolume for ColumnRegion<'_> {
+    fn biome_at(&self, p: BlockPos) -> Result<u16, Unavailable> {
+        self.stored_biome(p)
+    }
+}
+
 impl WorldGenVolume for ColumnRegion<'_> {
     /// Only a generator asks, and a dimension without a program runs none; a
     /// default here would answer every state question with the empty set and
@@ -732,15 +748,6 @@ impl WorldGenVolume for ColumnRegion<'_> {
         if let Some(state) = BlockStateId::checked(state.0, self.state_count) {
             self.set_voxel(p, state);
         }
-    }
-
-    fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
-        self.map_height(kind, x, z)
-            .unwrap_or(self.ctx.router.noise.min_y)
-    }
-
-    fn biome(&self, p: BlockPos) -> u16 {
-        self.biome_at(p)
     }
 
     fn extent(&self) -> HeightContext {

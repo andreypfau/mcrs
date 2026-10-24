@@ -1,4 +1,4 @@
-use crate::world::storage::view::DimensionBlocksMut;
+use crate::world::storage::view::WorldViewMut;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
@@ -55,7 +55,7 @@ pub struct BlockSetRequest {
 
 pub fn apply_voxel_set_requests(
     mut reader: MessageReader<BlockSetRequest>,
-    mut blocks: DimensionBlocksMut,
+    mut blocks: WorldViewMut,
     mut writer: MessageWriter<BlockPlaced>,
 ) {
     reader.read().for_each(|request| {

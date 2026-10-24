@@ -10,7 +10,7 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;
-use mcrs_minecraft_volume::BlockVolumeMut;
+use mcrs_minecraft_volume::{BiomeVolume, BlockVolumeMut, HeightVolume};
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;
@@ -28,7 +28,7 @@ pub use states::{BlockLayout, PropertyLayout, StateCount, WorldStates, with_digi
 /// beyond the blocks themselves.
 ///
 /// World-absolute coordinates throughout.
-pub trait WorldGenVolume: BlockVolumeMut {
+pub trait WorldGenVolume: BlockVolumeMut + HeightVolume + BiomeVolume {
     fn world(&self) -> &WorldStates;
 
     /// Generation reads a block it cannot reach as air.
@@ -62,9 +62,15 @@ pub trait WorldGenVolume: BlockVolumeMut {
         true
     }
 
-    fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32;
+    /// Generation reads a height it cannot reach as the floor of the world.
+    fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
+        self.heightmap(kind, x, z).unwrap_or(self.extent().min_y)
+    }
 
-    fn biome(&self, p: BlockPos) -> u16;
+    /// Generation reads a biome it cannot reach as the first one.
+    fn biome(&self, p: BlockPos) -> u16 {
+        self.biome_at(p).unwrap_or(0)
+    }
 
     fn extent(&self) -> HeightContext;
 
