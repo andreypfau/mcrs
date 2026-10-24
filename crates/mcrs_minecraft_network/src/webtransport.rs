@@ -69,7 +69,13 @@ pub(crate) fn bind(
     address: SocketAddr,
 ) -> anyhow::Result<(Endpoint<Server>, SocketAddr, [u8; 32])> {
     let identity = Identity::self_signed(["localhost", "127.0.0.1", "::1"])?;
-    let certificate_hash = *identity.certificate_chain().as_slice()[0].hash().as_ref();
+    let certificate_hash = *identity
+        .certificate_chain()
+        .as_slice()
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("the self-signed identity holds no certificate"))?
+        .hash()
+        .as_ref();
     let config = ServerConfig::builder()
         .with_bind_address(address)
         .with_identity(identity)

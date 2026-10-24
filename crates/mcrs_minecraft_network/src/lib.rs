@@ -1,9 +1,3 @@
-#![expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::unwrap_used,
-    reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
-)]
 #[cfg(target_family = "wasm")]
 pub mod browser;
 #[cfg(feature = "bevy")]
@@ -117,7 +111,8 @@ pub fn certificate_hash_from_hex(hex: &str) -> anyhow::Result<[u8; 32]> {
     Ok(hash)
 }
 
-#[cfg(all(test, feature = "bevy", not(target_family = "wasm")))]
+#[cfg(test)]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod tests {
     use super::*;
 

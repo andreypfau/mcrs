@@ -41,7 +41,7 @@ impl TableCounts {
     }
 
     pub fn failures(&self, row: usize) -> u64 {
-        self.failures[row]
+        self.failures.get(row).copied().unwrap_or(0)
     }
 
     pub fn failures_total(&self) -> u64 {

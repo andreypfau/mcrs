@@ -500,7 +500,8 @@ pub struct TerrainLimits {
     pub tint_span: u32,
 }
 
-#[cfg(all(test, feature = "singleplayer", not(target_family = "wasm")))]
+#[cfg(test)]
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 mod tests {
     use super::*;
 

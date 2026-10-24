@@ -176,9 +176,16 @@ pub fn close_connection_later(commands: &mut Commands, connection: Entity, reaso
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(not(target_family = "wasm"))]
-        app.insert_resource(ClientRuntime(
-            Runtime::new().expect("Failed to start the client network runtime"),
-        ));
+        match Runtime::new() {
+            Ok(runtime) => {
+                app.insert_resource(ClientRuntime(runtime));
+            }
+            Err(error) => {
+                tracing::error!("the client network runtime did not start: {error}");
+                app.world_mut().write_message(AppExit::error());
+                return;
+            }
+        }
         app.configure_sets(
             Update,
             (ClientNetworkSystems::Receive, ClientNetworkSystems::Flush).chain(),
@@ -517,7 +524,8 @@ fn handle_game_packet(
     }
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
     use bevy_app::Update;

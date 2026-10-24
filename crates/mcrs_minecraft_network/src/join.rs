@@ -298,7 +298,8 @@ pub(crate) fn received_tags(update: Vec<RegistryTags<'_>>) -> ReceivedTags {
         .collect()
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
     use mcrs_minecraft_protocol::decode::PacketDecoder;

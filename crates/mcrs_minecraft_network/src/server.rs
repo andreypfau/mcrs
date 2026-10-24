@@ -2,7 +2,7 @@ use crate::inbound_rate::InboundRateBucket;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, intent, lan, webtransport};
-use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
+use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -62,8 +62,10 @@ impl WebTransportEndpoint {
 
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut App) {
-        build_plugin(app, self.address, self.announce_on_lan)
-            .expect("Failed to build network plugin");
+        if let Err(error) = build_plugin(app, self.address, self.announce_on_lan) {
+            tracing::error!("the network did not start: {error:#}");
+            app.world_mut().write_message(AppExit::error());
+        }
     }
 }
 

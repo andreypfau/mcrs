@@ -355,7 +355,7 @@ impl RawConnection {
             std::future::pending::<()>().await;
         });
         let disconnect_flag = Arc::new(AtomicBool::new(false));
-        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
             recv: inbound_rx,
@@ -513,7 +513,8 @@ impl WritePacket for RawConnection {
     }
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
     use mcrs_minecraft_protocol::VarInt;
