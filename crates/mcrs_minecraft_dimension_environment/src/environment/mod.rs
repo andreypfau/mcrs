@@ -133,7 +133,7 @@ impl EnvironmentAttributes {
             .collect();
 
         for (id, entry) in &dimension.attributes.0 {
-            let stack = &mut stacks[index_of(id.as_str())?];
+            let stack = stack_of(&mut stacks, id.as_str())?;
             // A modifier other than `override` has no specification yet, so the
             // entry is skipped rather than failing the whole dimension.
             if let Ok(value) = apply(entry.modifier, &stack.base, &entry.argument) {
@@ -154,7 +154,7 @@ impl EnvironmentAttributes {
                 }
             };
             for (id, sampler) in timeline.bake() {
-                stacks[index_of(id)?]
+                stack_of(&mut stacks, id)?
                     .layers
                     .push(TrackLayer { clock, sampler });
             }
@@ -210,8 +210,8 @@ impl EnvironmentAttributes {
         ENVIRONMENT_ATTRIBUTES.keys().position(|key| *key == id)
     }
 
-    pub fn stack(&self, index: usize) -> &AttributeStack {
-        &self.stacks[index]
+    pub fn stack(&self, index: usize) -> Option<&AttributeStack> {
+        self.stacks.get(index)
     }
 
     pub fn stacks(&self) -> &[AttributeStack] {
@@ -240,7 +240,8 @@ impl EnvironmentAttributes {
     /// Read one attribute by id. For tests and cold paths; a frame walks
     /// [`EnvironmentAttributes::stack`] by index instead.
     pub fn value(&self, id: &str, ctx: &EnvironmentContext) -> Option<AttributeValue> {
-        Some(self.stacks[Self::index(id)?].evaluate(ctx))
+        self.stack(Self::index(id)?)
+            .map(|stack| stack.evaluate(ctx))
     }
 }
 
@@ -249,8 +250,13 @@ pub struct EnvironmentContext<'a> {
     pub ticks: &'a [f64],
 }
 
-fn index_of(id: &str) -> Result<usize, EnvironmentError> {
-    EnvironmentAttributes::index(id)
+fn stack_of<'s>(
+    stacks: &'s mut [AttributeStack],
+    id: &str,
+) -> Result<&'s mut AttributeStack, EnvironmentError> {
+    stacks
+        .iter_mut()
+        .find(|stack| stack.spec.id == id)
         .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))
 }
 

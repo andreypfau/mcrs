@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
-    EnvironmentAttributes, EnvironmentContext, Weather,
+    AttributeStack, EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
 use mcrs_minecraft_environment::keys::EnvironmentAttribute;
@@ -107,6 +107,18 @@ impl SkyValue {
     }
 }
 
+fn stack_value(
+    attributes: &EnvironmentAttributes,
+    stack: usize,
+    ctx: &EnvironmentContext,
+) -> SkyValue {
+    attributes
+        .stack(stack)
+        .map_or(SkyValue::Scalar(0.0), |stack| {
+            sky_value(&stack.evaluate(ctx))
+        })
+}
+
 fn sky_value(value: &AttributeValue) -> SkyValue {
     match value {
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
@@ -149,7 +161,11 @@ impl SkyLayout {
         let (frame, constant) = SkyField::ALL
             .into_iter()
             .map(|field| (field, index(field.attribute().as_static_str())))
-            .partition(|(_, stack)| attributes.stack(*stack).is_dynamic());
+            .partition(|(_, stack)| {
+                attributes
+                    .stack(*stack)
+                    .is_some_and(AttributeStack::is_dynamic)
+            });
 
         SkyLayout { frame, constant }
     }
@@ -182,7 +198,7 @@ impl SkyLayout {
         frame.values.extend(
             self.frame
                 .iter()
-                .map(|(_, stack)| sky_value(&attributes.stack(*stack).evaluate(ctx))),
+                .map(|(_, stack)| stack_value(attributes, *stack, ctx)),
         );
     }
 
@@ -196,7 +212,7 @@ impl SkyLayout {
         let values: Vec<(SkyField, SkyValue)> = self
             .constant
             .iter()
-            .map(|(field, stack)| (*field, sky_value(&attributes.stack(*stack).evaluate(ctx))))
+            .map(|(field, stack)| (*field, stack_value(attributes, *stack, ctx)))
             .collect();
 
         SkyStatic {
@@ -225,7 +241,7 @@ fn effects(
         // A tracked colour can be transparent at this tick and opaque at the next, so only a
         // constant one can rule the clouds out.
         let clouds = EnvironmentAttributes::index(SkyField::CloudColor.attribute().as_static_str())
-            .map(|index| attributes.stack(index))
+            .and_then(|index| attributes.stack(index))
             .is_some_and(|stack| {
                 stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
             });
