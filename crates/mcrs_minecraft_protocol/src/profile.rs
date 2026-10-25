@@ -20,8 +20,8 @@ pub struct PlayerListActions {
     pub update_listed: bool,
     pub update_latency: bool,
     pub update_display_name: bool,
-    #[bits(2)]
-    _pad: u8,
+    pub update_list_order: bool,
+    pub update_hat: bool,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -34,6 +34,8 @@ pub struct PlayerListEntry<'a> {
     pub ping: i32,
     pub game_mode: GameMode,
     pub display_name: Option<Cow<'a, Text>>,
+    pub list_order: i32,
+    pub show_hat: bool,
 }
 
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]

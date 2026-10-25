@@ -592,6 +592,14 @@ pub mod clientbound {
                 if self.actions.update_display_name() {
                     entry.display_name.encode(&mut w)?;
                 }
+
+                if self.actions.update_list_order() {
+                    VarInt(entry.list_order).encode(&mut w)?;
+                }
+
+                if self.actions.update_hat() {
+                    entry.show_hat.encode(&mut w)?;
+                }
             }
 
             Ok(())
@@ -633,6 +641,14 @@ pub mod clientbound {
 
                 if actions.update_display_name() {
                     entry.display_name = crate::Decode::decode(r)?;
+                }
+
+                if actions.update_list_order() {
+                    entry.list_order = VarInt::decode(r)?.0;
+                }
+
+                if actions.update_hat() {
+                    entry.show_hat = crate::Decode::decode(r)?;
                 }
 
                 entries.push(entry);

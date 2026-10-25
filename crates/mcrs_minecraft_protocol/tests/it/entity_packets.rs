@@ -287,3 +287,21 @@ fn a_villager_data_on_the_wire_follows_the_reference_stream_codec() {
     assert!(read(wire(7, 0, 1)).is_err(), "no seventh villager type");
     assert!(read(wire(2, 15, 1)).is_err(), "no fifteenth profession");
 }
+
+#[test]
+fn a_player_info_update_reads_the_list_order_and_hat_actions_from_the_top_two_bits() {
+    use mcrs_minecraft_protocol::Decode;
+    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerInfoUpdate;
+
+    let mut frame = vec![0b1100_0000, 1];
+    frame.extend_from_slice(&[7; 16]);
+    frame.extend_from_slice(&[5, 1]);
+    let mut r = &frame[..];
+    let update = ClientboundPlayerInfoUpdate::decode(&mut r).unwrap();
+
+    assert!(r.is_empty(), "{} bytes left over", r.len());
+    let [entry] = update.entries.as_ref() else {
+        panic!("{:?}", update.entries);
+    };
+    assert_eq!((entry.list_order, entry.show_hat), (5, true));
+}

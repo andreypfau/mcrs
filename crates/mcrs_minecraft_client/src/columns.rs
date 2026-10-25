@@ -588,7 +588,8 @@ impl Default for Arrivals {
 
 enum Arrival {
     Enter(Dimension),
-    Column(Task<Result<(ColumnPos, Column)>>),
+    /// `None` for a frame that decodes but has no dimension or biome registry to land in.
+    Column(Task<Result<Option<(ColumnPos, Column)>>>),
     Light(ColumnPos, ColumnLight),
     Forget(ColumnPos),
     BatchStart,
@@ -687,17 +688,11 @@ fn on_level_chunk(
     registries: Option<Res<CurrentRegistries>>,
     mut arrivals: ResMut<Arrivals>,
 ) {
-    let Some(extent) = arrivals.extent else {
-        return;
-    };
-    let Some(biome_count) = registries
+    let extent = arrivals.extent;
+    let biome_count = registries
         .as_deref()
         .and_then(|registries| registries.registry::<BiomeFile>())
-        .map(|biomes| biomes.len())
-    else {
-        error!("a column arrived before the server's biome registry was built");
-        return;
-    };
+        .map(|biomes| biomes.len());
     let data = event.data().clone();
     let block_state_count = blocks.state_count();
     let task = AsyncComputeTaskPool::get().spawn(async move {
@@ -709,6 +704,13 @@ fn on_level_chunk(
             "chunk packet: {} bytes left over",
             bytes.len()
         );
+        let Some(extent) = extent else {
+            return Ok(None);
+        };
+        let Some(biome_count) = biome_count else {
+            error!("a column arrived before the server's biome registry was built");
+            return Ok(None);
+        };
         let column = Column::decode(
             &packet.chunk_data,
             &packet.light_data,
@@ -717,7 +719,7 @@ fn on_level_chunk(
             biome_count,
         )
         .with_context(|| format!("column {:?}", packet.pos))?;
-        Ok((packet.pos, column))
+        Ok(Some((packet.pos, column)))
     });
     arrivals.queue.push_back(Arrival::Column(task));
 }
@@ -790,7 +792,8 @@ fn settle_columns(
                     arrivals.queue.push_front(Arrival::Column(task));
                     break;
                 }
-                Some(Ok((pos, column))) => store.insert(pos, column),
+                Some(Ok(Some((pos, column)))) => store.insert(pos, column),
+                Some(Ok(None)) => {}
                 Some(Err(error)) => {
                     if let Some((entity, _)) = &connection {
                         close_connection_later(
