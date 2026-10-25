@@ -1,4 +1,3 @@
-use crate::ColumnBlocks;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags::{
@@ -76,7 +75,7 @@ pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPre
             .is_some_and(|(tag, block)| tags.contains(tag, block))
     };
     let mut table = Vec::with_capacity(blocks.state_count());
-    for id in crate::block_state::states(blocks) {
+    for id in blocks.states() {
         let state = blocks.state(id);
         let block = blocks.block_index(id);
         let mut kinds = HeightmapKinds::empty();
@@ -157,15 +156,6 @@ impl ColumnHeightmapSet {
     }
 }
 
-/// The two maps a placement modifier reads as `WORLD_SURFACE_WG` and
-/// `OCEAN_FLOOR_WG`: the column as the fill, the surface rules and the carvers
-/// left it, before any feature wrote into it.
-#[derive(Debug, Clone)]
-pub struct TerrainHeightmaps {
-    pub surface: ColumnHeights,
-    pub solid: ColumnHeights,
-}
-
 /// Carry one block write through the four maps.
 ///
 /// The order is mandatory: `MOTION`'s descent stops at the topmost `SOLID`
@@ -209,24 +199,6 @@ pub fn apply_write(
     );
 }
 
-/// The terrain descent, over the dense buffer the fill still holds: the two
-/// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
-pub fn build_terrain_heightmaps(
-    column: &ColumnBlocks,
-    predicates: &HeightmapPredicates,
-) -> Option<TerrainHeightmaps> {
-    let set = descend(
-        column.y_sections(),
-        HeightmapKinds::SURFACE.union(HeightmapKinds::SOLID),
-        |index| Some(SectionCells::Dense(column.section_cells(index))),
-        predicates,
-    )?;
-    Some(TerrainHeightmaps {
-        surface: set.surface.0,
-        solid: set.solid.0,
-    })
-}
-
 /// One descending pass over the column that closes every map at the first block
 /// satisfying it.
 pub fn build_column_heightmaps(
@@ -241,6 +213,25 @@ pub fn build_column_heightmaps(
             let (blocks, _) = sections.get(index)?.as_ref()?;
             Some(SectionCells::Palette(&blocks.0))
         },
+        predicates,
+    )
+}
+
+/// The `wanted` maps of a column held as one dense buffer per section, or `None` when a buffer
+/// is not a whole section.
+pub fn build_dense_heightmaps<'a>(
+    y_sections: &[i32],
+    wanted: HeightmapKinds,
+    section: impl Fn(usize) -> &'a [Cell<VoxelId>],
+    predicates: &HeightmapPredicates,
+) -> Option<ColumnHeightmapSet> {
+    if (0..y_sections.len()).any(|index| section(index).len() != SectionPos::VOLUME) {
+        return None;
+    }
+    descend(
+        y_sections,
+        wanted,
+        |index| Some(SectionCells::Dense(section(index))),
         predicates,
     )
 }
@@ -265,7 +256,10 @@ impl SectionCells<'_> {
     #[inline]
     fn get(&self, local_y: usize, cell: usize) -> VoxelId {
         match self {
-            SectionCells::Dense(cells) => cells[local_y * SectionPos::AREA + cell].get(),
+            SectionCells::Dense(cells) => cells
+                .get(local_y * SectionPos::AREA + cell)
+                .map(Cell::get)
+                .unwrap_or_default(),
             SectionCells::Palette(palette) => palette.get_local(LocalPos::new(
                 (cell & SectionPos::MASK) as u8,
                 local_y as u8,
@@ -353,7 +347,7 @@ fn close(
     clippy::too_many_arguments,
     reason = "the heightmap an edit moves and its kind, the block's position, the kinds the write touches, the floor, the predicates and the reader of the column"
 )]
-pub(crate) fn apply_edit(
+fn apply_edit(
     map: &mut ColumnHeights,
     kind: HeightmapKinds,
     x: usize,

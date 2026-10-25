@@ -14,9 +14,9 @@ use super::structures::{frozen_shared, preset};
 use super::{biome_registry, block_tags, blocks, build_settings_router, corpus_climate};
 use crate::base_height;
 use crate::feature_program::Resolver;
-use crate::heightmap::{HeightmapKinds, heightmap_predicates};
 use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::live_sets;
+use mcrs_minecraft_heightmap::{HeightmapKinds, heightmap_predicates};
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
 
 const MAGIC: &[u8; 8] = b"MCSITES1";

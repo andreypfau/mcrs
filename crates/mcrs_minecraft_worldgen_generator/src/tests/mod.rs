@@ -92,9 +92,10 @@ use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use crate::ColumnBlocks;
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;
-use crate::heightmap::TerrainHeightmaps;
 use crate::stages::{FillContext, fill_column, merge_column, run_region};
-use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
+use crate::staging::{
+    FilledSnapshot, RegionSnapshots, Stage, StagingStore, TerrainHeightmaps, region_column,
+};
 use crate::task::{CancellationToken, ColumnSource};
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};

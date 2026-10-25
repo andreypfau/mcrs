@@ -29,9 +29,9 @@ use super::template_manifest::{parse_state, resolve};
 use super::template_parity::{canonical, fnv, program, state_named, written};
 use super::{block_tags, blocks, corpus, corpus_climate};
 use crate::feature_program::RunScratch;
-use crate::heightmap::{HeightmapPredicates, heightmap_predicates};
 use crate::heightmap_kind;
 use crate::structures::place::{column_clip, place_start};
+use mcrs_minecraft_heightmap::{HeightmapPredicates, heightmap_predicates};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temperature};
 
 const MAGIC: &[u8; 8] = b"MCSTRGE0";

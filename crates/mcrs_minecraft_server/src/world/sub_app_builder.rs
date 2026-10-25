@@ -87,6 +87,7 @@ use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
+use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
@@ -96,7 +97,6 @@ use mcrs_minecraft_level::world::sub_app::{
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
-use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;

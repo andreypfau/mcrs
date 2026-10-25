@@ -1,9 +1,10 @@
 use crate::ColumnBiomes;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
-use crate::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
+use crate::stages::build_terrain_heightmaps;
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, base_height, fill_column_dense_any};
+use mcrs_minecraft_heightmap::{HeightmapKinds, heightmap_predicates};
 
 use super::{block_tags, blocks, build_settings_router};
 

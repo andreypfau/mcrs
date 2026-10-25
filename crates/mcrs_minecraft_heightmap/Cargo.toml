@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_heightmap"
+description = "The four column heightmaps, the block state predicates they test, and the descent that builds them"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+bitflags = "2.10.0"
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_registries.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

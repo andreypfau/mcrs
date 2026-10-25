@@ -3790,6 +3790,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_heightmap"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "bitflags 2.10.0",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_registries",
+]
+
+[[package]]
 name = "mcrs_minecraft_item"
 version = "0.5.8"
 dependencies = [
@@ -4154,6 +4166,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
@@ -4505,7 +4518,6 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_math",
- "bitflags 2.10.0",
  "bytes",
  "criterion",
  "fixedbitset",
@@ -4519,6 +4531,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_heightmap",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_random",

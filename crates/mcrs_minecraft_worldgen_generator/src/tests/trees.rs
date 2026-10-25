@@ -20,10 +20,10 @@ use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;
-use crate::heightmap::heightmap_predicates;
 use crate::modern_carvers::ModernCarverBlockIds;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
 use crate::{ColumnBiomes, SurfaceStates};
+use mcrs_minecraft_heightmap::heightmap_predicates;
 
 #[cfg(test)]
 use super::generate_region;

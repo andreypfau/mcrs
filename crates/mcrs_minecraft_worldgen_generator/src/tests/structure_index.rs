@@ -8,10 +8,10 @@ use mcrs_minecraft_core::ResourceLocation;
 
 use super::structures::{frozen_shared, preset};
 use super::{block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate};
-use crate::heightmap::heightmap_predicates;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
+use mcrs_minecraft_heightmap::heightmap_predicates;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId};
 use mcrs_minecraft_worldgen_structure::locate::locate_pos;
 use mcrs_minecraft_worldgen_structure::site::Stub;

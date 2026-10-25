@@ -3,11 +3,6 @@ use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockStateId;
 
-pub(crate) fn states(blocks: &BlockDefinitions) -> impl Iterator<Item = BlockStateId> {
-    let count = blocks.state_count();
-    (0..count).filter_map(move |number| BlockStateId::checked(u16::try_from(number).ok()?, count))
-}
-
 pub(crate) fn state_of(blocks: &BlockDefinitions, voxel: VoxelId) -> Option<BlockStateId> {
     BlockStateId::checked(voxel.0, blocks.state_count())
 }

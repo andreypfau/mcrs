@@ -12,7 +12,6 @@ use super::{
     biome_id, block_tags, blocks, build_beta_router, build_program_with, corpus_biomes,
     corpus_climate, corpus_features, one_step, test_registries,
 };
-use crate::heightmap::heightmap_predicates;
 use crate::modern_carvers::ModernCarverBlockIds;
 use crate::saved::SectionData;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
@@ -25,6 +24,7 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_heightmap::heightmap_predicates;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 use std::collections::BTreeMap;
 use std::sync::Arc;

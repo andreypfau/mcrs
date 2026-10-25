@@ -50,9 +50,7 @@ use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::client_heightmaps;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_worldgen_generator::heightmap::{
-    MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap,
-};
+use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::{trace, warn};
 

@@ -15,7 +15,6 @@
 )]
 
 use crate::biome_upscale::upscale_biomes;
-use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use crate::task::CancellationToken;
 use bevy_math::IVec3;
@@ -29,6 +28,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::NarrowError;
+use mcrs_minecraft_heightmap::{HeightmapKinds, HeightmapPredicates};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
@@ -1166,7 +1166,6 @@ fn beta_surface_blocks(
 
 pub mod block_state;
 pub mod column_blocks;
-pub mod heightmap;
 pub mod saved;
 pub mod task;
 pub use column_blocks::ColumnBlocks;

@@ -31,10 +31,6 @@ use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 
 use crate::feature_program::{FeatureProgram, RunScratch};
-use crate::heightmap::{
-    ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
-    build_terrain_heightmaps,
-};
 use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
@@ -42,7 +38,8 @@ use crate::modern_carvers::{
 use crate::multi_noise_biomes::PresetBiomeTables;
 use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
-    ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
+    ColumnDelta, FilledSnapshot, RegionSnapshots, TerrainHeightmaps, cell_index, rank,
+    region_column, region_slot,
 };
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
@@ -51,6 +48,10 @@ use crate::{
     BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
     apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
     spans_dimension,
+};
+use mcrs_minecraft_heightmap::{
+    ColumnHeightmapSet, HeightmapKinds, HeightmapPredicates, build_column_heightmaps,
+    build_dense_heightmaps,
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
@@ -246,6 +247,24 @@ pub fn extent(router: &NoiseRouter) -> HeightContext {
         depth: router.noise.height as i32,
         sea_level: router.sea_level,
     }
+}
+
+/// The terrain descent, over the dense buffer the fill still holds: the two
+/// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
+pub fn build_terrain_heightmaps(
+    column: &ColumnBlocks,
+    predicates: &HeightmapPredicates,
+) -> Option<TerrainHeightmaps> {
+    let set = build_dense_heightmaps(
+        column.y_sections(),
+        HeightmapKinds::SURFACE.union(HeightmapKinds::SOLID),
+        |index| column.section_cells(index),
+        predicates,
+    )?;
+    Some(TerrainHeightmaps {
+        surface: set.surface.0,
+        solid: set.solid.0,
+    })
 }
 
 fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeightmaps> {
@@ -1269,8 +1288,8 @@ mod tests {
             reason = "compares the terrain maps and the final maps of each column of the chunk with a loop per axis, so a mismatch names its cell"
         )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
-            use crate::heightmap::heightmap_predicates;
             use crate::tests::{beta_carver_table, block_tags, blocks};
+            use mcrs_minecraft_heightmap::heightmap_predicates;
 
             let router = Arc::new(build_beta_router());
             let (source, _) = crate::tests::beta_surface::build_beta_biome_source();

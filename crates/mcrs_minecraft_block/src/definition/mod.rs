@@ -269,6 +269,13 @@ impl BlockDefinitions {
         self.states.len()
     }
 
+    pub fn states(&self) -> impl Iterator<Item = BlockStateId> + use<> {
+        let count = self.state_count();
+        (0..count)
+            .map_while(|number| u16::try_from(number).ok())
+            .filter_map(move |number| BlockStateId::checked(number, count))
+    }
+
     pub fn blocks(&self) -> &[BlockEntry] {
         &self.blocks
     }

@@ -234,7 +234,7 @@ pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
         center_down: empty_mask(blocks),
         center_up: empty_mask(blocks),
     };
-    for state in crate::block_state::states(blocks) {
+    for state in blocks.states() {
         let shape = blocks.state(state).collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));
@@ -452,7 +452,7 @@ fn on_facing_face(blocks: &BlockDefinitions, entry: &BlockEntry) -> Compiled<Sur
         .collect::<Compiled<Vec<_>>>()?;
     let mut sturdy: [FixedBitSet; 6] = std::array::from_fn(|_| empty_mask(blocks));
     let mut answers: HashMap<u32, [bool; 6]> = HashMap::default();
-    for state in crate::block_state::states(blocks) {
+    for state in blocks.states() {
         let shape = blocks.state(state).collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));

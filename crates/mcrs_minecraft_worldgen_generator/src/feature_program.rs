@@ -2669,7 +2669,7 @@ impl ShapeMasks {
         let mut full_outline = empty();
         let mut sturdy_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
         let mut full_collision_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
-        for state_id in crate::block_state::states(blocks) {
+        for state_id in blocks.states() {
             let id = state_id.index();
             let state = blocks.state(state_id);
             let (selection_full, selection_faces) = fact(state.selection_shape);
@@ -2785,11 +2785,15 @@ impl<'a> Resolver<'a> {
                 &block(Block::DamagedAnvil),
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
-            block_of_state: crate::block_state::states(self.blocks)
+            block_of_state: self
+                .blocks
+                .states()
                 .filter_map(|id| self.blocks.block_index(id))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
-            fluid_states: crate::block_state::states(self.blocks)
+            fluid_states: self
+                .blocks
+                .states()
                 .map(|id| fluid_state_number(self.blocks.state(id).fluid))
                 .collect(),
         }
@@ -2826,7 +2830,9 @@ impl<'a> Resolver<'a> {
 
     /// Every state `keep` answers for.
     pub fn state_mask(&self, keep: impl Fn(&BlockStateData) -> bool) -> StateMask {
-        let mut mask: FixedBitSet = crate::block_state::states(self.blocks)
+        let mut mask: FixedBitSet = self
+            .blocks
+            .states()
             .filter(|&id| keep(self.blocks.state(id)))
             .map(BlockStateId::index)
             .collect();

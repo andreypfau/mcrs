@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::{LocalPos, SectionPos};
 use std::sync::Arc;
 
-use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
@@ -9,9 +9,18 @@ use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use rustc_hash::FxHashMap;
 
-use crate::heightmap::{ColumnHeightmapSet, TerrainHeightmaps};
 use crate::saved::SectionData;
 use crate::task::ColumnSource;
+use mcrs_minecraft_heightmap::ColumnHeightmapSet;
+
+/// The two maps a placement modifier reads as `WORLD_SURFACE_WG` and
+/// `OCEAN_FLOOR_WG`: the column as the fill, the surface rules and the carvers
+/// left it, before any feature wrote into it.
+#[derive(Debug, Clone)]
+pub struct TerrainHeightmaps {
+    pub surface: ColumnHeights,
+    pub solid: ColumnHeights,
+}
 
 /// How far a column has climbed. The order is the ladder's order, so a
 /// readiness test is a comparison.

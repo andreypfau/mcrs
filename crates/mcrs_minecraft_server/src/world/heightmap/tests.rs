@@ -1,8 +1,8 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::{BlockPos, BlockStateId};
+use mcrs_minecraft_heightmap::*;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks, section_states};
-use mcrs_minecraft_worldgen_generator::heightmap::*;
 use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
 use std::sync::OnceLock;
 
