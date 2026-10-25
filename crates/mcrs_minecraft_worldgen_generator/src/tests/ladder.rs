@@ -23,8 +23,8 @@ use bevy_app::App;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -94,12 +94,6 @@ impl Dimension {
     pub fn install(&self, app: &mut App) {
         app.insert_resource(self.ctx.clone());
         app.insert_resource(blocks().clone());
-        app.insert_resource(
-            self.ctx
-                .predicates
-                .clone()
-                .expect("the dimension carries the heightmap table"),
-        );
     }
 }
 

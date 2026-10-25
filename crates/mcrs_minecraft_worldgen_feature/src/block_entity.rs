@@ -13,11 +13,11 @@ use mcrs_minecraft_core::BlockPos;
 #[cfg(test)]
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_item::ItemStackWithSlot;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
-use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_registries::{Named, dispatch};
 use mcrs_minecraft_value_provider::Weighted;
 use serde::{Deserialize, Serialize};
@@ -781,8 +781,8 @@ mod tests {
     use super::*;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_item::{ComponentPatch, ItemStackValue};
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
     const POS: BlockPos = BlockPos::new(1, -2, 3);
 

@@ -193,7 +193,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
 /// same cells on each side of the column border.
 #[test]
 fn the_region_takes_the_veins_the_box_takes() {
-    use mcrs_minecraft_protocol::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
 
     use crate::ColumnBlocks;
     use crate::beta_ores::apply_beta_ores_in;
@@ -233,7 +233,7 @@ fn the_region_takes_the_veins_the_box_takes() {
 fn the_populate_feature_is_the_populate_step() {
     use std::sync::Arc;
 
-    use mcrs_minecraft_protocol::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
 
     use crate::ColumnBlocks;
     use crate::beta_ores::apply_beta_ores_in;

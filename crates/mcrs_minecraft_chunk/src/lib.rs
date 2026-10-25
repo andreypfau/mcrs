@@ -3,6 +3,7 @@ pub mod container;
 #[rustfmt::skip]
 pub mod keys;
 pub mod nibbles;
+pub mod palette;
 pub mod section;
 pub mod voxel_palette;
 

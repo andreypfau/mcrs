@@ -11,7 +11,7 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
 #[cfg(test)]
-use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]

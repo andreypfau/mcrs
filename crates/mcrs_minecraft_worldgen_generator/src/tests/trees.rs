@@ -10,9 +10,9 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 #[cfg(test)]
-use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]

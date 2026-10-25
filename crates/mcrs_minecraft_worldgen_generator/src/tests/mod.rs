@@ -80,10 +80,10 @@ use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registries::Registries;
 
 use fixedbitset::FixedBitSet;

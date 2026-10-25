@@ -17,25 +17,23 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 bevy_app = { workspace = true, optional = true }
-bevy_asset.workspace = true
-bevy_ecs.workspace = true
+bevy_asset = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 bitflags = "2.10.0"
 fixedbitset.workspace = true
 mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_biome.workspace = true
-mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_level.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_world = { workspace = true, optional = true }
-mcrs_minecraft_worldgen = { workspace = true, features = ["fast", "bevy"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
@@ -55,6 +53,8 @@ tracing.workspace = true
 
 [dev-dependencies]
 bevy_app.workspace = true
+bevy_asset.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 base64.workspace = true
 bytes.workspace = true
@@ -62,12 +62,14 @@ criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
+mcrs_minecraft_worldgen_generator = { path = ".", features = ["bevy"] }
 rand_xoshiro.workspace = true
 serde_json.workspace = true
 
 [features]
+bevy = ["dep:bevy_ecs"]
 # The helpers the generation tests share, for the tests of the crates that drive the pipeline.
-test-support = ["dep:bevy_app", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support", "dep:mcrs_minecraft_world", "mcrs_minecraft_world/test-support"]
+test-support = ["bevy", "dep:bevy_app", "dep:bevy_asset", "mcrs_minecraft_block/bevy", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support", "dep:mcrs_minecraft_world", "mcrs_minecraft_world/test-support"]
 telemetry-tracy = []
 
 [[bench]]

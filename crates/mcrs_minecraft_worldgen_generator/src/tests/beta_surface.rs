@@ -23,8 +23,8 @@ use std::sync::Arc;
 #[cfg(test)]
 type GeneratedSections = Vec<
     Option<(
-        mcrs_minecraft_level::palette::BlockPalette,
-        mcrs_minecraft_level::palette::BiomePalette,
+        mcrs_minecraft_chunk::palette::BlockPalette,
+        mcrs_minecraft_chunk::palette::BiomePalette,
     )>,
 >;
 

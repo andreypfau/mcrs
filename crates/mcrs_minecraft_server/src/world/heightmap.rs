@@ -16,6 +16,9 @@ use mcrs_minecraft_worldgen_generator::heightmap::{
 };
 use rustc_hash::FxHashMap;
 
+#[derive(Resource, Clone)]
+pub struct BlockHeightmapPredicates(pub HeightmapPredicates);
+
 pub struct HeightmapPredicatesPlugin;
 
 impl Plugin for HeightmapPredicatesPlugin {
@@ -38,7 +41,9 @@ fn rebuild_heightmap_predicates(
         );
         return;
     };
-    commands.insert_resource(heightmap_predicates(&blocks, &tags));
+    commands.insert_resource(BlockHeightmapPredicates(heightmap_predicates(
+        &blocks, &tags,
+    )));
 }
 
 /// `Heightmap.Types` ids. The client reads the packet's map keys through them,
@@ -78,7 +83,7 @@ impl Plugin for DimHeightmapPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PendingColumnHeightmaps>().add_systems(
             Last,
-            update_column_heightmaps.run_if(resource_exists::<HeightmapPredicates>),
+            update_column_heightmaps.run_if(resource_exists::<BlockHeightmapPredicates>),
         );
     }
 }
@@ -161,7 +166,7 @@ fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
 /// map, and only removing that very block costs a descent.
 pub fn update_column_heightmaps(
     mut placed: MessageReader<BlockPlaced>,
-    predicates: Res<HeightmapPredicates>,
+    predicates: Res<BlockHeightmapPredicates>,
     sections: Query<&InDimension>,
     indices: Query<&ColumnIndex>,
     mut columns: Query<(
@@ -194,7 +199,7 @@ pub fn update_column_heightmaps(
         let x = (edit.block_pos.x & SectionPos::MASK as i32) as usize;
         let z = (edit.block_pos.z & SectionPos::MASK as i32) as usize;
         let y = edit.block_pos.y;
-        let kinds = predicates.get(edit.new_state.into());
+        let kinds = predicates.0.get(edit.new_state.into());
         let read = |at: i32| block_at(chunks, &palettes, x, at, z);
 
         apply_write(
@@ -206,7 +211,7 @@ pub fn update_column_heightmaps(
             z,
             y,
             kinds,
-            &predicates,
+            &predicates.0,
             &read,
         );
     }

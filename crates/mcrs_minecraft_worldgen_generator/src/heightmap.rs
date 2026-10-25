@@ -1,31 +1,34 @@
 use crate::ColumnBlocks;
-use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{LocalPos, SectionPos, TagId};
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registries::Tags;
 use std::cell::Cell;
 use std::sync::Arc;
 
 /// Topmost non-air block. The upper bound of every other map.
-#[derive(Component, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SurfaceHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion, leaves included, fluids excluded.
-#[derive(Component, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SolidHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion or holds a fluid.
-#[derive(Component, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct MotionHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion without being leaves, or holds a fluid.
-#[derive(Component, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct NoLeavesHeightmap(pub ColumnHeights);
 
 bitflags::bitflags! {
@@ -44,7 +47,7 @@ bitflags::bitflags! {
 
 /// Which of the four predicates each block state satisfies, indexed by
 /// [`VoxelId`].
-#[derive(Resource, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct HeightmapPredicates(Arc<[HeightmapKinds]>);
 
 impl HeightmapPredicates {
@@ -96,7 +99,8 @@ pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPre
 
 /// The four maps of one column, built off-thread before the column entity
 /// exists and inserted on it whole.
-#[derive(Bundle, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::bundle::Bundle))]
 pub struct ColumnHeightmapSet {
     pub surface: SurfaceHeightmap,
     pub solid: SolidHeightmap,

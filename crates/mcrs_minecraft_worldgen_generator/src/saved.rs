@@ -3,13 +3,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registries::{Registries, Registry};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
@@ -76,7 +75,7 @@ pub(crate) fn region_dir(world: &Path, dimension: &ResourceKey<Dimension>) -> Op
 /// A whole region file is read to answer for any of its 1024 columns, so the
 /// bytes stay cached; a save large enough for that to matter needs an eviction
 /// policy this does not have.
-#[derive(Resource, Clone)]
+#[derive(Clone)]
 pub struct SavedColumns(Arc<Regions>);
 
 type Region = Arc<OnceLock<Option<Arc<RegionFile>>>>;

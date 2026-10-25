@@ -27,7 +27,7 @@ const WASM32_PACKAGES: [&str; 10] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 47] = [
+const NO_BEVY_PACKAGES: [&str; 48] = [
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
@@ -71,6 +71,7 @@ const NO_BEVY_PACKAGES: [&str; 47] = [
     "mcrs_minecraft_worldgen_density",
     "mcrs_minecraft_worldgen_feature",
     "mcrs_minecraft_worldgen_feature_place",
+    "mcrs_minecraft_worldgen_generator",
     "mcrs_minecraft_worldgen_structure",
     "mcrs_minecraft_worldgen_structure_place",
     "mcrs_minecraft_worldgen_surface",

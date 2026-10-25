@@ -1,10 +1,7 @@
 use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_minecraft_chunk::section::{Biomes, Blocks};
-use mcrs_minecraft_chunk::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
+pub use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelPalette};
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
-
-pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
-pub type BiomePalette = VoxelPalette<u8, { SectionPos::SIZE }>;
 
 /// One section's block states as the engine keeps them.
 pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
@@ -26,11 +23,6 @@ pub fn section_states(blocks: &BlockPalette, state_count: usize) -> SectionState
 pub fn air_section() -> ChunkBlocks {
     ChunkBlocks::new(SectionStates::homogeneous(BlockStateId::AIR))
 }
-
-// A container whose edge length disagrees with its section kind's axis bits packs
-// to a wrong length at runtime instead of failing to compile.
-const _: () = assert!(BlockPalette::SIZE == 1 << Blocks::AXIS_BITS);
-const _: () = assert!(BiomePalette::SIZE == 1 << Biomes::AXIS_BITS);
 
 // Coupling: this assumes `VoxelId(0)` is the air state, which
 // is the current vanilla convention but is not enforced by `BlockPalette`

@@ -243,7 +243,7 @@ fn spawn_column(
 
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
-    app.insert_resource(predicates().clone());
+    app.insert_resource(BlockHeightmapPredicates(predicates().clone()));
     app.add_systems(bevy_app::Update, update_column_heightmaps);
 
     let first = *y_sections.first().unwrap();

@@ -8,12 +8,12 @@ use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_server::world::heightmap::BlockHeightmapPredicates;
 use mcrs_minecraft_server::{DimensionWorldsPlugin, MinecraftServerPlugins};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 
 use crate::support::preset;
 
@@ -106,7 +106,9 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
         "no block light table after the first update"
     );
     assert!(
-        app.world().get_resource::<HeightmapPredicates>().is_some(),
+        app.world()
+            .get_resource::<BlockHeightmapPredicates>()
+            .is_some(),
         "no heightmap predicates after the first update"
     );
     let clocks = app.world().resource::<WorldClocks>();

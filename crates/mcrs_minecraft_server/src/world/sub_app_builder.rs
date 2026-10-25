@@ -81,7 +81,7 @@ use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
-use crate::world::heightmap::DimHeightmapPlugin;
+use crate::world::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::world::light::DimLightPlugin;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
@@ -118,7 +118,9 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         light_registry: world
             .get_resource::<mcrs_minecraft_light::block_light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
-        heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
+        heightmap_predicates: world
+            .get_resource::<BlockHeightmapPredicates>()
+            .map(|predicates| predicates.0.clone()),
         modern_carver_biomes: world
             .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
             .cloned()
@@ -522,7 +524,7 @@ pub fn spawn_dim_subapp(
     }
 
     if let Some(predicates) = &registries.heightmap_predicates {
-        sub_app.insert_resource(predicates.clone());
+        sub_app.insert_resource(BlockHeightmapPredicates(predicates.clone()));
     }
     sub_app.insert_resource(registries.structures.clone());
     if let Some(save) = &registries.world_save {

@@ -4,13 +4,12 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use crate::stored_biomes::column_cell;
-use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
@@ -58,7 +57,8 @@ use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 /// Everything a column stage reads that is the same for every column of one
 /// dimension, built once when the dimension spawns. Every field is a handle,
 /// so a clone per dispatch is a refcount.
-#[derive(Clone, Resource)]
+#[derive(Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct FillContext {
     pub router: Arc<NoiseRouter>,
     /// `None` for a router compiled without material rules, whose columns get no surface.
@@ -420,7 +420,7 @@ fn pack(
     ctx: &FillContext,
     col: ColumnPos,
     column: &ColumnBlocks,
-    biomes: &[mcrs_minecraft_level::palette::BiomePalette],
+    biomes: &[mcrs_minecraft_chunk::palette::BiomePalette],
     terrain: Option<TerrainHeightmaps>,
 ) -> FilledSnapshot {
     let sections = column.into_sections(biomes);

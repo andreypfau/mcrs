@@ -2,9 +2,9 @@ use crate::ColumnBiomes;
 use mcrs_minecraft_core::LocalPos;
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
