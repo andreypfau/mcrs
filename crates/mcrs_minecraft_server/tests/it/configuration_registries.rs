@@ -9,7 +9,7 @@ use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::PacketDecoder;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
@@ -423,12 +423,12 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
     }
     .encode(&mut reply)
     .unwrap();
-    app.world_mut().trigger(ReceivedPacketEvent {
-        entity: connection,
-        id: ServerboundSelectKnownPacks::ID,
-        data: reply.into(),
-        timestamp: Instant::now(),
-    });
+    app.world_mut()
+        .trigger(Received::<ServerboundSelectKnownPacks<'static>>::new(
+            connection,
+            reply.into(),
+            Instant::now(),
+        ));
     app.world_mut().flush();
 
     app.world_mut()
@@ -500,12 +500,12 @@ fn every_join_writes_the_registry_bytes_the_load_encoded() {
         ServerboundSelectKnownPacks { known_packs: reply }
             .encode(&mut body)
             .unwrap();
-        app.world_mut().trigger(ReceivedPacketEvent {
-            entity: connection,
-            id: ServerboundSelectKnownPacks::ID,
-            data: body.into(),
-            timestamp: Instant::now(),
-        });
+        app.world_mut()
+            .trigger(Received::<ServerboundSelectKnownPacks<'static>>::new(
+                connection,
+                body.into(),
+                Instant::now(),
+            ));
         app.world_mut().flush();
         app.world_mut()
             .get_mut::<ServerSideConnection>(connection)

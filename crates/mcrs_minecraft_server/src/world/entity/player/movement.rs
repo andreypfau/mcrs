@@ -9,7 +9,7 @@ use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
@@ -25,7 +25,10 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_observer(handle_move_packets);
+        app.add_observer(handle_move_pos);
+        app.add_observer(handle_move_pos_rot);
+        app.add_observer(handle_move_rot);
+        app.add_observer(handle_move_status_only);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::Input));
@@ -85,27 +88,56 @@ impl TeleportState {
     }
 }
 
-fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<PlayerMovement>) {
-    let entity = on.entity;
-    let (position, look) = if let Some(p) = on.decode::<ServerboundMovePlayerPos>() {
-        (Some(p.position.into()), None)
-    } else if let Some(p) = on.decode::<ServerboundMovePlayerPosRot>() {
-        (
-            Some(p.position.into()),
-            Some(Rotation::new(p.look.yaw, p.look.pitch)),
-        )
-    } else if let Some(p) = on.decode::<ServerboundMovePlayerRot>() {
-        (None, Some(Rotation::new(p.look.yaw, p.look.pitch)))
-    } else if on.decode::<ServerboundMovePlayerStatusOnly>().is_some() {
-        (None, None)
-    } else {
-        return;
-    };
-    writer.write(PlayerMovement {
-        entity,
-        position,
-        look,
-    });
+fn handle_move_pos(
+    on: On<Received<ServerboundMovePlayerPos>>,
+    mut writer: MessageWriter<PlayerMovement>,
+) {
+    if let Some(p) = on.packet() {
+        writer.write(PlayerMovement {
+            entity: on.entity,
+            position: Some(p.position.into()),
+            look: None,
+        });
+    }
+}
+
+fn handle_move_pos_rot(
+    on: On<Received<ServerboundMovePlayerPosRot>>,
+    mut writer: MessageWriter<PlayerMovement>,
+) {
+    if let Some(p) = on.packet() {
+        writer.write(PlayerMovement {
+            entity: on.entity,
+            position: Some(p.position.into()),
+            look: Some(Rotation::new(p.look.yaw, p.look.pitch)),
+        });
+    }
+}
+
+fn handle_move_rot(
+    on: On<Received<ServerboundMovePlayerRot>>,
+    mut writer: MessageWriter<PlayerMovement>,
+) {
+    if let Some(p) = on.packet() {
+        writer.write(PlayerMovement {
+            entity: on.entity,
+            position: None,
+            look: Some(Rotation::new(p.look.yaw, p.look.pitch)),
+        });
+    }
+}
+
+fn handle_move_status_only(
+    on: On<Received<ServerboundMovePlayerStatusOnly>>,
+    mut writer: MessageWriter<PlayerMovement>,
+) {
+    if on.packet().is_some() {
+        writer.write(PlayerMovement {
+            entity: on.entity,
+            position: None,
+            look: None,
+        });
+    }
 }
 
 #[derive(Message)]
@@ -177,10 +209,10 @@ fn teleport(
 /// permanently. `event.entity` is the in-dim player entity, matching the
 /// `TeleportState` owner.
 fn handle_accept_teleportation(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundAcceptTeleportation>>,
     mut players: Query<&mut TeleportState>,
 ) {
-    if event.decode::<ServerboundAcceptTeleportation>().is_none() {
+    if event.packet().is_none() {
         return;
     }
     if let Ok(mut state) = players.get_mut(event.entity) {

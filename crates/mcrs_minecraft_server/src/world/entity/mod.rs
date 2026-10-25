@@ -14,7 +14,6 @@ use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket, Pack
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
@@ -59,14 +58,14 @@ impl ContainsEntity for EntityOwner {
     }
 }
 
-/// Per-dim system that re-emits `ReceivedPacketEvent` for every
-/// `InboundPlayerPacket` drained from the host→sub-app shuttle.
+/// Per-dim system that raises the typed event of every `InboundPlayerPacket` drained from the
+/// host→sub-app shuttle, through the trigger the packet carries.
 ///
 /// The extract closure in `sub_app_builder` drains
 /// `PendingInboundPartition.per_dim[label_entity]` into the sub-world's
 /// `Messages<InboundPlayerPacket>` buffer each tick. This system consumes
 /// that buffer, resolves the in-dim entity via the `HostAnchor` component,
-/// and triggers `ReceivedPacketEvent` so all per-dim observers
+/// and raises the event so all per-dim observers
 /// (movement, chat, digging) fire on the correct in-dim entity.
 fn dispatch_inbound_to_dim(
     mut reader: MessageReader<InboundPlayerPacket>,
@@ -83,12 +82,14 @@ fn dispatch_inbound_to_dim(
             in_dim_entity = ?in_dim_entity,
             "dispatch_inbound_to_dim: routing packet to dim entity"
         );
-        commands.trigger(ReceivedPacketEvent {
-            entity: in_dim_entity,
-            id: msg.id,
-            data: msg.data.clone(),
-            timestamp: msg.timestamp,
-        });
+        if let Some(trigger) = msg.trigger {
+            trigger.raise(
+                &mut commands,
+                in_dim_entity,
+                msg.data.clone(),
+                msg.timestamp,
+            );
+        }
     }
 }
 
@@ -98,9 +99,6 @@ fn dispatch_inbound_to_dim(
 /// the appropriate wire packet (delta-vs-old, head-rotation, etc.) using
 /// per-player wire state it owns.
 ///
-/// Observer system params include `MessageWriter<OutboundPlayerPacket>`,
-/// matching the precedent set by other observers on `ReceivedPacketEvent`
-/// in `entity/player/movement.rs`.
 pub fn entity_pos_sync(
     event: On<EntityNetworkSyncEvent>,
     // The `With<OldTransform>` filter encodes the gating invariant in

@@ -1,5 +1,5 @@
 //! Integration tests for `bridge_inbound` (per-connection rate limiting,
-//! ReceivedPacketEvent emission) and `disconnect_clears_pending` (teardown
+//! typed event emission) and `disconnect_clears_pending` (teardown
 //! leak check).
 
 use crate::mock_connection;
@@ -19,16 +19,16 @@ use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_engine::channel_types::DimChannelsResource;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::event::run_event_loop;
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, GameDecodeCounts, PreGameDecodeCounts};
+use mcrs_minecraft_network::event::{Received, run_event_loop};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::decode::PacketDecoder;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
+use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundHello;
 use mcrs_minecraft_protocol::packets::table::{
-    configuration_serverbound, game_serverbound, login_serverbound, row_of,
+    Row, configuration_serverbound, game_serverbound, login_serverbound, row_of,
 };
 use mcrs_minecraft_protocol::packets::{configuration, game};
 
@@ -46,7 +46,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimChannelsResource>();
     world.init_resource::<BridgeTelemetry>();
-    world.init_resource::<GameDecodeCounts>();
+    world.insert_resource(PacketDispatcher::serverbound());
     world
 }
 
@@ -101,7 +101,7 @@ fn run_inbound(world: &mut World) {
 }
 
 // ---------------------------------------------------------------------------
-// Counter resource used to verify ReceivedPacketEvent triggers
+// Counter resource used to verify typed event triggers
 // ---------------------------------------------------------------------------
 
 #[derive(Resource, Default)]
@@ -113,7 +113,7 @@ struct EventCounter {
 // bridge_inbound_emits_received_packet_event
 //
 // Replaces the old routing test: bridge_inbound no longer routes into
-// PendingInboundPartition directly. Instead it re-emits ReceivedPacketEvent
+// PendingInboundPartition directly. Instead it raises the typed event
 // for each drained in-game packet so host-side observers (keepalive, movement,
 // chat) fire. This test verifies that exactly one event fires per drained
 // packet across two independent connections.
@@ -124,9 +124,9 @@ fn bridge_inbound_emits_received_packet_event() {
     let mut world = build_inbound_world();
     world.init_resource::<EventCounter>();
 
-    // Register an observer that counts ReceivedPacketEvent triggers.
     world.add_observer(
-        |_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
+        |_ev: On<Received<game::serverbound::ServerboundKeepAlive>>,
+         mut counter: bevy_ecs::system::ResMut<EventCounter>| {
             counter.count += 1;
         },
     );
@@ -151,11 +151,11 @@ fn bridge_inbound_emits_received_packet_event() {
     let counter = world.resource::<EventCounter>();
     assert_eq!(
         counter.count, 2,
-        "bridge_inbound must emit one ReceivedPacketEvent per drained packet"
+        "bridge_inbound must emit one typed event per drained packet"
     );
 
     // bridge_inbound no longer routes to PendingInboundPartition;
-    // it only emits ReceivedPacketEvent. The count above is the full
+    // it only emits the typed event. The count above is the full
     // verification needed.
 }
 
@@ -339,11 +339,18 @@ fn row_without_structure() -> i32 {
 }
 
 fn game_counts(world: &World) -> &mcrs_minecraft_network::metrics::TableCounts {
-    world.resource::<GameDecodeCounts>().counts()
+    world
+        .resource::<PacketDispatcher>()
+        .counts(ConnectionState::Game)
+        .unwrap()
 }
 
 #[derive(Resource, Default)]
 struct DeliveredIds(Vec<i32>);
+
+fn deliver<R: Row>(id: i32) -> impl Fn(On<Received<R>>, bevy_ecs::system::ResMut<DeliveredIds>) {
+    move |_, mut delivered| delivered.0.push(id)
+}
 
 #[test]
 fn a_failed_decode_is_counted_under_its_packet() {
@@ -382,7 +389,6 @@ fn a_row_without_a_structure_counts_nothing() {
 #[test]
 fn each_loop_counts_only_its_own_connections() {
     let mut world = build_inbound_world();
-    world.init_resource::<PreGameDecodeCounts>();
     let (_game, game_tx) = spawn_ingame_connection(&mut world);
     let (raw, _outgoing_rx, login_tx) = mock_connection::make_mock_raw_connection_full();
     world.spawn((
@@ -397,7 +403,7 @@ fn each_loop_counts_only_its_own_connections() {
     assert_eq!(game_counts(&world).unknown(), 1);
     let login = |world: &World| {
         world
-            .resource::<PreGameDecodeCounts>()
+            .resource::<PacketDispatcher>()
             .counts(ConnectionState::Login)
             .unwrap()
             .unknown()
@@ -411,7 +417,7 @@ fn each_loop_counts_only_its_own_connections() {
     assert_eq!(login(&world), 1);
     assert_eq!(game_counts(&world).unknown(), 1);
     let configuration = world
-        .resource::<PreGameDecodeCounts>()
+        .resource::<PacketDispatcher>()
         .counts(ConnectionState::Configuration)
         .unwrap()
         .unknown();
@@ -452,14 +458,11 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
         ),
     ] {
         let mut world = build_inbound_world();
-        world.init_resource::<PreGameDecodeCounts>();
         world.init_resource::<DeliveredIds>();
-        world.add_observer(
-            |event: On<ReceivedPacketEvent>,
-             mut delivered: bevy_ecs::system::ResMut<DeliveredIds>| {
-                delivered.0.push(event.id);
-            },
-        );
+        world.add_observer(deliver::<game::serverbound::ServerboundKeepAlive>(
+            keep_alive_row(),
+        ));
+        world.add_observer(deliver::<ServerboundHello<'static>>(hello));
         let (raw, mut outgoing, tx) = mock_connection::make_mock_raw_connection_full();
         let socket = world
             .spawn((
@@ -509,6 +512,7 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
                     .reason,
             )
             .unwrap(),
+            ConnectionState::Handshaking | ConnectionState::Status => unreachable!(),
         };
         assert_eq!(
             reason,
@@ -519,4 +523,37 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
             "{state:?}"
         );
     }
+}
+
+#[test]
+fn frames_behind_a_configuration_acknowledgement_are_read_against_the_configuration_table() {
+    let mut world = build_inbound_world();
+    world.init_resource::<DeliveredIds>();
+    world.add_observer(
+        |event: On<Received<game::serverbound::ServerboundConfigurationAcknowledged>>,
+         mut states: bevy_ecs::system::Query<&mut ConnectionState>| {
+            *states.get_mut(event.entity).unwrap() = ConnectionState::Configuration;
+        },
+    );
+    world.add_observer(
+        |event: On<Received<configuration::serverbound::ServerboundKeepAlive>>,
+         mut delivered: bevy_ecs::system::ResMut<DeliveredIds>| {
+            delivered.0.push(event.packet().unwrap().0.payload as i32);
+        },
+    );
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    let acknowledged = game::serverbound::ServerboundConfigurationAcknowledged::ID;
+    let keep_alive = configuration::serverbound::ServerboundKeepAlive::ID;
+    tx.try_send(frame(acknowledged, &[])).unwrap();
+    tx.try_send(frame(keep_alive, &7i64.to_be_bytes())).unwrap();
+
+    run_inbound(&mut world);
+    let mut pre_game = IntoSystem::into_system(run_event_loop);
+    pre_game.initialize(&mut world);
+    let _ = pre_game.run((), &mut world);
+    pre_game.apply_deferred(&mut world);
+
+    assert!(world.entity(socket).contains::<ServerSideConnection>());
+    assert_eq!(world.resource::<DeliveredIds>().0, [7]);
+    assert_eq!(game_counts(&world).failures_total(), 0);
 }

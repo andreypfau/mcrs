@@ -8,7 +8,11 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[features]
+bevy = ["dep:bevy_ecs"]
+
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true

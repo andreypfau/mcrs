@@ -1,7 +1,6 @@
 use bevy::prelude::*;
-use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::JoinedGame;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_event::GameEventKind;
@@ -60,53 +59,67 @@ pub struct GameModePlugin;
 
 impl Plugin for GameModePlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(receive_game_mode_packets);
+        app.add_observer(on_login);
+        app.add_observer(on_respawn);
+        app.add_observer(on_game_event);
+        app.add_observer(on_entity_event);
+    }
+}
+
+fn on_login(
+    event: On<Received<ClientboundLogin>>,
+    player: Query<Entity, With<Player>>,
+    commands: Commands,
+) {
+    if let Some(login) = event.packet() {
+        spawned(&login.player_spawn_info, player, commands);
+    }
+}
+
+fn on_respawn(
+    event: On<Received<ClientboundRespawn>>,
+    player: Query<Entity, With<Player>>,
+    commands: Commands,
+) {
+    if let Some(respawn) = event.packet() {
+        spawned(&respawn.player_spawn_info, player, commands);
     }
 }
 
 /// A login or respawn stands up a fresh local player, whose permissions start
 /// empty until the server sends the level again.
-fn receive_game_mode_packets(
-    event: On<ReceivedPacketEvent>,
-    connections: Query<(&ConnectionState, Option<&JoinedGame>)>,
-    mut player: Query<
-        (
-            Entity,
-            Option<&mut LocalGameMode>,
-            Option<&mut PermissionLevel>,
-        ),
-        With<Player>,
-    >,
-    mut commands: Commands,
-) {
-    let Ok((ConnectionState::Game, joined)) = connections.get(event.entity) else {
-        return;
-    };
-    let Ok((player, mode, permission)) = player.single_mut() else {
-        return;
-    };
-    let spawn = if let Some(login) = event.decode::<ClientboundLogin>() {
-        Some(LocalGameMode::spawned(&login.player_spawn_info))
-    } else {
-        event
-            .decode::<ClientboundRespawn>()
-            .map(|respawn| LocalGameMode::spawned(&respawn.player_spawn_info))
-    };
-    if let Some(spawned) = spawn {
+fn spawned(info: &PlayerSpawnInfo, player: Query<Entity, With<Player>>, mut commands: Commands) {
+    if let Ok(player) = player.single() {
         commands
             .entity(player)
-            .insert((spawned, PermissionLevel::default()));
-    } else if let Some(packet) = event.decode::<ClientboundGameEvent>() {
-        if let GameEventKind::ChangeGameMode(changed) = packet.game_event
-            && let Some(mut mode) = mode
-        {
-            let next = mode.changed_to(changed);
-            mode.set_if_neq(next);
-        }
-    } else if let Some(packet) = event.decode::<ClientboundEntityEvent>()
-        && joined.is_some_and(|joined| joined.player_id == packet.entity_id)
+            .insert((LocalGameMode::spawned(info), PermissionLevel::default()));
+    }
+}
+
+fn on_game_event(
+    event: On<Received<ClientboundGameEvent>>,
+    mut mode: Query<&mut LocalGameMode, With<Player>>,
+) {
+    if let Some(packet) = event.packet()
+        && let GameEventKind::ChangeGameMode(changed) = packet.game_event
+        && let Ok(mut mode) = mode.single_mut()
+    {
+        let next = mode.changed_to(changed);
+        mode.set_if_neq(next);
+    }
+}
+
+fn on_entity_event(
+    event: On<Received<ClientboundEntityEvent>>,
+    connections: Query<&JoinedGame>,
+    mut permission: Query<&mut PermissionLevel, With<Player>>,
+) {
+    if let Some(packet) = event.packet()
+        && connections
+            .get(event.entity)
+            .is_ok_and(|joined| joined.player_id == packet.entity_id)
         && let Some(level) = PermissionLevel::from_entity_event(packet.entity_status)
-        && let Some(mut permission) = permission
+        && let Ok(mut permission) = permission.single_mut()
     {
         permission.set_if_neq(level);
     }
@@ -116,6 +129,8 @@ fn receive_game_mode_packets(
 mod tests {
     use super::*;
     use mcrs_minecraft_core::Id;
+    use mcrs_minecraft_network::ConnectionState;
+    use mcrs_minecraft_network::metrics::PacketDispatcher;
     use mcrs_minecraft_protocol::game_mode::OptGameMode;
     use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 
@@ -141,12 +156,16 @@ mod tests {
     fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, packet: P) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
-        app.world_mut().trigger(ReceivedPacketEvent {
-            entity: connection,
-            id: P::ID,
-            data: data.into(),
-            timestamp: mcrs_minecraft_network::Instant::now(),
-        });
+        let trigger = PacketDispatcher::clientbound()
+            .dispatch(P::STATE, P::ID, &data)
+            .unwrap()
+            .unwrap();
+        trigger.raise(
+            &mut app.world_mut().commands(),
+            connection,
+            data.into(),
+            mcrs_minecraft_network::Instant::now(),
+        );
         app.world_mut().flush();
     }
 

@@ -4,11 +4,9 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, IntoSystem, Query, ResMut, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use mcrs_minecraft_network::event::{
-    PRE_GAME_FRAMES_PER_PASS, ReceivedPacketEvent, run_event_loop,
-};
+use mcrs_minecraft_network::event::{PRE_GAME_FRAMES_PER_PASS, Received, run_event_loop};
 use mcrs_minecraft_network::inbound_rate::{INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS};
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PreGameDecodeCounts};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{
     ConnectionState, Instant, RawConnection, ReceivedPacket, ServerSideConnection,
 };
@@ -24,7 +22,7 @@ use mcrs_minecraft_protocol::packets::game;
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
-use mcrs_minecraft_protocol::packets::table::{configuration_serverbound, login_serverbound};
+use mcrs_minecraft_protocol::packets::table::{Row, configuration_serverbound, login_serverbound};
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::{Encode, Packet};
@@ -78,7 +76,7 @@ fn run(world: &mut World) {
 
 fn server_world() -> World {
     let mut world = World::new();
-    world.init_resource::<PreGameDecodeCounts>();
+    world.insert_resource(PacketDispatcher::serverbound());
     world.init_resource::<BridgeTelemetry>();
     world
 }
@@ -92,7 +90,7 @@ fn raw_frame(id: i32) -> ReceivedPacket {
 }
 
 fn counted_faults(world: &World) -> Vec<String> {
-    let counts = world.resource::<PreGameDecodeCounts>();
+    let counts = world.resource::<PacketDispatcher>();
     let mut faults = Vec::new();
     for (state, names) in [
         (ConnectionState::Login, login_serverbound::NAMES),
@@ -117,8 +115,8 @@ fn counted_faults(world: &World) -> Vec<String> {
 #[derive(Resource, Default)]
 struct KeepAlives(Vec<i64>);
 
-fn record_keep_alives(event: On<ReceivedPacketEvent>, mut seen: ResMut<KeepAlives>) {
-    if let Some(packet) = event.decode::<ServerboundKeepAlive>() {
+fn record_keep_alives(event: On<Received<ServerboundKeepAlive>>, mut seen: ResMut<KeepAlives>) {
+    if let Some(packet) = event.packet() {
         seen.0.push(packet.0.payload);
     }
 }
@@ -179,34 +177,44 @@ fn a_flood_before_the_game_state_is_cut_off_like_one_in_it() {
 #[derive(Resource, Default)]
 struct Dispatched(Vec<(ConnectionState, i32)>);
 
-fn answer_like_the_server(
-    event: On<ReceivedPacketEvent>,
-    mut states: Query<&mut ConnectionState>,
+fn record<R: Row>(
+    event: On<Received<R>>,
+    states: Query<&ConnectionState>,
     mut dispatched: ResMut<Dispatched>,
-    mut commands: Commands,
 ) {
-    let mut state = states.get_mut(event.entity).unwrap();
-    dispatched.0.push((*state, event.id));
-    match *state {
-        ConnectionState::Login if event.decode::<ServerboundLoginAcknowledged>().is_some() => {
+    let state = *states.get(event.entity).unwrap();
+    dispatched
+        .0
+        .push((state, <R::Packet<'static> as Packet>::ID));
+}
+
+fn answer_like_the_server(world: &mut World) {
+    world.add_observer(record::<ServerboundHello<'static>>);
+    world.add_observer(record::<ServerboundLoginAcknowledged>);
+    world.add_observer(record::<ServerboundCustomPayload<'static>>);
+    world.add_observer(record::<ServerboundClientInformation<'static>>);
+    world.add_observer(record::<ServerboundSelectKnownPacks<'static>>);
+    world.add_observer(record::<ServerboundFinishConfiguration>);
+    world.add_observer(record::<game::serverbound::ServerboundKeepAlive>);
+    world.add_observer(
+        |event: On<Received<ServerboundLoginAcknowledged>>, mut commands: Commands| {
             commands
                 .entity(event.entity)
                 .insert(ConnectionState::Configuration);
-        }
-        ConnectionState::Configuration
-            if event.decode::<ServerboundFinishConfiguration>().is_some() =>
-        {
-            *state = ConnectionState::Game;
-        }
-        _ => {}
-    }
+        },
+    );
+    world.add_observer(
+        |event: On<Received<ServerboundFinishConfiguration>>, mut commands: Commands| {
+            commands.entity(event.entity).insert(ConnectionState::Game);
+        },
+    );
 }
 
 #[test]
 fn a_login_and_configuration_sent_in_one_burst_reaches_the_game_state() {
     let mut world = server_world();
     world.init_resource::<Dispatched>();
-    world.add_observer(answer_like_the_server);
+    answer_like_the_server(&mut world);
     let (connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
 
     let mut hello = vec![5];

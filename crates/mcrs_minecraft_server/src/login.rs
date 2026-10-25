@@ -8,7 +8,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
@@ -229,21 +229,15 @@ impl LoginReplies<'_> {
 }
 
 pub fn handle_hello_packet(
-    event: On<ReceivedPacketEvent>,
-    mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
+    event: On<Received<ServerboundHello<'static>>>,
+    mut query: Query<&mut ServerSideConnection, Without<LoginState>>,
     mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
     sessions: SessionsById,
     replies: LoginReplies,
     host: Option<Res<SingleplayerProfile>>,
     mut commands: Commands,
 ) {
-    let Ok((mut con, state)) = query.get_mut(event.entity) else {
-        return;
-    };
-    if ConnectionState::Login != *state {
-        return;
-    }
-    let Some(pkt) = event.decode::<ServerboundHello>() else {
+    let (Ok(mut con), Some(pkt)) = (query.get_mut(event.entity), event.packet()) else {
         return;
     };
     if !is_valid_player_name(&pkt.username) {
@@ -353,19 +347,16 @@ fn finish_awaiting_logins(
 }
 
 pub fn handle_login_acknowledged(
-    event: On<ReceivedPacketEvent>,
-    mut query: Query<(&mut ServerSideConnection, &ConnectionState, &LoginState)>,
+    event: On<Received<ServerboundLoginAcknowledged>>,
+    mut query: Query<(&mut ServerSideConnection, &LoginState)>,
     mut commands: Commands,
 ) {
-    let Ok((mut con, state, login)) = query.get_mut(event.entity) else {
+    let Ok((mut con, login)) = query.get_mut(event.entity) else {
         return;
     };
-    if ConnectionState::Login != *state || LoginState::Accepted != *login {
+    if LoginState::Accepted != *login {
         return;
     }
-    let Some(_) = event.decode::<ServerboundLoginAcknowledged>() else {
-        return;
-    };
     con.raw.login_acknowledged();
     commands
         .entity(event.entity)

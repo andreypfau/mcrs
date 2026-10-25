@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundKeepAlive as ConfigurationRequest;
@@ -29,7 +29,8 @@ impl Plugin for KeepAlivePlugin {
             (handle_keepalive, new_connection)
                 .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
-        app.add_observer(handle_keepalive_response);
+        app.add_observer(on_configuration_response);
+        app.add_observer(on_game_response);
     }
 }
 
@@ -89,7 +90,11 @@ pub fn handle_keepalive(
                         con.write_packet(&ConfigurationRequest(request))
                     }
                     ConnectionState::Game => con.write_packet(&GameRequest(request)),
-                    ConnectionState::Login => continue,
+                    ConnectionState::Handshaking
+                    | ConnectionState::Status
+                    | ConnectionState::Login => {
+                        continue;
+                    }
                 }
                 *state = KeepAlive::Awaiting {
                     challenge,
@@ -101,28 +106,34 @@ pub fn handle_keepalive(
     }
 }
 
-pub fn handle_keepalive_response(
-    event: On<ReceivedPacketEvent>,
-    mut query: Query<(&ServerSideConnection, &ConnectionState, &mut KeepAlive)>,
+fn on_configuration_response(
+    event: On<Received<ConfigurationResponse>>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    commands: Commands,
+) {
+    if let Some(packet) = event.packet() {
+        handle_keepalive_response(event.entity, packet.0, query, commands);
+    }
+}
+
+fn on_game_response(
+    event: On<Received<GameResponse>>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    commands: Commands,
+) {
+    if let Some(packet) = event.packet() {
+        handle_keepalive_response(event.entity, packet.0, query, commands);
+    }
+}
+
+fn handle_keepalive_response(
+    entity: Entity,
+    keep_alive: mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive,
+    mut query: Query<(&ServerSideConnection, &mut KeepAlive)>,
     mut commands: Commands,
 ) {
-    let Ok((con, conn_state, mut state)) = query.get_mut(event.entity) else {
+    let Ok((con, mut state)) = query.get_mut(entity) else {
         return;
-    };
-    let keep_alive = match conn_state {
-        ConnectionState::Configuration => {
-            let Some(pkt) = event.decode::<ConfigurationResponse>() else {
-                return;
-            };
-            pkt.0
-        }
-        ConnectionState::Game => {
-            let Some(pkt) = event.decode::<GameResponse>() else {
-                return;
-            };
-            pkt.0
-        }
-        _ => return,
     };
     debug!("Keepalive response: {:?}", keep_alive);
     match *state {
@@ -136,9 +147,7 @@ pub fn handle_keepalive_response(
                 keep_alive.payload,
                 *state
             );
-            commands
-                .entity(event.entity)
-                .remove::<ServerSideConnection>();
+            commands.entity(entity).remove::<ServerSideConnection>();
         }
     }
 }

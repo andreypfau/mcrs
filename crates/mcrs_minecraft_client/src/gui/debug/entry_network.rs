@@ -75,7 +75,9 @@ fn hop_medians(
 
 fn phase(state: &ConnectionState) -> &'static str {
     match state {
-        ConnectionState::Login => "logging in",
+        ConnectionState::Handshaking | ConnectionState::Status | ConnectionState::Login => {
+            "logging in"
+        }
         ConnectionState::Configuration => "configuring",
         ConnectionState::Game => "playing",
     }

@@ -15,8 +15,7 @@ pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
     world.run_schedule(OutboundFlush);
 }
 
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, GameDecodeCounts};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, MAX_QUEUED_BYTES_PER_SOCKET, ServerSideConnection};
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::chunk::ChunkData;
@@ -425,7 +424,7 @@ pub fn bridge_inbound(
     mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
     dim_channels: Res<DimChannelsResource>,
     mut telemetry: ResMut<BridgeTelemetry>,
-    mut decode_counts: ResMut<GameDecodeCounts>,
+    mut dispatcher: ResMut<PacketDispatcher>,
 ) {
     use mcrs_minecraft_protocol::Text;
 
@@ -448,22 +447,23 @@ pub fn bridge_inbound(
                         break;
                     }
 
-                    // chisle: every typed frame is decoded here and again by its handler;
-                    // a single typed receive path decodes once and replaces this call.
-                    if let Err(malformed) = decode_counts.record(pkt.id, &pkt.payload) {
-                        conn.reject(ConnectionState::Game, &malformed);
-                        commands.entity(entity).remove::<ServerSideConnection>();
-                        break;
+                    let trigger =
+                        match dispatcher.dispatch(ConnectionState::Game, pkt.id, &pkt.payload) {
+                            Ok(trigger) => trigger,
+                            Err(malformed) => {
+                                conn.reject(ConnectionState::Game, &malformed);
+                                commands.entity(entity).remove::<ServerSideConnection>();
+                                break;
+                            }
+                        };
+                    if let Some(trigger) = trigger {
+                        trigger.raise(&mut commands, entity, pkt.payload.clone(), pkt.timestamp);
                     }
+                    let ends_state = dispatcher.ends_state(ConnectionState::Game, pkt.id);
 
-                    commands.trigger(ReceivedPacketEvent {
-                        entity,
-                        id: pkt.id,
-                        data: pkt.payload.clone(),
-                        timestamp: pkt.timestamp,
-                    });
-
-                    if let Some(&HostAnchorRef(anchor)) = anchor_ref
+                    // A row without a structure has no observer in the dimension either.
+                    if trigger.is_some()
+                        && let Some(&HostAnchorRef(anchor)) = anchor_ref
                         && let Ok((placement, mut pending)) = sessions.get_mut(anchor)
                         && !route_serverbound(
                             placement,
@@ -474,10 +474,14 @@ pub fn bridge_inbound(
                                 id: pkt.id,
                                 data: pkt.payload,
                                 timestamp: pkt.timestamp,
+                                trigger,
                             },
                         )
                     {
                         commands.entity(entity).remove::<ServerSideConnection>();
+                    }
+                    if ends_state {
+                        break;
                     }
                 }
                 Ok(None) => break,
@@ -538,6 +542,7 @@ mod tests {
             id,
             data: Bytes::new(),
             timestamp: std::time::Instant::now(),
+            trigger: None,
         }
     }
 

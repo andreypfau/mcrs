@@ -22,7 +22,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::common::Brand;
@@ -163,7 +163,7 @@ fn on_configuration_enter(
 /// `ClientboundFinishConfiguration`. Removes the `AwaitingKnownPacks` marker so
 /// the connection is eligible for future reconfiguration.
 pub fn on_known_packs_response(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundSelectKnownPacks<'static>>>,
     mut query: Query<(Entity, &mut ServerSideConnection, &AwaitingKnownPacks)>,
     synced: Res<SyncedRegistries>,
     mut commands: Commands,
@@ -171,7 +171,7 @@ pub fn on_known_packs_response(
     let Ok((entity, mut con, AwaitingKnownPacks(offered))) = query.get_mut(event.entity) else {
         return;
     };
-    let Some(packs_response) = event.decode::<ServerboundSelectKnownPacks>() else {
+    let Some(packs_response) = event.packet() else {
         return;
     };
 
@@ -193,7 +193,7 @@ pub fn on_known_packs_response(
 }
 
 pub fn on_configuration_ack(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundFinishConfiguration>>,
     mut connections: Query<(
         &mut ConnectionState,
         Option<&GameProfile>,
@@ -203,13 +203,7 @@ pub fn on_configuration_ack(
     sessions: SessionsById,
     mut commands: Commands,
 ) {
-    let Ok((state, profile, anchor, _)) = connections.get(event.entity) else {
-        return;
-    };
-    if *state != ConnectionState::Configuration {
-        return;
-    }
-    let Some(_) = event.decode::<ServerboundFinishConfiguration>() else {
+    let Ok((_, profile, anchor, _)) = connections.get(event.entity) else {
         return;
     };
     let in_play = |connection| {
@@ -243,16 +237,10 @@ pub fn on_configuration_ack(
 /// This is the client's response to `ClientboundStartConfiguration` during reconfiguration.
 /// Transitions the connection back to Configuration so registries can be re-sent.
 fn on_game_configuration_ack(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundConfigurationAcknowledged>>,
     mut query: Query<(Entity, &mut ConnectionState)>,
 ) {
     let Ok((entity, mut state)) = query.get_mut(event.entity) else {
-        return;
-    };
-    if *state != ConnectionState::Game {
-        return;
-    }
-    let Some(_) = event.decode::<ServerboundConfigurationAcknowledged>() else {
         return;
     };
     info!("Player {:?} acknowledged reconfiguration", entity);

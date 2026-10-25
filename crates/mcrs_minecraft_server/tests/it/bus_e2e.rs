@@ -165,6 +165,7 @@ fn inbound_latency_is_zero_host_ticks() {
             id: 0xCAFE,
             data: Bytes::new(),
             timestamp: std::time::Instant::now(),
+            trigger: None,
         });
 
     // bridge_inbound_to_channel (Update) routes to the dim's serverbound channel;
@@ -252,6 +253,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                         id,
                         data: Bytes::new(),
                         timestamp: std::time::Instant::now(),
+                        trigger: None,
                     }))
                     .is_ok()
             })

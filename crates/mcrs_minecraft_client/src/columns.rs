@@ -6,7 +6,9 @@ use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::message::{Message, MessageWriter};
-use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, Res, ResMut, Resource, Single};
+use bevy::ecs::prelude::{
+    Commands, Entity, IntoScheduleConfigs, Local, On, Res, ResMut, Resource, Single,
+};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
@@ -26,13 +28,14 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
+use mcrs_minecraft_protocol::{Decode, WritePacket};
 
 pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};
-use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, CurrentDimension};
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::client::{
+    ClientConnection, ClientNetworkSystems, CurrentDimension, close_connection_later,
+};
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_volume::{
     Access, BiomeVolume, BlockVolume, DenseSection, LightVolume, SectionVolume, Unavailable, Volume,
@@ -521,7 +524,13 @@ impl Plugin for ColumnCachePlugin {
         app.init_resource::<ColumnStore>();
         app.init_resource::<Arrivals>();
         app.add_message::<ColumnChange>();
-        app.add_observer(receive_column_packets);
+        app.add_observer(on_login);
+        app.add_observer(on_respawn);
+        app.add_observer(on_level_chunk);
+        app.add_observer(on_light_update);
+        app.add_observer(on_forget);
+        app.add_observer(on_batch_start);
+        app.add_observer(on_batch_finished);
         app.configure_sets(
             Update,
             (
@@ -650,70 +659,100 @@ impl Arrivals {
     }
 }
 
-fn receive_column_packets(
-    event: On<ReceivedPacketEvent>,
-    connections: Query<&ConnectionState>,
+fn on_login(
+    event: On<Received<ClientboundLogin>>,
+    registries: Option<Res<CurrentRegistries>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    if let (Some(login), Some(registries)) = (event.packet(), registries.as_deref()) {
+        arrivals.enter(registries, &login.player_spawn_info);
+    }
+}
+
+fn on_respawn(
+    event: On<Received<ClientboundRespawn>>,
+    registries: Option<Res<CurrentRegistries>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    if let (Some(respawn), Some(registries)) = (event.packet(), registries.as_deref()) {
+        arrivals.enter(registries, &respawn.player_spawn_info);
+    }
+}
+
+/// The column decodes off the main thread, from the frame the event holds. The dispatcher
+/// defers the check of this row, so a frame that does not decode drops the connection here.
+fn on_level_chunk(
+    event: On<Received<ClientboundLevelChunkWithLight<'static>>>,
     blocks: Res<Blocks>,
     registries: Option<Res<CurrentRegistries>>,
     mut arrivals: ResMut<Arrivals>,
 ) {
-    let Ok(ConnectionState::Game) = connections.get(event.entity) else {
+    let Some(extent) = arrivals.extent else {
         return;
     };
+    let Some(biome_count) = registries
+        .as_deref()
+        .and_then(|registries| registries.registry::<BiomeFile>())
+        .map(|biomes| biomes.len())
+    else {
+        error!("a column arrived before the server's biome registry was built");
+        return;
+    };
+    let data = event.data().clone();
+    let block_state_count = blocks.state_count();
+    let task = AsyncComputeTaskPool::get().spawn(async move {
+        let mut bytes = &data[..];
+        let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
+            .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
+        anyhow::ensure!(
+            bytes.is_empty(),
+            "chunk packet: {} bytes left over",
+            bytes.len()
+        );
+        let column = Column::decode(
+            &packet.chunk_data,
+            &packet.light_data,
+            extent,
+            block_state_count,
+            biome_count,
+        )
+        .with_context(|| format!("column {:?}", packet.pos))?;
+        Ok((packet.pos, column))
+    });
+    arrivals.queue.push_back(Arrival::Column(task));
+}
 
-    if let Some(login) = event.decode::<ClientboundLogin>() {
-        if let Some(registries) = registries.as_deref() {
-            arrivals.enter(registries, &login.player_spawn_info);
-        }
-    } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
-        if let Some(registries) = registries.as_deref() {
-            arrivals.enter(registries, &respawn.player_spawn_info);
-        }
-    } else if event.id == ClientboundLevelChunkWithLight::ID {
-        let Some(extent) = arrivals.extent else {
-            return;
-        };
-        let Some(biome_count) = registries
-            .as_deref()
-            .and_then(|registries| registries.registry::<BiomeFile>())
-            .map(|biomes| biomes.len())
-        else {
-            error!("a column arrived before the server's biome registry was built");
-            return;
-        };
-        let data = event.data.clone();
-        let block_state_count = blocks.state_count();
-        let task = AsyncComputeTaskPool::get().spawn(async move {
-            let mut bytes = &data[..];
-            let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
-                .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
-            let column = Column::decode(
-                &packet.chunk_data,
-                &packet.light_data,
-                extent,
-                block_state_count,
-                biome_count,
-            )
-            .with_context(|| format!("column {:?}", packet.pos))?;
-            Ok((packet.pos, column))
-        });
-        arrivals.queue.push_back(Arrival::Column(task));
-    } else if let Some(update) = event.decode::<ClientboundLightUpdate>() {
-        let Some(extent) = arrivals.extent else {
-            return;
-        };
-        let pos = ColumnPos::new(update.x.0, update.z.0);
-        match unpack_light_data(&update.light_data, extent.sections + 2) {
-            Ok(light) => arrivals.queue.push_back(Arrival::Light(pos, light)),
-            Err(error) => error!("light update for column {pos:?}: {error:#}"),
-        }
-    } else if let Some(forget) = event.decode::<ClientboundForgetLevelChunk>() {
+fn on_light_update(
+    event: On<Received<ClientboundLightUpdate<'static>>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    let (Some(update), Some(extent)) = (event.packet(), arrivals.extent) else {
+        return;
+    };
+    let pos = ColumnPos::new(update.x.0, update.z.0);
+    match unpack_light_data(&update.light_data, extent.sections + 2) {
+        Ok(light) => arrivals.queue.push_back(Arrival::Light(pos, light)),
+        Err(error) => error!("light update for column {pos:?}: {error:#}"),
+    }
+}
+
+fn on_forget(event: On<Received<ClientboundForgetLevelChunk>>, mut arrivals: ResMut<Arrivals>) {
+    if let Some(forget) = event.packet() {
         arrivals
             .queue
             .push_back(Arrival::Forget(ColumnPos::new(forget.x, forget.z)));
-    } else if event.id == ClientboundChunkBatchStart::ID {
-        arrivals.queue.push_back(Arrival::BatchStart);
-    } else if let Some(finished) = event.decode::<ClientboundChunkBatchFinished>() {
+    }
+}
+
+fn on_batch_start(_: On<Received<ClientboundChunkBatchStart>>, mut arrivals: ResMut<Arrivals>) {
+    arrivals.queue.push_back(Arrival::BatchStart);
+}
+
+fn on_batch_finished(
+    event: On<Received<ClientboundChunkBatchFinished>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    if let Some(finished) = event.packet() {
         arrivals
             .queue
             .push_back(Arrival::BatchEnd(finished.batch_size.0.max(0) as u32));
@@ -727,7 +766,8 @@ fn settle_columns(
     mut store: ResMut<ColumnStore>,
     mut changes: MessageWriter<ColumnChange>,
     mut drained: Local<Vec<ColumnChange>>,
-    connection: Option<Single<&mut ClientConnection>>,
+    connection: Option<Single<(Entity, &mut ClientConnection)>>,
+    mut commands: Commands,
 ) {
     let mut connection = connection.map(Single::into_inner);
     let arrivals = arrivals.bypass_change_detection();
@@ -739,7 +779,7 @@ fn settle_columns(
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
             Arrival::BatchEnd(batch_size) => {
                 let desired_chunks_per_tick = arrivals.rate_after_batch(batch_size);
-                if let Some(connection) = connection.as_mut() {
+                if let Some((_, connection)) = connection.as_mut() {
                     connection.write_packet(&ServerboundChunkBatchReceived {
                         desired_chunks_per_tick,
                     });
@@ -751,7 +791,17 @@ fn settle_columns(
                     break;
                 }
                 Some(Ok((pos, column))) => store.insert(pos, column),
-                Some(Err(error)) => error!("{error:#}"),
+                Some(Err(error)) => {
+                    if let Some((entity, _)) = &connection {
+                        close_connection_later(
+                            &mut commands,
+                            *entity,
+                            format!("Internal Exception: {error:#}"),
+                        );
+                    }
+                    arrivals.queue.clear();
+                    break;
+                }
             },
         }
     }

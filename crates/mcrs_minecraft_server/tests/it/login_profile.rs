@@ -14,8 +14,8 @@ use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_minecraft_network::event::{ReceivedPacketEvent, run_event_loop};
-use mcrs_minecraft_network::metrics::PreGameDecodeCounts;
+use mcrs_minecraft_network::event::run_event_loop;
+use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection, SwitchMode};
 use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
 use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
@@ -139,12 +139,16 @@ fn send_hello(app: &mut App, client: &Client, username: &str, profile_id: Uuid) 
 fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();
-    app.world_mut().trigger(ReceivedPacketEvent {
-        entity: client.connection,
-        id: P::ID,
-        data: data.into(),
-        timestamp: mcrs_minecraft_network::Instant::now(),
-    });
+    let trigger = PacketDispatcher::serverbound()
+        .dispatch(P::STATE, P::ID, &data)
+        .unwrap()
+        .unwrap();
+    trigger.raise(
+        &mut app.world_mut().commands(),
+        client.connection,
+        data.into(),
+        mcrs_minecraft_network::Instant::now(),
+    );
     app.world_mut().flush();
 }
 
@@ -562,7 +566,7 @@ fn read_sockets(app: &mut App) {
 #[test]
 fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_fault() {
     let mut app = server(None);
-    app.init_resource::<PreGameDecodeCounts>();
+    app.insert_resource(PacketDispatcher::serverbound());
     let (raw, _outgoing, inbound) = mock_connection::make_mock_raw_connection_full();
     let connection = app
         .world_mut()
@@ -611,7 +615,7 @@ fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_faul
         .get_mut::<ServerSideConnection>(connection)
         .unwrap();
     assert!(matches!(socket.raw.try_recv(), Ok(None)));
-    let counts = app.world().resource::<PreGameDecodeCounts>();
+    let counts = app.world().resource::<PacketDispatcher>();
     for state in [ConnectionState::Login, ConnectionState::Configuration] {
         let counts = counts.counts(state).unwrap();
         assert_eq!(

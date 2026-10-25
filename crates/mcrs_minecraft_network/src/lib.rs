@@ -28,6 +28,7 @@ pub use std::time::Instant;
 pub use web_time::Instant;
 
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
+pub use mcrs_minecraft_protocol::ConnectionState;
 
 /// System sets for the network layer, usable for ordering constraints in
 /// downstream crates. `SpawnConnections` contains `spawn_new_raw_connections`.
@@ -83,14 +84,6 @@ impl SwitchMode {
             _ => None,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub enum ConnectionState {
-    Login,
-    Configuration,
-    Game,
 }
 
 /// The inverse of [`WebTransportEndpoint::certificate_hash_hex`]: a browser can

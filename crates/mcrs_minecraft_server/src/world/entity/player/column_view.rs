@@ -30,7 +30,7 @@ use mcrs_minecraft_level::world::storage::column::{
 };
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_section};
@@ -224,8 +224,11 @@ impl ColumnView {
     }
 }
 
-fn handle_batch_acknowledgement(on: On<ReceivedPacketEvent>, mut players: Query<&mut ColumnView>) {
-    let Some(ack) = on.decode::<ServerboundChunkBatchReceived>() else {
+fn handle_batch_acknowledgement(
+    on: On<Received<ServerboundChunkBatchReceived>>,
+    mut players: Query<&mut ColumnView>,
+) {
+    let Some(ack) = on.packet() else {
         return;
     };
     let Ok(mut chunk_view) = players.get_mut(on.entity) else {

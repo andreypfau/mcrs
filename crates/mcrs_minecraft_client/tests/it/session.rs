@@ -17,11 +17,11 @@ use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
-use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
+use mcrs_minecraft_protocol::{Encode, GameMode};
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
 
 use crate::boot::{boot, receive_registries, received_id};
@@ -116,12 +116,12 @@ fn receive_respawn(
     };
     let mut bytes = Vec::new();
     packet.encode(&mut bytes).unwrap();
-    app.world_mut().trigger(ReceivedPacketEvent {
-        entity: connection,
-        id: ClientboundRespawn::ID,
-        data: Bytes::from(bytes),
-        timestamp: Instant::now(),
-    });
+    app.world_mut()
+        .trigger(event::Received::<ClientboundRespawn>::new(
+            connection,
+            Bytes::from(bytes),
+            Instant::now(),
+        ));
     app.world_mut().flush();
     app.update();
 }

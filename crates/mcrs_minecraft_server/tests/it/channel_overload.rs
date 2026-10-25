@@ -111,6 +111,7 @@ fn serverbound_full_disconnects_session() {
                     id: i as i32,
                     data: Bytes::new(),
                     timestamp: std::time::Instant::now(),
+                    trigger: None,
                 }))
                 .expect("fill channel");
         }
@@ -124,6 +125,7 @@ fn serverbound_full_disconnects_session() {
             id: 0xBAD,
             data: Bytes::new(),
             timestamp: std::time::Instant::now(),
+            trigger: None,
         });
     run_bridge(&mut world);
 

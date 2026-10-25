@@ -13,7 +13,7 @@ use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
 use mcrs_minecraft_level::world::in_flight::MoveIds;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::VarInt;
@@ -50,7 +50,7 @@ impl Plugin for ChatPlugin {
     reason = "the debug slash-command handler matches each command in one place, where its effect and reply are read together"
 )]
 fn handle_command(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundChatCommand<'static>>>,
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     move_sender: Res<
@@ -62,7 +62,7 @@ fn handle_command(
     fill: Option<Res<FillContext>>,
     mut move_ids: ResMut<MoveIds>,
 ) {
-    let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
+    let Some(pkt) = event.packet() else {
         return;
     };
     let command: &str = pkt.command.0;
@@ -231,11 +231,11 @@ fn locate_structure(fill: Option<&FillContext>, origin: IVec3, id: &str) -> Text
 }
 
 fn handle_chat(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundChat<'static>>>,
     sender_query: Query<(&GameProfile, Option<&ClientInfo>, &HostAnchor)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Some(pkt) = event.decode::<ServerboundChat>() else {
+    let Some(pkt) = event.packet() else {
         return;
     };
     let Ok((profile, info, host_anchor)) = sender_query.get(event.entity) else {

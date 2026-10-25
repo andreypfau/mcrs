@@ -4,6 +4,7 @@ use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, ResourceKey};
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
@@ -38,6 +39,9 @@ pub struct InboundPlayerPacket {
     pub id: i32,
     pub data: Bytes,
     pub timestamp: Instant,
+    /// Raises the typed event of the frame's row, which a check of the frame found; `None` for a
+    /// row without a structure.
+    pub trigger: Option<Trigger>,
 }
 
 #[derive(Message, Clone, Debug)]

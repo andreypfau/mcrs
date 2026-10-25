@@ -1,75 +1,126 @@
 use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
+use bevy_ecs::prelude::Commands;
 use bytes::Bytes;
-use mcrs_minecraft_protocol::{Decode, ErrorKind, Packet, PacketSide};
-use tracing::warn;
+use mcrs_minecraft_protocol::packets::table::{Row, Visit};
+use mcrs_minecraft_protocol::{Decode, Packet};
+use std::marker::PhantomData;
+use tracing::error;
 
-#[derive(Debug, Clone, EntityEvent)]
-pub struct ReceivedPacketEvent {
+/// A frame of one typed row, checked by the [`PacketDispatcher`](crate::metrics::PacketDispatcher)
+/// of its connection. The row type names the table, so an observer of it sees only the frames of
+/// that table's state and side.
+///
+/// Most packets borrow from their frame and an event outlives none, so the event holds the frame
+/// and [`Received::packet`] decodes it once more.
+#[derive(EntityEvent)]
+pub struct Received<R: Row> {
     pub entity: Entity,
-    pub id: i32,
-    pub data: Bytes,
     pub timestamp: Instant,
+    data: Bytes,
+    row: PhantomData<fn() -> R>,
 }
 
-impl ReceivedPacketEvent {
-    pub fn try_decode<'a, P>(&'a self) -> Option<mcrs_minecraft_protocol::Result<P>>
-    where
-        P: Decode<'a> + Packet,
-    {
-        if self.id != P::ID {
-            return None;
+impl<R: Row> Received<R> {
+    pub fn new(entity: Entity, data: Bytes, timestamp: Instant) -> Self {
+        Self {
+            entity,
+            timestamp,
+            data,
+            row: PhantomData,
         }
-
-        let mut r = &self.data[..];
-        Some(match P::decode(&mut r) {
-            Ok(pkt) if r.is_empty() => Ok(pkt),
-            Ok(_) => Err(ErrorKind::TrailingBytes(r.len()).into()),
-            Err(error) => Err(error),
-        })
     }
 
-    #[inline]
-    pub fn decode<'a, P>(&'a self) -> Option<P>
-    where
-        P: Decode<'a> + Packet,
-    {
-        let fault = match self.try_decode::<P>()? {
-            Ok(packet) => return Some(packet),
-            Err(fault) => fault,
-        };
-        // A serverbound frame was counted, and its row's first fault logged, by the loop
-        // that read it off the socket.
-        // chisle: nothing counts clientbound rows, so a client logs every fault of one;
-        // a counter in the client's receive loop replaces this line.
-        if P::SIDE == PacketSide::Clientbound {
-            warn!("PacketEvent decode error: {} {fault:#}", P::NAME);
+    pub fn data(&self) -> &Bytes {
+        &self.data
+    }
+
+    /// `None` only for an event that was built without the dispatcher, since the dispatcher
+    /// decoded the same bytes before it raised the event.
+    pub fn packet(&self) -> Option<R::Packet<'_>> {
+        let mut r = &self.data[..];
+        match R::Packet::decode(&mut r) {
+            Ok(packet) if r.is_empty() => Some(packet),
+            Ok(_) => {
+                error!("{}: {} bytes left over", R::Packet::NAME, r.len());
+                None
+            }
+            Err(fault) => {
+                error!("{}: {fault:#}", R::Packet::NAME);
+                None
+            }
         }
-        None
+    }
+}
+
+impl<R: Row> std::fmt::Debug for Received<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Received")
+            .field("entity", &self.entity)
+            .field("row", &R::Packet::NAME)
+            .field("timestamp", &self.timestamp)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Raises the [`Received`] event of one row. It holds no data, so a checked frame can carry it
+/// across a channel to another world.
+#[derive(Clone, Copy)]
+pub struct Trigger {
+    name: &'static str,
+    raise: fn(&mut Commands, Entity, Bytes, Instant),
+}
+
+impl Trigger {
+    pub fn of<R: Row>() -> Self {
+        Self {
+            name: R::Packet::NAME,
+            raise: |commands, entity, data, timestamp| {
+                commands.trigger(Received::<R>::new(entity, data, timestamp));
+            },
+        }
+    }
+
+    pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes, timestamp: Instant) {
+        (self.raise)(commands, entity, data, timestamp);
+    }
+}
+
+impl std::fmt::Debug for Trigger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Trigger").field(&self.name).finish()
+    }
+}
+
+pub(crate) struct Triggers;
+
+impl Visit for Triggers {
+    type Output = Trigger;
+
+    fn row<R: Row>(&mut self) -> Trigger {
+        Trigger::of::<R>()
     }
 }
 
 #[cfg(not(target_family = "wasm"))]
 mod loop_plugin {
-    use super::ReceivedPacketEvent;
     use crate::inbound_rate::InboundRateBucket;
-    use crate::metrics::{BridgeTelemetry, PreGameDecodeCounts};
+    use crate::metrics::{BridgeTelemetry, PacketDispatcher};
     use crate::{ConnectionState, ServerSideConnection};
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
     use bevy_ecs::system::{Query, ResMut};
-    use mcrs_minecraft_protocol::Packet;
-    use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
-    use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundLoginAcknowledged;
     use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
 
     impl Plugin for EventLoopPlugin {
         fn build(&self, app: &mut App) {
-            app.init_resource::<PreGameDecodeCounts>();
+            // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
+            app.world_mut()
+                .get_resource_or_insert_with(PacketDispatcher::serverbound);
             app.init_resource::<BridgeTelemetry>();
             app.add_systems(Update, run_event_loop);
         }
@@ -88,20 +139,17 @@ mod loop_plugin {
             Entity,
             &mut ServerSideConnection,
             &mut InboundRateBucket,
-            Option<&ConnectionState>,
+            &ConnectionState,
         )>,
         mut commands: Commands,
-        mut counts: ResMut<PreGameDecodeCounts>,
+        mut dispatcher: ResMut<PacketDispatcher>,
         mut telemetry: ResMut<BridgeTelemetry>,
     ) {
-        for (entity, mut conn, mut bucket, state) in &mut query {
-            let ends_state = match state {
-                // A connection in game is read by the server's bridge, which rate-limits it.
-                Some(ConnectionState::Game) => continue,
-                Some(ConnectionState::Login) => Some(ServerboundLoginAcknowledged::ID),
-                Some(ConnectionState::Configuration) => Some(ServerboundFinishConfiguration::ID),
-                None => None,
-            };
+        for (entity, mut conn, mut bucket, &state) in &mut query {
+            // A connection in game is read by the server's bridge, which rate-limits it.
+            if state == ConnectionState::Game {
+                continue;
+            }
             // What a pass leaves unread stays in the channel, which stops the socket reader.
             for _ in 0..PRE_GAME_FRAMES_PER_PASS {
                 match conn.raw.try_recv() {
@@ -111,25 +159,22 @@ mod loop_plugin {
                             telemetry.kick_flood_total += 1;
                             break;
                         }
-                        if let Some(&state) = state
-                            && let Err(malformed) = counts.record(state, pkt.id, &pkt.payload)
-                        {
-                            // chisle: once the server accepts a login the game disconnects in
-                            // the configuration protocol, but this loop cannot see that the
-                            // login was accepted; handing it the client's protocol lifts it.
-                            conn.reject(state, &malformed);
-                            commands.entity(entity).remove::<ServerSideConnection>();
-                            break;
+                        match dispatcher.dispatch(state, pkt.id, &pkt.payload) {
+                            Ok(Some(trigger)) => {
+                                trigger.raise(&mut commands, entity, pkt.payload, pkt.timestamp)
+                            }
+                            Ok(None) => {}
+                            Err(malformed) => {
+                                // chisle: once the server accepts a login the game disconnects
+                                // in the configuration protocol, but this loop cannot see that
+                                // the login was accepted; handing it the client's protocol
+                                // lifts it.
+                                conn.reject(state, &malformed);
+                                commands.entity(entity).remove::<ServerSideConnection>();
+                                break;
+                            }
                         }
-                        commands.trigger(ReceivedPacketEvent {
-                            entity,
-                            id: pkt.id,
-                            data: pkt.payload,
-                            timestamp: pkt.timestamp,
-                        });
-                        // The frames behind one that ends the state are in the next state's
-                        // protocol, and the state changes only once this one is handled.
-                        if ends_state == Some(pkt.id) {
+                        if dispatcher.ends_state(state, pkt.id) {
                             break;
                         }
                     }

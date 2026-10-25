@@ -135,6 +135,7 @@ pub enum PacketSide {
 
 /// The state in which a packet is used.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum ConnectionState {
     Handshaking,
     Status,

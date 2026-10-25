@@ -1,4 +1,4 @@
-use crate::{ConnectionState, PacketSide};
+use crate::{ConnectionState, Decode, Packet, PacketSide};
 
 pub const fn row_of(names: &[&str], name: &str) -> Option<i32> {
     let mut row = 0;
@@ -39,14 +39,17 @@ pub enum Decoded<P> {
     Unknown(i32),
 }
 
-impl<P> Decoded<P> {
-    pub fn forget(self) -> Decoded<()> {
-        match self {
-            Decoded::Packet(_) => Decoded::Packet(()),
-            Decoded::NotImplemented(name) => Decoded::NotImplemented(name),
-            Decoded::Unknown(id) => Decoded::Unknown(id),
-        }
-    }
+/// A typed row of a table. The row is named by its packet type at the `'static` lifetime, so it
+/// can be the parameter of an event, and decodes to the type at the lifetime of a frame.
+pub trait Row: 'static {
+    type Packet<'a>: Packet + Decode<'a>;
+}
+
+/// Receives the type of the row that a frame decodes as.
+pub trait Visit {
+    type Output;
+
+    fn row<R: Row>(&mut self) -> Self::Output;
 }
 
 #[macro_export]
@@ -115,7 +118,7 @@ macro_rules! for_each_packet_table {
                 "accept_code_of_conduct" => ServerboundAcceptCodeOfConduct,
             }
             game_clientbound: ClientboundGamePacket<'a>, Game, Clientbound in ($crate::packets::game::clientbound) {
-                "bundle_delimiter",
+                "bundle_delimiter" => ClientboundBundleDelimiter,
                 "add_entity" => ClientboundAddEntity,
                 "animate",
                 "award_stats",
@@ -335,6 +338,28 @@ macro_rules! for_each_packet_table {
     };
 }
 
+macro_rules! row {
+    ($rows:ident, $ty:ident) => {
+        $rows::$ty
+    };
+    ($rows:ident, $ty:ident, $lt:lifetime) => {
+        $rows::$ty<'static>
+    };
+}
+
+macro_rules! impl_row {
+    ($rows:ident, $ty:ident) => {
+        impl $crate::packets::table::Row for $rows::$ty {
+            type Packet<'a> = $rows::$ty;
+        }
+    };
+    ($rows:ident, $ty:ident, $lt:lifetime) => {
+        impl $crate::packets::table::Row for $rows::$ty<'static> {
+            type Packet<'a> = $rows::$ty<'a>;
+        }
+    };
+}
+
 macro_rules! typed_name {
     ($name:literal, $ty:ident) => {
         $name
@@ -375,6 +400,8 @@ macro_rules! tables {
                         const SIDE: $crate::PacketSide = SIDE;
                         const STATE: $crate::ConnectionState = STATE;
                     }
+
+                    impl_row!(rows, $ty $(, $lt)?);
                 )?)*
 
                 #[derive(Debug)]
@@ -404,6 +431,23 @@ macro_rules! tables {
                             $crate::packets::table::Decoded::NotImplemented(name)
                         }
                         None => $crate::packets::table::Decoded::Unknown(id),
+                    })
+                }
+
+                /// Decodes the frame as [`decode`] does, and hands the type of its row to the
+                /// visitor in place of the packet.
+                pub fn visit<V: $crate::packets::table::Visit>(
+                    id: i32,
+                    r: &mut &[u8],
+                    visitor: &mut V,
+                ) -> crate::Result<$crate::packets::table::Decoded<V::Output>> {
+                    use $crate::packets::table::Decoded;
+                    Ok(match decode(id, r)? {
+                        Decoded::Packet(packet) => Decoded::Packet(match packet {
+                            $($($enum::$ty(_) => visitor.row::<row!(rows, $ty $(, $lt)?)>(),)?)*
+                        }),
+                        Decoded::NotImplemented(name) => Decoded::NotImplemented(name),
+                        Decoded::Unknown(id) => Decoded::Unknown(id),
                     })
                 }
             }

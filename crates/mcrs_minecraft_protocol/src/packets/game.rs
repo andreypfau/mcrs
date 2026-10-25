@@ -61,6 +61,11 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundChunkBatchStart;
 
+    /// Opens or closes a bundle: the client handles the packets between two delimiters in one
+    /// pass.
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundBundleDelimiter;
+
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundContainerClose {
         pub container_id: VarInt,

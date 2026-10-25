@@ -4016,6 +4016,7 @@ name = "mcrs_minecraft_protocol"
 version = "0.5.8"
 dependencies = [
  "anyhow",
+ "bevy_ecs",
  "bitfield-struct",
  "bytes",
  "criterion",

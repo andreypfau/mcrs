@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PlayerInfoEntry};
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::GameEventKind;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
@@ -21,7 +21,7 @@ impl Plugin for GameModePlugin {
 }
 
 fn handle_change_game_mode(
-    event: On<ReceivedPacketEvent>,
+    event: On<Received<ServerboundChangeGameMode>>,
     mut players: Query<
         (
             &PlayerOpLevel,
@@ -33,7 +33,7 @@ fn handle_change_game_mode(
     >,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Some(pkt) = event.decode::<ServerboundChangeGameMode>() else {
+    let Some(pkt) = event.packet() else {
         return;
     };
 

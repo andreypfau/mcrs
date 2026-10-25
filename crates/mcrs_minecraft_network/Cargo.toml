@@ -52,7 +52,12 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = ["bevy"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs", "mcrs_minecraft_registries/bevy"]
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_ecs",
+    "mcrs_minecraft_protocol/bevy",
+    "mcrs_minecraft_registries/bevy",
+]
 telemetry-tracy = []
 
 [dev-dependencies]

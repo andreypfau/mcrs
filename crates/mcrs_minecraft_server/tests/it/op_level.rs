@@ -16,6 +16,8 @@ use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
@@ -132,6 +134,9 @@ impl Server {
         self.submit(ToDim::Serverbound(InboundPlayerPacket {
             player: self.host_anchor,
             id: P::ID,
+            trigger: PacketDispatcher::serverbound()
+                .dispatch(ConnectionState::Game, P::ID, &data)
+                .unwrap(),
             data: Bytes::from(data),
             timestamp: std::time::Instant::now(),
         }));

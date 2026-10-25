@@ -24,7 +24,10 @@ impl Plugin for EnginePlugin {
         app.init_resource::<channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
-        app.init_resource::<mcrs_minecraft_network::metrics::GameDecodeCounts>();
+        // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
+        app.world_mut().get_resource_or_insert_with(
+            mcrs_minecraft_network::metrics::PacketDispatcher::serverbound,
+        );
         app.add_message::<bus::OutboundPlayerPacket>();
         app.add_message::<bus::InboundPlayerPacket>();
         app.add_message::<bus::OutboundPlayerAttached>();

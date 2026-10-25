@@ -1,10 +1,20 @@
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_protocol::Text;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundFinishConfiguration;
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
+use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
+use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
+use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundLoginAcknowledged;
 use mcrs_minecraft_protocol::packets::table::{
-    Decoded, Table, configuration_serverbound, game_serverbound, login_serverbound,
+    Decoded, Row, Table, configuration_clientbound, configuration_serverbound, game_clientbound,
+    game_serverbound, handshake_serverbound, login_clientbound, login_serverbound,
+    status_clientbound, status_serverbound,
 };
+use mcrs_minecraft_protocol::{ConnectionState, Packet, PacketSide, Text};
+use tracing::trace;
 
-use crate::ConnectionState;
+use crate::event::{Trigger, Triggers};
 
 /// What the bridge has shed, kicked and routed since the server started.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -18,16 +28,17 @@ pub struct BridgeTelemetry {
     pub outbound_no_queue_total: u64,
 }
 
-type Check = fn(i32, &mut &[u8]) -> mcrs_minecraft_protocol::Result<Decoded<()>>;
+type Check = fn(i32, &mut &[u8]) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>>;
 
-/// Decode failures per row and ids outside the table, for one serverbound table.
-/// Sized by the table when built; nothing a client sends grows it.
+/// Decode failures per row and ids outside the table, for one table.
+/// Sized by the table when built; nothing a peer sends grows it.
 #[derive(Debug)]
 pub struct TableCounts {
     table: &'static Table,
     check: Check,
     failures: Box<[u64]>,
     unknown: u64,
+    deferred: Vec<(i32, Trigger)>,
 }
 
 impl TableCounts {
@@ -37,6 +48,7 @@ impl TableCounts {
             check,
             failures: vec![0; table.names.len()].into_boxed_slice(),
             unknown: 0,
+            deferred: Vec::new(),
         }
     }
 
@@ -53,18 +65,27 @@ impl TableCounts {
     }
 
     /// Counts the frame when it fails to decode or names no row, the frames the game's
-    /// decoder rejects. A row without a structure counts nothing.
-    pub fn record(&mut self, id: i32, body: &[u8]) -> Result<(), Malformed> {
+    /// decoder rejects. A row without a structure counts nothing and has no trigger.
+    pub fn record(&mut self, id: i32, body: &[u8]) -> Result<Option<Trigger>, Malformed> {
+        if let Some(&(_, trigger)) = self.deferred.iter().find(|(row, _)| *row == id) {
+            return Ok(Some(trigger));
+        }
         let mut r = body;
         let (row, cause, detail) = match (self.check)(id, &mut r) {
-            Ok(Decoded::Packet(())) if r.is_empty() => return Ok(()),
-            Ok(Decoded::NotImplemented(_)) => return Ok(()),
+            Ok(Decoded::Packet(trigger)) if r.is_empty() => return Ok(Some(trigger)),
+            Ok(Decoded::NotImplemented(name)) => {
+                trace!(
+                    "inbound packet: {:?} {name} has no structure",
+                    self.table.state
+                );
+                return Ok(None);
+            }
             Ok(Decoded::Unknown(id)) => (
                 None,
                 format!("{DECODER_EXCEPTION}: Received unknown packet id {id}"),
                 format!("unknown id {id}"),
             ),
-            Ok(Decoded::Packet(())) => {
+            Ok(Decoded::Packet(_)) => {
                 let packet = self.packet_type(id);
                 let protocol = protocol_id(self.table.state);
                 let extra = r.len();
@@ -112,14 +133,17 @@ impl TableCounts {
     }
 
     fn packet_type(&self, id: i32) -> String {
-        format!("serverbound/minecraft:{}", self.name(id))
+        let side = match self.table.side {
+            PacketSide::Clientbound => "clientbound",
+            PacketSide::Serverbound => "serverbound",
+        };
+        format!("{side}/minecraft:{}", self.name(id))
     }
 }
 
 const DECODER_EXCEPTION: &str = "io.netty.handler.codec.DecoderException";
 
-fn protocol_id(state: mcrs_minecraft_protocol::ConnectionState) -> &'static str {
-    use mcrs_minecraft_protocol::ConnectionState;
+fn protocol_id(state: ConnectionState) -> &'static str {
     match state {
         ConnectionState::Handshaking => "handshake",
         ConnectionState::Status => "status",
@@ -148,107 +172,154 @@ impl Malformed {
     }
 }
 
-/// Written only by `bridge_inbound`.
+macro_rules! counts {
+    ($($table:ident),*) => {
+        vec![$(TableCounts::new(&$table::TABLE, |id, r| $table::visit(id, r, &mut Triggers)),)*]
+            .into_boxed_slice()
+    };
+}
+
+/// The one place a received frame is checked: it picks the table of the connection's state,
+/// decodes the frame once and hands back the trigger of the frame's typed event.
 #[derive(Resource, Debug)]
-pub struct GameDecodeCounts(TableCounts);
-
-impl GameDecodeCounts {
-    pub fn counts(&self) -> &TableCounts {
-        &self.0
-    }
-
-    pub fn record(&mut self, id: i32, body: &[u8]) -> Result<(), Malformed> {
-        self.0.record(id, body)
-    }
+pub struct PacketDispatcher {
+    side: PacketSide,
+    tables: Box<[TableCounts]>,
 }
 
-impl Default for GameDecodeCounts {
-    fn default() -> Self {
-        Self(TableCounts::new(&game_serverbound::TABLE, |id, r| {
-            game_serverbound::decode(id, r).map(Decoded::forget)
-        }))
-    }
-}
-
-/// Written only by `run_event_loop`.
-#[derive(Resource, Debug)]
-pub struct PreGameDecodeCounts {
-    login: TableCounts,
-    configuration: TableCounts,
-}
-
-impl PreGameDecodeCounts {
-    pub fn counts(&self, state: ConnectionState) -> Option<&TableCounts> {
-        match state {
-            ConnectionState::Login => Some(&self.login),
-            ConnectionState::Configuration => Some(&self.configuration),
-            ConnectionState::Game => None,
+impl PacketDispatcher {
+    pub fn serverbound() -> Self {
+        Self {
+            side: PacketSide::Serverbound,
+            tables: counts!(
+                handshake_serverbound,
+                status_serverbound,
+                login_serverbound,
+                configuration_serverbound,
+                game_serverbound
+            ),
         }
     }
 
-    pub fn record(
+    pub fn clientbound() -> Self {
+        Self {
+            side: PacketSide::Clientbound,
+            tables: counts!(
+                status_clientbound,
+                login_clientbound,
+                configuration_clientbound,
+                game_clientbound
+            ),
+        }
+    }
+
+    /// Leaves the check of a row to its observer, which decodes the frame off the main thread
+    /// and drops the connection when the frame does not decode.
+    pub fn defer<R: Row>(mut self) -> Self {
+        type P<R> = <R as Row>::Packet<'static>;
+        if P::<R>::SIDE == self.side
+            && let Some(counts) = self.counts_mut(P::<R>::STATE)
+        {
+            counts.deferred.push((P::<R>::ID, Trigger::of::<R>()));
+        }
+        self
+    }
+
+    pub fn counts(&self, state: ConnectionState) -> Option<&TableCounts> {
+        self.tables
+            .iter()
+            .find(|counts| counts.table.state == state)
+    }
+
+    fn counts_mut(&mut self, state: ConnectionState) -> Option<&mut TableCounts> {
+        self.tables
+            .iter_mut()
+            .find(|counts| counts.table.state == state)
+    }
+
+    /// A frame in a state without a table of this side names no row, as an unknown id does.
+    pub fn dispatch(
         &mut self,
         state: ConnectionState,
         id: i32,
         body: &[u8],
-    ) -> Result<(), Malformed> {
-        match state {
-            ConnectionState::Login => self.login.record(id, body),
-            ConnectionState::Configuration => self.configuration.record(id, body),
-            ConnectionState::Game => Ok(()),
+    ) -> Result<Option<Trigger>, Malformed> {
+        match self.counts_mut(state) {
+            Some(counts) => counts.record(id, body),
+            None => Err(Malformed {
+                cause: format!("{DECODER_EXCEPTION}: Received unknown packet id {id}"),
+                log: None,
+            }),
         }
+    }
+
+    /// The frames behind one that ends its state are in the next state's protocol, and the
+    /// state changes only once that frame is handled, so a reader stops after it.
+    pub fn ends_state(&self, state: ConnectionState, id: i32) -> bool {
+        ENDS_STATE.contains(&(self.side, state, id))
     }
 }
 
-impl Default for PreGameDecodeCounts {
-    fn default() -> Self {
-        Self {
-            login: TableCounts::new(&login_serverbound::TABLE, |id, r| {
-                login_serverbound::decode(id, r).map(Decoded::forget)
-            }),
-            configuration: TableCounts::new(&configuration_serverbound::TABLE, |id, r| {
-                configuration_serverbound::decode(id, r).map(Decoded::forget)
-            }),
-        }
-    }
+const fn ends<P: Packet>() -> (PacketSide, ConnectionState, i32) {
+    (P::SIDE, P::STATE, P::ID)
 }
+
+const ENDS_STATE: [(PacketSide, ConnectionState, i32); 7] = [
+    ends::<ServerboundHandshake>(),
+    ends::<ServerboundLoginAcknowledged>(),
+    ends::<ServerboundFinishConfiguration>(),
+    ends::<ServerboundConfigurationAcknowledged>(),
+    ends::<ClientboundLoginFinished>(),
+    ends::<ClientboundFinishConfiguration>(),
+    ends::<ClientboundStartConfiguration>(),
+];
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use mcrs_minecraft_protocol::packets::table::row_of;
 
-    fn log(counts: &mut GameDecodeCounts, id: i32, body: &[u8]) -> Option<String> {
+    fn log(counts: &mut PacketDispatcher, id: i32, body: &[u8]) -> Option<String> {
         counts
-            .record(id, body)
+            .dispatch(ConnectionState::Game, id, body)
             .expect_err("the frame is rejected")
             .log
     }
 
     #[test]
     fn every_rejected_frame_fails_and_only_the_first_increment_of_a_counter_is_logged() {
-        let mut counts = GameDecodeCounts::default();
+        let mut counts = PacketDispatcher::serverbound();
         let keep_alive = row_of(game_serverbound::NAMES, "keep_alive").unwrap();
 
         let line = log(&mut counts, keep_alive, &[1, 2]).expect("first failure is logged");
         assert!(line.starts_with("inbound packet: "), "{line}");
         assert!(line.contains("keep_alive"), "{line}");
         assert_eq!(log(&mut counts, keep_alive, &[1, 2]), None);
-        assert_eq!(counts.counts().failures(keep_alive as usize), 2);
+        assert_eq!(
+            counts
+                .counts(ConnectionState::Game)
+                .unwrap()
+                .failures(keep_alive as usize),
+            2
+        );
 
         let past = game_serverbound::NAMES.len() as i32;
         let line = log(&mut counts, past, &[]).expect("first unknown id is logged");
         assert!(line.starts_with("inbound packet: "), "{line}");
         assert!(line.contains(&past.to_string()), "{line}");
         assert_eq!(log(&mut counts, -1, &[]), None);
-        assert_eq!(counts.counts().unknown(), 2);
+        assert_eq!(counts.counts(ConnectionState::Game).unwrap().unknown(), 2);
     }
 
     #[test]
     fn leftover_bytes_are_a_failure_of_the_row() {
-        let mut counts = GameDecodeCounts::default();
+        let mut counts = PacketDispatcher::serverbound();
         let keep_alive = row_of(game_serverbound::NAMES, "keep_alive").unwrap();
-        assert_eq!(counts.record(keep_alive, &[0; 8]), Ok(()));
+        assert!(
+            counts
+                .dispatch(ConnectionState::Game, keep_alive, &[0; 8])
+                .is_ok_and(|trigger| trigger.is_some())
+        );
         let line = log(&mut counts, keep_alive, &[0; 9]).unwrap();
         assert!(line.contains("1 bytes left over"), "{line}");
     }
