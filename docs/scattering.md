@@ -319,7 +319,7 @@ centre**: every write into the centre updates them by the rule of
 replaces stone with ore and moves nothing, which the §7 cut-off of
 `heightmap.md` recognises in one predicate comparison; a lake removes blocks
 and pays the descent, and lakes are few. After `Merged` the four final maps are
-rebuilt once by the existing descent (`crates/mcrs_minecraft_server/src/world/heightmap.rs`, `update_column_heightmaps`, `block_at`), because a
+rebuilt once by the existing descent (`crates/mcrs_minecraft_engine/src/heightmap.rs`, `update_column_heightmaps`, `block_at`), because a
 neighbour's delta can raise them too. The pre-carve pair needs one extra
 descent per column before carving, which by the fast path of
 `heightmap.md` §4 is one read per strip for most strips: unmeasured.

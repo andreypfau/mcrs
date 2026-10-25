@@ -88,8 +88,8 @@ impl Plugin for DimHeightmapPlugin {
     }
 }
 
-/// Stage 2.5: attach the freshly built maps to the column entity Stage 1 and 2
-/// have just reconciled.
+/// Attach the freshly built maps to the column entity that `reconcile_columns`
+/// and `reconcile_block_entities` have just spawned.
 ///
 /// Merged with `max` because a column may be generated in more than one Y range:
 /// "topmost block satisfying P" combines that way whatever order the ranges

@@ -3,7 +3,6 @@ use crate::world::chunk::{
     dispatch_column_generation, enqueue_pending_columns, process_completed_columns,
     request_section,
 };
-use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -13,6 +12,7 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};

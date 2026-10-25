@@ -81,12 +81,12 @@ use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
-use crate::world::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::world::light::DimLightPlugin;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
+use mcrs_minecraft_engine::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
@@ -353,7 +353,7 @@ pub fn spawn_dim_subapp(
             (
                 mcrs_minecraft_level::world::storage::column::reconcile_columns,
                 mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
-                crate::world::heightmap::prime_column_heightmaps,
+                mcrs_minecraft_engine::heightmap::prime_column_heightmaps,
             )
                 .chain()
                 .in_set(ColumnDrainSet::Reconcile),

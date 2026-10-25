@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine"
-description = "The packet bus, the bridge between the network and the dimension worlds, sessions, and the host side of the dimension channels"
+description = "The packet bus, the bridge between the network and the dimension worlds, sessions, and the host side of the dimension channels, and heightmap upkeep"
 version.workspace = true
 edition.workspace = true
 
@@ -11,12 +11,16 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
@@ -25,6 +29,10 @@ flume.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 
 [features]
 telemetry-tracy = []

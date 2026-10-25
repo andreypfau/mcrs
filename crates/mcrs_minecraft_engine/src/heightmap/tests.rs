@@ -3,8 +3,20 @@ use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_heightmap::*;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks, section_states};
-use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
 use std::sync::OnceLock;
+
+fn corpus() -> &'static Blocks {
+    &mcrs_minecraft_world::item::test_corpus().0
+}
+
+fn block_tags() -> &'static mcrs_minecraft_registries::Tags<Block> {
+    static TAGS: OnceLock<mcrs_minecraft_registries::Tags<Block>> = OnceLock::new();
+    TAGS.get_or_init(|| {
+        mcrs_minecraft_world::registry_load::test_registries()
+            .tags::<Block>()
+            .expect("the loaded registries hold the block tags")
+    })
+}
 
 fn predicates() -> &'static HeightmapPredicates {
     static TABLE: OnceLock<HeightmapPredicates> = OnceLock::new();
@@ -23,8 +35,7 @@ fn state_of(block: &str) -> VoxelId {
 fn air_never_blocks_motion() {
     let blocks = corpus();
     let table = predicates();
-    let count = blocks.state_count();
-    for state in (0..count).filter_map(|index| BlockStateId::checked(index as u16, count)) {
+    for state in blocks.states() {
         let id = VoxelId(state.number());
         if blocks.state(state).flags.contains(BlockStateFlags::IS_AIR) {
             assert_eq!(

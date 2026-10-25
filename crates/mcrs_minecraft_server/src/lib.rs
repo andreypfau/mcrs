@@ -267,7 +267,7 @@ impl Plugin for DimensionWorldsPlugin {
             app.insert_resource(traces.clone());
         }
         app.add_systems(bevy_app::Startup, crate::world_options::bake_dimensions);
-        app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
+        app.add_plugins(mcrs_minecraft_engine::heightmap::HeightmapPredicatesPlugin);
         app.add_plugins(WorldPlugin);
     }
 }

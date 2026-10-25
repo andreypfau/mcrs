@@ -1,6 +1,5 @@
 use crate::world::block_entity::spawn_block_entities;
 use crate::world::entity::player::column_view::ColumnView;
-use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
@@ -9,6 +8,7 @@ use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
@@ -874,7 +874,7 @@ mod tests {
     /// bug shows up as a column that never arrives.
     #[test]
     fn the_ladder_delivers_the_column_the_fill_produced() {
-        use crate::world::heightmap::PendingColumnHeightmaps;
+        use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
         use mcrs_minecraft_worldgen_generator::stages::fill_column;
         use mcrs_minecraft_worldgen_generator::tests::build_beta_router;
 

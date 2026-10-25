@@ -42,6 +42,6 @@ fn drain_columns(app: &mut App) {
         }
     }
     pump_channels(app);
-    // Absent without DimensionWorldsPlugin, whose WorldPlugin adds it.
+    // Absent without `EnginePlugin`, which adds it.
     let _ = app.world_mut().try_run_schedule(OutboundFlush);
 }

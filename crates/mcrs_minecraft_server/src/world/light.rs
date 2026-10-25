@@ -69,7 +69,8 @@ impl Plugin for DimLightPlugin {
                     // After the block edits it bounds, and after the maps have taken
                     // this tick's edits: a bound must never describe blocks the
                     // light world has not been handed.
-                    feed_column_surfaces.after(crate::world::heightmap::update_column_heightmaps),
+                    feed_column_surfaces
+                        .after(mcrs_minecraft_engine::heightmap::update_column_heightmaps),
                 )
                     .chain()
                     .in_set(DimLightSet::Feed),
