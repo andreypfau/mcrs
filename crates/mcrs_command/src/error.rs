@@ -1,5 +1,3 @@
-use core::convert::Infallible;
-
 /// A range of bytes of the command line, `start ≤ end`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Span {
@@ -90,14 +88,13 @@ impl<E> SyntaxError<E> {
             position,
         }
     }
-}
 
-impl SyntaxError<Infallible> {
-    pub fn widen<E>(self) -> SyntaxError<E> {
+    /// The same error, with its argument error converted.
+    pub fn map_into<F: From<E>>(self) -> SyntaxError<F> {
         SyntaxError {
             kind: match self.kind {
                 ErrorKind::Library(kind) => ErrorKind::Library(kind),
-                ErrorKind::Argument(never) => match never {},
+                ErrorKind::Argument(kind) => ErrorKind::Argument(F::from(kind)),
             },
             position: self.position,
         }

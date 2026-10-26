@@ -99,16 +99,21 @@ impl Registries {
     }
 
     /// The entry names of the registry `key`, in id order, for a caller that has no type for it.
-    pub fn names_of(&self, key: &ResourceLocation) -> Option<&[ResourceLocation]> {
+    pub fn names_of(&self, key: &ResourceLocation<impl AsRef<str>>) -> Option<&[ResourceLocation]> {
         self.table(key.as_str()).map(|table| table.names.all())
+    }
+
+    /// The id of the entry `name` in the registry `key`, for a caller that has no type for it.
+    pub fn id_of(&self, key: &ResourceLocation<impl AsRef<str>>, name: &str) -> Option<u16> {
+        self.table(key.as_str())?.names.get(name)
     }
 
     /// Each resolved tag of the registry `key` with its member ids, for a caller that has no type
     /// for it.
-    pub fn tags_of<'s>(
+    pub fn tags_of<'s, S: AsRef<str>>(
         &'s self,
-        key: &ResourceLocation,
-    ) -> Option<impl Iterator<Item = (&'s ResourceLocation, &'s [u16])> + use<'s>> {
+        key: &ResourceLocation<S>,
+    ) -> Option<impl Iterator<Item = (&'s ResourceLocation, &'s [u16])> + use<'s, S>> {
         let table = self.table(key.as_str())?;
         Some(
             table

@@ -249,6 +249,9 @@ pub fn spawn_dim_subapp(
     // Written by `despawn_inbound_player` once the player is saved and drained into the
     // `FromDim` channel by `flush_from_dim_outbox`.
     sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>();
+    // Written by `CommandFeedback` and drained into the `FromDim` channel by
+    // `flush_from_dim_outbox`.
+    sub_app.add_message::<mcrs_minecraft_engine::bus::OperatorBroadcast>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
     sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerPacket>();
@@ -586,10 +589,6 @@ pub fn spawn_dim_subapp(
         }
     });
 
-    if let Some(tree) = app.world().get_resource::<crate::command::CommandTree>() {
-        sub_app.add_plugins(crate::command::DimCommandPlugin { tree: tree.clone() });
-    }
-
     // Before the dimension entity spawns, so a plugin can still register required components and
     // hooks for its components and its observers see it spawn.
     if let Some(plugins) = app.world().get_resource::<DimensionPlugins>() {
@@ -693,6 +692,7 @@ fn drain_to_dim_inbox(
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
+    mut broadcasts: ResMut<Messages<mcrs_minecraft_engine::bus::OperatorBroadcast>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
@@ -700,6 +700,7 @@ pub(crate) fn flush_from_dim_outbox(
     backlog.extend(released.drain().map(|released| FromDim::Released {
         session: released.session,
     }));
+    backlog.extend(broadcasts.drain().map(FromDim::OperatorBroadcast));
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -762,6 +763,7 @@ mod tests {
         world.insert_resource(
             Messages::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>::default(),
         );
+        world.insert_resource(Messages::<mcrs_minecraft_engine::bus::OperatorBroadcast>::default());
         world.insert_resource(FromDimSender(tx));
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {

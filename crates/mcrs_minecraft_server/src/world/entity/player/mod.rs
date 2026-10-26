@@ -1,5 +1,5 @@
 use crate::ops::{DefaultOpLevel, OpList};
-use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
+use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
 use crate::world::entity::player::game_mode::GameModePlugin;
@@ -52,7 +52,7 @@ use tracing::{debug, info};
 pub mod ability;
 mod chat;
 pub mod column_view;
-mod game_mode;
+pub(crate) mod game_mode;
 pub mod movement;
 pub mod persistence;
 
@@ -91,7 +91,6 @@ impl Plugin for DimPlayerPlugin {
                 (
                     consume_inbound_player_spawn,
                     send_op_level,
-                    crate::command::send_command_tree,
                     game_mode::send_game_mode,
                 )
                     .chain(),
@@ -125,6 +124,7 @@ pub struct PlayerBundle {
     pub teleport_state: TeleportState,
     pub view_distance: PlayerViewDistance,
     pub game_mode: PlayerGameMode,
+    pub flying: PlayerFlying,
     pub op_level: PlayerOpLevel,
     pub tracked_by: crate::world::aoi::TrackedBy,
     pub marker: Player,
@@ -243,6 +243,13 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::PlayerAbilities(game_mode::abilities(default_game_mode.0, false)),
+            )
+            .critical(),
+        );
 
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
@@ -314,7 +321,7 @@ fn consume_inbound_player_spawn(
     }
 }
 
-fn send_op_level(
+pub(crate) fn send_op_level(
     players: Query<(Entity, &PlayerOpLevel, &HostAnchor), Changed<PlayerOpLevel>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {

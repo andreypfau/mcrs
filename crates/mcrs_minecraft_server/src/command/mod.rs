@@ -1,42 +1,42 @@
 mod dim;
 mod lookup;
+mod register;
 mod run;
 pub mod vanilla;
 
 pub use dim::DebugCommandsPlugin;
-pub use lookup::DimLookup;
+pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, RegistrationError};
+pub(crate) use run::system_message;
 pub use run::{CommandEvent, CommandFeedback};
 
 use crate::world::entity::player::ability::PlayerOpLevel;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{SystemId, SystemParam};
-use bevy_math::DVec3;
-use mcrs_command::{Arg, Argument, BuildError, GraphBuilder, NodeId, Span};
+use mcrs_command::{Arg, Argument, Contains, GraphBuilder, NodeId, Span};
 use mcrs_minecraft_command::{
-    CommandLevel, CommandSyntaxError, IntoCommandSyntaxError, PermissionCheck, Source,
-    VanillaArgument, VanillaGraph, error_message,
+    ArgumentError, CommandLevel, CommandSyntaxError, PermissionCheck, Source, VanillaArgument,
+    VanillaGraph, error_message,
 };
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
+use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::CurrentRegistries;
-use std::marker::PhantomData;
 
 /// The command a node runs: the dimension worlds resolve it to their own handler system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct HandlerKey(u16);
-
-pub type CommandGraph = VanillaGraph<HandlerKey>;
+pub(crate) struct HandlerKey(pub(crate) u16);
 
 /// Each dimension world holds a copy.
 #[derive(Resource, Clone, Debug)]
-pub struct CommandTree(pub CommandGraph);
+pub struct CommandTree(pub VanillaGraph<Handler>);
 
 #[derive(Resource)]
 struct CommandTreeBuilder {
-    builder: GraphBuilder<VanillaArgument, PermissionCheck, HandlerKey>,
+    builder: GraphBuilder<VanillaArgument, PermissionCheck, Handler>,
     next: u16,
 }
 
@@ -50,7 +50,8 @@ impl Plugin for CommandPlugin {
             builder: GraphBuilder::new(),
             next: 0,
         });
-        app.add_observer(run::reject_illegal_characters);
+        app.add_observer(run::reject_illegal_characters)
+            .add_observer(run::broadcast_to_operators);
     }
 
     fn finish(&self, app: &mut App) {
@@ -59,53 +60,12 @@ impl Plugin for CommandPlugin {
         };
         match tree.builder.freeze() {
             Ok(graph) => {
-                app.insert_resource(CommandTree(graph));
+                app.add_dimension_plugin(DimCommandPlugin {
+                    tree: CommandTree(graph),
+                });
             }
-            Err(error) => {
-                tracing::error!("the command tree does not freeze: {error}");
-                if let Ok(empty) = GraphBuilder::new().freeze() {
-                    app.insert_resource(CommandTree(empty));
-                }
-            }
+            Err(error) => tracing::error!("the command tree does not freeze: {error}"),
         }
-    }
-}
-
-/// Registers the nodes of one command. Each node it makes executable runs the handler of that
-/// command.
-pub struct CommandRegistrar<'a> {
-    builder: &'a mut GraphBuilder<VanillaArgument, PermissionCheck, HandlerKey>,
-    key: HandlerKey,
-}
-
-impl CommandRegistrar<'_> {
-    pub const ROOT: NodeId = NodeId::ROOT;
-
-    pub fn literal(
-        &mut self,
-        parent: NodeId,
-        name: &str,
-        check: PermissionCheck,
-    ) -> Result<NodeId, BuildError> {
-        self.builder.literal(parent, name, check)
-    }
-
-    pub fn argument<T: Into<VanillaArgument>>(
-        &mut self,
-        parent: NodeId,
-        name: &str,
-        argument: T,
-        check: PermissionCheck,
-    ) -> Result<Arg<T>, BuildError> {
-        self.builder.argument(parent, name, argument, check)
-    }
-
-    pub fn executes(&mut self, node: NodeId) -> Result<(), BuildError> {
-        self.builder.executes(node, self.key)
-    }
-
-    pub fn redirect(&mut self, node: NodeId, target: NodeId) -> Result<(), BuildError> {
-        self.builder.redirect(node, target)
     }
 }
 
@@ -120,7 +80,11 @@ impl CommandFailure {
         Self(Text::translate(key, with))
     }
 
-    pub fn syntax(line: &str, error: &CommandSyntaxError) -> Self {
+    pub(crate) fn failed() -> Self {
+        Self::translate("command.failed", vec![])
+    }
+
+    pub(crate) fn syntax(line: &str, error: &CommandSyntaxError) -> Self {
         Self(error_message(line, error))
     }
 
@@ -133,9 +97,7 @@ impl CommandFailure {
 #[derive(Clone, Copy, Debug)]
 pub struct SourceState {
     pub level: CommandLevel,
-    pub position: DVec3,
-    pub yaw: f32,
-    pub pitch: f32,
+    pub transform: Transform,
 }
 
 /// The command line a handler runs, with the nodes of the context that runs.
@@ -145,74 +107,78 @@ pub struct Invocation {
     pub source: SourceState,
     pub line: String,
     nodes: Vec<(NodeId, Span)>,
+    branch: u16,
+}
+
+impl SourceState {
+    pub(crate) fn source<'s, L>(&self, lookup: &'s L) -> Source<'s, L> {
+        Source {
+            position: self.transform.translation,
+            yaw: self.transform.rotation.yaw(),
+            pitch: self.transform.rotation.pitch(),
+            eye_height: Some(PLAYER_EYE_HEIGHT),
+            ..Source::new(self.level, lookup)
+        }
+    }
 }
 
 impl Invocation {
-    pub fn has<T>(&self, arg: Arg<T>) -> bool {
-        self.span(arg.node()).is_some()
-    }
-
     fn span(&self, node: NodeId) -> Option<Span> {
         self.nodes
             .iter()
             .find(|&&(parsed, _)| parsed == node)
             .map(|&(_, span)| span)
     }
-
-    pub fn source<'s, L>(&self, lookup: &'s L) -> Source<'s, L> {
-        Source {
-            position: self.source.position,
-            yaw: self.source.yaw,
-            pitch: self.source.pitch,
-            eye_height: Some(mcrs_minecraft_entity::PLAYER_EYE_HEIGHT),
-            ..Source::new(self.source.level, lookup)
-        }
-    }
-
-    /// The value of an argument the command line holds, or `None` when the parse did not pass
-    /// through it.
-    pub fn get<'i, 's, T>(
-        &'i self,
-        tree: &CommandTree,
-        arg: Arg<T>,
-        source: &Source<'s, DimLookup<'s>>,
-    ) -> Option<Result<T::Value<'i>, CommandFailure>>
-    where
-        VanillaArgument: mcrs_command::Contains<T>,
-        T: Argument<Source<'s, DimLookup<'s>>>,
-        mcrs_command::SyntaxError<T::Error>: IntoCommandSyntaxError,
-    {
-        let span = self.span(arg.node())?;
-        let value = tree.0.value(&self.line, span, arg, source)?;
-        Some(value.map_err(|error| CommandFailure::syntax(&self.line, &error.into_command_error())))
-    }
 }
 
 /// What a handler reads its arguments with.
 #[derive(SystemParam)]
 pub struct CommandContext<'w, 's> {
-    pub tree: Res<'w, CommandTree>,
+    tree: Res<'w, CommandTree>,
     registries: Option<Res<'w, CurrentRegistries>>,
     profiles: Query<'w, 's, &'static GameProfile, With<Player>>,
 }
 
-impl CommandContext<'_, '_> {
-    pub fn lookup(&self) -> DimLookup<'_> {
-        self.lookup_with(Vec::new())
+impl<'w, 's> CommandContext<'w, 's> {
+    /// The source of the call, which reads the world through this context.
+    pub fn source(&self, call: &Invocation) -> Source<'_, Self> {
+        call.source.source(self)
     }
 
-    /// A lookup that fills `names` with the player names, reusing its allocation.
-    pub fn lookup_with<'a>(&'a self, mut names: Vec<&'a str>) -> DimLookup<'a> {
-        names.clear();
-        names.extend(
-            self.profiles
-                .iter()
-                .map(|profile| profile.username.as_str()),
-        );
-        DimLookup::new(
-            self.registries.as_deref().map(|registries| &**registries),
-            names,
-        )
+    /// The value of an argument the branch of the call always holds.
+    pub fn arg<'a, 'c, T>(
+        &'a self,
+        call: &'c Invocation,
+        arg: Arg<T>,
+    ) -> Result<T::Value<'c>, CommandFailure>
+    where
+        VanillaArgument: Contains<T>,
+        T: Argument<Source<'a, Self>>,
+        ArgumentError: From<T::Error>,
+    {
+        self.opt(call, arg)?.ok_or_else(CommandFailure::failed)
+    }
+
+    /// The value of an argument the branch of the call may lack.
+    pub fn opt<'a, 'c, T>(
+        &'a self,
+        call: &'c Invocation,
+        arg: Arg<T>,
+    ) -> Result<Option<T::Value<'c>>, CommandFailure>
+    where
+        VanillaArgument: Contains<T>,
+        T: Argument<Source<'a, Self>>,
+        ArgumentError: From<T::Error>,
+    {
+        let Some(span) = call.span(arg.node()) else {
+            return Ok(None);
+        };
+        let source = self.source(call);
+        match self.tree.0.value(&call.line, span, arg, &source) {
+            None => Err(CommandFailure::failed()),
+            Some(Ok(value)) => Ok(Some(value)),
+            Some(Err(error)) => Err(CommandFailure::syntax(&call.line, &error.map_into())),
+        }
     }
 }
 
@@ -225,102 +191,8 @@ impl CommandHandlers {
     }
 }
 
-pub trait AppCommands {
-    /// Registers a command: `build` adds its nodes and returns the handles its handler reads,
-    /// and every dimension world runs `handler` when one of those nodes runs.
-    fn add_command<C, S, M>(
-        &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_>) -> Result<C, BuildError>,
-        handler: S,
-    ) -> &mut Self
-    where
-        C: Resource + Clone,
-        S: IntoSystem<In<Invocation>, CommandResult, M> + Clone + Send + Sync + 'static,
-        M: 'static;
-}
-
-impl AppCommands for App {
-    fn add_command<C, S, M>(
-        &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_>) -> Result<C, BuildError>,
-        handler: S,
-    ) -> &mut Self
-    where
-        C: Resource + Clone,
-        S: IntoSystem<In<Invocation>, CommandResult, M> + Clone + Send + Sync + 'static,
-        M: 'static,
-    {
-        let Some(mut tree) = self.world_mut().get_resource_mut::<CommandTreeBuilder>() else {
-            tracing::error!(
-                "{} is added before CommandPlugin or after the tree froze",
-                std::any::type_name::<C>()
-            );
-            return self;
-        };
-        let key = HandlerKey(tree.next);
-        tree.next += 1;
-        let built = build(&mut CommandRegistrar {
-            builder: &mut tree.builder,
-            key,
-        });
-        match built {
-            Ok(handles) => self.add_dimension_plugin(HandlerPlugin {
-                handles,
-                key,
-                system: handler,
-                marker: PhantomData::<fn() -> M>,
-            }),
-            Err(error) => {
-                tracing::error!("{} does not register: {error}", std::any::type_name::<C>());
-                self
-            }
-        }
-    }
-}
-
-struct HandlerPlugin<C, S, M> {
-    handles: C,
-    key: HandlerKey,
-    system: S,
-    marker: PhantomData<fn() -> M>,
-}
-
-impl<C: Clone, S: Clone, M> Clone for HandlerPlugin<C, S, M> {
-    fn clone(&self) -> Self {
-        Self {
-            handles: self.handles.clone(),
-            key: self.key,
-            system: self.system.clone(),
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<C, S, M> Plugin for HandlerPlugin<C, S, M>
-where
-    C: Resource + Clone,
-    S: IntoSystem<In<Invocation>, CommandResult, M> + Clone + Send + Sync + 'static,
-    M: 'static,
-{
-    fn build(&self, app: &mut App) {
-        app.insert_resource(self.handles.clone());
-        let id = app.world_mut().register_system(self.system.clone());
-        let mut handlers = app.world_mut().get_resource_or_init::<CommandHandlers>();
-        let index = usize::from(self.key.0);
-        if handlers.0.len() <= index {
-            handlers.0.resize(index + 1, None);
-        }
-        if let Some(slot) = handlers.0.get_mut(index) {
-            *slot = Some(id);
-        }
-    }
-
-    fn is_unique(&self) -> bool {
-        false
-    }
-}
-
 /// Parses, suggests and runs commands in a dimension world, against the tree the host froze.
+#[derive(Clone)]
 pub(crate) struct DimCommandPlugin {
     pub tree: CommandTree,
 }
@@ -339,11 +211,15 @@ impl Plugin for DimCommandPlugin {
                 .before(crate::world::entity::player::persistence::autosave_players)
                 .run_if(run::has_pending_suggestion),
         );
+        app.add_systems(
+            bevy_app::Update,
+            run::send_command_tree
+                .after(crate::world::entity::player::send_op_level)
+                .before(crate::world::entity::player::game_mode::send_game_mode),
+        );
     }
 }
 
 pub(crate) fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
     CommandLevel::from_id(op_level.clamped())
 }
-
-pub(crate) use run::send_command_tree;

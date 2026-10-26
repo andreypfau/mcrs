@@ -1,31 +1,31 @@
-use crate::command::vanilla::{PlayerCandidate, candidates, name, select};
+use crate::command::vanilla::{PlayerCandidate, candidates, select, targets_or_self};
 use crate::command::{
-    AppCommands, CommandContext, CommandFailure, CommandFeedback, CommandRegistrar, CommandResult,
-    CommandTree, DimLookup, Invocation,
+    Call, CommandContext, CommandFailure, CommandFeedback, CommandRegistrar, CommandResult,
 };
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::PlayerGameMode;
-use crate::world::entity::player::movement::TeleportState;
-use bevy_app::App;
+use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_command::{Arg, BuildError};
-use mcrs_minecraft_command::argument::coordinates::Coordinates;
+use mcrs_command::{Arg, BuildError, NodeId};
+use mcrs_minecraft_command::teleport::{Pose, look_at, relative_move};
 use mcrs_minecraft_command::{
-    Anchor, CommandLevel, EntityAnchorArgument, EntityArgument, PermissionCheck, RotationArgument,
-    Source, Vec3Argument,
+    CommandLevel, EntityAnchorArgument, EntityArgument, PermissionCheck, RotationArgument,
+    Vec3Argument, anchored,
 };
-use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::bus::{PacketPayload, to as packet_to};
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol::packets::game::clientbound::{
+    ClientboundPlayerLookAt, ClientboundPlayerPosition, LookAnchor,
+};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_minecraft_protocol::{Look, PositionFlag, PositionFlags, VarInt};
+use mcrs_minecraft_protocol::{PositionFlags, VarInt};
 
-#[derive(Resource, Clone, Copy)]
-struct TeleportCommand {
+#[derive(Clone, Copy)]
+pub(super) struct TeleportCommand {
     location: Arg<Vec3Argument>,
     destination: Arg<EntityArgument>,
     targets: Arg<EntityArgument>,
@@ -37,42 +37,62 @@ struct TeleportCommand {
     target_destination: Arg<EntityArgument>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Branch {
+    ToLocation,
+    ToEntity,
+    TargetsToLocation,
+    TargetsToLocationRotated,
+    TargetsFacingEntity,
+    TargetsFacingLocation,
+    TargetsToEntity,
+}
+
 /// CMD-TP-001.
-fn build(r: &mut CommandRegistrar<'_>) -> Result<TeleportCommand, BuildError> {
-    let open = PermissionCheck::AlwaysPass;
-    let op = PermissionCheck::Require(CommandLevel::Gamemasters);
-    let teleport = r.literal(CommandRegistrar::ROOT, "teleport", op)?;
-    let location = r.argument(teleport, "location", Vec3Argument, open)?;
-    r.executes(location.node())?;
-    let destination = r.argument(teleport, "destination", EntityArgument::ONE_ENTITY, open)?;
-    r.executes(destination.node())?;
-    let targets = r.argument(teleport, "targets", EntityArgument::ENTITIES, open)?;
-    let target_location = r.argument(targets.node(), "location", Vec3Argument, open)?;
-    r.executes(target_location.node())?;
-    let rotation = r.argument(target_location.node(), "rotation", RotationArgument, open)?;
-    r.executes(rotation.node())?;
-    let facing = r.literal(target_location.node(), "facing", open)?;
-    let entity = r.literal(facing, "entity", open)?;
-    let facing_entity = r.argument(entity, "facingEntity", EntityArgument::ONE_ENTITY, open)?;
-    r.executes(facing_entity.node())?;
-    let facing_anchor = r.argument(
-        facing_entity.node(),
-        "facingAnchor",
-        EntityAnchorArgument,
-        open,
-    )?;
-    r.executes(facing_anchor.node())?;
-    let facing_location = r.argument(facing, "facingLocation", Vec3Argument, open)?;
-    r.executes(facing_location.node())?;
-    let target_destination = r.argument(
-        targets.node(),
-        "destination",
-        EntityArgument::ONE_ENTITY,
-        open,
-    )?;
-    r.executes(target_destination.node())?;
-    let tp = r.literal(CommandRegistrar::ROOT, "tp", op)?;
-    r.redirect(tp, teleport)?;
+pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<TeleportCommand, BuildError> {
+    let teleport = r
+        .literal(NodeId::ROOT, "teleport")
+        .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
+        .id()?;
+    let location = r
+        .arg(teleport, "location", Vec3Argument)
+        .runs(Branch::ToLocation)
+        .id()?;
+    let destination = r
+        .arg(teleport, "destination", EntityArgument::ONE_ENTITY)
+        .runs(Branch::ToEntity)
+        .id()?;
+    let targets = r.arg(teleport, "targets", EntityArgument::ENTITIES).id()?;
+    let target_location = r
+        .arg(targets, "location", Vec3Argument)
+        .runs(Branch::TargetsToLocation)
+        .id()?;
+    let rotation = r
+        .arg(target_location, "rotation", RotationArgument)
+        .runs(Branch::TargetsToLocationRotated)
+        .id()?;
+    let facing = r.literal(target_location, "facing").id()?;
+    let entity = r.literal(facing, "entity").id()?;
+    let facing_entity = r
+        .arg(entity, "facingEntity", EntityArgument::ONE_ENTITY)
+        .runs(Branch::TargetsFacingEntity)
+        .id()?;
+    let facing_anchor = r
+        .arg(facing_entity, "facingAnchor", EntityAnchorArgument)
+        .runs(Branch::TargetsFacingEntity)
+        .id()?;
+    let facing_location = r
+        .arg(facing, "facingLocation", Vec3Argument)
+        .runs(Branch::TargetsFacingLocation)
+        .id()?;
+    let target_destination = r
+        .arg(targets, "destination", EntityArgument::ONE_ENTITY)
+        .runs(Branch::TargetsToEntity)
+        .id()?;
+    r.literal(NodeId::ROOT, "tp")
+        .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
+        .redirect(teleport)
+        .id()?;
     Ok(TeleportCommand {
         location,
         destination,
@@ -86,23 +106,11 @@ fn build(r: &mut CommandRegistrar<'_>) -> Result<TeleportCommand, BuildError> {
     })
 }
 
-pub(super) fn register(app: &mut App) {
-    app.add_command(build, run);
-}
-
-const SPAWNABLE_XZ: f64 = 30_000_000.0;
-const SPAWNABLE_Y: f64 = 20_000_000.0;
-
 fn spawnable(position: DVec3) -> bool {
     let block = position.floor();
-    (-SPAWNABLE_XZ..SPAWNABLE_XZ).contains(&block.x)
-        && (-SPAWNABLE_XZ..SPAWNABLE_XZ).contains(&block.z)
-        && (-SPAWNABLE_Y..SPAWNABLE_Y).contains(&block.y)
-}
-
-enum Facing {
-    Point(DVec3),
-    Entity(PlayerCandidate, Anchor),
+    (-MAX_XZ..MAX_XZ).contains(&block.x)
+        && (-MAX_XZ..MAX_XZ).contains(&block.z)
+        && (-MAX_Y..MAX_Y).contains(&block.y)
 }
 
 /// Where each victim goes (CMD-TP-004).
@@ -113,100 +121,95 @@ struct Destination {
     relative_position: [bool; 3],
     relative_rotation: [bool; 2],
     facing: Option<Facing>,
-    to_entity: Option<PlayerCandidate>,
+    /// The name of the entity the victims go to.
+    to_entity: Option<Text>,
 }
 
-const PLAYER_EYE_HEIGHT: f64 = 1.62;
-
-fn anchor_of(candidate: &PlayerCandidate, anchor: Anchor) -> DVec3 {
-    match anchor {
-        Anchor::Feet => candidate.transform.translation,
-        Anchor::Eyes => candidate.transform.translation + DVec3::Y * PLAYER_EYE_HEIGHT,
-    }
+/// What each victim turns to after its move (CMD-TP-011).
+struct Facing {
+    target: DVec3,
+    /// The network id of `facingEntity` and its anchor.
+    entity: Option<(VarInt, LookAnchor)>,
 }
 
-/// The yaw and the pitch that look from `from` at `to`.
-fn look_at(from: DVec3, to: DVec3) -> (f32, f32) {
-    let d = to - from;
-    let horizontal = (d.x * d.x + d.z * d.z).sqrt();
-    let pitch = -(d.y.atan2(horizontal).to_degrees()) as f32;
-    let yaw = (d.z.atan2(d.x).to_degrees() - 90.0) as f32;
-    (wrap_degrees(yaw), wrap_degrees(pitch))
+/// A single entity argument finds at most one entity.
+fn one<'c, 'n>(
+    found: Vec<&'c PlayerCandidate<'n>>,
+) -> Result<&'c PlayerCandidate<'n>, CommandFailure> {
+    found
+        .first()
+        .copied()
+        .ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
 }
 
-fn one(found: Vec<&PlayerCandidate>) -> Result<&PlayerCandidate, CommandFailure> {
-    match found.as_slice() {
-        [one] => Ok(one),
-        [] => Err(CommandFailure::translate(
-            "argument.entity.notfound.entity",
-            vec![],
+fn to_entity(
+    context: &CommandContext,
+    call: &Call<Branch, TeleportCommand>,
+    arg: Arg<EntityArgument>,
+    all: &[PlayerCandidate<'_>],
+) -> Result<Destination, CommandFailure> {
+    let entity = one(select(context, call, arg, all)?)?;
+    Ok(Destination {
+        position: entity.transform.translation,
+        rotation: Some((
+            entity.transform.rotation.yaw(),
+            entity.transform.rotation.pitch(),
         )),
-        _ => Err(CommandFailure::translate("argument.entity.toomany", vec![])),
-    }
+        relative_position: [false; 3],
+        relative_rotation: [false; 2],
+        facing: None,
+        to_entity: Some(entity.name.to_owned().into_text()),
+    })
 }
 
-fn coordinates(
-    tree: &CommandTree,
-    invocation: &Invocation,
-    arg: Arg<Vec3Argument>,
-    source: &Source<'_, DimLookup<'_>>,
-) -> Result<Option<Coordinates>, CommandFailure> {
-    invocation.get(tree, arg, source).transpose()
-}
-
+/// Where the branch of the call sends each victim (CMD-TP-004).
 fn destination(
     command: &TeleportCommand,
-    tree: &CommandTree,
-    invocation: &Invocation,
-    source: &Source<'_, DimLookup<'_>>,
-    all: &[PlayerCandidate],
+    context: &CommandContext,
+    call: &Call<Branch, TeleportCommand>,
+    all: &[PlayerCandidate<'_>],
 ) -> Result<Destination, CommandFailure> {
-    for arg in [command.destination, command.target_destination] {
-        if invocation.has(arg) {
-            let entity = one(select(tree, invocation, arg, source, all)?)?.clone();
-            return Ok(Destination {
-                position: entity.transform.translation,
-                rotation: Some((
-                    entity.transform.rotation.yaw(),
-                    entity.transform.rotation.pitch(),
-                )),
-                relative_position: [false; 3],
-                relative_rotation: [false; 2],
-                facing: None,
-                to_entity: Some(entity),
-            });
+    let source = context.source(call);
+    let (location, rotation, facing) = match call.branch {
+        Branch::ToEntity => return to_entity(context, call, command.destination, all),
+        Branch::TargetsToEntity => {
+            return to_entity(context, call, command.target_destination, all);
         }
-    }
-    let location = coordinates(tree, invocation, command.location, source)?
-        .or(coordinates(
-            tree,
-            invocation,
-            command.target_location,
-            source,
-        )?)
-        .ok_or_else(|| CommandFailure::translate("command.failed", vec![]))?;
-    let rotation = invocation.get(tree, command.rotation, source).transpose()?;
-    let facing = if invocation.has(command.facing_entity) {
-        let entity = one(select(
-            tree,
-            invocation,
-            command.facing_entity,
-            source,
-            all,
-        )?)?
-        .clone();
-        let anchor = invocation
-            .get(tree, command.facing_anchor, source)
-            .transpose()?
-            .unwrap_or(Anchor::Feet);
-        Some(Facing::Entity(entity, anchor))
-    } else {
-        coordinates(tree, invocation, command.facing_location, source)?
-            .map(|point| Facing::Point(point.position(source)))
+        Branch::ToLocation => (context.arg(call, command.location)?, None, None),
+        Branch::TargetsToLocation => (context.arg(call, command.target_location)?, None, None),
+        Branch::TargetsToLocationRotated => (
+            context.arg(call, command.target_location)?,
+            Some(context.arg(call, command.rotation)?),
+            None,
+        ),
+        Branch::TargetsFacingEntity => {
+            let entity = one(select(context, call, command.facing_entity, all)?)?;
+            let anchor: LookAnchor = context
+                .opt(call, command.facing_anchor)?
+                .unwrap_or_default();
+            (
+                context.arg(call, command.target_location)?,
+                None,
+                Some(Facing {
+                    target: anchored(anchor, entity.transform.translation, PLAYER_EYE_HEIGHT),
+                    entity: Some((VarInt(entity.entity.index_u32() as i32), anchor)),
+                }),
+            )
+        }
+        Branch::TargetsFacingLocation => (
+            context.arg(call, command.target_location)?,
+            None,
+            Some(Facing {
+                target: context
+                    .arg(call, command.facing_location)?
+                    .position(&source),
+                entity: None,
+            }),
+        ),
     };
     Ok(Destination {
-        position: location.position(source),
-        rotation: rotation.map(|rotation| rotation.resolve(source)),
+        position: location.position(&source),
+        rotation: rotation.map(|rotation| rotation.resolve(&source)),
         relative_position: location.relative(),
         relative_rotation: rotation.map_or([true; 2], |r| [r.yaw.relative, r.pitch.relative]),
         facing,
@@ -214,59 +217,63 @@ fn destination(
     })
 }
 
-/// The `player_position` of one move (CMD-TP-005, CMD-TP-006).
-fn position_packet(
-    teleport_id: i32,
-    from: &Transform,
+/// Moves one victim, and gives the packets that tell its player (CMD-TP-005, CMD-TP-011,
+/// CMD-TP-012).
+fn move_victim(
     to: &Destination,
-    rotation: Rotation,
-) -> ClientboundPlayerPosition {
-    let mut flags = Vec::new();
-    let mut position = to.position;
-    for (axis, ((flag, velocity), relative)) in [
-        (PositionFlag::X, PositionFlag::DeltaX),
-        (PositionFlag::Y, PositionFlag::DeltaY),
-        (PositionFlag::Z, PositionFlag::DeltaZ),
-    ]
-    .into_iter()
-    .zip(to.relative_position)
-    .enumerate()
-    {
-        if relative {
-            flags.extend([flag, velocity]);
-            position[axis] -= from.translation[axis];
-        }
-    }
-    let mut look = Look {
-        yaw: rotation.yaw(),
-        pitch: rotation.pitch(),
+    anchor: LookAnchor,
+    transform: &mut Transform,
+    state: &mut TeleportState,
+) -> (ClientboundPlayerPosition, Option<ClientboundPlayerLookAt>) {
+    let from = Pose {
+        position: transform.translation,
+        yaw: transform.rotation.yaw(),
+        pitch: transform.rotation.pitch(),
     };
-    if to.facing.is_none() {
-        if to.relative_rotation[0] {
-            flags.push(PositionFlag::YRot);
-            look.yaw = wrap_degrees(rotation.yaw() - from.rotation.yaw());
-        }
-        if to.relative_rotation[1] {
-            flags.push(PositionFlag::XRot);
-            look.pitch = wrap_degrees(rotation.pitch() - from.rotation.pitch());
-        }
-    }
-    ClientboundPlayerPosition {
-        teleport_id: VarInt(teleport_id),
-        position,
+    let (yaw, pitch) = to.rotation.unwrap_or((from.yaw, from.pitch));
+    let destination = Pose {
+        position: to.position,
+        yaw,
+        pitch,
+    };
+    let step = relative_move(
+        from,
+        destination,
+        to.relative_position,
+        to.relative_rotation,
+    );
+    let (yaw, pitch) = match &to.facing {
+        Some(facing) => look_at(
+            anchored(anchor, to.position, PLAYER_EYE_HEIGHT),
+            facing.target,
+        ),
+        None => (step.result.yaw, step.result.pitch),
+    };
+    *transform = Transform {
+        translation: to.position,
+        rotation: Rotation::new(yaw, pitch),
+    };
+    let position = ClientboundPlayerPosition {
+        teleport_id: VarInt(state.sent(*transform)),
+        position: step.position,
         velocity: DVec3::ZERO,
-        look,
-        flags: PositionFlags(flags),
-    }
+        look: step.look,
+        flags: PositionFlags(step.flags),
+    };
+    let look_at = to.facing.as_ref().map(|facing| ClientboundPlayerLookAt {
+        from: anchor,
+        target: facing.target,
+        entity: facing.entity,
+    });
+    (position, look_at)
 }
 
 fn coordinate(value: f64) -> Text {
     format!("{value:.6}").into_text()
 }
 
-fn run(
-    In(invocation): In<Invocation>,
-    command: Res<TeleportCommand>,
+pub(super) fn run(
+    In(call): In<Call<Branch, TeleportCommand>>,
     context: CommandContext,
     mut players: Query<
         (
@@ -281,97 +288,77 @@ fn run(
     >,
     mut feedback: CommandFeedback,
 ) -> CommandResult {
-    let lookup = context.lookup();
-    let source = invocation.source(&lookup);
+    let command = call.command;
     let all = candidates(
         players
             .iter()
             .map(|(entity, profile, transform, mode, _, _)| (entity, profile, transform, mode)),
     );
-    let victims: Vec<PlayerCandidate> = if invocation.has(command.targets) {
-        let found = select(&context.tree, &invocation, command.targets, &source, &all)?;
-        if found.is_empty() {
-            return Err(CommandFailure::translate(
-                "argument.entity.notfound.entity",
-                vec![],
-            ));
-        }
-        found.into_iter().cloned().collect()
-    } else {
-        all.iter()
-            .filter(|candidate| candidate.entity == invocation.player)
-            .cloned()
-            .collect()
-    };
-    let to = destination(&command, &context.tree, &invocation, &source, &all)?;
+    let selector =
+        (!matches!(call.branch, Branch::ToLocation | Branch::ToEntity)).then_some(command.targets);
+    let victims = targets_or_self(
+        &context,
+        &call,
+        selector,
+        &all,
+        "argument.entity.notfound.entity",
+    )?;
+    let to = destination(&command, &context, &call, &all)?;
     if !spawnable(to.position) {
         return Err(CommandFailure::translate(
             "commands.teleport.invalidPosition",
             vec![],
         ));
     }
-    let mut moved: Vec<&PlayerCandidate> = Vec::new();
-    for victim in &victims {
-        let Ok((_, _, mut transform, _, mut state, &HostAnchor(host))) =
-            players.get_mut(victim.entity)
+    let anchor = context.source(&call).anchor;
+    let mut moved = 0usize;
+    let mut first = None;
+    for victim in victims {
+        let Ok((_, profile, mut transform, _, mut state, &HostAnchor(host))) =
+            players.get_mut(victim)
         else {
             continue;
         };
-        let from = *transform;
-        let (yaw, pitch) = match &to.facing {
-            Some(Facing::Point(point)) => look_at(to.position, *point),
-            Some(Facing::Entity(entity, anchor)) => {
-                look_at(to.position, anchor_of(entity, *anchor))
-            }
-            None => to
-                .rotation
-                .unwrap_or((from.rotation.yaw(), from.rotation.pitch())),
-        };
-        let rotation = Rotation::new(yaw, pitch);
-        let moved_to = Transform {
-            translation: to.position,
-            rotation,
-        };
-        let teleport_id = state.sent(moved_to);
-        *transform = moved_to;
-        feedback.send(
-            mcrs_minecraft_engine::bus::to(
-                host,
-                PacketPayload::PlayerPosition(position_packet(teleport_id, &from, &to, rotation)),
-            )
-            .critical(),
-        );
-        moved.push(victim);
+        let (position, look_at) = move_victim(&to, anchor, &mut transform, &mut state);
+        feedback.send(packet_to(host, PacketPayload::PlayerPosition(position)).critical());
+        if let Some(look_at) = look_at {
+            feedback.send(packet_to(host, PacketPayload::PlayerLookAt(look_at)).critical());
+        }
+        first.get_or_insert_with(|| profile.username.clone());
+        moved += 1;
     }
-    let message = match (moved.as_slice(), &to.to_entity) {
-        ([], _) => return Ok(0),
-        ([one], Some(entity)) => Text::translate(
-            "commands.teleport.success.entity.single",
-            vec![name(one), name(entity)],
+    let Some(first) = first else {
+        return Ok(0);
+    };
+    let single = moved == 1;
+    let subject = if single {
+        first.into_text()
+    } else {
+        moved.to_string().into_text()
+    };
+    let message = match &to.to_entity {
+        Some(entity) => Text::translate(
+            if single {
+                "commands.teleport.success.entity.single"
+            } else {
+                "commands.teleport.success.entity.multiple"
+            },
+            vec![subject, entity.clone()],
         ),
-        (many, Some(entity)) => Text::translate(
-            "commands.teleport.success.entity.multiple",
-            vec![many.len().to_string().into_text(), name(entity)],
-        ),
-        ([one], None) => Text::translate(
-            "commands.teleport.success.location.single",
+        None => Text::translate(
+            if single {
+                "commands.teleport.success.location.single"
+            } else {
+                "commands.teleport.success.location.multiple"
+            },
             vec![
-                name(one),
-                coordinate(to.position.x),
-                coordinate(to.position.y),
-                coordinate(to.position.z),
-            ],
-        ),
-        (many, None) => Text::translate(
-            "commands.teleport.success.location.multiple",
-            vec![
-                many.len().to_string().into_text(),
+                subject,
                 coordinate(to.position.x),
                 coordinate(to.position.y),
                 coordinate(to.position.z),
             ],
         ),
     };
-    feedback.success(&invocation, message, true);
-    Ok(i32::try_from(moved.len()).unwrap_or(i32::MAX))
+    feedback.success(&call, message, true);
+    Ok(i32::try_from(moved).unwrap_or(i32::MAX))
 }

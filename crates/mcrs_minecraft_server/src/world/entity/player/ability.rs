@@ -11,6 +11,10 @@ impl Default for PlayerGameMode {
     }
 }
 
+/// Whether the player flies, as its client reports it and its game mode allows (CMD-GM-007).
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
+pub struct PlayerFlying(pub bool);
+
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Default)]
 pub struct PlayerOpLevel(pub u8);
 

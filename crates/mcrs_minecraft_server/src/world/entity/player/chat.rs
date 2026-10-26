@@ -1,9 +1,9 @@
 use crate::client_info::ClientInfo;
+use crate::command::system_message;
 use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
@@ -47,12 +47,9 @@ fn handle_chat(
     }
 
     if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
-        packet_writer.write(to(
+        packet_writer.write(system_message(
             host_anchor.0,
-            PacketPayload::SystemChat(ClientboundSystemChatPacket {
-                content: Text::translate("chat.disabled.options", vec![]).color(Color::RED),
-                overlay: false,
-            }),
+            Text::translate("chat.disabled.options", vec![]).color(Color::RED),
         ));
         return;
     }

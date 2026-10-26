@@ -1,30 +1,45 @@
+use mcrs_minecraft_engine::session::GameProfile;
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::prelude::With;
+use bevy_ecs::world::World;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
+use bytes::Bytes;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
+    PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::session::SessionBundle;
+use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_level::world::in_flight::InFlightMoves;
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{Encode, GameMode, Packet};
+use mcrs_minecraft_server::ops::{DefaultOpLevel, OpList, OpListEntry};
+use mcrs_minecraft_server::world::entity::player::HostAnchor;
+use mcrs_minecraft_server::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
@@ -177,4 +192,152 @@ pub fn join(
             _ => None,
         })
         .expect("a login is sent")
+}
+
+/// A host app in `Playing` with one overworld dimension, whose players join through the
+/// dimension's channels.
+pub struct PlayServer {
+    pub app: App,
+    pub dim: Entity,
+}
+
+impl PlayServer {
+    /// Finishes `app`, lists `ops` as `(uuid, level)` and gives every other player
+    /// `default_level`.
+    pub fn start(mut app: App, ops: &[(Uuid, u8)], default_level: u8) -> Self {
+        app.finish();
+        app.init_resource::<PlayerSessionCounter>();
+        app.init_resource::<InFlightMoves>();
+        app.add_message::<InboundPlayerSpawn>();
+        app.insert_resource(OpList::new(ops.iter().map(|&(uuid, level)| OpListEntry {
+            uuid,
+            name: "op".into(),
+            level,
+            bypasses_player_limit: false,
+        })));
+        app.insert_resource(DefaultOpLevel(PlayerOpLevel(default_level)));
+        drive_to_playing(&mut app);
+        materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
+        let dim = app
+            .world_mut()
+            .query_filtered::<Entity, With<DimSubAppHandle>>()
+            .single(app.world())
+            .unwrap();
+        Self { app, dim }
+    }
+
+    pub fn world(&mut self) -> &mut World {
+        self.app.sub_app_mut(DimAppLabel(self.dim)).world_mut()
+    }
+
+    /// Runs `n` updates and returns the packets sent to `anchor`.
+    pub fn ticks(&mut self, anchor: Entity, n: usize) -> Vec<PacketPayload> {
+        self.ticks_all(n)
+            .into_iter()
+            .filter(|packet| {
+                matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor)
+            })
+            .map(|packet| packet.data)
+            .collect()
+    }
+
+    /// Runs `n` updates and returns every packet sent.
+    pub fn ticks_all(&mut self, n: usize) -> Vec<OutboundPlayerPacket> {
+        let mut packets = Vec::new();
+        for _ in 0..n {
+            self.app.update();
+            pump_channels(&mut self.app);
+            packets.extend(
+                self.app
+                    .world_mut()
+                    .resource_mut::<Messages<OutboundPlayerPacket>>()
+                    .drain(),
+            );
+        }
+        packets
+    }
+
+    pub fn submit(&self, message: ToDim) {
+        let channels = self
+            .app
+            .world()
+            .resource::<DimChannelsResource>()
+            .get(self.dim)
+            .unwrap();
+        let sender = match message {
+            ToDim::Serverbound(..) => &channels.serverbound_sender,
+            _ => &channels.control_sender,
+        };
+        sender.try_send(message).unwrap();
+    }
+
+    /// Returns the host anchor of the new player and the packets of its first ticks.
+    pub fn join(&mut self, uuid: Uuid, name: &str) -> (Entity, Vec<PacketPayload>) {
+        let session = self
+            .app
+            .world_mut()
+            .resource_mut::<PlayerSessionCounter>()
+            .next();
+        let anchor = self
+            .app
+            .world_mut()
+            .spawn((
+                GameProfile {
+                    id: uuid,
+                    username: name.into(),
+                    properties: Vec::new(),
+                },
+                SessionBundle::placed(session, SessionPlacement::new(Place::Joining(self.dim), 0)),
+            ))
+            .id();
+        self.submit(ToDim::Spawn(InboundPlayerSpawn {
+            host_anchor: anchor,
+            session: PlayerSession(0),
+            snapshot: PlayerTransferSnapshot {
+                uuid,
+                username: name.into(),
+                position: DVec3::new(8.5, 64.0, 8.5),
+                rotation: Vec2::ZERO,
+                view_distance: 2,
+            },
+            dimensions: Vec::new().into(),
+        }));
+        let packets = self.ticks(anchor, 3);
+        (anchor, packets)
+    }
+
+    pub fn queue<P: Packet + Encode>(&self, anchor: Entity, packet: &P) {
+        let mut data = Vec::new();
+        packet.encode(&mut data).unwrap();
+        self.submit(ToDim::Serverbound(InboundPlayerPacket {
+            player: anchor,
+            id: P::ID,
+            trigger: PacketDispatcher::serverbound()
+                .dispatch(ConnectionState::Game, P::ID, &data)
+                .unwrap(),
+            data: Bytes::from(data),
+            timestamp: std::time::Instant::now(),
+        }));
+    }
+
+    /// Queues `packet` from `anchor` and returns the packets of the next two ticks.
+    pub fn send<P: Packet + Encode>(&mut self, anchor: Entity, packet: &P) -> Vec<PacketPayload> {
+        self.queue(anchor, packet);
+        self.ticks(anchor, 2)
+    }
+
+    pub fn player(&mut self, anchor: Entity) -> Entity {
+        let world = self.world();
+        world
+            .query_filtered::<(Entity, &HostAnchor), With<Player>>()
+            .iter(world)
+            .find(|(_, host)| host.0 == anchor)
+            .map(|(player, _)| player)
+            .expect("the player is in the dimension")
+    }
+
+    pub fn game_mode(&mut self, anchor: Entity) -> GameMode {
+        let player = self.player(anchor);
+        self.world().get::<PlayerGameMode>(player).unwrap().0
+    }
 }

@@ -1,8 +1,8 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::identifier::text_matches;
-use crate::source::Anchor;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 
 /// `minecraft:gamemode` (ARG-KW-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -38,15 +38,15 @@ impl EntityAnchorArgument {
 }
 
 impl<S> Argument<S> for EntityAnchorArgument {
-    type Value<'a> = Anchor;
+    type Value<'a> = LookAnchor;
     type Error = ArgumentError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<Anchor, CommandSyntaxError> {
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<LookAnchor, CommandSyntaxError> {
         let start = reader.cursor();
         let word = reader.read_unquoted();
         match word.text(reader.input()) {
-            "feet" => Ok(Anchor::Feet),
-            "eyes" => Ok(Anchor::Eyes),
+            "feet" => Ok(LookAnchor::Feet),
+            "eyes" => Ok(LookAnchor::Eyes),
             _ => {
                 reader.set_cursor(start);
                 Err(SyntaxError::argument(

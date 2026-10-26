@@ -4200,6 +4200,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",

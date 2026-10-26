@@ -119,11 +119,11 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             })
     }
 
-    /// The context that runs, or the error to report.
-    pub fn check<A, R, H>(
+    /// The context that runs and the handler of its last node, or the error to report.
+    pub fn check<'g, A, R, H>(
         &self,
-        graph: &Graph<A, R, H>,
-    ) -> Result<ContextView<'s>, SyntaxError<E>> {
+        graph: &'g Graph<A, R, H>,
+    ) -> Result<(ContextView<'s>, &'g H), SyntaxError<E>> {
         if self.cursor < self.input.len() {
             if let [only] = self.errors {
                 return Err(*only);
@@ -141,11 +141,9 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
         }
         self.contexts()
             .last()
-            .filter(|context| {
-                context
-                    .last()
-                    .and_then(|(node, _)| graph.node(node))
-                    .is_some_and(|node| node.command().is_some())
+            .and_then(|context| {
+                let (node, _) = context.last()?;
+                Some((context, graph.node(node)?.command()?))
             })
             .ok_or(SyntaxError::library(
                 LibraryError::UnknownCommand,

@@ -20,12 +20,9 @@ pub use argument::keyword::{EntityAnchorArgument, GameModeArgument};
 pub use argument::resource::{
     DimensionArgument, ResourceLocationArgument, ResourceOrTag, ResourceOrTagArgument,
 };
-pub use error::{
-    ArgumentError, CommandSyntaxError, IntoCommandSyntaxError, argument_text, error_feedback,
-    error_message,
-};
+pub use error::{ArgumentError, CommandSyntaxError, argument_text, error_feedback, error_message};
 pub use identifier::Identifier;
 pub use packet::{VanillaGraph, player_tree, suggestion_reply};
 pub use permission::{CommandLevel, PermissionCheck};
 pub use set::VanillaArgument;
-pub use source::{Anchor, Lookup, NoLookup, Source};
+pub use source::{Lookup, NoLookup, Source, anchored};

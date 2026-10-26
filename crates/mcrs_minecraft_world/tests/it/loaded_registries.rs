@@ -238,7 +238,7 @@ fn the_vanilla_pack_loads_without_world_generation_and_names_its_registries_only
     assert!(!placed.is_empty());
     assert!(
         registries
-            .names_of(&rl!("minecraft:worldgen/feature_type").into())
+            .names_of(&rl!("minecraft:worldgen/feature_type"))
             .is_none()
     );
 }

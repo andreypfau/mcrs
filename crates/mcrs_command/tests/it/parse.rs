@@ -13,7 +13,7 @@ fn reported(
     let parse = graph.parse(input, 0, &level, &mut scratch);
     parse
         .check(graph)
-        .map(|context| context.nodes().map(|(node, _)| node).collect())
+        .map(|(context, _)| context.nodes().map(|(node, _)| node).collect())
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn a_parse_to_the_end_beats_the_earlier_sibling_that_leaves_text() {
 
     let mut scratch = ParseScratch::default();
     let parse = graph.parse("tp Steve 3", 0, &0, &mut scratch);
-    let context = parse.check(&graph).unwrap();
+    let (context, _) = parse.check(&graph).unwrap();
     let (_, span) = context
         .nodes()
         .find(|&(node, _)| node == location.node())

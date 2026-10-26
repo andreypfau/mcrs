@@ -4,7 +4,7 @@ use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument};
 use crate::argument::resource::{
     DimensionArgument, ResourceLocationArgument, ResourceOrTagArgument,
 };
-use crate::error::{ArgumentError, CommandSyntaxError, IntoCommandSyntaxError};
+use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::source::{Lookup, Source};
 use mcrs_command::{
     Argument, ArgumentSet, BoolArgument, Contains, DoubleArgument, FloatArgument, IntegerArgument,
@@ -53,7 +53,7 @@ macro_rules! vanilla_arguments {
                     $(VanillaArgument::$variant(argument) => argument
                         .parse(reader, source)
                         .map(drop)
-                        .map_err(IntoCommandSyntaxError::into_command_error),)+
+                        .map_err(mcrs_command::SyntaxError::map_into),)+
                 }
             }
 

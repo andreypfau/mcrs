@@ -56,28 +56,11 @@ impl Lookup for NoLookup {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Anchor {
-    #[default]
-    Feet,
-    Eyes,
-}
-
-impl From<Anchor> for LookAnchor {
-    fn from(anchor: Anchor) -> Self {
-        match anchor {
-            Anchor::Feet => LookAnchor::Feet,
-            Anchor::Eyes => LookAnchor::Eyes,
-        }
-    }
-}
-
-impl Anchor {
-    pub fn apply(self, position: DVec3, eye_height: f64) -> DVec3 {
-        match self {
-            Anchor::Feet => position,
-            Anchor::Eyes => position + DVec3::Y * eye_height,
-        }
+/// The point of an entity at `position` that `anchor` names.
+pub fn anchored(anchor: LookAnchor, position: DVec3, eye_height: f64) -> DVec3 {
+    match anchor {
+        LookAnchor::Feet => position,
+        LookAnchor::Eyes => position + DVec3::Y * eye_height,
     }
 }
 
@@ -88,7 +71,7 @@ pub struct Source<'s, L> {
     pub position: DVec3,
     pub yaw: f32,
     pub pitch: f32,
-    pub anchor: Anchor,
+    pub anchor: LookAnchor,
     /// `None` when the source is no entity.
     pub eye_height: Option<f64>,
     pub lookup: &'s L,
@@ -101,7 +84,7 @@ impl<'s, L> Source<'s, L> {
             position: DVec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
-            anchor: Anchor::Feet,
+            anchor: LookAnchor::Feet,
             eye_height: None,
             lookup,
         }
@@ -109,7 +92,7 @@ impl<'s, L> Source<'s, L> {
 
     pub(crate) fn anchor_position(&self) -> DVec3 {
         self.eye_height.map_or(self.position, |eye_height| {
-            self.anchor.apply(self.position, eye_height)
+            anchored(self.anchor, self.position, eye_height)
         })
     }
 }

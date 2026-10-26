@@ -2,18 +2,18 @@ mod gamemode;
 mod locate;
 mod teleport;
 
-use crate::command::{CommandFailure, CommandTree, DimLookup, Invocation};
+use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation};
 use crate::world::entity::player::ability::PlayerGameMode;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::Arg;
-use mcrs_minecraft_command::{Candidate, EntityArgument, Source, argument_text};
+use mcrs_minecraft_command::{Candidate, EntityArgument, argument_text};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::GameMode;
-use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// The vanilla commands: `gamemode`, `teleport` with its alias `tp`, and `locate`.
@@ -21,32 +21,45 @@ pub struct VanillaCommandsPlugin;
 
 impl Plugin for VanillaCommandsPlugin {
     fn build(&self, app: &mut App) {
-        gamemode::register(app);
-        teleport::register(app);
-        locate::register(app);
+        let added = [
+            (
+                "gamemode",
+                app.add_command(gamemode::build, gamemode::run).map(drop),
+            ),
+            (
+                "teleport",
+                app.add_command(teleport::build, teleport::run).map(drop),
+            ),
+            (
+                "locate",
+                app.add_command(locate::build, locate::run).map(drop),
+            ),
+        ];
+        for (name, result) in added {
+            if let Err(error) = result {
+                tracing::error!("{name}: {error}");
+            }
+        }
     }
 }
 
 /// A player of the dimension as an entity argument searches it.
 #[derive(Clone, Debug)]
-pub(crate) struct PlayerCandidate {
+pub(crate) struct PlayerCandidate<'a> {
     pub entity: Entity,
     pub uuid: Uuid,
-    pub name: String,
+    pub name: &'a str,
     pub transform: Transform,
     pub mode: GameMode,
 }
 
-const PLAYER_WIDTH: f64 = 0.6;
-const PLAYER_HEIGHT: f64 = 1.8;
-
-impl Candidate for PlayerCandidate {
+impl Candidate for PlayerCandidate<'_> {
     fn uuid(&self) -> Uuid {
         self.uuid
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn entity_type(&self) -> EntityType {
@@ -109,12 +122,12 @@ pub(crate) type PlayerView<'a> = (Entity, &'a GameProfile, &'a Transform, &'a Pl
 // lifts it.
 pub(crate) fn candidates<'a>(
     players: impl Iterator<Item = PlayerView<'a>>,
-) -> Vec<PlayerCandidate> {
+) -> Vec<PlayerCandidate<'a>> {
     players
         .map(|(entity, profile, transform, mode)| PlayerCandidate {
             entity,
             uuid: profile.id,
-            name: profile.username.clone(),
+            name: &profile.username,
             transform: *transform,
             mode: mode.0,
         })
@@ -123,24 +136,36 @@ pub(crate) fn candidates<'a>(
 
 /// The entities a selector argument finds, or the failure of its search.
 pub(crate) fn select<'c>(
-    tree: &CommandTree,
-    invocation: &Invocation,
+    context: &CommandContext,
+    call: &Invocation,
     arg: Arg<EntityArgument>,
-    source: &Source<'_, DimLookup<'_>>,
-    all: &'c [PlayerCandidate],
-) -> Result<Vec<&'c PlayerCandidate>, CommandFailure> {
-    let selector = invocation
-        .get(tree, arg, source)
-        .ok_or_else(|| CommandFailure::translate("command.failed", vec![]))??;
-    let me = all.iter().find(|c| c.entity == invocation.player);
+    all: &'c [PlayerCandidate<'_>],
+) -> Result<Vec<&'c PlayerCandidate<'c>>, CommandFailure> {
+    let selector = context.arg(call, arg)?;
+    let source = context.source(call);
+    let me = all.iter().find(|c| c.entity == call.player);
     let mut out = Vec::new();
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     selector
-        .select(source, me, all.iter(), &mut random, &mut out)
-        .map_err(|error| CommandFailure(argument_text(&invocation.line, error)))?;
+        .select(&source, me, all.iter(), &mut random, &mut out)
+        .map_err(|error| CommandFailure(argument_text(&call.line, error)))?;
     Ok(out)
 }
 
-pub(crate) fn name(candidate: &PlayerCandidate) -> Text {
-    candidate.name.clone().into_text()
+/// The players a selector finds, or the source itself when the branch has no selector.
+pub(crate) fn targets_or_self(
+    context: &CommandContext,
+    call: &Invocation,
+    arg: Option<Arg<EntityArgument>>,
+    all: &[PlayerCandidate<'_>],
+    none_found: &'static str,
+) -> Result<Vec<Entity>, CommandFailure> {
+    let Some(arg) = arg else {
+        return Ok(vec![call.player]);
+    };
+    let found = select(context, call, arg, all)?;
+    if found.is_empty() {
+        return Err(CommandFailure::translate(none_found, vec![]));
+    }
+    Ok(found.iter().map(|candidate| candidate.entity).collect())
 }

@@ -1,6 +1,7 @@
 use crate::command::{
-    CommandContext, CommandHandlers, CommandTree, Invocation, SourceState, level_of,
+    CommandContext, CommandFailure, CommandHandlers, CommandTree, Invocation, SourceState, level_of,
 };
+use crate::ops::OpList;
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
@@ -9,10 +10,13 @@ use mcrs_command::{ParseScratch, Suggestion, build_list};
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, NoLookup, Source, error_feedback, player_tree, suggestion_reply,
 };
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
+use mcrs_minecraft_engine::bus::{
+    OperatorBroadcast, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, to,
+};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::session::{PlayerSession, Session};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
@@ -21,12 +25,13 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text, is_allowed_chat_character};
 use mcrs_minecraft_protocol::{GameMode, VarInt};
+use smallvec::SmallVec;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
 /// up to the packet's own limit (CMDP-SUG-001).
 const CHAT_SUGGESTION_UNITS: usize = 256;
 
-fn system_message(host: Entity, content: Text) -> OutboundPlayerPacket {
+pub(crate) fn system_message(host: Entity, content: Text) -> OutboundPlayerPacket {
     to(
         host,
         PacketPayload::SystemChat(ClientboundSystemChatPacket {
@@ -62,27 +67,23 @@ pub(crate) fn reject_illegal_characters(
     }
 }
 
-/// Raised before a command runs. An observer that cancels it stops the command; the source
-/// receives nothing.
+/// Raised before a command runs. When an observer sets `cancelled`, the command does not run
+/// and the source receives nothing.
 #[derive(Event, Debug)]
 pub struct CommandEvent {
-    pub invocation: Invocation,
-    cancelled: bool,
+    invocation: Invocation,
+    pub cancelled: bool,
 }
 
 impl CommandEvent {
-    pub fn cancel(&mut self) {
-        self.cancelled = true;
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.cancelled
+    /// Read-only: the parse that chose the branch belongs to this line.
+    pub fn invocation(&self) -> &Invocation {
+        &self.invocation
     }
 }
 
 pub(crate) fn handle_chat_command(
     event: On<Received<ServerboundChatCommand<'static>>>,
-    tree: Res<CommandTree>,
     context: CommandContext,
     players: Query<(&PlayerOpLevel, &Transform, &HostAnchor), With<Player>>,
     mut scratch: Local<ParseScratch<ArgumentError>>,
@@ -101,22 +102,13 @@ pub(crate) fn handle_chat_command(
     }
     let state = SourceState {
         level: level_of(op_level),
-        position: transform.translation,
-        yaw: transform.rotation.yaw(),
-        pitch: transform.rotation.pitch(),
+        transform: *transform,
     };
-    let lookup = context.lookup();
-    let mut invocation = Invocation {
-        player: event.entity,
-        source: state,
-        line: String::new(),
-        nodes: Vec::new(),
-    };
-    let source = invocation.source(&lookup);
+    let source = state.source(&context);
+    let tree = &context.tree;
     let parse = tree.0.parse(line, 0, &source, &mut scratch);
-    let checked = parse.check(&tree.0);
-    let context_view = match checked {
-        Ok(view) => view,
+    let (context_view, &handler) = match parse.check(&tree.0) {
+        Ok(checked) => checked,
         Err(error) => {
             for message in error_feedback(line, &error) {
                 writer.write(system_message(host, message));
@@ -124,19 +116,14 @@ pub(crate) fn handle_chat_command(
             return;
         }
     };
-    let key = context_view
-        .last()
-        .and_then(|(node, _)| tree.0.node(node))
-        .and_then(|node| node.command().copied());
-    let Some(key) = key else {
-        writer.write(system_message(
-            host,
-            Text::translate("command.failed", vec![]).color(Color::RED),
-        ));
-        return;
+    let invocation = Invocation {
+        player: event.entity,
+        source: state,
+        line: line.to_owned(),
+        nodes: context_view.nodes().collect(),
+        branch: handler.branch,
     };
-    invocation.line = line.to_owned();
-    invocation.nodes = context_view.nodes().collect();
+    let key = handler.key;
     commands.queue(move |world: &mut World| {
         let mut event = CommandEvent {
             invocation,
@@ -155,10 +142,10 @@ pub(crate) fn handle_chat_command(
                 Ok(Err(failure)) => failure.text(),
                 Err(error) => {
                     tracing::error!("a command handler did not run: {error}");
-                    Text::translate("command.failed", vec![]).color(Color::RED)
+                    CommandFailure::failed().text()
                 }
             },
-            None => Text::translate("command.failed", vec![]).color(Color::RED),
+            None => CommandFailure::failed().text(),
         };
         world.write_message(system_message(host, failure));
     });
@@ -211,55 +198,46 @@ fn recycle<A, B>(buffer: Vec<A>) -> Vec<B> {
 pub(crate) struct SuggestionScratch {
     parse: ParseScratch<ArgumentError>,
     suggestions: Vec<Suggestion<'static, &'static str>>,
-    names: Vec<&'static str>,
 }
 
 /// Answers the pending request of each player, one per player per tick, then clears it.
 pub(crate) fn answer_suggestion_requests(
-    tree: Res<CommandTree>,
     context: CommandContext,
     mut players: Query<
         (
-            Entity,
             &PlayerOpLevel,
             &Transform,
             &HostAnchor,
             &mut PendingSuggestion,
         ),
-        With<Player>,
+        (With<Player>, Changed<PendingSuggestion>),
     >,
     mut scratch: Local<SuggestionScratch>,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let scratch = &mut *scratch;
-    for (player, &op_level, transform, &HostAnchor(host), mut pending) in &mut players {
+    for (&op_level, transform, &HostAnchor(host), mut pending) in &mut players {
         let Some((id, text)) = pending.0.as_ref() else {
             continue;
         };
-        let lookup = context.lookup_with(recycle(std::mem::take(&mut scratch.names)));
-        let invocation = Invocation {
-            player,
-            source: SourceState {
-                level: level_of(op_level),
-                position: transform.translation,
-                yaw: transform.rotation.yaw(),
-                pitch: transform.rotation.pitch(),
-            },
-            line: String::new(),
-            nodes: Vec::new(),
+        let state = SourceState {
+            level: level_of(op_level),
+            transform: *transform,
         };
-        let source = invocation.source(&lookup);
+        let source = state.source(&context);
         let start = usize::from(text.starts_with('/'));
-        let parse = tree.0.parse(text, start, &source, &mut scratch.parse);
+        let parse = context
+            .tree
+            .0
+            .parse(text, start, &source, &mut scratch.parse);
         let mut suggestions = recycle(std::mem::take(&mut scratch.suggestions));
-        tree.0.suggest(&parse, &source, &mut suggestions);
+        context.tree.0.suggest(&parse, &source, &mut suggestions);
         let list = build_list(text, &mut suggestions);
         writer.write(to(
             host,
             PacketPayload::CommandSuggestions(suggestion_reply(*id, text, &list)),
         ));
         scratch.suggestions = recycle(suggestions);
-        scratch.names = recycle(lookup.into_names());
         pending.0 = None;
     }
 }
@@ -267,13 +245,10 @@ pub(crate) fn answer_suggestion_requests(
 /// Sends a player the tree it can see whenever its level is set, which includes its arrival
 /// in the dimension (CMDP-TREE-002).
 pub(crate) fn send_command_tree(
-    tree: Option<Res<CommandTree>>,
+    tree: Res<CommandTree>,
     players: Query<(&PlayerOpLevel, &HostAnchor), Changed<PlayerOpLevel>>,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Some(tree) = tree else {
-        return;
-    };
     for (&op_level, &HostAnchor(host)) in &players {
         let source = Source::new(level_of(op_level), &NoLookup);
         writer.write(to(host, PacketPayload::Commands(player_tree(&tree.0, &source))).critical());
@@ -285,16 +260,8 @@ pub(crate) fn send_command_tree(
 #[derive(SystemParam)]
 pub struct CommandFeedback<'w, 's> {
     writer: MessageWriter<'w, OutboundPlayerPacket>,
-    players: Query<
-        'w,
-        's,
-        (
-            Entity,
-            &'static HostAnchor,
-            &'static PlayerOpLevel,
-            &'static GameProfile,
-        ),
-    >,
+    broadcasts: MessageWriter<'w, OperatorBroadcast>,
+    players: Query<'w, 's, (&'static HostAnchor, &'static GameProfile)>,
 }
 
 impl CommandFeedback<'_, '_> {
@@ -304,12 +271,12 @@ impl CommandFeedback<'_, '_> {
     }
 
     pub fn tell(&mut self, player: Entity, message: Text) {
-        if let Ok((_, &HostAnchor(host), _, _)) = self.players.get(player) {
+        if let Ok((&HostAnchor(host), _)) = self.players.get(player) {
             self.writer.write(system_message(host, message));
         }
     }
 
-    /// A success message; with `broadcast`, every other operator of the dimension sees it too.
+    /// A success message; with `broadcast`, every other operator sees it too.
     pub fn success(&mut self, invocation: &Invocation, message: Text, broadcast: bool) {
         // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
@@ -317,20 +284,53 @@ impl CommandFeedback<'_, '_> {
         if !broadcast {
             return;
         }
-        let Ok((_, _, _, profile)) = self.players.get(invocation.player) else {
+        let Ok((&HostAnchor(source), profile)) = self.players.get(invocation.player) else {
             return;
         };
+        // The server has no language table, so the log keeps the translation key and its
+        // arguments as JSON.
+        tracing::info!("[{}: {message}]", profile.username);
         let admin = Text::translate(
             "chat.type.admin",
             vec![profile.username.clone().into_text(), message],
         )
         .color(Color::GRAY)
         .italic();
-        tracing::info!("[{}: {}]", profile.username, admin.to_legacy_lossy());
-        for (entity, &HostAnchor(host), level, _) in &self.players {
-            if entity != invocation.player && level_of(*level) > CommandLevel::All {
-                self.writer.write(system_message(host, admin.clone()));
-            }
-        }
+        self.broadcasts.write(OperatorBroadcast {
+            source,
+            message: admin,
+        });
     }
+}
+
+/// Delivers an admin message from any dimension to every online operator but its source. The
+/// host holds each session's profile and the operator list, so the set is read here when a
+/// message arrives.
+pub(crate) fn broadcast_to_operators(
+    broadcast: On<OperatorBroadcast>,
+    sessions: Query<(Entity, &GameProfile), With<Session>>,
+    ops: Option<Res<OpList>>,
+    mut writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    let Some(ops) = ops else {
+        return;
+    };
+    let operators: SmallVec<[Entity; 8]> = sessions
+        .iter()
+        .filter(|&(anchor, profile)| anchor != broadcast.source && ops.get(&profile.id).is_some())
+        .map(|(anchor, _)| anchor)
+        .collect();
+    if operators.is_empty() {
+        return;
+    }
+    writer.write(OutboundPlayerPacket {
+        target: PacketTarget::PlayerSet(operators),
+        priority: PacketPriority::Normal,
+        data: PacketPayload::SystemChat(ClientboundSystemChatPacket {
+            content: broadcast.message.clone(),
+            overlay: false,
+        }),
+        session: PlayerSession(0),
+        epoch: 0,
+    });
 }

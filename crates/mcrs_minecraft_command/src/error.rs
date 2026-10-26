@@ -45,20 +45,10 @@ pub enum ArgumentError {
 
 pub type CommandSyntaxError = SyntaxError<ArgumentError>;
 
-/// The error of a library or a vanilla argument type, as the error of the vanilla set.
-pub trait IntoCommandSyntaxError {
-    fn into_command_error(self) -> CommandSyntaxError;
-}
-
-impl IntoCommandSyntaxError for SyntaxError<core::convert::Infallible> {
-    fn into_command_error(self) -> CommandSyntaxError {
-        self.widen()
-    }
-}
-
-impl IntoCommandSyntaxError for CommandSyntaxError {
-    fn into_command_error(self) -> CommandSyntaxError {
-        self
+/// A library argument type has no errors of its own.
+impl From<core::convert::Infallible> for ArgumentError {
+    fn from(never: core::convert::Infallible) -> Self {
+        match never {}
     }
 }
 
