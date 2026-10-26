@@ -790,8 +790,9 @@ of the last column. The key arguments of the range kinds come in the order bound
 The game keeps an argument that is a number, a boolean or a text as a typed value of the
 translation. The bound and the value of the eight range kinds are numbers: a 32-bit integer, a
 64-bit integer, a binary32 value or a binary64 value. The client shows each number with the
-decimal form of the Java platform, for example `1.7976931348623157E308`. No parse raises
-`literal_incorrect`: CMD-PARSE-002 offers a literal only when its name matches. The kind
+decimal form of the Java platform, for example `1.7976931348623157E308`. A literal node never
+raises `literal_incorrect`: CMD-PARSE-002 offers a literal only when its name matches. The
+SNBT read of an argument raises it (`snbt.md`, SNBT-TOK-003). The kind
 `dispatcher_parse_exception` of the library does not exist here (CMD-DEV-005).
 
 Provenance: `source_suggested` for the keys and the order of the key arguments.
@@ -993,8 +994,10 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Reference:** the library also has integer suggestions. They skip the test against the
   remaining input. They compare by value with each other, and by text in a case-sensitive way
   with a text suggestion. They become text suggestions when CMD-SUG-006 expands their range.
-- **Visible to the client:** no. No suggestion source of the game makes integer suggestions,
-  and the `command_suggestions` packet carries only texts.
+- **Visible to the client:** no. The integer values of a block property are integer
+  suggestions (`argument-block.md`, ARG-BLK-016), but only the client makes them: those
+  arguments have no suggestion type `minecraft:ask_server`. No suggestion source of the server
+  makes integer suggestions, and the `command_suggestions` packet carries only texts.
 - **Test:** do not use integer suggestions.
 
 ### CMD-DEV-011: The list of one child is sorted

@@ -243,23 +243,35 @@ commands use.
 | `brigadier:long` | 4 | number range, Long |
 | `brigadier:string` | 5 | VarInt mode: 0 `word`, 1 `phrase`, 2 `greedy` |
 | `minecraft:entity` | 6 | Byte: `0x01` one target only, `0x02` players only |
+| `minecraft:block_pos` | 8 | none |
 | `minecraft:vec3` | 10 | none |
+| `minecraft:block_predicate` | 13 | none |
 | `minecraft:rotation` | 29 | none |
+| `minecraft:swizzle` | 32 | none |
 | `minecraft:resource_location` | 36 | none |
 | `minecraft:entity_anchor` | 38 | none |
 | `minecraft:dimension` | 41 | none |
 | `minecraft:gamemode` | 42 | none |
+| `minecraft:time` | 43 | Int: the minimum, in ticks |
 | `minecraft:resource_or_tag` | 44 | Identifier: the registry |
 | `minecraft:resource_or_tag_key` | 45 | Identifier: the registry |
+| `minecraft:resource` | 46 | Identifier: the registry |
+| `minecraft:heightmap` | 51 | none |
 
 A number range is a Byte of flags, then the minimum when flag `0x01` is set. The maximum follows
 when flag `0x02` is set. Each bound has the type of the table. A bound is present when it
 differs from the default of `command-parser.md`, CMD-ARG-002.
 
+The Int of `minecraft:time` is 4 bytes, big-endian, and is always present.
+`command-time.md`, CMD-TIME-001, lists the values that the `time` command sends for `time` and
+`resource`. The registry of `resource`, `resource_or_tag` and `resource_or_tag_key` is the
+identifier of the registry, for example `minecraft:timeline`.
+
 Provenance: `black_box_confirmed` (`assets/mcrs/reports/registries.json`) for the ids.
 `source_suggested` for the properties. Kind: wire. Confidence: medium. Experiment: decode the
 `gamemode` node of a captured `commands` packet. Its `target` child has parser id 6 and the
-property byte `0x02`.
+property byte `0x02`. Then decode the node `time set <time>`. Its parser id is 43, and its
+property is the Int `0`.
 
 ### CMDP-ARG-002: Suggestion types
 

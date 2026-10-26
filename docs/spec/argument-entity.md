@@ -252,8 +252,8 @@ Value rules. "Start" is the cursor before the optional `!`.
     makes the selector not include entities. A positive type sets the type limit.
 - **`tag`:** read the `!`. Read an unquoted string. The empty word matches an entity with no
   tag.
-- **`nbt`:** read the `!`. Read a compound tag in the text form of NBT. Section 5 has the open
-  point.
+- **`nbt`:** read the `!`. Read a compound tag in the text form of NBT (`snbt.md`,
+  SNBT-ARG-002 and SNBT-ARG-003).
 - **`scores`:** expect `{`. Skip whitespace. While next is not `}`, read one entry:
   - skip whitespace, read an unquoted string (the objective), and skip whitespace;
   - expect `=`, skip whitespace, read bounds of integers, and skip whitespace;
@@ -512,8 +512,6 @@ type.
 
 ## 5. Open questions
 
-- The value of `nbt` uses the text form of NBT. Its grammar needs its own specification. Until
-  it exists, an implementation cannot accept the same set of `nbt` values as the client.
 - ARG-ENT-015: the plain text name of an entity with a custom name that has styles or
   translations. This needs the text specification.
 

@@ -4,14 +4,14 @@
 |-------|-------|
 | Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
 | Protocol version | `1073742166` |
-| Parser ids | `entity_anchor` 38, `gamemode` 42 (`commands-packet.md`, CMDP-ARG-001) |
+| Parser ids | `entity_anchor` 38, `gamemode` 42, `heightmap` 51 (`commands-packet.md`, CMDP-ARG-001) |
 
 Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
 `assets/mcrs/reports/registries.json`, through `commands-packet.md`, CMDP-ARG-001.
 
-This document states two argument types that read one word from a fixed set:
-`minecraft:gamemode` and `minecraft:entity_anchor`. Both have no properties on the wire. It does
-not prescribe an architecture.
+This document states three argument types that read one word from a fixed set:
+`minecraft:gamemode`, `minecraft:entity_anchor` and `minecraft:heightmap`. Each has no properties
+on the wire. It does not prescribe an architecture.
 
 ## 0. Conventions
 
@@ -76,6 +76,28 @@ operator, stand still and send `execute anchored eyes run teleport ^ ^ ^`. The p
 by the eye height. Then send `execute anchored eyes positioned ~ ~ ~ run teleport ^ ^ ^`. The
 player does not move, because `positioned` sets the anchor back to `feet`.
 
+### ARG-KW-003: `heightmap`
+
+- **Keywords:** `world_surface`, `ocean_floor`, `motion_blocking`, `motion_blocking_no_leaves`, in
+  this order. They are the kept heightmap types of `heightmap.md`, HM-001, in lower case. The
+  generation types `world_surface_wg` and `ocean_floor_wg` are not keywords.
+- **Read:** read an unquoted string. If it is a keyword, the result is that heightmap type.
+  Otherwise fail with `argument.enum.invalid`, with the string, at the cursor after the string.
+  The cursor is not set back.
+- **Suggest:** each keyword that passes the filter of `command-parser.md`, CMD-SUG-008.
+  CMD-SUG-006 sets the final order.
+- **Examples:** `world_surface`, `ocean_floor`.
+- **Edge cases:** `WORLD_SURFACE` fails: the match is case-sensitive, and the save uses the upper
+  case name (`heightmap.md`, HM-001). `world_surface_wg` fails. `1` fails: the id is not a
+  keyword. An empty string fails with the empty string.
+
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: as an
+operator, send `execute positioned over ocean_floor run say a`. The command runs. Then send
+`execute positioned over WORLD_SURFACE run say a` and
+`execute positioned over world_surface_wg run say a`. Each reply has `argument.enum.invalid`
+with the string, and its context ends after the string. Type `/execute positioned over ` and
+read the suggestions: the four keywords.
+
 ---
 
 ## Errors
@@ -84,7 +106,9 @@ player does not move, because `positioned` sets the anchor back to `feet`.
 |-----------------|-----------|----------|
 | `argument.gamemode.invalid` | the string | after the string |
 | `argument.anchor.invalid` | the string | the start |
+| `argument.enum.invalid` | the string | after the string |
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: as an operator, send
-`gamemode foo` and `execute anchored foo run say x`. The replies have
-`argument.gamemode.invalid` and `argument.anchor.invalid`, each with `foo`.
+`gamemode foo`, `execute anchored foo run say x` and `execute positioned over foo run say x`. The
+replies have `argument.gamemode.invalid`, `argument.anchor.invalid` and `argument.enum.invalid`,
+each with `foo`.
