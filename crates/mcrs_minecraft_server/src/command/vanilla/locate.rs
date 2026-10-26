@@ -180,7 +180,7 @@ pub(super) fn run(
     mut feedback: CommandFeedback,
 ) -> CommandResult {
     let command = call.command;
-    let origin = call.source.transform.translation.floor().as_ivec3();
+    let origin = call.source.position.floor().as_ivec3();
     let (message, distance) = match call.branch {
         Branch::Structure => {
             let value = context.arg(&call, command.structure)?;

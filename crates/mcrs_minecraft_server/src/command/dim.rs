@@ -68,7 +68,7 @@ fn run(
     }
     let location = id.to_location().ok_or_else(invalid)?;
     let (profile, owner) = players
-        .get(call.player)
+        .get(call.source.entity)
         .map_err(|_| CommandFailure::translate("permissions.requires.player", vec![]))?;
     let move_id = move_ids.allocate();
     move_sender
@@ -85,6 +85,8 @@ fn run(
         })
         .map_err(|_| CommandFailure::failed())?;
     // The source keeps the player, hidden, until the target confirms the move or rolls it back.
-    commands.entity(call.player).insert(InTransit { move_id });
+    commands
+        .entity(call.source.entity)
+        .insert(InTransit { move_id });
     Ok(1)
 }

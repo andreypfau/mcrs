@@ -5,6 +5,7 @@
 )]
 
 mod arguments;
+mod block;
 mod entity;
 mod tree;
 

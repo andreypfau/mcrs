@@ -3657,6 +3657,7 @@ version = "0.5.8"
 dependencies = [
  "glam",
  "mcrs_command",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",

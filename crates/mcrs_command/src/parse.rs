@@ -11,7 +11,7 @@ use alloc::vec::Vec;
 const MAX_DEPTH: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Entry {
+pub(crate) enum Entry {
     /// Starts a context: the top one, or the child context after a redirect.
     Context {
         root: NodeId,
@@ -62,6 +62,28 @@ pub struct ContextView<'s> {
     nodes: &'s [Entry],
 }
 
+/// The top context, then the child context after each redirect.
+pub(crate) fn contexts(entries: &[Entry]) -> impl Iterator<Item = ContextView<'_>> + '_ {
+    entries
+        .iter()
+        .enumerate()
+        .filter_map(move |(index, entry)| match *entry {
+            Entry::Context { root, start } => {
+                let rest = entries.get(index + 1..).unwrap_or_default();
+                let len = rest
+                    .iter()
+                    .position(|entry| matches!(entry, Entry::Context { .. }))
+                    .unwrap_or(rest.len());
+                Some(ContextView {
+                    root,
+                    start,
+                    nodes: rest.get(..len).unwrap_or_default(),
+                })
+            }
+            Entry::Node { .. } => None,
+        })
+}
+
 impl<'s> ContextView<'s> {
     pub fn nodes(&self) -> impl Iterator<Item = (NodeId, Span)> + 's {
         self.nodes.iter().filter_map(|entry| match *entry {
@@ -96,27 +118,12 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
         self.input
     }
 
-    /// The top context, then the child context after each redirect.
     pub(crate) fn contexts(&self) -> impl Iterator<Item = ContextView<'s>> + 's {
-        let entries = self.entries;
-        entries
-            .iter()
-            .enumerate()
-            .filter_map(move |(index, entry)| match *entry {
-                Entry::Context { root, start } => {
-                    let rest = entries.get(index + 1..).unwrap_or_default();
-                    let len = rest
-                        .iter()
-                        .position(|entry| matches!(entry, Entry::Context { .. }))
-                        .unwrap_or(rest.len());
-                    Some(ContextView {
-                        root,
-                        start,
-                        nodes: rest.get(..len).unwrap_or_default(),
-                    })
-                }
-                Entry::Node { .. } => None,
-            })
+        contexts(self.entries)
+    }
+
+    pub(crate) fn entries(&self) -> &'s [Entry] {
+        self.entries
     }
 
     /// The context that runs and the handler of its last node, or the error to report.

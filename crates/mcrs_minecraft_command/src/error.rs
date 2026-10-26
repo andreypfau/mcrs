@@ -41,6 +41,46 @@ pub enum ArgumentError {
     PlayerTooMany,
     EntityTooMany,
     PlayerEntities,
+    PosMissingInt,
+    SwizzleInvalid,
+    EnumInvalid(Span),
+    BlockIdInvalid(Span),
+    BlockTagUnknown(Span),
+    PropertyUnknown {
+        block: Span,
+        name: StringSpan,
+    },
+    PropertyDuplicate {
+        name: StringSpan,
+        subject: BlockSubject,
+    },
+    PropertyNoValue {
+        name: StringSpan,
+        subject: BlockSubject,
+    },
+    PropertyInvalid {
+        block: Span,
+        value: StringSpan,
+        name: StringSpan,
+    },
+    PropertyUnclosed,
+}
+
+/// The block identifier or the tag that an error of a property list names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockSubject {
+    pub span: Span,
+    pub tag: bool,
+}
+
+impl BlockSubject {
+    pub const fn block(span: Span) -> Self {
+        Self { span, tag: false }
+    }
+
+    pub const fn tag(span: Span) -> Self {
+        Self { span, tag: true }
+    }
 }
 
 pub type CommandSyntaxError = SyntaxError<ArgumentError>;
@@ -64,10 +104,17 @@ fn span(input: &str, span: Span) -> Text {
 }
 
 fn identifier(input: &str, span: Span) -> Text {
+    identifier_string(input, span).into_text()
+}
+
+fn identifier_string(input: &str, span: Span) -> String {
     let text = span.text(input);
-    Identifier::parse(text)
-        .map_or_else(|| text.to_owned(), |id| id.to_string())
-        .into_text()
+    Identifier::parse(text).map_or_else(|| text.to_owned(), |id| id.to_string())
+}
+
+fn subject_text(input: &str, subject: BlockSubject) -> Text {
+    let id = identifier_string(input, subject.span);
+    if subject.tag { format!("#{id}") } else { id }.into_text()
 }
 
 fn bound(key: &'static str, limit: impl ToString, value: impl ToString) -> Text {
@@ -185,6 +232,36 @@ pub fn argument_text(input: &str, error: ArgumentError) -> Text {
         E::PlayerTooMany => Text::translate("argument.player.toomany", vec![]),
         E::EntityTooMany => Text::translate("argument.entity.toomany", vec![]),
         E::PlayerEntities => Text::translate("argument.player.entities", vec![]),
+        E::PosMissingInt => Text::translate("argument.pos.missing.int", vec![]),
+        E::SwizzleInvalid => Text::translate("arguments.swizzle.invalid", vec![]),
+        E::EnumInvalid(word) => Text::translate("argument.enum.invalid", vec![span(input, word)]),
+        E::BlockIdInvalid(id) => {
+            Text::translate("argument.block.id.invalid", vec![identifier(input, id)])
+        }
+        E::BlockTagUnknown(id) => {
+            Text::translate("arguments.block.tag.unknown", vec![identifier(input, id)])
+        }
+        E::PropertyUnknown { block, name } => Text::translate(
+            "argument.block.property.unknown",
+            vec![identifier(input, block), string(input, name)],
+        ),
+        E::PropertyDuplicate { name, subject } => Text::translate(
+            "argument.block.property.duplicate",
+            vec![string(input, name), subject_text(input, subject)],
+        ),
+        E::PropertyNoValue { name, subject } => Text::translate(
+            "argument.block.property.novalue",
+            vec![string(input, name), subject_text(input, subject)],
+        ),
+        E::PropertyInvalid { block, value, name } => Text::translate(
+            "argument.block.property.invalid",
+            vec![
+                identifier(input, block),
+                string(input, value),
+                string(input, name),
+            ],
+        ),
+        E::PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
     }
 }
 

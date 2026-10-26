@@ -1,6 +1,7 @@
 use crate::identifier::Identifier;
 use crate::permission::CommandLevel;
 use glam::DVec3;
+use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 
@@ -27,6 +28,16 @@ pub trait Lookup {
     ) -> bool;
 
     fn player_names(&self) -> impl Iterator<Item = &str>;
+
+    /// The identifiers of the members of a tag, each as `namespace:path`.
+    fn tag_entries(
+        &self,
+        registry: StaticResourceLocation,
+        tag: Identifier<'_>,
+    ) -> impl Iterator<Item = &str>;
+
+    /// The properties of a block in their order, or `None` when no block has that identifier.
+    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]>;
 }
 
 /// A lookup that knows nothing: a source with no world.
@@ -53,6 +64,18 @@ impl Lookup for NoLookup {
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
         core::iter::empty()
+    }
+
+    fn tag_entries(
+        &self,
+        _: StaticResourceLocation,
+        _: Identifier<'_>,
+    ) -> impl Iterator<Item = &str> {
+        core::iter::empty()
+    }
+
+    fn block_properties(&self, _: Identifier<'_>) -> Option<&[BlockProperty]> {
+        None
     }
 }
 

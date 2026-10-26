@@ -1,4 +1,7 @@
-use crate::command::{CommandHandlers, CommandResult, CommandTreeBuilder, HandlerKey, Invocation};
+use crate::command::{
+    CommandHandlers, CommandResult, CommandTreeBuilder, HandlerKey, Invocation, ModifierHandlers,
+    ModifyResult,
+};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_command::{Arg, BuildError, GraphBuilder, NodeId};
@@ -63,6 +66,7 @@ pub struct NodeRef<'r, 'a, B, K> {
     check: PermissionCheck,
     branch: Option<B>,
     redirect: Option<NodeId>,
+    modifier: Option<(B, bool)>,
     handle: PhantomData<fn() -> K>,
 }
 
@@ -81,6 +85,7 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
             check: PermissionCheck::AlwaysPass,
             branch: None,
             redirect: None,
+            modifier: None,
             handle: PhantomData,
         }
     }
@@ -97,6 +102,20 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
 
     pub fn redirect(mut self, target: impl Into<NodeId>) -> Self {
         self.redirect = Some(target.into());
+        self
+    }
+
+    /// A redirect whose modifier maps each source to one source, or fails.
+    pub fn modify(mut self, target: impl Into<NodeId>, branch: B) -> Self {
+        self.redirect = Some(target.into());
+        self.modifier = Some((branch, false));
+        self
+    }
+
+    /// A redirect whose modifier maps each source to any number of sources.
+    pub fn fork(mut self, target: impl Into<NodeId>, branch: B) -> Self {
+        self.redirect = Some(target.into());
+        self.modifier = Some((branch, true));
         self
     }
 
@@ -118,6 +137,13 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
         }
         if let Some(target) = self.redirect {
             registrar.builder.redirect(node, target)?;
+        }
+        if let Some((branch, forks)) = self.modifier {
+            let handler = Handler {
+                key: registrar.key,
+                branch: registrar.branch(branch),
+            };
+            registrar.builder.modifies(node, handler, forks)?;
         }
         Ok(K::from(node))
     }
@@ -194,6 +220,61 @@ pub trait AppCommands {
         C: Copy + Send + Sync + 'static,
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
         M: 'static;
+
+    /// Registers a command whose redirects have modifiers: every dimension world runs
+    /// `modify` for a source when a stage of a chain follows one of them.
+    fn add_modifying_command<B, C, S, M, D, N>(
+        &mut self,
+        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        handler: S,
+        modify: D,
+    ) -> Result<&mut Self, RegistrationError>
+    where
+        B: Copy + PartialEq + Send + Sync + 'static,
+        C: Copy + Send + Sync + 'static,
+        S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
+        M: 'static,
+        D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
+        N: 'static;
+}
+
+/// Adds the nodes of one command to the tree, or nothing when `build` returns an error.
+fn register<B, C>(
+    app: &mut App,
+    build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+) -> Result<Option<(C, HandlerKey, BranchTable<B>)>, RegistrationError>
+where
+    B: Copy + PartialEq,
+{
+    let mut tree = app
+        .world_mut()
+        .get_resource_mut::<CommandTreeBuilder>()
+        .ok_or(RegistrationError::NoTree)?;
+    let tree = &mut *tree;
+    let key = HandlerKey(tree.next);
+    let before = tree.builder.clone();
+    let mut registrar = CommandRegistrar {
+        builder: &mut tree.builder,
+        key,
+        branches: Vec::new(),
+    };
+    let handles = match build(&mut registrar) {
+        Ok(handles) => handles,
+        Err(error) => {
+            tree.builder = before;
+            return Err(error.into());
+        }
+    };
+    let branches = registrar.branches;
+    tree.next += 1;
+    let Some((&first, rest)) = branches.split_first() else {
+        return Ok(None);
+    };
+    let table = BranchTable {
+        first,
+        rest: rest.to_vec(),
+    };
+    Ok(Some((handles, key, table)))
 }
 
 impl AppCommands for App {
@@ -208,39 +289,48 @@ impl AppCommands for App {
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
         M: 'static,
     {
-        let mut tree = self
-            .world_mut()
-            .get_resource_mut::<CommandTreeBuilder>()
-            .ok_or(RegistrationError::NoTree)?;
-        let tree = &mut *tree;
-        let key = HandlerKey(tree.next);
-        let before = tree.builder.clone();
-        let mut registrar = CommandRegistrar {
-            builder: &mut tree.builder,
-            key,
-            branches: Vec::new(),
-        };
-        let handles = match build(&mut registrar) {
-            Ok(handles) => handles,
-            Err(error) => {
-                tree.builder = before;
-                return Err(error.into());
-            }
-        };
-        let branches = registrar.branches;
-        tree.next += 1;
-        let Some((&first, rest)) = branches.split_first() else {
+        let Some((handles, key, table)) = register(self, build)? else {
             return Ok(self);
         };
         Ok(self.add_dimension_plugin(HandlerPlugin {
             handles,
             key,
-            table: BranchTable {
-                first,
-                rest: rest.to_vec(),
-            },
+            table,
             system: handler,
             marker: PhantomData::<fn() -> M>,
+        }))
+    }
+
+    fn add_modifying_command<B, C, S, M, D, N>(
+        &mut self,
+        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        handler: S,
+        modify: D,
+    ) -> Result<&mut Self, RegistrationError>
+    where
+        B: Copy + PartialEq + Send + Sync + 'static,
+        C: Copy + Send + Sync + 'static,
+        S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
+        M: 'static,
+        D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
+        N: 'static,
+    {
+        let Some((handles, key, table)) = register(self, build)? else {
+            return Ok(self);
+        };
+        self.add_dimension_plugin(HandlerPlugin {
+            handles,
+            key,
+            table: table.clone(),
+            system: handler,
+            marker: PhantomData::<fn() -> M>,
+        });
+        Ok(self.add_dimension_plugin(ModifierPlugin {
+            handles,
+            key,
+            table,
+            system: modify,
+            marker: PhantomData::<fn() -> N>,
         }))
     }
 }
@@ -277,6 +367,52 @@ where
             .world_mut()
             .register_system(to_call(self.table.clone(), self.handles).pipe(self.system.clone()));
         let mut handlers = app.world_mut().get_resource_or_init::<CommandHandlers>();
+        let index = usize::from(self.key.0);
+        if handlers.0.len() <= index {
+            handlers.0.resize(index + 1, None);
+        }
+        if let Some(slot) = handlers.0.get_mut(index) {
+            *slot = Some(id);
+        }
+    }
+
+    fn is_unique(&self) -> bool {
+        false
+    }
+}
+
+struct ModifierPlugin<B, C, D, N> {
+    handles: C,
+    key: HandlerKey,
+    table: BranchTable<B>,
+    system: D,
+    marker: PhantomData<fn() -> N>,
+}
+
+impl<B: Clone, C: Clone, D: Clone, N> Clone for ModifierPlugin<B, C, D, N> {
+    fn clone(&self) -> Self {
+        Self {
+            handles: self.handles.clone(),
+            key: self.key,
+            table: self.table.clone(),
+            system: self.system.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<B, C, D, N> Plugin for ModifierPlugin<B, C, D, N>
+where
+    B: Copy + PartialEq + Send + Sync + 'static,
+    C: Copy + Send + Sync + 'static,
+    D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
+    N: 'static,
+{
+    fn build(&self, app: &mut App) {
+        let id = app
+            .world_mut()
+            .register_system(to_call(self.table.clone(), self.handles).pipe(self.system.clone()));
+        let mut handlers = app.world_mut().get_resource_or_init::<ModifierHandlers>();
         let index = usize::from(self.key.0);
         if handlers.0.len() <= index {
             handlers.0.resize(index + 1, None);

@@ -1,12 +1,13 @@
 use crate::command::{
-    CommandContext, CommandFailure, CommandHandlers, CommandTree, Invocation, SourceState, level_of,
+    CommandContext, CommandFailure, CommandHandlers, CommandLimits, CommandTree, ExecScratch,
+    Handler, Invocation, Modified, ModifierHandlers, RunningCommand, SourceState, level_of,
 };
 use crate::ops::OpList;
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
-use mcrs_command::{ParseScratch, Suggestion, build_list};
+use mcrs_command::{Chain, End, Executor, Failure, ParseScratch, Suggestion, build_list, execute};
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, NoLookup, Source, error_feedback, player_tree, suggestion_reply,
 };
@@ -67,18 +68,28 @@ pub(crate) fn reject_illegal_characters(
     }
 }
 
-/// Raised before a command runs. When an observer sets `cancelled`, the command does not run
-/// and the source receives nothing.
+/// Raised before a command line runs. When an observer sets `cancelled`, the command does not
+/// run and the source receives nothing.
 #[derive(Event, Debug)]
 pub struct CommandEvent {
-    invocation: Invocation,
+    player: Entity,
+    source: SourceState,
+    line: String,
     pub cancelled: bool,
 }
 
+/// Read-only: the parse of the chain belongs to this line and this source.
 impl CommandEvent {
-    /// Read-only: the parse that chose the branch belongs to this line.
-    pub fn invocation(&self) -> &Invocation {
-        &self.invocation
+    pub fn player(&self) -> Entity {
+        self.player
+    }
+
+    pub fn source(&self) -> &SourceState {
+        &self.source
+    }
+
+    pub fn line(&self) -> &str {
+        &self.line
     }
 }
 
@@ -100,55 +111,152 @@ pub(crate) fn handle_chat_command(
     if !line.chars().all(is_allowed_chat_character) {
         return;
     }
-    let state = SourceState {
-        level: level_of(op_level),
-        transform: *transform,
-    };
+    let state = SourceState::of_player(event.entity, level_of(op_level), transform);
     let source = state.source(&context);
     let tree = &context.tree;
     let parse = tree.0.parse(line, 0, &source, &mut scratch);
-    let (context_view, &handler) = match parse.check(&tree.0) {
-        Ok(checked) => checked,
-        Err(error) => {
-            for message in error_feedback(line, &error) {
-                writer.write(system_message(host, message));
-            }
-            return;
+    if let Err(error) = parse.check(&tree.0) {
+        for message in error_feedback(line, &error) {
+            writer.write(system_message(host, message));
         }
-    };
-    let invocation = Invocation {
+        return;
+    }
+    let mut chain = Chain::default();
+    chain.copy_from(&tree.0, &parse);
+    let event = CommandEvent {
         player: event.entity,
         source: state,
         line: line.to_owned(),
-        nodes: context_view.nodes().collect(),
-        branch: handler.branch,
+        cancelled: false,
     };
-    let key = handler.key;
-    commands.queue(move |world: &mut World| {
-        let mut event = CommandEvent {
-            invocation,
-            cancelled: false,
-        };
-        world.trigger_ref(&mut event);
-        if event.cancelled {
-            return;
+    commands.queue(move |world: &mut World| run_line(world, host, event, chain));
+}
+
+/// Runs a command line that parsed: the seam where the chain drives the handler systems.
+fn run_line(world: &mut World, host: Entity, mut event: CommandEvent, chain: Chain<Handler>) {
+    world.trigger_ref(&mut event);
+    if event.cancelled {
+        return;
+    }
+    let CommandEvent {
+        player,
+        source,
+        line,
+        ..
+    } = event;
+    let mut scratch = world
+        .get_resource_mut::<ExecScratch>()
+        .map(|mut scratch| std::mem::take(&mut *scratch))
+        .unwrap_or_default();
+    scratch.stages.clear();
+    scratch.stages.extend_from_slice(chain.stages());
+    let Some(mut running) = world.get_resource_mut::<RunningCommand>() else {
+        return;
+    };
+    running.line = line;
+    running.chain = chain;
+    let limits = world
+        .get_resource::<CommandLimits>()
+        .copied()
+        .unwrap_or_default()
+        .0;
+    let mut executor = WorldExecutor {
+        world,
+        player,
+        host,
+    };
+    let end = execute(
+        &scratch.stages,
+        source,
+        limits,
+        &mut executor,
+        &mut scratch.lists,
+    );
+    if end == End::SequenceLimit {
+        tracing::info!(
+            "a command stopped at the limit of {} stages and runs",
+            limits.sequence.max(1)
+        );
+    }
+    world.insert_resource(scratch);
+}
+
+struct WorldExecutor<'w> {
+    world: &'w mut World,
+    player: Entity,
+    host: Entity,
+}
+
+impl WorldExecutor<'_> {
+    fn invocation(&self, stage: usize, handler: &Handler, source: &SourceState) -> Invocation {
+        Invocation {
+            player: self.player,
+            source: *source,
+            stage,
+            branch: handler.branch,
         }
-        let failure = match world
+    }
+}
+
+impl Executor<SourceState, Handler> for WorldExecutor<'_> {
+    type Error = CommandFailure;
+
+    fn modify(
+        &mut self,
+        stage: usize,
+        modifier: &Handler,
+        source: &SourceState,
+        out: &mut Vec<SourceState>,
+    ) -> Result<(), CommandFailure> {
+        let system = self
+            .world
+            .get_resource::<ModifierHandlers>()
+            .and_then(|handlers| handlers.get(modifier.key))
+            .ok_or_else(CommandFailure::failed)?;
+        let invocation = self.invocation(stage, modifier, source);
+        match self.world.run_system_with(system, invocation) {
+            Ok(Ok(Modified::None)) => {}
+            Ok(Ok(Modified::One(source))) => out.push(source),
+            Ok(Ok(Modified::Many(sources))) => out.extend(sources),
+            Ok(Err(failure)) => return Err(failure),
+            Err(error) => {
+                tracing::error!("a command modifier did not run: {error}");
+                return Err(CommandFailure::failed());
+            }
+        }
+        Ok(())
+    }
+
+    fn run(
+        &mut self,
+        stage: usize,
+        command: &Handler,
+        source: &SourceState,
+    ) -> Result<i32, CommandFailure> {
+        let system = self
+            .world
             .get_resource::<CommandHandlers>()
-            .and_then(|handlers| handlers.get(key))
-        {
-            Some(handler) => match world.run_system_with(handler, event.invocation) {
-                Ok(Ok(_)) => return,
-                Ok(Err(failure)) => failure.text(),
-                Err(error) => {
-                    tracing::error!("a command handler did not run: {error}");
-                    CommandFailure::failed().text()
-                }
-            },
-            None => CommandFailure::failed().text(),
+            .and_then(|handlers| handlers.get(command.key))
+            .ok_or_else(CommandFailure::failed)?;
+        let invocation = self.invocation(stage, command, source);
+        self.world
+            .run_system_with(system, invocation)
+            .unwrap_or_else(|error| {
+                tracing::error!("a command handler did not run: {error}");
+                Err(CommandFailure::failed())
+            })
+    }
+
+    fn report(&mut self, failure: Failure<CommandFailure>) {
+        let failure = match failure {
+            Failure::Command(failure) => failure,
+            Failure::ForkLimit(limit) => {
+                CommandFailure::translate("command.forkLimit", vec![limit.to_string().into_text()])
+            }
         };
-        world.write_message(system_message(host, failure));
-    });
+        self.world
+            .write_message(system_message(self.host, failure.text()));
+    }
 }
 
 /// The latest suggestion request of a player that has no reply yet (CMDP-SUG-003). A newer
@@ -205,6 +313,7 @@ pub(crate) fn answer_suggestion_requests(
     context: CommandContext,
     mut players: Query<
         (
+            Entity,
             &PlayerOpLevel,
             &Transform,
             &HostAnchor,
@@ -216,14 +325,11 @@ pub(crate) fn answer_suggestion_requests(
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let scratch = &mut *scratch;
-    for (&op_level, transform, &HostAnchor(host), mut pending) in &mut players {
+    for (entity, &op_level, transform, &HostAnchor(host), mut pending) in &mut players {
         let Some((id, text)) = pending.0.as_ref() else {
             continue;
         };
-        let state = SourceState {
-            level: level_of(op_level),
-            transform: *transform,
-        };
+        let state = SourceState::of_player(entity, level_of(op_level), transform);
         let source = state.source(&context);
         let start = usize::from(text.starts_with('/'));
         let parse = context
@@ -284,7 +390,7 @@ impl CommandFeedback<'_, '_> {
         if !broadcast {
             return;
         }
-        let Ok((&HostAnchor(source), profile)) = self.players.get(invocation.player) else {
+        let Ok((&HostAnchor(source), profile)) = self.players.get(invocation.source.entity) else {
             return;
         };
         // The server has no language table, so the log keeps the translation key and its

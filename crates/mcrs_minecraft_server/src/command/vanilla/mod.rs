@@ -1,3 +1,4 @@
+mod execute;
 mod gamemode;
 mod locate;
 mod teleport;
@@ -16,12 +17,17 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
-/// The vanilla commands: `gamemode`, `teleport` with its alias `tp`, and `locate`.
+/// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, and `locate`.
 pub struct VanillaCommandsPlugin;
 
 impl Plugin for VanillaCommandsPlugin {
     fn build(&self, app: &mut App) {
         let added = [
+            (
+                "execute",
+                app.add_modifying_command(execute::build, execute::run, execute::modify)
+                    .map(drop),
+            ),
             (
                 "gamemode",
                 app.add_command(gamemode::build, gamemode::run).map(drop),
@@ -143,12 +149,12 @@ pub(crate) fn select<'c>(
 ) -> Result<Vec<&'c PlayerCandidate<'c>>, CommandFailure> {
     let selector = context.arg(call, arg)?;
     let source = context.source(call);
-    let me = all.iter().find(|c| c.entity == call.player);
+    let me = all.iter().find(|c| c.entity == call.source.entity);
     let mut out = Vec::new();
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     selector
         .select(&source, me, all.iter(), &mut random, &mut out)
-        .map_err(|error| CommandFailure(argument_text(&call.line, error)))?;
+        .map_err(|error| CommandFailure(argument_text(context.line(), error)))?;
     Ok(out)
 }
 
@@ -161,7 +167,7 @@ pub(crate) fn targets_or_self(
     none_found: &'static str,
 ) -> Result<Vec<Entity>, CommandFailure> {
     let Some(arg) = arg else {
-        return Ok(vec![call.player]);
+        return Ok(vec![call.source.entity]);
     };
     let found = select(context, call, arg, all)?;
     if found.is_empty() {

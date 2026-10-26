@@ -119,6 +119,40 @@ pub fn fast_inv_sqrt(x: f64) -> f64 {
     guess * (1.5 - half * guess * guess)
 }
 
+/// The arctangent of the game, of `y` over `x` (CMD-EX-018). It is not `f64::atan2`: its
+/// error can exceed one binary32 ulp of the result in degrees.
+pub fn atan2(y: f64, x: f64) -> f64 {
+    let d = x * x + y * y;
+    if d.is_nan() {
+        return f64::NAN;
+    }
+    let negative_y = y < 0.0;
+    let negative_x = x < 0.0;
+    let (mut y, mut x) = (y.abs(), x.abs());
+    let swapped = y > x;
+    if swapped {
+        core::mem::swap(&mut x, &mut y);
+    }
+    let r = fast_inv_sqrt(d);
+    x *= r;
+    y *= r;
+    let s = (y * 256.0).round_ties_even() / 256.0;
+    let phi = s.asin();
+    let c = phi.cos();
+    let e = y * c - x * s;
+    let mut theta = phi + ((6.0 + e * e) * e) * 0.16666666666666666;
+    if swapped {
+        theta = core::f64::consts::FRAC_PI_2 - theta;
+    }
+    if negative_x {
+        theta = core::f64::consts::PI - theta;
+    }
+    if negative_y {
+        theta = -theta;
+    }
+    theta
+}
+
 /// `Mth.clampedMap`: a lerp over an inverse lerp with the source range as a hard
 /// clamp, so a value outside it maps to the near end of the target range.
 pub fn clamped_map<F: Float>(value: F, from_min: F, from_max: F, to_min: F, to_max: F) -> F {

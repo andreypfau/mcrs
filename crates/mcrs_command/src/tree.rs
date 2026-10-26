@@ -90,6 +90,8 @@ pub struct Node<A, R, H> {
     requirement: R,
     command: Option<H>,
     redirect: Option<NodeId>,
+    modifier: Option<H>,
+    forks: bool,
 }
 
 impl<A, R, H> Node<A, R, H> {
@@ -123,6 +125,22 @@ impl<A, R, H> Node<A, R, H> {
     pub fn command(&self) -> Option<&H> {
         self.command.as_ref()
     }
+
+    pub fn redirect(&self) -> Option<NodeId> {
+        self.redirect
+    }
+
+    /// What a redirect does to each source before the target runs; `None` passes the
+    /// sources on unchanged.
+    pub fn modifier(&self) -> Option<&H> {
+        self.modifier.as_ref()
+    }
+
+    /// The modifier maps one source to any number of sources, and an error of one source
+    /// drops only that source.
+    pub fn forks(&self) -> bool {
+        self.forks
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,6 +159,8 @@ pub enum BuildError {
     RedirectCycle(NodeId),
     /// The node has an argument child with a redirect next to another argument child.
     RedirectSibling(NodeId),
+    /// The node has a modifier and no redirect.
+    ModifierWithoutRedirect(NodeId),
     TooManyNodes,
 }
 
@@ -165,6 +185,9 @@ impl core::fmt::Display for BuildError {
                 f,
                 "node {node:?} has an argument child with a redirect and another argument child"
             ),
+            BuildError::ModifierWithoutRedirect(node) => {
+                write!(f, "node {node:?} has a modifier and no redirect")
+            }
             BuildError::TooManyNodes => f.write_str("the tree has more nodes than an id can hold"),
         }
     }
@@ -194,6 +217,8 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
                 requirement: R::default(),
                 command: None,
                 redirect: None,
+                modifier: None,
+                forks: false,
             }],
         }
     }
@@ -254,9 +279,21 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         }
     }
 
+    /// Gives the redirect of the node a modifier. A node with a modifier must have a redirect
+    /// when the tree freezes.
+    pub fn modifies(&mut self, node: NodeId, modifier: H, forks: bool) -> Result<(), BuildError> {
+        let entry = self.node_mut(node)?;
+        entry.modifier = Some(modifier);
+        entry.forks = forks;
+        Ok(())
+    }
+
     pub fn freeze(self) -> Result<Graph<A, R, H>, BuildError> {
         for (index, node) in self.nodes.iter().enumerate() {
             let id = NodeId(index as u32);
+            if node.modifier.is_some() && node.redirect.is_none() {
+                return Err(BuildError::ModifierWithoutRedirect(id));
+            }
             let mut hops = 0;
             let mut cursor = node;
             while let Some(target) = cursor.redirect {
@@ -322,6 +359,8 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
             requirement,
             command: None,
             redirect: None,
+            modifier: None,
+            forks: false,
         });
         self.node_mut(parent)?.children.push(id);
         Ok(id)

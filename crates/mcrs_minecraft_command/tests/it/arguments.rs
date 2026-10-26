@@ -3,8 +3,9 @@ use glam::DVec3;
 use mcrs_command::{LibraryError, Span, SuggestionBuilder, SyntaxError, build_list};
 use mcrs_minecraft_command::argument::coordinates::{Coordinates, WorldCoordinate};
 use mcrs_minecraft_command::{
-    ArgumentError, EntityAnchorArgument, GameModeArgument, Identifier, ResourceLocationArgument,
-    RotationArgument, Vec3Argument, error_feedback,
+    ArgumentError, Axes, BlockPosArgument, EntityAnchorArgument, GameModeArgument,
+    HeightmapArgument, Identifier, ResourceLocationArgument, RotationArgument, SwizzleArgument,
+    Vec3Argument, block_floor, error_feedback, rotation_toward,
 };
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::Text;
@@ -227,4 +228,178 @@ fn an_error_shows_the_ten_code_units_before_it() {
     );
     let plain = context.to_legacy_lossy();
     assert!(plain.contains("...de creativ"), "{plain}");
+}
+
+#[test]
+fn block_pos_reads_integers_or_relative_and_local_values() {
+    let block = |x, y, z| Ok(Coordinates::World([x, y, z]));
+    let cases = [
+        (
+            "1 64 -3",
+            block(absolute(1.0), absolute(64.0), absolute(-3.0)),
+        ),
+        ("-0 ~ ~", block(absolute(0.0), relative(0.0), relative(0.0))),
+        (
+            "~ ~-1 ~0.5",
+            block(relative(0.0), relative(-1.0), relative(0.5)),
+        ),
+        ("^ ^ ^2.5", Ok(Coordinates::Local([0.0, 0.0, 2.5]))),
+        (
+            "~ ^ ~",
+            Err(SyntaxError::argument(ArgumentError::PosMixed, 2)),
+        ),
+        (
+            "^ ~ ^",
+            Err(SyntaxError::argument(ArgumentError::PosMixed, 0)),
+        ),
+        (
+            "1 64",
+            Err(SyntaxError::argument(ArgumentError::Pos3dIncomplete, 0)),
+        ),
+        (
+            "1 64 ",
+            Err(SyntaxError::argument(ArgumentError::PosMissingInt, 5)),
+        ),
+        (
+            "1.5 64 0",
+            Err(SyntaxError::library(
+                LibraryError::InvalidInt(Span::new(0, 3)),
+                0,
+            )),
+        ),
+        (
+            "1  64 0",
+            Err(SyntaxError::library(LibraryError::ExpectedInt, 2)),
+        ),
+        (
+            "~x ~ ~",
+            Err(SyntaxError::library(LibraryError::ExpectedDouble, 1)),
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(read(&BlockPosArgument, input, &OP).0, expected, "{input}");
+    }
+}
+
+#[test]
+fn a_block_position_is_the_floor_of_the_point() {
+    let source = mcrs_minecraft_command::Source {
+        position: DVec3::new(10.7, 64.0, -0.3),
+        ..OP
+    };
+    let cases = [
+        ("~ ~ ~", [10, 64, -1]),
+        ("~0.5 ~-1 ~", [11, 63, -1]),
+        ("5 -3 7", [5, -3, 7]),
+        ("~3000000000 ~ ~", [i32::MAX, 64, -1]),
+    ];
+    for (input, expected) in cases {
+        let coordinates = read(&BlockPosArgument, input, &OP).0.unwrap();
+        assert_eq!(
+            block_floor(coordinates.position(&source)),
+            expected,
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn swizzle_reads_a_set_of_distinct_axes() {
+    let axes = |x, y, z| Ok(Axes { x, y, z });
+    let invalid = |at| Err(SyntaxError::argument(ArgumentError::SwizzleInvalid, at));
+    let cases = [
+        ("xz", axes(true, false, true), 2),
+        ("zx", axes(true, false, true), 2),
+        ("yzx", axes(true, true, true), 3),
+        ("xz run", axes(true, false, true), 2),
+        ("X", invalid(1), 1),
+        ("xx", invalid(2), 2),
+        ("xw", invalid(2), 2),
+        ("x,z", invalid(2), 2),
+        (" x", invalid(0), 0),
+    ];
+    for (input, expected, cursor) in cases {
+        assert_eq!(
+            read(&SwizzleArgument, input, &OP),
+            (expected, cursor),
+            "{input}"
+        );
+    }
+    let cases = [
+        (
+            Axes {
+                x: true,
+                y: false,
+                z: true,
+            },
+            DVec3::new(1.7, 64.2, -0.2),
+            DVec3::new(1.0, 64.2, -1.0),
+        ),
+        (
+            Axes {
+                x: false,
+                y: true,
+                z: false,
+            },
+            DVec3::new(1.7, 64.2, -0.2),
+            DVec3::new(1.7, 64.0, -0.2),
+        ),
+        (
+            Axes {
+                x: true,
+                y: false,
+                z: false,
+            },
+            DVec3::new(3_000_000_000.5, 64.0, 0.0),
+            DVec3::new(2_147_483_647.0, 64.0, 0.0),
+        ),
+    ];
+    for (axes, from, to) in cases {
+        assert_eq!(axes.align(from), to, "{axes:?}");
+    }
+}
+
+#[test]
+fn heightmap_reads_only_the_lower_case_kept_types() {
+    use mcrs_minecraft_core::HeightmapName;
+    assert_eq!(
+        read(&HeightmapArgument, "ocean_floor", &OP).0,
+        Ok(HeightmapName::OceanFloor)
+    );
+    for input in ["WORLD_SURFACE", "world_surface_wg", "1", ""] {
+        let end = input.len();
+        assert_eq!(
+            read(&HeightmapArgument, input, &OP),
+            (
+                Err(SyntaxError::argument(
+                    ArgumentError::EnumInvalid(Span::new(0, end)),
+                    end
+                )),
+                end
+            ),
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn the_rotation_toward_a_point_uses_the_arctangent_of_the_game() {
+    let from = DVec3::new(0.5, 64.0, 0.5);
+    let cases = [
+        (DVec3::new(10.5, 64.0, 0.5), (-90.0, -0.0)),
+        (DVec3::new(0.5, 64.0, 10.5), (0.0, -0.0)),
+        (DVec3::new(0.5, 74.0, 0.5), (-90.0, -90.0)),
+        (from, (-90.0, -0.0)),
+    ];
+    for (to, expected) in cases {
+        let (yaw, pitch) = rotation_toward(from, to);
+        assert_eq!((yaw, pitch), expected, "{to}");
+        assert_eq!(
+            pitch.is_sign_negative(),
+            expected.1.is_sign_negative(),
+            "{to}"
+        );
+    }
+    let (_, down) = rotation_toward(from + DVec3::Y * 1.62, DVec3::new(0.5, 64.0, 10.5));
+    assert!(down > 0.0, "{down}");
 }

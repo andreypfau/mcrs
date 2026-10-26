@@ -5,7 +5,7 @@ use mcrs_command::reader::SEPARATOR;
 use mcrs_command::{
     Argument, LibraryError, Reader, SuggestionBuilder, SuggestionText, SyntaxError,
 };
-use mcrs_minecraft_core::mth::{cos_rounded, sin_rounded};
+use mcrs_minecraft_core::mth::{atan2, cos_rounded, sin_rounded, wrap_degrees};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WorldCoordinate {
@@ -202,29 +202,36 @@ impl Vec3Argument {
     /// ARG-COORD-005, with `~ ~ ~` as the candidate of the server. A partial read fills the
     /// fields that `r` lacks as the candidate does, so it reads the candidate in full.
     pub fn suggest<'t, T>(&self, builder: &mut SuggestionBuilder<'t, '_, T>) {
-        let remaining = builder.remaining();
-        let trimmed = remaining.strip_suffix(SEPARATOR).unwrap_or(remaining);
-        if !trimmed.is_empty() && self.read(&mut Reader::new(trimmed), true).is_err() {
-            return;
+        suggest_coordinates(builder, |reader| self.read(reader, true).is_ok());
+    }
+}
+
+fn suggest_coordinates<'t, T>(
+    builder: &mut SuggestionBuilder<'t, '_, T>,
+    reads: impl Fn(&mut Reader<'_>) -> bool,
+) {
+    let remaining = builder.remaining();
+    let trimmed = remaining.strip_suffix(SEPARATOR).unwrap_or(remaining);
+    if !trimmed.is_empty() && !reads(&mut Reader::new(trimmed)) {
+        return;
+    }
+    let [one, two, three] = if remaining.starts_with('^') {
+        ["^", " ^", " ^ ^"]
+    } else {
+        ["~", " ~", " ~ ~"]
+    };
+    match trimmed.split(SEPARATOR).count() {
+        _ if trimmed.is_empty() => {
+            builder.suggest(SuggestionText::new(one), None);
+            builder.suggest(SuggestionText::concat(one, two), None);
+            builder.suggest(SuggestionText::concat(one, three), None);
         }
-        let [one, two, three] = if remaining.starts_with('^') {
-            ["^", " ^", " ^ ^"]
-        } else {
-            ["~", " ~", " ~ ~"]
-        };
-        match trimmed.split(SEPARATOR).count() {
-            _ if trimmed.is_empty() => {
-                builder.suggest(SuggestionText::new(one), None);
-                builder.suggest(SuggestionText::concat(one, two), None);
-                builder.suggest(SuggestionText::concat(one, three), None);
-            }
-            1 => {
-                builder.suggest(SuggestionText::concat(trimmed, two), None);
-                builder.suggest(SuggestionText::concat(trimmed, three), None);
-            }
-            2 => builder.suggest(SuggestionText::concat(trimmed, two), None),
-            _ => {}
+        1 => {
+            builder.suggest(SuggestionText::concat(trimmed, two), None);
+            builder.suggest(SuggestionText::concat(trimmed, three), None);
         }
+        2 => builder.suggest(SuggestionText::concat(trimmed, two), None),
+        _ => {}
     }
 }
 
@@ -282,4 +289,159 @@ impl<S> Argument<S> for RotationArgument {
         let pitch = read_world(reader, false)?;
         Ok(RotationValue { yaw, pitch })
     }
+}
+
+/// One block coordinate (ARG-COORD-010).
+fn read_block(reader: &mut Reader<'_>) -> Result<WorldCoordinate, CommandSyntaxError> {
+    if reader.peek_is('^') {
+        return Err(SyntaxError::argument(
+            ArgumentError::PosMixed,
+            reader.cursor(),
+        ));
+    }
+    if reader.at_end() {
+        return Err(SyntaxError::argument(
+            ArgumentError::PosMissingInt,
+            reader.cursor(),
+        ));
+    }
+    if reader.peek_is('~') {
+        reader.skip();
+        let value = if reader.at_end() || reader.peek_is(SEPARATOR) {
+            0.0
+        } else {
+            reader.read_double()?
+        };
+        return Ok(WorldCoordinate {
+            value,
+            relative: true,
+        });
+    }
+    if reader.peek_is(SEPARATOR) {
+        return Err(SyntaxError::library(
+            LibraryError::ExpectedInt,
+            reader.cursor(),
+        ));
+    }
+    Ok(WorldCoordinate {
+        value: f64::from(reader.read_int::<ArgumentError>()?),
+        relative: false,
+    })
+}
+
+/// The block of a point: the floor of each axis, limited to the range of `i32`
+/// (ARG-COORD-012).
+pub fn block_floor(point: DVec3) -> [i32; 3] {
+    [point.x, point.y, point.z].map(|axis| axis.floor() as i32)
+}
+
+/// `minecraft:block_pos` (ARG-COORD-011). The value is the coordinates; the block position
+/// is [`block_floor`] of their point.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BlockPosArgument;
+
+impl BlockPosArgument {
+    fn read(reader: &mut Reader<'_>, partial: bool) -> Result<Coordinates, CommandSyntaxError> {
+        let start = reader.cursor();
+        if reader.peek_is('^') {
+            return read_local(reader, partial).map(Coordinates::Local);
+        }
+        let mut axes = [WorldCoordinate {
+            value: 0.0,
+            relative: true,
+        }; 3];
+        for (index, axis) in axes.iter_mut().enumerate() {
+            if index > 0 {
+                if partial && reader.at_end() {
+                    break;
+                }
+                separator(reader, start, ArgumentError::Pos3dIncomplete)?;
+            }
+            *axis = read_block(reader)?;
+        }
+        Ok(Coordinates::World(axes))
+    }
+
+    /// ARG-COORD-014.
+    pub fn suggest<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>) {
+        suggest_coordinates(builder, |reader| Self::read(reader, true).is_ok());
+    }
+}
+
+impl<S> Argument<S> for BlockPosArgument {
+    type Value<'a> = Coordinates;
+    type Error = ArgumentError;
+
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<Coordinates, CommandSyntaxError> {
+        Self::read(reader, false)
+    }
+}
+
+/// A set of axes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Axes {
+    pub x: bool,
+    pub y: bool,
+    pub z: bool,
+}
+
+impl Axes {
+    /// Each axis of the set takes the block floor of its value (ARG-COORD-016).
+    pub fn align(self, point: DVec3) -> DVec3 {
+        let floor = |axis: f64, on: bool| {
+            if on {
+                f64::from(axis.floor() as i32)
+            } else {
+                axis
+            }
+        };
+        DVec3::new(
+            floor(point.x, self.x),
+            floor(point.y, self.y),
+            floor(point.z, self.z),
+        )
+    }
+}
+
+/// `minecraft:swizzle` (ARG-COORD-015).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SwizzleArgument;
+
+impl<S> Argument<S> for SwizzleArgument {
+    type Value<'a> = Axes;
+    type Error = ArgumentError;
+
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<Axes, CommandSyntaxError> {
+        let mut axes = Axes::default();
+        let invalid = |reader: &Reader<'_>| {
+            SyntaxError::argument(ArgumentError::SwizzleInvalid, reader.cursor())
+        };
+        while let Some(c) = reader.peek().filter(|&c| c != SEPARATOR) {
+            reader.skip();
+            let axis = match c {
+                'x' => &mut axes.x,
+                'y' => &mut axes.y,
+                'z' => &mut axes.z,
+                _ => return Err(invalid(reader)),
+            };
+            if *axis {
+                return Err(invalid(reader));
+            }
+            *axis = true;
+        }
+        if axes == Axes::default() {
+            return Err(invalid(reader));
+        }
+        Ok(axes)
+    }
+}
+
+/// The yaw and the pitch that look from `from` to `to` (CMD-EX-018).
+pub fn rotation_toward(from: DVec3, to: DVec3) -> (f32, f32) {
+    let d = to - from;
+    let horizontal = (d.x * d.x + d.z * d.z).sqrt();
+    let pi = f64::from(core::f32::consts::PI);
+    let pitch = wrap_degrees(-(atan2(d.y, horizontal) * 180.0 / pi) as f32);
+    let yaw = wrap_degrees((atan2(d.z, d.x) * 180.0 / pi) as f32 - 90.0);
+    (yaw, pitch)
 }

@@ -1,4 +1,5 @@
 use crate::command::CommandContext;
+use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_command::{Identifier, Lookup, ResourceOrTag};
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_registries::Registries;
@@ -80,5 +81,30 @@ impl Lookup for CommandContext<'_, '_> {
         self.profiles
             .iter()
             .map(|profile| profile.username.as_str())
+    }
+
+    fn tag_entries(
+        &self,
+        registry: StaticResourceLocation,
+        tag: Identifier<'_>,
+    ) -> impl Iterator<Item = &str> {
+        let names = self.names(registry);
+        self.tag_members(registry, tag)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(move |&id| names.get(usize::from(id)))
+            .map(ResourceLocation::as_str)
+    }
+
+    // chisle: a linear scan of the block table per read; an index by identifier that takes
+    // borrowed text lifts it.
+    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
+        self.blocks
+            .as_deref()?
+            .0
+            .blocks()
+            .iter()
+            .find(|entry| block.eq_str(entry.identifier.as_str()))
+            .map(|entry| entry.properties.0.as_slice())
     }
 }

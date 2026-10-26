@@ -13,7 +13,9 @@ use crate::world::entity::player::ability::PlayerOpLevel;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{SystemId, SystemParam};
-use mcrs_command::{Arg, Argument, Contains, GraphBuilder, NodeId, Span};
+use bevy_math::DVec3;
+use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits, SourceLists, Stage};
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, CommandSyntaxError, PermissionCheck, Source, VanillaArgument,
     VanillaGraph, error_message,
@@ -23,6 +25,7 @@ use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -50,6 +53,7 @@ impl Plugin for CommandPlugin {
             builder: GraphBuilder::new(),
             next: 0,
         });
+        app.init_resource::<CommandLimits>();
         app.add_observer(run::reject_illegal_characters)
             .add_observer(run::broadcast_to_operators);
     }
@@ -60,8 +64,14 @@ impl Plugin for CommandPlugin {
         };
         match tree.builder.freeze() {
             Ok(graph) => {
+                let limits = app
+                    .world()
+                    .get_resource::<CommandLimits>()
+                    .copied()
+                    .unwrap_or_default();
                 app.add_dimension_plugin(DimCommandPlugin {
                     tree: CommandTree(graph),
+                    limits,
                 });
             }
             Err(error) => tracing::error!("the command tree does not freeze: {error}"),
@@ -93,49 +103,91 @@ impl CommandFailure {
     }
 }
 
-/// The source of a command at the moment it was sent.
-#[derive(Clone, Copy, Debug)]
+/// The limits of the run of one command line (CMD-EX-036, CMD-EX-037). Each dimension copies
+/// the value of the host when it spawns.
+// chisle: the game rules `max_command_forks` and `max_command_sequence_length` have no state in
+// the server yet, and a dimension keeps the limits it spawned with; a game rule resource
+// extracted into the dimensions each tick lifts it.
+#[derive(Resource, Clone, Copy, Debug, Default)]
+pub struct CommandLimits(pub Limits);
+
+/// One source of a command: who runs it, where, facing where, with which permissions. A stage
+/// of `execute` maps it to other sources; the output stays the player who sent the line.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SourceState {
     pub level: CommandLevel,
-    pub transform: Transform,
+    pub entity: Entity,
+    pub position: DVec3,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub anchor: LookAnchor,
 }
 
-/// The command line a handler runs, with the nodes of the context that runs.
-#[derive(Clone, Debug)]
+/// One run of a stage for one source: the player who receives the output, the source, and
+/// the stage whose nodes the handler reads.
+#[derive(Clone, Copy, Debug)]
 pub struct Invocation {
     pub player: Entity,
     pub source: SourceState,
-    pub line: String,
-    nodes: Vec<(NodeId, Span)>,
+    stage: usize,
     branch: u16,
 }
 
 impl SourceState {
+    pub fn of_player(entity: Entity, level: CommandLevel, transform: &Transform) -> Self {
+        Self {
+            level,
+            entity,
+            position: transform.translation,
+            yaw: transform.rotation.yaw(),
+            pitch: transform.rotation.pitch(),
+            anchor: LookAnchor::Feet,
+        }
+    }
+
     pub(crate) fn source<'s, L>(&self, lookup: &'s L) -> Source<'s, L> {
         Source {
-            position: self.transform.translation,
-            yaw: self.transform.rotation.yaw(),
-            pitch: self.transform.rotation.pitch(),
+            position: self.position,
+            yaw: self.yaw,
+            pitch: self.pitch,
+            anchor: self.anchor,
             eye_height: Some(PLAYER_EYE_HEIGHT),
             ..Source::new(self.level, lookup)
         }
     }
 }
 
-impl Invocation {
-    fn span(&self, node: NodeId) -> Option<Span> {
-        self.nodes
-            .iter()
-            .find(|&&(parsed, _)| parsed == node)
-            .map(|&(_, span)| span)
-    }
+/// The command line that runs in this world, and its chain.
+#[derive(Resource, Default)]
+pub(crate) struct RunningCommand {
+    line: String,
+    chain: Chain<Handler>,
 }
+
+/// The buffers of a run of a chain, reused between runs.
+#[derive(Resource, Default)]
+pub(crate) struct ExecScratch {
+    stages: Vec<Stage<Handler>>,
+    lists: SourceLists<SourceState>,
+}
+
+/// What a modifier gives for one source.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Modified {
+    None,
+    One(SourceState),
+    Many(Vec<SourceState>),
+}
+
+pub type ModifyResult = Result<Modified, CommandFailure>;
 
 /// What a handler reads its arguments with.
 #[derive(SystemParam)]
 pub struct CommandContext<'w, 's> {
     tree: Res<'w, CommandTree>,
+    running: Res<'w, RunningCommand>,
     registries: Option<Res<'w, CurrentRegistries>>,
+    blocks: Option<Res<'w, Blocks>>,
     profiles: Query<'w, 's, &'static GameProfile, With<Player>>,
 }
 
@@ -145,12 +197,17 @@ impl<'w, 's> CommandContext<'w, 's> {
         call.source.source(self)
     }
 
+    /// The command line that runs.
+    pub fn line(&self) -> &str {
+        &self.running.line
+    }
+
     /// The value of an argument the branch of the call always holds.
-    pub fn arg<'a, 'c, T>(
+    pub fn arg<'a, T>(
         &'a self,
-        call: &'c Invocation,
+        call: &Invocation,
         arg: Arg<T>,
-    ) -> Result<T::Value<'c>, CommandFailure>
+    ) -> Result<T::Value<'a>, CommandFailure>
     where
         VanillaArgument: Contains<T>,
         T: Argument<Source<'a, Self>>,
@@ -160,24 +217,25 @@ impl<'w, 's> CommandContext<'w, 's> {
     }
 
     /// The value of an argument the branch of the call may lack.
-    pub fn opt<'a, 'c, T>(
+    pub fn opt<'a, T>(
         &'a self,
-        call: &'c Invocation,
+        call: &Invocation,
         arg: Arg<T>,
-    ) -> Result<Option<T::Value<'c>>, CommandFailure>
+    ) -> Result<Option<T::Value<'a>>, CommandFailure>
     where
         VanillaArgument: Contains<T>,
         T: Argument<Source<'a, Self>>,
         ArgumentError: From<T::Error>,
     {
-        let Some(span) = call.span(arg.node()) else {
+        let Some(span) = self.running.chain.span(call.stage, arg.node()) else {
             return Ok(None);
         };
         let source = self.source(call);
-        match self.tree.0.value(&call.line, span, arg, &source) {
+        let line = self.line();
+        match self.tree.0.value(line, span, arg, &source) {
             None => Err(CommandFailure::failed()),
             Some(Ok(value)) => Ok(Some(value)),
-            Some(Err(error)) => Err(CommandFailure::syntax(&call.line, &error.map_into())),
+            Some(Err(error)) => Err(CommandFailure::syntax(line, &error.map_into())),
         }
     }
 }
@@ -191,16 +249,30 @@ impl CommandHandlers {
     }
 }
 
+#[derive(Resource, Default)]
+struct ModifierHandlers(Vec<Option<SystemId<In<Invocation>, ModifyResult>>>);
+
+impl ModifierHandlers {
+    fn get(&self, key: HandlerKey) -> Option<SystemId<In<Invocation>, ModifyResult>> {
+        self.0.get(usize::from(key.0)).copied().flatten()
+    }
+}
+
 /// Parses, suggests and runs commands in a dimension world, against the tree the host froze.
 #[derive(Clone)]
 pub(crate) struct DimCommandPlugin {
     pub tree: CommandTree,
+    pub limits: CommandLimits,
 }
 
 impl Plugin for DimCommandPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.tree.clone());
+        app.insert_resource(self.limits);
         app.init_resource::<CommandHandlers>();
+        app.init_resource::<ModifierHandlers>();
+        app.init_resource::<RunningCommand>();
+        app.init_resource::<ExecScratch>();
         app.add_observer(run::handle_chat_command);
         app.register_required_components::<Player, run::PendingSuggestion>();
         app.add_observer(run::queue_suggestion_request);

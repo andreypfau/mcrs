@@ -1,6 +1,9 @@
-use crate::argument::coordinates::{RotationArgument, Vec3Argument};
+use crate::argument::block::BlockPredicateArgument;
+use crate::argument::coordinates::{
+    BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
+};
 use crate::argument::entity::EntityArgument;
-use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument};
+use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArgument};
 use crate::argument::resource::{
     DimensionArgument, ResourceLocationArgument, ResourceOrTagArgument,
 };
@@ -77,6 +80,10 @@ vanilla_arguments! {
     Dimension(DimensionArgument),
     GameMode(GameModeArgument),
     ResourceOrTag(ResourceOrTagArgument),
+    BlockPos(BlockPosArgument),
+    Swizzle(SwizzleArgument),
+    Heightmap(HeightmapArgument),
+    BlockPredicate(BlockPredicateArgument),
     ;
     fn suggest<'t>(
         &'t self,
@@ -91,7 +98,11 @@ vanilla_arguments! {
             VanillaArgument::Dimension(_) => DimensionArgument::suggest(source, builder),
             VanillaArgument::GameMode(_) => GameModeArgument::suggest(builder),
             VanillaArgument::ResourceOrTag(a) => a.suggest(source, builder),
-            VanillaArgument::Integer(_)
+            VanillaArgument::BlockPos(_) => BlockPosArgument::suggest(builder),
+            VanillaArgument::Heightmap(_) => HeightmapArgument::suggest(builder),
+            VanillaArgument::BlockPredicate(_) => BlockPredicateArgument::suggest(source, builder),
+            VanillaArgument::Swizzle(_)
+            | VanillaArgument::Integer(_)
             | VanillaArgument::Long(_)
             | VanillaArgument::Float(_)
             | VanillaArgument::Double(_)
@@ -168,6 +179,10 @@ impl VanillaArgument {
                 },
                 registry(a.registry),
             ),
+            VanillaArgument::BlockPos(_) => (parser::BLOCK_POS, ParserProperties::None),
+            VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
+            VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
+            VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
         };
         ArgumentParser {
             id: parser_id(key),

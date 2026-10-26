@@ -136,6 +136,10 @@ fn decode_properties<'a>(id: VarInt, r: &mut &'a [u8]) -> Result<ParserPropertie
         parser::ENTITY_ANCHOR,
         parser::DIMENSION,
         parser::GAMEMODE,
+        parser::BLOCK_POS,
+        parser::SWIZZLE,
+        parser::HEIGHTMAP,
+        parser::BLOCK_PREDICATE,
     ]
     .into_iter()
     .any(is)
