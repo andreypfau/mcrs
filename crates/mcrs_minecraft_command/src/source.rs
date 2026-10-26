@@ -1,25 +1,33 @@
 use crate::identifier::Identifier;
 use crate::permission::CommandLevel;
 use glam::DVec3;
-use mcrs_minecraft_block::definition::schema::BlockProperty;
+use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 
 /// What the arguments read from the world of the source: registries, players and dimensions.
 pub trait Lookup {
     /// The identifiers of the entries, each as `namespace:path`.
     fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str>;
 
+    /// The identifiers of the tags of the registry, each as `namespace:path`.
     fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str>;
 
+    /// The lookup holds the entries of the registry.
+    fn has_registry(&self, _registry: StaticResourceLocation) -> bool {
+        true
+    }
+
+    /// The registry holds `entry`.
     fn has_entry(&self, registry: StaticResourceLocation, entry: Identifier<'_>) -> bool {
-        self.entries(registry).any(|name| entry.eq_str(name))
+        self.entries(registry).any(|name| entry == name)
     }
 
+    /// The registry holds the tag `tag`.
     fn has_tag(&self, registry: StaticResourceLocation, tag: Identifier<'_>) -> bool {
-        self.tags(registry).any(|name| tag.eq_str(name))
+        self.tags(registry).any(|name| tag == name)
     }
 
+    /// The tag `tag` of the registry holds `entry`.
     fn tag_contains(
         &self,
         registry: StaticResourceLocation,
@@ -27,7 +35,11 @@ pub trait Lookup {
         entry: StaticResourceLocation,
     ) -> bool;
 
+    /// The names of the online players.
     fn player_names(&self) -> impl Iterator<Item = &str>;
+
+    /// The identifiers of the dimensions that the source knows, each as `namespace:path`.
+    fn dimensions(&self) -> impl Iterator<Item = &str>;
 
     /// The identifiers of the members of a tag, each as `namespace:path`.
     fn tag_entries(
@@ -35,22 +47,6 @@ pub trait Lookup {
         registry: StaticResourceLocation,
         tag: Identifier<'_>,
     ) -> impl Iterator<Item = &str>;
-
-    /// The properties of a block in their order, or `None` when no block has that identifier.
-    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]>;
-
-    /// The time markers of a clock that a command suggests; `None` is the default clock of the
-    /// source dimension.
-    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
-        let _ = clock;
-        core::iter::empty()
-    }
-
-    /// The timelines that run on a clock; `None` is the default clock of the source dimension.
-    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
-        let _ = clock;
-        core::iter::empty()
-    }
 }
 
 /// A lookup that knows nothing: a source with no world.
@@ -79,6 +75,10 @@ impl Lookup for NoLookup {
         core::iter::empty()
     }
 
+    fn dimensions(&self) -> impl Iterator<Item = &str> {
+        core::iter::empty()
+    }
+
     fn tag_entries(
         &self,
         _: StaticResourceLocation,
@@ -86,13 +86,10 @@ impl Lookup for NoLookup {
     ) -> impl Iterator<Item = &str> {
         core::iter::empty()
     }
-
-    fn block_properties(&self, _: Identifier<'_>) -> Option<&[BlockProperty]> {
-        None
-    }
 }
 
 /// The point of an entity at `position` that `anchor` names.
+#[must_use]
 pub fn anchored(anchor: LookAnchor, position: DVec3, eye_height: f64) -> DVec3 {
     match anchor {
         LookAnchor::Feet => position,
@@ -110,6 +107,8 @@ pub struct Source<'s, L> {
     pub anchor: LookAnchor,
     /// `None` when the source is no entity.
     pub eye_height: Option<f64>,
+    /// The position of the source dimension in the dimension order.
+    pub dimension: usize,
     pub lookup: &'s L,
 }
 
@@ -122,11 +121,12 @@ impl<'s, L> Source<'s, L> {
             pitch: 0.0,
             anchor: LookAnchor::Feet,
             eye_height: None,
+            dimension: 0,
             lookup,
         }
     }
 
-    pub(crate) fn anchor_position(&self) -> DVec3 {
+    pub fn anchor_position(&self) -> DVec3 {
         self.eye_height.map_or(self.position, |eye_height| {
             anchored(self.anchor, self.position, eye_height)
         })

@@ -11,8 +11,8 @@ use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use std::sync::LazyLock;
 
-/// `oak_stairs` and `wheat` with their vanilla properties, `stone`, and the tag `logs` of
-/// `oak_log`.
+/// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block
+/// entity, and the tag `logs` of `oak_log`.
 struct Blocks {
     stairs: Vec<BlockProperty>,
     wheat: Vec<BlockProperty>,
@@ -54,6 +54,7 @@ impl Lookup for Blocks {
             "minecraft:wheat",
             "minecraft:oak_log",
             "minecraft:stone",
+            "minecraft:chest",
         ]
         .into_iter()
     }
@@ -91,10 +92,15 @@ impl Lookup for Blocks {
             ("minecraft:wheat", self.wheat.as_slice()),
             ("minecraft:oak_log", self.log.as_slice()),
             ("minecraft:stone", &[]),
+            ("minecraft:chest", &[]),
         ]
         .into_iter()
         .find(|(name, _)| block.eq_str(name))
         .map(|(_, properties)| properties)
+    }
+
+    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+        block.eq_str("minecraft:chest")
     }
 }
 
@@ -102,7 +108,7 @@ fn source() -> Source<'static, Blocks> {
     Source::new(CommandLevel::Gamemasters, &BLOCKS)
 }
 
-fn read(input: &str) -> (Result<BlockPredicate<'_>, CommandSyntaxError>, usize) {
+pub(crate) fn read(input: &str) -> (Result<BlockPredicate<'_>, CommandSyntaxError>, usize) {
     let mut reader = Reader::new(input);
     let value = BlockPredicateArgument.parse(&mut reader, &source());
     (value, reader.cursor())
@@ -126,11 +132,14 @@ fn key(key: &'static str, with: &[&str]) -> Text {
 
 #[test]
 fn a_predicate_reads_a_block_or_a_tag_and_its_property_list() {
-    let cases: [(&str, usize); 8] = [
+    let cases: [(&str, usize); 11] = [
         ("stone", 5),
         ("minecraft:stone", 15),
         ("stone []", 5),
-        ("#logs[axis=y]{}", 13),
+        ("#logs[axis=y]{}", 15),
+        ("stone{}", 7),
+        ("stone{}[]", 7),
+        ("chest{Items:[{id:\"minecraft:stone\"}]} x", 37),
         ("oak_stairs[ facing = north ]", 28),
         ("oak_stairs[facing=north,]", 25),
         ("oak_stairs[\"facing\"=\"north\"]", 28),
@@ -242,6 +251,30 @@ fn a_predicate_fails_with_the_key_and_the_position_of_its_rule() {
     );
 }
 
+#[test]
+fn a_data_compound_fails_with_the_key_and_the_position_of_the_snbt_read() {
+    let cases = [
+        ("stone{", key("argument.literal.incorrect", &["\""]), 6),
+        ("stone{a:1", key("argument.literal.incorrect", &["."]), 9),
+        (
+            "#logs[axis=y]{a:[B;300]}",
+            key(
+                "snbt.parser.number_parse_failure",
+                &["300 does not fit in a byte"],
+            ),
+            23,
+        ),
+        (
+            "stone{a:foo(1)}",
+            key("snbt.parser.no_such_operation", &["foo/1"]),
+            14,
+        ),
+    ];
+    for (input, text, position) in cases {
+        assert_eq!(message(input), Ok((text, position)), "{input}");
+    }
+}
+
 fn entry(identifier: &str, properties: Vec<BlockProperty>, base: u16) -> BlockEntry {
     let count = properties.iter().map(|p| p.values.len() as u16).product();
     BlockEntry {
@@ -285,6 +318,33 @@ fn the_test_compares_only_the_named_properties_with_their_value_texts() {
     }
 }
 
+#[test]
+fn the_data_compound_matches_the_saved_data_of_the_block_entity() {
+    let items = "{Items:[{id:\"minecraft:stone\",Slot:0b},{id:\"minecraft:dirt\",Slot:1b}],x:10}";
+    let cases = [
+        ("stone", None, true),
+        ("stone{}", None, false),
+        ("stone{}", Some(items), true),
+        ("stone{x:10}", Some(items), true),
+        ("stone{x:10b}", Some(items), false),
+        (
+            "chest{Items:[{id:\"minecraft:stone\"},{id:\"minecraft:stone\"}]}",
+            Some(items),
+            true,
+        ),
+        (
+            "chest{Items:[{id:\"minecraft:stone\",Slot:1b}]}",
+            Some(items),
+            false,
+        ),
+    ];
+    for (input, saved, passes) in cases {
+        let predicate = read(input).0.unwrap();
+        let saved = || saved.map(|text| mcrs_minecraft_nbt::snbt::parse_compound(text).unwrap());
+        assert_eq!(predicate.test_data(saved), passes, "{input}");
+    }
+}
+
 fn suggestions(input: &str) -> Vec<String> {
     let source = source();
     let mut out: Vec<Suggestion<'_, &'static str>> = Vec::new();
@@ -301,7 +361,7 @@ fn suggestions(input: &str) -> Vec<String> {
 
 #[test]
 fn suggestions_follow_the_stage_the_read_reached() {
-    let cases: [(&str, &[&str]); 7] = [
+    let cases: [(&str, &[&str]); 11] = [
         (
             "oak_stairs[",
             &["]", "facing=", "half=", "shape=", "waterlogged="],
@@ -312,6 +372,10 @@ fn suggestions_follow_the_stage_the_read_reached() {
         ("oak_stairs[facing=north", &[",", "]"]),
         ("wheat", &["["]),
         ("#logs[axis", &["axis="]),
+        ("chest", &["{"]),
+        ("stone", &[]),
+        ("chest{", &[]),
+        ("#logs[axis=y]", &[]),
     ];
     for (input, expected) in cases {
         assert_eq!(suggestions(input), expected, "{input}");

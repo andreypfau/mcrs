@@ -2,6 +2,7 @@ use bevy_ecs::prelude::{Commands, Component};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -28,6 +29,16 @@ pub fn spawn_block_entities(
             BlockEntity(entry),
         ));
     }
+}
+
+/// The saved data of a block entity (ARG-BLK-012): the compound the save writes, which holds
+/// `id`, `x`, `y` and `z`, with an empty `components` when it has none.
+pub fn saved_data(entry: &GeneratedBlockEntity) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
+    let mut compound = to_nbt_compound(entry)?;
+    if compound.get("components").is_none() {
+        compound.put_component("components", NbtCompound::new());
+    }
+    Ok(compound)
 }
 
 /// The chunk packet's entry, carrying the same compound the save holds.

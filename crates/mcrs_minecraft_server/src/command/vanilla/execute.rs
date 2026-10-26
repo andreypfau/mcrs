@@ -3,6 +3,7 @@ use crate::command::{
     Call, CommandContext, CommandFailure, CommandFeedback, CommandRegistrar, CommandResult,
     Modified, ModifyResult, SourceState,
 };
+use crate::world::block_entity::{BlockEntity, saved_data};
 use crate::world::entity::player::ability::PlayerGameMode;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
@@ -16,7 +17,9 @@ use mcrs_minecraft_command::{
     RotationArgument, SwizzleArgument, Vec3Argument, anchored, block_floor, rotation_toward,
 };
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_core::{BlockStateId, ColumnPos, ResourceKey, ResourceLocation, SectionPos};
+use mcrs_minecraft_core::{
+    BlockPos, BlockStateId, ColumnPos, ResourceKey, ResourceLocation, SectionPos,
+};
 use mcrs_minecraft_dimension::keys::DIMENSION;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
@@ -28,9 +31,11 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, SectionBlockEntities};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Test {
@@ -261,6 +266,8 @@ pub(crate) struct DimensionView<'w, 's> {
         ),
     >,
     sections: Query<'w, 's, (&'static ChunkBlocks, &'static SectionStage)>,
+    held: Query<'w, 's, &'static SectionBlockEntities>,
+    block_entities: Query<'w, 's, (&'static BlockEntityPos, &'static BlockEntity)>,
     blocks: Option<Res<'w, Blocks>>,
 }
 
@@ -322,6 +329,20 @@ impl DimensionView<'_, '_> {
         let (blocks, _) = self.sections.get(section).ok()?;
         let local = |axis: i32| usize::try_from(axis & SectionPos::MASK as i32).ok();
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
+    }
+
+    // chisle: a linear scan of the block entities of one section; an index by position in the
+    // section lifts it.
+    fn block_entity(&self, [x, y, z]: [i32; 3]) -> Option<&GeneratedBlockEntity> {
+        let section = match self.column(x, z)?.lookup(y >> SectionPos::BITS) {
+            SectionLookup::Loaded(section) => section,
+            SectionLookup::Unloaded | SectionLookup::OutOfRange => return None,
+        };
+        let pos = BlockPos::new(x, y, z);
+        self.held.get(section).ok()?.iter().find_map(|entity| {
+            let (at, block_entity) = self.block_entities.get(entity).ok()?;
+            (at.0 == pos).then_some(&block_entity.0)
+        })
     }
 
     /// HM-006 for a column of a loaded chunk.
@@ -435,7 +456,12 @@ impl ExecuteView<'_, '_> {
                         .tag_entries(BLOCK.location(), tag)
                         .any(|member| member == name),
                 };
-                Ok(Outcome::Boolean(predicate.test(in_subject, entry, state)))
+                let passes = predicate.test(in_subject, entry, state)
+                    && predicate.test_data(|| {
+                        let entry = self.dimension.block_entity(pos)?;
+                        saved_data(entry).ok()
+                    });
+                Ok(Outcome::Boolean(passes))
             }
         }
     }

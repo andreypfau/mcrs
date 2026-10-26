@@ -1,7 +1,7 @@
 use crate::identifier::Identifier;
 use mcrs_command::{ErrorKind, LibraryError, Span, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_nbt::snbt::{java_double, java_float};
+use mcrs_minecraft_nbt::snbt::{SnbtError, java_double, java_float};
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 
 /// The syntax errors of the vanilla argument types. Text from the command line is a span.
@@ -69,6 +69,8 @@ pub enum ArgumentError {
         name: StringSpan,
     },
     PropertyUnclosed,
+    /// An error of the SNBT read; its spans are positions in the command line.
+    Nbt(SnbtError),
 }
 
 /// The block identifier or the tag that an error of a property list names.
@@ -272,7 +274,19 @@ pub fn argument_text(input: &str, error: ArgumentError) -> Text {
             ],
         ),
         E::PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
+        E::Nbt(error) => snbt_text(input, error),
     }
+}
+
+fn snbt_text(input: &str, error: SnbtError) -> Text {
+    let mut with = Vec::new();
+    if error.kind.has_argument() {
+        let mut argument = String::new();
+        if error.kind.write_argument(input, &mut argument).is_ok() {
+            with.push(argument.into_text());
+        }
+    }
+    Text::translate(error.kind.key(), with)
 }
 
 /// The message of a syntax error, without its context text.

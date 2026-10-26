@@ -11,6 +11,8 @@ use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::snbt::{check_compound, read_compound};
 
 fn block_registry() -> StaticResourceLocation {
     BLOCK.location()
@@ -22,14 +24,16 @@ pub enum BlockOrTag<'a> {
     Tag(Identifier<'a>),
 }
 
-/// The value of a `block_predicate`. The property list stays text and is read again by the
-/// test, so the value borrows the command line and owns nothing.
+/// The value of a `block_predicate`. The property list and the data compound stay text and are
+/// read again by the test, so the value borrows the command line and owns nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockPredicate<'a> {
     pub subject: BlockOrTag<'a>,
     input: &'a str,
     /// The position of the `[` of the property list.
     list: Option<usize>,
+    /// The position of the `{` of the data compound.
+    data: Option<usize>,
 }
 
 impl<'a> BlockPredicate<'a> {
@@ -42,6 +46,27 @@ impl<'a> BlockPredicate<'a> {
                 StringValue::new(input, value),
             )
         })
+    }
+
+    pub fn has_data(&self) -> bool {
+        self.data.is_some()
+    }
+
+    /// The data compound (ARG-BLK-007), built from the text the read validated.
+    pub fn data(&self) -> Option<NbtCompound> {
+        let start = self.data?;
+        read_compound(self.input, start)
+            .ok()
+            .map(|(compound, _)| compound)
+    }
+
+    /// ARG-BLK-011: without a data compound the test passes. With one, `saved` gives the saved
+    /// data of the block entity at the position (ARG-BLK-012), or `None` when there is none.
+    pub fn test_data(&self, saved: impl FnOnce() -> Option<NbtCompound>) -> bool {
+        let Some(expected) = self.data() else {
+            return self.data.is_none();
+        };
+        saved().is_some_and(|actual| expected.matches(&actual))
     }
 
     /// The test of a block state (ARG-BLK-009, ARG-BLK-010). `in_subject` says whether the
@@ -162,11 +187,11 @@ enum Stage<'a> {
         list: usize,
         name: StringSpan,
     },
-    AfterList,
+    AfterList(BlockOrTag<'a>),
+    Data,
 }
 
-/// `minecraft:block_predicate` (ARG-BLK-001), without the data compound: the read ends before
-/// a `{`.
+/// `minecraft:block_predicate` (ARG-BLK-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockPredicateArgument;
 
@@ -293,7 +318,7 @@ fn block_list<'a, L: Lookup>(
         ));
     }
     reader.skip();
-    *stage = Stage::AfterList;
+    *stage = Stage::AfterList(BlockOrTag::Block(id));
     Ok(())
 }
 
@@ -380,7 +405,7 @@ fn tag_list<'a>(
         ));
     }
     reader.skip();
-    *stage = Stage::AfterList;
+    *stage = Stage::AfterList(BlockOrTag::Tag(id));
     Ok(())
 }
 
@@ -423,10 +448,21 @@ fn read<'a, L: Lookup>(
         }
         (BlockOrTag::Block(id), list)
     };
+    let data = if reader.peek_is('{') {
+        *stage = Stage::Data;
+        let start = reader.cursor();
+        let end = check_compound(reader.input(), start)
+            .map_err(|error| SyntaxError::argument(ArgumentError::Nbt(error), error.position))?;
+        reader.set_cursor(end);
+        Some(start)
+    } else {
+        None
+    };
     Ok(BlockPredicate {
         subject,
         input: reader.input(),
         list,
+        data,
     })
 }
 
@@ -489,6 +525,16 @@ fn suggest_values<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>, property: &
     }
 }
 
+fn has_block_entity<L: Lookup>(lookup: &L, subject: BlockOrTag<'_>) -> bool {
+    match subject {
+        BlockOrTag::Block(block) => lookup.has_block_entity(block),
+        BlockOrTag::Tag(tag) => lookup
+            .tag_entries(block_registry(), tag)
+            .filter_map(Identifier::parse)
+            .any(|member| lookup.has_block_entity(member)),
+    }
+}
+
 fn if_empty<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>, text: &'t str) {
     if builder.remaining().is_empty() {
         builder.suggest(SuggestionText::new(text), None);
@@ -496,7 +542,7 @@ fn if_empty<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>, text: &'t str) {
 }
 
 impl BlockPredicateArgument {
-    /// ARG-BLK-013 and ARG-BLK-014, without the stages of the data compound.
+    /// ARG-BLK-013 and ARG-BLK-014.
     pub fn suggest<'t, L: Lookup, T: Copy>(
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
@@ -517,6 +563,7 @@ impl BlockPredicateArgument {
                 .filter_map(Identifier::parse)
                 .filter_map(|member| lookup.block_properties(member))
         };
+        let has_block_entity = |subject| has_block_entity(lookup, subject);
         match stage {
             Stage::Start => {
                 let remaining = builder.remaining();
@@ -537,10 +584,16 @@ impl BlockPredicateArgument {
                 {
                     if_empty(&mut builder, "[");
                 }
+                if has_block_entity(BlockOrTag::Block(block)) {
+                    if_empty(&mut builder, "{");
+                }
             }
             Stage::AfterTag(tag) => {
                 if members(tag).any(|properties| !properties.is_empty()) {
                     if_empty(&mut builder, "[");
+                }
+                if has_block_entity(BlockOrTag::Tag(tag)) {
+                    if_empty(&mut builder, "{");
                 }
             }
             Stage::BlockName { block, list, first } => {
@@ -594,7 +647,12 @@ impl BlockPredicateArgument {
                 }
                 builder.suggest(SuggestionText::new("]"), None);
             }
-            Stage::AfterList => {}
+            Stage::AfterList(subject) => {
+                if has_block_entity(subject) {
+                    if_empty(&mut builder, "{");
+                }
+            }
+            Stage::Data => {}
         }
     }
 }

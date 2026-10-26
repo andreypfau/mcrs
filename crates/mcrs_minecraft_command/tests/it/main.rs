@@ -4,6 +4,7 @@
     reason = "a test reports a failure by panicking"
 )]
 
+mod alloc_free;
 mod arguments;
 mod block;
 mod entity;
