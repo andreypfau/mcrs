@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_command"
+description = "A command tree, a parser and suggestions that agree with Brigadier, without allocation on the parse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true

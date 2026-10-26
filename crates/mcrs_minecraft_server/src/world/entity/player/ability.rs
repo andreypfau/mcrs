@@ -2,7 +2,7 @@ use bevy_ecs::prelude::Component;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_protocol::GameMode;
 
-#[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]
 pub struct PlayerGameMode(pub GameMode);
 
 impl Default for PlayerGameMode {

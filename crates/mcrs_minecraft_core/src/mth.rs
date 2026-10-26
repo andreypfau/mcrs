@@ -203,6 +203,19 @@ pub fn cos_modern(x: f64) -> f32 {
     sin_table((x * 10430.378350470453 + 16384.0) as i64 as u16)
 }
 
+/// The table at the entry nearest to `x`, mirrored for a negative argument.
+#[inline]
+pub fn sin_rounded(x: f64) -> f32 {
+    let index = |x: f64| sin_table((x * 10430.378350470453 + 0.5) as i64 as u16);
+    if x >= 0.0 { index(x) } else { -index(-x) }
+}
+
+/// The table at the entry nearest to `x` plus a quarter turn.
+#[inline]
+pub fn cos_rounded(x: f64) -> f32 {
+    sin_table((x.abs() * 10430.378350470453 + 16384.5) as i64 as u16)
+}
+
 /// A lerp over an inverse lerp, unclamped: a value outside the source range
 /// maps outside the target range.
 pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {

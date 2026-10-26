@@ -133,7 +133,7 @@ jobs:
         with:
           cache-on-failure: true
 
-      - name: build without Bevy and for wasm32
+      - name: build without Bevy, for wasm32 and without std
         run: scripts/hooks/run-checks portability
 
   checks:

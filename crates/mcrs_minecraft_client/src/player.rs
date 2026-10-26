@@ -14,8 +14,7 @@ use mcrs_minecraft_level::entity::physics::{
 use crate::camera::FovFilter;
 use crate::local_player::{Flying, FlyingSpeed, LastSentMovement, Sprint};
 use crate::screen::Screen;
-
-pub(crate) const EYE_HEIGHT: f32 = 1.62;
+use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 
 const FAR_PLANE: f32 = 4000.0;
 
@@ -85,7 +84,7 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
         // The default `TonyMcMapFace` tonemapper needs the `tonemapping_luts`
         // feature, which nothing else here requires.
         Tonemapping::None,
-        Transform::from_xyz(0.0, EYE_HEIGHT, 0.0),
+        Transform::from_xyz(0.0, PLAYER_EYE_HEIGHT as f32, 0.0),
         ChildOf(player),
     ));
     player

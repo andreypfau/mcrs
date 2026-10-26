@@ -104,6 +104,7 @@ pub fn pump_channels(app: &mut App) {
         for message in messages {
             match message {
                 FromDim::Clientbound(packet) => deliver(world, packet),
+                FromDim::OperatorBroadcast(broadcast) => world.trigger(broadcast),
                 FromDim::Released { session } => {
                     forget_departures(world, |departing| {
                         departing.dim == source_dim && departing.session == session

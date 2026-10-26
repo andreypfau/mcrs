@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_command"
+description = "The vanilla argument types, permissions and command packets over the mcrs_command tree"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_loot.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_value_provider.workspace = true
+glam.workspace = true
+uuid.workspace = true

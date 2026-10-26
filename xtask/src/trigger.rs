@@ -6,6 +6,7 @@ pub enum Check {
     Test,
     NoBevy,
     Wasm32,
+    NoStd,
     Keys,
 }
 
@@ -18,6 +19,7 @@ impl Check {
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Wasm32 => "wasm32",
+            Check::NoStd => "no-std",
             Check::Keys => "keys",
         }
     }
@@ -83,7 +85,7 @@ impl Trigger {
                 "in CI on every pull request and every push to main: the tests of the changed crates and their dependents"
             }
             Trigger::Portability => {
-                "in CI on every pull request and every push to main: the builds without Bevy and for wasm32"
+                "in CI on every pull request and every push to main: the builds without Bevy, for wasm32 and for a target without std"
             }
             Trigger::Full => "the whole test suite, exhaustive sweeps included",
             Trigger::Gpu => "the tests that need a Metal GPU",
@@ -123,7 +125,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
         Trigger::Lint => &[Parity, Fmt, Keys],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Portability => &[NoBevy, Wasm32],
+        Trigger::Portability => &[NoBevy, Wasm32, NoStd],
     }
 }
 

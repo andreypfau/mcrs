@@ -1,4 +1,5 @@
 use bevy_ecs::entity::Entity;
+use bevy_ecs::event::Event;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
@@ -10,11 +11,13 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
-    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
+    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
+    ClientboundCommands, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
+    ClientboundRemoveEntities, ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
+use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -70,6 +73,16 @@ pub struct OutboundPlayerDisconnect {
 pub struct InboundPlayerDespawn {
     pub host_anchor: Entity,
     pub session: PlayerSession,
+}
+
+/// A command reported success with a message for the operators (CMDP-EXEC-004). A dimension
+/// writes it, and the host, which knows every online player and the operators, delivers it to
+/// each operator but `source`.
+#[derive(Message, Event, Clone, Debug)]
+pub struct OperatorBroadcast {
+    /// The host anchor of the player that ran the command.
+    pub source: Entity,
+    pub message: Text,
 }
 
 /// The dimension has saved the player an `InboundPlayerDespawn` named and let it go.
@@ -151,8 +164,12 @@ pub enum PacketPayload {
         entries: Vec<PlayerInfoEntry>,
     },
     PlayerPosition(ClientboundPlayerPosition),
+    PlayerLookAt(ClientboundPlayerLookAt),
+    PlayerAbilities(ClientboundPlayerAbilities),
     SystemChat(ClientboundSystemChatPacket),
     GameEvent(ClientboundGameEvent),
+    Commands(ClientboundCommands<'static>),
+    CommandSuggestions(ClientboundCommandSuggestions<'static>),
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

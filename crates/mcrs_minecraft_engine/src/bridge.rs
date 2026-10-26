@@ -249,6 +249,8 @@ fn encode_and_send(
                 PacketPayload::ChunkUnload(p) => conn.raw.append(&p),
                 PacketPayload::EntityPosSync(p) => conn.raw.append(&p),
                 PacketPayload::GameEvent(p) => conn.raw.append(&p),
+                PacketPayload::PlayerLookAt(p) => conn.raw.append(&p),
+                PacketPayload::PlayerAbilities(p) => conn.raw.append(&p),
                 PacketPayload::PlayerEnteredView(p) => conn.raw.append(&p),
                 PacketPayload::ChunkLoad {
                     column,
@@ -299,6 +301,8 @@ fn encode_and_send(
                 }
                 PacketPayload::PlayerPosition(p) => conn.raw.append(&p),
                 PacketPayload::SystemChat(p) => conn.raw.append(&p),
+                PacketPayload::Commands(p) => conn.raw.append(&p),
+                PacketPayload::CommandSuggestions(p) => conn.raw.append(&p),
                 PacketPayload::Test(_) => {
                     // Test-only payload; no wire packet. Counted-drop so
                     // test assertions on encode_unhandled_total work.

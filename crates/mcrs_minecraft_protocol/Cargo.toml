@@ -23,6 +23,7 @@ mcrs_minecraft_text.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_keys.workspace = true
 glam.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["glam", "uuid", "serde"] }

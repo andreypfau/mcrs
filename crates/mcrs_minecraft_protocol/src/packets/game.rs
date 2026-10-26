@@ -374,6 +374,59 @@ pub mod clientbound {
         pub flags: PositionFlags,
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct ClientboundPlayerAbilities {
+        pub invulnerable: bool,
+        pub flying: bool,
+        pub may_fly: bool,
+        pub instant_build: bool,
+        pub flying_speed: f32,
+        pub walking_speed: f32,
+    }
+
+    impl Encode for ClientboundPlayerAbilities {
+        fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
+            let flags = u8::from(self.invulnerable)
+                | u8::from(self.flying) << 1
+                | u8::from(self.may_fly) << 2
+                | u8::from(self.instant_build) << 3;
+            flags.encode(&mut w)?;
+            self.flying_speed.encode(&mut w)?;
+            self.walking_speed.encode(w)
+        }
+    }
+
+    impl Decode<'_> for ClientboundPlayerAbilities {
+        fn decode(r: &mut &[u8]) -> Result<Self> {
+            let flags = u8::decode(r)?;
+            let [invulnerable, flying, may_fly, instant_build] =
+                [0, 1, 2, 3].map(|bit| flags & 1 << bit != 0);
+            Ok(Self {
+                invulnerable,
+                flying,
+                may_fly,
+                instant_build,
+                flying_speed: f32::decode(r)?,
+                walking_speed: f32::decode(r)?,
+            })
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Encode, Decode)]
+    pub enum LookAnchor {
+        #[default]
+        Feet,
+        Eyes,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ClientboundPlayerLookAt {
+        pub from: LookAnchor,
+        pub target: DVec3,
+        /// The network id of the entity and the anchor of it to look at.
+        pub entity: Option<(VarInt, LookAnchor)>,
+    }
+
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRecipeBookAdd {
         pub entries: Vec<RecipeBookEntry<Wire>>,
@@ -550,6 +603,20 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundUpdateTags<'a> {
         pub registries: Vec<crate::packets::configuration::clientbound::RegistryTags<'a>>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ClientboundCommands<'a> {
+        pub nodes: Vec<crate::command::CommandNode<'a>>,
+        pub root: VarInt,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ClientboundCommandSuggestions<'a> {
+        pub id: VarInt,
+        pub start: VarInt,
+        pub length: VarInt,
+        pub suggestions: Vec<crate::command::CommandSuggestion<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
@@ -844,6 +911,12 @@ pub mod serverbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChatAck {
         pub offset: VarInt,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ServerboundCommandSuggestion<'a> {
+        pub id: VarInt,
+        pub text: Bounded<&'a str, 32500>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]

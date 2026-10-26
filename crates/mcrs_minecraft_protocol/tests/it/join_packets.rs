@@ -294,3 +294,47 @@ fn an_unknown_channel_body_is_bounded_by_the_direction() {
         clientbound::Payload::decode(&mut &frame(clientbound::MAX_PAYLOAD_SIZE + 1)[..]).is_err()
     );
 }
+
+#[test]
+fn abilities_and_look_at_follow_their_field_layouts() {
+    let survival = ClientboundPlayerAbilities {
+        invulnerable: false,
+        flying: false,
+        may_fly: false,
+        instant_build: false,
+        flying_speed: 0.05,
+        walking_speed: 0.1,
+    };
+    let bytes = crate::common::hex("003d4ccccd3dcccccd");
+    assert_eq!(encoded(&survival), bytes);
+    let spectator = ClientboundPlayerAbilities {
+        invulnerable: true,
+        flying: true,
+        may_fly: true,
+        ..survival
+    };
+    assert_eq!(encoded(&spectator)[0], 0x07);
+    assert_eq!(
+        ClientboundPlayerAbilities::decode(&mut &encoded(&spectator)[..]).unwrap(),
+        spectator
+    );
+
+    let at_cow = ClientboundPlayerLookAt {
+        from: LookAnchor::Feet,
+        target: glam::DVec3::new(1.0, 2.0, 3.0),
+        entity: Some((VarInt(5), LookAnchor::Eyes)),
+    };
+    let mut expected = vec![0];
+    for value in [1.0f64, 2.0, 3.0] {
+        expected.extend(value.to_be_bytes());
+    }
+    expected.extend([1, 5, 1]);
+    assert_eq!(encoded(&at_cow), expected);
+    let at_point = ClientboundPlayerLookAt {
+        from: LookAnchor::Eyes,
+        entity: None,
+        ..at_cow
+    };
+    assert_eq!(encoded(&at_point)[0], 1);
+    assert_eq!(encoded(&at_point).last(), Some(&0));
+}

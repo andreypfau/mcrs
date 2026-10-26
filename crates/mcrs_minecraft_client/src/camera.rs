@@ -4,7 +4,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use crate::local_player::{LocalPlayerTick, Sprint};
-use crate::player::{EYE_HEIGHT, Player, PlayerCamera, pitch_rotation, yaw_rotation};
+use crate::player::{Player, PlayerCamera, pitch_rotation, yaw_rotation};
+use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_render::CameraOrigin;
 
 /// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
@@ -88,7 +89,7 @@ fn align_render_transforms(
     if camera.rotation != pitch {
         camera.rotation = pitch;
     }
-    *origin = CameraOrigin::of(translation + DVec3::Y * EYE_HEIGHT as f64);
+    *origin = CameraOrigin::of(translation + DVec3::Y * PLAYER_EYE_HEIGHT);
 }
 
 fn apply_fov(

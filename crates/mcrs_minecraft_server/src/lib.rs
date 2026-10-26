@@ -4,6 +4,7 @@ extern crate core;
 
 pub mod block_light_table;
 mod client_info;
+pub mod command;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
@@ -129,6 +130,9 @@ impl PluginGroup for MinecraftServerPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(self.core)
+            .add(crate::command::CommandPlugin)
+            .add(crate::command::vanilla::VanillaCommandsPlugin)
+            .add(crate::command::DebugCommandsPlugin)
             .add(self.worlds)
             .add(WorldGenPlugin)
             .add(LightingPlugin)

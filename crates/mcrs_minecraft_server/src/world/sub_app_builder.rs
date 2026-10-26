@@ -586,6 +586,10 @@ pub fn spawn_dim_subapp(
         }
     });
 
+    if let Some(tree) = app.world().get_resource::<crate::command::CommandTree>() {
+        sub_app.add_plugins(crate::command::DimCommandPlugin { tree: tree.clone() });
+    }
+
     // Before the dimension entity spawns, so a plugin can still register required components and
     // hooks for its components and its observers see it spawn.
     if let Some(plugins) = app.world().get_resource::<DimensionPlugins>() {

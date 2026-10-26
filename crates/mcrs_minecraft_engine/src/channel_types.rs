@@ -4,7 +4,7 @@ use mcrs_minecraft_level::world::channels::DimChannels;
 
 use crate::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
-    InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload,
+    InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload, OperatorBroadcast,
     OutboundPlayerPacket,
 };
 use mcrs_minecraft_dimension::Dimension;
@@ -58,6 +58,8 @@ pub enum FromDim {
     Spawned { move_id: MoveId },
     /// The dim has handled a `Despawn` for the session: whatever player it held is saved and gone.
     Released { session: PlayerSession },
+    /// A message for every online operator; the host triggers it as an event.
+    OperatorBroadcast(OperatorBroadcast),
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this

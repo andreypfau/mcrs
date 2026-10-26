@@ -38,6 +38,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 pub mod index;
+pub mod nearest_biome;
 
 pub mod place;
 

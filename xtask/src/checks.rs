@@ -27,7 +27,10 @@ const WASM32_PACKAGES: [&str; 10] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 49] = [
+const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
+
+const NO_BEVY_PACKAGES: [&str; 51] = [
+    "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
@@ -35,6 +38,7 @@ const NO_BEVY_PACKAGES: [&str; 49] = [
     "mcrs_minecraft_block_predicate",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_command",
     "mcrs_minecraft_core",
     "mcrs_minecraft_dimension",
     "mcrs_minecraft_dimension_environment",
@@ -195,18 +199,35 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
-        Check::Wasm32 => {
-            let mut args = vec!["build", "--locked", "--target", "wasm32-unknown-unknown"];
-            for package in WASM32_PACKAGES {
-                args.extend(["-p", package]);
-            }
-            verdict(
-                ctx.exec("cargo", &args)?,
-                "a crate that must run in a browser does not build for wasm32-unknown-unknown",
-                "keep its dependencies free of native-only code",
-            )
-        }
+        Check::NoStd => build_for(
+            ctx,
+            "wasm32v1-none",
+            &NO_STD_PACKAGES,
+            "a crate that must build without std does not build for wasm32v1-none",
+            "keep it #![no_std] and its dependencies free of std",
+        ),
+        Check::Wasm32 => build_for(
+            ctx,
+            "wasm32-unknown-unknown",
+            &WASM32_PACKAGES,
+            "a crate that must run in a browser does not build for wasm32-unknown-unknown",
+            "keep its dependencies free of native-only code",
+        ),
     }
+}
+
+fn build_for(
+    ctx: &Context,
+    target: &str,
+    packages: &[&str],
+    condition: &str,
+    fix: &str,
+) -> Outcome {
+    let mut args = vec!["build", "--locked", "--target", target];
+    for package in packages {
+        args.extend(["-p", package]);
+    }
+    verdict(ctx.exec("cargo", &args)?, condition, fix)
 }
 
 fn no_bevy(ctx: &Context) -> Outcome {

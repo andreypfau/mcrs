@@ -3474,6 +3474,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_command"
+version = "0.5.8"
+
+[[package]]
 name = "mcrs_minecraft_anvil"
 version = "0.5.8"
 dependencies = [
@@ -3645,6 +3649,23 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "zip",
+]
+
+[[package]]
+name = "mcrs_minecraft_command"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_loot",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_value_provider",
+ "uuid",
 ]
 
 [[package]]
@@ -4031,6 +4052,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
@@ -4158,6 +4180,7 @@ dependencies = [
  "derive_more",
  "fixedbitset",
  "flume",
+ "mcrs_command",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
@@ -4166,6 +4189,7 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",

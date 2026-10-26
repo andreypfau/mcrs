@@ -422,6 +422,13 @@ impl StructureIndex {
         Some((structure, accepted?))
     }
 
+    /// The registry id of the biome the biome source gives at the quart that holds a block, as
+    /// structure placement reads it.
+    pub fn noise_biomes(&self) -> impl FnMut(IVec3) -> Option<u16> + '_ {
+        let mut view = self.view();
+        move |block| view.biome_at(block)
+    }
+
     pub fn locate(&self, origin: IVec3, wanted: &[StructureId]) -> Option<(IVec3, StructureId)> {
         let mut placements: Vec<LocatePlacement<'_>> = Vec::new();
         for &structure in wanted {

@@ -88,7 +88,13 @@ impl Plugin for DimPlayerPlugin {
         app.add_systems(
             Update,
             (
-                (consume_inbound_player_spawn, send_op_level).chain(),
+                (
+                    consume_inbound_player_spawn,
+                    send_op_level,
+                    crate::command::send_command_tree,
+                    game_mode::send_game_mode,
+                )
+                    .chain(),
                 // A player spawned and despawned in one drain must be saved and removed, or it
                 // lingers and its autosaves overwrite the next session's file.
                 despawn_inbound_player.after(consume_inbound_player_spawn),

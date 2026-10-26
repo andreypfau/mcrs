@@ -70,6 +70,13 @@ impl TeleportState {
         id
     }
 
+    /// A move the caller sends to the client itself: the next teleport id, after which the
+    /// `teleport` system treats `transform` as already sent.
+    pub fn sent(&mut self, transform: Transform) -> i32 {
+        self.synced_transform = transform;
+        self.next_teleport_id()
+    }
+
     /// Teleport id reserved for the login position sync. The spawn consumer
     /// sends `PlayerPosition` with this id at login, so the runtime counter is
     /// initialized past it (see [`Self::after_login`]) and the first
@@ -147,12 +154,13 @@ pub struct PlayerMovement {
     look: Option<Rotation>,
 }
 
+pub(crate) const MAX_XZ: f64 = 30_000_000.0;
+pub(crate) const MAX_Y: f64 = 20_000_000.0;
+
 pub(crate) fn process_movement(
     mut reader: MessageReader<PlayerMovement>,
     mut query: Query<(Mut<TeleportState>, Mut<Transform>)>,
 ) {
-    const MAX_XZ: f64 = 30_000_000.0;
-    const MAX_Y: f64 = 20_000_000.0;
     const MAX_POS: DVec3 = DVec3::new(MAX_XZ, MAX_Y, MAX_XZ);
     const MIN_POS: DVec3 = DVec3::new(-MAX_XZ, -MAX_Y, -MAX_XZ);
 

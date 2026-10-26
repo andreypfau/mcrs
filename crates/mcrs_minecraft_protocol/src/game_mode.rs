@@ -18,6 +18,26 @@ pub enum GameMode {
 }
 
 impl GameMode {
+    pub const ALL: [GameMode; 4] = [
+        GameMode::Survival,
+        GameMode::Creative,
+        GameMode::Adventure,
+        GameMode::Spectator,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            GameMode::Survival => "survival",
+            GameMode::Creative => "creative",
+            GameMode::Adventure => "adventure",
+            GameMode::Spectator => "spectator",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.name() == name)
+    }
+
     #[inline]
     pub fn is_block_placing_restricted(&self) -> bool {
         self == &GameMode::Adventure || self == &GameMode::Spectator

@@ -105,10 +105,10 @@ impl Registries {
 
     /// Each resolved tag of the registry `key` with its member ids, for a caller that has no type
     /// for it.
-    pub fn tags_of(
-        &self,
+    pub fn tags_of<'s>(
+        &'s self,
         key: &ResourceLocation,
-    ) -> Option<impl Iterator<Item = (&ResourceLocation, &[u16])>> {
+    ) -> Option<impl Iterator<Item = (&'s ResourceLocation, &'s [u16])> + use<'s>> {
         let table = self.table(key.as_str())?;
         Some(
             table
