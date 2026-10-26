@@ -65,6 +65,15 @@ impl NbtCompound {
         Ok(())
     }
 
+    /// [`NbtTag::matches`] for a compound: `actual` can have more keys.
+    pub fn matches(&self, actual: &NbtCompound) -> bool {
+        self.child_tags.iter().all(|(key, expected)| {
+            actual
+                .get(key)
+                .is_some_and(|actual| expected.matches(actual))
+        })
+    }
+
     pub fn is_empty(&self) -> bool {
         self.child_tags.is_empty()
     }

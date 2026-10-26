@@ -1,29 +1,77 @@
 use std::fmt::Write;
 
-use serde::Deserialize;
-
-use crate::Error;
 use crate::compound::NbtCompound;
 use crate::tag::NbtTag;
 
-pub type Result<T> = std::result::Result<T, Error>;
+mod build;
+mod error;
+mod read;
+mod text;
 
-pub fn parse_tag(input: &str) -> Result<NbtTag> {
-    let mut parser = Parser { src: input, pos: 0 };
-    let tag = parser.value()?;
-    parser.skip_ws();
-    if parser.pos < input.len() {
-        return parser.err("trailing data");
-    }
-    Ok(tag)
+pub use error::{IntegerType, SnbtError, SnbtErrorKind, Span};
+pub use text::StrText;
+
+use build::{Tags, Validate};
+use read::{Reader, Shape};
+
+/// One tag from `start`, the cursor after it (SNBT-ARG-001). The text after the tag is not read.
+pub fn read_tag(input: &str, start: usize) -> Result<(NbtTag, usize), SnbtError> {
+    let mut reader = Reader::new(input, start, Tags);
+    let (tag, _) = reader.read()?;
+    Ok((tag, reader.position()))
 }
 
-pub fn parse_compound(input: &str) -> Result<NbtCompound> {
-    match parse_tag(input)? {
-        NbtTag::Compound(compound) => Ok(compound),
-        other => Err(Error::Snbt {
-            position: 0,
-            message: format!("expected a compound, got {}", write(&other)),
+/// One compound from `start`, the cursor after it (SNBT-ARG-002).
+pub fn read_compound(input: &str, start: usize) -> Result<(NbtCompound, usize), SnbtError> {
+    let mut reader = Reader::new(input, start, Tags);
+    match reader.read()? {
+        (NbtTag::Compound(compound), _) => Ok((compound, reader.position())),
+        _ => Err(SnbtError {
+            kind: SnbtErrorKind::ExpectedCompound,
+            position: reader.position(),
+        }),
+    }
+}
+
+/// The read of [`read_compound`] without its result: the cursor after the compound. It
+/// allocates nothing.
+pub fn check_compound(input: &str, start: usize) -> Result<usize, SnbtError> {
+    let mut reader = Reader::new(input, start, Validate);
+    match reader.read()? {
+        ((), Shape::Compound) => Ok(reader.position()),
+        _ => Err(SnbtError {
+            kind: SnbtErrorKind::ExpectedCompound,
+            position: reader.position(),
+        }),
+    }
+}
+
+fn full_text(input: &str) -> Result<(NbtTag, usize), SnbtError> {
+    let mut reader = Reader::new(input, 0, Tags);
+    let (tag, _) = reader.read()?;
+    let end = reader.position();
+    reader.skip_whitespace();
+    if !reader.rest().is_empty() {
+        return Err(SnbtError {
+            kind: SnbtErrorKind::Trailing,
+            position: reader.position(),
+        });
+    }
+    Ok((tag, end))
+}
+
+/// A text that holds one tag and nothing else (SNBT-ARG-004).
+pub fn parse_tag(input: &str) -> Result<NbtTag, SnbtError> {
+    full_text(input).map(|(tag, _)| tag)
+}
+
+/// A text that holds one compound and nothing else (SNBT-ARG-004).
+pub fn parse_compound(input: &str) -> Result<NbtCompound, SnbtError> {
+    match full_text(input)? {
+        (NbtTag::Compound(compound), _) => Ok(compound),
+        (_, end) => Err(SnbtError {
+            kind: SnbtErrorKind::ExpectedCompound,
+            position: end,
         }),
     }
 }
@@ -226,511 +274,6 @@ fn java_number(
     out
 }
 
-struct Parser<'a> {
-    src: &'a str,
-    pos: usize,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum IntType {
-    Byte,
-    Short,
-    Int,
-    Long,
-}
-
-#[derive(Clone, Copy)]
-struct IntSuffix {
-    signed: Option<bool>,
-    ty: Option<IntType>,
-}
-
-struct IntLiteral<'a> {
-    negative: bool,
-    radix: u32,
-    digits: &'a str,
-    suffix: IntSuffix,
-}
-
-fn is_java_whitespace(c: char) -> bool {
-    matches!(c, '\u{1c}'..='\u{1f}')
-        || (c.is_whitespace() && !matches!(c, '\u{a0}' | '\u{2007}' | '\u{202f}'))
-}
-
-fn can_start_number(c: char) -> bool {
-    matches!(c, '+' | '-' | '.' | '0'..='9')
-}
-
-fn is_unquoted_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '+')
-}
-
-impl<'a> Parser<'a> {
-    fn err<T>(&self, message: impl Into<String>) -> Result<T> {
-        Err(self.error(message.into()))
-    }
-
-    fn peek(&self) -> Option<char> {
-        self.src[self.pos..].chars().next()
-    }
-
-    fn bump(&mut self) -> Option<char> {
-        let c = self.peek()?;
-        self.pos += c.len_utf8();
-        Some(c)
-    }
-
-    fn skip_ws(&mut self) {
-        while self.peek().is_some_and(is_java_whitespace) {
-            self.bump();
-        }
-    }
-
-    fn eat(&mut self, expected: char) -> bool {
-        self.eat_if(|c| c == expected).is_some()
-    }
-
-    fn eat_if(&mut self, accept: impl Fn(char) -> bool) -> Option<char> {
-        self.skip_ws();
-        let c = self.peek().filter(|&c| accept(c))?;
-        self.bump();
-        Some(c)
-    }
-
-    fn expect(&mut self, expected: char) -> Result<()> {
-        if self.eat(expected) {
-            Ok(())
-        } else {
-            self.err(format!("expected '{expected}'"))
-        }
-    }
-
-    fn value(&mut self) -> Result<NbtTag> {
-        self.skip_ws();
-        match self.peek() {
-            Some(c) if can_start_number(c) => self.number(),
-            Some('"' | '\'') => self.quoted_string().map(NbtTag::String),
-            Some('{') => self.compound(),
-            Some('[') => self.list(),
-            _ => self.unquoted_or_builtin(),
-        }
-    }
-
-    fn compound(&mut self) -> Result<NbtTag> {
-        self.expect('{')?;
-        let mut compound = NbtCompound::new();
-        loop {
-            if self.eat('}') {
-                return Ok(NbtTag::Compound(compound));
-            }
-            self.skip_ws();
-            let key = if matches!(self.peek(), Some('"' | '\'')) {
-                self.quoted_string()?
-            } else {
-                self.unquoted_string()?.to_string()
-            };
-            if key.is_empty() {
-                return self.err("empty key");
-            }
-            self.expect(':')?;
-            let value = self.value()?;
-            match compound.child_tags.iter_mut().find(|(k, _)| *k == key) {
-                Some(entry) => entry.1 = value,
-                None => compound.child_tags.push((key, value)),
-            }
-            if !self.eat(',') {
-                self.expect('}')?;
-                return Ok(NbtTag::Compound(compound));
-            }
-        }
-    }
-
-    fn list(&mut self) -> Result<NbtTag> {
-        self.expect('[')?;
-        let after_bracket = self.pos;
-        if let Some(prefix) = self.eat_if(|c| matches!(c, 'B' | 'I' | 'L')) {
-            if self.eat(';') {
-                return self.array(prefix);
-            }
-            self.pos = after_bracket;
-        }
-        let mut elements = Vec::new();
-        loop {
-            if self.eat(']') {
-                return Ok(NbtTag::List(elements));
-            }
-            elements.push(self.value()?);
-            if !self.eat(',') {
-                self.expect(']')?;
-                return Ok(NbtTag::List(elements));
-            }
-        }
-    }
-
-    fn array(&mut self, prefix: char) -> Result<NbtTag> {
-        let (default, allowed): (IntType, &[IntType]) = match prefix {
-            'B' => (IntType::Byte, &[IntType::Byte]),
-            'I' => (IntType::Int, &[IntType::Int, IntType::Byte, IntType::Short]),
-            _ => (
-                IntType::Long,
-                &[IntType::Long, IntType::Byte, IntType::Short, IntType::Int],
-            ),
-        };
-        let mut values = Vec::new();
-        loop {
-            if self.eat(']') {
-                break;
-            }
-            let literal = self.integer_literal()?;
-            let ty = literal.suffix.ty.unwrap_or(default);
-            if !allowed.contains(&ty) {
-                return self.err("invalid array element type");
-            }
-            values.push(self.integer_value(&literal, ty)?);
-            if !self.eat(',') {
-                self.expect(']')?;
-                break;
-            }
-        }
-        Ok(match prefix {
-            'B' => NbtTag::ByteArray(values.into_iter().map(|v| v as u8).collect()),
-            'I' => NbtTag::IntArray(values.into_iter().map(|v| v as i32).collect()),
-            _ => NbtTag::LongArray(values),
-        })
-    }
-
-    fn number(&mut self) -> Result<NbtTag> {
-        let start = self.pos;
-        if let Some(float) = self.float_literal()? {
-            return Ok(float);
-        }
-        self.pos = start;
-        let literal = self.integer_literal()?;
-        let ty = literal.suffix.ty.unwrap_or(IntType::Int);
-        let value = self.integer_value(&literal, ty)?;
-        Ok(match ty {
-            IntType::Byte => NbtTag::Byte(value as i8),
-            IntType::Short => NbtTag::Short(value as i16),
-            IntType::Int => NbtTag::Int(value as i32),
-            IntType::Long => NbtTag::Long(value),
-        })
-    }
-
-    fn sign(&mut self) -> bool {
-        self.eat_if(|c| c == '+' || c == '-') == Some('-')
-    }
-
-    /// `None` when there is no run or an underscore sits at either end, which
-    /// the grammar rejects rather than trims.
-    fn digit_run(&mut self, accept: impl Fn(char) -> bool) -> Option<&'a str> {
-        self.skip_ws();
-        let start = self.pos;
-        while self.peek().is_some_and(|c| c == '_' || accept(c)) {
-            self.bump();
-        }
-        let run = &self.src[start..self.pos];
-        if run.is_empty() || run.starts_with('_') || run.ends_with('_') {
-            self.pos = start;
-            return None;
-        }
-        Some(run)
-    }
-
-    fn decimal_run(&mut self) -> Option<&'a str> {
-        self.digit_run(|c| c.is_ascii_digit())
-    }
-
-    fn float_literal(&mut self) -> Result<Option<NbtTag>> {
-        let negative = self.sign();
-        let whole = self.decimal_run();
-        let (fraction, exponent) = if self.eat('.') {
-            if whole.is_some() {
-                (self.decimal_run(), self.exponent()?)
-            } else {
-                let Some(run) = self.decimal_run() else {
-                    return self.err("expected a decimal number");
-                };
-                (Some(run), self.exponent()?)
-            }
-        } else if whole.is_some() {
-            let exponent = self.exponent()?;
-            if exponent.is_none() && !self.peek_float_suffix() {
-                return Ok(None);
-            }
-            (None, exponent)
-        } else {
-            return Ok(None);
-        };
-        let suffix = self.eat_if(|c| matches!(c, 'f' | 'F' | 'd' | 'D'));
-        let mut text = String::new();
-        if negative {
-            text.push('-');
-        }
-        text.extend(whole.unwrap_or("0").chars().filter(|&c| c != '_'));
-        text.push('.');
-        text.extend(fraction.unwrap_or("0").chars().filter(|&c| c != '_'));
-        if let Some((exp_negative, exp_digits)) = exponent {
-            text.push('e');
-            if exp_negative {
-                text.push('-');
-            }
-            text.extend(exp_digits.chars().filter(|&c| c != '_'));
-        }
-        // -0.0 parses as +0.0: the reference's float tags fold the sign away.
-        let tag = if matches!(suffix, Some('f' | 'F')) {
-            let value: f32 = text.parse().map_err(|e| self.error(format!("{e}")))?;
-            if !value.is_finite() {
-                return self.err("infinity is not allowed");
-            }
-            NbtTag::Float(value + 0.0)
-        } else {
-            let value: f64 = text.parse().map_err(|e| self.error(format!("{e}")))?;
-            if !value.is_finite() {
-                return self.err("infinity is not allowed");
-            }
-            NbtTag::Double(value + 0.0)
-        };
-        Ok(Some(tag))
-    }
-
-    fn peek_float_suffix(&mut self) -> bool {
-        self.skip_ws();
-        matches!(self.peek(), Some('f' | 'F' | 'd' | 'D'))
-    }
-
-    fn error(&self, message: String) -> Error {
-        Error::Snbt {
-            position: self.pos,
-            message,
-        }
-    }
-
-    fn exponent(&mut self) -> Result<Option<(bool, &'a str)>> {
-        let start = self.pos;
-        if self.eat_if(|c| c == 'e' || c == 'E').is_none() {
-            return Ok(None);
-        }
-        let negative = self.sign();
-        match self.decimal_run() {
-            Some(digits) => Ok(Some((negative, digits))),
-            None => {
-                self.pos = start;
-                Ok(None)
-            }
-        }
-    }
-
-    fn integer_literal(&mut self) -> Result<IntLiteral<'a>> {
-        let negative = self.sign();
-        let (radix, digits) = if self.eat('0') {
-            if self.eat_if(|c| c == 'x' || c == 'X').is_some() {
-                let Some(run) = self.digit_run(|c| c.is_ascii_hexdigit()) else {
-                    return self.err("expected a hexadecimal number");
-                };
-                (16, run)
-            } else {
-                let before_b = self.pos;
-                match self.eat_if(|c| c == 'b' || c == 'B') {
-                    Some(_) => match self.digit_run(|c| c == '0' || c == '1') {
-                        Some(run) => (2, run),
-                        None => {
-                            self.pos = before_b;
-                            (10, "0")
-                        }
-                    },
-                    None => {
-                        if self.decimal_run().is_some() {
-                            return self.err("leading zero is not allowed");
-                        }
-                        (10, "0")
-                    }
-                }
-            }
-        } else {
-            let Some(run) = self.decimal_run() else {
-                return self.err("expected a decimal number");
-            };
-            (10, run)
-        };
-        let suffix = self.integer_suffix();
-        Ok(IntLiteral {
-            negative,
-            radix,
-            digits,
-            suffix,
-        })
-    }
-
-    fn integer_suffix(&mut self) -> IntSuffix {
-        let start = self.pos;
-        let ty = |c: char| match c.to_ascii_lowercase() {
-            'b' => Some(IntType::Byte),
-            's' => Some(IntType::Short),
-            'i' => Some(IntType::Int),
-            'l' => Some(IntType::Long),
-            _ => None,
-        };
-        if let Some(prefix) = self.eat_if(|c| matches!(c, 'u' | 'U' | 's' | 'S')) {
-            if let Some(t) = self.eat_if(|c| ty(c).is_some()) {
-                return IntSuffix {
-                    signed: Some(prefix.eq_ignore_ascii_case(&'s')),
-                    ty: ty(t),
-                };
-            }
-            self.pos = start;
-        }
-        match self.eat_if(|c| ty(c).is_some()) {
-            Some(t) => IntSuffix {
-                signed: None,
-                ty: ty(t),
-            },
-            None => IntSuffix {
-                signed: None,
-                ty: None,
-            },
-        }
-    }
-
-    fn integer_value(&self, literal: &IntLiteral, ty: IntType) -> Result<i64> {
-        let signed = literal.suffix.signed.unwrap_or(literal.radix == 10);
-        if !signed && literal.negative {
-            return self.err("expected a non-negative number");
-        }
-        let mut digits: String = literal.digits.chars().filter(|&c| c != '_').collect();
-        if literal.negative {
-            digits.insert(0, '-');
-        }
-        let out_of_range = || self.error(format!("number out of range: {digits}"));
-        let value = i128::from_str_radix(&digits, literal.radix).map_err(|_| out_of_range())?;
-        let bits = match ty {
-            IntType::Byte => 8,
-            IntType::Short => 16,
-            IntType::Int => 32,
-            IntType::Long => 64,
-        };
-        let (lo, hi) = if signed {
-            (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
-        } else {
-            (0, (1i128 << bits) - 1)
-        };
-        (lo..=hi)
-            .contains(&value)
-            .then(|| ((value as i64) << (64 - bits)) >> (64 - bits))
-            .ok_or_else(out_of_range)
-    }
-
-    fn quoted_string(&mut self) -> Result<String> {
-        self.skip_ws();
-        let Some(quote) = self.bump() else {
-            return self.err("expected a string");
-        };
-        let mut out = String::new();
-        loop {
-            let Some(c) = self.bump() else {
-                return self.err("unterminated string");
-            };
-            if c == quote {
-                return Ok(out);
-            }
-            if c != '\\' {
-                out.push(c);
-                continue;
-            }
-            match self.bump() {
-                Some('b') => out.push('\u{8}'),
-                Some('s') => out.push(' '),
-                Some('t') => out.push('\t'),
-                Some('n') => out.push('\n'),
-                Some('f') => out.push('\u{c}'),
-                Some('r') => out.push('\r'),
-                Some(c @ ('\\' | '\'' | '"')) => out.push(c),
-                Some('x') => out.push(self.hex_escape(2)?),
-                Some('u') => out.push(self.hex_escape(4)?),
-                Some('U') => out.push(self.hex_escape(8)?),
-                Some('N') => return self.err("named character escapes are not supported"),
-                _ => return self.err("invalid escape sequence"),
-            }
-        }
-    }
-
-    fn hex_escape(&mut self, len: usize) -> Result<char> {
-        let start = self.pos;
-        let hex = self.src[start..].get(..len);
-        match hex {
-            Some(hex) if hex.chars().all(|c| c.is_ascii_hexdigit()) => {
-                self.pos += len;
-                u32::from_str_radix(hex, 16)
-                    .ok()
-                    .and_then(char::from_u32)
-                    .ok_or_else(|| self.error(format!("invalid Unicode character value: {hex}")))
-            }
-            _ => self.err(format!("expected a character literal of length {len}")),
-        }
-    }
-
-    fn unquoted_string(&mut self) -> Result<&'a str> {
-        self.skip_ws();
-        let start = self.pos;
-        while self.peek().is_some_and(is_unquoted_char) {
-            self.bump();
-        }
-        if self.pos == start {
-            return self.err("expected a valid unquoted string");
-        }
-        Ok(&self.src[start..self.pos])
-    }
-
-    fn unquoted_or_builtin(&mut self) -> Result<NbtTag> {
-        let contents = self.unquoted_string()?;
-        if contents.starts_with(can_start_number) {
-            return self.err("invalid start of an unquoted string");
-        }
-        if self.eat('(') {
-            let mut arguments = Vec::new();
-            loop {
-                if self.eat(')') {
-                    break;
-                }
-                arguments.push(self.value()?);
-                if !self.eat(',') {
-                    self.expect(')')?;
-                    break;
-                }
-            }
-            return self.builtin(contents, arguments);
-        }
-        Ok(if contents.eq_ignore_ascii_case("true") {
-            NbtTag::Byte(1)
-        } else if contents.eq_ignore_ascii_case("false") {
-            NbtTag::Byte(0)
-        } else {
-            NbtTag::String(contents.to_string())
-        })
-    }
-
-    fn builtin(&self, name: &str, arguments: Vec<NbtTag>) -> Result<NbtTag> {
-        match (name, arguments.as_slice()) {
-            ("bool", [argument]) => bool::deserialize(argument.clone())
-                .map(|truthy| NbtTag::Byte(truthy as i8))
-                .map_err(|_| self.error("expected a number or a boolean".to_string())),
-            ("uuid", [NbtTag::String(text)]) => parse_lenient_uuid(text)
-                .map(|(most, least)| {
-                    NbtTag::IntArray(vec![
-                        (most >> 32) as i32,
-                        most as i32,
-                        (least >> 32) as i32,
-                        least as i32,
-                    ])
-                })
-                .ok_or_else(|| {
-                    self.error("expected a string representing a valid UUID".to_string())
-                }),
-            ("uuid", [_]) => self.err("expected a string representing a valid UUID"),
-            _ => self.err(format!("no such operation: {name}/{}", arguments.len())),
-        }
-    }
-}
-
 /// Five dash-separated hex groups, each group masked to its field width, at
 /// most 36 characters in total. Returns the most and least significant halves.
 pub fn parse_lenient_uuid(text: &str) -> Option<(i64, i64)> {
@@ -748,72 +291,4 @@ pub fn parse_lenient_uuid(text: &str) -> Option<(i64, i64)> {
 }
 
 #[cfg(test)]
-mod test {
-    use std::io::Cursor;
-
-    use super::*;
-    use crate::snbt_golden::GOLDEN;
-    use crate::test::unhex;
-
-    fn hex(tag: &NbtTag) -> String {
-        let mut bytes = Vec::new();
-        crate::to_bytes_unnamed(tag, &mut bytes).unwrap();
-        bytes.iter().map(|b| format!("{b:02x}")).collect()
-    }
-
-    fn read(bytes: &[u8]) -> NbtTag {
-        crate::from_bytes_unnamed(Cursor::new(bytes)).unwrap()
-    }
-
-    /// Vanilla's compound is a hash map, so its bytes carry no key order; the
-    /// tag decoded from them is compared through the key-sorted SNBT form.
-    #[test]
-    fn parses_like_vanilla() {
-        for case in &GOLDEN.parses {
-            let input = &case.input;
-            let tag = parse_tag(input).unwrap_or_else(|e| panic!("{input:?}: {e}"));
-            assert_eq!(write(&tag), case.snbt, "snbt of {input:?}");
-            assert_eq!(
-                write(&read(&unhex(&case.hex))),
-                case.snbt,
-                "bytes of {input:?}"
-            );
-            assert_eq!(
-                write(&parse_tag(&case.snbt).unwrap()),
-                case.snbt,
-                "round trip of {input:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn rejects_like_vanilla() {
-        for input in &GOLDEN.rejects {
-            assert!(parse_tag(input).is_err(), "{input:?} should not parse");
-        }
-    }
-
-    #[test]
-    fn formats_numbers_like_java() {
-        for case in &GOLDEN.doubles {
-            assert_eq!(java_double(f64::from_bits(case.bits)), case.text);
-        }
-        for case in &GOLDEN.floats {
-            assert_eq!(java_float(f32::from_bits(case.bits)), case.text);
-        }
-    }
-
-    #[test]
-    fn writes_like_vanilla_and_round_trips_its_bytes() {
-        let tag = read(&unhex(&GOLDEN.pretty_hex));
-        assert_eq!(write(&tag), GOLDEN.pretty);
-        assert_eq!(hex(&tag), GOLDEN.pretty_hex);
-    }
-
-    #[test]
-    fn a_compound_is_required_by_parse_compound() {
-        assert!(parse_compound("{a:1}").is_ok());
-        assert!(parse_compound("[1]").is_err());
-        assert!(parse_compound("\"{}\"").is_err());
-    }
-}
+mod tests;

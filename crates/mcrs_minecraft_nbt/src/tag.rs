@@ -25,6 +25,24 @@ pub enum NbtTag {
 }
 
 impl NbtTag {
+    /// Whether `actual` holds this tag: a compound needs its keys, and a list needs a match for
+    /// each of its elements; other tags are equal.
+    pub fn matches(&self, actual: &NbtTag) -> bool {
+        match (self, actual) {
+            (NbtTag::Compound(expected), NbtTag::Compound(actual)) => expected.matches(actual),
+            (NbtTag::List(expected), NbtTag::List(actual)) if expected.is_empty() => {
+                actual.is_empty()
+            }
+            (NbtTag::List(expected), NbtTag::List(actual)) => {
+                actual.len() >= expected.len()
+                    && expected
+                        .iter()
+                        .all(|element| actual.iter().any(|candidate| element.matches(candidate)))
+            }
+            (expected, actual) => expected == actual,
+        }
+    }
+
     /// Returns the numeric id associated with the data type.
     pub const fn get_type_id(&self) -> u8 {
         // Safety: Since Self is repr(u8), it is guaranteed to hold the discriminant in the first byte

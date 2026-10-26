@@ -76,7 +76,7 @@ fn predicate_errors_read_like_vanilla() {
         ("[]", "List must have contents"),
         (
             "[{\"nbt\":\"not a compound\"}]",
-            "SNBT syntax error at 4: trailing data",
+            "argument.nbt.trailing at 4",
         ),
         (
             "{\"components\":{\"minecraft:creative_slot_lock\":{}}}",

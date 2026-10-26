@@ -1196,20 +1196,11 @@ trailing data".
 
 ## 11. Differences of the current implementation
 
-`crates/mcrs_minecraft_nbt/src/snbt.rs` seems to differ from this document in these points:
+`crates/mcrs_minecraft_nbt/src/snbt.rs` differs from this document in these points:
 
-- **Errors.** It gives a message text and its own position, not a translation key with the
-  positions of SNBT-ERR-003. It reports the first error that it meets, not the error of
-  SNBT-ERR-002. Examples: the empty key before `:`, an array element at the element and not
-  after `]`, and a word that starts with a digit before `(`.
-- **A float check.** When a float is infinite, it fails at once. The reference then reads the
-  integer form (SNBT-GR-006, SNBT-ARG-001).
-- **Whitespace after `\`.** It rejects `"\ n"` (SNBT-TOK-002).
-- **`\N{name}`.** It rejects every name (SNBT-GR-005, SNBT-VAL-007).
-- **Surrogate pairs.** It rejects `😀`, which must give U+1F600 (SNBT-VAL-006).
-- **`uuid`.** It accepts the lenient forms of the reference (SNBT-DEV-002).
-- **Depth.** It has no depth limit, and its recursion has no bound (SNBT-LIM-001).
-- **The compound read.** `parse_compound` requires the full text and reports a type mismatch at
-  position 0. SNBT-ARG-002 stops after the tag and reports `argument.nbt.expected.compound`
-  after it. No read stops after the tag for a command argument (SNBT-ARG-001).
 - **The text form.** It has no text form (SNBT-PRINT-004 to SNBT-PRINT-006).
+- **Suggestions.** It makes no suggestions (SNBT-SUG-001). The read keeps only the reported
+  error, not all records at the furthest position.
+- **Operation arguments.** The depth of an argument of `bool` or `uuid` is the depth of the
+  operation plus 1. An argument list that opens the level 513 fails with
+  `arguments.nbtpath.too_deep` at its `(`. SNBT-LIM-001 states only compounds and lists.

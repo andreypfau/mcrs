@@ -85,8 +85,6 @@ pub enum Error {
     NoRootCompound(u8),
     #[error("The root tag is TAG_End")]
     EndRoot,
-    #[error("SNBT syntax error at {position}: {message}")]
-    Snbt { position: usize, message: String },
     #[error("Encountered an unknown NBT tag id: {0}.")]
     UnknownTagId(u8),
     #[error("Failed to Cesu 8 Decode")]

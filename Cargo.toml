@@ -57,6 +57,7 @@ crc32c = "0.6.8"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
 thiserror = "2.0.17"
+unicode_names2 = { version = "3.1.0", default-features = false }
 tracing = "0.1.41"
 uuid = "1.18.1"
 rand = "0.10.0-rc.5"
