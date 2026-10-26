@@ -7,11 +7,12 @@ use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument, Heightmap
 use crate::argument::resource::{
     DimensionArgument, ResourceLocationArgument, ResourceOrTagArgument,
 };
+use crate::argument::time::{ResourceArgument, TimeArgument, TimeMarkerArgument, TimelineArgument};
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::source::{Lookup, Source};
 use mcrs_command::{
-    Argument, ArgumentSet, BoolArgument, Contains, DoubleArgument, FloatArgument, IntegerArgument,
-    LongArgument, Reader, StringArgument, SuggestionBuilder,
+    Argument, ArgumentSet, BoolArgument, Contains, ContextView, DoubleArgument, FloatArgument,
+    IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder,
 };
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
@@ -84,10 +85,15 @@ vanilla_arguments! {
     Swizzle(SwizzleArgument),
     Heightmap(HeightmapArgument),
     BlockPredicate(BlockPredicateArgument),
+    Time(TimeArgument),
+    Resource(ResourceArgument),
+    TimeMarker(TimeMarkerArgument),
+    Timeline(TimelineArgument),
     ;
     fn suggest<'t>(
         &'t self,
         source: &'t Source<'_, L>,
+        context: &ContextView<'_>,
         builder: &mut SuggestionBuilder<'t, '_, &'static str>,
     ) {
         match self {
@@ -101,6 +107,10 @@ vanilla_arguments! {
             VanillaArgument::BlockPos(_) => BlockPosArgument::suggest(builder),
             VanillaArgument::Heightmap(_) => HeightmapArgument::suggest(builder),
             VanillaArgument::BlockPredicate(_) => BlockPredicateArgument::suggest(source, builder),
+            VanillaArgument::Time(_) => TimeArgument::suggest(builder),
+            VanillaArgument::Resource(a) => a.suggest(source, builder),
+            VanillaArgument::TimeMarker(a) => a.suggest(source, context, builder),
+            VanillaArgument::Timeline(a) => a.suggest(source, context, builder),
             VanillaArgument::Swizzle(_)
             | VanillaArgument::Integer(_)
             | VanillaArgument::Long(_)
@@ -112,6 +122,9 @@ vanilla_arguments! {
         }
     }
 }
+
+/// The suggestion type of the `commands` packet (CMDP-ARG-002).
+const ASK_SERVER: StaticResourceLocation = mcrs_minecraft_core::rl!("minecraft:ask_server");
 
 fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
     NumberRange { min, max }
@@ -126,6 +139,15 @@ fn parser_id(key: StaticResourceLocation) -> VarInt {
 }
 
 impl VanillaArgument {
+    /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
+    pub(crate) fn suggestion_type(&self) -> Option<StaticResourceLocation> {
+        matches!(
+            self,
+            VanillaArgument::TimeMarker(_) | VanillaArgument::Timeline(_)
+        )
+        .then_some(ASK_SERVER)
+    }
+
     /// The parser id and the properties of the `commands` packet (CMDP-ARG-001).
     pub(crate) fn wire(&self) -> ArgumentParser<'static> {
         let registry =
@@ -183,6 +205,10 @@ impl VanillaArgument {
             VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
             VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
             VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
+            VanillaArgument::Time(a) => (parser::TIME, ParserProperties::Time(a.min)),
+            VanillaArgument::Resource(a) => (parser::RESOURCE, registry(a.registry)),
+            VanillaArgument::TimeMarker(_) => (parser::RESOURCE_LOCATION, ParserProperties::None),
+            VanillaArgument::Timeline(a) => (parser::RESOURCE, registry(a.resource.registry)),
         };
         ArgumentParser {
             id: parser_id(key),

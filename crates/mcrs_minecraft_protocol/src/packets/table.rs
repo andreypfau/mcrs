@@ -233,7 +233,7 @@ macro_rules! for_each_packet_table {
                 "set_score",
                 "set_simulation_distance",
                 "set_subtitle_text",
-                "set_time",
+                "set_time" => ClientboundSetTime,
                 "set_title_text",
                 "set_titles_animation",
                 "sound_entity",

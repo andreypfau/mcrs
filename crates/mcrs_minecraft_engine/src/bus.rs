@@ -18,8 +18,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundCommands, ClientboundEntityEvent, ClientboundEntityPositionSync,
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin,
     ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
-    ClientboundRemoveEntities, ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
-    LookAnchor,
+    ClientboundRemoveEntities, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundSystemChatPacket, LookAnchor,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -174,6 +174,15 @@ pub enum PacketPayload {
     GameEvent(ClientboundGameEvent),
     Commands(ClientboundCommands<'static>),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
+    SetTime(ClientboundSetTime),
+}
+
+/// A dimension asks the host, which owns the world clocks, to change one. The host triggers it
+/// between ticks, before any dimension reads the clocks again.
+#[derive(Event, Clone, Copy, Debug, PartialEq)]
+pub struct EditClock {
+    pub clock: mcrs_minecraft_core::Id<mcrs_minecraft_environment::world_clock::WorldClock>,
+    pub edit: mcrs_minecraft_environment::world_clock::ClockEdit,
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

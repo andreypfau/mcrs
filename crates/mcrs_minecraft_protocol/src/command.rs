@@ -59,8 +59,13 @@ pub enum ParserProperties<'a> {
     Integer(NumberRange<i32>),
     Long(NumberRange<i64>),
     String(StringMode),
-    Entity { single: bool, players_only: bool },
+    Entity {
+        single: bool,
+        players_only: bool,
+    },
     Registry(ResourceLocation<Cow<'a, str>>),
+    /// `minecraft:time`: the minimum, in ticks, always present.
+    Time(i32),
 }
 
 impl<T: Encode> Encode for NumberRange<T> {
@@ -100,6 +105,7 @@ impl Encode for ParserProperties<'_> {
                 players_only,
             } => (u8::from(*single) | (u8::from(*players_only) << 1)).encode(&mut w),
             ParserProperties::Registry(registry) => registry.encode(w),
+            ParserProperties::Time(min) => min.encode(w),
         }
     }
 }
@@ -126,7 +132,10 @@ fn decode_properties<'a>(id: VarInt, r: &mut &'a [u8]) -> Result<ParserPropertie
             single: flags & 0x01 != 0,
             players_only: flags & 0x02 != 0,
         }
-    } else if is(parser::RESOURCE_OR_TAG) || is(parser::RESOURCE_OR_TAG_KEY) {
+    } else if is(parser::TIME) {
+        ParserProperties::Time(Decode::decode(r)?)
+    } else if is(parser::RESOURCE_OR_TAG) || is(parser::RESOURCE_OR_TAG_KEY) || is(parser::RESOURCE)
+    {
         ParserProperties::Registry(Decode::decode(r)?)
     } else if [
         parser::BRIGADIER_BOOL,

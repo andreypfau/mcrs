@@ -77,6 +77,31 @@ impl ClockState {
     pub fn is_paused(&self) -> bool {
         self.paused || self.rate == 0.0
     }
+
+    pub fn apply(&mut self, edit: ClockEdit) {
+        match edit {
+            ClockEdit::SetTotalTicks(ticks) => {
+                self.total_ticks = ticks;
+                self.partial_tick = 0.0;
+            }
+            ClockEdit::AddTicks(ticks) => {
+                self.total_ticks = self.total_ticks.saturating_add(i64::from(ticks)).max(0);
+            }
+            ClockEdit::SetPaused(paused) => self.paused = paused,
+            ClockEdit::SetRate(rate) => self.rate = rate,
+        }
+    }
+}
+
+/// A change to one clock state that an action requests of its owner.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ClockEdit {
+    /// Sets the total ticks, and the partial tick to 0.
+    SetTotalTicks(i64),
+    /// Adds to the total ticks, never below 0; the partial tick stays.
+    AddTicks(i32),
+    SetPaused(bool),
+    SetRate(f32),
 }
 
 /// Every clock of the `world_clock` registry, keyed by id and walked in id order.
@@ -142,6 +167,29 @@ pub struct ClockTimeMarker {
     pub ticks: u32,
     pub period_ticks: Option<u32>,
     pub show_in_commands: bool,
+}
+
+impl ClockTimeMarker {
+    /// The marker occurs at the total ticks `t`.
+    pub fn occurs_at(&self, t: i64) -> bool {
+        let ticks = i64::from(self.ticks);
+        match self.period_ticks {
+            Some(period) => t.checked_rem(i64::from(period)) == Some(ticks),
+            None => t == ticks,
+        }
+    }
+
+    /// The total ticks at which the marker occurs next for a clock at `t`. Without a period
+    /// that is its tick, which can lie before `t`.
+    pub fn next_after(&self, t: i64) -> i64 {
+        let ticks = i64::from(self.ticks);
+        let Some(period) = self.period_ticks.map(i64::from) else {
+            return ticks;
+        };
+        let d = ticks - t.checked_rem(period).unwrap_or(0);
+        let step = if d > 0 { d } else { period + d };
+        t.saturating_add(step)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -554,6 +602,62 @@ mod tests {
         };
         assert!(received.is_paused());
         assert!(!running.is_paused());
+    }
+
+    #[test]
+    fn a_marker_occurs_and_comes_next_as_its_period_says() {
+        let marker = |ticks, period_ticks| ClockTimeMarker {
+            ticks,
+            period_ticks,
+            show_in_commands: true,
+        };
+        let cases = [
+            (marker(100, None), 500, false, 100),
+            (marker(100, None), 100, true, 100),
+            (marker(1_000, Some(24_000)), 50_000, false, 73_000),
+            (marker(1_000, Some(24_000)), 49_000, true, 73_000),
+            (marker(13_000, Some(24_000)), 50_000, false, 61_000),
+            (marker(0, Some(24_000)), 500, false, 24_000),
+            (marker(0, Some(24_000)), 0, true, 24_000),
+        ];
+        for (marker, t, occurs, next) in cases {
+            assert_eq!(
+                (marker.occurs_at(t), marker.next_after(t)),
+                (occurs, next),
+                "{marker:?} at {t}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_edit_keeps_what_it_does_not_name() {
+        let start = ClockState {
+            total_ticks: 100,
+            partial_tick: 0.5,
+            rate: 2.0,
+            paused: false,
+        };
+        let cases = [
+            (ClockEdit::SetTotalTicks(7), (7, 0.0, 2.0, false)),
+            (ClockEdit::AddTicks(-24_000), (0, 0.5, 2.0, false)),
+            (ClockEdit::AddTicks(5), (105, 0.5, 2.0, false)),
+            (ClockEdit::SetPaused(true), (100, 0.5, 2.0, true)),
+            (ClockEdit::SetRate(0.25), (100, 0.5, 0.25, false)),
+        ];
+        for (edit, expected) in cases {
+            let mut state = start;
+            state.apply(edit);
+            assert_eq!(
+                (
+                    state.total_ticks,
+                    state.partial_tick,
+                    state.rate,
+                    state.paused
+                ),
+                expected,
+                "{edit:?}"
+            );
+        }
     }
 
     // ── Time markers ─────────────────────────────────────────────────────────

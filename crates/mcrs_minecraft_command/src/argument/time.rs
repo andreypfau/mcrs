@@ -1,0 +1,195 @@
+use crate::error::{ArgumentError, CommandSyntaxError};
+use crate::identifier::{Identifier, identifier_matches, read_identifier, text_matches};
+use crate::source::{Lookup, Source};
+use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
+use mcrs_minecraft_core::StaticResourceLocation;
+
+const TICKS_PER_DAY: f32 = 24_000.0;
+const TICKS_PER_SECOND: f32 = 20.0;
+
+/// `minecraft:time` (CMD-TIME-003): a tick count with an optional unit `d`, `s` or `t`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimeArgument {
+    pub min: i32,
+}
+
+impl TimeArgument {
+    pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
+        let mut reader = Reader::at(builder.input(), builder.start());
+        if reader.read_float::<()>().is_err() {
+            return;
+        }
+        builder
+            .at(reader.cursor())
+            .suggest_matching(["d", "s", "t"], text_matches);
+    }
+}
+
+/// The product rounded half up, then held in the 32-bit range.
+fn round_ticks(product: f32) -> i32 {
+    let floor = product.floor();
+    let rounded = if product - floor >= 0.5 {
+        floor + 1.0
+    } else {
+        floor
+    };
+    rounded as i32
+}
+
+impl<S> Argument<S> for TimeArgument {
+    type Value<'a> = i32;
+    type Error = ArgumentError;
+
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<i32, CommandSyntaxError> {
+        let value: f32 = reader.read_float()?;
+        let unit = reader.read_unquoted();
+        let per_unit = match unit.text(reader.input()) {
+            "d" => TICKS_PER_DAY,
+            "s" => TICKS_PER_SECOND,
+            "t" | "" => 1.0,
+            _ => {
+                return Err(SyntaxError::argument(
+                    ArgumentError::TimeInvalidUnit,
+                    reader.cursor(),
+                ));
+            }
+        };
+        let ticks = round_ticks(value * per_unit);
+        if ticks < self.min {
+            return Err(SyntaxError::argument(
+                ArgumentError::TickCountTooLow {
+                    min: self.min,
+                    ticks,
+                },
+                reader.cursor(),
+            ));
+        }
+        Ok(ticks)
+    }
+}
+
+/// `minecraft:resource` (CMD-TIME-004): an entry of the registry, which must exist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResourceArgument {
+    pub registry: StaticResourceLocation,
+}
+
+impl ResourceArgument {
+    pub fn suggest<'t, L: Lookup, T>(
+        &self,
+        source: &'t Source<'_, L>,
+        builder: &mut SuggestionBuilder<'t, '_, T>,
+    ) {
+        builder.suggest_matching(source.lookup.entries(self.registry), identifier_matches);
+    }
+}
+
+impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
+    type Value<'a> = Identifier<'a>;
+    type Error = ArgumentError;
+
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        source: &Source<'_, L>,
+    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+        let (identifier, id) = read_identifier(reader)?;
+        if source.lookup.has_entry(self.registry, identifier) {
+            Ok(identifier)
+        } else {
+            Err(SyntaxError::argument(
+                ArgumentError::ResourceNotFound {
+                    id,
+                    registry: self.registry,
+                },
+                reader.cursor(),
+            ))
+        }
+    }
+}
+
+/// The clock that a parsed context selects: the value of the node `clock`, or the default
+/// clock of the source dimension when the branch has no such node. `None` when the context
+/// lacks the node.
+fn selected_clock<'i>(
+    input: &'i str,
+    context: &ContextView<'_>,
+    clock: Option<NodeId>,
+) -> Option<Option<Identifier<'i>>> {
+    let Some(clock) = clock else {
+        return Some(None);
+    };
+    let (_, span) = context.nodes().find(|&(node, _)| node == clock)?;
+    Identifier::parse(span.text(input)).map(Some)
+}
+
+/// A time marker of the selected clock: read as `minecraft:resource_location`, suggested by
+/// the server (CMD-TIME-011).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimeMarkerArgument {
+    /// The node of `<clock>` the branch reads, or `None` for the default clock.
+    pub clock: Option<NodeId>,
+}
+
+impl TimeMarkerArgument {
+    pub fn suggest<'t, L: Lookup, T>(
+        &self,
+        source: &'t Source<'_, L>,
+        context: &ContextView<'_>,
+        builder: &mut SuggestionBuilder<'t, '_, T>,
+    ) {
+        if let Some(clock) = selected_clock(builder.input(), context, self.clock) {
+            let markers = source.lookup.suggested_time_markers(clock);
+            builder.suggest_matching(markers, identifier_matches);
+        }
+    }
+}
+
+impl<S> Argument<S> for TimeMarkerArgument {
+    type Value<'a> = Identifier<'a>;
+    type Error = ArgumentError;
+
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        _: &S,
+    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+        read_identifier(reader).map(|(identifier, _)| identifier)
+    }
+}
+
+/// A timeline: read as `minecraft:resource` of the timeline registry, and suggested by the
+/// server from the timelines of the selected clock (CMD-TIME-016).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimelineArgument {
+    pub resource: ResourceArgument,
+    /// The node of `<clock>` the branch reads, or `None` for the default clock.
+    pub clock: Option<NodeId>,
+}
+
+impl TimelineArgument {
+    pub fn suggest<'t, L: Lookup, T>(
+        &self,
+        source: &'t Source<'_, L>,
+        context: &ContextView<'_>,
+        builder: &mut SuggestionBuilder<'t, '_, T>,
+    ) {
+        if let Some(clock) = selected_clock(builder.input(), context, self.clock) {
+            let timelines = source.lookup.timelines_of_clock(clock);
+            builder.suggest_matching(timelines, identifier_matches);
+        }
+    }
+}
+
+impl<L: Lookup> Argument<Source<'_, L>> for TimelineArgument {
+    type Value<'a> = Identifier<'a>;
+    type Error = ArgumentError;
+
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        source: &Source<'_, L>,
+    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+        self.resource.parse(reader, source)
+    }
+}

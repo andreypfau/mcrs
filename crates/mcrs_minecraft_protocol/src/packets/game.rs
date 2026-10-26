@@ -619,6 +619,21 @@ pub mod clientbound {
         pub suggestions: Vec<crate::command::CommandSuggestion<'a>>,
     }
 
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ClientboundSetTime {
+        pub game_time: i64,
+        pub clocks: Vec<ClockUpdate>,
+    }
+
+    /// One clock of `set_time`; `rate` is 0 for a clock that does not advance.
+    #[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
+    pub struct ClockUpdate {
+        pub clock: VarInt,
+        pub total_ticks: crate::VarLong,
+        pub partial_tick: f32,
+        pub rate: f32,
+    }
+
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundSystemChatPacket {
         pub content: Text,

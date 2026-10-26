@@ -6,6 +6,7 @@ pub mod argument {
     pub mod entity;
     pub mod keyword;
     pub mod resource;
+    pub mod time;
 }
 pub mod error;
 pub mod identifier;
@@ -25,6 +26,7 @@ pub use argument::keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArg
 pub use argument::resource::{
     DimensionArgument, ResourceLocationArgument, ResourceOrTag, ResourceOrTagArgument,
 };
+pub use argument::time::{ResourceArgument, TimeArgument, TimeMarkerArgument, TimelineArgument};
 pub use error::{
     ArgumentError, BlockSubject, CommandSyntaxError, argument_text, error_feedback, error_message,
 };

@@ -199,6 +199,8 @@ pub fn join(
 pub struct PlayServer {
     pub app: App,
     pub dim: Entity,
+    /// The dimension of each player that joined.
+    homes: Vec<(Entity, Entity)>,
 }
 
 impl PlayServer {
@@ -230,7 +232,11 @@ impl PlayServer {
         drive_to_playing(&mut app);
         materialise_sub_apps(&mut app, dimensions);
         let dim = label_of(&app, dimensions[0].0);
-        Self { app, dim }
+        Self {
+            app,
+            dim,
+            homes: Vec::new(),
+        }
     }
 
     pub fn world(&mut self) -> &mut World {
@@ -241,12 +247,14 @@ impl PlayServer {
         self.app.sub_app_mut(DimAppLabel(dim)).world_mut()
     }
 
-    /// Runs `n` updates and returns the packets sent to `anchor`.
+    /// Runs `n` updates and returns the packets sent to `anchor` or to every player.
     pub fn ticks(&mut self, anchor: Entity, n: usize) -> Vec<PacketPayload> {
         self.ticks_all(n)
             .into_iter()
-            .filter(|packet| {
-                matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor)
+            .filter(|packet| match packet.target {
+                PacketTarget::SinglePlayer(target) => target == anchor,
+                PacketTarget::AllPlayers => true,
+                _ => false,
             })
             .map(|packet| packet.data)
             .collect()
@@ -266,10 +274,6 @@ impl PlayServer {
             );
         }
         packets
-    }
-
-    pub fn submit(&self, message: ToDim) {
-        self.submit_to(self.dim, message);
     }
 
     pub fn submit_to(&self, dim: Entity, message: ToDim) {
@@ -324,6 +328,7 @@ impl PlayServer {
                 dimensions: Vec::new().into(),
             }),
         );
+        self.homes.push((anchor, dim));
         let packets = self.ticks(anchor, 3);
         (anchor, packets)
     }
@@ -331,15 +336,23 @@ impl PlayServer {
     pub fn queue<P: Packet + Encode>(&self, anchor: Entity, packet: &P) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
-        self.submit(ToDim::Serverbound(InboundPlayerPacket {
-            player: anchor,
-            id: P::ID,
-            trigger: PacketDispatcher::serverbound()
-                .dispatch(ConnectionState::Game, P::ID, &data)
-                .unwrap(),
-            data: Bytes::from(data),
-            timestamp: std::time::Instant::now(),
-        }));
+        let dim = self
+            .homes
+            .iter()
+            .find(|(player, _)| *player == anchor)
+            .map_or(self.dim, |&(_, dim)| dim);
+        self.submit_to(
+            dim,
+            ToDim::Serverbound(InboundPlayerPacket {
+                player: anchor,
+                id: P::ID,
+                trigger: PacketDispatcher::serverbound()
+                    .dispatch(ConnectionState::Game, P::ID, &data)
+                    .unwrap(),
+                data: Bytes::from(data),
+                timestamp: std::time::Instant::now(),
+            }),
+        );
     }
 
     /// Queues `packet` from `anchor` and returns the packets of the next two ticks.

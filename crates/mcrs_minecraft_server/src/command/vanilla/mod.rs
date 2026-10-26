@@ -2,6 +2,7 @@ mod execute;
 mod gamemode;
 mod locate;
 mod teleport;
+mod time;
 
 use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation};
 use crate::world::entity::player::ability::PlayerGameMode;
@@ -17,7 +18,8 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
-/// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, and `locate`.
+/// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
+/// `time`.
 pub struct VanillaCommandsPlugin;
 
 impl Plugin for VanillaCommandsPlugin {
@@ -40,6 +42,7 @@ impl Plugin for VanillaCommandsPlugin {
                 "locate",
                 app.add_command(locate::build, locate::run).map(drop),
             ),
+            ("time", app.add_command(time::build, time::run).map(drop)),
         ];
         for (name, result) in added {
             if let Err(error) = result {

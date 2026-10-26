@@ -77,7 +77,12 @@ impl ArgumentSet<u8> for Lib {
         }
     }
 
-    fn suggest<'t>(&'t self, _: &'t u8, builder: &mut SuggestionBuilder<'t, '_, ()>) {
+    fn suggest<'t>(
+        &'t self,
+        _: &'t u8,
+        _: &mcrs_command::ContextView<'_>,
+        builder: &mut SuggestionBuilder<'t, '_, ()>,
+    ) {
         if let Lib::Bool(_) = self {
             BoolArgument::suggest(builder);
         }

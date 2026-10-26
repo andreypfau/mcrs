@@ -38,6 +38,19 @@ pub trait Lookup {
 
     /// The properties of a block in their order, or `None` when no block has that identifier.
     fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]>;
+
+    /// The time markers of a clock that a command suggests; `None` is the default clock of the
+    /// source dimension.
+    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        let _ = clock;
+        core::iter::empty()
+    }
+
+    /// The timelines that run on a clock; `None` is the default clock of the source dimension.
+    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        let _ = clock;
+        core::iter::empty()
+    }
 }
 
 /// A lookup that knows nothing: a source with no world.

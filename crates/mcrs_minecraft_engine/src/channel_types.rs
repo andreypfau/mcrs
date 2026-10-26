@@ -3,9 +3,9 @@ use mcrs_minecraft_level::session::{MoveId, PlayerSession};
 use mcrs_minecraft_level::world::channels::DimChannels;
 
 use crate::bus::{
-    ArrivalCause, CommandHandoff, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
-    InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload, OperatorBroadcast,
-    OutboundPlayerPacket,
+    ArrivalCause, CommandHandoff, EditClock, InboundConfirmMove, InboundEntitySpawn,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove,
+    MovePayload, OperatorBroadcast, OutboundPlayerPacket,
 };
 use mcrs_minecraft_dimension::Dimension;
 
@@ -65,6 +65,8 @@ pub enum FromDim {
     OperatorBroadcast(OperatorBroadcast),
     /// The rest of a command line whose sources leave for `CommandHandoff::target`.
     Command(CommandHandoff),
+    /// A change to a world clock, which the host applies and sends to every player.
+    EditClock(EditClock),
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this

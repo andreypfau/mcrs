@@ -360,6 +360,30 @@ impl<I: TextTypes> From<Text<I>> for TranslateArg<I> {
     }
 }
 
+impl<I: TextTypes> From<i32> for TranslateArg<I> {
+    fn from(value: i32) -> Self {
+        TranslateArg::Number(NbtTag::Int(value))
+    }
+}
+
+impl<I: TextTypes> From<i64> for TranslateArg<I> {
+    fn from(value: i64) -> Self {
+        TranslateArg::Number(NbtTag::Long(value))
+    }
+}
+
+impl<I: TextTypes> From<f32> for TranslateArg<I> {
+    fn from(value: f32) -> Self {
+        TranslateArg::Number(NbtTag::Float(value))
+    }
+}
+
+impl<I: TextTypes> From<String> for TranslateArg<I> {
+    fn from(value: String) -> Self {
+        TranslateArg::Text(Text::text(value))
+    }
+}
+
 impl<I: TextSerde> Serialize for TranslateArg<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
@@ -1209,6 +1233,21 @@ impl<I: TextTypes> Text<I> {
                 translate: key.into(),
                 fallback: None,
                 with: with.into().into_iter().map(TranslateArg::Text).collect(),
+            },
+            ..Default::default()
+        }))
+    }
+
+    /// Translated text whose arguments may be primitives as well as components.
+    pub fn translate_args(
+        key: impl Into<Cow<'static, str>>,
+        with: impl Into<Vec<TranslateArg<I>>>,
+    ) -> Self {
+        Self(Box::new(TextInner {
+            content: TextContent::Translate {
+                translate: key.into(),
+                fallback: None,
+                with: with.into(),
             },
             ..Default::default()
         }))

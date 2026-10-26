@@ -1,13 +1,65 @@
 use crate::command::CommandContext;
 use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_command::{Identifier, Lookup, ResourceOrTag};
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_core::{Id, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::Registries;
 use std::borrow::Cow;
 
 impl CommandContext<'_, '_> {
-    fn registries(&self) -> Option<&Registries> {
+    pub(crate) fn registries(&self) -> Option<&Registries> {
         self.registries.as_deref().map(|registries| &**registries)
+    }
+
+    /// The name of the dimension type of this world, and its default clock.
+    pub(crate) fn dimension_clock(
+        &self,
+    ) -> Option<(Option<&ResourceLocation>, Option<Id<WorldClock>>)> {
+        let type_id = self.dimension_type.iter().next()?.0;
+        let types = self.registries()?.registry::<DimensionTypeFile>()?;
+        let id = Id::checked(type_id.number(), types.len())?;
+        Some((types.name(id), types.get(id)?.default_clock))
+    }
+
+    /// The clock that a time command selects: the named one, or the default clock of this
+    /// world's dimension type.
+    pub(crate) fn clock_id(&self, clock: Option<Identifier<'_>>) -> Option<Id<WorldClock>> {
+        match clock {
+            None => self.dimension_clock()?.1,
+            Some(name) => self
+                .registries()?
+                .registry::<WorldClock>()?
+                .iter()
+                .find(|(_, entry, _)| name.eq_str(entry.as_str()))
+                .map(|(id, _, _)| id),
+        }
+    }
+
+    pub(crate) fn clock_name(&self, clock: Id<WorldClock>) -> Option<&ResourceLocation> {
+        self.registries()?.registry::<WorldClock>()?.name(clock)
+    }
+
+    /// The timelines that run on the clock, with their names.
+    pub(crate) fn timelines(
+        &self,
+        clock: Option<Id<WorldClock>>,
+    ) -> impl Iterator<Item = (&ResourceLocation, &Timeline)> {
+        self.registries()
+            .and_then(|registries| registries.registry::<Timeline>())
+            .into_iter()
+            .flat_map(|timelines| timelines.iter())
+            .filter(move |(_, _, timeline)| Some(timeline.clock) == clock)
+            .map(|(_, name, timeline)| (name, timeline))
+    }
+
+    pub(crate) fn timeline(&self, name: Identifier<'_>) -> Option<(&ResourceLocation, &Timeline)> {
+        self.registries()?
+            .registry::<Timeline>()?
+            .iter()
+            .find(|(_, entry, _)| name.eq_str(entry.as_str()))
+            .map(|(_, name, timeline)| (name, timeline))
     }
 
     fn names(&self, registry: StaticResourceLocation) -> &[ResourceLocation] {
@@ -106,5 +158,17 @@ impl Lookup for CommandContext<'_, '_> {
             .iter()
             .find(|entry| block.eq_str(entry.identifier.as_str()))
             .map(|entry| entry.properties.0.as_slice())
+    }
+
+    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.timelines(self.clock_id(clock))
+            .flat_map(|(_, timeline)| &timeline.time_markers)
+            .filter(|(_, marker)| marker.show_in_commands)
+            .map(|(name, _)| name.as_str())
+    }
+
+    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.timelines(self.clock_id(clock))
+            .map(|(name, _)| name.as_str())
     }
 }

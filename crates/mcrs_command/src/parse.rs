@@ -158,13 +158,19 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             ))
     }
 
-    /// The node whose children suggest at the end of the input, and the start of those
-    /// suggestions.
-    pub(crate) fn suggestion_parent(&self) -> (NodeId, usize) {
+    /// The node whose children suggest at the end of the input, the start of those
+    /// suggestions, and the nodes of its context before that start.
+    pub(crate) fn suggestion_parent(&self) -> (NodeId, usize, ContextView<'s>) {
         let cursor = self.input.len();
         let mut parent = (NodeId::ROOT, cursor);
+        let mut parsed = ContextView {
+            root: NodeId::ROOT,
+            start: 0,
+            nodes: &[],
+        };
         let mut contexts = self.contexts().peekable();
         while let Some(context) = contexts.next() {
+            parsed = context;
             let span = context.span();
             if span.end < cursor {
                 if contexts.peek().is_some() {
@@ -190,7 +196,14 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             }
             break;
         }
-        (parent.0, parent.1.min(cursor))
+        let start = parent.1.min(cursor);
+        let before = parsed
+            .nodes
+            .iter()
+            .position(|entry| matches!(*entry, Entry::Node { span, .. } if span.end >= start))
+            .unwrap_or(parsed.nodes.len());
+        parsed.nodes = parsed.nodes.get(..before).unwrap_or_default();
+        (parent.0, start, parsed)
     }
 }
 
@@ -345,7 +358,7 @@ impl<A, R, H> Graph<A, R, H> {
         A: ArgumentSet<S>,
         R: Requirement<S>,
     {
-        let (parent, start) = parse.suggestion_parent();
+        let (parent, start, context) = parse.suggestion_parent();
         let Some(parent) = self.node(parent) else {
             return;
         };
@@ -363,7 +376,9 @@ impl<A, R, H> Graph<A, R, H> {
                     .suggest_matching([&**name], |remaining, name| {
                         starts_with_ignore_case(name, remaining)
                     }),
-                NodeKind::Argument { argument, .. } => argument.suggest(source, &mut builder),
+                NodeKind::Argument { argument, .. } => {
+                    argument.suggest(source, &context, &mut builder)
+                }
             }
         }
     }

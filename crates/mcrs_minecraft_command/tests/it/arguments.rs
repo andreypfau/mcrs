@@ -403,3 +403,43 @@ fn the_rotation_toward_a_point_uses_the_arctangent_of_the_game() {
     let (_, down) = rotation_toward(from + DVec3::Y * 1.62, DVec3::new(0.5, 64.0, 10.5));
     assert!(down > 0.0, "{down}");
 }
+
+#[test]
+fn time_reads_a_tick_count_in_its_unit() {
+    use mcrs_minecraft_command::TimeArgument;
+    let at_least_zero = TimeArgument { min: 0 };
+    let any = TimeArgument { min: i32::MIN };
+    let low = |ticks, cursor| {
+        Err(SyntaxError::argument(
+            ArgumentError::TickCountTooLow { min: 0, ticks },
+            cursor,
+        ))
+    };
+    let cases = [
+        (at_least_zero, "1d", Ok(24_000)),
+        (at_least_zero, "1.5s", Ok(30)),
+        (at_least_zero, "0.1d", Ok(2_400)),
+        (at_least_zero, "0.5", Ok(1)),
+        (any, "-0.5", Ok(0)),
+        (at_least_zero, "100000d", Ok(i32::MAX)),
+        (
+            at_least_zero,
+            "1D",
+            Err(SyntaxError::argument(ArgumentError::TimeInvalidUnit, 2)),
+        ),
+        (
+            at_least_zero,
+            "1e3",
+            Err(SyntaxError::argument(ArgumentError::TimeInvalidUnit, 3)),
+        ),
+        (at_least_zero, "-1", low(-1, 2)),
+        (
+            at_least_zero,
+            "d",
+            Err(SyntaxError::library(LibraryError::ExpectedFloat, 0)),
+        ),
+    ];
+    for (argument, input, expected) in cases {
+        assert_eq!(read(&argument, input, &OP).0, expected, "{input}");
+    }
+}

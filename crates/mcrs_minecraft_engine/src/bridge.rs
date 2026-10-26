@@ -303,6 +303,7 @@ fn encode_and_send(
                 PacketPayload::SystemChat(p) => conn.raw.append(&p),
                 PacketPayload::Commands(p) => conn.raw.append(&p),
                 PacketPayload::CommandSuggestions(p) => conn.raw.append(&p),
+                PacketPayload::SetTime(p) => conn.raw.append(&p),
                 PacketPayload::Test(_) => {
                     // Test-only payload; no wire packet. Counted-drop so
                     // test assertions on encode_unhandled_total work.

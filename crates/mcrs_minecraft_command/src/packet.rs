@@ -52,7 +52,7 @@ pub fn player_tree<H, L: Lookup>(
             NodeKind::Argument { name, argument } => CommandNodeKind::Argument {
                 name: Cow::Owned(name.to_string()),
                 parser: argument.wire(),
-                suggestions: None,
+                suggestions: argument.suggestion_type().map(Into::into),
             },
         };
         nodes.push(CommandNode {

@@ -27,6 +27,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::world::dimension::DimensionTypeId;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
@@ -202,6 +203,7 @@ pub struct CommandContext<'w, 's> {
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
     profiles: Query<'w, 's, &'static GameProfile, With<Player>>,
+    dimension_type: Query<'w, 's, &'static DimensionTypeId>,
 }
 
 impl<'w, 's> CommandContext<'w, 's> {

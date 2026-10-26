@@ -16,6 +16,11 @@ pub enum ArgumentError {
         id: Span,
         registry: StaticResourceLocation,
     },
+    TimeInvalidUnit,
+    TickCountTooLow {
+        min: i32,
+        ticks: i32,
+    },
     GameModeInvalid(Span),
     AnchorInvalid(Span),
     PosMixed,
@@ -182,6 +187,11 @@ pub fn argument_text(input: &str, error: ArgumentError) -> Text {
         E::ResourceTagNotFound { id, registry: r } => Text::translate(
             "argument.resource_tag.not_found",
             vec![identifier(input, id), registry(r)],
+        ),
+        E::TimeInvalidUnit => Text::translate("argument.time.invalid_unit", vec![]),
+        E::TickCountTooLow { min, ticks } => Text::translate_args(
+            "argument.time.tick_count_too_low",
+            vec![min.into(), ticks.into()],
         ),
         E::GameModeInvalid(word) => {
             Text::translate("argument.gamemode.invalid", vec![span(input, word)])

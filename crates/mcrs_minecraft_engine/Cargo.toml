@@ -18,6 +18,7 @@ mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }

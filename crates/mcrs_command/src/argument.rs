@@ -1,4 +1,5 @@
 use crate::error::{LibraryError, StringSpan, SyntaxError};
+use crate::parse::ContextView;
 use crate::reader::{Reader, StringValue};
 use crate::suggest::{SuggestionBuilder, starts_with_ignore_case};
 use core::convert::Infallible;
@@ -23,7 +24,14 @@ pub trait ArgumentSet<S> {
     /// Reads a value and keeps only whether it was valid.
     fn check(&self, reader: &mut Reader<'_>, source: &S) -> Result<(), SyntaxError<Self::Error>>;
 
-    fn suggest<'t>(&'t self, source: &'t S, builder: &mut SuggestionBuilder<'t, '_, Self::Tooltip>);
+    /// Suggests at the builder's start; `context` holds the nodes parsed before it, in the
+    /// context the suggesting node belongs to.
+    fn suggest<'t>(
+        &'t self,
+        source: &'t S,
+        context: &ContextView<'_>,
+        builder: &mut SuggestionBuilder<'t, '_, Self::Tooltip>,
+    );
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

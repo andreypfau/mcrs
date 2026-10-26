@@ -18,6 +18,20 @@ use mcrs_minecraft_server::command::{
     CommandResult,
 };
 
+use mcrs_minecraft_core::{Id, ResourceLocation};
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
+use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::command::{CommandNode, NumberRange, ParserProperties};
+use mcrs_minecraft_protocol::packets::game::clientbound::{
+    ClientboundCommands, ClientboundSetTime, ClockUpdate,
+};
+use mcrs_minecraft_protocol::text::{TextContent, TranslateArg};
+use mcrs_minecraft_protocol::{Decode, Encode, VarLong};
+use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_server::world::clock::GameTime;
+use mcrs_minecraft_server::world::clock::WorldClockHostPlugin;
+
 use crate::host_app::{self, PlayServer};
 
 #[derive(Clone, Copy)]
@@ -73,6 +87,9 @@ fn with_limits(limits: Limits) -> PlayServer {
 fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
     let mut app = host_app::make_host_app();
     app.insert_resource(CommandLimits(limits));
+    app.add_plugins(WorldClockPlugin);
+    app.insert_resource(AdvanceTime(false));
+    app.add_plugins(WorldClockHostPlugin);
     app.add_plugins(CommandPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
@@ -226,7 +243,9 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     let (op, packets) = server.join(OPERATOR, "Op");
     assert_eq!(
         root_literals(&packets),
-        ["execute", "gamemode", "teleport", "tp", "locate", "echo"]
+        [
+            "execute", "gamemode", "teleport", "tp", "locate", "time", "echo"
+        ]
     );
     let (guest, packets) = server.join(GUEST, "Guest");
     assert_eq!(root_literals(&packets), Vec::<String>::new());
@@ -904,4 +923,547 @@ fn a_forked_chain_keeps_its_fork_and_its_cost_in_the_dimension_it_moves_to() {
         1,
         "two stages and one run fit in a sequence of 3"
     );
+}
+
+type MessageArg = mcrs_minecraft_protocol::text::TranslateArg<
+    mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
+>;
+
+fn said(key: &'static str, with: Vec<MessageArg>) -> Text {
+    Text::translate_args(key, with)
+}
+
+fn refused(key: &'static str, with: Vec<MessageArg>) -> Text {
+    mcrs_minecraft_protocol::text::IntoText::color(
+        said(key, with),
+        mcrs_minecraft_protocol::text::Color::RED,
+    )
+}
+
+fn name(id: &str) -> MessageArg {
+    id.to_owned().into()
+}
+
+fn set_times(packets: &[PacketPayload]) -> Vec<ClientboundSetTime> {
+    packets
+        .iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::SetTime(set_time) => Some(set_time.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn clock_id(server: &PlayServer, clock: &str) -> Id<WorldClock> {
+    server
+        .app
+        .world()
+        .resource::<CurrentRegistries>()
+        .registry::<WorldClock>()
+        .unwrap()
+        .iter()
+        .find(|(_, name, _)| name.as_str() == clock)
+        .map(|(id, _, _)| id)
+        .unwrap()
+}
+
+fn clock(server: &PlayServer, clock: &str) -> ClockState {
+    *server
+        .app
+        .world()
+        .resource::<WorldClocks>()
+        .get(clock_id(server, clock))
+        .unwrap()
+}
+
+/// The `set_time` of a change to the overworld clock that leaves it at `total_ticks`.
+fn overworld_update(server: &PlayServer, total_ticks: i64) -> ClientboundSetTime {
+    ClientboundSetTime {
+        game_time: 0,
+        clocks: vec![ClockUpdate {
+            clock: VarInt(i32::from(clock_id(server, OVERWORLD_CLOCK).number())),
+            total_ticks: VarLong(total_ticks),
+            partial_tick: 0.0,
+            rate: 0.0,
+        }],
+    }
+}
+
+const OVERWORLD_CLOCK: &str = "minecraft:overworld";
+
+fn without_game_time(mut set_times: Vec<ClientboundSetTime>) -> Vec<ClientboundSetTime> {
+    for set_time in &mut set_times {
+        set_time.game_time = 0;
+    }
+    set_times
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the table holds one row for each example of the specification"
+)]
+fn time_changes_and_reads_the_overworld_clock() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+    let ow = || name(OVERWORLD_CLOCK);
+
+    server.queue(
+        op,
+        &ServerboundChatCommand {
+            command: Bounded("time add 10"),
+        },
+    );
+    let packets = command(&mut server, op, "time add 10");
+    assert_eq!(
+        chats(&packets),
+        [
+            said("commands.time.set.absolute", vec![ow(), 10i64.into()]),
+            said("commands.time.set.absolute", vec![ow(), 20i64.into()]),
+        ],
+        "a second command of one tick sees the change of the first"
+    );
+    assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, 20);
+
+    // (command line, the message, the total ticks after it, whether it sends `set_time`)
+    let cases: Vec<(&str, Text, i64, bool)> = vec![
+        (
+            "time set 1000",
+            said("commands.time.set.absolute", vec![ow(), 1000.into()]),
+            1000,
+            true,
+        ),
+        (
+            "time set 1000",
+            refused("commands.time.set.already_at_time", vec![ow(), 1000.into()]),
+            1000,
+            false,
+        ),
+        (
+            "time set 1d",
+            said("commands.time.set.absolute", vec![ow(), 24_000.into()]),
+            24_000,
+            true,
+        ),
+        (
+            "time set 5x",
+            refused(
+                "commands.time.no_time_marker_found",
+                vec![name("minecraft:5x"), ow()],
+            ),
+            24_000,
+            false,
+        ),
+        (
+            "time set -1",
+            refused(
+                "commands.time.no_time_marker_found",
+                vec![name("minecraft:-1"), ow()],
+            ),
+            24_000,
+            false,
+        ),
+        (
+            "time set day",
+            said(
+                "commands.time.set.time_marker",
+                vec![ow(), name("minecraft:day")],
+            ),
+            25_000,
+            true,
+        ),
+        (
+            "time set day",
+            refused(
+                "commands.time.set.already_at_time_marker",
+                vec![ow(), name("minecraft:day")],
+            ),
+            25_000,
+            false,
+        ),
+        (
+            "time set minecraft:wake_up_from_sleep",
+            said(
+                "commands.time.set.time_marker",
+                vec![ow(), name("minecraft:wake_up_from_sleep")],
+            ),
+            48_000,
+            true,
+        ),
+        (
+            "time set 50000",
+            said("commands.time.set.absolute", vec![ow(), 50_000.into()]),
+            50_000,
+            true,
+        ),
+        (
+            "time query day",
+            said(
+                "commands.time.query.timeline",
+                vec![name("minecraft:day"), 2000i64.into()],
+            ),
+            50_000,
+            false,
+        ),
+        (
+            "time query day repetition",
+            said(
+                "commands.time.query.timeline.repetitions",
+                vec![name("minecraft:day"), 2i64.into()],
+            ),
+            50_000,
+            false,
+        ),
+        (
+            "time query early_game",
+            said(
+                "commands.time.query.timeline",
+                vec![name("minecraft:early_game"), 50_000i64.into()],
+            ),
+            50_000,
+            false,
+        ),
+        (
+            "time add -3d",
+            said("commands.time.set.absolute", vec![ow(), 0i64.into()]),
+            0,
+            true,
+        ),
+        (
+            "time add 0",
+            said("commands.time.set.absolute", vec![ow(), 0i64.into()]),
+            0,
+            true,
+        ),
+        (
+            "time pause",
+            said("commands.time.pause", vec![ow()]),
+            0,
+            true,
+        ),
+        (
+            "time pause",
+            refused("commands.time.pause.already_paused", vec![ow()]),
+            0,
+            false,
+        ),
+        (
+            "time resume",
+            said("commands.time.resume", vec![ow()]),
+            0,
+            true,
+        ),
+        (
+            "time resume",
+            refused("commands.time.pause.already_running", vec![ow()]),
+            0,
+            false,
+        ),
+        (
+            "time rate 1",
+            refused("commands.time.rate.already_same", vec![ow(), 1.0f32.into()]),
+            0,
+            false,
+        ),
+        (
+            "time rate 2",
+            said("commands.time.rate", vec![ow(), 2.0f32.into()]),
+            0,
+            true,
+        ),
+        (
+            "time of minecraft:overworld query time",
+            said("commands.time.query.absolute", vec![ow(), 0i64.into()]),
+            0,
+            false,
+        ),
+        (
+            "time of minecraft:the_end query day",
+            refused(
+                "commands.time.wrong_timeline_for_clock",
+                vec![name("minecraft:day"), name("minecraft:the_end")],
+            ),
+            0,
+            false,
+        ),
+        (
+            "time of minecraft:the_end set day",
+            refused(
+                "commands.time.no_time_marker_found",
+                vec![name("minecraft:day"), name("minecraft:the_end")],
+            ),
+            0,
+            false,
+        ),
+        (
+            "time of minecraft:nope query time",
+            refused(
+                "argument.resource.not_found",
+                vec![name("minecraft:nope"), name("minecraft:world_clock")],
+            ),
+            0,
+            false,
+        ),
+        (
+            "time add 1D",
+            refused("argument.time.invalid_unit", vec![]),
+            0,
+            false,
+        ),
+    ];
+    for (line, message, total_ticks, sends) in cases {
+        let packets = command(&mut server, op, line);
+        assert_eq!(chats(&packets).first(), Some(&message), "{line}");
+        assert_eq!(
+            clock(&server, OVERWORLD_CLOCK).total_ticks,
+            total_ticks,
+            "{line}"
+        );
+        let expected = if sends {
+            vec![overworld_update(&server, total_ticks)]
+        } else {
+            Vec::new()
+        };
+        assert_eq!(without_game_time(set_times(&packets)), expected, "{line}");
+    }
+    let state = clock(&server, OVERWORLD_CLOCK);
+    assert_eq!((state.rate, state.paused), (2.0, false));
+}
+
+fn child<'p>(
+    tree: &'p ClientboundCommands<'static>,
+    node: &'p CommandNode<'static>,
+    name: &str,
+) -> &'p CommandNode<'static> {
+    node.children
+        .iter()
+        .map(|child| &tree.nodes[child.0 as usize])
+        .find(|child| match &child.kind {
+            CommandNodeKind::Literal(literal) => literal == name,
+            CommandNodeKind::Argument { name: argument, .. } => argument == name,
+            CommandNodeKind::Root => false,
+        })
+        .unwrap_or_else(|| panic!("no child {name}"))
+}
+
+fn child_names(tree: &ClientboundCommands<'static>, node: &CommandNode<'static>) -> Vec<String> {
+    node.children
+        .iter()
+        .map(|child| match &tree.nodes[child.0 as usize].kind {
+            CommandNodeKind::Literal(name) | CommandNodeKind::Argument { name, .. } => {
+                name.to_string()
+            }
+            CommandNodeKind::Root => String::new(),
+        })
+        .collect()
+}
+
+/// The properties and the suggestion type of an argument node.
+fn argument_wire(node: &CommandNode<'static>) -> (ParserProperties<'static>, Option<String>) {
+    let CommandNodeKind::Argument {
+        parser,
+        suggestions,
+        ..
+    } = &node.kind
+    else {
+        panic!("{node:?}");
+    };
+    (
+        parser.properties.clone(),
+        suggestions.as_ref().map(ToString::to_string),
+    )
+}
+
+#[test]
+fn the_time_tree_and_its_server_suggestions_follow_the_clock() {
+    let mut server = start();
+    let (op, packets) = server.join(OPERATOR, "Op");
+    let tree = packets
+        .iter()
+        .find_map(|packet| match packet {
+            PacketPayload::Commands(tree) => Some(tree.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let mut bytes = Vec::new();
+    tree.encode(&mut bytes).unwrap();
+    assert_eq!(
+        ClientboundCommands::decode(&mut bytes.as_slice()).unwrap(),
+        tree
+    );
+    let root = &tree.nodes[tree.root.0 as usize];
+    let time = child(&tree, root, "time");
+    assert_eq!(
+        child_names(&tree, time),
+        ["set", "add", "pause", "resume", "rate", "query", "of"]
+    );
+    assert_eq!(
+        child_names(&tree, child(&tree, time, "query")),
+        ["time", "timeline", "gametime"]
+    );
+    let clock = child(&tree, child(&tree, time, "of"), "clock");
+    assert_eq!(
+        child_names(&tree, child(&tree, clock, "query")),
+        ["time", "timeline"]
+    );
+    let set = child(&tree, time, "set");
+    let ask_server = Some("minecraft:ask_server".to_owned());
+    let registry =
+        |id: &str| ParserProperties::Registry(ResourceLocation::read(id).unwrap().into());
+    let cases = [
+        (child(&tree, set, "time"), (ParserProperties::Time(0), None)),
+        (
+            child(&tree, set, "timemarker"),
+            (ParserProperties::None, ask_server.clone()),
+        ),
+        (
+            child(&tree, child(&tree, time, "add"), "time"),
+            (ParserProperties::Time(i32::MIN), None),
+        ),
+        (
+            child(&tree, child(&tree, time, "rate"), "rate"),
+            (
+                ParserProperties::Float(NumberRange {
+                    min: Some(1.0e-5),
+                    max: Some(1000.0),
+                }),
+                None,
+            ),
+        ),
+        (clock, (registry("minecraft:world_clock"), None)),
+        (
+            child(&tree, child(&tree, time, "query"), "timeline"),
+            (registry("minecraft:timeline"), ask_server.clone()),
+        ),
+    ];
+    for (node, expected) in cases {
+        assert_eq!(argument_wire(node), expected, "{node:?}");
+    }
+
+    let markers = [
+        "minecraft:day",
+        "minecraft:midnight",
+        "minecraft:night",
+        "minecraft:noon",
+    ];
+    let suggestions: [(&str, &[&str]); 6] = [
+        ("/time set ", &markers),
+        ("/time of minecraft:overworld set ", &markers),
+        ("/time set ni", &["minecraft:night"]),
+        ("/time set 1", &["d", "s", "t"]),
+        (
+            "/time of minecraft:overworld query ",
+            &[
+                "minecraft:day",
+                "minecraft:early_game",
+                "minecraft:moon",
+                "minecraft:villager_schedule",
+                "time",
+            ],
+        ),
+        ("/time of minecraft:the_end set ", &[]),
+    ];
+    for (text, expected) in suggestions {
+        assert_eq!(suggest(&mut server, op, text), expected, "{text}");
+    }
+}
+
+#[test]
+fn a_clock_change_in_one_dimension_reaches_every_player() {
+    let mut server = start_in(
+        &[
+            ("minecraft:the_nether", "minecraft:the_nether"),
+            ("minecraft:overworld", "minecraft:overworld"),
+        ],
+        Limits::default(),
+    );
+    let (op, _) = server.join(OPERATOR, "Op");
+    let overworld = host_app::label_of(&server.app, "minecraft:overworld");
+    server.join_in(overworld, GUEST, "Guest");
+
+    assert_eq!(
+        chats(&command(&mut server, op, "time set day")),
+        [refused(
+            "commands.time.no_default_clock",
+            vec![name("minecraft:the_nether")]
+        )]
+    );
+
+    let before = server.app.world().resource::<GameTime>().0;
+    let packets = command(&mut server, op, "time query gametime");
+    let after = server.app.world().resource::<GameTime>().0;
+    let [message] = chats(&packets).try_into().unwrap();
+    let TextContent::Translate {
+        translate, with, ..
+    } = &message.content
+    else {
+        panic!("{message:?}");
+    };
+    assert_eq!(translate, "commands.time.query.gametime");
+    let [TranslateArg::Number(NbtTag::Long(game_time))] = with.as_slice() else {
+        panic!("{with:?}");
+    };
+    assert!((before..=after).contains(game_time), "{game_time}");
+
+    let packets = command(&mut server, op, "time of minecraft:overworld set night");
+    assert_eq!(
+        without_game_time(set_times(&packets)),
+        [overworld_update(&server, 13_000)]
+    );
+    assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, 13_000);
+    assert_eq!(
+        chats(&command(
+            &mut server,
+            op,
+            "time of minecraft:overworld query time"
+        )),
+        [said(
+            "commands.time.query.absolute",
+            vec![name(OVERWORLD_CLOCK), 13_000i64.into()]
+        )]
+    );
+}
+
+#[test]
+fn a_time_command_after_in_acts_on_the_clock_of_the_selected_dimension() {
+    let mut server = start_in(
+        &[
+            ("minecraft:the_nether", "minecraft:the_nether"),
+            ("minecraft:overworld", "minecraft:overworld"),
+        ],
+        Limits::default(),
+    );
+    let (op, _) = server.join(OPERATOR, "Op");
+
+    let mut packets = command(
+        &mut server,
+        op,
+        "execute in minecraft:the_nether run time query gametime",
+    );
+    packets.extend(server.ticks(op, 1));
+    let [message] = chats(&packets).try_into().unwrap();
+    let TextContent::Translate { translate, .. } = &message.content else {
+        panic!("{message:?}");
+    };
+    assert_eq!(translate, "commands.time.query.gametime");
+
+    let total = clock(&server, OVERWORLD_CLOCK).total_ticks;
+    let mut packets = command(
+        &mut server,
+        op,
+        "execute in minecraft:overworld run time add 10",
+    );
+    packets.extend(server.ticks(op, 1));
+    assert_eq!(
+        chats(&packets),
+        [said(
+            "commands.time.set.absolute",
+            vec![name(OVERWORLD_CLOCK), (total + 10).into()]
+        )]
+    );
+    assert_eq!(
+        without_game_time(set_times(&packets)),
+        [overworld_update(&server, total + 10)]
+    );
+    assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, total + 10);
 }
