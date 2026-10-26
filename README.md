@@ -18,33 +18,80 @@ only the layers it needs and pay for nothing above them.
 
 ## Why mcrs
 
+A new Minecraft server in Rust is announced about twice a year; there is a
+[counter](https://dayssincelastrustmcserver.com/) for it, and a
+[tracker](https://areweminecraftyet.com/) that still answers "not yet" for all
+of them. Most follow the same recipe: take the Java server's classes, rewrite
+them as Rust structs behind `Arc<Mutex<…>>`, keep the single game-tick thread,
+and put async tasks around it. That is Java's object graph with a borrow
+checker. It inherits the design that makes the vanilla server slow, and adds
+locks and deadlocks of its own.
+
+A new language does not fix that, and neither does a prompt that says
+"rewrite Minecraft in Rust, make no mistakes". The hard part is deciding how
+the game should be built once the Java is gone, and that is most of the work in
+this repository. mcrs starts with the engine.
+
+- **The ECS is the engine.** World state is components and resources; behaviour
+  is systems, each one transformation over every entity that has the data it
+  names. Bevy's scheduler runs systems in parallel when their data access does
+  not overlap, and a system can split its entities across threads. Nobody
+  writes a lock for that: mcrs code holds no `Arc`, no `Mutex` and no trait
+  object on the hot path.
+- **Parallel by what the work touches.** Java server forks move one job at a
+  time off the main thread and sell it as a feature: async pathfinding, async
+  entity tracking, parallel world ticking, sometimes as a paid jar. Folia goes
+  further and cuts the world into regions, but a crowded spot still ends up on
+  one thread. mcrs looks at what each piece of work reads and writes. A mob
+  farm and the redstone that drives it sit in the same chunks, yet mob AI and
+  redstone run in parallel, and so do two farms at opposite ends of a base.
+  Work that really interacts stays together and runs in order, and the result
+  is the same on any number of threads.
+- **Work is proportional to change.** A resting entity and an untouched section
+  cost nothing. Idle cost, memory per section and frame times are measured in
+  [`PERF.md`](PERF.md), and every exception to these rules cites a number
+  there.
+- **Specified before it is built.** Each domain is written from a
+  specification in [`docs/spec/`](docs/spec) under
+  [clean-room rules](docs/clean-room.md).
+  Vanilla is the authority on data and observable behaviour; the shape of the
+  code is ours.
+- **Parity is declared and tested.** Every subsystem is `exact` (protocol,
+  saves, player movement, world generation), `semantic` (redstone, fluids,
+  block updates) or an intentional deviation that is written down. Exact parts
+  are compared with output of the game; world generation already matches in
+  parity tests.
+- **A toolkit, not a monolith.** Most Minecraft crates do one job: read NBT,
+  open region files, parse a schematic, draw a map. There are many NBT crates
+  alone, each with its own types, and gluing two of them together means
+  converting between those types. mcrs crates can be taken one at a time in the
+  same way, and they share their types: a block state read from a save is the
+  same value the renderer meshes and the world generator places. Nothing
+  below the engine needs Bevy, and only the network layer needs tokio.
+- **Data-driven at run time.** Registries, biomes, dimensions, world
+  generation and environment attributes are read from the vanilla data pack. A
+  data pack that adds a biome or a dimension is picked up without a rebuild.
+  Serde types read the data pack JSON, write the NBT of a save and cross the
+  network, the way vanilla's `Codec` does.
 - **Tracks the newest snapshot.** One version at a time, currently
   `26.4-snapshot-4`. Data and reports are regenerated from the game jar by a
-  single command, so moving to the next snapshot is mostly data, not code.
-- **Data-driven.** Registries, biomes, dimensions, world generation and
-  environment attributes are read from the vanilla data pack. A data pack that
-  adds a biome or a dimension is picked up without a code change.
-- **One codec for every format.** Serde types read the data pack JSON, write the
-  NBT of a save and cross the network, the way vanilla's `Codec` does.
-- **Vanilla-exact world generation.** Density functions, aquifers, ore veins and
-  tree shapes are checked against vanilla output in tests.
-- **Server and client in one ECS.** The same world data, registries and rules
-  are read by both, and a dimension runs as its own Bevy sub-app.
-- **Built for scale.** Work is proportional to change, not to world size; idle
-  cost, memory per section and frame times are measured in [`PERF.md`](PERF.md).
+  single command, so moving to the next snapshot is mostly a data update.
 
 ## Layers
 
-Each layer depends only on the layers below it.
+Each layer is meant to depend only on the layers below it, so a user takes
+any prefix and pays for nothing above it. A few crates do not follow this yet:
+the protocol and network crates still reach into game data. Below layer 4,
+Bevy is an optional feature; below layer 2, so is tokio.
 
 | # | Layer | What it holds |
 |---|---|---|
-| 1 | Data and wire | NBT, text, keys, the wire codec, typed packets in both directions, framing |
-| 2 | Network | connections, login, packet I/O on tokio |
-| 3 | Game data and rules | registries, blocks, items, biomes, dimensions, chunks, Anvil saves; the rules of lighting, world generation and block simulation |
-| 4 | Engine | worlds, dimensions, players, entities, the server loop and gameplay as Bevy plugins |
-| 5 | Vanilla | the world generator as a Bevy plugin |
-| 6 | Rendering | meshing, terrain, sky and light pipelines |
+| 1 | Protocol | ids, positions, NBT, text, keys; the codec traits; framing, compression, encryption; handshake, status, login and configuration packets |
+| 2 | Network | the connection state machine, login on both sides, authentication, proxy forwarding, frames encoded once per broadcast; tokio, Bevy optional |
+| 3 | Game data and rules | registries baked from the data pack, blocks, items, entities, chunks, Anvil saves and their packets; kernels without Bevy for lighting, world generation and block simulation |
+| 4 | Engine | Bevy plugins for worlds, dimensions, chunk sources, players, events and commands, and the drivers of the kernels; no vanilla behaviour by default |
+| 5 | Vanilla | what blocks, items and mobs do, world generation and lighting, as removable plugins |
+| 6 | Rendering | meshing and pipelines over layer 3 data; no network, client or server |
 | 7 | Applications | the server binary, the client and tools |
 
 Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
