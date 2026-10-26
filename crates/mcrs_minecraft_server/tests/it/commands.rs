@@ -67,12 +67,16 @@ fn start() -> PlayServer {
 }
 
 fn with_limits(limits: Limits) -> PlayServer {
+    start_in(&[("minecraft:overworld", "minecraft:overworld")], limits)
+}
+
+fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
     let mut app = host_app::make_host_app();
     app.insert_resource(CommandLimits(limits));
     app.add_plugins(CommandPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
-    PlayServer::start(app, &[(OPERATOR, 2)], 0)
+    PlayServer::start_in(app, dimensions, &[(OPERATOR, 2)], 0)
 }
 
 fn command(server: &mut PlayServer, anchor: Entity, line: &str) -> Vec<PacketPayload> {
@@ -97,8 +101,13 @@ fn suggest(server: &mut PlayServer, anchor: Entity, text: &str) -> Vec<String> {
 }
 
 fn transform(server: &mut PlayServer, anchor: Entity) -> Transform {
-    let player = server.player(anchor);
-    *server.world().get::<Transform>(player).unwrap()
+    let dim = server.dim;
+    transform_in(server, dim, anchor)
+}
+
+fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transform {
+    let player = server.player_in(dim, anchor);
+    *server.world_in(dim).get::<Transform>(player).unwrap()
 }
 
 /// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
@@ -366,14 +375,23 @@ fn a_game_mode_change_sends_the_abilities_after_the_game_event() {
 }
 
 #[test]
-fn an_admin_message_reaches_only_the_other_listed_operators() {
+fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension() {
     const WATCHER: Uuid = Uuid::from_u128(3);
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin);
     app.add_plugins(VanillaCommandsPlugin);
-    let mut server = PlayServer::start(app, &[(OPERATOR, 2), (WATCHER, 2)], 2);
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
+        ],
+        &[(OPERATOR, 2), (WATCHER, 2)],
+        2,
+    );
     let (op, _) = server.join(OPERATOR, "Op");
-    let (watcher, _) = server.join(WATCHER, "Watcher");
+    let nether = host_app::label_of(&server.app, "minecraft:the_nether");
+    let (watcher, _) = server.join_in(nether, WATCHER, "Watcher");
     let (guest, _) = server.join(GUEST, "Guest");
     server.queue(
         op,
@@ -757,7 +775,8 @@ fn the_execute_tree_holds_only_the_branches_that_run() {
             "rotated",
             "facing",
             "align",
-            "anchored"
+            "anchored",
+            "in"
         ]
     );
     for condition in ["if", "unless"] {
@@ -776,4 +795,113 @@ fn the_execute_tree_holds_only_the_branches_that_run() {
         .node(child(child(execute, "positioned"), "pos"))
         .unwrap();
     assert!(pos.modifier().is_some() && !pos.forks());
+}
+
+const THIRD: Uuid = Uuid::from_u128(3);
+
+/// The operator and a guest in the Overworld, and the player `Nether` in the Nether.
+fn two_dimensions(limits: Limits) -> (PlayServer, Entity, Entity) {
+    let mut server = start_in(
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
+        ],
+        limits,
+    );
+    let (op, _) = server.join(OPERATOR, "Op");
+    server.join(GUEST, "Guest");
+    let nether = host_app::label_of(&server.app, "minecraft:the_nether");
+    let (player, _) = server.join_in(nether, THIRD, "Nether");
+    (server, op, player)
+}
+
+#[test]
+fn execute_in_runs_the_rest_of_the_line_in_the_named_dimension() {
+    let (mut server, op, player) = two_dimensions(Limits::default());
+    let nether = host_app::label_of(&server.app, "minecraft:the_nether");
+    let pass = translated("commands.execute.conditional.pass", &[]);
+    let cases = [
+        (
+            "execute in minecraft:the_nether if dimension minecraft:the_nether",
+            vec![pass.clone()],
+        ),
+        (
+            "execute in minecraft:overworld if dimension minecraft:overworld",
+            vec![pass],
+        ),
+        (
+            "execute in minecraft:the_nether if entity @a",
+            vec![translated(
+                "commands.execute.conditional.pass_count",
+                &["1"],
+            )],
+        ),
+        (
+            "execute in minecraft:the_nether in minecraft:overworld if entity @a",
+            vec![translated(
+                "commands.execute.conditional.pass_count",
+                &["2"],
+            )],
+        ),
+        (
+            "execute in minecraft:nowhere run tp Nether 0 64 0",
+            vec![red(translated(
+                "argument.dimension.invalid",
+                &["minecraft:nowhere"],
+            ))],
+        ),
+        (
+            "execute as @s in minecraft:nowhere run tp Nether 0 64 0",
+            vec![],
+        ),
+        (
+            "execute in minecraft:the_nether run tp Nobody 0 64 0",
+            vec![red(translated("argument.entity.notfound.entity", &[]))],
+        ),
+    ];
+    for (line, expected) in cases {
+        let mut packets = command(&mut server, op, line);
+        packets.extend(server.ticks(op, 1));
+        assert_eq!(chats(&packets), expected, "{line}");
+    }
+
+    let packets = command(
+        &mut server,
+        op,
+        "execute positioned 800.0 64 -160.0 in minecraft:the_nether run tp Nether ~ ~ ~",
+    );
+    assert_eq!(
+        chats(&packets).len(),
+        1,
+        "the operator hears from the Nether"
+    );
+    assert_eq!(
+        transform_in(&mut server, nether, player).translation,
+        DVec3::new(100.0, 64.0, -20.0)
+    );
+}
+
+#[test]
+fn a_forked_chain_keeps_its_fork_and_its_cost_in_the_dimension_it_moves_to() {
+    let (mut server, op, _) = two_dimensions(Limits::default());
+    let line = "execute as @a in minecraft:the_nether run tp Nether 0 64 0";
+    assert_eq!(chats(&command(&mut server, op, line)).len(), 2);
+    assert!(
+        chats(&command(
+            &mut server,
+            op,
+            "execute as @a in minecraft:the_nether run tp Nobody 0 64 0"
+        ))
+        .is_empty()
+    );
+
+    let (mut server, op, _) = two_dimensions(Limits {
+        sequence: 3,
+        ..Limits::default()
+    });
+    assert_eq!(
+        chats(&command(&mut server, op, line)).len(),
+        1,
+        "two stages and one run fit in a sequence of 3"
+    );
 }

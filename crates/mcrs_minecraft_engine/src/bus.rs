@@ -3,7 +3,10 @@ use bevy_ecs::event::Event;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
+use mcrs_command::Continuation;
+use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, ResourceKey};
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_protocol::GameMode;
@@ -16,6 +19,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin,
     ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
     ClientboundRemoveEntities, ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
+    LookAnchor,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -263,4 +267,28 @@ pub struct InboundConfirmMove {
 #[derive(Message, Clone, Debug)]
 pub struct InboundRollbackMove {
     pub move_id: mcrs_minecraft_level::session::MoveId,
+}
+
+/// The rest of a command line whose sources leave for the dimension `target`. `output` is the
+/// host anchor of the player who sent the line, which receives the messages wherever it is.
+#[derive(Message, Clone, Debug)]
+pub struct CommandHandoff {
+    pub target: ResourceKey<Dimension>,
+    pub output: Entity,
+    pub line: String,
+    /// The coordinate scale of the dimension the sources leave; the target scales x and z by
+    /// this value over its own (CMD-EX-021).
+    pub coordinate_scale: f64,
+    pub rest: Continuation<HandoffSource>,
+}
+
+/// A source of a command that crosses dimensions. Its entity stays behind: an entity belongs to
+/// the world of its dimension.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HandoffSource {
+    pub level: CommandLevel,
+    pub position: DVec3,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub anchor: LookAnchor,
 }

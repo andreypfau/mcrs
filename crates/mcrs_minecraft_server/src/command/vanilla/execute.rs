@@ -12,11 +12,11 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_command::{
     BlockOrTag, BlockPosArgument, BlockPredicateArgument, CommandLevel, DimensionArgument,
-    EntityAnchorArgument, EntityArgument, HeightmapArgument, Lookup, PermissionCheck,
+    EntityAnchorArgument, EntityArgument, HeightmapArgument, Identifier, Lookup, PermissionCheck,
     RotationArgument, SwizzleArgument, Vec3Argument, anchored, block_floor, rotation_toward,
 };
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_core::{BlockStateId, ColumnPos, ResourceKey, SectionPos};
+use mcrs_minecraft_core::{BlockStateId, ColumnPos, ResourceKey, ResourceLocation, SectionPos};
 use mcrs_minecraft_dimension::keys::DIMENSION;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
@@ -53,6 +53,7 @@ pub(super) enum Branch {
     FacingEntity,
     Align,
     Anchored,
+    In,
     /// A condition under `if` (`expect` true) or `unless`.
     Condition {
         test: Test,
@@ -83,6 +84,7 @@ pub(super) struct ExecuteCommand {
     facing_anchor: Arg<EntityAnchorArgument>,
     align: Arg<SwizzleArgument>,
     anchored: Arg<EntityAnchorArgument>,
+    dimension: Arg<DimensionArgument>,
     when: ConditionArgs,
     unless: ConditionArgs,
 }
@@ -135,7 +137,7 @@ fn conditions(
     })
 }
 
-/// CMD-EX-001, the branches of the core set (CMD-EX section 8.1) without `in`.
+/// CMD-EX-001, the branches of the core set (CMD-EX section 8.1).
 pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<ExecuteCommand, BuildError> {
     let execute = r
         .literal(NodeId::ROOT, "execute")
@@ -204,6 +206,11 @@ pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<ExecuteComma
         .arg(anchored_node, "anchor", EntityAnchorArgument)
         .modify(execute, Branch::Anchored)
         .id()?;
+    let in_node = r.literal(execute, "in").id()?;
+    let dimension = r
+        .arg(in_node, "dimension", DimensionArgument)
+        .modify(execute, Branch::In)
+        .id()?;
     Ok(ExecuteCommand {
         as_targets,
         at_targets,
@@ -217,6 +224,7 @@ pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<ExecuteComma
         facing_anchor,
         align,
         anchored,
+        dimension,
         when,
         unless,
     })
@@ -257,6 +265,12 @@ pub(crate) struct DimensionView<'w, 's> {
 }
 
 impl DimensionView<'_, '_> {
+    fn is(&self, id: Identifier<'_>) -> bool {
+        self.dimension
+            .single()
+            .is_ok_and(|(key, ..)| key.namespace() == id.namespace && key.path() == id.path)
+    }
+
     fn column(&self, x: i32, z: i32) -> Option<&ColumnSections> {
         let (_, index, _) = self.dimension.single().ok()?;
         let slot = index.get(&ColumnPos::new(
@@ -394,20 +408,8 @@ impl ExecuteView<'_, '_> {
                 ))
             }
             Test::Dimension => {
-                let id = context.arg(call, args.dimension)?;
-                let dimensions = DIMENSION.location();
-                if context.entries(dimensions).next().is_some()
-                    && !context.has_entry(dimensions, id)
-                {
-                    return Err(CommandFailure::translate(
-                        "argument.dimension.invalid",
-                        vec![id.to_string().into_text()],
-                    ));
-                }
-                let here = self.dimension.dimension.single().ok().map(|(key, ..)| key);
-                Ok(Outcome::Boolean(here.is_some_and(|key| {
-                    key.namespace() == id.namespace && key.path() == id.path
-                })))
+                let id = dimension(context, call, args.dimension)?;
+                Ok(Outcome::Boolean(self.dimension.is(id)))
             }
             Test::Loaded => {
                 let [x, _, z] = block_floor(context.arg(call, args.loaded)?.position(&source));
@@ -439,6 +441,45 @@ impl ExecuteView<'_, '_> {
     }
 }
 
+impl ExecuteView<'_, '_> {
+    /// CMD-EX-021. The source leaves for another dimension after its stage, where its x and z
+    /// are scaled.
+    fn move_to(&self, call: &Call<Branch, ExecuteCommand>, state: SourceState) -> ModifyResult {
+        let id = dimension(&self.context, call, call.command.dimension)?;
+        if self.dimension.is(id) {
+            return Ok(Modified::One(state));
+        }
+        let location =
+            ResourceLocation::new(id.namespace, id.path).map_err(|_| invalid_dimension(id))?;
+        Ok(Modified::One(SourceState {
+            destination: Some(ResourceKey::from_location(location)),
+            ..state
+        }))
+    }
+}
+
+fn invalid_dimension(id: Identifier<'_>) -> CommandFailure {
+    CommandFailure::translate(
+        "argument.dimension.invalid",
+        vec![id.to_string().into_text()],
+    )
+}
+
+/// The dimension an argument names. A world without the dimension registry leaves the test of
+/// an unknown name to the host, which knows the dimensions that run.
+fn dimension<'a>(
+    context: &'a CommandContext,
+    call: &Call<Branch, ExecuteCommand>,
+    arg: Arg<DimensionArgument>,
+) -> Result<Identifier<'a>, CommandFailure> {
+    let id = context.arg(call, arg)?;
+    let dimensions = DIMENSION.location();
+    if context.entries(dimensions).next().is_some() && !context.has_entry(dimensions, id) {
+        return Err(invalid_dimension(id));
+    }
+    Ok(id)
+}
+
 fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
     anchored(anchor, position, PLAYER_EYE_HEIGHT)
 }
@@ -450,29 +491,29 @@ pub(super) fn modify(
     let command = call.command;
     let context = &view.context;
     let source = context.source(&call);
-    let state = call.source;
+    let state = call.source.clone();
     let one = |state| Ok(Modified::One(state));
     match call.branch {
         Branch::As => view.fork(&call, command.as_targets, |state, target| SourceState {
-            entity: target.entity,
-            ..*state
+            entity: Some(target.entity),
+            ..state.clone()
         }),
         Branch::At => view.fork(&call, command.at_targets, |state, target| SourceState {
             position: target.transform.translation,
             yaw: target.transform.rotation.yaw(),
             pitch: target.transform.rotation.pitch(),
-            ..*state
+            ..state.clone()
         }),
         Branch::PositionedAs => {
             view.fork(&call, command.positioned_as, |state, target| SourceState {
                 position: target.transform.translation,
-                ..*state
+                ..state.clone()
             })
         }
         Branch::RotatedAs => view.fork(&call, command.rotated_as, |state, target| SourceState {
             yaw: target.transform.rotation.yaw(),
             pitch: target.transform.rotation.pitch(),
-            ..*state
+            ..state.clone()
         }),
         Branch::FacingEntity => {
             let anchor = context.arg(&call, command.facing_anchor)?;
@@ -482,7 +523,7 @@ pub(super) fn modify(
                 SourceState {
                     yaw,
                     pitch,
-                    ..*state
+                    ..state.clone()
                 }
             })
         }
@@ -531,6 +572,7 @@ pub(super) fn modify(
             anchor: context.arg(&call, command.anchored)?,
             ..state
         }),
+        Branch::In => view.move_to(&call, state),
         Branch::Condition { test, expect } => {
             let passes = match view.condition(&call, test, expect)? {
                 Outcome::Boolean(value) => value == expect,

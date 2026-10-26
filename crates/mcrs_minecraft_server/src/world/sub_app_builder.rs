@@ -6,7 +6,7 @@ use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
-use bevy_ecs::system::{Local, Res, ResMut};
+use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -264,6 +264,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundEntitySpawn>();
     sub_app.add_message::<InboundConfirmMove>();
     sub_app.add_message::<InboundRollbackMove>();
+    sub_app.add_message::<mcrs_minecraft_engine::bus::CommandHandoff>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -639,6 +640,13 @@ pub fn spawn_dim_subapp(
     Ok(label_entity)
 }
 
+#[derive(SystemParam)]
+struct MoveInbox<'w> {
+    spawn: ResMut<'w, Messages<InboundEntitySpawn>>,
+    confirm: ResMut<'w, Messages<InboundConfirmMove>>,
+    rollback: ResMut<'w, Messages<InboundRollbackMove>>,
+}
+
 /// Drains both `ToDim` channel receivers into the dim's local message buses.
 /// The control channel (Spawn/Despawn/Attach/SpawnEntity/ConfirmMove/RollbackMove)
 /// is drained first so lifecycle messages always precede any same-tick Serverbound
@@ -648,9 +656,8 @@ fn drain_to_dim_inbox(
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
-    mut entity_spawn_msgs: ResMut<Messages<InboundEntitySpawn>>,
-    mut confirm_msgs: ResMut<Messages<InboundConfirmMove>>,
-    mut rollback_msgs: ResMut<Messages<InboundRollbackMove>>,
+    mut moves: MoveInbox,
+    mut command_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::CommandHandoff>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -662,19 +669,28 @@ fn drain_to_dim_inbox(
             }
             ToDim::Serverbound(_) => {}
             ToDim::SpawnEntity(m) => {
-                entity_spawn_msgs.write(m);
+                moves.spawn.write(m);
             }
             ToDim::ConfirmMove(m) => {
-                confirm_msgs.write(m);
+                moves.confirm.write(m);
             }
             ToDim::RollbackMove(m) => {
-                rollback_msgs.write(m);
+                moves.rollback.write(m);
+            }
+            ToDim::Command(m) => {
+                command_msgs.write(m);
             }
         }
     }
     for msg in rx.serverbound.try_iter() {
-        if let ToDim::Serverbound(m) = msg {
-            serverbound_msgs.write(m);
+        match msg {
+            ToDim::Serverbound(m) => {
+                serverbound_msgs.write(m);
+            }
+            ToDim::Command(m) => {
+                command_msgs.write(m);
+            }
+            _ => {}
         }
     }
 }
@@ -693,6 +709,7 @@ pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
     mut broadcasts: ResMut<Messages<mcrs_minecraft_engine::bus::OperatorBroadcast>>,
+    departures: Option<ResMut<crate::command::Departures>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
@@ -701,6 +718,9 @@ pub(crate) fn flush_from_dim_outbox(
         session: released.session,
     }));
     backlog.extend(broadcasts.drain().map(FromDim::OperatorBroadcast));
+    if let Some(mut departures) = departures {
+        backlog.extend(departures.0.drain(..).map(FromDim::Command));
+    }
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);

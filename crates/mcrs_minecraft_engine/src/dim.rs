@@ -1,5 +1,6 @@
 use crate::bus::{
-    InboundConfirmMove, InboundEntitySpawn, InboundRollbackMove, OutboundPlayerPacket, PacketTarget,
+    CommandHandoff, InboundConfirmMove, InboundEntitySpawn, InboundRollbackMove,
+    OutboundPlayerPacket, PacketPayload, PacketTarget, to,
 };
 use crate::channel_types::{DimChannelsResource, FromDim, ToDim};
 use crate::disconnect::Departing;
@@ -14,6 +15,8 @@ use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, Session, Sessi
 use mcrs_minecraft_level::world::channels::DimChannels;
 use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves};
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
+use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use tracing::{debug, warn};
 
 /// Send a non-sheddable control message, escalating a saturated control channel
@@ -110,6 +113,7 @@ pub fn pump_channels(app: &mut App) {
                         departing.dim == source_dim && departing.session == session
                     });
                 }
+                FromDim::Command(handoff) => hand_off_command(world, handoff),
                 FromDim::Spawned { move_id } => {
                     if let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) {
                         if let Some(session) = entry.session {
@@ -197,6 +201,51 @@ pub fn pump_channels(app: &mut App) {
             ToDim::ConfirmMove(InboundConfirmMove { move_id }),
         );
     }
+}
+
+/// Passes the rest of a command line to the dimension it names. An unknown dimension is the
+/// error of the stage that named it, reported only outside a fork (CMD-EX-033); a dimension that
+/// cannot take the line fails it visibly.
+fn hand_off_command(world: &mut World, handoff: CommandHandoff) {
+    let output = handoff.output;
+    let Some(destination) = find_dim(world, &handoff.target) else {
+        if !handoff.rest.at.forked {
+            let id = handoff.target.as_str().to_owned().into_text();
+            command_failure(
+                world,
+                output,
+                Text::translate("argument.dimension.invalid", vec![id]),
+            );
+        }
+        return;
+    };
+    let sender = world
+        .resource::<DimChannelsResource>()
+        .get(destination)
+        .map(|chan| chan.serverbound_sender.clone());
+    let sent = sender.is_some_and(|sender| match sender.try_send(ToDim::Command(handoff)) {
+        Ok(()) => true,
+        Err(error) => {
+            warn!(dim = ?destination, %error, "a dimension did not take the rest of a command line");
+            false
+        }
+    });
+    if !sent {
+        command_failure(world, output, Text::translate("command.failed", vec![]));
+    }
+}
+
+fn command_failure(world: &mut World, output: Entity, message: Text) {
+    deliver(
+        world,
+        to(
+            output,
+            PacketPayload::SystemChat(ClientboundSystemChatPacket {
+                content: message.color(Color::RED),
+                overlay: false,
+            }),
+        ),
+    );
 }
 
 pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool) {

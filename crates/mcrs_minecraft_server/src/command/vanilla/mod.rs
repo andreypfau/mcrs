@@ -149,7 +149,7 @@ pub(crate) fn select<'c>(
 ) -> Result<Vec<&'c PlayerCandidate<'c>>, CommandFailure> {
     let selector = context.arg(call, arg)?;
     let source = context.source(call);
-    let me = all.iter().find(|c| c.entity == call.source.entity);
+    let me = all.iter().find(|c| Some(c.entity) == call.source.entity);
     let mut out = Vec::new();
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     selector
@@ -167,7 +167,7 @@ pub(crate) fn targets_or_self(
     none_found: &'static str,
 ) -> Result<Vec<Entity>, CommandFailure> {
     let Some(arg) = arg else {
-        return Ok(vec![call.source.entity]);
+        return Ok(call.source.entity.into_iter().collect());
     };
     let found = select(context, call, arg, all)?;
     if found.is_empty() {

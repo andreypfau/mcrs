@@ -204,7 +204,18 @@ pub struct PlayServer {
 impl PlayServer {
     /// Finishes `app`, lists `ops` as `(uuid, level)` and gives every other player
     /// `default_level`.
-    pub fn start(mut app: App, ops: &[(Uuid, u8)], default_level: u8) -> Self {
+    pub fn start(app: App, ops: &[(Uuid, u8)], default_level: u8) -> Self {
+        let overworld = [("minecraft:overworld", "minecraft:overworld")];
+        Self::start_in(app, &overworld, ops, default_level)
+    }
+
+    /// A server that runs `dimensions`; the first one is where `join` places a player.
+    pub fn start_in(
+        mut app: App,
+        dimensions: &[(&str, &str)],
+        ops: &[(Uuid, u8)],
+        default_level: u8,
+    ) -> Self {
         app.finish();
         app.init_resource::<PlayerSessionCounter>();
         app.init_resource::<InFlightMoves>();
@@ -217,17 +228,17 @@ impl PlayServer {
         })));
         app.insert_resource(DefaultOpLevel(PlayerOpLevel(default_level)));
         drive_to_playing(&mut app);
-        materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
-        let dim = app
-            .world_mut()
-            .query_filtered::<Entity, With<DimSubAppHandle>>()
-            .single(app.world())
-            .unwrap();
+        materialise_sub_apps(&mut app, dimensions);
+        let dim = label_of(&app, dimensions[0].0);
         Self { app, dim }
     }
 
     pub fn world(&mut self) -> &mut World {
-        self.app.sub_app_mut(DimAppLabel(self.dim)).world_mut()
+        self.world_in(self.dim)
+    }
+
+    pub fn world_in(&mut self, dim: Entity) -> &mut World {
+        self.app.sub_app_mut(DimAppLabel(dim)).world_mut()
     }
 
     /// Runs `n` updates and returns the packets sent to `anchor`.
@@ -258,11 +269,15 @@ impl PlayServer {
     }
 
     pub fn submit(&self, message: ToDim) {
+        self.submit_to(self.dim, message);
+    }
+
+    pub fn submit_to(&self, dim: Entity, message: ToDim) {
         let channels = self
             .app
             .world()
             .resource::<DimChannelsResource>()
-            .get(self.dim)
+            .get(dim)
             .unwrap();
         let sender = match message {
             ToDim::Serverbound(..) => &channels.serverbound_sender,
@@ -273,6 +288,10 @@ impl PlayServer {
 
     /// Returns the host anchor of the new player and the packets of its first ticks.
     pub fn join(&mut self, uuid: Uuid, name: &str) -> (Entity, Vec<PacketPayload>) {
+        self.join_in(self.dim, uuid, name)
+    }
+
+    pub fn join_in(&mut self, dim: Entity, uuid: Uuid, name: &str) -> (Entity, Vec<PacketPayload>) {
         let session = self
             .app
             .world_mut()
@@ -287,21 +306,24 @@ impl PlayServer {
                     username: name.into(),
                     properties: Vec::new(),
                 },
-                SessionBundle::placed(session, SessionPlacement::new(Place::Joining(self.dim), 0)),
+                SessionBundle::placed(session, SessionPlacement::new(Place::Joining(dim), 0)),
             ))
             .id();
-        self.submit(ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor: anchor,
-            session: PlayerSession(0),
-            snapshot: PlayerTransferSnapshot {
-                uuid,
-                username: name.into(),
-                position: DVec3::new(8.5, 64.0, 8.5),
-                rotation: Vec2::ZERO,
-                view_distance: 2,
-            },
-            dimensions: Vec::new().into(),
-        }));
+        self.submit_to(
+            dim,
+            ToDim::Spawn(InboundPlayerSpawn {
+                host_anchor: anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid,
+                    username: name.into(),
+                    position: DVec3::new(8.5, 64.0, 8.5),
+                    rotation: Vec2::ZERO,
+                    view_distance: 2,
+                },
+                dimensions: Vec::new().into(),
+            }),
+        );
         let packets = self.ticks(anchor, 3);
         (anchor, packets)
     }
@@ -327,7 +349,11 @@ impl PlayServer {
     }
 
     pub fn player(&mut self, anchor: Entity) -> Entity {
-        let world = self.world();
+        self.player_in(self.dim, anchor)
+    }
+
+    pub fn player_in(&mut self, dim: Entity, anchor: Entity) -> Entity {
+        let world = self.world_in(dim);
         world
             .query_filtered::<(Entity, &HostAnchor), With<Player>>()
             .iter(world)

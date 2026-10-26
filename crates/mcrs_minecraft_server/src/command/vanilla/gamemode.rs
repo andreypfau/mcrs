@@ -72,7 +72,7 @@ pub(super) fn run(
             continue;
         }
         changed += 1;
-        if target == call.source.entity {
+        if Some(target) == call.source.entity {
             feedback.success(
                 &call,
                 Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),

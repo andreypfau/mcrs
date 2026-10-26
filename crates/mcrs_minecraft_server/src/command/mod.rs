@@ -20,6 +20,9 @@ use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, CommandSyntaxError, PermissionCheck, Source, VanillaArgument,
     VanillaGraph, error_message,
 };
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_engine::bus::CommandHandoff;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -113,21 +116,25 @@ pub struct CommandLimits(pub Limits);
 
 /// One source of a command: who runs it, where, facing where, with which permissions. A stage
 /// of `execute` maps it to other sources; the output stays the player who sent the line.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SourceState {
     pub level: CommandLevel,
-    pub entity: Entity,
+    /// None for a source that came from another dimension: an entity belongs to one world.
+    pub entity: Option<Entity>,
     pub position: DVec3,
     pub yaw: f32,
     pub pitch: f32,
     pub anchor: LookAnchor,
+    /// The dimension the source leaves for after its stage. Its x and z are scaled where it
+    /// arrives (CMD-EX-021).
+    pub destination: Option<ResourceKey<Dimension>>,
 }
 
-/// One run of a stage for one source: the player who receives the output, the source, and
-/// the stage whose nodes the handler reads.
-#[derive(Clone, Copy, Debug)]
+/// One run of a stage for one source: the host anchor of the player who receives the output,
+/// the source, and the stage whose nodes the handler reads.
+#[derive(Clone, Debug)]
 pub struct Invocation {
-    pub player: Entity,
+    pub output: Entity,
     pub source: SourceState,
     stage: usize,
     branch: u16,
@@ -137,11 +144,12 @@ impl SourceState {
     pub fn of_player(entity: Entity, level: CommandLevel, transform: &Transform) -> Self {
         Self {
             level,
-            entity,
+            entity: Some(entity),
             position: transform.translation,
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
             anchor: LookAnchor::Feet,
+            destination: None,
         }
     }
 
@@ -169,7 +177,12 @@ pub(crate) struct RunningCommand {
 pub(crate) struct ExecScratch {
     stages: Vec<Stage<Handler>>,
     lists: SourceLists<SourceState>,
+    departing: Vec<run::Departing>,
 }
+
+/// The rest of the command lines whose sources left this world, until the outbox takes them.
+#[derive(Resource, Default)]
+pub(crate) struct Departures(pub(crate) Vec<CommandHandoff>);
 
 /// What a modifier gives for one source.
 #[derive(Clone, Debug, PartialEq)]
@@ -273,7 +286,14 @@ impl Plugin for DimCommandPlugin {
         app.init_resource::<ModifierHandlers>();
         app.init_resource::<RunningCommand>();
         app.init_resource::<ExecScratch>();
+        app.init_resource::<Departures>();
         app.add_observer(run::handle_chat_command);
+        app.add_systems(
+            bevy_app::FixedPreUpdate,
+            run::resume_handed_off_lines
+                .after(crate::world::sub_app_builder::DimInboxDrain)
+                .run_if(run::has_handed_off_lines),
+        );
         app.register_required_components::<Player, run::PendingSuggestion>();
         app.add_observer(run::queue_suggestion_request);
         app.add_systems(

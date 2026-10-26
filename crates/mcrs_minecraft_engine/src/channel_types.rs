@@ -3,7 +3,7 @@ use mcrs_minecraft_level::session::{MoveId, PlayerSession};
 use mcrs_minecraft_level::world::channels::DimChannels;
 
 use crate::bus::{
-    ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
+    ArrivalCause, CommandHandoff, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
     InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload, OperatorBroadcast,
     OutboundPlayerPacket,
 };
@@ -34,6 +34,9 @@ pub enum ToDim {
     ConfirmMove(InboundConfirmMove),
     /// Immediate rollback signal to the source dim (Disconnected or tick-timeout).
     RollbackMove(InboundRollbackMove),
+    /// The rest of a command line that resumes in this dim. Sent on the serverbound channel: a
+    /// player's line caused it, and a full channel fails the line visibly.
+    Command(CommandHandoff),
 }
 
 /// Dim→host message channel type.
@@ -60,6 +63,8 @@ pub enum FromDim {
     Released { session: PlayerSession },
     /// A message for every online operator; the host triggers it as an event.
     OperatorBroadcast(OperatorBroadcast),
+    /// The rest of a command line whose sources leave for `CommandHandoff::target`.
+    Command(CommandHandoff),
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this

@@ -1,16 +1,24 @@
 use crate::command::{
-    CommandContext, CommandFailure, CommandHandlers, CommandLimits, CommandTree, ExecScratch,
-    Handler, Invocation, Modified, ModifierHandlers, RunningCommand, SourceState, level_of,
+    CommandContext, CommandFailure, CommandHandlers, CommandLimits, CommandTree, Departures,
+    ExecScratch, Handler, Invocation, Modified, ModifierHandlers, RunningCommand, SourceState,
+    level_of,
 };
 use crate::ops::OpList;
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
+use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
-use mcrs_command::{Chain, End, Executor, Failure, ParseScratch, Suggestion, build_list, execute};
+use bevy_math::DVec3;
+use mcrs_command::{
+    Chain, End, Executor, Failure, ParseScratch, Resume, Suggestion, build_list, resume,
+};
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, NoLookup, Source, error_feedback, player_tree, suggestion_reply,
 };
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_engine::bus::{CommandHandoff, HandoffSource};
 use mcrs_minecraft_engine::bus::{
     OperatorBroadcast, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, to,
 };
@@ -18,6 +26,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{PlayerSession, Session};
+use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
@@ -26,6 +35,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text, is_allowed_chat_character};
 use mcrs_minecraft_protocol::{GameMode, VarInt};
+use mcrs_minecraft_registries::CurrentRegistries;
 use smallvec::SmallVec;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
@@ -138,67 +148,191 @@ fn run_line(world: &mut World, host: Entity, mut event: CommandEvent, chain: Cha
     if event.cancelled {
         return;
     }
-    let CommandEvent {
-        player,
-        source,
+    let CommandEvent { source, line, .. } = event;
+    let limits = world
+        .get_resource::<CommandLimits>()
+        .copied()
+        .unwrap_or_default()
+        .0;
+    run_chain(world, host, line, chain, Resume::start(limits), [source]);
+}
+
+pub(crate) fn has_handed_off_lines(handoffs: Option<Res<Messages<CommandHandoff>>>) -> bool {
+    handoffs.is_some_and(|handoffs| !handoffs.is_empty())
+}
+
+/// Queues the rest of each command line whose sources arrived from another dimension.
+pub(crate) fn resume_handed_off_lines(
+    mut handoffs: ResMut<Messages<CommandHandoff>>,
+    mut commands: Commands,
+) {
+    for handoff in handoffs.drain() {
+        commands.queue(move |world: &mut World| resume_line(world, handoff));
+    }
+}
+
+/// The coordinate scale of the dimension of this world.
+fn coordinate_scale(world: &mut World) -> Option<f64> {
+    let type_id = world
+        .query_filtered::<&DimensionTypeId, With<Dimension>>()
+        .single(world)
+        .ok()?
+        .0;
+    let types = world
+        .get_resource::<CurrentRegistries>()?
+        .registry::<DimensionTypeFile>()?;
+    let id = mcrs_minecraft_core::Id::checked(type_id.number(), types.len())?;
+    types.get(id).map(|file| file.coordinate_scale)
+}
+
+fn fail_line(world: &mut World, output: Entity, forked: bool) {
+    if !forked {
+        world.write_message(system_message(output, CommandFailure::failed().text()));
+    }
+}
+
+fn resume_line(world: &mut World, handoff: CommandHandoff) {
+    let CommandHandoff {
+        output,
         line,
+        coordinate_scale: from,
+        rest,
         ..
-    } = event;
+    } = handoff;
+    let forked = rest.at.forked;
+    let (Some(here), Some(tree)) = (coordinate_scale(world), world.get_resource::<CommandTree>())
+    else {
+        fail_line(world, output, forked);
+        return;
+    };
+    let (chain, at, sources) = rest.into_parts(&tree.0);
+    let scale = from / here;
+    // chisle: an arriving source has no entity, so `@s` finds nothing and the admin echo names
+    // nobody; an entity index across the dimension worlds lifts it.
+    let sources = sources.into_iter().map(|source| SourceState {
+        level: source.level,
+        entity: None,
+        position: DVec3::new(
+            source.position.x * scale,
+            source.position.y,
+            source.position.z * scale,
+        ),
+        yaw: source.yaw,
+        pitch: source.pitch,
+        anchor: source.anchor,
+        destination: None,
+    });
+    run_chain(world, output, line, chain, at, sources);
+}
+
+/// Runs a chain from `at` and hands the sources that leave this world to the host.
+fn run_chain(
+    world: &mut World,
+    output: Entity,
+    line: String,
+    chain: Chain<Handler>,
+    at: Resume,
+    sources: impl IntoIterator<Item = SourceState>,
+) {
     let mut scratch = world
         .get_resource_mut::<ExecScratch>()
         .map(|mut scratch| std::mem::take(&mut *scratch))
         .unwrap_or_default();
     scratch.stages.clear();
     scratch.stages.extend_from_slice(chain.stages());
+    scratch.departing.clear();
     let Some(mut running) = world.get_resource_mut::<RunningCommand>() else {
         return;
     };
     running.line = line;
     running.chain = chain;
-    let limits = world
-        .get_resource::<CommandLimits>()
-        .copied()
-        .unwrap_or_default()
-        .0;
     let mut executor = WorldExecutor {
         world,
-        player,
-        host,
+        output,
+        departing: &mut scratch.departing,
     };
-    let end = execute(
+    let end = resume(
         &scratch.stages,
-        source,
-        limits,
+        at,
+        sources,
         &mut executor,
         &mut scratch.lists,
     );
     if end == End::SequenceLimit {
         tracing::info!(
             "a command stopped at the limit of {} stages and runs",
-            limits.sequence.max(1)
+            at.limits.sequence.max(1)
         );
     }
+    hand_off(world, output, &mut scratch.departing);
     world.insert_resource(scratch);
 }
 
-struct WorldExecutor<'w> {
-    world: &'w mut World,
-    player: Entity,
-    host: Entity,
+/// Sends each part of the sources that left to the host, which passes it to its dimension.
+/// The last part moves the chain; the others copy it.
+fn hand_off(world: &mut World, output: Entity, departing: &mut Vec<Departing>) {
+    if departing.is_empty() {
+        return;
+    }
+    let forked = departing.iter().all(|part| part.at.forked);
+    let running = world
+        .get_resource_mut::<RunningCommand>()
+        .map(|mut running| std::mem::take(&mut *running));
+    let (Some(scale), Some(mut running)) = (coordinate_scale(world), running) else {
+        departing.clear();
+        fail_line(world, output, forked);
+        return;
+    };
+    let Some(mut departures) = world.get_resource_mut::<Departures>() else {
+        departing.clear();
+        fail_line(world, output, forked);
+        return;
+    };
+    let mut parts = departing.drain(..).peekable();
+    while let Some(part) = parts.next() {
+        let (line, rest) = if parts.peek().is_some() {
+            let rest = running.chain.continuation(part.at, part.sources);
+            (running.line.clone(), rest)
+        } else {
+            let chain = std::mem::take(&mut running.chain);
+            let rest = chain.into_continuation(part.at, part.sources);
+            (std::mem::take(&mut running.line), rest)
+        };
+        departures.0.push(CommandHandoff {
+            target: part.target,
+            output,
+            line,
+            coordinate_scale: scale,
+            rest,
+        });
+    }
 }
 
-impl WorldExecutor<'_> {
+/// The sources of one part of a list that leave for `target`.
+pub(crate) struct Departing {
+    target: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    at: Resume,
+    sources: Vec<HandoffSource>,
+}
+
+struct WorldExecutor<'w, 'd> {
+    world: &'w mut World,
+    output: Entity,
+    departing: &'d mut Vec<Departing>,
+}
+
+impl WorldExecutor<'_, '_> {
     fn invocation(&self, stage: usize, handler: &Handler, source: &SourceState) -> Invocation {
         Invocation {
-            player: self.player,
-            source: *source,
+            output: self.output,
+            source: source.clone(),
             stage,
             branch: handler.branch,
         }
     }
 }
 
-impl Executor<SourceState, Handler> for WorldExecutor<'_> {
+impl Executor<SourceState, Handler> for WorldExecutor<'_, '_> {
     type Error = CommandFailure;
 
     fn modify(
@@ -255,7 +389,42 @@ impl Executor<SourceState, Handler> for WorldExecutor<'_> {
             }
         };
         self.world
-            .write_message(system_message(self.host, failure.text()));
+            .write_message(system_message(self.output, failure.text()));
+    }
+
+    fn departs(&mut self, source: &SourceState) -> bool {
+        source.destination.is_some()
+    }
+
+    /// One part for each destination, in the order the destinations first appear.
+    fn depart(&mut self, at: Resume, total: usize, sources: &mut Vec<SourceState>) {
+        let first = self.departing.len();
+        for source in sources.drain(..) {
+            let Some(target) = source.destination else {
+                continue;
+            };
+            let carried = HandoffSource {
+                level: source.level,
+                position: source.position,
+                yaw: source.yaw,
+                pitch: source.pitch,
+                anchor: source.anchor,
+            };
+            let parts = self.departing.get_mut(first..).unwrap_or_default();
+            match parts.iter_mut().find(|part| part.target == target) {
+                Some(part) => part.sources.push(carried),
+                None => self.departing.push(Departing {
+                    target,
+                    at,
+                    sources: vec![carried],
+                }),
+            }
+        }
+        if let Some(parts) = self.departing.get_mut(first..) {
+            for part in parts {
+                part.at = at.part(total, part.sources.len());
+            }
+        }
     }
 }
 
@@ -386,11 +555,16 @@ impl CommandFeedback<'_, '_> {
     pub fn success(&mut self, invocation: &Invocation, message: Text, broadcast: bool) {
         // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
-        self.tell(invocation.player, message.clone());
+        self.writer
+            .write(system_message(invocation.output, message.clone()));
         if !broadcast {
             return;
         }
-        let Ok((&HostAnchor(source), profile)) = self.players.get(invocation.source.entity) else {
+        let Some(Ok((_, profile))) = invocation
+            .source
+            .entity
+            .map(|entity| self.players.get(entity))
+        else {
             return;
         };
         // The server has no language table, so the log keeps the translation key and its
@@ -403,7 +577,7 @@ impl CommandFeedback<'_, '_> {
         .color(Color::GRAY)
         .italic();
         self.broadcasts.write(OperatorBroadcast {
-            source,
+            source: invocation.output,
             message: admin,
         });
     }
