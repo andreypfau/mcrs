@@ -1,20 +1,20 @@
 // std: mcrs_minecraft_command and mcrs_minecraft_protocol, which hold the argument types and the
 // text components, need it.
-pub mod ability;
-pub mod command;
-pub mod edit;
-pub mod history;
-pub mod log;
-pub mod normalize;
-pub mod screen;
+mod ability;
+mod command;
+mod edit;
+mod history;
+mod log;
+mod normalize;
+mod screen;
 
-pub use ability::{ChatAbilities, ChatVisibility};
+pub use ability::ChatAbilities;
 pub use command::{
-    CommandInput, Context, Entries, Highlight, Hint, Request, SuggestionList, Tooltip,
+    CommandInput, Context, Entries, Highlight, Hint, LIST_ROWS, Request, SuggestionList, Tooltip,
 };
 pub use edit::EditBox;
 pub use history::{History, Recall};
-pub use log::{ChatLog, Line, Logged, Overlay, Tag, fade};
+pub use log::{ChatLines, ChatLog, Line, Logged, Overlay, Tag, fade};
 pub use normalize::normalize;
 pub use screen::{ChatScreen, Closed, Key, Outcome, Send, keeps_draft};
 
@@ -23,12 +23,12 @@ pub const MAX_INPUT: usize = 256;
 
 /// The length of a text in UTF-16 code units, the unit of every limit and position on the wire.
 pub fn utf16_len(text: &str) -> usize {
-    text.chars().map(char::len_utf16).sum()
+    mcrs_command::utf16_position(text, text.len())
 }
 
 /// The longest start of `text` that holds at most `max` UTF-16 code units, never splitting a
 /// character.
-pub fn utf16_prefix(text: &str, max: usize) -> &str {
+pub(crate) fn utf16_prefix(text: &str, max: usize) -> &str {
     let mut units = 0;
     for (index, c) in text.char_indices() {
         units += c.len_utf16();
@@ -40,7 +40,7 @@ pub fn utf16_prefix(text: &str, max: usize) -> &str {
 }
 
 /// The byte offset of a UTF-16 position in `text`, clamped to its end.
-pub fn byte_offset(text: &str, utf16: usize) -> usize {
+pub(crate) fn byte_offset(text: &str, utf16: usize) -> usize {
     let mut units = 0;
     for (index, c) in text.char_indices() {
         if units >= utf16 {

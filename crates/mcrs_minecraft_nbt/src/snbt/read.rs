@@ -4,8 +4,7 @@ use super::text::{
     ESCAPE_LETTERS, StrText, char_by_name, hex_digits, hex_length, is_high_surrogate,
     is_low_surrogate, is_name_char, is_number_start, is_unquoted, is_whitespace, simple_escape,
 };
-
-pub(crate) const MAX_DEPTH: u32 = 512;
+use crate::MAX_DEPTH;
 
 pub(crate) enum Fail {
     Soft,
@@ -215,7 +214,7 @@ impl<'a, B: Build> Reader<'a, B> {
                     return Ok(value);
                 }
                 if let Some(literal) = self.opt(Self::integer)? {
-                    let (scalar, nonzero) = self.check_integer(literal, IntegerType::Int)?;
+                    let (scalar, nonzero) = self.check_integer(literal)?;
                     return Ok((self.build.scalar(scalar), Shape::Number { nonzero }));
                 }
                 self.pos = start;
@@ -276,21 +275,13 @@ impl<'a, B: Build> Reader<'a, B> {
             return self.float_tail(None, Some(fraction));
         }
         self.pos = start;
-        if let Some(whole) = self.opt(Self::decimal)?
-            && let Some(exponent) = self.opt(Self::exponent)?
-        {
-            let float = self.opt(Self::float_suffix)? == Some(true);
-            return Ok(FloatParts {
-                whole: Some(whole),
-                fraction: None,
-                exponent: Some(exponent),
-                float,
-            });
-        }
-        self.pos = start;
         let whole = self.decimal()?;
         let exponent = self.opt(Self::exponent)?;
-        let float = self.float_suffix()?;
+        let float = if exponent.is_some() {
+            self.opt(Self::float_suffix)? == Some(true)
+        } else {
+            self.float_suffix()?
+        };
         Ok(FloatParts {
             whole: Some(whole),
             fraction: None,
@@ -384,12 +375,8 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    fn check_integer(
-        &mut self,
-        literal: IntLiteral<'a>,
-        default: IntegerType,
-    ) -> R<(Scalar, bool)> {
-        let ty = literal.suffix.map_or(default, |suffix| suffix.ty);
+    fn check_integer(&mut self, literal: IntLiteral<'a>) -> R<(Scalar, bool)> {
+        let ty = literal.suffix.map_or(IntegerType::Int, |suffix| suffix.ty);
         match integer_value(literal, ty) {
             Ok(value) => Ok((Scalar::integer(ty, value), value != 0)),
             Err(kind) => self.fail(self.pos, kind),

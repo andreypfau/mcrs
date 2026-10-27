@@ -1,8 +1,8 @@
 mod execute;
-mod gamemode;
+pub(crate) mod gamemode;
 mod locate;
-mod teleport;
-mod time;
+pub(crate) mod teleport;
+pub(crate) mod time;
 
 use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
 use bevy_app::{App, Plugin};

@@ -119,7 +119,7 @@ pub fn fast_inv_sqrt(x: f64) -> f64 {
     guess * (1.5 - half * guess * guess)
 }
 
-/// The arctangent of the game, of `y` over `x` (CMD-EX-018). It is not `f64::atan2`: its
+/// The arctangent of the game, of `y` over `x`. It is not `f64::atan2`: its
 /// error can exceed one binary32 ulp of the result in degrees.
 pub fn atan2(y: f64, x: f64) -> f64 {
     let d = x * x + y * y;
@@ -223,31 +223,34 @@ pub fn cos(x: f32) -> f32 {
     sin_table((x * 10430.378_f32 + 16384.0_f32) as i32 as u16)
 }
 
+/// The table entries per radian, 65536 / 2π.
+const TABLE_PER_RADIAN: f64 = 10430.378350470453;
+
 /// Java 26.3 `Mth.sin(double)`: `SIN[(int)((long)(i * 10430.378350470453) & 65535L)]`.
 /// The argument and the scale are `double` here, so the index differs from the Beta
 /// form on arguments whose `f32` product rounds across an integer boundary.
 #[inline]
 pub fn sin_modern(x: f64) -> f32 {
-    sin_table((x * 10430.378350470453) as i64 as u16)
+    sin_table((x * TABLE_PER_RADIAN) as i64 as u16)
 }
 
 /// Java 26.3 `Mth.cos(double)`: the same table, offset by a quarter turn.
 #[inline]
 pub fn cos_modern(x: f64) -> f32 {
-    sin_table((x * 10430.378350470453 + 16384.0) as i64 as u16)
+    sin_table((x * TABLE_PER_RADIAN + 16384.0) as i64 as u16)
 }
 
 /// The table at the entry nearest to `x`, mirrored for a negative argument.
 #[inline]
 pub fn sin_rounded(x: f64) -> f32 {
-    let index = |x: f64| sin_table((x * 10430.378350470453 + 0.5) as i64 as u16);
+    let index = |x: f64| sin_table((x * TABLE_PER_RADIAN + 0.5) as i64 as u16);
     if x >= 0.0 { index(x) } else { -index(-x) }
 }
 
 /// The table at the entry nearest to `x` plus a quarter turn.
 #[inline]
 pub fn cos_rounded(x: f64) -> f32 {
-    sin_table((x.abs() * 10430.378350470453 + 16384.5) as i64 as u16)
+    sin_table((x.abs() * TABLE_PER_RADIAN + 16384.5) as i64 as u16)
 }
 
 /// A lerp over an inverse lerp, unclamped: a value outside the source range

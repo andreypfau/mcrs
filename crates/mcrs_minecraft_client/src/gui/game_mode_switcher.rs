@@ -75,7 +75,7 @@ pub fn mode_to_send(
 }
 
 /// A debug key's report: the yellow bold prefix, then the translation of `key`.
-pub fn debug_feedback(key: &'static str) -> Text {
+fn debug_feedback(key: &'static str) -> Text {
     Text::text("")
         .add_child(
             Text::translate("debug.prefix", vec![])

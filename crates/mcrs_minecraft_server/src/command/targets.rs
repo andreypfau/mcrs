@@ -4,6 +4,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_command::{Candidate, Identifier};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_END, THE_NETHER};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -38,8 +39,8 @@ pub struct PlayerEntry {
 }
 
 /// The dimensions in the dimension order (ARG-ENT-019) and the online players of all of them in
-/// the order of the player list. The host fills it when commands run and keeps it current as
-/// their effects apply; a handler reads it in the world it runs in.
+/// the order of the player list. The host collects it again after each run whose effects
+/// apply; a handler reads it in the world it runs in.
 #[derive(Resource, Debug, Default)]
 pub struct CommandTargets {
     pub(crate) dimensions: Vec<DimensionEntry>,
@@ -66,32 +67,24 @@ impl CommandTargets {
         self.dimensions.get(index).map(|entry| entry.label)
     }
 
-    pub fn dimension_named(&self, id: Identifier<'_>) -> Option<usize> {
+    pub fn dimension_named(&self, id: Identifier<'_>) -> Option<&DimensionEntry> {
         self.dimensions
             .iter()
-            .position(|entry| entry.key.namespace() == id.namespace && entry.key.path() == id.path)
+            .find(|entry| entry.key.namespace() == id.namespace && entry.key.path() == id.path)
     }
 
     pub fn player(&self, anchor: Entity) -> Option<&PlayerEntry> {
         self.players.iter().find(|player| player.anchor == anchor)
-    }
-
-    pub(crate) fn player_mut(&mut self, anchor: Entity) -> Option<&mut PlayerEntry> {
-        self.players
-            .iter_mut()
-            .find(|player| player.anchor == anchor)
     }
 }
 
 /// The rank of a dimension in the dimension order: the three vanilla dimensions first, then
 /// the others by identifier (ARG-ENT-019).
 pub(crate) fn dimension_rank(key: &ResourceKey<Dimension>) -> (u8, &str) {
-    let rank = match key.as_str() {
-        "minecraft:overworld" => 0,
-        "minecraft:the_nether" => 1,
-        "minecraft:the_end" => 2,
-        _ => 3,
-    };
+    let rank = [OVERWORLD, THE_NETHER, THE_END]
+        .iter()
+        .position(|vanilla| vanilla.as_str() == key.as_str())
+        .unwrap_or(3) as u8;
     (rank, key.as_str())
 }
 

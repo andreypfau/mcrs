@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::text::is_allowed_chat_character;
+
 use crate::{MAX_INPUT, utf16_len, utf16_prefix};
 
 /// A one-line text field (CHAT-BOX-001, CHAT-BOX-002). Positions are byte offsets into the text.
@@ -6,10 +8,6 @@ pub struct EditBox {
     text: String,
     caret: usize,
     anchor: usize,
-}
-
-fn allowed(c: char) -> bool {
-    c != '\u{a7}' && c != '\u{7f}' && c >= '\u{20}'
 }
 
 fn previous_boundary(text: &str, at: usize) -> usize {
@@ -83,7 +81,7 @@ impl EditBox {
         let room = MAX_INPUT.saturating_sub(kept);
         let mut added = String::new();
         let mut units = 0;
-        for c in typed.chars().filter(|&c| allowed(c)) {
+        for c in typed.chars().filter(|&c| is_allowed_chat_character(c)) {
             units += c.len_utf16();
             if units > room {
                 break;
@@ -114,40 +112,36 @@ impl EditBox {
         true
     }
 
-    pub fn backspace(&mut self, word: bool) -> bool {
-        let to = if word {
+    fn previous(&self, word: bool) -> usize {
+        if word {
             previous_word(&self.text, self.caret)
         } else {
             previous_boundary(&self.text, self.caret)
-        };
-        self.remove_to(to)
+        }
+    }
+
+    fn next(&self, word: bool) -> usize {
+        if word {
+            next_word(&self.text, self.caret)
+        } else {
+            next_boundary(&self.text, self.caret)
+        }
+    }
+
+    pub fn backspace(&mut self, word: bool) -> bool {
+        self.remove_to(self.previous(word))
     }
 
     pub fn delete(&mut self, word: bool) -> bool {
-        let to = if word {
-            next_word(&self.text, self.caret)
-        } else {
-            next_boundary(&self.text, self.caret)
-        };
-        self.remove_to(to)
+        self.remove_to(self.next(word))
     }
 
     pub fn left(&mut self, word: bool, select: bool) {
-        let to = if word {
-            previous_word(&self.text, self.caret)
-        } else {
-            previous_boundary(&self.text, self.caret)
-        };
-        self.set_caret(to, select);
+        self.set_caret(self.previous(word), select);
     }
 
     pub fn right(&mut self, word: bool, select: bool) {
-        let to = if word {
-            next_word(&self.text, self.caret)
-        } else {
-            next_boundary(&self.text, self.caret)
-        };
-        self.set_caret(to, select);
+        self.set_caret(self.next(word), select);
     }
 
     pub fn home(&mut self, select: bool) {

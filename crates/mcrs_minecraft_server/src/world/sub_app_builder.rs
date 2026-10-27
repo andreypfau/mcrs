@@ -6,7 +6,7 @@ use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
-use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
+use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -542,7 +542,6 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Real>::default());
     sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
     sub_app.init_resource::<crate::world::clock::GameTime>();
-    sub_app.init_resource::<crate::world::clock::PendingClockEdits>();
     sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
@@ -563,7 +562,7 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
-        crate::world::clock::extract_clock_state(main_world, sub_world);
+        crate::world::clock::extract_game_time(main_world, sub_world);
         mcrs_minecraft_world::registry_snapshot::extract_registries(main_world, sub_world);
         if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
             sub_world.insert_resource(ops.clone());
@@ -642,13 +641,6 @@ pub fn spawn_dim_subapp(
     Ok(label_entity)
 }
 
-#[derive(SystemParam)]
-struct MoveInbox<'w> {
-    spawn: ResMut<'w, Messages<InboundEntitySpawn>>,
-    confirm: ResMut<'w, Messages<InboundConfirmMove>>,
-    rollback: ResMut<'w, Messages<InboundRollbackMove>>,
-}
-
 /// Drains both `ToDim` channel receivers into the dim's local message buses.
 /// The control channel (Spawn/Despawn/Attach/SpawnEntity/ConfirmMove/RollbackMove)
 /// is drained first so lifecycle messages always precede any same-tick Serverbound
@@ -658,7 +650,9 @@ fn drain_to_dim_inbox(
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
-    mut moves: MoveInbox,
+    mut entity_spawn_msgs: ResMut<Messages<InboundEntitySpawn>>,
+    mut confirm_msgs: ResMut<Messages<InboundConfirmMove>>,
+    mut rollback_msgs: ResMut<Messages<InboundRollbackMove>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -670,13 +664,13 @@ fn drain_to_dim_inbox(
             }
             ToDim::Serverbound(_) => {}
             ToDim::SpawnEntity(m) => {
-                moves.spawn.write(m);
+                entity_spawn_msgs.write(m);
             }
             ToDim::ConfirmMove(m) => {
-                moves.confirm.write(m);
+                confirm_msgs.write(m);
             }
             ToDim::RollbackMove(m) => {
-                moves.rollback.write(m);
+                rollback_msgs.write(m);
             }
         }
     }

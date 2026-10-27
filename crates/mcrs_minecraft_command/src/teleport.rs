@@ -71,15 +71,6 @@ pub fn relative_move(
     }
 }
 
-/// The yaw and the pitch that turn a look from `from` towards `to` (CMD-TP-011).
-pub fn look_at(from: DVec3, to: DVec3) -> (f32, f32) {
-    let d = to - from;
-    let horizontal = (d.x * d.x + d.z * d.z).sqrt();
-    let pitch = -(d.y.atan2(horizontal).to_degrees()) as f32;
-    let yaw = (d.z.atan2(d.x).to_degrees() - 90.0) as f32;
-    (wrap_degrees(yaw), wrap_degrees(pitch))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

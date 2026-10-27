@@ -95,10 +95,14 @@ pub enum StrText<'a> {
 }
 
 impl<'a> StrText<'a> {
-    pub fn is_empty(self) -> bool {
+    fn raw(self) -> &'a str {
         match self {
-            StrText::Word(text) | StrText::Quoted(text) => text.is_empty(),
+            StrText::Word(text) | StrText::Quoted(text) => text,
         }
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.raw().is_empty()
     }
 
     pub fn chars(self) -> impl Iterator<Item = char> + 'a {
@@ -109,10 +113,8 @@ impl<'a> StrText<'a> {
         word.chars().chain(Unescape { rest: quoted })
     }
 
-    pub fn len_hint(self) -> usize {
-        match self {
-            StrText::Word(text) | StrText::Quoted(text) => text.len(),
-        }
+    pub(crate) fn len_hint(self) -> usize {
+        self.raw().len()
     }
 }
 

@@ -143,10 +143,11 @@ fn structure(
             .into_iter()
             .collect(),
         ResourceOrTag::Tag(_) => context
+            .registry_lookup()
             .ids(STRUCTURE.location(), value)
             .ok_or_else(invalid)?
             .iter()
-            .filter_map(|&id| id_of(context.name(STRUCTURE.location(), id)?))
+            .filter_map(|&id| id_of(context.registry_lookup().name(STRUCTURE.location(), id)?))
             .collect(),
     };
     let (Some(index), Some(frozen)) = (index, frozen) else {
@@ -189,7 +190,10 @@ pub(super) fn run(
         Branch::Biome => {
             let value = context.arg(&call, command.biome)?;
             let not_found = || not_found("commands.locate.biome.not_found", value);
-            let wanted = context.ids(BIOME.location(), value).ok_or_else(not_found)?;
+            let wanted = context
+                .registry_lookup()
+                .ids(BIOME.location(), value)
+                .ok_or_else(not_found)?;
             let index = fill
                 .as_deref()
                 .and_then(|fill| fill.structures.as_deref())
@@ -200,6 +204,7 @@ pub(super) fn run(
                 nearest_biome(index.noise_biomes(), &wanted, origin, config.min_y, height)
                     .ok_or_else(not_found)?;
             let entry = context
+                .registry_lookup()
                 .name(BIOME.location(), biome)
                 .map_or_else(String::new, ToString::to_string);
             found(

@@ -302,7 +302,7 @@ fn encode_and_send(
                 }
                 PacketPayload::PlayerPosition(p) => conn.raw.append(&p),
                 PacketPayload::SystemChat(p) => conn.raw.append(&p),
-                PacketPayload::Commands(p) => conn.raw.append(&p),
+                PacketPayload::Commands(p) => conn.raw.append_encoded(&p),
                 PacketPayload::CommandSuggestions(p) => conn.raw.append(&p),
                 PacketPayload::SetTime(p) => conn.raw.append(&p),
                 PacketPayload::Test(_) => {

@@ -1,7 +1,11 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_chat::{ChatScreen, Highlight, Hint, Tag, Tooltip as SuggestionTooltip, fade};
+use mcrs_minecraft_chat::LIST_ROWS;
+use mcrs_minecraft_chat::{
+    ChatScreen, Highlight, Hint, MAX_INPUT, SuggestionList, Tag, Tooltip as SuggestionTooltip,
+    fade, utf16_len,
+};
 use mcrs_minecraft_command::parse_error_line;
 
 use super::font::{Font, Hover, Span, draw_centered_text, draw_text, draw_tinted_text, span_at};
@@ -40,7 +44,6 @@ const CARET_BLINK_MS: u128 = 300;
 const WHITE: u32 = 0xFFFF_FFFF;
 const TAG_TOOLTIP_WIDTH: i32 = 210;
 const MODIFIED_ICON: &str = "icon/chat_modified";
-const MAX_INPUT: usize = 256;
 
 /// The lines of the chat view: 20 open, 10 closed (CHAT-LOG-004).
 pub fn per_page(open: bool) -> usize {
@@ -98,8 +101,8 @@ impl Pointer<'_> {
 /// result is the hovered text style (CHAT-LOG-007).
 pub fn chat_lines<'c>(
     size: GuiSize,
-    chat: &'c Chat,
-    background: f32,
+    chat: &Chat,
+    lines: &'c mcrs_minecraft_chat::ChatLines<Vec<Span>>,
     mut pointer: Option<Pointer<'_>>,
     out: &mut Vec<GuiQuad>,
     font: &Font,
@@ -112,7 +115,7 @@ pub fn chat_lines<'c>(
     let mut hovered_message = None;
     if let Some(pointer) = &pointer {
         let mut message = 0;
-        for (slot, line) in chat.log.visible(page) {
+        for (slot, line) in lines.visible(page) {
             message += usize::from(line.last);
             if let Some(span) = span_at(font, text_origin(slot), &line.content, pointer.at) {
                 hovered_message = Some(message);
@@ -122,7 +125,7 @@ pub fn chat_lines<'c>(
     }
     let mut message = 0;
     let mut shown = 0;
-    for (slot, line) in chat.log.visible(page) {
+    for (slot, line) in lines.visible(page) {
         message += usize::from(line.last);
         shown += 1;
         let alpha = if open {
@@ -136,7 +139,7 @@ pub fn chat_lines<'c>(
         let slot_bottom = bottom - slot as i32 * LINE;
         out.push(GuiQuad::Fill {
             rect: IRect::new(0, slot_bottom - LINE, CHAT_WIDTH + 12, slot_bottom),
-            color: with_alpha(0xFF00_0000, alpha * background),
+            color: with_alpha(0xFF00_0000, alpha * chat.options.text_background_opacity),
         });
         let origin = text_origin(slot);
         draw_tinted_text(
@@ -172,14 +175,14 @@ pub fn chat_lines<'c>(
             }
         }
     }
-    let lines = chat.log.lines().len();
-    if open && lines > shown && lines > 0 {
+    let count = lines.lines().len();
+    if open && count > shown && count > 0 {
         let visible = shown as i32 * LINE;
-        let total = lines as i32 * LINE;
-        let q = chat.log.scroll() as i32 * visible / lines as i32;
+        let total = count as i32 * LINE;
+        let q = lines.scroll() as i32 * visible / count as i32;
         let h = visible * visible / total;
         let alpha = if q > bottom { 170 } else { 96 };
-        let colour = if chat.log.new_since_scroll() {
+        let colour = if lines.new_since_scroll() {
             0xCC_3333
         } else {
             0x33_33AA
@@ -243,37 +246,38 @@ pub fn row_at(rect: IRect, point: IVec2) -> Option<usize> {
     (inside && dy % ROW != 0).then_some((dy / ROW) as usize)
 }
 
+/// The row under `point` for a click or a wheel step, which count the edges (CCMD-LIST-007).
+pub fn row_under(rect: IRect, point: IVec2) -> Option<usize> {
+    rect.contains(point)
+        .then(|| ((point.y - rect.min.y) / ROW) as usize)
+}
+
 /// Where the rows of the shown suggestion list are, and the entry of the top row.
 pub struct ListRows {
     pub rect: IRect,
     pub first: usize,
-    x: i32,
 }
 
 pub fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Option<ListRows> {
     let list = screen.commands.list()?;
     let entries = list.entries();
     let width = entries.iter().map(|text| text_width(font, text)).max()?;
-    let rows = entries.len().min(10) as i32;
+    let rows = entries.len().min(LIST_ROWS) as i32;
     let x = column(size, font, screen.input(), entries.range().0, width);
     let top = size.height - 15 - ROW * rows;
     Some(ListRows {
         rect: IRect::new(x - 1, top, x + width, top + ROW * rows),
         first: list.offset(),
-        x,
     })
 }
 
-fn suggestion_list(size: GuiSize, font: &Font, screen: &ChatScreen, out: &mut Vec<GuiQuad>) {
-    let (Some(list), Some(rows)) = (screen.commands.list(), list_rows(size, font, screen)) else {
-        return;
-    };
+fn suggestion_list(font: &Font, list: &SuggestionList, rows: &ListRows, out: &mut Vec<GuiQuad>) {
     let count = list.entries().len();
     let rect = rows.rect;
-    if count > 10 {
+    if count > LIST_ROWS {
         for (y, dotted) in [
             (rect.min.y - 1, list.offset() > 0),
-            (rect.max.y, list.offset() + 10 < count),
+            (rect.max.y, list.offset() + LIST_ROWS < count),
         ] {
             out.push(GuiQuad::Fill {
                 rect: IRect::new(rect.min.x, y, rect.max.x, y + 1),
@@ -302,7 +306,7 @@ fn suggestion_list(size: GuiSize, font: &Font, screen: &ChatScreen, out: &mut Ve
         };
         draw_text(
             font,
-            IVec2::new(rows.x, top + 2),
+            IVec2::new(rect.min.x + 1, top + 2),
             &[Span::new(text, colour)],
             out,
         );
@@ -333,10 +337,16 @@ fn hint_lines(
     let Some(width) = lines.iter().map(|line| font.width(line)).max() else {
         return;
     };
-    let x = if commands.hints_from_chat_text() {
+    let x = if !commands.is_command() {
         0
     } else {
-        column(size, font, commands.input(), commands.start(), width)
+        column(
+            size,
+            font,
+            commands.input(),
+            commands.suggestions().range().0,
+            width,
+        )
     };
     for (index, line) in lines.iter().enumerate() {
         let top = size.height - 27 - ROW * index as i32;
@@ -398,11 +408,13 @@ fn input_box(
     let caret = screen.edit().caret();
     let visible = size.width - 8;
     let mut skip = 0;
-    while skip < caret && text_width(font, input.get(skip..caret).unwrap_or_default()) > visible {
-        skip += input
-            .get(skip..)
-            .and_then(|rest| rest.chars().next())
-            .map_or(1, char::len_utf8);
+    let mut width = text_width(font, input.get(..caret).unwrap_or_default());
+    for ch in input.get(..caret).unwrap_or_default().chars() {
+        if width <= visible {
+            break;
+        }
+        width -= font.advance(ch, false);
+        skip += ch.len_utf8();
     }
     let y = size.height - 12;
     let spans: Vec<Span> = input_spans(screen)
@@ -421,7 +433,7 @@ fn input_box(
     let caret_x = 4 + text_width(font, input.get(skip..caret).unwrap_or_default());
     let at_end = caret == input.len();
     if at_end
-        && input.chars().map(char::len_utf16).sum::<usize>() < MAX_INPUT
+        && utf16_len(input) < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
         draw_text(
@@ -449,7 +461,7 @@ fn input_box(
 }
 
 pub fn draw(
-    chat: Res<Chat>,
+    (chat, lines): (Res<Chat>, Res<super::chat_input::ChatLines>),
     input: Res<ChatInput>,
     screen: Res<Screen>,
     (language, atlas): (Option<Res<Language>>, Option<Res<GuiAtlas>>),
@@ -471,14 +483,7 @@ pub fn draw(
         tooltip: &mut scene.tooltip,
         icon: atlas.0.region(MODIFIED_ICON).size(),
     });
-    let hovered = chat_lines(
-        size,
-        &chat,
-        chat.options.text_background_opacity,
-        pointer,
-        &mut scene.quads,
-        font,
-    );
+    let hovered = chat_lines(size, &chat, &lines.0, pointer, &mut scene.quads, font);
     if let Some((text, alpha)) = chat.overlay.shown(0.0) {
         let spans = text_spans(text, &language, u32::from(alpha) << 24 | 0x00FF_FFFF);
         draw_centered_text(
@@ -495,11 +500,9 @@ pub fn draw(
     let screen = &input.0;
     let caret_on = (time.elapsed().as_millis() / CARET_BLINK_MS).is_multiple_of(2);
     input_box(size, font, screen, caret_on, &mut scene.quads);
-    if let Some(list) = screen.commands.list() {
-        suggestion_list(size, font, screen, &mut scene.quads);
-        let tip = list_rows(size, font, screen)
-            .and_then(|rows| row_at(rows.rect, mouse))
-            .and_then(|_| list.entries().tooltip(list.selected()));
+    if let Some((list, rows)) = screen.commands.list().zip(list_rows(size, font, screen)) {
+        suggestion_list(font, list, &rows, &mut scene.quads);
+        let tip = row_at(rows.rect, mouse).and_then(|_| list.entries().tooltip(list.selected()));
         if let Some(tip) = tip {
             scene.tooltip.request(mouse, |rows| {
                 rows.push(match tip {
@@ -591,10 +594,11 @@ mod tests {
         fn the_newest_line_sits_forty_units_above_the_bottom_and_is_gone_after_ten_seconds() {
             let mut chat = Chat::default();
             let font = corpus_font();
-            chat.log
-                .push(Text::text("hi"), 0, None, false, |text, rows| {
-                    rows.push(text_spans(text, Language::corpus(), 0xFFFF_FFFF));
-                });
+            let mut lines = mcrs_minecraft_chat::ChatLines::default();
+            chat.log.push(Text::text("hi"), 0, None);
+            lines.sync(&chat.log, false, |text, _, rows| {
+                rows.push(text_spans(text, Language::corpus(), 0xFFFF_FFFF));
+            });
             let size = GuiSize {
                 width: 400,
                 height: 240,
@@ -602,7 +606,7 @@ mod tests {
             };
             let mut out = Vec::new();
             chat.tick = 20;
-            chat_lines(size, &chat, 0.5, None, &mut out, font);
+            chat_lines(size, &chat, &lines, None, &mut out, font);
             assert_eq!(
                 out[0],
                 GuiQuad::Fill {
@@ -616,7 +620,7 @@ mod tests {
             ));
             out.clear();
             chat.tick = 200;
-            chat_lines(size, &chat, 0.5, None, &mut out, font);
+            chat_lines(size, &chat, &lines, None, &mut out, font);
             assert!(out.is_empty());
         }
     }

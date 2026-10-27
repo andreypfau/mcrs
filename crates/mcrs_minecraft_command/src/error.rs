@@ -280,11 +280,9 @@ pub fn argument_text(input: &str, error: ArgumentError) -> Text {
 
 fn snbt_text(input: &str, error: SnbtError) -> Text {
     let mut with = Vec::new();
-    if error.kind.has_argument() {
-        let mut argument = String::new();
-        if error.kind.write_argument(input, &mut argument).is_ok() {
-            with.push(argument.into_text());
-        }
+    let mut argument = String::new();
+    if error.kind.write_argument(input, &mut argument).is_ok() && !argument.is_empty() {
+        with.push(argument.into_text());
     }
     Text::translate(error.kind.key(), with)
 }

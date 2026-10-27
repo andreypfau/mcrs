@@ -4,11 +4,8 @@ use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
@@ -63,14 +60,11 @@ fn handle_chat(
     );
     info!("<{}> {}", profile.username, msg);
 
-    packet_writer.write(OutboundPlayerPacket {
-        target: PacketTarget::AllPlayers,
-        priority: PacketPriority::Normal,
-        data: PacketPayload::SystemChat(ClientboundSystemChatPacket {
+    packet_writer.write(to_target(
+        PacketTarget::AllPlayers,
+        PacketPayload::SystemChat(ClientboundSystemChatPacket {
             content: text,
             overlay: false,
         }),
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+    ));
 }

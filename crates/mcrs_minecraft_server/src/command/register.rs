@@ -1,6 +1,5 @@
 use crate::command::{
-    CommandHandlers, CommandResult, CommandTreeBuilder, HandlerKey, Invocation, ModifierHandlers,
-    ModifyResult,
+    CommandResult, CommandTreeBuilder, HandlerKey, Handlers, Invocation, ModifyResult,
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
@@ -297,7 +296,7 @@ impl AppCommands for App {
             key,
             table,
             system: handler,
-            marker: PhantomData::<fn() -> M>,
+            marker: PhantomData::<fn() -> (M, CommandResult)>,
         }))
     }
 
@@ -323,18 +322,20 @@ impl AppCommands for App {
             key,
             table: table.clone(),
             system: handler,
-            marker: PhantomData::<fn() -> M>,
+            marker: PhantomData::<fn() -> (M, CommandResult)>,
         });
-        Ok(self.add_dimension_plugin(ModifierPlugin {
+        Ok(self.add_dimension_plugin(HandlerPlugin {
             handles,
             key,
             table,
             system: modify,
-            marker: PhantomData::<fn() -> N>,
+            marker: PhantomData::<fn() -> (N, ModifyResult)>,
         }))
     }
 }
 
+/// Registers the handler of a command in each dimension, under its key, in the table of its
+/// output: a [`CommandResult`] or a [`ModifyResult`].
 struct HandlerPlugin<B, C, S, M> {
     handles: C,
     key: HandlerKey,
@@ -355,64 +356,19 @@ impl<B: Clone, C: Clone, S: Clone, M> Clone for HandlerPlugin<B, C, S, M> {
     }
 }
 
-impl<B, C, S, M> Plugin for HandlerPlugin<B, C, S, M>
+impl<B, C, S, M, O> Plugin for HandlerPlugin<B, C, S, (M, O)>
 where
     B: Copy + PartialEq + Send + Sync + 'static,
     C: Copy + Send + Sync + 'static,
-    S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
+    S: IntoSystem<In<Call<B, C>>, O, M> + Clone + Send + Sync + 'static,
     M: 'static,
+    O: Send + Sync + 'static,
 {
     fn build(&self, app: &mut App) {
         let id = app
             .world_mut()
             .register_system(to_call(self.table.clone(), self.handles).pipe(self.system.clone()));
-        let mut handlers = app.world_mut().get_resource_or_init::<CommandHandlers>();
-        let index = usize::from(self.key.0);
-        if handlers.0.len() <= index {
-            handlers.0.resize(index + 1, None);
-        }
-        if let Some(slot) = handlers.0.get_mut(index) {
-            *slot = Some(id);
-        }
-    }
-
-    fn is_unique(&self) -> bool {
-        false
-    }
-}
-
-struct ModifierPlugin<B, C, D, N> {
-    handles: C,
-    key: HandlerKey,
-    table: BranchTable<B>,
-    system: D,
-    marker: PhantomData<fn() -> N>,
-}
-
-impl<B: Clone, C: Clone, D: Clone, N> Clone for ModifierPlugin<B, C, D, N> {
-    fn clone(&self) -> Self {
-        Self {
-            handles: self.handles.clone(),
-            key: self.key,
-            table: self.table.clone(),
-            system: self.system.clone(),
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<B, C, D, N> Plugin for ModifierPlugin<B, C, D, N>
-where
-    B: Copy + PartialEq + Send + Sync + 'static,
-    C: Copy + Send + Sync + 'static,
-    D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
-    N: 'static,
-{
-    fn build(&self, app: &mut App) {
-        let id = app
-            .world_mut()
-            .register_system(to_call(self.table.clone(), self.handles).pipe(self.system.clone()));
-        let mut handlers = app.world_mut().get_resource_or_init::<ModifierHandlers>();
+        let mut handlers = app.world_mut().get_resource_or_init::<Handlers<O>>();
         let index = usize::from(self.key.0);
         if handlers.0.len() <= index {
             handlers.0.resize(index + 1, None);

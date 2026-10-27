@@ -2,24 +2,20 @@ use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
 
 use bevy::ecs::system::SystemParam;
-use bevy::input::ButtonState;
-use bevy::input::InputSystems;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
-use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_command::GraphBuilder;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat::{
-    ChatAbilities, ChatLog, ChatScreen, Closed, Context, History, Key, Outcome, Overlay, Request,
-    Send, Tag, keeps_draft,
+    ChatAbilities, ChatLog, ChatScreen, Context, History, Overlay, Send, Tag,
 };
-use mcrs_minecraft_command::{ClientGraph, CommandLevel, Identifier, Lookup, Source, client_tree};
+use mcrs_minecraft_command::{
+    ClientGraph, CommandLevel, Identifier, Lookup, RegistryLookup, Source, client_tree,
+};
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_dimension::keys::DIMENSION;
 use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, JoinedGame, close_connection_later,
+    ClientConnection, ClientNetworkSystems, CurrentDimension, JoinedGame, close_connection_later,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::chat::CompletionAction;
@@ -31,7 +27,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChat, ServerboundChatCommand, ServerboundChatCommandSigned,
-    ServerboundCommandSuggestion,
 };
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -40,10 +35,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_world::chat_type::{ChatParameter, ChatType};
 
 use crate::game_mode::PermissionLevel;
-use crate::gui::chat::{list_rows, per_page, row_at};
-use crate::gui::scene::{GuiAtlas, GuiScene};
 use crate::player::Player;
-use crate::screen::{Screen, grab};
 
 /// The registries whose identifiers the client can name, so their arguments parse on the
 /// client.
@@ -114,7 +106,7 @@ impl Default for ChatOptions {
 /// draft and the custom completion set.
 #[derive(Resource, Default)]
 pub struct Chat {
-    pub log: ChatLog<Text, Vec<crate::gui::font::Span>>,
+    pub log: ChatLog<Text>,
     pub overlay: Overlay<Text>,
     pub history: History,
     pub draft: Option<String>,
@@ -132,25 +124,9 @@ pub struct ChatInput(pub ChatScreen);
 
 /// What the client knows that a command argument reads (CCMD-TREE-001, CCMD-SUG-002).
 pub struct ClientLookup<'a> {
-    registries: Option<&'a Registries>,
-    blocks: Option<&'a Blocks>,
+    registries: RegistryLookup<'a>,
     players: &'a OnlinePlayers,
     dimensions: &'a [mcrs_minecraft_core::ResourceKey<mcrs_minecraft_dimension::Dimension>],
-}
-
-impl ClientLookup<'_> {
-    fn names(&self, registry: StaticResourceLocation) -> &[ResourceLocation] {
-        self.registries
-            .and_then(|registries| registries.names_of(&registry))
-            .unwrap_or_default()
-    }
-
-    fn tag_members(&self, registry: StaticResourceLocation, tag: Identifier<'_>) -> &[u16] {
-        self.registries
-            .and_then(|registries| registries.tags_of(&registry))
-            .and_then(|mut tags| tags.find(|(name, _)| tag.eq_str(name.as_str())))
-            .map_or(&[], |(_, members)| members)
-    }
 }
 
 impl Lookup for ClientLookup<'_> {
@@ -160,25 +136,20 @@ impl Lookup for ClientLookup<'_> {
         } else {
             &[]
         };
-        dimensions
-            .iter()
-            .map(|key| key.as_str())
-            .chain(self.names(registry).iter().map(ResourceLocation::as_str))
+        dimensions.iter().map(|key| key.as_str()).chain(
+            self.registries
+                .names(registry)
+                .iter()
+                .map(ResourceLocation::as_str),
+        )
     }
 
     fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
-        self.registries
-            .and_then(|registries| registries.tags_of(&registry))
-            .into_iter()
-            .flatten()
-            .map(|(name, _)| name.as_str())
+        self.registries.tags(registry)
     }
 
     fn has_registry(&self, registry: StaticResourceLocation) -> bool {
-        registry == DIMENSION.location()
-            || self
-                .registries
-                .is_some_and(|registries| registries.names_of(&registry).is_some())
+        registry == DIMENSION.location() || self.registries.has_registry(registry)
     }
 
     fn tag_contains(
@@ -187,9 +158,7 @@ impl Lookup for ClientLookup<'_> {
         tag: Identifier<'_>,
         entry: StaticResourceLocation,
     ) -> bool {
-        self.registries
-            .and_then(|registries| registries.id_of(&registry, entry.as_str()))
-            .is_some_and(|id| self.tag_members(registry, tag).contains(&id))
+        self.registries.tag_contains(registry, tag, entry)
     }
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
@@ -201,20 +170,23 @@ impl Lookup for ClientLookup<'_> {
         registry: StaticResourceLocation,
         tag: Identifier<'_>,
     ) -> impl Iterator<Item = &str> {
-        let names = self.names(registry);
-        self.tag_members(registry, tag)
-            .iter()
-            .filter_map(move |&id| names.get(usize::from(id)))
-            .map(ResourceLocation::as_str)
+        self.registries.tag_entries(registry, tag)
     }
 
-    // chisle: a linear scan of the block table per read; an index by identifier lifts it.
     fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
-        self.blocks?
-            .blocks()
-            .iter()
-            .find(|entry| block.eq_str(entry.identifier.as_str()))
-            .map(|entry| entry.properties.0.as_slice())
+        self.registries.block_properties(block)
+    }
+
+    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.registries.suggested_time_markers(clock)
+    }
+
+    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.registries.timelines_of_clock(clock)
+    }
+
+    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+        self.registries.has_block_entity(block)
     }
 }
 
@@ -227,13 +199,21 @@ pub struct CommandWorld<'w, 's> {
     players: Res<'w, OnlinePlayers>,
     joined: Query<'w, 's, &'static JoinedGame>,
     level: Query<'w, 's, &'static PermissionLevel, With<Player>>,
+    dimension: Query<'w, 's, &'static CurrentDimension>,
 }
 
 impl CommandWorld<'_, '_> {
-    fn lookup(&self) -> ClientLookup<'_> {
+    pub(crate) fn lookup(&self) -> ClientLookup<'_> {
         ClientLookup {
-            registries: self.registries.as_deref().map(|registries| &**registries),
-            blocks: self.blocks.as_deref(),
+            registries: RegistryLookup {
+                registries: self.registries.as_deref().map(|registries| &**registries),
+                blocks: self.blocks.as_deref().map(|blocks| &*blocks.0),
+                dimension_type: self
+                    .dimension
+                    .iter()
+                    .next()
+                    .map(|current| current.dimension_type),
+            },
             players: &self.players,
             dimensions: self
                 .joined
@@ -243,7 +223,11 @@ impl CommandWorld<'_, '_> {
         }
     }
 
-    fn level(&self) -> CommandLevel {
+    pub(crate) fn has_joined(&self) -> bool {
+        !self.joined.is_empty()
+    }
+
+    pub(crate) fn level(&self) -> CommandLevel {
         CommandLevel::from_id(self.level.iter().next().map_or(0, |level| level.0))
     }
 }
@@ -254,7 +238,7 @@ pub struct ChatPlugin {
 }
 
 #[derive(Resource)]
-struct CommandHistoryFile(PathBuf);
+pub(crate) struct CommandHistoryFile(pub(crate) PathBuf);
 
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
@@ -271,7 +255,6 @@ impl Plugin for ChatPlugin {
             .init_resource::<ChatInput>()
             .add_message::<ChatMessage>()
             .add_systems(FixedUpdate, advance_tick)
-            .add_systems(PreUpdate, chat_keys.after(InputSystems))
             .add_systems(
                 Update,
                 log_messages
@@ -296,14 +279,7 @@ fn advance_tick(mut chat: ResMut<Chat>) {
     chat.overlay.tick();
 }
 
-fn log_messages(
-    mut messages: MessageReader<ChatMessage>,
-    mut chat: ResMut<Chat>,
-    screen: Res<Screen>,
-    language: Option<Res<crate::gui::language::Language>>,
-    atlas: Option<Res<GuiAtlas>>,
-) {
-    let open = *screen == Screen::Chat;
+pub(crate) fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<Chat>) {
     let chat = &mut *chat;
     for message in messages.read() {
         let allowed = if message.from_player {
@@ -311,32 +287,9 @@ fn log_messages(
         } else {
             chat.abilities.receive_system_messages
         };
-        if !allowed {
-            continue;
+        if allowed {
+            chat.log.push(message.text.clone(), chat.tick, message.tag);
         }
-        let width = crate::gui::chat::wrap_width(message.tag);
-        chat.log.push(
-            message.text.clone(),
-            chat.tick,
-            message.tag,
-            open,
-            |text, rows| {
-                let Some(language) = language.as_deref() else {
-                    return;
-                };
-                let spans = crate::gui::text::text_spans(text, language, 0xFFFF_FFFF);
-                match atlas.as_deref() {
-                    Some(atlas) => crate::gui::text::wrap(
-                        &spans,
-                        width,
-                        crate::gui::text::Wrap::ChatLog,
-                        &atlas.0.font,
-                        rows,
-                    ),
-                    None => rows.push(spans),
-                }
-            },
-        );
     }
 }
 
@@ -370,7 +323,7 @@ fn on_commands(
     }
 }
 
-fn context<'a>(
+pub(crate) fn context<'a>(
     world: &'a CommandWorld,
     source: &'a Source<'a, ClientLookup<'a>>,
     abilities: ChatAbilities,
@@ -447,8 +400,8 @@ fn decorate(
 ) -> Text {
     let Some(decoration) = registries
         .and_then(|registries| registries.registry::<ChatType>())
-        .and_then(|registry| registry.values().get(chat_type as usize).cloned())
-        .map(|chat_type| chat_type.chat)
+        .and_then(|registry| registry.values().get(chat_type as usize))
+        .map(|chat_type| &chat_type.chat)
     else {
         return content;
     };
@@ -461,7 +414,7 @@ fn decorate(
             ChatParameter::Content => content.clone(),
         })
         .collect::<Vec<_>>();
-    let mut text = Text::translate(decoration.translation_key, arguments);
+    let mut text = Text::translate(decoration.translation_key.clone(), arguments);
     let style = &decoration.style;
     text.style.color = style.color;
     text.style.bold = style.bold;
@@ -662,7 +615,7 @@ const NOTHING_SEEN: MessageSignature = MessageSignature {
     checksum: 1,
 };
 
-fn send(connection: &mut ClientConnection, send: &Send) {
+pub(crate) fn send(connection: &mut ClientConnection, send: &Send) {
     match send {
         Send::Chat(message) => connection.write_packet(&ServerboundChat {
             message: Bounded(message),
@@ -686,291 +639,5 @@ fn send(connection: &mut ClientConnection, send: &Send) {
                 last_seen_messages: NOTHING_SEEN,
             });
         }
-    }
-}
-
-fn send_request(connection: Option<&mut ClientConnection>, input: &str, request: Request) {
-    if let Some(connection) = connection {
-        connection.write_packet(&ServerboundCommandSuggestion {
-            id: VarInt(request.id),
-            text: Bounded(input.get(..request.end).unwrap_or_default()),
-        });
-    }
-}
-
-fn modifiers(keys: &ButtonInput<KeyCode>) -> (bool, bool) {
-    let control = keys.any_pressed([
-        KeyCode::ControlLeft,
-        KeyCode::ControlRight,
-        KeyCode::SuperLeft,
-        KeyCode::SuperRight,
-    ]);
-    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    (control, shift)
-}
-
-/// The key of the chat screen, or `None` for a key that types text or does nothing.
-fn screen_key(code: KeyCode, control: bool, shift: bool) -> Option<Key> {
-    Some(match code {
-        KeyCode::ArrowUp => Key::Up,
-        KeyCode::ArrowDown => Key::Down,
-        KeyCode::Tab => Key::Tab { back: shift },
-        KeyCode::Escape => Key::Escape,
-        KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
-        KeyCode::Backspace => Key::Backspace { word: control },
-        KeyCode::Delete => Key::Delete { word: control },
-        KeyCode::ArrowLeft => Key::Left {
-            word: control,
-            select: shift,
-        },
-        KeyCode::ArrowRight => Key::Right {
-            word: control,
-            select: shift,
-        },
-        KeyCode::Home => Key::Home { select: shift },
-        KeyCode::End => Key::End { select: shift },
-        KeyCode::PageUp => Key::PageUp,
-        KeyCode::PageDown => Key::PageDown,
-        KeyCode::KeyA if control => Key::SelectAll,
-        KeyCode::KeyC if control => Key::Copy,
-        KeyCode::KeyX if control => Key::Cut,
-        _ => return None,
-    })
-}
-
-#[derive(SystemParam)]
-struct ChatKeys<'w, 's> {
-    keys: ResMut<'w, ButtonInput<KeyCode>>,
-    keyboard: MessageReader<'w, 's, KeyboardInput>,
-    buttons: Res<'w, ButtonInput<MouseButton>>,
-    scroll: Res<'w, AccumulatedMouseScroll>,
-    clipboard: Option<ResMut<'w, bevy::clipboard::Clipboard>>,
-    scene: Res<'w, GuiScene>,
-    atlas: Option<Res<'w, GuiAtlas>>,
-    last_cursor: Local<'s, IVec2>,
-}
-
-#[derive(SystemParam)]
-struct ChatState<'w> {
-    screen: ResMut<'w, Screen>,
-    chat: ResMut<'w, Chat>,
-    input: ResMut<'w, ChatInput>,
-    history_file: Option<Res<'w, CommandHistoryFile>>,
-}
-
-/// The initial input of a key that opens the chat screen, and whether it is a draft
-/// (CHAT-OPEN-001).
-fn opening(
-    keys: &ButtonInput<KeyCode>,
-    screen: Screen,
-    joined: bool,
-    chat: &mut Chat,
-) -> Option<(String, bool)> {
-    if screen != Screen::None || !joined {
-        return None;
-    }
-    if keys.just_pressed(KeyCode::KeyT) {
-        return Some(
-            chat.draft
-                .take()
-                .map_or((String::new(), false), |draft| (draft, true)),
-        );
-    }
-    if !keys.just_pressed(KeyCode::Slash) {
-        return None;
-    }
-    Some(match chat.draft.take() {
-        Some(draft) if draft.starts_with('/') => (draft, true),
-        other => {
-            chat.draft = other;
-            ("/".to_owned(), false)
-        }
-    })
-}
-
-/// Opens the chat screen on its keys (CHAT-OPEN-001), and while it is open gives it every key,
-/// so no game key fires under it (CHAT-KEY-001).
-fn chat_keys(
-    mut keys: ChatKeys,
-    mut state: ChatState,
-    world: CommandWorld,
-    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-    mut connection: Option<Single<&mut ClientConnection>>,
-) {
-    let lookup = world.lookup();
-    let source = Source::new(world.level(), &lookup);
-    let chat = &mut *state.chat;
-    if *state.screen != Screen::Chat {
-        let Some((initial, draft)) =
-            opening(&keys.keys, *state.screen, !world.joined.is_empty(), chat)
-        else {
-            return;
-        };
-        let cx = context(
-            &world,
-            &source,
-            chat.abilities,
-            chat.options,
-            &chat.completions,
-        );
-        state.input.0.open(&initial, draft, &cx);
-        flush_request(&mut state.input.0, &mut connection);
-        *state.screen = Screen::Chat;
-        grab(&mut cursor, false);
-        keys.keyboard.clear();
-        keys.keys.reset_all();
-        return;
-    }
-    let cx = context(
-        &world,
-        &source,
-        chat.abilities,
-        chat.options,
-        &chat.completions,
-    );
-    let (control, shift) = modifiers(&keys.keys);
-    let screen = &mut state.input.0;
-    let mut closed = None;
-    let mut page = 0;
-    for event in keys.keyboard.read() {
-        if event.state != ButtonState::Pressed || closed.is_some() {
-            continue;
-        }
-        let outcome = if let Some(key) = screen_key(event.key_code, control, shift) {
-            screen.key(key, &mut chat.history, &cx)
-        } else if control && event.key_code == KeyCode::KeyV {
-            match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
-                Some(bevy::clipboard::ClipboardRead::Ready(Ok(text))) => {
-                    screen.type_text(&text, &cx)
-                }
-                _ => Outcome::Ignored,
-            }
-        } else if let Some(text) = event.text.as_ref().filter(|_| !control) {
-            screen.type_text(text, &cx)
-        } else {
-            Outcome::Ignored
-        };
-        match outcome {
-            Outcome::Closed(how) => closed = Some(how),
-            Outcome::Page(direction) => page += direction,
-            Outcome::Copy(text) => {
-                if let Some(clipboard) = keys.clipboard.as_deref_mut() {
-                    let _ = clipboard.set_text(text);
-                }
-            }
-            Outcome::Ignored | Outcome::Handled => {}
-        }
-        flush_request(screen, &mut connection);
-    }
-    let moved = *keys.last_cursor != keys.scene.cursor;
-    *keys.last_cursor = keys.scene.cursor;
-    if let Some(atlas) = keys.atlas.as_deref() {
-        mouse(
-            &keys,
-            moved,
-            screen,
-            &mut chat.log,
-            shift,
-            &atlas.0.font,
-            &cx,
-        );
-        flush_request(screen, &mut connection);
-    }
-    if page != 0 {
-        let lines = per_page(true).saturating_sub(1) as isize;
-        chat.log.scroll_by(page * lines, per_page(true));
-    }
-    keys.keys.reset_all();
-    if let Some(closed) = closed {
-        close(
-            &mut state,
-            closed,
-            connection.as_deref_mut().map(|c| &mut **c),
-        );
-        grab(&mut cursor, true);
-    }
-}
-
-fn flush_request(screen: &mut ChatScreen, connection: &mut Option<Single<&mut ClientConnection>>) {
-    if let Some(request) = screen.take_request() {
-        send_request(
-            connection.as_deref_mut().map(|c| &mut **c),
-            screen.input(),
-            request,
-        );
-    }
-}
-
-/// Sends what Enter sent, keeps the draft and leaves the screen (CHAT-OPEN-002).
-fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientConnection>) {
-    let chat = &mut *state.chat;
-    let screen = &state.input.0;
-    if let Closed::Sent {
-        send: Some(sent),
-        history_changed,
-    } = &closed
-    {
-        if let Some(connection) = connection {
-            send(connection, sent);
-        }
-        if *history_changed && let Some(file) = &state.history_file {
-            write_history(file.0.clone(), chat.history.command_file());
-        }
-    }
-    chat.draft = keeps_draft(screen.input(), Some(&closed), chat.options.save_unsent)
-        .then(|| screen.input().to_owned());
-    chat.log.reset_scroll();
-    *state.screen = Screen::None;
-}
-
-fn write_history(path: PathBuf, file: String) {
-    bevy::tasks::IoTaskPool::get()
-        .spawn(async move {
-            if let Err(error) = std::fs::write(&path, file) {
-                warn!("cannot write {}: {error}", path.display());
-            }
-        })
-        .detach();
-}
-
-/// The wheel and the left button over the open chat (CHAT-KEY-001, CCMD-LIST-007).
-fn mouse(
-    keys: &ChatKeys,
-    moved: bool,
-    screen: &mut ChatScreen,
-    log: &mut ChatLog<Text, Vec<crate::gui::font::Span>>,
-    shift: bool,
-    font: &crate::gui::font::Font,
-    cx: &Context<'_, ClientLookup<'_>>,
-) {
-    let scene = &*keys.scene;
-    let rows = list_rows(scene.size, font, screen);
-    let over = rows.as_ref().and_then(|rows| {
-        rows.rect
-            .contains(scene.cursor)
-            .then(|| rows.first + ((scene.cursor.y - rows.rect.min.y) / 12) as usize)
-    });
-    let hovered = rows.and_then(|rows| row_at(rows.rect, scene.cursor).map(|row| rows.first + row));
-    let step = keys.scroll.delta.y.clamp(-1.0, 1.0) as isize;
-    if step != 0 {
-        match (over, screen.commands.list_mut()) {
-            (Some(_), Some(list)) => list.scroll(step),
-            _ => log.scroll_by(if shift { step } else { step * 7 }, per_page(true)),
-        }
-    }
-    let Some(list) = screen.commands.list_mut() else {
-        return;
-    };
-    if let Some(index) = hovered
-        && moved
-        && list.selected() != index
-    {
-        list.select(index as isize);
-    }
-    if let Some(index) = over.filter(|&index| index < list.entries().len())
-        && keys.buttons.just_pressed(MouseButton::Left)
-    {
-        list.select(index as isize);
-        screen.insert_suggestion(cx);
     }
 }

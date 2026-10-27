@@ -1,13 +1,19 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_engine::bus::{
-    EditClock, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
+use mcrs_minecraft_environment::world_clock::{
+    AdvanceTime, ClockEdit, ClockState, WorldClock, WorldClocks,
 };
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, ClockState, WorldClock, WorldClocks};
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundSetTime, ClockUpdate};
 use mcrs_minecraft_protocol::{VarInt, VarLong};
+
+/// A change to a world clock. The host owns the clocks and applies it.
+#[derive(Event, Clone, Copy, Debug, PartialEq)]
+pub struct EditClock {
+    pub clock: Id<WorldClock>,
+    pub edit: ClockEdit,
+}
 
 /// The tick counter that every dimension reads as its game time (SIM-TICK-003).
 // chisle: the game time and the clock states start fresh each run and a player gets
@@ -17,7 +23,8 @@ use mcrs_minecraft_protocol::{VarInt, VarLong};
 pub struct GameTime(pub i64);
 
 /// The host side of the world clocks: the game time, and the clock changes that dimensions
-/// ask for. The dimensions read both as a copy that the host extracts every tick.
+/// ask for. The dimensions read both as a copy that the host extracts every tick, and the
+/// clocks again after each change a command makes, so a later stage in another dimension reads it.
 pub struct WorldClockHostPlugin;
 
 impl Plugin for WorldClockHostPlugin {
@@ -59,53 +66,19 @@ fn apply_clock_edit(
         return;
     };
     state.apply(edit.edit);
-    writer.write(OutboundPlayerPacket {
-        target: PacketTarget::AllPlayers,
-        priority: PacketPriority::Normal,
-        data: PacketPayload::SetTime(ClientboundSetTime {
+    writer.write(to_target(
+        PacketTarget::AllPlayers,
+        PacketPayload::SetTime(ClientboundSetTime {
             game_time: game_time.0,
             clocks: vec![clock_update(edit.clock, state, advance_time.0)],
         }),
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+    ));
 }
 
-/// The clock changes a dimension sent to the host in this tick. The host applies them
-/// between ticks, so the next copy of the clocks holds them and the list is emptied when that
-/// copy arrives.
-#[derive(Resource, Clone, Debug, Default)]
-pub struct PendingClockEdits(Vec<EditClock>);
-
-impl PendingClockEdits {
-    pub fn push(&mut self, edit: EditClock) {
-        self.0.push(edit);
-    }
-
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
-    /// The state of the clock in the copy, with the changes of this tick applied.
-    pub fn state(&self, clocks: &WorldClocks, clock: Id<WorldClock>) -> Option<ClockState> {
-        let mut state = *clocks.get(clock)?;
-        for edit in self.0.iter().filter(|edit| edit.clock == clock) {
-            state.apply(edit.edit);
-        }
-        Some(state)
-    }
-}
-
-/// Copies the host's game time into a dimension and drops the clock changes that the copy of
-/// the clocks now holds.
-pub(crate) fn extract_clock_state(main_world: &World, sub_world: &mut World) {
+/// Copies the host's game time into a dimension.
+pub(crate) fn extract_game_time(main_world: &World, sub_world: &mut World) {
     if let Some(time) = main_world.get_resource::<GameTime>() {
         sub_world.insert_resource(*time);
-    }
-    if let Some(mut pending) = sub_world.get_resource_mut::<PendingClockEdits>()
-        && !pending.0.is_empty()
-    {
-        pending.clear();
     }
 }
 

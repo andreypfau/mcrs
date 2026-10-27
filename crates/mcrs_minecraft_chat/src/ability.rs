@@ -1,11 +1,4 @@
-/// The option "Chat" (CHAT-OPT-002).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ChatVisibility {
-    #[default]
-    Shown,
-    CommandsOnly,
-    Hidden,
-}
+use mcrs_minecraft_protocol::setting::ChatMode;
 
 /// What the player can send and receive (CHAT-OPT-002).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,11 +11,11 @@ pub struct ChatAbilities {
 
 impl ChatAbilities {
     /// `chat_allowed` is false when the launcher or the account forbids chat.
-    pub fn new(visibility: ChatVisibility, chat_allowed: bool) -> Self {
-        let (messages, commands) = match visibility {
-            ChatVisibility::Shown => (true, true),
-            ChatVisibility::CommandsOnly => (false, true),
-            ChatVisibility::Hidden => (false, false),
+    pub fn new(mode: ChatMode, chat_allowed: bool) -> Self {
+        let (messages, commands) = match mode {
+            ChatMode::Enabled => (true, true),
+            ChatMode::CommandsOnly => (false, true),
+            ChatMode::Hidden => (false, false),
         };
         Self {
             send_messages: messages && chat_allowed,
@@ -35,6 +28,6 @@ impl ChatAbilities {
 
 impl Default for ChatAbilities {
     fn default() -> Self {
-        Self::new(ChatVisibility::Shown, true)
+        Self::new(ChatMode::Enabled, true)
     }
 }

@@ -131,11 +131,7 @@ impl ChatScreen {
 
     /// Typed or pasted text.
     pub fn type_text<L: Lookup>(&mut self, text: &str, cx: &Context<'_, L>) -> Outcome {
-        if self.edit.insert(text) {
-            self.changed(cx)
-        } else {
-            Outcome::Ignored
-        }
+        self.edited(|edit| edit.insert(text), cx)
     }
 
     /// Inserts the selected suggestion of the list in place (CCMD-LIST-005).

@@ -1,3 +1,4 @@
+use crate::argument::resource::ResourceLocationArgument;
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::identifier::{Identifier, identifier_matches, read_identifier, text_matches};
 use crate::source::{Lookup, Source};
@@ -152,9 +153,9 @@ impl<S> Argument<S> for TimeMarkerArgument {
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
-        _: &S,
+        source: &S,
     ) -> Result<Identifier<'a>, CommandSyntaxError> {
-        read_identifier(reader).map(|(identifier, _)| identifier)
+        ResourceLocationArgument.parse(reader, source)
     }
 }
 

@@ -8,6 +8,13 @@ pub trait Requirement<S> {
     fn test(&self, source: &S) -> bool;
 }
 
+/// No requirement: every source passes.
+impl<S> Requirement<S> for () {
+    fn test(&self, _: &S) -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(u32);
 
@@ -99,7 +106,7 @@ impl<A, R, H> Node<A, R, H> {
         &self.kind
     }
 
-    pub(crate) fn argument(&self) -> Option<&A> {
+    pub fn argument(&self) -> Option<&A> {
         match &self.kind {
             NodeKind::Argument { argument, .. } => Some(argument),
             _ => None,
@@ -327,19 +334,7 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
             .nodes
             .get(child.index())
             .ok_or(BuildError::UnknownNode(child))?;
-        let parent_node = self
-            .nodes
-            .get(parent.index())
-            .ok_or(BuildError::UnknownNode(parent))?;
-        if parent_node.redirect.is_some() {
-            return Err(BuildError::RedirectWithChildren(parent));
-        }
-        let name = child_node.kind.name();
-        if let Some(&existing) = parent_node.children.iter().find(|&&existing| {
-            self.nodes
-                .get(existing.index())
-                .is_some_and(|node| node.kind.name() == name)
-        }) {
+        if let Some((existing, _)) = self.child_named(parent, child_node.kind.name())? {
             return if existing == child {
                 Ok(())
             } else {
@@ -348,6 +343,25 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         }
         self.node_mut(parent)?.children.push(child);
         Ok(())
+    }
+
+    /// The child of `parent` with `name`. A parent that redirects takes no child.
+    fn child_named(
+        &self,
+        parent: NodeId,
+        name: &str,
+    ) -> Result<Option<(NodeId, &Node<A, R, H>)>, BuildError> {
+        let parent_node = self
+            .nodes
+            .get(parent.index())
+            .ok_or(BuildError::UnknownNode(parent))?;
+        if parent_node.redirect.is_some() {
+            return Err(BuildError::RedirectWithChildren(parent));
+        }
+        Ok(parent_node.children.iter().find_map(|&child| {
+            let node = self.nodes.get(child.index())?;
+            (node.kind.name() == name).then_some((child, node))
+        }))
     }
 
     fn node_mut(&mut self, node: NodeId) -> Result<&mut Node<A, R, H>, BuildError> {
@@ -362,18 +376,7 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         kind: NodeKind<A>,
         requirement: R,
     ) -> Result<NodeId, BuildError> {
-        let parent_node = self
-            .nodes
-            .get(parent.index())
-            .ok_or(BuildError::UnknownNode(parent))?;
-        if parent_node.redirect.is_some() {
-            return Err(BuildError::RedirectWithChildren(parent));
-        }
-        let name = kind.name();
-        let existing = parent_node.children.iter().find_map(|&child| {
-            let node = self.nodes.get(child.index())?;
-            (node.kind.name() == name).then_some((child, node))
-        });
+        let existing = self.child_named(parent, kind.name())?;
         if let Some((existing, node)) = existing {
             return if node.kind == kind && node.requirement == requirement {
                 Ok(existing)

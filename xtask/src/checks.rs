@@ -29,13 +29,14 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
 
-const NO_BEVY_PACKAGES: [&str; 51] = [
+const NO_BEVY_PACKAGES: [&str; 52] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
     "mcrs_minecraft_block_predicate",
+    "mcrs_minecraft_chat",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_command",

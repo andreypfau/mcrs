@@ -10,13 +10,9 @@ use mcrs_command::{
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
-use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
+use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::snbt::{check_compound, read_compound};
-
-fn block_registry() -> StaticResourceLocation {
-    BLOCK.location()
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockOrTag<'a> {
@@ -38,7 +34,7 @@ pub struct BlockPredicate<'a> {
 
 impl<'a> BlockPredicate<'a> {
     /// The pairs of a name and a value text of the property list, in their order.
-    pub fn properties(&self) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
+    fn properties(&self) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
         let input = self.input;
         entries(input, self.list).map(move |(name, value)| {
             (
@@ -48,74 +44,42 @@ impl<'a> BlockPredicate<'a> {
         })
     }
 
-    pub fn has_data(&self) -> bool {
-        self.data.is_some()
-    }
-
-    /// The data compound (ARG-BLK-007), built from the text the read validated.
-    pub fn data(&self) -> Option<NbtCompound> {
-        let start = self.data?;
-        read_compound(self.input, start)
-            .ok()
-            .map(|(compound, _)| compound)
-    }
-
     /// ARG-BLK-011: without a data compound the test passes. With one, `saved` gives the saved
-    /// data of the block entity at the position (ARG-BLK-012), or `None` when there is none.
+    /// data of the block entity at the position (ARG-BLK-012), or `None` when there is none. The
+    /// compound (ARG-BLK-007) is built from the text the read validated.
     pub fn test_data(&self, saved: impl FnOnce() -> Option<NbtCompound>) -> bool {
-        let Some(expected) = self.data() else {
-            return self.data.is_none();
+        let Some(start) = self.data else {
+            return true;
+        };
+        let Ok((expected, _)) = read_compound(self.input, start) else {
+            return false;
         };
         saved().is_some_and(|actual| expected.matches(&actual))
     }
 
-    /// The test of a block state (ARG-BLK-009, ARG-BLK-010). `in_subject` says whether the
-    /// block of the state is the block of the predicate, or a member of its tag.
-    pub fn test(&self, in_subject: bool, block: &BlockEntry, state: BlockStateId) -> bool {
-        in_subject
-            && self.properties().all(|(name, text)| {
-                block
-                    .properties
-                    .0
-                    .iter()
-                    .find(|property| name.eq_str(&property.name))
-                    .and_then(|property| block.value_of(state, &property.name))
-                    .is_some_and(|value| value_text_is(value, text))
-            })
+    /// The property test of a block state (ARG-BLK-010). The caller tests that the block of the
+    /// state is the block of the predicate, or a member of its tag (ARG-BLK-009).
+    pub fn test(&self, block: &BlockEntry, state: BlockStateId) -> bool {
+        self.properties().all(|(name, text)| {
+            block
+                .properties
+                .0
+                .iter()
+                .find(|property| name.eq_str(&property.name))
+                .and_then(|property| block.value_of(state, &property.name))
+                .is_some_and(|value| value_text_is(value, text))
+        })
     }
 }
 
-/// Reads an optional sign and ASCII digits as a 32-bit integer (ARG-BLK-005).
+/// Reads an optional sign and ASCII digits as a 32-bit integer (ARG-BLK-005). A text with an
+/// escape holds a backslash, so it is no integer.
 fn integer(text: StringValue<'_>) -> Option<i32> {
-    let mut chars = text.chars().peekable();
-    let negative = match chars.peek() {
-        Some('-') => true,
-        Some('+') => false,
-        _ => {
-            return digits(chars).and_then(|value| i32::try_from(value).ok());
-        }
-    };
-    chars.next();
-    let value = digits(chars)?;
-    i32::try_from(if negative { -value } else { value }).ok()
-}
-
-fn digits(chars: impl Iterator<Item = char>) -> Option<i64> {
-    let mut value: i64 = 0;
-    let mut any = false;
-    for c in chars {
-        let digit = c.to_digit(10)?;
-        value = value.checked_mul(10)?.checked_add(i64::from(digit))?;
-        if value > i64::from(u32::MAX) {
-            return None;
-        }
-        any = true;
-    }
-    any.then_some(value)
+    text.as_unescaped()?.parse().ok()
 }
 
 /// Whether the value text names `value` (ARG-BLK-005).
-pub fn value_text_is(value: &PropertyValue, text: StringValue<'_>) -> bool {
+fn value_text_is(value: &PropertyValue, text: StringValue<'_>) -> bool {
     match value {
         PropertyValue::Str(name) => text.eq_str(name),
         PropertyValue::Bool(true) => text.eq_str("true"),
@@ -415,7 +379,7 @@ fn read<'a, L: Lookup>(
     stage: &mut Stage<'a>,
 ) -> Result<BlockPredicate<'a>, CommandSyntaxError> {
     let start = reader.cursor();
-    let registry = block_registry();
+    let registry = BLOCK.location();
     let (subject, list) = if reader.peek_is('#') {
         reader.skip();
         let (id, span) = read_identifier(reader)?;
@@ -529,7 +493,7 @@ fn has_block_entity<L: Lookup>(lookup: &L, subject: BlockOrTag<'_>) -> bool {
     match subject {
         BlockOrTag::Block(block) => lookup.has_block_entity(block),
         BlockOrTag::Tag(tag) => lookup
-            .tag_entries(block_registry(), tag)
+            .tag_entries(BLOCK.location(), tag)
             .filter_map(Identifier::parse)
             .any(|member| lookup.has_block_entity(member)),
     }
@@ -548,7 +512,7 @@ impl BlockPredicateArgument {
         builder: &mut SuggestionBuilder<'t, '_, T>,
     ) {
         let lookup: &'t L = source.lookup;
-        let registry = block_registry();
+        let registry = BLOCK.location();
         let mut stage = Stage::Start;
         let mut reader = Reader::at(builder.input(), builder.start());
         let point = match read(&mut reader, lookup, &mut stage) {

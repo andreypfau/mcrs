@@ -28,13 +28,15 @@ impl<S> Argument<S> for GameModeArgument {
     }
 }
 
+const ANCHORS: [(&str, LookAnchor); 2] = [("feet", LookAnchor::Feet), ("eyes", LookAnchor::Eyes)];
+
 /// `minecraft:entity_anchor` (ARG-KW-002).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EntityAnchorArgument;
 
 impl EntityAnchorArgument {
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
-        builder.suggest_matching(["feet", "eyes"], text_matches);
+        builder.suggest_matching(ANCHORS.map(|(name, _)| name), text_matches);
     }
 }
 
@@ -45,17 +47,16 @@ impl<S> Argument<S> for EntityAnchorArgument {
     fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<LookAnchor, CommandSyntaxError> {
         let start = reader.cursor();
         let word = reader.read_unquoted();
-        match word.text(reader.input()) {
-            "feet" => Ok(LookAnchor::Feet),
-            "eyes" => Ok(LookAnchor::Eyes),
-            _ => {
-                reader.set_cursor(start);
-                Err(SyntaxError::argument(
-                    ArgumentError::AnchorInvalid(word),
-                    start,
-                ))
-            }
-        }
+        let text = word.text(reader.input());
+        let anchor = ANCHORS.iter().find(|(name, _)| *name == text);
+        let Some(&(_, anchor)) = anchor else {
+            reader.set_cursor(start);
+            return Err(SyntaxError::argument(
+                ArgumentError::AnchorInvalid(word),
+                start,
+            ));
+        };
+        Ok(anchor)
     }
 }
 

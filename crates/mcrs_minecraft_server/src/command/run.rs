@@ -1,22 +1,22 @@
+use crate::command::effect::OperatorBroadcast;
 use crate::command::effect::{CommandOutbox, Effect, Teleport};
 use crate::command::seam::{PendingLine, PendingLines};
-use crate::command::{
-    CommandContext, CommandTargets, CommandTree, Invocation, SourceState, level_of, tree_packet,
-};
+use crate::command::{CommandContext, CommandTargets, Invocation, SourceState, level_of};
 use crate::ops::OpList;
+use crate::world::clock::EditClock;
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
-use mcrs_command::{Chain, ParseScratch, Suggestion, build_list};
+use mcrs_command::{Chain, ParseScratch, Suggestion, build_list, recycle};
 use mcrs_minecraft_command::{ArgumentError, CommandLevel, error_feedback, suggestion_reply};
 use mcrs_minecraft_engine::bus::{
-    OperatorBroadcast, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, to,
+    OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
 };
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{PlayerSession, Session};
+use mcrs_minecraft_level::session::Session;
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
@@ -177,12 +177,6 @@ pub(crate) fn has_pending_suggestion(
     pending.iter().any(|pending| pending.0.is_some())
 }
 
-/// Moves the items out of `buffer` into a buffer of another lifetime, keeping its allocation:
-/// the two element types differ only in lifetimes, so the collect reuses the buffer in place.
-fn recycle<A, B>(buffer: Vec<A>) -> Vec<B> {
-    buffer.into_iter().filter_map(|_| None).collect()
-}
-
 #[derive(Default)]
 pub(crate) struct SuggestionScratch {
     parse: ParseScratch<ArgumentError>,
@@ -227,20 +221,6 @@ pub(crate) fn answer_suggestion_requests(
         ));
         scratch.suggestions = recycle(suggestions);
         pending.0 = None;
-    }
-}
-
-/// Sends a player the tree it can see whenever its level changes. A player that spawns or
-/// changes dimension receives it in the sequence that brings it in (CMDP-TREE-002).
-pub(crate) fn send_command_tree(
-    tree: Res<CommandTree>,
-    players: Query<(Ref<PlayerOpLevel>, &HostAnchor), Changed<PlayerOpLevel>>,
-    mut writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    for (op_level, &HostAnchor(host)) in &players {
-        if !op_level.is_added() {
-            writer.write(tree_packet(&tree.0, host, *op_level));
-        }
     }
 }
 
@@ -302,6 +282,11 @@ impl CommandOutput<'_> {
     pub fn set_game_mode(&mut self, player: Entity, mode: GameMode) {
         self.outbox.effects.push(Effect::GameMode { player, mode });
     }
+
+    /// Changes a world clock, which the host owns.
+    pub fn edit_clock(&mut self, edit: EditClock) {
+        self.outbox.effects.push(Effect::EditClock(edit));
+    }
 }
 
 /// Delivers an admin message from any dimension to every online operator but its source. The
@@ -324,14 +309,11 @@ pub(crate) fn broadcast_to_operators(
     if operators.is_empty() {
         return;
     }
-    writer.write(OutboundPlayerPacket {
-        target: PacketTarget::PlayerSet(operators),
-        priority: PacketPriority::Normal,
-        data: PacketPayload::SystemChat(ClientboundSystemChatPacket {
+    writer.write(to_target(
+        PacketTarget::PlayerSet(operators),
+        PacketPayload::SystemChat(ClientboundSystemChatPacket {
             content: broadcast.message.clone(),
             overlay: false,
         }),
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+    ));
 }

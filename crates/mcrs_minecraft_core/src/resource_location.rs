@@ -59,9 +59,8 @@ impl<S: AsRef<str>> ResourceLocation<S> {
 
 const DEFAULT_NAMESPACE: &str = "minecraft";
 
-/// The namespace and the path of `text`, unchecked; a missing or empty namespace is
-/// `minecraft`.
-pub fn split_namespace(text: &str) -> (&str, &str) {
+/// The namespace and the path of `text`; a missing or empty namespace is `minecraft`.
+fn split_namespace(text: &str) -> (&str, &str) {
     match text.split_once(':') {
         Some(("", path)) => (DEFAULT_NAMESPACE, path),
         Some(parts) => parts,
@@ -69,8 +68,12 @@ pub fn split_namespace(text: &str) -> (&str, &str) {
     }
 }
 
-pub const fn is_valid(namespace: &str, path: &str) -> bool {
-    valid_namespace(namespace.as_bytes()) && valid(path.as_bytes(), true)
+/// The namespace and the path of `text`, or `None` when either has a character an identifier
+/// does not allow.
+pub fn parse_parts(text: &str) -> Option<(&str, &str)> {
+    let (namespace, path) = split_namespace(text);
+    (valid_namespace(namespace.as_bytes()) && valid(path.as_bytes(), true))
+        .then_some((namespace, path))
 }
 
 const fn valid_namespace(bytes: &[u8]) -> bool {

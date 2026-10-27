@@ -51,10 +51,11 @@ impl<A, R, H> Graph<A, R, H> {
             return true;
         }
         let child_optional = node.command().is_some();
-        let mut children = node.children().iter().copied().filter(|&child| {
+        let usable = |&child: &NodeId| {
             self.node(child)
                 .is_some_and(|child| child.requirement().test(source))
-        });
+        };
+        let mut children = node.children().iter().copied().filter(usable);
         let (Some(first), second) = (children.next(), children.next()) else {
             return true;
         };
@@ -85,15 +86,7 @@ impl<A, R, H> Graph<A, R, H> {
         }
         out.truncate(first_start);
         out.push(if child_optional { '[' } else { '(' });
-        for (index, &child) in node
-            .children()
-            .iter()
-            .filter(|&&child| {
-                self.node(child)
-                    .is_some_and(|child| child.requirement().test(source))
-            })
-            .enumerate()
-        {
+        for (index, child) in node.children().iter().copied().filter(usable).enumerate() {
             if index > 0 {
                 out.push('|');
             }

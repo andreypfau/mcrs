@@ -1,5 +1,7 @@
+use crate::command::seam::Worlds;
 use crate::command::vanilla::targets_or_self;
 use crate::command::{Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult};
+use crate::world::entity::player::ability::PlayerGameMode;
 use bevy_ecs::prelude::*;
 use mcrs_command::{Arg, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, EntityArgument, GameModeArgument, PermissionCheck};
@@ -82,4 +84,16 @@ pub(super) fn run(
         }
     }
     Ok(changed)
+}
+
+pub(crate) fn apply(worlds: &mut Worlds, player: Entity, mode: GameMode) {
+    let current = worlds
+        .locate(player)
+        .and_then(|(index, entity)| worlds.world_mut(index)?.get_mut::<PlayerGameMode>(entity));
+    match current {
+        Some(mut current) => {
+            current.set_if_neq(PlayerGameMode(mode));
+        }
+        None => tracing::error!(?player, "a game mode change names no online player"),
+    }
 }

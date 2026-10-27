@@ -102,6 +102,14 @@ impl Lookup for Blocks {
     fn has_block_entity(&self, block: Identifier<'_>) -> bool {
         block.eq_str("minecraft:chest")
     }
+
+    fn suggested_time_markers(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn timelines_of_clock(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
 }
 
 fn source() -> Source<'static, Blocks> {
@@ -303,18 +311,17 @@ fn the_test_compares_only_the_named_properties_with_their_value_texts() {
     );
     let axis_x = BlockStateId::checked(200, usize::MAX).unwrap();
     let cases = [
-        ("wheat", true, &wheat, age_7, true),
-        ("wheat[age=+7]", true, &wheat, age_7, true),
-        ("wheat[age=07]", true, &wheat, age_7, true),
-        ("wheat[age=6]", true, &wheat, age_7, false),
-        ("wheat", false, &wheat, age_7, false),
-        ("#logs[axis=x]", true, &log, axis_x, true),
-        ("#logs[axis=up]", true, &log, axis_x, false),
-        ("#logs[foo=bar]", true, &log, axis_x, false),
+        ("wheat", &wheat, age_7, true),
+        ("wheat[age=+7]", &wheat, age_7, true),
+        ("wheat[age=07]", &wheat, age_7, true),
+        ("wheat[age=6]", &wheat, age_7, false),
+        ("#logs[axis=x]", &log, axis_x, true),
+        ("#logs[axis=up]", &log, axis_x, false),
+        ("#logs[foo=bar]", &log, axis_x, false),
     ];
-    for (input, in_subject, block, state, passes) in cases {
+    for (input, block, state, passes) in cases {
         let predicate = read(input).0.unwrap();
-        assert_eq!(predicate.test(in_subject, block, state), passes, "{input}");
+        assert_eq!(predicate.test(block, state), passes, "{input}");
     }
 }
 

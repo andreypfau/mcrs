@@ -31,7 +31,7 @@ pub fn nearest_biome(
         }
         for i in -ring..=ring {
             let step = if i.abs() == ring { 1 } else { 2 * ring };
-            for j in (-ring..=ring).step_by(step.max(1) as usize) {
+            for j in (-ring..=ring).step_by(step as usize) {
                 let x = origin.x + STEP * i;
                 let z = origin.z + STEP * j;
                 for y in (first..=high).step_by(Y_STEP as usize) {

@@ -50,6 +50,21 @@ pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
     fold(prefix.chars()).all(|c| text.next() == Some(c))
 }
 
+/// Whether `text` starts with the remaining input, ignoring case.
+pub fn prefix_matches(remaining: &str, text: &str) -> bool {
+    starts_with_ignore_case(text, remaining)
+}
+
+#[expect(
+    clippy::unnecessary_filter_map,
+    reason = "the map changes the lifetime of the element type, which a filter cannot"
+)]
+/// Empties a buffer of suggestions and gives it another lifetime; the allocation stays,
+/// because the element types have one layout.
+pub fn recycle<'a, 'b, T>(buffer: Vec<Suggestion<'a, T>>) -> Vec<Suggestion<'b, T>> {
+    buffer.into_iter().filter_map(|_| None).collect()
+}
+
 /// Collects the suggestions for the input up to the cursor, from one start.
 pub struct SuggestionBuilder<'t, 'o, T> {
     input: &'t str,

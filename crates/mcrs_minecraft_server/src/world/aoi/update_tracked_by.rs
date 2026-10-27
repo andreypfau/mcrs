@@ -23,8 +23,8 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
+use crate::world::entity::network_id;
 use crate::world::entity::player::HostAnchor;
-use crate::world::entity::{entity_network_id, player_network_id};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::session::GameProfile;
 
@@ -64,10 +64,8 @@ pub fn update_tracked_by(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
-        let network_id = match all_players.get(player) {
-            Ok((_, _, _, Some(anchor))) => player_network_id(anchor.0),
-            _ => entity_network_id(player),
-        };
+        let anchor = all_players.get(player).ok().and_then(|(.., anchor)| anchor);
+        let wire_id = network_id(player, anchor);
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
         };
@@ -121,7 +119,7 @@ pub fn update_tracked_by(
                 packet_writer.write(to(
                     new_entity,
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-                        id: VarInt(network_id),
+                        id: VarInt(wire_id),
                         uuid,
                         kind: mcrs_minecraft_entity::keys::EntityType::Player,
                         pos,
@@ -139,7 +137,7 @@ pub fn update_tracked_by(
                 packet_writer.write(to(
                     old_entity,
                     PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
-                        entity_ids: vec![VarInt(network_id)],
+                        entity_ids: vec![VarInt(wire_id)],
                     }),
                 ));
             }

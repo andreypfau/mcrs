@@ -113,10 +113,6 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
         app.add_observer(network_add);
-        let leave = app
-            .world_mut()
-            .register_system(crate::world::aoi::drain_player_despawn::leave_dimension);
-        app.insert_resource(dimension_change::LeaveDimension(leave));
     }
 }
 
@@ -321,10 +317,9 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-        packet_writer.write(op_level_event(host, op_level));
-        if let Some(tree) = &tree {
-            packet_writer.write(crate::command::tree_packet(&tree.0, host, op_level));
-        }
+        level_packets(host, op_level, tree.as_deref(), |packet| {
+            packet_writer.write(packet);
+        });
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
@@ -345,15 +340,31 @@ pub(crate) fn op_level_event(host: Entity, op_level: PlayerOpLevel) -> OutboundP
 }
 
 /// A player that spawns or changes dimension learns its level in the sequence that brings it
-/// in; this tells it every later change.
+/// in; this tells it every later change, with the tree of its new level.
 pub(crate) fn send_op_level(
     players: Query<(Ref<PlayerOpLevel>, &HostAnchor), Changed<PlayerOpLevel>>,
+    tree: Option<Res<crate::command::CommandTree>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (op_level, &HostAnchor(host)) in &players {
         if !op_level.is_added() {
-            packet_writer.write(op_level_event(host, *op_level));
+            level_packets(host, *op_level, tree.as_deref(), |packet| {
+                packet_writer.write(packet);
+            });
         }
+    }
+}
+
+/// The level of a player, then the command tree it can see at that level (CMDP-TREE-002).
+pub(crate) fn level_packets(
+    host: Entity,
+    op_level: PlayerOpLevel,
+    tree: Option<&crate::command::CommandTree>,
+    mut push: impl FnMut(OutboundPlayerPacket),
+) {
+    push(op_level_event(host, op_level));
+    if let Some(packet) = tree.and_then(|tree| crate::command::tree_packet(tree, host, op_level)) {
+        push(packet);
     }
 }
 

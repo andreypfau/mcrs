@@ -73,12 +73,11 @@ pub fn drain_inbound_player_despawn(
 
 /// A player that leaves this dimension for another one, through the same eviction as a
 /// player that disconnects; the caller despawns it.
-pub fn leave_dimension(
+pub(crate) fn leave_dimension(
     In(target): In<Entity>,
     player_lookup: Query<(Entity, &HostAnchor), With<Player>>,
     mut player_caches: Query<&mut TrackedBy, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut commands: Commands,
 ) {
     let Ok((_, &HostAnchor(host_anchor))) = player_lookup.get(target) else {
         return;
@@ -90,7 +89,6 @@ pub fn leave_dimension(
         &mut player_caches,
         &mut packet_writer,
     );
-    commands.entity(target).try_remove::<ColumnView>();
 }
 
 fn evict(
@@ -104,15 +102,8 @@ fn evict(
         entity_ids: vec![VarInt(crate::world::entity::player_network_id(host_anchor))],
     };
 
-    // Emit PlayerLeftView to former observers before any cache is mutated.
-    // Former observers are all in-dim players whose TrackedBy currently
-    // contains `target`. Shared borrow of player_caches here; the loop
-    // completes before the mutable pass below.
-    //
-    // This must run inside the drain rather than update_tracked_by because
-    // the drain wipes PlayerObservers and TrackedBy before update_tracked_by
-    // ever runs (FixedPreUpdate vs FixedPostUpdate), so update_tracked_by
-    // will never see the left-view transition for a removed player.
+    // The former observers are found through their TrackedBy, so they hear of the leave before
+    // the pass below removes `target` from it; update_tracked_by runs later and never sees it.
     for (observer_entity, &HostAnchor(observer)) in player_lookup.iter() {
         if observer_entity == target {
             continue;
@@ -127,9 +118,6 @@ fn evict(
         }
     }
 
-    // Single mutable pass over all in-dim player caches.
-    // Target's own row: clear it (self-teardown).
-    // Every other row: retain-remove target from TrackedBy (proactive eviction).
     for (entity, _) in player_lookup.iter() {
         if let Ok(mut tracked_by) = player_caches.get_mut(entity) {
             if entity == target {

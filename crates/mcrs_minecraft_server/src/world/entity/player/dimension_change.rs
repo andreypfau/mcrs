@@ -1,22 +1,20 @@
-use crate::command::{CommandTree, tree_packet};
+use crate::command::CommandTree;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::entity::player::movement::TeleportState;
 use crate::world::entity::player::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
-use crate::world::entity::player::{HostAnchor, PlayerBundle, game_mode, op_level_event};
+use crate::world::entity::player::{HostAnchor, game_mode, level_packets};
 use crate::world::entity::{EntityBundle, EntityUuid};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::In;
 use bevy_ecs::prelude::With;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
@@ -30,15 +28,10 @@ use mcrs_minecraft_protocol::{GameEventKind, VarInt};
 /// Both bits of the data to keep: the attribute modifiers and the entity data (DIM-CHG-004).
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
 
-/// The system that lets a player leave this world, as a disconnect does but without the save.
-#[derive(Resource, Clone, Copy)]
-pub(crate) struct LeaveDimension(pub(crate) SystemId<In<Entity>>);
-
 /// The state of a player that is its own and goes with it to another dimension (DIM-CHG-001).
 /// Its view, its trackers and its dimension belong to the world it is in and start anew there.
 #[derive(Bundle)]
 struct Carried {
-    uuid: EntityUuid,
     profile: GameProfile,
     teleport: TeleportState,
     view_distance: PlayerViewDistance,
@@ -63,12 +56,15 @@ pub(crate) fn change_dimension(
         .query_filtered::<Entity, With<Dimension>>()
         .single(to)
         .ok()?;
-    let leave = from.get_resource::<LeaveDimension>().copied()?;
-    if let Err(error) = from.run_system_with(leave.0, player) {
+    if let Err(error) = from.run_system_cached_with(
+        crate::world::aoi::drain_player_despawn::leave_dimension,
+        player,
+    ) {
         tracing::error!("a player did not leave its dimension: {error}");
         return None;
     }
     let mut leaving = from.get_entity_mut(player).ok()?;
+    let uuid = leaving.take::<EntityUuid>()?;
     let carried = leaving.take::<Carried>()?;
     let loaded = leaving.take::<LoadedPlayerDat>();
     let unreadable = leaving.take::<UnreadablePlayerDat>();
@@ -77,17 +73,6 @@ pub(crate) fn change_dimension(
     if let Some(mut index) = from.get_resource_mut::<DimPlayerIndex>() {
         index.0.remove(&session);
     }
-    let Carried {
-        uuid,
-        profile,
-        teleport,
-        view_distance,
-        mode,
-        flying,
-        op_level,
-        anchor,
-        owner,
-    } = carried;
     let mut arrived = to.spawn((
         EntityBundle {
             minecraft_entity: Default::default(),
@@ -95,19 +80,10 @@ pub(crate) fn change_dimension(
             transform,
             uuid,
         },
-        PlayerBundle {
-            teleport_state: teleport,
-            view_distance,
-            game_mode: mode,
-            flying,
-            op_level,
-            tracked_by: TrackedBy::default(),
-            marker: Default::default(),
-        },
+        carried,
+        TrackedBy::default(),
+        Player,
         ColumnView::default(),
-        anchor,
-        owner,
-        profile,
     ));
     if let Some(loaded) = loaded {
         arrived.insert(loaded);
@@ -153,10 +129,14 @@ pub(crate) fn arrival_packets(
         )
         .critical(),
     );
-    out.push(op_level_event(host, op_level));
-    if let Some(tree) = world.get_resource::<CommandTree>() {
-        out.push(tree_packet(&tree.0, host, op_level));
-    }
+    level_packets(
+        host,
+        op_level,
+        world.get_resource::<CommandTree>(),
+        |packet| {
+            out.push(packet);
+        },
+    );
     out.push(to(host, PacketPayload::PlayerPosition(position)).critical());
     out.push(
         to(

@@ -278,6 +278,7 @@ fn main() -> AppExit {
     app.add_plugins(mcrs_minecraft_client::chat::ChatPlugin {
         command_history: Some(std::path::PathBuf::from("command_history.txt")),
     });
+    app.add_plugins(gui::chat_input::ChatScreenPlugin);
     app.insert_resource(ExitOnDisconnect);
 
     let mut saved_clocks = save_data.world_clocks;

@@ -5,10 +5,9 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry,
+    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerInfoEntry, to_target,
 };
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundGameEvent, ClientboundPlayerAbilities,
@@ -126,11 +125,8 @@ pub(crate) fn send_game_mode(
     if entries.is_empty() {
         return;
     }
-    writer.write(OutboundPlayerPacket {
-        target: PacketTarget::AllPlayers,
-        priority: PacketPriority::Normal,
-        data: PacketPayload::PlayerInfoUpdate { entries },
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+    writer.write(to_target(
+        PacketTarget::AllPlayers,
+        PacketPayload::PlayerInfoUpdate { entries },
+    ));
 }

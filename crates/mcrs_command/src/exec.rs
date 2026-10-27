@@ -36,10 +36,6 @@ impl<H: Copy> Chain<H> {
     ) {
         self.entries.clear();
         self.entries.extend_from_slice(parse.entries());
-        self.fill_stages(graph);
-    }
-
-    fn fill_stages<A, R>(&mut self, graph: &Graph<A, R, H>) {
         self.stages.clear();
         let stages = contexts(&self.entries).map(|context| {
             let node = context.last().and_then(|(node, _)| graph.node(node));

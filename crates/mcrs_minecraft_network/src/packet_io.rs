@@ -476,6 +476,10 @@ impl RawConnection {
         self.enc.append_packet(pkt)
     }
 
+    pub fn append_encoded(&mut self, packet: &[u8]) -> anyhow::Result<()> {
+        self.enc.append_encoded(packet)
+    }
+
     /// True once the reader has stopped, even while frames it read are still queued.
     pub fn reader_closed(&self) -> bool {
         self.recv.is_closed()

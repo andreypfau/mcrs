@@ -1228,14 +1228,8 @@ impl<I: TextTypes> Text<I> {
     /// Create translated text based on the given translation key, with extra
     /// text components to be inserted into the slots of the translation text.
     pub fn translate(key: impl Into<Cow<'static, str>>, with: impl Into<Vec<Text<I>>>) -> Self {
-        Self(Box::new(TextInner {
-            content: TextContent::Translate {
-                translate: key.into(),
-                fallback: None,
-                with: with.into().into_iter().map(TranslateArg::Text).collect(),
-            },
-            ..Default::default()
-        }))
+        let with: Vec<_> = with.into().into_iter().map(TranslateArg::Text).collect();
+        Self::translate_args(key, with)
     }
 
     /// Translated text whose arguments may be primitives as well as components.

@@ -1,4 +1,3 @@
-mod dim;
 mod effect;
 mod lookup;
 mod register;
@@ -7,7 +6,6 @@ mod seam;
 mod targets;
 pub mod vanilla;
 
-pub use dim::DebugCommandsPlugin;
 pub use effect::{Effect, Facing, Teleport};
 pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, RegistrationError};
 pub(crate) use run::system_message;
@@ -20,10 +18,11 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{SystemId, SystemParam};
 use bevy_math::DVec3;
+use bytes::Bytes;
 use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{
-    ArgumentError, CommandLevel, CommandSyntaxError, PermissionCheck, Source, VanillaArgument,
+    ArgumentError, CommandLevel, Identifier, PermissionCheck, Source, VanillaArgument,
     VanillaGraph, error_message,
 };
 use mcrs_minecraft_command::{NoLookup, player_tree};
@@ -34,6 +33,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::DimensionTypeId;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -44,7 +44,21 @@ pub(crate) struct HandlerKey(pub(crate) u16);
 
 /// Each dimension world holds a copy.
 #[derive(Resource, Clone, Debug)]
-pub struct CommandTree(pub VanillaGraph<Handler>);
+pub struct CommandTree(pub VanillaGraph<Handler>, [Bytes; 5]);
+
+impl CommandTree {
+    /// Freezes the packets of the tree each command level sees (CMDP-TREE-002).
+    fn new(graph: VanillaGraph<Handler>) -> mcrs_minecraft_protocol::anyhow::Result<Self> {
+        let mut packets: [Bytes; 5] = Default::default();
+        for (id, packet) in (0..).zip(&mut packets) {
+            let source = Source::new(CommandLevel::from_id(id), &NoLookup);
+            let mut bytes = Vec::new();
+            player_tree(&graph, &source).encode_with_id(&mut bytes)?;
+            *packet = Bytes::from(bytes);
+        }
+        Ok(Self(graph, packets))
+    }
+}
 
 #[derive(Resource)]
 struct CommandTreeBuilder {
@@ -72,13 +86,18 @@ impl Plugin for CommandPlugin {
         let Some(tree) = app.world_mut().remove_resource::<CommandTreeBuilder>() else {
             return;
         };
-        match tree.builder.freeze() {
-            Ok(graph) => {
-                app.add_dimension_plugin(DimCommandPlugin {
-                    tree: CommandTree(graph),
-                });
+        let graph = match tree.builder.freeze() {
+            Ok(graph) => graph,
+            Err(error) => {
+                tracing::error!("the command tree does not freeze: {error}");
+                return;
             }
-            Err(error) => tracing::error!("the command tree does not freeze: {error}"),
+        };
+        match CommandTree::new(graph) {
+            Ok(tree) => {
+                app.add_dimension_plugin(DimCommandPlugin { tree });
+            }
+            Err(error) => tracing::error!("the command tree does not encode: {error:#}"),
         }
     }
 }
@@ -94,12 +113,15 @@ impl CommandFailure {
         Self(Text::translate(key, with))
     }
 
-    pub(crate) fn failed() -> Self {
-        Self::translate("command.failed", vec![])
+    pub(crate) fn invalid_dimension(id: Identifier<'_>) -> Self {
+        Self::translate(
+            "argument.dimension.invalid",
+            vec![id.to_string().into_text()],
+        )
     }
 
-    pub(crate) fn syntax(line: &str, error: &CommandSyntaxError) -> Self {
-        Self(error_message(line, error))
+    pub(crate) fn failed() -> Self {
+        Self::translate("command.failed", vec![])
     }
 
     pub(crate) fn text(self) -> Text {
@@ -160,19 +182,6 @@ impl SourceState {
             anchor: LookAnchor::Feet,
         }
     }
-
-    /// `dimension` is the rank of the source dimension in the dimension order.
-    pub(crate) fn source<'s, L>(&self, lookup: &'s L, dimension: usize) -> Source<'s, L> {
-        Source {
-            position: self.position,
-            yaw: self.yaw,
-            pitch: self.pitch,
-            anchor: self.anchor,
-            eye_height: Some(PLAYER_EYE_HEIGHT),
-            dimension,
-            ..Source::new(self.level, lookup)
-        }
-    }
 }
 
 /// The command line that runs in this world, and its chain. The host lends it to the world a
@@ -185,12 +194,12 @@ pub(crate) struct RunningCommand {
 
 /// The command tree a player with `op_level` can see (CMDP-TREE-002).
 pub(crate) fn tree_packet(
-    tree: &VanillaGraph<Handler>,
+    tree: &CommandTree,
     host: Entity,
     op_level: PlayerOpLevel,
-) -> OutboundPlayerPacket {
-    let source = Source::new(level_of(op_level), &NoLookup);
-    to(host, PacketPayload::Commands(player_tree(tree, &source))).critical()
+) -> Option<OutboundPlayerPacket> {
+    let packet = tree.1.get(usize::from(op_level.clamped()))?.clone();
+    Some(to(host, PacketPayload::Commands(packet)).critical())
 }
 
 /// What a modifier gives for one source.
@@ -227,7 +236,15 @@ impl<'w, 's> CommandContext<'w, 's> {
             .targets
             .dimension_of(state.dimension)
             .unwrap_or_default();
-        state.source(self, dimension)
+        Source {
+            position: state.position,
+            yaw: state.yaw,
+            pitch: state.pitch,
+            anchor: state.anchor,
+            eye_height: Some(PLAYER_EYE_HEIGHT),
+            dimension,
+            ..Source::new(state.level, self)
+        }
     }
 
     /// The dimensions that run and the players of every one of them.
@@ -273,28 +290,29 @@ impl<'w, 's> CommandContext<'w, 's> {
         match self.tree.0.value(line, span, arg, &source) {
             None => Err(CommandFailure::failed()),
             Some(Ok(value)) => Ok(Some(value)),
-            Some(Err(error)) => Err(CommandFailure::syntax(line, &error.map_into())),
+            Some(Err(error)) => Err(CommandFailure(error_message(line, &error.map_into()))),
         }
     }
 }
 
-#[derive(Resource, Default)]
-struct CommandHandlers(Vec<Option<SystemId<In<Invocation>, CommandResult>>>);
+/// The handlers of one output type, indexed by [`HandlerKey`].
+#[derive(Resource)]
+struct Handlers<O: Send + Sync + 'static>(Vec<Option<SystemId<In<Invocation>, O>>>);
 
-impl CommandHandlers {
-    fn get(&self, key: HandlerKey) -> Option<SystemId<In<Invocation>, CommandResult>> {
+impl<O: Send + Sync + 'static> Default for Handlers<O> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<O: Send + Sync + 'static> Handlers<O> {
+    fn get(&self, key: HandlerKey) -> Option<SystemId<In<Invocation>, O>> {
         self.0.get(usize::from(key.0)).copied().flatten()
     }
 }
 
-#[derive(Resource, Default)]
-struct ModifierHandlers(Vec<Option<SystemId<In<Invocation>, ModifyResult>>>);
-
-impl ModifierHandlers {
-    fn get(&self, key: HandlerKey) -> Option<SystemId<In<Invocation>, ModifyResult>> {
-        self.0.get(usize::from(key.0)).copied().flatten()
-    }
-}
+type CommandHandlers = Handlers<CommandResult>;
+type ModifierHandlers = Handlers<ModifyResult>;
 
 /// Parses and suggests commands in a dimension world, against the tree the host froze, and
 /// holds the handlers the host runs there.
@@ -321,12 +339,6 @@ impl Plugin for DimCommandPlugin {
                 .in_set(mcrs_minecraft_level::tick::TickSet::Output)
                 .before(crate::world::entity::player::persistence::autosave_players)
                 .run_if(run::has_pending_suggestion),
-        );
-        app.add_systems(
-            bevy_app::Update,
-            run::send_command_tree
-                .after(crate::world::entity::player::send_op_level)
-                .before(crate::world::entity::player::game_mode::send_game_mode),
         );
     }
 }

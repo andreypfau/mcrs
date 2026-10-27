@@ -2,7 +2,7 @@ use crate::error::ArgumentError;
 use mcrs_command::suggest::starts_with_ignore_case;
 use mcrs_command::{Reader, Span, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::resource_location::{is_valid, split_namespace};
+use mcrs_minecraft_core::resource_location::parse_parts;
 
 /// An identifier borrowed from the command line; a missing namespace is `minecraft`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -14,8 +14,8 @@ pub struct Identifier<'a> {
 impl<'a> Identifier<'a> {
     /// The identifier of `text` (REG-ID-001), or `None` when it is not one.
     pub fn parse(text: &'a str) -> Option<Self> {
-        let (namespace, path) = split_namespace(text);
-        is_valid(namespace, path).then_some(Self { namespace, path })
+        let (namespace, path) = parse_parts(text)?;
+        Some(Self { namespace, path })
     }
 
     pub fn eq_str(&self, canonical: &str) -> bool {

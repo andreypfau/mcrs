@@ -60,25 +60,67 @@ pub struct Line<L> {
     pub last: bool,
 }
 
-/// The kept messages and their lines, newest first, and the scroll of the open chat
-/// (CHAT-LOG-001, CHAT-LOG-004). `wrap` writes the rows of one message, top row first.
+/// The kept messages, newest first (CHAT-LOG-001).
 #[derive(Clone, Debug)]
-pub struct ChatLog<M, L> {
+pub struct ChatLog<M> {
     messages: VecDeque<Logged<M>>,
+    /// The count of messages ever pushed, so a projection finds the ones it has not seen.
+    pushed: u64,
+    /// Counts the clears, so a projection drops its lines with the messages.
+    cleared: u64,
+}
+
+impl<M> Default for ChatLog<M> {
+    fn default() -> Self {
+        Self {
+            messages: VecDeque::new(),
+            pushed: 0,
+            cleared: 0,
+        }
+    }
+}
+
+impl<M> ChatLog<M> {
+    /// Adds a message that passed the visibility filter (CHAT-LOG-001).
+    pub fn push(&mut self, message: M, tick: u64, tag: Option<Tag>) {
+        self.messages.push_front(Logged { message, tick, tag });
+        self.messages.truncate(MAX_MESSAGES);
+        self.pushed += 1;
+    }
+
+    /// The kept messages, newest first.
+    pub fn messages(&self) -> impl ExactSizeIterator<Item = &Logged<M>> {
+        self.messages.iter()
+    }
+
+    pub fn clear(&mut self) {
+        self.messages.clear();
+        self.cleared += 1;
+    }
+}
+
+/// The lines of the kept messages, newest first, and the scroll of the open chat
+/// (CHAT-LOG-001, CHAT-LOG-004): the projection of a [`ChatLog`] for one wrap. `wrap` writes
+/// the rows of one message with its tag, top row first.
+#[derive(Clone, Debug)]
+pub struct ChatLines<L> {
     lines: VecDeque<Line<L>>,
     rows: Vec<L>,
     scroll: usize,
     new_since_scroll: bool,
+    seen: u64,
+    cleared: u64,
 }
 
-impl<M, L> Default for ChatLog<M, L> {
+impl<L> Default for ChatLines<L> {
     fn default() -> Self {
         Self {
-            messages: VecDeque::new(),
             lines: VecDeque::new(),
             rows: Vec::new(),
             scroll: 0,
             new_since_scroll: false,
+            seen: 0,
+            cleared: 0,
         }
     }
 }
@@ -90,11 +132,7 @@ pub fn fade(age: u64) -> f32 {
     (t * t) as f32
 }
 
-impl<M, L> ChatLog<M, L> {
-    pub fn messages(&self) -> impl DoubleEndedIterator<Item = &Logged<M>> {
-        self.messages.iter()
-    }
-
+impl<L> ChatLines<L> {
     /// The lines, newest first.
     pub fn lines(&self) -> impl ExactSizeIterator<Item = &Line<L>> {
         self.lines.iter()
@@ -108,12 +146,14 @@ impl<M, L> ChatLog<M, L> {
         self.new_since_scroll
     }
 
-    fn add_lines(&mut self, index: usize, scrolls: bool, wrap: &mut impl FnMut(&M, &mut Vec<L>)) {
-        let Some(logged) = self.messages.get(index) else {
-            return;
-        };
+    fn add<M>(
+        &mut self,
+        logged: &Logged<M>,
+        scrolls: bool,
+        wrap: &mut impl FnMut(&M, Option<Tag>, &mut Vec<L>),
+    ) {
         self.rows.clear();
-        wrap(&logged.message, &mut self.rows);
+        wrap(&logged.message, logged.tag, &mut self.rows);
         let rows = self.rows.len();
         for (row, content) in self.rows.drain(..).enumerate() {
             if scrolls && self.scroll > 0 {
@@ -130,27 +170,39 @@ impl<M, L> ChatLog<M, L> {
         self.lines.truncate(MAX_LINES);
     }
 
-    /// Adds a message that passed the visibility filter (CHAT-LOG-001). `open` is whether the
-    /// chat screen is open.
-    pub fn push(
+    /// Adds the lines of the messages pushed since the last sync, and drops every line when the
+    /// log was cleared. `open` is whether the chat screen is open.
+    pub fn sync<M>(
         &mut self,
-        message: M,
-        tick: u64,
-        tag: Option<Tag>,
+        log: &ChatLog<M>,
         open: bool,
-        mut wrap: impl FnMut(&M, &mut Vec<L>),
+        mut wrap: impl FnMut(&M, Option<Tag>, &mut Vec<L>),
     ) {
-        self.messages.push_front(Logged { message, tick, tag });
-        self.messages.truncate(MAX_MESSAGES);
-        self.add_lines(0, open, &mut wrap);
+        if self.cleared != log.cleared {
+            self.cleared = log.cleared;
+            self.lines.clear();
+            self.reset_scroll();
+        }
+        let new = usize::try_from(log.pushed.saturating_sub(self.seen)).unwrap_or(usize::MAX);
+        self.seen = log.pushed;
+        for logged in log.messages.iter().take(new).rev() {
+            self.add(logged, open, &mut wrap);
+        }
     }
 
-    /// Wraps every kept message again, after a change of the width, the scale or the spacing.
-    pub fn rewrap(&mut self, mut wrap: impl FnMut(&M, &mut Vec<L>)) {
+    /// Wraps every kept message again, after a change of the width, the scale or the spacing
+    /// (CHAT-LOG-001).
+    pub fn rebuild<M>(
+        &mut self,
+        log: &ChatLog<M>,
+        mut wrap: impl FnMut(&M, Option<Tag>, &mut Vec<L>),
+    ) {
         self.lines.clear();
         self.scroll = 0;
-        for index in (0..self.messages.len()).rev() {
-            self.add_lines(index, false, &mut wrap);
+        self.seen = log.pushed;
+        self.cleared = log.cleared;
+        for logged in log.messages.iter().rev() {
+            self.add(logged, false, &mut wrap);
         }
     }
 
@@ -176,12 +228,6 @@ impl<M, L> ChatLog<M, L> {
             .skip(self.scroll)
             .take(per_page)
             .enumerate()
-    }
-
-    pub fn clear(&mut self) {
-        self.messages.clear();
-        self.lines.clear();
-        self.reset_scroll();
     }
 }
 

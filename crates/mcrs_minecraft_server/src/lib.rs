@@ -132,7 +132,6 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(self.core)
             .add(crate::command::CommandPlugin)
             .add(crate::command::vanilla::VanillaCommandsPlugin)
-            .add(crate::command::DebugCommandsPlugin)
             .add(self.worlds)
             .add(WorldGenPlugin)
             .add(LightingPlugin)

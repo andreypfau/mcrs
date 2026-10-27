@@ -44,9 +44,18 @@ pub fn player_network_id(anchor: Entity) -> i32 {
     (anchor.index_u32().wrapping_mul(2) | 1) as i32
 }
 
+/// The id on the wire of `entity`: a player's from its host anchor, any other entity's from
+/// itself.
+pub fn network_id(entity: Entity, anchor: Option<&HostAnchor>) -> i32 {
+    anchor.map_or_else(
+        || entity_network_id(entity),
+        |anchor| player_network_id(anchor.0),
+    )
+}
+
 /// The id on the wire of an entity that is not a player: a new one in each dimension it enters
 /// (DIM-CHG-009).
-pub fn entity_network_id(entity: Entity) -> i32 {
+fn entity_network_id(entity: Entity) -> i32 {
     entity.index_u32().wrapping_mul(2) as i32
 }
 
@@ -124,10 +133,7 @@ pub fn entity_pos_sync(
     let Ok((transform, anchor)) = entity_data.get(event.entity) else {
         return;
     };
-    let entity_id = anchor.map_or_else(
-        || entity_network_id(event.entity),
-        |anchor| player_network_id(anchor.0),
-    );
+    let entity_id = network_id(event.entity, anchor);
     packet_writer.write(to(
         event.player,
         PacketPayload::EntityPosSync(ClientboundEntityPositionSync {

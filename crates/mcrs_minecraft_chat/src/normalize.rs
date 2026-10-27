@@ -1,19 +1,5 @@
 use crate::{MAX_INPUT, utf16_prefix};
-
-fn is_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\u{9}'..='\u{d}'
-            | '\u{1c}'..='\u{20}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{2006}'
-            | '\u{2008}'..='\u{200a}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{205f}'
-            | '\u{3000}'
-    )
-}
+use mcrs_command::is_whitespace;
 
 /// The text a send carries (CHAT-SEND-001), written into `out`.
 pub fn normalize(input: &str, out: &mut String) {

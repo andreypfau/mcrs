@@ -1,7 +1,7 @@
 use crate::error::{LibraryError, StringSpan, SyntaxError};
 use crate::parse::ContextView;
 use crate::reader::{Reader, StringValue};
-use crate::suggest::{SuggestionBuilder, starts_with_ignore_case};
+use crate::suggest::{SuggestionBuilder, prefix_matches};
 use core::convert::Infallible;
 
 /// An argument type: how it reads a value from the command line.
@@ -39,9 +39,7 @@ pub struct BoolArgument;
 
 impl BoolArgument {
     pub fn suggest<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>) {
-        builder.suggest_matching(["true", "false"], |remaining, word| {
-            starts_with_ignore_case(word, remaining)
-        });
+        builder.suggest_matching(["true", "false"], prefix_matches);
     }
 }
 

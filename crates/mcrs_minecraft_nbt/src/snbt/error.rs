@@ -124,18 +124,6 @@ impl SnbtErrorKind {
             _ => Ok(()),
         }
     }
-
-    pub const fn has_argument(self) -> bool {
-        use SnbtErrorKind as K;
-        matches!(
-            self,
-            K::LiteralIncorrect(_)
-                | K::ExpectedHexEscape(_)
-                | K::InvalidCodepoint(_)
-                | K::NumberParseFailure { .. }
-                | K::NoSuchOperation { .. }
-        )
-    }
 }
 
 /// An error of the read: a kind and the byte offset in the text where it happened.
@@ -143,31 +131,6 @@ impl SnbtErrorKind {
 pub struct SnbtError {
     pub kind: SnbtErrorKind,
     pub position: usize,
-}
-
-impl SnbtError {
-    /// The error with its key argument rendered against the text that was read.
-    pub fn display<'a>(&'a self, input: &'a str) -> impl fmt::Display + 'a {
-        Rendered { error: self, input }
-    }
-}
-
-struct Rendered<'a> {
-    error: &'a SnbtError,
-    input: &'a str,
-}
-
-impl fmt::Display for Rendered<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let kind = self.error.kind;
-        f.write_str(kind.key())?;
-        if kind.has_argument() {
-            f.write_str(" (")?;
-            kind.write_argument(self.input, f)?;
-            f.write_str(")")?;
-        }
-        write!(f, " at {}", self.error.position)
-    }
 }
 
 impl fmt::Display for SnbtError {

@@ -130,6 +130,24 @@ fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
     NumberRange { min, max }
 }
 
+fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
+    (range.min.unwrap_or(any.0), range.max.unwrap_or(any.1))
+}
+
+/// The arguments with no properties on the wire, each told apart by its parser id alone.
+const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
+    VanillaArgument::Vec3(Vec3Argument),
+    VanillaArgument::Rotation(RotationArgument),
+    VanillaArgument::ResourceLocation(ResourceLocationArgument),
+    VanillaArgument::EntityAnchor(EntityAnchorArgument),
+    VanillaArgument::Dimension(DimensionArgument),
+    VanillaArgument::GameMode(GameModeArgument),
+    VanillaArgument::BlockPos(BlockPosArgument),
+    VanillaArgument::Swizzle(SwizzleArgument),
+    VanillaArgument::Heightmap(HeightmapArgument),
+    VanillaArgument::BlockPredicate(BlockPredicateArgument),
+];
+
 fn parser_id(key: StaticResourceLocation) -> VarInt {
     let index = parser::ENTRIES
         .iter()
@@ -213,6 +231,132 @@ impl VanillaArgument {
         ArgumentParser {
             id: parser_id(key),
             properties,
+        }
+    }
+
+    /// The inverse of [`Self::wire`], or `None` when no argument has that parser, or
+    /// `registry` does not resolve its registry. A time marker and a timeline read back as the
+    /// resource location and the resource they are sent as: their clock is not on the wire.
+    pub(crate) fn from_wire(
+        parser: &ArgumentParser<'_>,
+        registry: impl Fn(&str) -> Option<StaticResourceLocation>,
+    ) -> Option<Self> {
+        let key = usize::try_from(parser.id.0)
+            .ok()
+            .and_then(|index| parser::ENTRIES.get(index))
+            .copied()?;
+        let argument = match (key, &parser.properties) {
+            (k, ParserProperties::None) if k == parser::BRIGADIER_BOOL => BoolArgument.into(),
+            (k, ParserProperties::Integer(range)) if k == parser::BRIGADIER_INTEGER => {
+                let (min, max) =
+                    limits(range, (IntegerArgument::ANY.min, IntegerArgument::ANY.max));
+                IntegerArgument { min, max }.into()
+            }
+            (k, ParserProperties::Long(range)) if k == parser::BRIGADIER_LONG => {
+                let (min, max) = limits(range, (LongArgument::ANY.min, LongArgument::ANY.max));
+                LongArgument { min, max }.into()
+            }
+            (k, ParserProperties::Float(range)) if k == parser::BRIGADIER_FLOAT => {
+                let (min, max) = limits(range, (FloatArgument::ANY.min, FloatArgument::ANY.max));
+                FloatArgument { min, max }.into()
+            }
+            (k, ParserProperties::Double(range)) if k == parser::BRIGADIER_DOUBLE => {
+                let (min, max) = limits(range, (DoubleArgument::ANY.min, DoubleArgument::ANY.max));
+                DoubleArgument { min, max }.into()
+            }
+            (k, ParserProperties::String(mode)) if k == parser::BRIGADIER_STRING => match mode {
+                StringMode::Word => StringArgument::Word,
+                StringMode::Phrase => StringArgument::Phrase,
+                StringMode::Greedy => StringArgument::Greedy,
+            }
+            .into(),
+            (
+                k,
+                &ParserProperties::Entity {
+                    single,
+                    players_only,
+                },
+            ) if k == parser::ENTITY => EntityArgument {
+                single,
+                players_only,
+            }
+            .into(),
+            (k, ParserProperties::Registry(name))
+                if k == parser::RESOURCE_OR_TAG || k == parser::RESOURCE_OR_TAG_KEY =>
+            {
+                ResourceOrTagArgument {
+                    registry: registry(name.as_str())?,
+                    must_exist: k == parser::RESOURCE_OR_TAG,
+                }
+                .into()
+            }
+            (k, ParserProperties::Registry(name)) if k == parser::RESOURCE => ResourceArgument {
+                registry: registry(name.as_str())?,
+            }
+            .into(),
+            (k, &ParserProperties::Time(min)) if k == parser::TIME => TimeArgument { min }.into(),
+            (_, ParserProperties::None) => UNIT_ARGUMENTS
+                .into_iter()
+                .find(|argument| argument.wire().id == parser.id)?,
+            _ => return None,
+        };
+        Some(argument)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ITEM: StaticResourceLocation = mcrs_minecraft_core::rl!("minecraft:item");
+
+    #[test]
+    fn every_argument_the_server_sends_reads_back_as_itself() {
+        let mut arguments: Vec<VanillaArgument> = vec![
+            BoolArgument.into(),
+            IntegerArgument {
+                min: 0,
+                max: IntegerArgument::ANY.max,
+            }
+            .into(),
+            LongArgument {
+                min: LongArgument::ANY.min,
+                max: 7,
+            }
+            .into(),
+            FloatArgument {
+                min: -1.5,
+                max: 2.5,
+            }
+            .into(),
+            DoubleArgument::ANY.into(),
+            StringArgument::Word.into(),
+            StringArgument::Phrase.into(),
+            StringArgument::Greedy.into(),
+            EntityArgument {
+                single: true,
+                players_only: false,
+            }
+            .into(),
+            ResourceOrTagArgument {
+                registry: ITEM,
+                must_exist: true,
+            }
+            .into(),
+            ResourceOrTagArgument {
+                registry: ITEM,
+                must_exist: false,
+            }
+            .into(),
+            ResourceArgument { registry: ITEM }.into(),
+            TimeArgument { min: 1 }.into(),
+        ];
+        arguments.extend(UNIT_ARGUMENTS);
+        for argument in arguments {
+            let read = VanillaArgument::from_wire(&argument.wire(), |name| {
+                (name == ITEM.as_str()).then_some(ITEM)
+            });
+            assert_eq!(read, Some(argument));
         }
     }
 }

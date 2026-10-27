@@ -31,6 +31,15 @@ impl PacketEncoder {
         Ok(())
     }
 
+    /// Frames a packet that `encode_with_id` wrote earlier, so a packet that many connections
+    /// receive is encoded once.
+    pub fn append_encoded(&mut self, packet: &[u8]) -> anyhow::Result<()> {
+        let start = self.buf.len();
+        self.buf.extend_from_slice(packet);
+        encode_frame(&mut self.buf, start, self.threshold, &mut self.deflate)?;
+        Ok(())
+    }
+
     pub fn take(&mut self) -> BytesMut {
         self.buf.split()
     }

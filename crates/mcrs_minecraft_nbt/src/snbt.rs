@@ -9,7 +9,6 @@ mod read;
 mod text;
 
 pub use error::{IntegerType, SnbtError, SnbtErrorKind, Span};
-pub use text::StrText;
 
 use build::{Tags, Validate};
 use read::{Reader, Shape};
@@ -163,7 +162,7 @@ fn is_unquoted_key(key: &str) -> bool {
         return false;
     };
     (first.is_ascii_alphabetic() || first == '.' || first == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-'))
+        && chars.all(text::is_unquoted)
         && !key.eq_ignore_ascii_case("true")
         && !key.eq_ignore_ascii_case("false")
 }

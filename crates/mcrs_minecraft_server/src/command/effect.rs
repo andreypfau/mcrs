@@ -1,9 +1,21 @@
+use crate::world::clock::EditClock;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::event::Event;
 use bevy_ecs::resource::Resource;
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bus::{OperatorBroadcast, OutboundPlayerPacket};
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
+use mcrs_minecraft_protocol::text::Text;
+
+/// A command reported success with a message for the operators (CMDP-EXEC-004). The host,
+/// which knows every online player and the operators, delivers it to each operator but `source`.
+#[derive(Event, Clone, Debug)]
+pub struct OperatorBroadcast {
+    /// The host anchor of the player that ran the command.
+    pub source: Entity,
+    pub message: Text,
+}
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,13 +43,14 @@ pub enum Facing {
     },
 }
 
-/// A change a command makes to a player of any dimension. The host applies the effects of one
-/// run in the order they were written, each in the world that holds the player, before the
-/// run's messages go out and before the next run starts.
+/// A change a command makes to a player of any dimension or to a world clock. The host applies
+/// the effects of one run in the order they were written, each in the world that holds its
+/// target, before the run's messages go out and before the next run starts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Effect {
     Teleport { player: Entity, to: Teleport },
     GameMode { player: Entity, mode: GameMode },
+    EditClock(EditClock),
 }
 
 /// What one run of a handler leaves for the host: its effects, then its messages. The host

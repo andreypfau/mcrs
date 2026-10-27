@@ -1,6 +1,7 @@
-use crate::command::effect::{CommandOutbox, Effect, Facing, Teleport};
+use crate::command::effect::{CommandOutbox, Effect};
 use crate::command::run::CommandEvent;
 use crate::command::targets::{DimensionEntry, PlayerEntry, dimension_rank};
+use crate::command::vanilla::{gamemode, teleport, time};
 use crate::command::{
     CommandFailure, CommandHandlers, CommandLimits, CommandResult, CommandTargets, Handler,
     Invocation, Modified, ModifierHandlers, ModifyResult, RunningCommand, SourceState,
@@ -8,36 +9,26 @@ use crate::command::{
 };
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::PlayerGameMode;
-use crate::world::entity::player::dimension_change::{arrival_packets, change_dimension};
-use crate::world::entity::player::movement::TeleportState;
-use crate::world::entity::player_network_id;
+use crate::world::entity::player::dimension_change::change_dimension;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{DetectChangesMut, In, With};
+use bevy_ecs::prelude::{In, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
-use bevy_math::DVec3;
 use mcrs_command::{Chain, End, Executor, Failure, SourceLists, Stage, execute};
-use mcrs_minecraft_command::anchored;
-use mcrs_minecraft_command::teleport::{Pose, look_at, relative_move};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::dim::deliver;
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
-use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundPlayerLookAt, ClientboundPlayerPosition,
-};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_minecraft_protocol::{PositionFlags, VarInt};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// The command lines this dimension parsed since the host last ran them.
@@ -118,8 +109,7 @@ pub fn run_pending_commands(app: &mut App) {
             lines.append(&mut pending.0);
         }
     }
-    let mut lines_now = std::mem::take(lines);
-    for line in lines_now.drain(..) {
+    for line in lines.drain(..) {
         let mut executor = SeamExecutor {
             host: &mut *host,
             worlds: &mut worlds,
@@ -131,8 +121,6 @@ pub fn run_pending_commands(app: &mut App) {
         };
         executor.run_line(line, stages, lists, limits);
     }
-    *lines = lines_now;
-    targets.players.clear();
     host.insert_resource(seam);
 }
 
@@ -303,13 +291,24 @@ impl SeamExecutor<'_, '_> {
     /// Applies the effects of a run in order, then sends its messages.
     fn settle(&mut self) {
         let mut effects = std::mem::take(&mut self.outbox.effects);
+        let moved = !effects.is_empty();
+        let mut worlds = Worlds {
+            host: self.host,
+            worlds: self.worlds,
+            targets: self.targets,
+            packets: self.packets,
+        };
         for effect in effects.drain(..) {
             match effect {
-                Effect::GameMode { player, mode } => self.set_game_mode(player, mode),
-                Effect::Teleport { player, to } => self.teleport(player, to),
+                Effect::GameMode { player, mode } => gamemode::apply(&mut worlds, player, mode),
+                Effect::Teleport { player, to } => teleport::apply(&mut worlds, player, to),
+                Effect::EditClock(edit) => time::apply(&mut worlds, edit),
             }
         }
         self.outbox.effects = effects;
+        if moved {
+            collect_players(self.host, self.worlds, self.targets);
+        }
         for packet in self.outbox.packets.drain(..) {
             deliver(self.host, packet);
         }
@@ -317,130 +316,57 @@ impl SeamExecutor<'_, '_> {
             self.host.trigger(broadcast);
         }
     }
+}
 
-    fn set_game_mode(&mut self, player: Entity, mode: mcrs_minecraft_protocol::GameMode) {
-        let Some(entry) = self.targets.player_mut(player) else {
-            tracing::error!(
-                ?player,
-                "a game mode change names no player a command found"
-            );
-            return;
-        };
-        if let Some(mut current) = self
-            .worlds
-            .get_mut(entry.dimension)
-            .and_then(|world| world.get_mut::<PlayerGameMode>(entry.entity))
-        {
-            current.set_if_neq(PlayerGameMode(mode));
-            entry.mode = mode;
-        }
+/// Every world, lent to the effects of one run so each applies where its target is.
+pub(crate) struct Worlds<'s, 'w> {
+    host: &'s mut World,
+    worlds: &'s mut [&'w mut World],
+    targets: &'s CommandTargets,
+    packets: &'s mut Vec<OutboundPlayerPacket>,
+}
+
+impl Worlds<'_, '_> {
+    pub(crate) fn host_and_worlds(&mut self) -> (&mut World, impl Iterator<Item = &mut World>) {
+        (
+            &mut *self.host,
+            self.worlds.iter_mut().map(|world| &mut **world),
+        )
     }
 
-    /// The position a victim turns to, and the entity of `player_look_at` (CMD-TP-011,
-    /// CMD-TP-012), read after the moves before it.
-    fn facing(&self, facing: Facing) -> Option<(DVec3, Option<(VarInt, LookAnchorKind)>)> {
-        match facing {
-            Facing::Position(position) => Some((position, None)),
-            Facing::Player { anchor, at } => self.targets.player(anchor).map(|player| {
-                (
-                    anchored(at, player.transform.translation, PLAYER_EYE_HEIGHT),
-                    Some((VarInt(player_network_id(anchor)), at)),
-                )
-            }),
-        }
+    pub(crate) fn dimension_of(&self, label: Entity) -> Option<usize> {
+        self.targets.dimension_of(label)
     }
 
-    /// Moves one victim (CMD-TP-005, CMD-TP-013); to another dimension as DIM-CHG states.
-    fn teleport(&mut self, player: Entity, to: Teleport) {
-        let (Some(victim), Some(destination)) = (
-            self.targets.player(player),
-            self.targets.dimension_of(to.dimension),
-        ) else {
-            tracing::error!(
-                ?player,
-                "a teleport names no player or dimension a command found"
-            );
-            return;
-        };
-        let (origin, entity, current) = (victim.dimension, victim.entity, victim.transform);
-        let from = Pose {
-            position: current.translation,
-            yaw: current.rotation.yaw(),
-            pitch: current.rotation.pitch(),
-        };
-        let (yaw, pitch) = to.rotation.unwrap_or((from.yaw, from.pitch));
-        let destination_pose = Pose {
-            position: to.position,
-            yaw,
-            pitch,
-        };
-        let step = relative_move(
-            from,
-            destination_pose,
-            to.relative_position,
-            to.relative_rotation,
-            origin != destination,
-        );
-        let mut transform = Transform {
-            translation: to.position,
-            rotation: Rotation::new(step.result.yaw, step.result.pitch),
-        };
-        self.place(player, destination, entity, transform);
-        let facing = to.facing.and_then(|facing| self.facing(facing));
-        if let Some((target, _)) = facing {
-            let (yaw, pitch) = look_at(anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT), target);
-            transform.rotation = Rotation::new(yaw, pitch);
-        }
-        let Some(arrived) = self.move_entity(player, origin, destination, entity, transform) else {
-            return;
-        };
-        self.place(player, destination, arrived, transform);
-        let Some(world) = self.worlds.get_mut(destination) else {
-            return;
-        };
-        let Some(mut state) = world.get_mut::<TeleportState>(arrived) else {
-            return;
-        };
-        let position = ClientboundPlayerPosition {
-            teleport_id: VarInt(state.sent(transform)),
-            position: step.position,
-            velocity: DVec3::ZERO,
-            look: step.look,
-            flags: PositionFlags(step.flags),
-        };
-        self.packets.clear();
-        if origin == destination {
-            self.packets
-                .push(to_player(player, PacketPayload::PlayerPosition(position)));
-        } else {
-            arrival_packets(world, arrived, position, self.packets);
-        }
-        if let Some((target, entity)) = facing {
-            self.packets.push(to_player(
-                player,
-                PacketPayload::PlayerLookAt(ClientboundPlayerLookAt {
-                    from: to.anchor,
-                    target,
-                    entity,
-                }),
-            ));
-        }
-        for packet in self.packets.drain(..) {
-            deliver(self.host, packet);
-        }
+    pub(crate) fn world_mut(&mut self, index: usize) -> Option<&mut World> {
+        self.worlds.get_mut(index).map(|world| &mut **world)
     }
 
-    fn place(&mut self, player: Entity, dimension: usize, entity: Entity, transform: Transform) {
-        if let Some(entry) = self.targets.player_mut(player) {
-            entry.dimension = dimension;
-            entry.entity = entity;
-            entry.transform = transform;
-        }
+    /// The index of the world that holds a player, and its entity there.
+    pub(crate) fn locate(&mut self, player: Entity) -> Option<(usize, Entity)> {
+        let (Place::InDim(label) | Place::Joining(label)) =
+            self.host.get::<SessionPlacement>(player)?.place()
+        else {
+            return None;
+        };
+        let index = self.targets.dimension_of(label)?;
+        let world = self.worlds.get_mut(index)?;
+        let entity = world
+            .query_filtered::<(Entity, &HostAnchor), With<Player>>()
+            .iter(world)
+            .find_map(|(entity, anchor)| (anchor.0 == player).then_some(entity))?;
+        Some((index, entity))
     }
 
-    /// Sets the transform of a victim in its own world, or moves it to the world of
-    /// `destination`, and gives its entity there.
-    fn move_entity(
+    pub(crate) fn transform_of(&mut self, player: Entity) -> Option<(usize, Entity, Transform)> {
+        let (index, entity) = self.locate(player)?;
+        let transform = *self.worlds.get(index)?.get::<Transform>(entity)?;
+        Some((index, entity, transform))
+    }
+
+    /// Sets the transform of a player in its own world, or moves it to the world of
+    /// `destination` (DIM-CHG-001), and gives its entity there.
+    pub(crate) fn move_player(
         &mut self,
         player: Entity,
         origin: usize,
@@ -467,12 +393,22 @@ impl SeamExecutor<'_, '_> {
         }
         Some(arrived)
     }
-}
 
-type LookAnchorKind = mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
-
-fn to_player(player: Entity, payload: PacketPayload) -> OutboundPlayerPacket {
-    to(player, payload).critical()
+    /// Fills the scratch packets from the world at `index`, then sends them in order.
+    pub(crate) fn send(
+        &mut self,
+        index: usize,
+        fill: impl FnOnce(&mut World, &mut Vec<OutboundPlayerPacket>),
+    ) {
+        let Some(world) = self.worlds.get_mut(index) else {
+            return;
+        };
+        self.packets.clear();
+        fill(world, self.packets);
+        for packet in self.packets.drain(..) {
+            deliver(self.host, packet);
+        }
+    }
 }
 
 impl Executor<SourceState, Handler> for SeamExecutor<'_, '_> {

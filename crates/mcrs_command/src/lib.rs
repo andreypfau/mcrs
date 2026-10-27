@@ -18,8 +18,11 @@ pub use argument::{
 pub use error::{ErrorKind, LibraryError, Span, StringSpan, SyntaxError, utf16_position};
 pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execute};
 pub use parse::{ContextView, ParseResult, ParseScratch};
-pub use reader::{Reader, StringValue};
-pub use suggest::{Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list};
+pub use reader::{Reader, StringValue, is_whitespace};
+pub use suggest::{
+    Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list, prefix_matches,
+    recycle,
+};
 pub use tree::{
     Arg, BuildError, Contains, Graph, GraphBuilder, Node, NodeId, NodeKind, Requirement,
 };

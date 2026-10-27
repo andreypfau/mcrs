@@ -1,33 +1,44 @@
-use mcrs_minecraft_chat::{ChatLog, Overlay, fade};
+use mcrs_minecraft_chat::{ChatLines, ChatLog, Overlay, Tag, fade};
 
-fn one_line(message: &u32, rows: &mut Vec<u32>) {
+fn one_line(message: &u32, _: Option<Tag>, rows: &mut Vec<u32>) {
     rows.push(*message);
 }
 
 #[test]
 fn the_log_keeps_the_hundred_newest_lines() {
-    let mut log = ChatLog::<u32, u32>::default();
+    let mut log = ChatLog::<u32>::default();
+    let mut lines = ChatLines::<u32>::default();
     for message in 1..=150 {
-        log.push(message, 0, None, false, one_line);
+        log.push(message, 0, None);
     }
-    assert_eq!(log.lines().len(), 100);
-    assert_eq!(log.lines().last().unwrap().content, 51);
-    assert_eq!(log.lines().next().unwrap().content, 150);
+    lines.sync(&log, false, one_line);
+    assert_eq!(lines.lines().len(), 100);
+    assert_eq!(lines.lines().last().unwrap().content, 51);
+    assert_eq!(lines.lines().next().unwrap().content, 150);
+    lines.rebuild(&log, |message, _, rows| rows.extend([*message, *message]));
+    assert_eq!(lines.lines().len(), 100);
+    assert_eq!(lines.lines().last().unwrap().content, 101);
 }
 
 #[test]
 fn new_lines_keep_a_scrolled_open_chat_in_place() {
-    let mut log = ChatLog::<u32, u32>::default();
+    let mut log = ChatLog::<u32>::default();
+    let mut lines = ChatLines::<u32>::default();
     for message in 0..40 {
-        log.push(message, 0, None, true, one_line);
+        log.push(message, 0, None);
     }
-    log.scroll_by(19, 20);
-    log.push(40, 0, None, true, one_line);
-    assert_eq!(log.scroll(), 20);
-    assert!(log.new_since_scroll());
-    log.scroll_by(-100, 20);
-    assert_eq!(log.scroll(), 0);
-    assert!(!log.new_since_scroll());
+    lines.sync(&log, true, one_line);
+    lines.scroll_by(19, 20);
+    log.push(40, 0, None);
+    lines.sync(&log, true, one_line);
+    assert_eq!(lines.scroll(), 20);
+    assert!(lines.new_since_scroll());
+    lines.scroll_by(-100, 20);
+    assert_eq!(lines.scroll(), 0);
+    assert!(!lines.new_since_scroll());
+    log.clear();
+    lines.sync(&log, true, one_line);
+    assert_eq!(lines.lines().len(), 0);
 }
 
 #[test]

@@ -1,11 +1,11 @@
 use crate::{OP, read};
-use glam::DVec3;
+use glam::{BVec3, DVec3};
 use mcrs_command::{LibraryError, Span, SuggestionBuilder, SyntaxError, build_list};
 use mcrs_minecraft_command::argument::coordinates::{Coordinates, WorldCoordinate};
 use mcrs_minecraft_command::{
-    ArgumentError, Axes, BlockPosArgument, EntityAnchorArgument, GameModeArgument,
-    HeightmapArgument, Identifier, ResourceLocationArgument, RotationArgument, SwizzleArgument,
-    Vec3Argument, block_floor, error_feedback, rotation_toward,
+    ArgumentError, BlockPosArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument,
+    Identifier, ResourceLocationArgument, RotationArgument, SwizzleArgument, Vec3Argument, align,
+    block_floor, error_feedback, rotation_toward,
 };
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::Text;
@@ -305,7 +305,7 @@ fn a_block_position_is_the_floor_of_the_point() {
 
 #[test]
 fn swizzle_reads_a_set_of_distinct_axes() {
-    let axes = |x, y, z| Ok(Axes { x, y, z });
+    let axes = |x, y, z| Ok(BVec3::new(x, y, z));
     let invalid = |at| Err(SyntaxError::argument(ArgumentError::SwizzleInvalid, at));
     let cases = [
         ("xz", axes(true, false, true), 2),
@@ -327,35 +327,23 @@ fn swizzle_reads_a_set_of_distinct_axes() {
     }
     let cases = [
         (
-            Axes {
-                x: true,
-                y: false,
-                z: true,
-            },
+            BVec3::new(true, false, true),
             DVec3::new(1.7, 64.2, -0.2),
             DVec3::new(1.0, 64.2, -1.0),
         ),
         (
-            Axes {
-                x: false,
-                y: true,
-                z: false,
-            },
+            BVec3::new(false, true, false),
             DVec3::new(1.7, 64.2, -0.2),
             DVec3::new(1.7, 64.0, -0.2),
         ),
         (
-            Axes {
-                x: true,
-                y: false,
-                z: false,
-            },
+            BVec3::new(true, false, false),
             DVec3::new(3_000_000_000.5, 64.0, 0.0),
             DVec3::new(2_147_483_647.0, 64.0, 0.0),
         ),
     ];
     for (axes, from, to) in cases {
-        assert_eq!(axes.align(from), to, "{axes:?}");
+        assert_eq!(align(axes, from), to, "{axes:?}");
     }
 }
 

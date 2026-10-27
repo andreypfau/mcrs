@@ -154,7 +154,8 @@ pub struct PlayerMovement {
     look: Option<Rotation>,
 }
 
-pub(crate) const MAX_XZ: f64 = 30_000_000.0;
+pub(crate) const MAX_XZ_BLOCKS: i32 = 30_000_000;
+pub(crate) const MAX_XZ: f64 = MAX_XZ_BLOCKS as f64;
 pub(crate) const MAX_Y: f64 = 20_000_000.0;
 
 pub(crate) fn process_movement(

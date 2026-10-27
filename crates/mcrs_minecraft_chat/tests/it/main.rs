@@ -57,6 +57,18 @@ impl Lookup for Players {
     fn block_properties(&self, _: Identifier<'_>) -> Option<&[BlockProperty]> {
         None
     }
+
+    fn suggested_time_markers(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn timelines_of_clock(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn has_block_entity(&self, _: Identifier<'_>) -> bool {
+        false
+    }
 }
 
 pub static PLAYERS: Players = Players(&["Alex", "Steve"]);
@@ -138,15 +150,12 @@ impl Tree {
         self.0[node].redirect = Some(VarInt(target as i32));
     }
 
-    pub fn packet(self) -> ClientboundCommands<'static> {
-        ClientboundCommands {
+    pub fn build(self) -> ClientGraph {
+        let packet = ClientboundCommands {
             nodes: self.0,
             root: VarInt(0),
-        }
-    }
-
-    pub fn build(self) -> ClientGraph {
-        client_tree(&self.packet(), &[]).unwrap()
+        };
+        client_tree(&packet, &[]).unwrap()
     }
 }
 

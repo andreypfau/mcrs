@@ -1,12 +1,12 @@
 use crate::ability::ChatAbilities;
 use crate::byte_offset;
-use mcrs_command::suggest::starts_with_ignore_case;
+use mcrs_command::suggest::{prefix_matches, recycle};
 use mcrs_command::{
-    ArgumentSet, NodeId, NodeKind, ParseScratch, Span, Suggestion, SuggestionBuilder,
-    SuggestionText, build_list,
+    ArgumentSet, Node, NodeId, NodeKind, ParseResult, ParseScratch, Span, Suggestion,
+    SuggestionBuilder, SuggestionText, build_list,
 };
 use mcrs_minecraft_command::{
-    ArgumentError, ClientArgument, ClientGraph, CommandSyntaxError, Lookup, Source, text_matches,
+    ArgumentError, ClientGraph, CommandSyntaxError, Lookup, Source, text_matches,
 };
 use mcrs_minecraft_protocol::command::CommandSuggestion;
 use mcrs_minecraft_protocol::text::Text;
@@ -318,22 +318,17 @@ impl Default for CommandInput {
     }
 }
 
-#[expect(
-    clippy::unnecessary_filter_map,
-    reason = "the map changes the lifetime of the element type, which a filter cannot"
-)]
-/// Gives a cleared buffer of suggestions another lifetime; the allocation stays, because the
-/// element types have one layout.
-fn recycle<'a, 'b, T>(mut buffer: Vec<Suggestion<'a, T>>) -> Vec<Suggestion<'b, T>> {
-    buffer.clear();
-    buffer.into_iter().filter_map(|_| None).collect()
-}
-
-fn is_argument(tree: &ClientGraph, node: NodeId) -> Option<&ClientArgument> {
-    match tree.node(node)?.kind() {
-        NodeKind::Argument { argument, .. } => Some(argument),
-        _ => None,
-    }
+/// Whether the parse passes a message argument, which picks `chat_command_signed`
+/// (CHAT-SEND-004).
+fn has_message<E: Copy>(tree: &ClientGraph, parse: &ParseResult<'_, '_, E>) -> bool {
+    parse
+        .contexts()
+        .flat_map(|context| context.nodes())
+        .any(|(node, _)| {
+            tree.node(node)
+                .and_then(Node::argument)
+                .is_some_and(|argument| argument.message)
+        })
 }
 
 #[derive(PartialEq)]
@@ -394,18 +389,8 @@ impl CommandInput {
         }
     }
 
-    /// The hint lines come from chat text, so they start at x = 0 (CCMD-HINT-004).
-    pub fn hints_from_chat_text(&self) -> bool {
-        !self.command
-    }
-
     pub fn usage_text(&self, range: Range<usize>) -> &str {
         self.usage.get(range).unwrap_or_default()
-    }
-
-    /// The start of the suggestion state, for the position of the list and the hint lines.
-    pub fn start(&self) -> usize {
-        self.entries.range.0
     }
 
     /// Shows the list when the state is ready and holds a suggestion (CCMD-LIST-001).
@@ -464,14 +449,11 @@ impl CommandInput {
         self.cursor = parse.cursor();
         self.errors.extend(parse.errors());
         self.reported = parse.check(cx.tree).err();
-        self.message = parse
-            .contexts()
-            .flat_map(|context| context.nodes())
-            .any(|(node, _)| is_argument(cx.tree, node).is_some_and(|argument| argument.message));
+        self.message = has_message(cx.tree, &parse);
         if let Some(last) = parse.contexts().last() {
             let arguments = last
                 .nodes()
-                .filter(|&(node, _)| is_argument(cx.tree, node).is_some());
+                .filter(|&(node, _)| cx.tree.node(node).and_then(Node::argument).is_some());
             for (index, (_, span)) in arguments.enumerate() {
                 self.highlights
                     .push((span, Highlight::Argument((index % 5) as u8)));
@@ -498,10 +480,7 @@ impl CommandInput {
         for child in children.iter().filter_map(|&child| cx.tree.node(child)) {
             match child.kind() {
                 NodeKind::Root => {}
-                NodeKind::Literal(name) => builder
-                    .suggest_matching([&**name], |remaining, name| {
-                        starts_with_ignore_case(name, remaining)
-                    }),
+                NodeKind::Literal(name) => builder.suggest_matching([&**name], prefix_matches),
                 NodeKind::Argument { argument, .. } => {
                     if argument.needs_server(cx.source.lookup) {
                         needs_server = true;
@@ -691,9 +670,6 @@ impl CommandInput {
     /// `chat_command_signed` (CHAT-SEND-004).
     pub fn line_has_message<L: Lookup>(&mut self, line: &str, cx: &Context<'_, L>) -> bool {
         let parse = cx.tree.parse(line, 0, cx.source, &mut self.scratch);
-        parse
-            .contexts()
-            .flat_map(|context| context.nodes())
-            .any(|(node, _)| is_argument(cx.tree, node).is_some_and(|argument| argument.message))
+        has_message(cx.tree, &parse)
     }
 }

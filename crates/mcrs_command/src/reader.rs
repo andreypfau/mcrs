@@ -2,7 +2,8 @@ use crate::error::{LibraryError, Span, StringSpan, SyntaxError};
 
 pub const SEPARATOR: char = ' ';
 
-const fn is_whitespace(c: char) -> bool {
+/// Whitespace as the command reader skips it.
+pub const fn is_whitespace(c: char) -> bool {
     matches!(
         c,
         '\u{9}'..='\u{d}'

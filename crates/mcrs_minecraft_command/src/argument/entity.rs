@@ -219,7 +219,7 @@ const SORTS: [(&str, Order); 4] = [
 
 /// An option that holds one of several values, as the search tests it.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ListOption<'a> {
+enum ListOption<'a> {
     Name {
         name: StringValue<'a>,
         negated: bool,
@@ -991,7 +991,7 @@ pub trait Candidate {
 
 impl<'a> Selector<'a> {
     /// Each option that holds one of several values, in the order of the text.
-    pub(crate) fn list_options(&self, mut each: impl FnMut(ListOption<'a>)) {
+    fn list_options(&self, mut each: impl FnMut(ListOption<'a>)) {
         let Some(at) = self.options else {
             return;
         };

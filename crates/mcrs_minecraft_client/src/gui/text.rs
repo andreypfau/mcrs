@@ -1,3 +1,4 @@
+use mcrs_minecraft_nbt::snbt::{java_double, java_float};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
@@ -26,8 +27,8 @@ fn number(tag: &NbtTag) -> String {
         NbtTag::Short(v) => v.to_string(),
         NbtTag::Int(v) => v.to_string(),
         NbtTag::Long(v) => v.to_string(),
-        NbtTag::Float(v) => v.to_string(),
-        NbtTag::Double(v) => v.to_string(),
+        NbtTag::Float(v) => java_float(*v),
+        NbtTag::Double(v) => java_double(*v),
         _ => String::new(),
     }
 }
