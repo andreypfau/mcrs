@@ -63,6 +63,8 @@ can change that accident. Each rule is of one of these kinds:
 - **Semantic**: the meaning of the behaviour, for example the result in the world or the
   message that a player receives. The rule does not state the order of internal operations,
   the class of an internal error or the text of a log line.
+- **Layout**: a position, a size or a colour of the client GUI, in GUI units and ARGB values.
+  A screenshot at a known GUI scale tests the rule.
 - **Deviation**: a defect or an accident of the reference. The rule states the correct
   behaviour. The section "Intentional deviations" of the document records the reference
   behaviour.

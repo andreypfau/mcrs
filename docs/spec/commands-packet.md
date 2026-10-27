@@ -336,6 +336,9 @@ of these arguments:
 - an argument of a registry that the client does not have;
 - an argument of type `minecraft:objective`.
 
+`client-commands.md`, section 4, states when the client sends a request, its ids, and how the
+client treats a late reply.
+
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment:
 with a tree that has one argument with the suggestion type `minecraft:ask_server`, type `/x a`
 and capture the request. Its text is `/x a`.
@@ -402,7 +405,8 @@ gets a reply.
 
 The command line has no `/` at the start. The client sends `chat_command_signed` instead when the
 command has a signable argument. The first commands have none. `chat_command_signed` is out of
-scope.
+scope. `client-chat.md`, CHAT-SEND-004, states when the client picks each packet, and the
+layout of `chat_command_signed` in an unsigned session.
 
 When the server enforces secure profiles and the parse has a signable argument, the server
 does not run a `chat_command`. It sends the player the translation

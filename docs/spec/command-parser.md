@@ -592,6 +592,8 @@ client always uses the range of a reply that has suggestions. The client shows n
 empty reply. When the parent on the client has more than one child, the client sorts the reply
 again. Otherwise the client keeps the order of the reply. In both cases the client then shows
 the suggestions that start with the last word of the input before the other suggestions.
+`client-commands.md` states the client side: the parse while the player types, the display
+order, the suggestion list and the hint lines.
 
 ### CMD-SUG-001: Request
 
