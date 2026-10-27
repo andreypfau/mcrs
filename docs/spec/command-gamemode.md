@@ -108,6 +108,30 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 online, one of them in creative mode, run `scoreboard objectives add r dummy` and
 `execute store result score @s r run gamemode creative @a`. The score is 1.
 
+
+### CMD-GM-009: Targets in other dimensions
+
+- **Behavior:** the selector finds targets in every dimension unless it is world limited
+  (`argument-entity.md`, ARG-ENT-018). A target in another dimension than the source dimension
+  changes as CMD-GM-003 states. The dimension of the source has no effect on the change.
+- **Postconditions:**
+  - The target receives `game_event` and `player_abilities` in its own dimension.
+  - Every player of the server, in every dimension, receives `player_info_update`.
+  - The sleep count of the dimension of the target changes, not that of the source dimension.
+  - The game rule `send_command_feedback` is one value for the whole server. Thus the
+    dimension does not change the messages of CMD-GM-004.
+  - The targets change in the order of the selector. For each target, the change and then its
+    messages occur before the next target changes. The result is known when the command
+    returns (CMD-GM-005).
+  - The order of the packets on two connections is unspecified, as in `command-teleport.md`,
+    CMD-TP-014.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put the player
+`A` in the Overworld and the player `B` in the Nether, both in survival mode. `A` runs
+`gamemode creative @a`. Both players change. `A` receives `commands.gamemode.success.self` and
+`commands.gamemode.success.other` for `B`, in the order of the player list. `B` receives
+`gameMode.changed`. The result is 2.
+
 ### CMD-GM-007: Abilities of each mode
 
 - **Behavior:** when a player gets a game mode, its abilities take these values. "Keep" means

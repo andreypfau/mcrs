@@ -559,6 +559,38 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 run `execute on vehicle run tag @s add v`. The pig gets the tag. Then run
 `execute as @e[type=pig,limit=1] on passengers run say a`. The player says `a`.
 
+
+### CMD-EX-024: Targets in other dimensions
+
+- **Behavior:** `as`, `at`, `positioned as`, `rotated as`, `facing entity` and the condition
+  `entity` find their targets with the search of `argument-entity.md`, ARG-ENT-013. Thus a
+  selector that is not world limited finds entities of every dimension (ARG-ENT-018), in the
+  dimension order (ARG-ENT-019).
+- **Postconditions:** for a target in another dimension than the source dimension:
+
+| Modifier | The new source |
+|----------|----------------|
+| `as` | has that target as its entity; keeps the source dimension and the source position |
+| `at` | has the dimension, the position and the rotation of that target; no coordinate scale applies |
+| `positioned as` | has the coordinates of that target; keeps the source dimension; no coordinate scale applies |
+| `rotated as` | has the rotation of that target; keeps the source dimension |
+| `facing entity` | turns toward the target point of that target, with the coordinates alone; keeps the source dimension |
+| condition `entity` | counts that target |
+
+- **Edge cases:**
+  - After `as` with a target in another dimension, the source entity and the source dimension
+    differ. `@s` still finds the entity (ARG-ENT-021). A command that moves `@s` to `~ ~ ~` moves
+    it to the source dimension.
+  - `execute as @a at @s` gives each source the dimension of its own player.
+  - `execute in <dimension>` changes only the source dimension and the source position. It does
+    not move the source entity.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put the player
+`A` in the Overworld and the player `B` in the Nether at `5 70 5`. `A` runs
+`execute as B run tp @s ~ ~ ~`. `B` moves to the Overworld, to the position of `A`. Then `B`
+returns to the Nether, and `A` runs `execute at B run tp @s ~ ~ ~`. `A` moves to the Nether at
+`5 70 5`.
+
 ---
 
 ## 3. The run of a chain

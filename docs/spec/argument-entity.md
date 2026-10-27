@@ -33,7 +33,11 @@ architecture.
 - **Includes entities**: a flag of a selector. When it is false, the selector can find only
   players.
 - **World limited**: a flag of a selector. When it is true, the selector searches only the
-  dimension of the source.
+  dimension of the source (ARG-ENT-018).
+- **Source dimension**: the dimension of the source. `execute in` and `execute at` change it.
+  It can differ from the dimension of the source entity.
+- **Dimension order**: the order in which a search visits the dimensions of the server
+  (ARG-ENT-019).
 - **Origin**: the position from which a selector measures distance and places its box.
 - **Bounds**: a pair of an optional minimum and an optional maximum (ARG-ENT-007).
 - **Selector permission**: the atom `minecraft:commands/entity_selectors`
@@ -413,8 +417,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   4. `@s`: the entity of the source, if it passes every test of the options, the box test and
      the distance test. Otherwise nothing.
   5. Otherwise: find each entity that passes all tests, in the dimension of the source when the
-     selector is world limited, or in every dimension. Put the entities in the order of the
-     selector, and keep the first maximum results.
+     selector is world limited, or in every dimension in the dimension order (ARG-ENT-019). Put
+     the entities in the order of the selector, and keep the first maximum results.
 - **Tests:**
   - the alive test and the tests of the options (ARG-ENT-015);
   - the type limit, and the type is enabled;
@@ -424,8 +428,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   only touch do not overlap. An entity with an empty bounding box passes when its position is
   in the placed box, faces included (ARG-ENT-DEV-003).
 - **Orders:**
-  - `nearest` sorts by distance from the origin, the smallest first. `furthest` sorts by distance,
-    the largest first. The order of entities at equal distance is unspecified.
+  - `nearest` sorts by distance from the origin (ARG-ENT-020), the smallest first. `furthest`
+    sorts by distance, the largest first. The order of entities at equal distance is unspecified.
   - `random` gives each order of the entities the same probability.
   - `arbitrary` keeps any entities that pass, up to the maximum results, in an order that the
     implementation selects. For the same world and the same command, the result must be the
@@ -442,8 +446,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. A UUID selector: the online player with that UUID, or nothing.
   3. `@s`: the source entity, if it is a player and passes every test.
   4. Otherwise: test each player of the dimension of the source when the selector is world
-     limited, or each online player. Put the players in the order of the selector
-     (ARG-ENT-013), and keep the first maximum results.
+     limited, or each online player in every dimension (ARG-ENT-019). Put the players in the
+     order of the selector (ARG-ENT-013), and keep the first maximum results.
 - **Postconditions:** the type limit does not apply here. The tests of `type` still apply. The
   order of the players for `arbitrary` and for equal distances is unspecified
   (ARG-ENT-DEV-007).
@@ -497,6 +501,101 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. The run-time error corrects
 a deviation (ARG-ENT-DEV-006).
 
+
+### ARG-ENT-018: World limited selectors
+
+- **Behavior:** a selector is world limited when it has at least one of these options:
+  `distance`, `x`, `y`, `z`, `dx`, `dy` or `dz`. No other option and no selector kind makes a
+  selector world limited.
+- **Postconditions:**
+
+| Selector | Without those options | With one of those options |
+|----------|-----------------------|---------------------------|
+| `@p`, `@n` | every dimension | the source dimension |
+| `@a`, `@e`, `@r` | every dimension | the source dimension |
+| `@s` | the source entity, in any dimension (ARG-ENT-021) | the same |
+| a name selector | the online player, in any dimension | not applicable |
+| a UUID selector | the entity, in any dimension | not applicable |
+
+- **Edge cases:**
+  - `@p` and `@n` are not world limited. They find the nearest candidate in every dimension,
+    with the distance of ARG-ENT-020.
+  - `@a[sort=nearest]`, `@e[limit=1]` and `@r[gamemode=creative]` search every dimension.
+  - `@e[distance=0..]` is world limited, although every distance passes. It finds each entity
+    of the source dimension.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put the player
+`A` in the Overworld at `0 64 0` and the player `B` in the Nether at `0 64 0`. As `A`, run
+`execute if entity @a`: the count is 2. Run `execute if entity @a[distance=0..]`: the count is
+1.
+
+### ARG-ENT-019: The dimension order and the order of candidates
+
+- **Behavior:**
+  - The dimension order is `minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`,
+    then each other dimension of the server. A dimension that the server does not have is
+    skipped.
+  - A search for entities that is not world limited visits the dimensions in the dimension
+    order. Each candidate of an earlier dimension comes before each candidate of a later
+    dimension. Inside one dimension, the order is the order of ARG-ENT-013.
+  - A search for players that is not world limited does not group the players by dimension.
+    It visits the online players in the order of ARG-ENT-014, in all dimensions together.
+  - The order `arbitrary` keeps the first candidates in this order. Thus `@e[limit=1]` finds an
+    entity of the Overworld before an entity of the Nether.
+  - The orders `nearest` and `furthest` keep this order for candidates at equal distance.
+  - The order `random` gives each order of all candidates of all dimensions the same
+    probability. Thus `@r` picks each player of the server with the same probability.
+- **Edge cases:** the order of the dimensions after `minecraft:the_end` is unspecified. The
+  order inside one dimension stays unspecified (ARG-ENT-DEV-007).
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: summon a pig
+with the tag `o` in the Overworld and a pig with the tag `o` in the Nether. From the Nether, run
+`tag @e[tag=o,limit=1] add first`. Then run
+`execute in minecraft:overworld if entity @e[tag=first,distance=0..]`. The reply is
+`commands.execute.conditional.pass`.
+
+### ARG-ENT-020: Distance to a candidate in another dimension
+
+- **Behavior:** the distance from the origin to an entity is the Euclidean distance between
+  the coordinates of the origin and the coordinates of the entity. The dimension of the entity
+  does not change the distance. No coordinate scale applies.
+- **Postconditions:**
+  - `nearest` and `furthest` compare the candidates of every dimension with this distance.
+    Thus `@p` in the Overworld at `0 64 0` finds a player in the Nether at `1 64 0` before a
+    player in the Overworld at `5 64 0`.
+  - A world limited selector has no candidate in another dimension, except `@s`
+    (ARG-ENT-021). Thus the `distance` bounds and the box test apply to another dimension only
+    for `@s`.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put the player
+`A` in the Overworld at `0 64 0`, the player `B` in the Overworld at `5 64 0`, and the player
+`C` in the Nether at `1 64 0`. As `A`, run `tp @p[name=!A] ~ ~ ~`. `C` moves to the Overworld.
+
+### ARG-ENT-021: `@s` when the source entity is in another dimension
+
+- **Behavior:**
+  - `@s` finds the source entity in every dimension. The source dimension does not need to be
+    the dimension of the source entity. `@s` does not search a dimension, so the world limited
+    flag has no effect on it.
+  - The options of `@s` test the source entity as ARG-ENT-013, step 4, states. The origin is the
+    source position, which `execute in` scales (`command-execute.md`, CMD-EX-021). The
+    distance and the box test use the coordinates alone (ARG-ENT-020).
+- **Edge cases:**
+
+| Situation, the player at `800 64 -160` in the Overworld | `@s` finds the player |
+|----------------------------------------------------------|-----------------------|
+| `execute in minecraft:the_end run ... @s` | yes |
+| `execute in minecraft:the_nether run ... @s[distance=..1]`: the origin is `100 64 -20` | no |
+| `execute in minecraft:the_end run ... @s[distance=..1]`: the scale is 1, the origin is the position of the player | yes |
+| `execute in minecraft:the_nether positioned as @s run ... @s[distance=..1]` | yes |
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: as an operator
+in the Overworld at `800 64 -160`, run
+`execute in minecraft:the_nether if entity @s[distance=..1]`. The reply is
+`commands.execute.conditional.fail`. Run
+`execute in minecraft:the_end if entity @s[distance=..1]`. The reply is
+`commands.execute.conditional.pass`.
+
 ---
 
 ## 4. Examples
@@ -514,6 +613,14 @@ type.
 
 - ARG-ENT-015: the plain text name of an entity with a custom name that has styles or
   translations. This needs the text specification.
+- ARG-ENT-021: a source entity that is not a player and that changed dimension earlier in the
+  same function. The source still holds the removed entity (`dimension-change.md`,
+  DIM-CHG-009). Whether `@s` then finds it is not confirmed. Experiment: make a function with
+  `execute in minecraft:the_nether run tp @s 0 64 0` and then `say @s`. Run it as a pig, and
+  record the second line.
+- ARG-ENT-019: the order of the dimensions after `minecraft:the_end` in a data pack with more
+  dimensions. Experiment: add two dimensions `a:x` and `a:y`, summon a pig with a tag in each,
+  and run `tag @e[tag=t,limit=1] add first` several times over several restarts.
 
 ---
 
@@ -581,7 +688,8 @@ type.
 - **Rule:** ARG-ENT-013 and ARG-ENT-014, orders.
 - **Reference:** the game collects players in the order of the player list of the server. A
   player joins at the end of that list, and a respawn moves the player to the end. A world
-  limited search uses the player list of the dimension. The game collects other entities in
+  limited search uses the player list of the dimension. A player that changes dimension goes to
+  the end of the list of the new dimension. The game collects other entities in
   the order in which the dimension stores them. `nearest` and `furthest` keep the collection
   order for equal distances. `random` shuffles the collected list.
 - **Visible to the client:** yes, through the entity that the command picks. Examples are

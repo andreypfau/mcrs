@@ -124,11 +124,13 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   - The player receives `player_position` with a new teleport id and the values of step 2.
   - The packet has a velocity of zero and the relative set of CMD-TP-006.
   - The head yaw of the player becomes its final yaw.
-- **Postconditions for a player in another dimension:** the player changes dimension as the
-  dimension change specification states, and then has the new position and rotation. That
-  specification does not exist yet.
+- **Postconditions for a player in another dimension:** the player changes dimension as
+  `dimension-change.md`, DIM-CHG-001 to DIM-CHG-008, states. `player_position` of
+  DIM-CHG-003, step 5, carries the values of step 2 and the relative set of CMD-TP-006. The
+  head yaw of the player becomes its final yaw. CMD-TP-013 states the values.
 - **Postconditions for an entity that is not a player, in another dimension:** a new entity
-  replaces the victim. Steps 5 to 7 apply to the new entity (CMD-TP-008).
+  replaces the victim (`dimension-change.md`, DIM-CHG-009). Steps 5 to 7 apply to the new
+  entity (CMD-TP-008).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: as an operator
 at `0.5 64 0.5`, run `tp ~1 ~ ~`, and capture `player_position`. Its x is 1.0 with the flag for
@@ -242,6 +244,85 @@ positive, so the player looks down.
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: as an operator, run
 `tp @s ~ ~ ~ facing entity @e[type=cow,limit=1] eyes`. Capture `player_look_at`. Its from anchor
 is 0, at entity is true, its entity id is the id of the cow, and its to anchor is 1.
+
+
+### CMD-TP-013: A victim in another dimension than the destination
+
+- **Inputs:** a victim whose dimension is not the destination dimension of CMD-TP-004.
+- **Behavior:**
+  - `location`, `rotation` and `facingLocation` resolve against the source, as CMD-TP-004
+    states. The dimension of the victim does not change these values. `~` and `^` refer to the
+    source, not to the victim.
+  - The relative set has no flag of x, y or z (CMD-TP-006). Thus `player_position` carries the
+    absolute position of the destination.
+  - The relative set keeps the velocity flags of the relative axes. The victim keeps its
+    velocity on those axes, and its velocity on the other axes becomes 0.
+  - The rotation follows CMD-TP-005, step 2, with the yaw and the pitch of the victim. Without
+    `<rotation>`, the victim keeps its rotation.
+  - A facing target in the form `facing entity` is the position of `facingEntity` in its own
+    dimension. The command does not check that `facingEntity` is in the destination
+    dimension. The victim turns toward that position after the move (CMD-TP-011).
+- **Examples:**
+
+| Command, in the Overworld | Victim | Result |
+|---------------------------|--------|--------|
+| `execute in minecraft:the_end run tp @s 0 100 0` | the source player | the End at `0.5 100 0.5`, rotation kept, relative set `0x018` |
+| `tp @a ~ ~ ~` | every player | each player in the Overworld at the source position, also a player from the Nether |
+| `tp @s Steve`, `Steve` in the Nether | the source player | the Nether at the position of `Steve`, with the yaw and the pitch of `Steve`, relative set empty |
+
+Provenance: `source_suggested`. Kind: semantic, except the relative set, which is wire.
+Confidence: medium. Experiment: as an operator in the Overworld at `10.5 64 10.5`, run
+`execute in minecraft:the_end run tp @s 0 100 0`. Capture `player_position`: x is 0.5, y is
+100.0, z is 0.5, yaw and pitch are 0.0, and the flags are `0x018`. Then run
+`execute in minecraft:the_nether run tp @s ~1 ~ ~`. The flags are `0x0f8`: no flag of x, y or z,
+the three velocity flags, and yaw and pitch. The x is the scaled source x plus 1.
+
+### CMD-TP-014: Order of the moves and the feedback
+
+- **Behavior:**
+  1. The command moves the victims one after the other, in the order of the selector.
+  2. The move of a victim ends before the move of the next victim starts. A move to another
+     dimension ends when the victim is in the new dimension (`dimension-change.md`,
+     DIM-CHG-001).
+  3. After the last move, the command sends the feedback of CMD-TP-007 and gives its result.
+- **Postconditions:**
+  - (kind: wire) A player that is a victim and also the output receives all packets of its own
+    move before the success message.
+  - (kind: semantic) Each search that occurs after the command finds each moved victim in its
+    destination dimension. This includes a later run of the same chain
+    (`command-execute.md`, CMD-EX-035) and a later command of the same tick.
+  - (kind: semantic) The result counts the victims that moved. The count is known when the
+    command returns, so `execute store` writes it at once.
+  - (kind: unspecified) The order of the packets of two victims on two connections. Each
+    connection has its own order. A client cannot see the order of packets on another
+    connection.
+  - (kind: semantic) The order of the moves decides what a later victim sees. An example is a
+    victim that is also `destination` or `facingEntity` (CMD-TP-004).
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: with the players
+`A` in the Overworld and `B` in the Nether, `A` runs `scoreboard objectives add r dummy` and
+`execute store result score @s r run tp @a 0 64 0`. The score is 2, and the success message is
+`commands.teleport.success.location.multiple` with 2. Then `A` runs
+`execute if entity @a[distance=..2]` at once. The reply is `commands.execute.conditional.pass`
+with the count 2.
+
+### CMD-TP-015: Failures of a move to another dimension
+
+- **Behavior:**
+  - The destination dimension always exists: it is the source dimension or the dimension of an
+    entity. The command has no error for an absent destination dimension. `execute in` fails
+    first when its dimension does not exist (`command-execute.md`, CMD-EX-021).
+  - A destination chunk that is not loaded or not generated does not stop the move. The server
+    loads the chunks after the move (`dimension-change.md`, DIM-CHG-007).
+  - The spawnable bounds of CMD-TP-005, step 1, apply in every dimension. The world border does
+    not apply.
+  - A victim that is removed before its move, for example a player that leaves, does not move.
+    That move fails as CMD-TP-005, step 4, states. The other victims still move.
+- **Postconditions:** a failed move counts as CMD-TP-007 states.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in the
+Overworld, run `execute in minecraft:the_end run tp @s 0 25000000 0`. The reply is
+`commands.teleport.invalidPosition`, and the player stays in the Overworld.
 
 ---
 
