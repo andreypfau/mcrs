@@ -94,12 +94,14 @@ Provenance: `black_box_confirmed` (`assets/mcrs/reports/packets.json`).
 | `CHAT-RECV` | received packets that add a message or an overlay message |
 | `CHAT-LOG` | the chat log, its layout, fade and scroll |
 | `CHAT-OPT` | options that change the chat |
+| `CHAT-TIP` | tooltips of the chat screen |
 | `CHAT-DEV` | intentional deviations |
 
 ### 0.7 Scope
 
 In scope: the chat screen, the input box, drafts, the history, the send of chat and commands
-in an unsigned session, received chat messages, the chat log and the overlay message.
+in an unsigned session, received chat messages, the chat log, the overlay message, and which
+tooltips the chat screen shows. `client-tooltip.md` states how a tooltip draws.
 
 Out of scope: the signature of messages and the chain of a signed session, chat reports, the
 social interactions screen, narration, what each click event in the chat log does, the
@@ -584,13 +586,39 @@ Experiment: send 30 messages. The closed chat shows the 10 newest. Open the chat
 | modified | `606060` | `icon/chat_modified`, 9 × 9 | `chat.tag.modified`, a new line, and the original text in gray | `player_chat` that the server changed |
 | error | `FF5555` | none | `chat.tag.error` | `player_chat` that fails its check |
 
-- **Behavior:** when the chat is open and the mouse is over the bar of a tag, the tooltip
-  shows. It wraps at 210 GUI units. The icon shows 4 GUI units after the end of the last line
-  of its message, while the mouse is over that message or over the icon.
+- **Behavior:** the closed chat shows no tooltip and no icon. When the chat is open, for each
+  slot that shows a line with a tag:
+  1. Draw the bar of CHAT-LOG-002. Then, if the mouse is in the bar, make a tooltip request
+     (`client-tooltip.md`, TIP-REQ-001).
+  2. If the tag has an icon, and the line is the last line of its message, place the icon:
+     - its left edge is at x = `width(line) + 4`, and its width is the width of the icon;
+     - its bottom is at the top of the text of the slot + 9, and its top is that bottom − 10.
+  3. If the mouse is in the icon rectangle, make a tooltip request.
+  4. Draw the icon with its top at the top of the rectangle, if the mouse is in the rectangle,
+     or over the text of any line of the same message. "Over the text" means in the hover area
+     of a glyph of the line (`client-tooltip.md`, TIP-HOVER-002).
+- **Tests of the mouse:** all tests use the local frame of CHAT-LOG-002. The mouse in the local
+  frame is (`mx / s − 4`, `my / s`), as real numbers. The mouse is in a rectangle when
+  `left ≤ x < right` and `top ≤ y < bottom`.
+- **Tooltip request:** the lines are the tooltip text of the tag in the table, wrapped at 210
+  GUI units of the font. A line break also starts a new line, so the "modified" tooltip has
+  its original text on a new line. The request is at the mouse position in GUI units, with no
+  tooltip style.
+- **Postconditions:**
+  - The bar and the icon show a tooltip only while the chat is open.
+  - The tooltip text of a tag is the translation of its key in the current language.
 
-Provenance: `source_suggested`. Kind: layout for the colours, semantic for the rest. Confidence:
-medium. Experiment: send a `system_chat`, open the chat and put the mouse on the left edge of
-the line. The tooltip `Server message.` shows.
+| Key | `en_us` text |
+|-----|--------------|
+| `chat.tag.system_single_player` | `Server message.` |
+| `chat.tag.system` | `Server message. Cannot be reported.` |
+| `chat.tag.not_secure` | `Unverified message. Cannot be reported.` |
+| `chat.tag.modified` | `Message modified by the server. Original:` |
+| `chat.tag.error` | `Server sent invalid message.` |
+
+Provenance: `source_suggested`. Kind: layout for the colours and the rectangles, semantic for the
+rest. Confidence: medium. Experiment: send a `system_chat`, open the chat and put the mouse on
+the left edge of the line. The tooltip `Server message.` shows.
 
 ### CHAT-LOG-006: Clicks in the open chat
 
@@ -599,12 +627,60 @@ the line. The tooltip `Server message.` shows.
   - With Shift, if the style has an insertion text, insert it at the caret.
   - Without Shift, if the style has a click event, run it. The event `suggest_command`
     replaces the input with its text.
-  - A hover event of the style shows its tooltip while the mouse is over the text.
-- **Postconditions:** the other click events are out of scope.
+- **Postconditions:** the other click events are out of scope. CHAT-LOG-007 states hover events.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: send a
 `system_chat` whose text has the click event `suggest_command` with `/help`. Open the chat and
 click it. The input is `/help`.
+
+### CHAT-LOG-007: Hover events in the open chat
+
+- **Behavior:**
+  - The text of each slot of the open chat answers the mouse (`client-tooltip.md`,
+    TIP-HOVER-002). The test uses the local frame and the scale of CHAT-LOG-002.
+  - The line `chat.queue` of CHAT-OPT-003 also answers the mouse. Its style has the hover event
+    `show_text` with the translation `chat.queue.tooltip`.
+  - The restricted prompt of CHAT-OPT-002 answers the mouse. When its text is wider than the
+    draw width `dw`, the screen clips it, and the clipped text has the hover event `show_text`
+    with the translation `chat_screen.restricted`. Otherwise it has no hover event.
+  - The closed chat does not answer the mouse.
+  - The hint lines, the suggestion list and the input box do not answer the mouse.
+- **Postconditions:** the tooltip of the hovered text style shows only when no tag and no
+  suggestion made a tooltip request in the same frame (CHAT-TIP-001).
+- **Edge cases:** the test does not know which content is on top. The text of the chat log
+  under the suggestion list or under a hint line still answers the mouse.
+
+| Key | `en_us` text |
+|-----|--------------|
+| `chat.queue.tooltip` | `Click to display next message` |
+| `chat_screen.restricted` | `Chat is restricted. Click this message for details.` |
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: send a
+`system_chat` whose text has the hover event `show_text` with `hi`. Open the chat and put the
+mouse on the text. The tooltip `hi` shows. Close the chat. No tooltip shows.
+
+### CHAT-TIP-001: Order of tooltip requests
+
+- **Behavior:** in each frame, the chat screen draws its parts in this order. The first tooltip
+  request of the frame draws (`client-tooltip.md`, TIP-REQ-001).
+  1. The fill of the input box.
+  2. The chat log. It draws the slots from slot 0 upwards. In each slot, it draws the text,
+     then the bar of the tag, then the icon of the tag. The bar and the icon can make a tooltip
+     request (CHAT-LOG-005). The text can set the hovered text style (CHAT-LOG-007).
+  3. The input box.
+  4. The suggestion list if it shows, or else the hint lines. A row of the list can make a
+     tooltip request (`client-commands.md`, CCMD-LIST-007). The hint lines make none.
+  5. The request of the hovered text style, if there is one.
+  6. The tooltip.
+- **Postconditions:**
+  - The order of priority is: the tag, then the suggestion, then the hover event.
+  - The tooltip draws above the chat log, the input box, the list and the hint lines.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: send a
+`system_chat` with a `show_text` hover event. Type `/execute as @` so that the list covers that
+line. Put the mouse on the row `@p` above the line. The tooltip `Nearest player` shows. Type
+`/execute `, and put the mouse on a row above the line. The rows have no tooltip, so the tooltip
+of the hover event shows.
 
 ---
 
@@ -687,7 +763,18 @@ first.
 
 ## 6. Intentional deviations
 
-No deviation is recorded.
+### CHAT-DEV-001: The icon of a tag
+
+- **Rule:** CHAT-LOG-005, steps 2 and 4.
+- **Reference:** the client tests the icon rectangle on each line of a message with an icon,
+  at the end of that line. The mouse at the end of a line that is not the last line draws the
+  icon there. The client also shows the icon of a message when the mouse is over a line of
+  the newer message below it, other than the last line of that message. The mouse over a line
+  of the message other than its last line does not show its own icon.
+- **Visible to the client:** yes. For a message of two or more lines, the icon shows or stays
+  hidden for the wrong mouse position. The tooltip of the icon is the same.
+- **Test:** a differential test ignores the icon `icon/chat_modified` and its tooltip at the
+  end of a line that is not the last line of its message.
 
 ---
 

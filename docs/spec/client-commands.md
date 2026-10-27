@@ -432,18 +432,40 @@ Tab, then press Up once. The last command is selected, and the list shows the la
 
 ### CCMD-LIST-007: Mouse and tooltip
 
-- **Behavior:**
-  - When the mouse moves over row `i`, the screen selects entry `offset + i`.
-  - A left click on row `i` selects entry `offset + i` and inserts it (CCMD-LIST-005).
-  - While the mouse is over a row, the tooltip of the selected suggestion shows at the mouse,
-    if the suggestion has a tooltip.
-  - The mouse pointer is a hand over the list rectangle.
-- **Postconditions:** only the mouse shows a tooltip. A selection with the keyboard does not
-  show it.
+- **Inputs:** the list rectangle with the left edge `lx`, the top `top` and the width `lw`
+  (CCMD-LIST-002); the mouse position (`mx`, `my`) of `client-tooltip.md`, section 0.1.
+- **Behavior:** each frame that shows the list does these steps:
+  1. The mouse is over row `i` when all of these are true:
+     - `lx < mx < lx + lw`;
+     - `top + 12·i < my < top + 12·i + 12`.
+  2. When the mouse is over row `i`, and the mouse position is not the same as in the frame
+     before, the screen selects entry `offset + i` (CCMD-LIST-003).
+  3. When the mouse is over a row, and the selected suggestion has a tooltip, the screen makes
+     a tooltip request (`client-tooltip.md`, TIP-REQ-001) at the mouse position. The request
+     has one line, the tooltip of the selected suggestion. It has no tooltip style.
+  4. When `lx ≤ mx ≤ lx + lw` and `top ≤ my ≤ top + 12·r`, the mouse pointer is a hand.
+- **Text of the tooltip:**
+  - A suggestion of the client parse has a translation key as its tooltip. The line is the
+    translation of the key in the current language.
+  - A suggestion from a server reply has a text component as its tooltip
+    (`commands-packet.md`, CMDP-SUG-002). The line is that text component.
+  - The line does not wrap, whatever its width.
+- **Clicks:** a left click at (`mx`, `my`) with `lx ≤ mx ≤ lx + lw` and `top ≤ my ≤ top + 12·r`
+  selects entry `offset + floor((my − top) / 12)` and inserts it (CCMD-LIST-005), if that
+  entry exists.
+- **Postconditions:**
+  - Only the mouse shows a tooltip. While the mouse is not over a row, a selection with the
+    keyboard shows no tooltip.
+  - While the mouse stays still over a row, Up and Down change the selected suggestion and not
+    the row. The tooltip shows the selected suggestion, not the suggestion of the row under the
+    mouse.
+  - The edge pixels of a row select nothing and show no tooltip.
+  - The tooltip uses the position, the background and the order of `client-tooltip.md`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: type
-`/give @s minecraft:stone ` on a server whose `<count>` argument has a tooltip, and put the
-mouse on a row.
+Provenance: `source_suggested`. Kind: semantic; layout for the rectangles. Confidence: medium.
+Experiment: type `/execute as @`. Put the mouse on the row `@p`. The tooltip
+`Nearest player` shows at the mouse. Press Down without a move of the mouse. The tooltip of `@r`
+shows.
 
 ---
 
@@ -604,5 +626,10 @@ after `as` is gray.
   below the box, and 7 rows. A separate document can state it.
 - The narration of the suggestion list (`narration.suggestion` and its variants) is not
   stated.
+- CCMD-LIST-007: a tooltip text with a line break. The line does not wrap and does not split
+  at the line break. What the font draws for the line break is not stated. Experiment: on a
+  server whose reply has the tooltip text `a\nb`, put the mouse on the row. Record what the
+  tooltip shows.
+
 - CCMD-HINT-002: the colour of an error line. The source gives white. Run the experiment of
   CCMD-HINT-002 to confirm.
