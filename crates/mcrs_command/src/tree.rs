@@ -320,6 +320,36 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         Ok(Graph { nodes: self.nodes })
     }
 
+    /// Makes an existing node a child of one more parent. The node keeps its first parent, so
+    /// its requirement chain is the path through that parent.
+    pub fn link(&mut self, parent: NodeId, child: NodeId) -> Result<(), BuildError> {
+        let child_node = self
+            .nodes
+            .get(child.index())
+            .ok_or(BuildError::UnknownNode(child))?;
+        let parent_node = self
+            .nodes
+            .get(parent.index())
+            .ok_or(BuildError::UnknownNode(parent))?;
+        if parent_node.redirect.is_some() {
+            return Err(BuildError::RedirectWithChildren(parent));
+        }
+        let name = child_node.kind.name();
+        if let Some(&existing) = parent_node.children.iter().find(|&&existing| {
+            self.nodes
+                .get(existing.index())
+                .is_some_and(|node| node.kind.name() == name)
+        }) {
+            return if existing == child {
+                Ok(())
+            } else {
+                Err(BuildError::Conflict { parent, existing })
+            };
+        }
+        self.node_mut(parent)?.children.push(child);
+        Ok(())
+    }
+
     fn node_mut(&mut self, node: NodeId) -> Result<&mut Node<A, R, H>, BuildError> {
         self.nodes
             .get_mut(node.index())

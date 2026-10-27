@@ -1,8 +1,14 @@
 use crate::argument::{Argument, ArgumentSet};
-use crate::error::{LibraryError, Span, SyntaxError};
+use crate::argument_handle::ArgumentHandle;
+use crate::contains::Contains;
+use crate::error::{LibraryError, SyntaxError};
+use crate::graph::Graph;
+use crate::node_id::NodeId;
+use crate::node_kind::NodeKind;
 use crate::reader::{Reader, SEPARATOR};
+use crate::requirement::Requirement;
+use crate::span::Span;
 use crate::suggest::{Suggestion, SuggestionBuilder, starts_with_ignore_case};
-use crate::tree::{Arg, Contains, Graph, NodeId, NodeKind, Requirement};
 use alloc::vec::Vec;
 
 /// Each redirect and each node below it nests one level of the parse.
@@ -85,13 +91,15 @@ pub(crate) fn contexts(entries: &[Entry]) -> impl Iterator<Item = ContextView<'_
 }
 
 impl<'s> ContextView<'s> {
-    pub fn nodes(&self) -> impl Iterator<Item = (NodeId, Span)> + 's {
+    /// The parsed nodes of the context with their spans, in input order.
+    pub fn nodes(&self) -> impl Iterator<Item = (NodeId, Span)> + use<'s> {
         self.nodes.iter().filter_map(|entry| match *entry {
             Entry::Node { node, span } => Some((node, span)),
             Entry::Context { .. } => None,
         })
     }
 
+    /// The last parsed node of the context.
     pub fn last(&self) -> Option<(NodeId, Span)> {
         self.nodes().last()
     }
@@ -105,6 +113,38 @@ impl<'s> ContextView<'s> {
     }
 }
 
+/// Where the suggestions at a cursor come from.
+#[derive(Clone, Copy, Debug)]
+pub struct SuggestionParent<'s> {
+    /// The node whose children suggest.
+    pub node: NodeId,
+    /// The start of the suggestions.
+    pub start: usize,
+    /// The nodes of the context of `node` before `start`.
+    pub context: ContextView<'s>,
+}
+
+/// How well a child parsed: the whole input, then no error below it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Rank {
+    complete: bool,
+    clean: bool,
+}
+
+impl Rank {
+    const BEST: Rank = Rank {
+        complete: true,
+        clean: true,
+    };
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Best {
+    rank: Rank,
+    end: usize,
+}
+
+/// The nodes and the errors of one parse, borrowed from its [`ParseScratch`].
 #[derive(Debug)]
 pub struct ParseResult<'a, 's, E> {
     input: &'a str,
@@ -114,12 +154,23 @@ pub struct ParseResult<'a, 's, E> {
 }
 
 impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
-    pub(crate) fn input(&self) -> &'a str {
+    pub fn input(&self) -> &'a str {
         self.input
     }
 
-    pub(crate) fn contexts(&self) -> impl Iterator<Item = ContextView<'s>> + 's {
+    /// Where the parse stopped; the parse read the whole input when it equals its length.
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    /// The top context, then the child context after each redirect.
+    pub fn contexts(&self) -> impl Iterator<Item = ContextView<'s>> + 's {
         contexts(self.entries)
+    }
+
+    /// The errors of the level where the parse stopped.
+    pub fn errors(&self) -> impl Iterator<Item = SyntaxError<E>> + 's {
+        self.errors.iter().copied()
     }
 
     pub(crate) fn entries(&self) -> &'s [Entry] {
@@ -158,10 +209,9 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             ))
     }
 
-    /// The node whose children suggest at the end of the input, the start of those
-    /// suggestions, and the nodes of its context before that start.
-    pub(crate) fn suggestion_parent(&self) -> (NodeId, usize, ContextView<'s>) {
-        let cursor = self.input.len();
+    /// Where the suggestions at `cursor` come from.
+    pub fn suggestion_parent_at(&self, cursor: usize) -> SuggestionParent<'s> {
+        let cursor = cursor.min(self.input.len());
         let mut parent = (NodeId::ROOT, cursor);
         let mut parsed = ContextView {
             root: NodeId::ROOT,
@@ -203,7 +253,11 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             .position(|entry| matches!(*entry, Entry::Node { span, .. } if span.end >= start))
             .unwrap_or(parsed.nodes.len());
         parsed.nodes = parsed.nodes.get(..before).unwrap_or_default();
-        (parent.0, start, parsed)
+        SuggestionParent {
+            node: parent.0,
+            start,
+            context: parsed,
+        }
     }
 }
 
@@ -269,7 +323,7 @@ impl<A, R, H> Graph<A, R, H> {
             parent.children()
         };
 
-        let mut best: Option<((bool, bool), usize)> = None;
+        let mut best: Option<Best> = None;
         for &child in candidates {
             let Some(child_node) = self.node(child) else {
                 continue;
@@ -330,25 +384,28 @@ impl<A, R, H> Graph<A, R, H> {
             } else {
                 end
             };
-            let rank = (nested >= input.len(), scratch.errors.len() == error_start);
+            let rank = Rank {
+                complete: nested >= input.len(),
+                clean: scratch.errors.len() == error_start,
+            };
             match best {
-                Some((best_rank, _)) if rank <= best_rank => {
+                Some(best) if rank <= best.rank => {
                     scratch.entries.truncate(entry_start);
                     scratch.errors.truncate(error_start);
                 }
                 _ => {
                     scratch.keep(entry_base, entry_start, error_base, error_start);
-                    best = Some((rank, nested));
+                    best = Some(Best { rank, end: nested });
                 }
             }
-            if rank == (true, true) {
+            if rank == Rank::BEST {
                 break;
             }
         }
-        best.map_or(cursor, |(_, nested)| nested)
+        best.map_or(cursor, |best| best.end)
     }
 
-    /// Suggests what can replace the input before its end, in no order (CMD-SUG-003).
+    /// Suggests what can replace the input before its end, in no order.
     pub fn suggest<'t, S, E: Copy>(
         &'t self,
         parse: &ParseResult<'t, '_, E>,
@@ -358,8 +415,12 @@ impl<A, R, H> Graph<A, R, H> {
         A: ArgumentSet<S>,
         R: Requirement<S>,
     {
-        let (parent, start, context) = parse.suggestion_parent();
-        let Some(parent) = self.node(parent) else {
+        let SuggestionParent {
+            node,
+            start,
+            context,
+        } = parse.suggestion_parent_at(parse.input().len());
+        let Some(parent) = self.node(node) else {
             return;
         };
         let mut builder = SuggestionBuilder::new(parse.input(), start, out);
@@ -372,10 +433,9 @@ impl<A, R, H> Graph<A, R, H> {
             };
             match child.kind() {
                 NodeKind::Root => {}
-                NodeKind::Literal(name) => builder
-                    .suggest_matching([&**name], |remaining, name| {
-                        starts_with_ignore_case(name, remaining)
-                    }),
+                NodeKind::Literal(name) => {
+                    builder.suggest_matching([&**name], starts_with_ignore_case)
+                }
                 NodeKind::Argument { argument, .. } => {
                     argument.suggest(source, &context, &mut builder)
                 }
@@ -389,7 +449,7 @@ impl<A, R, H> Graph<A, R, H> {
         &self,
         input: &'a str,
         span: Span,
-        arg: Arg<T>,
+        arg: ArgumentHandle<T>,
         source: &S,
     ) -> Option<Result<T::Value<'a>, SyntaxError<T::Error>>>
     where

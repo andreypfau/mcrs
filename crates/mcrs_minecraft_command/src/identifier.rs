@@ -74,7 +74,8 @@ fn matches_identifier_text(pattern: &str, text: &str) -> bool {
     })
 }
 
-pub(crate) fn text_matches(remaining: &str, text: &str) -> bool {
+/// The remaining input matches a text candidate (CMD-SUG-008).
+pub fn text_matches(remaining: &str, text: &str) -> bool {
     matches_at_separator(remaining, text, starts_with_ignore_case)
 }
 

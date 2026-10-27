@@ -74,6 +74,13 @@ impl OpList {
         Ok(Self::new(entries))
     }
 
+    /// The list with `entry` added, unless the list already names its player.
+    pub fn or_with(self, entry: OpListEntry) -> Self {
+        let mut entries = Arc::unwrap_or_clone(self.0);
+        entries.entry(entry.uuid).or_insert(entry);
+        Self(Arc::new(entries))
+    }
+
     pub fn get(&self, uuid: &Uuid) -> Option<&OpListEntry> {
         self.0.get(uuid)
     }

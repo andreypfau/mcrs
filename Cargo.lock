@@ -3572,6 +3572,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_chat"
+version = "0.5.8"
+dependencies = [
+ "mcrs_command",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_protocol",
+]
+
+[[package]]
 name = "mcrs_minecraft_chunk"
 version = "0.5.8"
 dependencies = [
@@ -3592,12 +3604,15 @@ dependencies = [
  "console_error_panic_hook",
  "flate2",
  "getrandom 0.4.1",
+ "mcrs_command",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_chat",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
@@ -3606,6 +3621,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_light_color",
@@ -4190,6 +4206,7 @@ dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
+ "mcrs_minecraft_chat",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_command",

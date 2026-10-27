@@ -21,6 +21,7 @@
 pub mod advancement;
 pub mod block;
 mod byte_angle;
+pub mod chat;
 pub mod chunk;
 pub mod command;
 pub mod decode;

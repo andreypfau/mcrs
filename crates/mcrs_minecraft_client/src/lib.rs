@@ -31,6 +31,7 @@ pub mod bake;
 pub mod blocks;
 pub mod camera;
 pub mod cave;
+pub mod chat;
 pub mod columns;
 pub mod config;
 #[cfg(feature = "dev")]

@@ -94,3 +94,55 @@ fn a_reply_counts_utf16_code_units_from_the_slash() {
     let reply = suggestion_reply(VarInt(8), text, &list);
     assert!(reply.suggestions.is_empty());
 }
+
+fn literal(
+    name: &'static str,
+    children: &[i32],
+) -> mcrs_minecraft_protocol::command::CommandNode<'static> {
+    mcrs_minecraft_protocol::command::CommandNode {
+        kind: CommandNodeKind::Literal(name.into()),
+        children: children.iter().copied().map(VarInt).collect(),
+        redirect: None,
+        executable: true,
+        restricted: false,
+    }
+}
+
+fn packet(
+    nodes: Vec<mcrs_minecraft_protocol::command::CommandNode<'static>>,
+) -> ClientboundCommands<'static> {
+    let mut root = literal("", &[1, 2]);
+    root.kind = CommandNodeKind::Root;
+    root.executable = false;
+    let mut all = vec![root];
+    all.extend(nodes);
+    ClientboundCommands {
+        nodes: all,
+        root: VarInt(0),
+    }
+}
+
+#[test]
+fn the_client_tree_shares_a_node_two_parents_name_and_rejects_a_child_cycle() {
+    use mcrs_minecraft_command::{TreeError, client_tree};
+    let shared = packet(vec![
+        literal("a", &[3]),
+        literal("b", &[3]),
+        literal("run", &[]),
+    ]);
+    let graph = client_tree(&shared, &[]).unwrap();
+    let mut scratch = ParseScratch::default();
+    for line in ["a run", "b run"] {
+        let parse = graph.parse(line, 0, &OP, &mut scratch);
+        assert!(parse.check(&graph).is_ok(), "{line}");
+    }
+    let cycle = packet(vec![
+        literal("a", &[3]),
+        literal("b", &[]),
+        literal("c", &[1]),
+    ]);
+    assert_eq!(
+        client_tree(&cycle, &[]).err(),
+        Some(TreeError::ChildCycle(1))
+    );
+}

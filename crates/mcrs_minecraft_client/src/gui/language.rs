@@ -17,6 +17,10 @@ impl Language {
             .map_err(|error| format!("{EN_US}: {error}"))
     }
 
+    pub fn contains(&self, key: &str) -> bool {
+        self.0.contains_key(key)
+    }
+
     /// An untranslated key reads as itself, as it does in vanilla.
     pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
         self.0.get(key).map_or(key, String::as_str)

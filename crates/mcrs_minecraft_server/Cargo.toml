@@ -68,6 +68,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }

@@ -10,6 +10,7 @@
 
 mod common;
 
+mod chat_wire;
 mod chunk_wire;
 mod column_pos_wire;
 mod decoder_advances_reader;

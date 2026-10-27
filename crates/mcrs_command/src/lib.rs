@@ -9,6 +9,7 @@ pub mod parse;
 pub mod reader;
 pub mod suggest;
 pub mod tree;
+pub mod usage;
 
 pub use argument::{
     Argument, ArgumentSet, BoolArgument, DoubleArgument, FloatArgument, IntegerArgument,

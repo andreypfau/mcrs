@@ -56,7 +56,7 @@ use mcrs_minecraft_server::login::SingleplayerProfile;
 use mcrs_minecraft_server::{
     BoundAddress, DataPack, DimensionWorldsPlugin, LightingPlugin, MinecraftServerPlugins,
     NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
-    ops::{OPS_FILE, OpList},
+    ops::{OPS_FILE, OpList, OpListEntry},
 };
 
 #[cfg(feature = "telemetry-tracy")]
@@ -275,6 +275,9 @@ fn main() -> AppExit {
     app.init_resource::<mcrs_minecraft_client::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client::game_mode::GameModePlugin);
     app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
+    app.add_plugins(mcrs_minecraft_client::chat::ChatPlugin {
+        command_history: Some(std::path::PathBuf::from("command_history.txt")),
+    });
     app.insert_resource(ExitOnDisconnect);
 
     let mut saved_clocks = save_data.world_clocks;
@@ -375,10 +378,20 @@ fn host_integrated_server(
         worlds: DimensionWorldsPlugin {
             world: world.map(Path::to_path_buf),
             column_traces: traces,
-            ops: OpList::read(Path::new(OPS_FILE)).unwrap_or_else(|error| {
-                eprintln!("{error}");
-                std::process::exit(1);
-            }),
+            // The host of a singleplayer world is an operator at the highest level, unless the
+            // ops file says otherwise.
+            ops: OpList::read(Path::new(OPS_FILE))
+                .unwrap_or_else(|error| {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                })
+                .or_with(OpListEntry {
+                    uuid: host.id,
+                    name: host.name.clone(),
+                    level:
+                        mcrs_minecraft_server::world::entity::player::ability::PlayerOpLevel::MAX,
+                    bypasses_player_limit: true,
+                }),
             seed: knobs.world_seed(),
             preset: knobs.world_preset(),
             default_game_mode: knobs.default_game_mode(),

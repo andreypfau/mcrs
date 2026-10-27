@@ -509,7 +509,7 @@ impl Plugin for GuiPlugin {
                 (
                     begin_gui_frame,
                     draw_screens,
-                    super::debug_chat::draw,
+                    super::chat::draw,
                     super::game_mode_switcher::draw,
                     build_gui_batch,
                 )

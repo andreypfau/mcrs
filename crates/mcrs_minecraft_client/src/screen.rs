@@ -8,6 +8,7 @@ pub enum Screen {
     None,
     Inventory,
     GameModeSwitcher(GameMode),
+    Chat,
 }
 
 pub(crate) fn grab(cursor: &mut CursorOptions, grabbed: bool) {

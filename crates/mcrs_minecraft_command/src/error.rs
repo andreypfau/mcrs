@@ -299,9 +299,9 @@ pub fn error_message(input: &str, error: &CommandSyntaxError) -> Text {
 
 const CONTEXT_AMOUNT: usize = 10;
 
-/// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten code units before the
-/// position, then the rest of the line in red and underlined, then `command.context.here`.
-pub(crate) fn error_context(input: &str, position: usize) -> Text {
+/// The context text of an error (CMD-ERR-003): up to ten code units before the position, after
+/// an ellipsis when more come before them.
+fn context_text(input: &str, position: usize) -> String {
     let position = position.min(input.len());
     let units: Vec<u16> = input
         .get(..position)
@@ -316,12 +316,35 @@ pub(crate) fn error_context(input: &str, position: usize) -> Text {
         from += 1;
     }
     let before = String::from_utf16_lossy(units.get(from..).unwrap_or_default());
-    let mut context = if units.len() > CONTEXT_AMOUNT {
+    if units.len() > CONTEXT_AMOUNT {
         format!("...{before}")
     } else {
         before
     }
-    .into_text();
+}
+
+/// The error line the chat screen shows over a command input (CCMD-HINT-002). `input` holds the
+/// `/`, and so does the position.
+pub fn parse_error_line(input: &str, error: &CommandSyntaxError) -> Text {
+    let message = error_message(input, error);
+    let position = mcrs_command::utf16_position(input, error.position);
+    let mut context = context_text(input, error.position);
+    context.push_str("<--[HERE]");
+    Text::translate(
+        "command.context.parse_error",
+        vec![
+            message,
+            position.to_string().into_text(),
+            context.into_text(),
+        ],
+    )
+}
+
+/// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten code units before the
+/// position, then the rest of the line in red and underlined, then `command.context.here`.
+pub(crate) fn error_context(input: &str, position: usize) -> Text {
+    let position = position.min(input.len());
+    let mut context = context_text(input, position).into_text();
     if let Some(rest) = input.get(position..).filter(|rest| !rest.is_empty()) {
         context = context.add_child(rest.to_owned().color(Color::RED).underlined());
     }

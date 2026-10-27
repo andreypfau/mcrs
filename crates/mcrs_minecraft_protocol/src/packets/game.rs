@@ -640,6 +640,47 @@ pub mod clientbound {
         pub overlay: bool,
     }
 
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundSetActionBarText {
+        pub text: Text,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundDisguisedChat {
+        pub message: Text,
+        pub chat_type: crate::chat::ChatTypeId,
+        pub sender_name: Text,
+        pub target_name: Option<Text>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundPlayerChat<'a> {
+        pub global_index: VarInt,
+        pub sender: Uuid,
+        pub index: VarInt,
+        pub signature: Option<&'a [u8; 256]>,
+        pub content: crate::Bounded<&'a str, 256>,
+        pub timestamp: u64,
+        pub salt: u64,
+        pub last_seen: crate::Bounded<Vec<crate::chat::PackedSignature<'a>>, 20>,
+        pub unsigned_content: Option<Text>,
+        pub filter: crate::chat::FilterMask,
+        pub chat_type: crate::chat::ChatTypeId,
+        pub sender_name: Text,
+        pub target_name: Option<Text>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundCustomChatCompletions<'a> {
+        pub action: crate::chat::CompletionAction,
+        pub entries: Vec<Cow<'a, str>>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundPlayerInfoRemove {
+        pub players: Vec<Uuid>,
+    }
+
     impl<'a> crate::Encode for ClientboundPlayerInfoUpdate<'a> {
         fn encode(&self, mut w: impl Write) -> Result<()> {
             self.actions.into_bits().encode(&mut w)?;

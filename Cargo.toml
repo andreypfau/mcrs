@@ -84,6 +84,7 @@ mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
 mcrs_command = { path = "crates/mcrs_command" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }
+mcrs_minecraft_chat = { path = "crates/mcrs_minecraft_chat" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }

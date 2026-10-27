@@ -1,6 +1,6 @@
+pub mod chat;
 pub mod chunk_map;
 pub mod debug;
-pub mod debug_chat;
 pub mod debug_screen_overlay;
 pub mod font;
 pub mod game_mode_switcher;
@@ -10,3 +10,4 @@ pub mod item_decorations;
 pub mod language;
 pub mod light_levels;
 pub mod scene;
+pub mod text;
