@@ -56,6 +56,8 @@ pub struct Line<L> {
     pub content: L,
     pub tick: u64,
     pub tag: Option<Tag>,
+    /// Whether this row is the bottom row of its message (CHAT-LOG-005).
+    pub last: bool,
 }
 
 /// The kept messages and their lines, newest first, and the scroll of the open chat
@@ -112,7 +114,8 @@ impl<M, L> ChatLog<M, L> {
         };
         self.rows.clear();
         wrap(&logged.message, &mut self.rows);
-        for content in self.rows.drain(..) {
+        let rows = self.rows.len();
+        for (row, content) in self.rows.drain(..).enumerate() {
             if scrolls && self.scroll > 0 {
                 self.scroll += 1;
                 self.new_since_scroll = true;
@@ -121,6 +124,7 @@ impl<M, L> ChatLog<M, L> {
                 content,
                 tick: logged.tick,
                 tag: logged.tag,
+                last: row + 1 == rows,
             });
         }
         self.lines.truncate(MAX_LINES);

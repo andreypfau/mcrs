@@ -40,7 +40,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_world::chat_type::{ChatParameter, ChatType};
 
 use crate::game_mode::PermissionLevel;
-use crate::gui::chat::{list_rows, per_page};
+use crate::gui::chat::{list_rows, per_page, row_at};
 use crate::gui::scene::{GuiAtlas, GuiScene};
 use crate::player::Player;
 use crate::screen::{Screen, grab};
@@ -326,7 +326,7 @@ fn log_messages(
                 };
                 let spans = crate::gui::text::text_spans(text, language, 0xFFFF_FFFF);
                 match atlas.as_deref() {
-                    Some(atlas) => crate::gui::text::wrap(&spans, width, &atlas.0.font, rows),
+                    Some(atlas) => crate::gui::text::wrap(&spans, width, true, &atlas.0.font, rows),
                     None => rows.push(spans),
                 }
             },
@@ -938,11 +938,13 @@ fn mouse(
     cx: &Context<'_, ClientLookup<'_>>,
 ) {
     let scene = &*keys.scene;
-    let over = list_rows(scene.size, font, screen).and_then(|rows| {
+    let rows = list_rows(scene.size, font, screen);
+    let over = rows.as_ref().and_then(|rows| {
         rows.rect
             .contains(scene.cursor)
             .then(|| rows.first + ((scene.cursor.y - rows.rect.min.y) / 12) as usize)
     });
+    let hovered = rows.and_then(|rows| row_at(rows.rect, scene.cursor).map(|row| rows.first + row));
     let step = keys.scroll.delta.y.clamp(-1.0, 1.0) as isize;
     if step != 0 {
         match (over, screen.commands.list_mut()) {
@@ -950,16 +952,19 @@ fn mouse(
             _ => log.scroll_by(if shift { step } else { step * 7 }, per_page(true)),
         }
     }
-    let Some(index) = over else {
+    let Some(list) = screen.commands.list_mut() else {
         return;
     };
-    if let Some(list) = screen.commands.list_mut()
+    if let Some(index) = hovered
         && moved
         && list.selected() != index
     {
         list.select(index as isize);
     }
-    if keys.buttons.just_pressed(MouseButton::Left) {
+    if let Some(index) = over.filter(|&index| index < list.entries().len())
+        && keys.buttons.just_pressed(MouseButton::Left)
+    {
+        list.select(index as isize);
         screen.insert_suggestion(cx);
     }
 }

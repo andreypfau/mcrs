@@ -1,13 +1,14 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_chat::{ChatScreen, Highlight, Hint, Tag, fade};
+use mcrs_minecraft_chat::{ChatScreen, Highlight, Hint, Tag, Tooltip as SuggestionTooltip, fade};
 use mcrs_minecraft_command::parse_error_line;
 
-use super::font::{Font, Span, draw_centered_text, draw_text};
+use super::font::{Font, Hover, Span, draw_centered_text, draw_text, draw_tinted_text, span_at};
 use super::language::Language;
-use super::scene::{GuiAtlas, GuiQuad, GuiScene, GuiSize};
-use super::text::text_spans;
+use super::scene::{GuiAtlas, GuiQuad, GuiScene, GuiSize, sprite};
+use super::text::{text_spans, wrap};
+use super::tooltip::Tooltip;
 use crate::chat::{Chat, ChatInput};
 use crate::screen::Screen;
 
@@ -36,6 +37,9 @@ const ARGUMENT_COLOURS: [u32; 5] = [
     0xFFFF_AA00,
 ];
 const CARET_BLINK_MS: u128 = 300;
+const WHITE: u32 = 0xFFFF_FFFF;
+const TAG_TOOLTIP_WIDTH: i32 = 210;
+const MODIFIED_ICON: &str = "icon/chat_modified";
 const MAX_INPUT: usize = 256;
 
 /// The lines of the chat view: 20 open, 10 closed (CHAT-LOG-004).
@@ -65,19 +69,61 @@ fn text_width(font: &Font, text: &str) -> i32 {
     text.chars().map(|c| font.advance(c, false)).sum()
 }
 
-/// The lines of the chat log (CHAT-LOG-002 to CHAT-LOG-004) at the default options.
-pub fn chat_lines(
+fn holds(rect: IRect, point: IVec2) -> bool {
+    rect.min.x <= point.x && point.x < rect.max.x && rect.min.y <= point.y && point.y < rect.max.y
+}
+
+/// The mouse over the open chat, and where the log makes its tooltip requests.
+pub struct Pointer<'a> {
+    pub at: IVec2,
+    pub language: &'a Language,
+    pub tooltip: &'a mut Tooltip,
+    pub icon: IVec2,
+}
+
+impl Pointer<'_> {
+    fn tag_tooltip(&mut self, tag: Tag, font: &Font) {
+        let language = self.language;
+        self.tooltip.request(self.at, None, false, |rows| {
+            // chisle: a `Modified` tooltip ends with the original text in gray (CHAT-LOG-005),
+            // which the log does not keep; no message is tagged `Modified` yet.
+            let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
+            wrap(&spans, TAG_TOOLTIP_WIDTH, false, font, rows);
+        });
+    }
+}
+
+/// The lines of the chat log (CHAT-LOG-002 to CHAT-LOG-005) at the default options. With a
+/// pointer, the chat is open: the tag bars and icons make their tooltip requests, and the
+/// result is the hovered text style (CHAT-LOG-007).
+pub fn chat_lines<'c>(
     size: GuiSize,
-    chat: &Chat,
-    open: bool,
+    chat: &'c Chat,
     background: f32,
+    mut pointer: Option<Pointer<'_>>,
     out: &mut Vec<GuiQuad>,
     font: &Font,
-) {
+) -> Option<&'c Hover> {
+    let open = pointer.is_some();
     let bottom = size.height - BOTTOM;
     let page = per_page(open);
+    let text_origin = |slot: usize| IVec2::new(4, bottom - slot as i32 * LINE - TEXT_OFFSET);
+    let mut hovered = None;
+    let mut hovered_message = None;
+    if let Some(pointer) = &pointer {
+        let mut message = 0;
+        for (slot, line) in chat.log.visible(page) {
+            message += usize::from(line.last);
+            if let Some(span) = span_at(font, text_origin(slot), &line.content, pointer.at) {
+                hovered_message = Some(message);
+                hovered = span.hover.as_deref().or(hovered);
+            }
+        }
+    }
+    let mut message = 0;
     let mut shown = 0;
     for (slot, line) in chat.log.visible(page) {
+        message += usize::from(line.last);
         shown += 1;
         let alpha = if open {
             1.0
@@ -92,21 +138,39 @@ pub fn chat_lines(
             rect: IRect::new(0, slot_bottom - LINE, CHAT_WIDTH + 12, slot_bottom),
             color: with_alpha(0xFF00_0000, alpha * background),
         });
-        if let Some(tag) = line.tag {
-            out.push(GuiQuad::Fill {
-                rect: IRect::new(0, slot_bottom - LINE, 2, slot_bottom),
-                color: with_alpha(0xFF00_0000 | tag.indicator(), alpha),
-            });
+        let origin = text_origin(slot);
+        draw_tinted_text(
+            font,
+            origin,
+            &line.content,
+            |color| with_alpha(color, alpha),
+            out,
+        );
+        let Some(tag) = line.tag else {
+            continue;
+        };
+        let bar = IRect::new(0, slot_bottom - LINE, 2, slot_bottom);
+        out.push(GuiQuad::Fill {
+            rect: bar,
+            color: with_alpha(0xFF00_0000 | tag.indicator(), alpha),
+        });
+        let Some(pointer) = pointer.as_mut() else {
+            continue;
+        };
+        if holds(bar, pointer.at) {
+            pointer.tag_tooltip(tag, font);
         }
-        let spans: Vec<Span> = line
-            .content
-            .iter()
-            .map(|span| Span {
-                color: with_alpha(span.color, alpha),
-                ..span.clone()
-            })
-            .collect();
-        draw_text(font, IVec2::new(4, slot_bottom - TEXT_OFFSET), &spans, out);
+        if tag.has_icon() && line.last {
+            let left = origin.x + font.width(&line.content) + 4;
+            let icon = IRect::new(left, origin.y - 1, left + pointer.icon.x, origin.y + 9);
+            let over = holds(icon, pointer.at);
+            if over {
+                pointer.tag_tooltip(tag, font);
+            }
+            if over || hovered_message == Some(message) {
+                out.push(sprite(icon.min, pointer.icon, MODIFIED_ICON));
+            }
+        }
     }
     let lines = chat.log.lines().len();
     if open && lines > shown && lines > 0 {
@@ -129,6 +193,29 @@ pub fn chat_lines(
             color: alpha << 24 | 0xCC_CCCC,
         });
     }
+    hovered
+}
+
+/// The lines a hover event shows (TIP-HOVER-001).
+fn hover_lines(
+    hover: &Hover,
+    gui_width: i32,
+    language: &Language,
+    font: &Font,
+    rows: &mut Vec<Vec<Span>>,
+) {
+    match hover {
+        Hover::ShowText { value } => {
+            let spans = text_spans(value, language, WHITE);
+            wrap(&spans, (gui_width / 2).max(200), false, font, rows);
+        }
+        // chisle: `show_item` shows the item tooltip of the stack, which has no specification
+        // yet; it shows nothing until one states its lines.
+        Hover::ShowItem(_) => {}
+        // chisle: `show_entity` shows only with "Advanced Tooltips" on, and the client has no
+        // such option; its type line also waits for the spec to name the entity type's key.
+        Hover::ShowEntity { .. } => {}
+    }
 }
 
 /// The left x of the suggestion list or the hint lines over `start` (CCMD-LIST-002).
@@ -137,6 +224,13 @@ fn column(size: GuiSize, font: &Font, input: &str, start: usize, width: i32) -> 
         .get(..start)
         .map_or(4, |before| 4 + text_width(font, before));
     x0.clamp(0, (size.width - width).max(0))
+}
+
+/// The row under `point`, with the edge pixels of each row excluded (CCMD-LIST-007, step 1).
+pub fn row_at(rect: IRect, point: IVec2) -> Option<usize> {
+    let dy = point.y - rect.min.y;
+    let inside = rect.min.x < point.x && point.x < rect.max.x && 0 < dy && point.y < rect.max.y;
+    (inside && dy % ROW != 0).then_some((dy / ROW) as usize)
 }
 
 /// Where the rows of the shown suggestion list are, and the entry of the top row.
@@ -359,12 +453,19 @@ pub fn draw(
     let font = &atlas.0.font;
     let scene = &mut *scene;
     let size = scene.size;
+    let mouse = scene.cursor;
     let open = *screen == Screen::Chat;
-    chat_lines(
+    let pointer = open.then(|| Pointer {
+        at: mouse,
+        language: &language,
+        tooltip: &mut scene.tooltip,
+        icon: atlas.0.region(MODIFIED_ICON).size(),
+    });
+    let hovered = chat_lines(
         size,
         &chat,
-        open,
         chat.options.text_background_opacity,
+        pointer,
         &mut scene.quads,
         font,
     );
@@ -384,10 +485,26 @@ pub fn draw(
     let screen = &input.0;
     let caret_on = (time.elapsed().as_millis() / CARET_BLINK_MS).is_multiple_of(2);
     input_box(size, font, screen, caret_on, &mut scene.quads);
-    if screen.commands.list().is_some() {
+    if let Some(list) = screen.commands.list() {
         suggestion_list(size, font, screen, &mut scene.quads);
+        let tip = list_rows(size, font, screen)
+            .and_then(|rows| row_at(rows.rect, mouse))
+            .and_then(|_| list.entries().tooltip(list.selected()));
+        if let Some(tip) = tip {
+            scene.tooltip.request(mouse, None, false, |rows| {
+                rows.push(match tip {
+                    SuggestionTooltip::Key(key) => vec![Span::new(language.get(key), WHITE)],
+                    SuggestionTooltip::Text(text) => text_spans(text, &language, WHITE),
+                });
+            });
+        }
     } else {
         hint_lines(size, font, &language, screen, &mut scene.quads);
+    }
+    if let Some(hover) = hovered {
+        scene.tooltip.request(mouse, None, false, |rows| {
+            hover_lines(hover, size.width, &language, font, rows);
+        });
     }
 }
 
@@ -395,6 +512,24 @@ pub fn draw(
 mod tests {
     use super::*;
     use crate::gui::font::corpus_font;
+
+    #[test]
+    fn a_row_answers_the_mouse_inside_its_edges_only() {
+        let rect = IRect::new(9, 100, 50, 124);
+        for (point, row) in [
+            ((10, 101), Some(0)),
+            ((49, 111), Some(0)),
+            ((20, 113), Some(1)),
+            ((20, 123), Some(1)),
+            ((9, 105), None),
+            ((50, 105), None),
+            ((20, 100), None),
+            ((20, 112), None),
+            ((20, 124), None),
+        ] {
+            assert_eq!(row_at(rect, IVec2::from(point)), row, "{point:?}");
+        }
+    }
 
     mod jar {
         use super::*;
@@ -415,7 +550,7 @@ mod tests {
             };
             let mut out = Vec::new();
             chat.tick = 20;
-            chat_lines(size, &chat, false, 0.5, &mut out, font);
+            chat_lines(size, &chat, 0.5, None, &mut out, font);
             assert_eq!(
                 out[0],
                 GuiQuad::Fill {
@@ -429,7 +564,7 @@ mod tests {
             ));
             out.clear();
             chat.tick = 200;
-            chat_lines(size, &chat, false, 0.5, &mut out, font);
+            chat_lines(size, &chat, 0.5, None, &mut out, font);
             assert!(out.is_empty());
         }
     }

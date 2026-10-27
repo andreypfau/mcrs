@@ -132,11 +132,16 @@ fn normalized(id: &str) -> String {
     format!("{namespace}:{path}")
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+pub type Hover = mcrs_minecraft_protocol::text::HoverEvent<
+    mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
+>;
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Span {
     pub text: String,
     pub color: u32,
     pub bold: bool,
+    pub hover: Option<Box<Hover>>,
 }
 
 impl Span {
@@ -145,6 +150,7 @@ impl Span {
             text: text.into(),
             color,
             bold: false,
+            hover: None,
         }
     }
 
@@ -160,12 +166,23 @@ pub fn shadow_color(color: u32) -> u32 {
 /// Left to right from `origin`, a shadow one pixel down and right under every
 /// glyph; bold strikes each glyph again one pixel to the right.
 pub fn draw_text(font: &Font, origin: IVec2, spans: &[Span], out: &mut Vec<GuiQuad>) {
+    draw_tinted_text(font, origin, spans, |color| color, out);
+}
+
+pub fn draw_tinted_text(
+    font: &Font,
+    origin: IVec2,
+    spans: &[Span],
+    tint: impl Fn(u32) -> u32,
+    out: &mut Vec<GuiQuad>,
+) {
     let mut x = origin.x;
     for span in spans {
+        let color = tint(span.color);
         for ch in span.text.chars() {
             if font.glyph(ch).is_some() && !font.spaces.contains_key(&ch) {
                 let strikes = if span.bold { 2 } else { 1 };
-                for (offset, color) in [(1, shadow_color(span.color)), (0, span.color)] {
+                for (offset, color) in [(1, shadow_color(color)), (0, color)] {
                     for strike in 0..strikes {
                         out.push(GuiQuad::Glyph {
                             origin: IVec2::new(x + offset + strike, origin.y + offset),
@@ -178,6 +195,30 @@ pub fn draw_text(font: &Font, origin: IVec2, spans: &[Span], out: &mut Vec<GuiQu
             x += font.advance(ch, span.bold);
         }
     }
+}
+
+/// The span of the glyph whose hover area holds `point`, for text drawn at `origin`
+/// (TIP-HOVER-002). With this font every glyph covers its advance and 9 units down.
+pub fn span_at<'s>(
+    font: &Font,
+    origin: IVec2,
+    spans: &'s [Span],
+    point: IVec2,
+) -> Option<&'s Span> {
+    if point.y < origin.y || point.y >= origin.y + 9 {
+        return None;
+    }
+    let mut x = origin.x;
+    for span in spans {
+        for ch in span.text.chars() {
+            let right = x + font.advance(ch, span.bold);
+            if x <= point.x && point.x < right {
+                return Some(span);
+            }
+            x = right;
+        }
+    }
+    None
 }
 
 pub fn draw_centered_text(

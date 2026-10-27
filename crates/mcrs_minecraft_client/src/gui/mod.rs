@@ -11,3 +11,4 @@ pub mod language;
 pub mod light_levels;
 pub mod scene;
 pub mod text;
+pub mod tooltip;

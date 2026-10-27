@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bevy::ecs::resource::IsResource;
 use bevy::ecs::world::EntityRef;
-use bevy::math::{IRect, IVec2, UVec2};
+use bevy::math::{IRect, IVec2, Rect, UVec2};
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
@@ -18,6 +18,7 @@ use super::hotbar::hotbar;
 use super::inventory_screen::inventory_screen;
 use super::item_decorations::{Decorated, WHITE, decorations};
 use super::language::Language;
+use super::tooltip::{NineSlice, Tooltip, TooltipSprites, tooltip_sprite};
 use crate::atlas::{decode_png, rgba};
 use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
 use crate::model::Pack;
@@ -67,6 +68,11 @@ pub enum GuiQuad {
         top: u32,
         bottom: u32,
     },
+    Texels {
+        rect: IRect,
+        texels: Rect,
+        color: u32,
+    },
     Glyph {
         origin: IVec2,
         glyph: char,
@@ -84,6 +90,7 @@ pub struct GuiScene {
     pub size: GuiSize,
     pub cursor: IVec2,
     pub quads: Vec<GuiQuad>,
+    pub tooltip: Tooltip,
 }
 
 #[derive(Resource)]
@@ -98,7 +105,9 @@ const SWITCHER_WIDTH: u32 = 125;
 const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 
-const GUI_TEXTURES: [&str; 18] = [
+const TOOLTIP_SPRITES: &str = "textures/gui/sprites/tooltip";
+
+const GUI_TEXTURES: [&str; 19] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
@@ -117,6 +126,7 @@ const GUI_TEXTURES: [&str; 18] = [
     "gamemode_switcher/selection",
     "font/ascii",
     "misc/enchanted_glint_item",
+    "icon/chat_modified",
 ];
 
 fn texture_path(name: &str) -> String {
@@ -136,6 +146,13 @@ pub struct GuiAtlasData {
     pub regions: HashMap<&'static str, IRect>,
     pub font: Font,
     pub glint: (u32, u32, Vec<u8>),
+    pub tooltips: TooltipSprites,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Placed {
+    Listed(&'static str),
+    Tooltip(usize),
 }
 
 #[derive(Resource, Clone, ExtractResource)]
@@ -148,16 +165,33 @@ impl GuiAtlasData {
         let mut images = Vec::new();
         let mut glint = None;
         let mut font = None;
+        let mut tooltip_ids: Vec<_> = pack
+            .entries(TOOLTIP_SPRITES, "png")
+            .filter_map(|(id, bytes)| Some((tooltip_sprite(&id)?, id, bytes)))
+            .collect();
+        tooltip_ids.sort_by(|a, b| a.1.cmp(&b.1));
+        let mut tooltips = Vec::new();
+        for (index, ((style, frame), id, bytes)) in tooltip_ids.into_iter().enumerate() {
+            let path = crate::model::resource_path(&id, TOOLTIP_SPRITES, "png");
+            let meta = format!("{path}.mcmeta");
+            let sprite = NineSlice::parse(pack.read(&meta)?, &meta)?;
+            let (pixels, width, height) = decode_png(bytes, &path)?;
+            images.push((Placed::Tooltip(index), pixels, width, height));
+            tooltips.push((style, frame, sprite));
+        }
         for name in GUI_TEXTURES {
             let path = texture_path(name);
             let (pixels, width, height) = decode_png(pack.read(&path)?, &path)?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
-                "container/inventory" => {
-                    images.push((name, crop(&pixels, width, 176, 166), 176, 166))
-                }
+                "container/inventory" => images.push((
+                    Placed::Listed(name),
+                    crop(&pixels, width, 176, 166),
+                    176,
+                    166,
+                )),
                 "container/gamemode_switcher" => images.push((
-                    name,
+                    Placed::Listed(name),
                     crop(&pixels, width, SWITCHER_WIDTH, SWITCHER_HEIGHT),
                     SWITCHER_WIDTH,
                     SWITCHER_HEIGHT,
@@ -166,11 +200,11 @@ impl GuiAtlasData {
                     if name == "font/ascii" {
                         font = Some(Font::load(pack, &pixels, width, height)?);
                     }
-                    images.push((name, pixels, width, height));
+                    images.push((Placed::Listed(name), pixels, width, height));
                 }
             }
         }
-        images.push((BLANK, vec![255; 16], 2, 2));
+        images.push((Placed::Listed(BLANK), vec![255; 16], 2, 2));
         images.sort_by_key(|(name, _, _, height)| (std::cmp::Reverse(*height), *name));
         let (mut x, mut y, mut row) = (0u32, 0u32, 0u32);
         let mut placed = Vec::new();
@@ -191,6 +225,7 @@ impl GuiAtlasData {
         let atlas_height = (y + row).next_power_of_two();
         let mut pixels = vec![0u8; (ATLAS_WIDTH * atlas_height * 4) as usize];
         let mut regions = HashMap::new();
+        let mut sprites = TooltipSprites::default();
         for (name, source, rect) in placed {
             let width = rect.width() as usize;
             for (line, source_row) in source.chunks_exact(width * 4).enumerate() {
@@ -198,7 +233,16 @@ impl GuiAtlasData {
                     ((rect.min.y as usize + line) * ATLAS_WIDTH as usize + rect.min.x as usize) * 4;
                 pixels[start..start + width * 4].copy_from_slice(source_row);
             }
-            regions.insert(name, rect);
+            match name {
+                Placed::Listed(name) => {
+                    regions.insert(name, rect);
+                }
+                Placed::Tooltip(index) => {
+                    if let Some((style, frame, sprite)) = tooltips.get(index) {
+                        sprites.insert(style.clone(), *frame, sprite.placed(rect));
+                    }
+                }
+            }
         }
         Ok(Self {
             width: ATLAS_WIDTH,
@@ -207,6 +251,7 @@ impl GuiAtlasData {
             regions,
             font: font.expect("font/ascii is listed"),
             glint: glint.expect("the glint is listed"),
+            tooltips: sprites,
         })
     }
 
@@ -215,12 +260,16 @@ impl GuiAtlasData {
     }
 
     fn uv(&self, pixel: IRect) -> [[f32; 2]; 4] {
+        self.texel_uv(pixel.as_rect())
+    }
+
+    fn texel_uv(&self, texels: Rect) -> [[f32; 2]; 4] {
         let (w, h) = (self.width as f32, self.height as f32);
         let (x0, y0, x1, y1) = (
-            pixel.min.x as f32 / w,
-            pixel.min.y as f32 / h,
-            pixel.max.x as f32 / w,
-            pixel.max.y as f32 / h,
+            texels.min.x / w,
+            texels.min.y / h,
+            texels.max.x / w,
+            texels.max.y / h,
         );
         [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
     }
@@ -312,6 +361,21 @@ fn begin_gui_frame(
             })
     });
     scene.quads.clear();
+    scene.tooltip.clear();
+}
+
+fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
+    let Some(atlas) = atlas else {
+        return;
+    };
+    let scene = &mut *scene;
+    super::tooltip::draw(
+        &scene.tooltip,
+        scene.size,
+        &atlas.0.font,
+        &atlas.0.tooltips,
+        &mut scene.quads,
+    );
 }
 
 fn draw_screens(
@@ -448,6 +512,17 @@ fn build_gui_batch(
                     GuiQuad::Fill { rect, color } => {
                         push_quad(vertices, rect, blank, [color; 4], GUI_ATLAS_BIT)
                     }
+                    GuiQuad::Texels {
+                        rect,
+                        texels,
+                        color,
+                    } => push_quad(
+                        vertices,
+                        rect,
+                        atlas.texel_uv(texels),
+                        [color; 4],
+                        GUI_ATLAS_BIT,
+                    ),
                     GuiQuad::FillGradient { rect, top, bottom } => {
                         push_quad(
                             vertices,
@@ -511,6 +586,7 @@ impl Plugin for GuiPlugin {
                     draw_screens,
                     super::chat::draw,
                     super::game_mode_switcher::draw,
+                    draw_tooltip,
                     build_gui_batch,
                 )
                     .chain(),

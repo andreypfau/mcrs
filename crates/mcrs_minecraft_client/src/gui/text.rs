@@ -2,13 +2,14 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
 
-use super::font::{Font, Span};
+use super::font::{Font, Hover, Span};
 use super::language::Language;
 
 #[derive(Clone, Copy)]
-struct Inherited {
+struct Inherited<'a> {
     color: u32,
     bold: bool,
+    hover: Option<&'a Hover>,
 }
 
 pub fn argb(color: Color) -> u32 {
@@ -38,14 +39,16 @@ fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
             text,
             color: style.color,
             bold: style.bold,
+            hover: style.hover.map(|hover| Box::new(hover.clone())),
         });
     }
 }
 
-fn collect(text: &Text, language: &Language, parent: Inherited, out: &mut Vec<Span>) {
+fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: &mut Vec<Span>) {
     let style = Inherited {
         color: text.style.color.map_or(parent.color, argb),
         bold: text.style.bold.unwrap_or(parent.bold),
+        hover: text.style.hover_event.as_ref().or(parent.hover),
     };
     match &text.content {
         TextContent::Text { text } => push(out, text.as_ref(), style),
@@ -76,6 +79,9 @@ fn collect(text: &Text, language: &Language, parent: Inherited, out: &mut Vec<Sp
                     .into_iter()
                     .map(|span| Span {
                         bold: span.bold || style.bold,
+                        hover: span
+                            .hover
+                            .or_else(|| style.hover.map(|hover| Box::new(hover.clone()))),
                         ..span
                     }),
             );
@@ -92,20 +98,32 @@ fn collect(text: &Text, language: &Language, parent: Inherited, out: &mut Vec<Sp
 /// (scores, selectors, NBT) shows nothing.
 pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
     let mut out = Vec::new();
-    collect(text, language, Inherited { color, bold: false }, &mut out);
+    collect(
+        text,
+        language,
+        Inherited {
+            color,
+            bold: false,
+            hover: None,
+        },
+        &mut out,
+    );
     out
 }
 
 /// Breaks spans into rows no wider than `width`: at the last space that fits, or inside a word
-/// that alone is too wide. Each row after the first starts with one unstyled space
-/// (CHAT-LOG-001).
-pub fn wrap(spans: &[Span], width: i32, font: &Font, rows: &mut Vec<Vec<Span>>) {
+/// that alone is too wide. With `indent`, each row after the first starts with one unstyled
+/// space (CHAT-LOG-001).
+pub fn wrap(spans: &[Span], width: i32, indent: bool, font: &Font, rows: &mut Vec<Vec<Span>>) {
     let mut row: Vec<Span> = Vec::new();
     let mut used = 0;
     let start_row = |row: &mut Vec<Span>, used: &mut i32, rows: &mut Vec<Vec<Span>>| {
         rows.push(std::mem::take(row));
-        row.push(Span::new(" ", 0xFFFF_FFFF));
-        *used = font.advance(' ', false);
+        *used = 0;
+        if indent {
+            row.push(Span::new(" ", 0xFFFF_FFFF));
+            *used = font.advance(' ', false);
+        }
     };
     for span in spans {
         for c in span.text.chars() {
@@ -123,13 +141,16 @@ pub fn wrap(spans: &[Span], width: i32, font: &Font, rows: &mut Vec<Vec<Span>>) 
                 }
             }
             match row.last_mut() {
-                Some(last) if last.color == span.color && last.bold == span.bold => {
+                Some(last)
+                    if last.color == span.color
+                        && last.bold == span.bold
+                        && last.hover == span.hover =>
+                {
                     last.text.push(c)
                 }
                 _ => row.push(Span {
                     text: c.to_string(),
-                    color: span.color,
-                    bold: span.bold,
+                    ..span.clone()
                 }),
             }
             used += advance;
@@ -200,7 +221,7 @@ mod tests {
             let spans = [Span::new(format!("{word} {word} {word}"), 0xFFFF_FFFF)];
             let width = font.width(&[Span::new(format!("{word} {word} "), 0)]);
             let mut rows = Vec::new();
-            wrap(&spans, width, font, &mut rows);
+            wrap(&spans, width, true, font, &mut rows);
             let texts: Vec<String> = rows
                 .iter()
                 .map(|row| row.iter().map(|span| span.text.as_str()).collect())
