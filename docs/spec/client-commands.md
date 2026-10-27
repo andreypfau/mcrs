@@ -449,7 +449,11 @@ Tab, then press Up once. The last command is selected, and the list shows the la
     translation of the key in the current language.
   - A suggestion from a server reply has a text component as its tooltip
     (`commands-packet.md`, CMDP-SUG-002). The line is that text component.
-  - The line does not wrap, whatever its width.
+  - The tooltip is the text component used as one line (`client-tooltip.md`, section 0.3). It
+    does not wrap, whatever its width.
+  - A line break in the text does not start a new line. It draws as the glyph of U+000A
+    (`client-tooltip.md`, TIP-BOX-002, step 4).
+  - An empty text gives one empty line, so the tooltip shows with `w` = 0.
 - **Clicks:** a left click at (`mx`, `my`) with `lx ≤ mx ≤ lx + lw` and `top ≤ my ≤ top + 12·r`
   selects entry `offset + floor((my − top) / 12)` and inserts it (CCMD-LIST-005), if that
   entry exists.
@@ -465,7 +469,8 @@ Tab, then press Up once. The last command is selected, and the list shows the la
 Provenance: `source_suggested`. Kind: semantic; layout for the rectangles. Confidence: medium.
 Experiment: type `/execute as @`. Put the mouse on the row `@p`. The tooltip
 `Nearest player` shows at the mouse. Press Down without a move of the mouse. The tooltip of `@r`
-shows.
+shows. Then, on a server whose reply has the tooltip text `a\nb`, put the mouse on the row. One
+line shows, with a box that holds `LF` between `a` and `b`.
 
 ---
 
@@ -626,10 +631,5 @@ after `as` is gray.
   below the box, and 7 rows. A separate document can state it.
 - The narration of the suggestion list (`narration.suggestion` and its variants) is not
   stated.
-- CCMD-LIST-007: a tooltip text with a line break. The line does not wrap and does not split
-  at the line break. What the font draws for the line break is not stated. Experiment: on a
-  server whose reply has the tooltip text `a\nb`, put the mouse on the row. Record what the
-  tooltip shows.
-
 - CCMD-HINT-002: the colour of an error line. The source gives white. Run the experiment of
   CCMD-HINT-002 to confirm.

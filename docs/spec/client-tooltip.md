@@ -45,8 +45,17 @@ section "Semantics, not accidents".
 
 A colour is a 32-bit ARGB value in hexadecimal. The font, the width of a text and the wrap of a
 text component are as `client-chat.md`, section 0.3, states. To wrap a text component at a
-width means to split it into lines no wider than that width. A line break in the text also
-starts a new line.
+width means to split it into lines no wider than that width:
+
+- A line break (U+000A) in the text also starts a new line. The line break is not in a line.
+- When a line ends at a space (U+0020), the space is not in a line.
+- A line that continues a wrapped row does not start with a space. This is not the same as the
+  chat log, which adds one U+0020 to such a line (`client-chat.md`, CHAT-LOG-001).
+- An empty text gives no line.
+- A text that ends with a line break gives one more empty line at the end.
+
+To use a text component as one line means to keep it whole, with no wrap. A line break in it
+is then a glyph of the line, as TIP-BOX-002 states.
 
 ### 0.4 ID prefixes
 
@@ -62,7 +71,8 @@ starts a new line.
 ### 0.5 Scope
 
 In scope: the tooltip of a request with text lines, its position, size, background and order of
-draw, and the three kinds of hover event.
+draw, and the three kinds of hover event. `client-gui-sprite.md` states the scaling of the
+background sprites, for all GUI sprites.
 
 Out of scope: the lines of an item tooltip, the image of an item tooltip (for example the
 contents of a bundle), the tooltip of a widget with its delay and its positioners, and the
@@ -77,7 +87,8 @@ narration of tooltips.
 - **Behavior:**
   1. At the start of a frame, the screen has no tooltip request.
   2. A part of the screen can make a tooltip request while the screen draws.
-  3. A request with no lines has no effect.
+  3. A request with no lines has no effect. A request with one empty line is not a request
+     with no lines: it draws a tooltip with `w` = 0.
   4. When the screen already has a request, a new request has no effect. The first request
      of the frame stays.
   5. After the screen draws all its content, it makes the request of the hovered text style
@@ -141,10 +152,13 @@ at x = 112, y = 88.
 - **Behavior:**
   1. Line `i`, from 0, has its top at `y + 10·i`. With the flag "gap after the first line",
      each line after line 0 is 2 GUI units lower.
-  2. Each line starts at `x`.
+  2. Each line starts at `x`. A line does not start with a space of indent.
   3. The text draws with a drop shadow. A part of the text with no colour in its style draws
      in `FFFFFFFF`. A part with a colour in its style draws in that colour.
-  4. The lines of a tooltip do not answer the mouse. They make no hover request and change
+  4. A line break (U+000A) inside one line does not start a new line. The font draws it as the
+     glyph of the code point U+000A, the same as any other code point. With the vanilla fonts,
+     this is the Unifont glyph of U+000A, a dotted box with the letters `LF`.
+  5. The lines of a tooltip do not answer the mouse. They make no hover request and change
      no pointer.
 - **Postconditions:** the lines keep the styles of their text component, for example bold,
   italic and colours.
@@ -165,8 +179,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
      - When `st` is absent: `minecraft:tooltip/background` and `minecraft:tooltip/frame`.
      - When `st` is `ns:p`: `ns:tooltip/p_background` and `ns:tooltip/p_frame`.
   3. Draw the background sprite into the background rectangle, then the outline sprite into the
-     same rectangle. Each sprite uses its `nine_slice` scaling from the resource pack (TIP-BG-002).
-  4. Draw the lines (TIP-BOX-002) above the two sprites.
+     same rectangle. Each sprite draws with its own scaling (TIP-BG-002).
+  4. When the resource pack has no sprite for a name, that name draws the missing sprite
+     (`client-gui-sprite.md`, GSPR-MISS-001), stretched over the background rectangle. The
+     tooltip still draws its lines.
+  5. Draw the lines (TIP-BOX-002) above the two sprites.
 - **Postconditions:** with the vanilla resource pack and no tooltip style, the tooltip has these
   parts. Each rectangle is (left, top, right, bottom), and the right and the bottom edges are not
   in the rectangle.
@@ -189,27 +206,26 @@ Kind: layout. Confidence: high. Experiment: at a GUI scale of 1, show the toolti
 `chat.tag.system_single_player` in the open chat. Take a screenshot. Compare each pixel of the
 background with the table.
 
-### TIP-BG-002: Nine-slice sprites
+### TIP-BG-002: Scaling of the background sprites
 
-- **Inputs:** a GUI sprite with the scaling `nine_slice` in its `.mcmeta`. The scaling has the
-  `width` `sw` and the `height` `sh` of the sprite in GUI units, a `border` `b`, and the flag
-  `stretch_inner`, false by default. A target rectangle of `PW` × `PH` GUI units.
 - **Behavior:**
-  1. The border on each side is `min(b, floor(PW / 2))` horizontally and `min(b, floor(PH / 2))`
-     vertically.
-  2. Each corner of the sprite, one border wide and one border high, draws at the same corner
-     of the target with no scale.
-  3. The top and the bottom edges of the sprite fill the width `PW − 2b` between the corners.
-     The left and the right edges fill the height `PH − 2b`. The centre fills the rest.
-  4. When `stretch_inner` is true, each edge and the centre stretch over their area, with the
-     nearest texel. Otherwise they repeat from the top left of their part of the sprite.
-- **Postconditions:** the vanilla sprites are 100 × 100. `tooltip/background` has `b` = 9 and
-  repeats. `tooltip/frame` has `b` = 10 and stretches. A tooltip is never smaller than 24 × 24,
-  so the border is never reduced.
+  - The background and the outline sprites are GUI sprites. They draw by the rules of
+    `client-gui-sprite.md`. The scaling of each sprite comes from its sprite metadata
+    (GSPR-META-001) and selects the draw: `stretch` (GSPR-DRAW-001), `tile` (GSPR-DRAW-002) or
+    `nine_slice` (GSPR-DRAW-003).
+  - Each scaling type is valid for a tooltip sprite. The border of `nine_slice` can be one
+    integer or one value for each side.
+  - A sprite with an error in its sprite metadata draws as the missing sprite (GSPR-META-002).
+    The error does not stop the load of the resource pack.
+- **Postconditions:** the vanilla sprites are 100 × 100 GUI units with the scaling
+  `nine_slice`. `tooltip/background` has the border 9 and repeats its inner parts.
+  `tooltip/frame` has the border 10 and `stretch_inner` true. A tooltip is never smaller than
+  24 × 24, so the borders are never reduced.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the `.mcmeta` values of the vanilla
-pack. Kind: layout. Confidence: medium. Experiment: show a tooltip with 20 lines. Take a
-screenshot. The left outline changes colour from the top to the bottom.
+pack. Kind: layout. Confidence: high. Experiment: in a resource pack, give `tooltip/background`
+the scaling `stretch`. Show a tooltip. The full sprite stretches over the background
+rectangle, so the transparent margin and the cut corners grow with the tooltip.
 
 ---
 
@@ -230,12 +246,15 @@ screenshot. The left outline changes colour from the top to the bottom.
 
   - The lines of `show_entity` are, in this order:
     1. the name of the entity, only when the hover event has a name;
-    2. the translation `gui.entity_tooltip.type`, with the translated name of the entity type
-       as its argument;
+    2. the translation `gui.entity_tooltip.type`. Its one argument is the translation of the
+       key `entity.<namespace>.<path>` of the entity type, with each `/` in the path replaced
+       by `.`;
     3. the UUID as literal text, in lower-case hexadecimal, in the form `8-4-4-4-12`.
   - The lines of `show_entity` do not wrap.
   - When "Advanced Tooltips" is off, `show_entity` makes no request.
-- **Postconditions:** a `show_text` text with a line break shows on two or more lines.
+- **Postconditions:**
+  - A `show_text` text with a line break shows on two or more lines.
+  - An empty `show_text` text gives no line, so it makes no request (TIP-REQ-001, step 3).
 - **Example:** a `show_entity` hover event with no name, the type `minecraft:pig` and the UUID
   `0-0-0-0-1` shows these lines in `en_us`: `Type: Pig` and
   `00000000-0000-0000-0000-000000000001`.
@@ -243,6 +262,7 @@ screenshot. The left outline changes colour from the top to the bottom.
 | Key | `en_us` text |
 |-----|--------------|
 | `gui.entity_tooltip.type` | `Type: %s` |
+| `entity.minecraft.pig` | `Pig` |
 
 "Advanced Tooltips" is the option that F3 + H changes. It is off by default.
 
