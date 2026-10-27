@@ -1,12 +1,8 @@
-use crate::command::vanilla::{candidates, targets_or_self};
-use crate::command::{Call, CommandContext, CommandFeedback, CommandRegistrar, CommandResult};
-use crate::world::entity::player::ability::PlayerGameMode;
+use crate::command::vanilla::targets_or_self;
+use crate::command::{Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult};
 use bevy_ecs::prelude::*;
 use mcrs_command::{Arg, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, EntityArgument, GameModeArgument, PermissionCheck};
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 
@@ -43,51 +39,43 @@ fn mode_text(mode: GameMode) -> Text {
     Text::translate(format!("gameMode.{}", mode.name()), vec![])
 }
 
+/// CMD-GM-002 to CMD-GM-005, CMD-GM-009: each target that does not have the mode gets it, in
+/// any dimension, and its messages follow.
 pub(super) fn run(
     In(call): In<Call<Branch, GameModeCommand>>,
     context: CommandContext,
-    mut players: Query<(Entity, &GameProfile, &Transform, &mut PlayerGameMode), With<Player>>,
-    mut feedback: CommandFeedback,
+    mut output: CommandOutput,
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call, command.mode)?;
-    let all = candidates(players.iter());
     let selector = match call.branch {
         Branch::Source => None,
         Branch::Targets => Some(command.target),
     };
-    let targets = targets_or_self(
-        &context,
-        &call,
-        selector,
-        &all,
-        "argument.entity.notfound.player",
-    )?;
+    let targets = targets_or_self(&context, &call, selector, "argument.entity.notfound.player")?;
     let mut changed = 0;
     for target in targets {
-        let Ok((_, profile, _, mut current)) = players.get_mut(target) else {
-            continue;
-        };
-        if !current.set_if_neq(PlayerGameMode(mode)) {
+        if target.mode == mode {
             continue;
         }
         changed += 1;
-        if Some(target) == call.source.entity {
-            feedback.success(
+        output.set_game_mode(target.anchor, mode);
+        if Some(target.anchor) == call.source.entity {
+            output.success(
                 &call,
                 Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),
                 true,
             );
         } else {
-            feedback.tell(
-                target,
+            output.tell(
+                target.anchor,
                 Text::translate("gameMode.changed", vec![mode_text(mode)]),
             );
-            feedback.success(
+            output.success(
                 &call,
                 Text::translate(
                     "commands.gamemode.success.other",
-                    vec![profile.username.clone().into_text(), mode_text(mode)],
+                    vec![target.name.clone().into_text(), mode_text(mode)],
                 ),
                 true,
             );

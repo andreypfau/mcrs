@@ -23,6 +23,8 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
+use crate::world::entity::player::HostAnchor;
+use crate::world::entity::{entity_network_id, player_network_id};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::session::GameProfile;
 
@@ -48,12 +50,24 @@ pub fn update_tracked_by(
         (Entity, &Transform, &InDimension, &mut TrackedBy),
         (With<Player>, Changed<Transform>),
     >,
-    all_players: Query<(Entity, &Transform, Option<&GameProfile>), With<Player>>,
+    all_players: Query<
+        (
+            Entity,
+            &Transform,
+            Option<&GameProfile>,
+            Option<&HostAnchor>,
+        ),
+        With<Player>,
+    >,
     chunk_observers: Query<&PlayerObservers, (With<Column>, Without<Player>)>,
     column_indices: Query<&ColumnIndex>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
+        let network_id = match all_players.get(player) {
+            Ok((_, _, _, Some(anchor))) => player_network_id(anchor.0),
+            _ => entity_network_id(player),
+        };
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
         };
@@ -79,7 +93,7 @@ pub fn update_tracked_by(
                     if new_observers.contains(&other_entity) {
                         continue;
                     }
-                    let Ok((_, other_xf, _)) = all_players.get(other_entity) else {
+                    let Ok((_, other_xf, _, _)) = all_players.get(other_entity) else {
                         continue;
                     };
                     if transform.translation.distance_squared(other_xf.translation)
@@ -99,7 +113,7 @@ pub fn update_tracked_by(
                 // producer will supply authoritative data when fully wired.
                 let (uuid, pos) = all_players
                     .get(player)
-                    .map(|(_, xf, profile)| {
+                    .map(|(_, xf, profile, _)| {
                         let uuid = profile.map(|p| p.id).unwrap_or(Uuid::nil());
                         (uuid, xf.translation)
                     })
@@ -107,7 +121,7 @@ pub fn update_tracked_by(
                 packet_writer.write(to(
                     new_entity,
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-                        id: VarInt(player.index_u32() as i32),
+                        id: VarInt(network_id),
                         uuid,
                         kind: mcrs_minecraft_entity::keys::EntityType::Player,
                         pos,
@@ -125,7 +139,7 @@ pub fn update_tracked_by(
                 packet_writer.write(to(
                     old_entity,
                     PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
-                        entity_ids: vec![VarInt(player.index_u32() as i32)],
+                        entity_ids: vec![VarInt(network_id)],
                     }),
                 ));
             }

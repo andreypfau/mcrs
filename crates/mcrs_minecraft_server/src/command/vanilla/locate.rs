@@ -1,5 +1,5 @@
 use crate::command::{
-    Call, CommandContext, CommandFailure, CommandFeedback, CommandRegistrar, CommandResult,
+    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
 };
 use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
@@ -177,7 +177,7 @@ pub(super) fn run(
     context: CommandContext,
     fill: Option<Res<FillContext>>,
     dimension: Query<&DimensionTypeConfig, With<Dimension>>,
-    mut feedback: CommandFeedback,
+    mut feedback: CommandOutput,
 ) -> CommandResult {
     let command = call.command;
     let origin = call.source.position.floor().as_ivec3();

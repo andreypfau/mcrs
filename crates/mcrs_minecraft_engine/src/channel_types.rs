@@ -1,19 +1,15 @@
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_level::session::{MoveId, PlayerSession};
+use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::channels::DimChannels;
 
 use crate::bus::{
-    ArrivalCause, CommandHandoff, EditClock, InboundConfirmMove, InboundEntitySpawn,
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove,
-    MovePayload, OperatorBroadcast, OutboundPlayerPacket,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket,
 };
-use mcrs_minecraft_dimension::Dimension;
 
 /// Host→dim message channel type.
 ///
 /// Carries all traffic from the host (MainWorld) into a dimension world.
-/// `Serverbound` is the sole sheddable class; the three control variants
-/// (`Spawn`, `Despawn`, `Attach`) are never shed.
+/// `Serverbound` is the sole sheddable class; the control variants `Spawn` and
+/// `Despawn` are never shed.
 #[derive(Clone, Debug)]
 pub enum ToDim {
     /// A packet arriving from the network, routed to this dim.
@@ -22,51 +18,29 @@ pub enum ToDim {
     Serverbound(InboundPlayerPacket),
     /// Spawn a player into this dim (default-reset components; no faithful snapshot).
     Spawn(InboundPlayerSpawn),
-    /// The host signals that a player is leaving this dim (disconnected or
-    /// transferred). The dim should despawn the player's in-dim entity.
+    /// The host signals that a player disconnected. The dim should despawn the
+    /// player's in-dim entity.
     /// `session` carries the real `PlayerSession` so the dim can evict the
     /// matching `DimPlayerIndex` entry; the entity despawn itself keys off
     /// `host_anchor`.
     Despawn(InboundPlayerDespawn),
-    /// Confirmed-move spawn command to the target dim.  Non-sheddable.
-    SpawnEntity(InboundEntitySpawn),
-    /// Confirm that the move completed; source dim may despawn the hidden entity.
-    ConfirmMove(InboundConfirmMove),
-    /// Immediate rollback signal to the source dim (Disconnected or tick-timeout).
-    RollbackMove(InboundRollbackMove),
-    /// The rest of a command line that resumes in this dim. Sent on the serverbound channel: a
-    /// player's line caused it, and a full channel fails the line visibly.
-    Command(CommandHandoff),
 }
 
 /// Dim→host message channel type.
 ///
 /// Carries all traffic from a dimension world back to the host (MainWorld).
 #[derive(Clone, Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "nearly every message is a packet, so a box would allocate once per packet"
+)]
 pub enum FromDim {
     /// A packet to be sent to one or more clients. The `session` and `epoch`
     /// fields are stamped at the outbound boundary before the packet reaches
     /// `bridge_outbound`.
     Clientbound(OutboundPlayerPacket),
-    /// Confirmed-move initiation: source dim requests transfer to another dim by key.
-    /// The host resolves the key, inserts into InFlightMoves, and sends SpawnEntity.
-    MoveEntity {
-        move_id: MoveId,
-        target: ResourceKey<Dimension>,
-        cause: ArrivalCause,
-        payload: MovePayload,
-        player: Option<PlayerSession>,
-    },
-    /// Ack from target dim: the entity has been spawned and arrival resolved.
-    Spawned { move_id: MoveId },
     /// The dim has handled a `Despawn` for the session: whatever player it held is saved and gone.
     Released { session: PlayerSession },
-    /// A message for every online operator; the host triggers it as an event.
-    OperatorBroadcast(OperatorBroadcast),
-    /// The rest of a command line whose sources leave for `CommandHandoff::target`.
-    Command(CommandHandoff),
-    /// A change to a world clock, which the host applies and sends to every player.
-    EditClock(EditClock),
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this

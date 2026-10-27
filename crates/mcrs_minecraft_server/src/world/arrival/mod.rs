@@ -113,6 +113,5 @@ fn resolve_position(
             find_or_create_nether_landing(dim_entity, *source_pos, dimension_blocks)
         }
         ArrivalCause::ExactRespawn { pos } => *pos,
-        ArrivalCause::CommandTeleport { pos } => *pos,
     }
 }

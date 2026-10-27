@@ -1,24 +1,16 @@
 use crate::command::{
-    AppCommands, Call, CommandContext, CommandFailure, CommandRegistrar, CommandResult,
+    AppCommands, Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar,
+    CommandResult, Teleport,
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::{Arg, BuildError, NodeId};
-use mcrs_minecraft_command::{CommandLevel, DimensionArgument, Lookup, PermissionCheck};
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_engine::bus::{ArrivalCause, MovePayload};
-use mcrs_minecraft_engine::channel_types::FromDim;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::entity::InTransit;
-use mcrs_minecraft_level::session::Owner;
-use mcrs_minecraft_level::world::channels::FromDimSender;
-use mcrs_minecraft_level::world::in_flight::MoveIds;
+use mcrs_minecraft_command::{CommandLevel, DimensionArgument, PermissionCheck};
 use mcrs_minecraft_protocol::text::IntoText;
 
-/// Commands of this server that vanilla does not have: `dim <dimension>` moves the source to
-/// the top of another dimension.
+/// Commands of this server that vanilla does not have: `dim <dimension>` moves the source player
+/// to `0 128 0` in another dimension, keeping its rotation.
 pub struct DebugCommandsPlugin;
 
 impl Plugin for DebugCommandsPlugin {
@@ -48,43 +40,36 @@ const ARRIVAL: DVec3 = DVec3::new(0.0, 128.0, 0.0);
 fn run(
     In(call): In<Call<(), DimCommand>>,
     context: CommandContext,
-    players: Query<(&GameProfile, &Owner)>,
-    move_sender: Res<FromDimSender<FromDim>>,
-    mut move_ids: ResMut<MoveIds>,
-    mut commands: Commands,
+    mut output: CommandOutput,
 ) -> CommandResult {
     let command = call.command;
     let id = context.arg(&call, command.dimension)?;
-    let invalid = || {
-        CommandFailure::translate(
-            "argument.dimension.invalid",
-            vec![id.to_string().into_text()],
-        )
-    };
-    // Without the registry in this world, the host is the one that knows the dimensions.
-    let dimensions = mcrs_minecraft_dimension::keys::DIMENSION.location();
-    if context.entries(dimensions).next().is_some() && !context.has_entry(dimensions, id) {
-        return Err(invalid());
-    }
-    let location = id.to_location().ok_or_else(invalid)?;
-    let requires_player = || CommandFailure::translate("permissions.requires.player", vec![]);
-    let entity = call.source.entity.ok_or_else(requires_player)?;
-    let (profile, owner) = players.get(entity).map_err(|_| requires_player())?;
-    let move_id = move_ids.allocate();
-    move_sender
-        .0
-        .try_send(FromDim::MoveEntity {
-            move_id,
-            target: ResourceKey::<Dimension>::from_location(location),
-            cause: ArrivalCause::CommandTeleport { pos: ARRIVAL },
-            payload: MovePayload::Player {
-                uuid: profile.id,
-                username: profile.username.clone(),
-            },
-            player: Some(owner.0),
-        })
-        .map_err(|_| CommandFailure::failed())?;
-    // The source keeps the player, hidden, until the target confirms the move or rolls it back.
-    commands.entity(entity).insert(InTransit { move_id });
+    let targets = context.targets();
+    let dimension = targets
+        .dimension_named(id)
+        .and_then(|index| targets.dimensions().get(index))
+        .ok_or_else(|| {
+            CommandFailure::translate(
+                "argument.dimension.invalid",
+                vec![id.to_string().into_text()],
+            )
+        })?;
+    let player = call
+        .source
+        .entity
+        .filter(|&anchor| targets.player(anchor).is_some())
+        .ok_or_else(|| CommandFailure::translate("permissions.requires.player", vec![]))?;
+    output.teleport(
+        player,
+        Teleport {
+            dimension: dimension.label,
+            position: ARRIVAL,
+            rotation: None,
+            relative_position: [false; 3],
+            relative_rotation: [true; 2],
+            facing: None,
+            anchor: call.source.anchor,
+        },
+    );
     Ok(1)
 }

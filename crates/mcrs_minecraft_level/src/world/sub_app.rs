@@ -10,6 +10,11 @@ use mcrs_minecraft_dimension::{Dimension, DimensionType};
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
 pub struct DimAppLabel(pub Entity);
 
+/// The host entity that labels the sub-app of this dimension world: the one name of the
+/// dimension that the host and every dimension world share.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DimensionLabel(pub Entity);
+
 #[derive(Debug, Clone)]
 pub struct DimSpawnRequest {
     pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,

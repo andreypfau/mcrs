@@ -20,6 +20,7 @@ pub fn run_server_loop(app: App) -> AppExit {
         DEFAULT_TPS,
         |app| {
             pump_channels(app);
+            crate::command::run_pending_commands(app);
             expire_moves(app);
             drain_dim_spawn_queue(app);
             drain_dim_despawn_queue(app);

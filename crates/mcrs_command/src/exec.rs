@@ -54,24 +54,6 @@ impl<H: Copy> Chain<H> {
 }
 
 impl<H> Chain<H> {
-    /// The rest of this chain from `at`, for `sources` that continue it in another host.
-    pub fn continuation<S>(&self, at: Resume, sources: Vec<S>) -> Continuation<S> {
-        Continuation {
-            entries: self.entries.clone(),
-            at,
-            sources,
-        }
-    }
-
-    /// As [`Chain::continuation`], and moves the contexts instead of copying them.
-    pub fn into_continuation<S>(self, at: Resume, sources: Vec<S>) -> Continuation<S> {
-        Continuation {
-            entries: self.entries,
-            at,
-            sources,
-        }
-    }
-
     /// Each modifier stage, then the run stage.
     pub fn stages(&self) -> &[Stage<H>] {
         &self.stages
@@ -87,27 +69,6 @@ impl<H> Chain<H> {
             .nodes()
             .find(|&(parsed, _)| parsed == node)
             .map(|(_, span)| span)
-    }
-}
-
-/// The rest of a chain that continues in another host: the contexts of its parse, where the run
-/// resumes and the sources that resume it. Each host holds the same frozen graph.
-#[derive(Clone, Debug)]
-pub struct Continuation<S> {
-    entries: Vec<Entry>,
-    pub at: Resume,
-    pub sources: Vec<S>,
-}
-
-impl<S> Continuation<S> {
-    /// The chain against `graph`, where it resumes, and its sources.
-    pub fn into_parts<A, R, H: Copy>(self, graph: &Graph<A, R, H>) -> (Chain<H>, Resume, Vec<S>) {
-        let mut chain = Chain {
-            entries: self.entries,
-            stages: Vec::new(),
-        };
-        chain.fill_stages(graph);
-        (chain, self.at, self.sources)
     }
 }
 
@@ -146,43 +107,6 @@ pub enum End {
     ForkLimit,
     /// The run stopped before a run of the run stage; the output receives no message.
     SequenceLimit,
-    /// Every remaining source left the host; the run resumes where they went.
-    Departed,
-}
-
-/// Where a run of a chain resumes: the next stage, whether a stage before it forked, the cost
-/// so far and the limits of the rest.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Resume {
-    pub stage: usize,
-    pub forked: bool,
-    pub cost: usize,
-    pub limits: Limits,
-}
-
-impl Resume {
-    pub fn start(limits: Limits) -> Self {
-        Self {
-            stage: 0,
-            forked: false,
-            cost: 0,
-            limits,
-        }
-    }
-
-    /// The resume of the part that holds `part` of the `total` sources of a list that splits.
-    /// The sources of the other parts count against its fork limit and its cost.
-    pub fn part(self, total: usize, part: usize) -> Self {
-        let others = total.saturating_sub(part);
-        Self {
-            cost: self.cost.saturating_add(others),
-            limits: Limits {
-                forks: self.limits.forks.saturating_sub(others),
-                ..self.limits
-            },
-            ..self
-        }
-    }
 }
 
 /// What the host does for each stage of a chain. `stage` is the index of the context.
@@ -201,17 +125,6 @@ pub trait Executor<S, H> {
     fn run(&mut self, stage: usize, command: &H, source: &S) -> Result<i32, Self::Error>;
 
     fn report(&mut self, failure: Failure<Self::Error>);
-
-    /// Whether `source` continues the chain in another host.
-    fn departs(&mut self, _source: &S) -> bool {
-        false
-    }
-
-    /// Takes the sources that leave after a stage, in list order. `at` is the resume of the
-    /// whole list of `total` sources; [`Resume::part`] gives the resume of each part.
-    fn depart(&mut self, _at: Resume, _total: usize, sources: &mut Vec<S>) {
-        sources.clear();
-    }
 }
 
 /// The source lists of a run, owned by the caller and reused between runs.
@@ -219,7 +132,6 @@ pub trait Executor<S, H> {
 pub struct SourceLists<S> {
     current: Vec<S>,
     next: Vec<S>,
-    departing: Vec<S>,
 }
 
 impl<S> Default for SourceLists<S> {
@@ -227,7 +139,6 @@ impl<S> Default for SourceLists<S> {
         Self {
             current: Vec::new(),
             next: Vec::new(),
-            departing: Vec::new(),
         }
     }
 }
@@ -241,45 +152,15 @@ pub fn execute<S, H, X: Executor<S, H>>(
     executor: &mut X,
     lists: &mut SourceLists<S>,
 ) -> End {
-    resume(
-        stages,
-        Resume::start(limits),
-        core::iter::once(source),
-        executor,
-        lists,
-    )
-}
-
-/// Runs the rest of a chain from `at` for `sources`, as [`execute`] runs it from the start.
-/// After each modifier stage, the sources that [`Executor::departs`] names leave through
-/// [`Executor::depart`], and the others continue here.
-pub fn resume<S, H, X: Executor<S, H>>(
-    stages: &[Stage<H>],
-    at: Resume,
-    sources: impl IntoIterator<Item = S>,
-    executor: &mut X,
-    lists: &mut SourceLists<S>,
-) -> End {
-    let SourceLists {
-        current,
-        next,
-        departing,
-    } = lists;
+    let SourceLists { current, next } = lists;
     current.clear();
-    current.extend(sources);
+    current.push(source);
     let Some((last, modifiers)) = stages.split_last() else {
         return End::Failed;
     };
-    let Some(rest) = modifiers.get(at.stage..) else {
-        return End::Failed;
-    };
-    let Resume {
-        mut forked,
-        mut cost,
-        mut limits,
-        ..
-    } = at;
-    for (index, stage) in rest.iter().enumerate().map(|(i, s)| (i + at.stage, s)) {
+    let mut forked = false;
+    let mut cost = 0usize;
+    for (index, stage) in modifiers.iter().enumerate() {
         forked |= stage.forks;
         let Some(modifier) = &stage.modifier else {
             continue;
@@ -302,31 +183,7 @@ pub fn resume<S, H, X: Executor<S, H>>(
                 return End::ForkLimit;
             }
         }
-        current.clear();
-        departing.clear();
-        let total = next.len();
-        for source in next.drain(..) {
-            if executor.departs(&source) {
-                departing.push(source);
-            } else {
-                current.push(source);
-            }
-        }
-        if !departing.is_empty() {
-            let here = Resume {
-                stage: index + 1,
-                forked,
-                cost,
-                limits,
-            };
-            executor.depart(here, total, departing);
-            let stays = here.part(total, current.len());
-            cost = stays.cost;
-            limits = stays.limits;
-            if current.is_empty() {
-                return End::Departed;
-            }
-        }
+        core::mem::swap(current, next);
         if current.is_empty() {
             return End::Completed;
         }

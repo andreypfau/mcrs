@@ -221,7 +221,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.update();
 
     // Drain packets from the sub-world (needs &mut World).
-    let expected_wire_id = player_t.index_u32() as i32;
+    let expected_wire_id = mcrs_minecraft_server::world::entity::player_network_id(host_anchor_t);
     let pkts: Vec<OutboundPlayerPacket> = {
         let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
         sub.world_mut()
@@ -230,7 +230,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             .collect()
     };
     let left_view_for_o = pkts.iter().any(|pkt| {
-        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == player_o)
+        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == host_anchor_o)
             && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
                 if entity_ids.contains(&VarInt(expected_wire_id)))
     });

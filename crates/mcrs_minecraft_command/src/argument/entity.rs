@@ -981,8 +981,8 @@ pub trait Candidate {
     fn has_tag(&self, tag: &str) -> bool;
     fn has_any_tag(&self) -> bool;
     fn team(&self) -> Option<&str>;
-    /// The entity is in the dimension of the source.
-    fn in_source_dimension(&self) -> bool;
+    /// The position of its dimension in the dimension order (ARG-ENT-019).
+    fn dimension(&self) -> usize;
 
     fn is_player(&self) -> bool {
         self.entity_type() == EntityType::Player
@@ -1117,7 +1117,8 @@ impl<'a> Selector<'a> {
         missing
     }
 
-    /// The entities the selector finds (ARG-ENT-012 to ARG-ENT-014). `random` gives an index
+    /// The entities the selector finds (ARG-ENT-012 to ARG-ENT-014, ARG-ENT-018 to
+    /// ARG-ENT-021). `candidates` come in the order of the player list; `random` gives an index
     /// below its argument.
     pub fn select<'c, C: Candidate, L: Lookup>(
         &self,
@@ -1169,15 +1170,18 @@ impl<'a> Selector<'a> {
         }
         out.extend(candidates.filter(|c| {
             (self.includes_entities || c.is_player())
-                && (!self.world_limited || c.in_source_dimension())
+                && (!self.world_limited || c.dimension() == source.dimension)
                 && self.passes(*c, origin)
         }));
         self.retain_listed(out, source.lookup);
+        if self.includes_entities && !self.world_limited {
+            out.sort_by_key(|c| c.dimension());
+        }
         let distance = |c: &&C| origin.distance_squared(c.position());
         match self.order {
             Order::Arbitrary => {}
-            Order::Nearest => out.sort_unstable_by(|a, b| distance(a).total_cmp(&distance(b))),
-            Order::Furthest => out.sort_unstable_by(|a, b| distance(b).total_cmp(&distance(a))),
+            Order::Nearest => out.sort_by(|a, b| distance(a).total_cmp(&distance(b))),
+            Order::Furthest => out.sort_by(|a, b| distance(b).total_cmp(&distance(a))),
             Order::Random => {
                 for index in (1..out.len()).rev() {
                     out.swap(index, random(index + 1).min(index));

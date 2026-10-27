@@ -1,28 +1,33 @@
 mod dim;
+mod effect;
 mod lookup;
 mod register;
 mod run;
+mod seam;
+mod targets;
 pub mod vanilla;
 
 pub use dim::DebugCommandsPlugin;
+pub use effect::{Effect, Facing, Teleport};
 pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, RegistrationError};
 pub(crate) use run::system_message;
-pub use run::{CommandEvent, CommandFeedback};
+pub use run::{CommandEvent, CommandOutput};
+pub use seam::run_pending_commands;
+pub use targets::{CommandTargets, DimensionEntry, PlayerEntry};
 
 use crate::world::entity::player::ability::PlayerOpLevel;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{SystemId, SystemParam};
 use bevy_math::DVec3;
-use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits, SourceLists, Stage};
+use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, CommandSyntaxError, PermissionCheck, Source, VanillaArgument,
     VanillaGraph, error_message,
 };
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_engine::bus::CommandHandoff;
+use mcrs_minecraft_command::{NoLookup, player_tree};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -58,6 +63,7 @@ impl Plugin for CommandPlugin {
             next: 0,
         });
         app.init_resource::<CommandLimits>();
+        app.init_resource::<seam::CommandSeam>();
         app.add_observer(run::reject_illegal_characters)
             .add_observer(run::broadcast_to_operators);
     }
@@ -68,14 +74,8 @@ impl Plugin for CommandPlugin {
         };
         match tree.builder.freeze() {
             Ok(graph) => {
-                let limits = app
-                    .world()
-                    .get_resource::<CommandLimits>()
-                    .copied()
-                    .unwrap_or_default();
                 app.add_dimension_plugin(DimCommandPlugin {
                     tree: CommandTree(graph),
-                    limits,
                 });
             }
             Err(error) => tracing::error!("the command tree does not freeze: {error}"),
@@ -107,28 +107,29 @@ impl CommandFailure {
     }
 }
 
-/// The limits of the run of one command line (CMD-EX-036, CMD-EX-037). Each dimension copies
-/// the value of the host when it spawns.
+/// The limits of the run of one command line (CMD-EX-036, CMD-EX-037), which the host reads
+/// when it runs the line.
 // chisle: the game rules `max_command_forks` and `max_command_sequence_length` have no state in
-// the server yet, and a dimension keeps the limits it spawned with; a game rule resource
-// extracted into the dimensions each tick lifts it.
+// the server yet; a game rule resource lifts it.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct CommandLimits(pub Limits);
 
-/// One source of a command: who runs it, where, facing where, with which permissions. A stage
-/// of `execute` maps it to other sources; the output stays the player who sent the line.
+/// One source of a command: who runs it, in which dimension, where, facing where, with which
+/// permissions. A stage of `execute` maps it to other sources; the output stays the player who
+/// sent the line.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceState {
     pub level: CommandLevel,
-    /// None for a source that came from another dimension: an entity belongs to one world.
+    /// The host anchor of the player the source holds, which names the player in every
+    /// dimension, so the source keeps it when the player changes dimension (DIM-CHG-001).
     pub entity: Option<Entity>,
+    /// The label of the source dimension. The source entity can be in another one
+    /// (ARG-ENT-021).
+    pub dimension: Entity,
     pub position: DVec3,
     pub yaw: f32,
     pub pitch: f32,
     pub anchor: LookAnchor,
-    /// The dimension the source leaves for after its stage. Its x and z are scaled where it
-    /// arrives (CMD-EX-021).
-    pub destination: Option<ResourceKey<Dimension>>,
 }
 
 /// One run of a stage for one source: the host anchor of the player who receives the output,
@@ -142,48 +143,55 @@ pub struct Invocation {
 }
 
 impl SourceState {
-    pub fn of_player(entity: Entity, level: CommandLevel, transform: &Transform) -> Self {
+    /// The source of the player with the host anchor `anchor`, in the dimension `dimension`.
+    pub fn of_player(
+        anchor: Entity,
+        dimension: Entity,
+        level: CommandLevel,
+        transform: &Transform,
+    ) -> Self {
         Self {
             level,
-            entity: Some(entity),
+            entity: Some(anchor),
+            dimension,
             position: transform.translation,
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
             anchor: LookAnchor::Feet,
-            destination: None,
         }
     }
 
-    pub(crate) fn source<'s, L>(&self, lookup: &'s L) -> Source<'s, L> {
+    /// `dimension` is the rank of the source dimension in the dimension order.
+    pub(crate) fn source<'s, L>(&self, lookup: &'s L, dimension: usize) -> Source<'s, L> {
         Source {
             position: self.position,
             yaw: self.yaw,
             pitch: self.pitch,
             anchor: self.anchor,
             eye_height: Some(PLAYER_EYE_HEIGHT),
+            dimension,
             ..Source::new(self.level, lookup)
         }
     }
 }
 
-/// The command line that runs in this world, and its chain.
+/// The command line that runs in this world, and its chain. The host lends it to the world a
+/// stage runs in.
 #[derive(Resource, Default)]
 pub(crate) struct RunningCommand {
     line: String,
     chain: Chain<Handler>,
 }
 
-/// The buffers of a run of a chain, reused between runs.
-#[derive(Resource, Default)]
-pub(crate) struct ExecScratch {
-    stages: Vec<Stage<Handler>>,
-    lists: SourceLists<SourceState>,
-    departing: Vec<run::Departing>,
+/// The command tree a player with `op_level` can see (CMDP-TREE-002).
+pub(crate) fn tree_packet(
+    tree: &VanillaGraph<Handler>,
+    host: Entity,
+    op_level: PlayerOpLevel,
+) -> OutboundPlayerPacket {
+    let source = Source::new(level_of(op_level), &NoLookup);
+    to(host, PacketPayload::Commands(player_tree(tree, &source))).critical()
 }
-
-/// The rest of the command lines whose sources left this world, until the outbox takes them.
-#[derive(Resource, Default)]
-pub(crate) struct Departures(pub(crate) Vec<CommandHandoff>);
 
 /// What a modifier gives for one source.
 #[derive(Clone, Debug, PartialEq)]
@@ -200,6 +208,7 @@ pub type ModifyResult = Result<Modified, CommandFailure>;
 pub struct CommandContext<'w, 's> {
     tree: Res<'w, CommandTree>,
     running: Res<'w, RunningCommand>,
+    targets: Res<'w, CommandTargets>,
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
     profiles: Query<'w, 's, &'static GameProfile, With<Player>>,
@@ -209,7 +218,16 @@ pub struct CommandContext<'w, 's> {
 impl<'w, 's> CommandContext<'w, 's> {
     /// The source of the call, which reads the world through this context.
     pub fn source(&self, call: &Invocation) -> Source<'_, Self> {
-        call.source.source(self)
+        let dimension = self
+            .targets
+            .dimension_of(call.source.dimension)
+            .unwrap_or_default();
+        call.source.source(self, dimension)
+    }
+
+    /// The dimensions that run and the players of every one of them.
+    pub fn targets(&self) -> &CommandTargets {
+        &self.targets
     }
 
     /// The command line that runs.
@@ -273,29 +291,23 @@ impl ModifierHandlers {
     }
 }
 
-/// Parses, suggests and runs commands in a dimension world, against the tree the host froze.
+/// Parses and suggests commands in a dimension world, against the tree the host froze, and
+/// holds the handlers the host runs there.
 #[derive(Clone)]
 pub(crate) struct DimCommandPlugin {
     pub tree: CommandTree,
-    pub limits: CommandLimits,
 }
 
 impl Plugin for DimCommandPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.tree.clone());
-        app.insert_resource(self.limits);
         app.init_resource::<CommandHandlers>();
         app.init_resource::<ModifierHandlers>();
         app.init_resource::<RunningCommand>();
-        app.init_resource::<ExecScratch>();
-        app.init_resource::<Departures>();
+        app.init_resource::<CommandTargets>();
+        app.init_resource::<effect::CommandOutbox>();
+        app.init_resource::<seam::PendingLines>();
         app.add_observer(run::handle_chat_command);
-        app.add_systems(
-            bevy_app::FixedPreUpdate,
-            run::resume_handed_off_lines
-                .after(crate::world::sub_app_builder::DimInboxDrain)
-                .run_if(run::has_handed_off_lines),
-        );
         app.register_required_components::<Player, run::PendingSuggestion>();
         app.add_observer(run::queue_suggestion_request);
         app.add_systems(

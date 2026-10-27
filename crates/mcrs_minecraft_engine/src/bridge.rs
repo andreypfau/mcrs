@@ -277,6 +277,7 @@ fn encode_and_send(
                 PacketPayload::ChunkBatchFinished(p) => conn.raw.append(&p),
                 PacketPayload::PlayerLeftView(p) => conn.raw.append(&p),
                 PacketPayload::PlayerLogin(p) => conn.raw.append(&p),
+                PacketPayload::Respawn(p) => conn.raw.append(&p),
                 PacketPayload::OpLevelEntityEvent(p) => conn.raw.append(&p),
                 PacketPayload::SetChunkCacheCenter(p) => conn.raw.append(&p),
                 PacketPayload::SetChunkCacheRadius(p) => conn.raw.append(&p),

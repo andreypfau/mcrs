@@ -10,7 +10,7 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut, With};
+use bevy_ecs::prelude::{Changed, Commands, DetectChanges, Query, Ref, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
@@ -52,6 +52,7 @@ use tracing::{debug, info};
 pub mod ability;
 mod chat;
 pub mod column_view;
+pub(crate) mod dimension_change;
 pub(crate) mod game_mode;
 pub mod movement;
 pub mod persistence;
@@ -112,6 +113,10 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
         app.add_observer(network_add);
+        let leave = app
+            .world_mut()
+            .register_system(crate::world::aoi::drain_player_despawn::leave_dimension);
+        app.insert_resource(dimension_change::LeaveDimension(leave));
     }
 }
 
@@ -163,6 +168,7 @@ fn consume_inbound_player_spawn(
     default_game_mode: Res<DefaultGameMode>,
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
+    tree: Option<Res<crate::command::CommandTree>>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -172,6 +178,7 @@ fn consume_inbound_player_spawn(
             distance: spawn.snapshot.view_distance.clamp(2, MAX_VIEW_DISTANCE),
             ..Default::default()
         };
+        let op_level = ops.level_of(&spawn.snapshot.uuid, *default_op_level);
         let new_entity = commands
             .spawn((
                 EntityBundle {
@@ -182,7 +189,7 @@ fn consume_inbound_player_spawn(
                 },
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode.0),
-                    op_level: ops.level_of(&spawn.snapshot.uuid, *default_op_level),
+                    op_level,
                     teleport_state: TeleportState::after_login(),
                     view_distance,
                     ..Default::default()
@@ -201,7 +208,7 @@ fn consume_inbound_player_spawn(
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
-        let wire_id = new_entity.index_u32() as i32;
+        let wire_id = crate::world::entity::player_network_id(host);
         let spawn_pos = spawn.snapshot.position;
         let center_x = (spawn_pos.x / 16.0).floor() as i32;
         let center_z = (spawn_pos.z / 16.0).floor() as i32;
@@ -314,6 +321,10 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
+        packet_writer.write(op_level_event(host, op_level));
+        if let Some(tree) = &tree {
+            packet_writer.write(crate::command::tree_packet(&tree.0, host, op_level));
+        }
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
@@ -321,21 +332,28 @@ fn consume_inbound_player_spawn(
     }
 }
 
+/// The `entity_event` that tells a player its operator level.
+pub(crate) fn op_level_event(host: Entity, op_level: PlayerOpLevel) -> OutboundPlayerPacket {
+    to(
+        host,
+        PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
+            entity_id: crate::world::entity::player_network_id(host),
+            entity_status: op_level.entity_status(),
+        }),
+    )
+    .critical()
+}
+
+/// A player that spawns or changes dimension learns its level in the sequence that brings it
+/// in; this tells it every later change.
 pub(crate) fn send_op_level(
-    players: Query<(Entity, &PlayerOpLevel, &HostAnchor), Changed<PlayerOpLevel>>,
+    players: Query<(Ref<PlayerOpLevel>, &HostAnchor), Changed<PlayerOpLevel>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (entity, &op_level, &HostAnchor(host)) in &players {
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
-                    entity_id: entity.index_u32() as i32,
-                    entity_status: op_level.entity_status(),
-                }),
-            )
-            .critical(),
-        );
+    for (op_level, &HostAnchor(host)) in &players {
+        if !op_level.is_added() {
+            packet_writer.write(op_level_event(host, *op_level));
+        }
     }
 }
 
@@ -370,11 +388,11 @@ pub fn despawn_inbound_player(
 
 fn network_add(
     event: On<EntityNetworkAddEvent>,
-    added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
+    added_player: Query<(&GameProfile, &Transform, &HostAnchor), With<Player>>,
     viewer: Query<&HostAnchor, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
+    let Ok((profile, transform, &HostAnchor(anchor))) = added_player.get(event.entity) else {
         return;
     };
     let Ok(&HostAnchor(host_anchor)) = viewer.get(event.player) else {
@@ -384,7 +402,7 @@ fn network_add(
     packet_writer.write(to(
         host_anchor,
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-            id: VarInt(entity.index_u32() as i32),
+            id: VarInt(crate::world::entity::player_network_id(anchor)),
             uuid: profile.id,
             kind: mcrs_minecraft_entity::keys::EntityType::Player,
             pos: transform.translation,

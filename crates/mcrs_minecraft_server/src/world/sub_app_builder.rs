@@ -249,9 +249,6 @@ pub fn spawn_dim_subapp(
     // Written by `despawn_inbound_player` once the player is saved and drained into the
     // `FromDim` channel by `flush_from_dim_outbox`.
     sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>();
-    // Written by `CommandFeedback` and drained into the `FromDim` channel by
-    // `flush_from_dim_outbox`.
-    sub_app.add_message::<mcrs_minecraft_engine::bus::OperatorBroadcast>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
     sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerPacket>();
@@ -264,7 +261,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundEntitySpawn>();
     sub_app.add_message::<InboundConfirmMove>();
     sub_app.add_message::<InboundRollbackMove>();
-    sub_app.add_message::<mcrs_minecraft_engine::bus::CommandHandoff>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -278,6 +274,9 @@ pub fn spawn_dim_subapp(
         sub_app.init_resource::<ColumnTraceLog>();
     }
     sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
+        label_entity,
+    ));
+    sub_app.insert_resource(mcrs_minecraft_level::world::sub_app::DimensionLabel(
         label_entity,
     ));
 
@@ -660,7 +659,6 @@ fn drain_to_dim_inbox(
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
     mut moves: MoveInbox,
-    mut command_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::CommandHandoff>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -680,20 +678,11 @@ fn drain_to_dim_inbox(
             ToDim::RollbackMove(m) => {
                 moves.rollback.write(m);
             }
-            ToDim::Command(m) => {
-                command_msgs.write(m);
-            }
         }
     }
     for msg in rx.serverbound.try_iter() {
-        match msg {
-            ToDim::Serverbound(m) => {
-                serverbound_msgs.write(m);
-            }
-            ToDim::Command(m) => {
-                command_msgs.write(m);
-            }
-            _ => {}
+        if let ToDim::Serverbound(m) = msg {
+            serverbound_msgs.write(m);
         }
     }
 }
@@ -711,8 +700,6 @@ fn drain_to_dim_inbox(
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
-    mut broadcasts: ResMut<Messages<mcrs_minecraft_engine::bus::OperatorBroadcast>>,
-    departures: Option<ResMut<crate::command::Departures>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
@@ -720,10 +707,6 @@ pub(crate) fn flush_from_dim_outbox(
     backlog.extend(released.drain().map(|released| FromDim::Released {
         session: released.session,
     }));
-    backlog.extend(broadcasts.drain().map(FromDim::OperatorBroadcast));
-    if let Some(mut departures) = departures {
-        backlog.extend(departures.0.drain(..).map(FromDim::Command));
-    }
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -786,7 +769,6 @@ mod tests {
         world.insert_resource(
             Messages::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>::default(),
         );
-        world.insert_resource(Messages::<mcrs_minecraft_engine::bus::OperatorBroadcast>::default());
         world.insert_resource(FromDimSender(tx));
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {

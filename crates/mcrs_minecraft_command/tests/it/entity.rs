@@ -159,7 +159,7 @@ struct Mob {
     entity_type: EntityType,
     position: DVec3,
     mode: Option<GameMode>,
-    here: bool,
+    dimension: usize,
 }
 
 impl Candidate for Mob {
@@ -205,31 +205,31 @@ impl Candidate for Mob {
     fn team(&self) -> Option<&str> {
         None
     }
-    fn in_source_dimension(&self) -> bool {
-        self.here
+    fn dimension(&self) -> usize {
+        self.dimension
     }
 }
 
 fn world() -> Vec<Mob> {
-    let player = |n: u128, name, x, mode, here| Mob {
+    let player = |n: u128, name, x, mode, dimension| Mob {
         uuid: Uuid::from_u128(n),
         name,
         entity_type: EntityType::Player,
         position: DVec3::new(x, 64.0, 0.0),
         mode: Some(mode),
-        here,
+        dimension,
     };
     vec![
-        player(1, "Steve", 10.0, GameMode::Creative, true),
-        player(2, "Alex", 3.0, GameMode::Survival, true),
-        player(3, "Far", 1.0, GameMode::Survival, false),
+        player(1, "Steve", 10.0, GameMode::Creative, 0),
+        player(2, "Alex", 3.0, GameMode::Survival, 0),
+        player(3, "Far", 1.0, GameMode::Survival, 1),
         Mob {
             uuid: Uuid::from_u128(4),
             name: "Pig",
             entity_type: EntityType::Pig,
             position: DVec3::new(0.0, 64.0, 0.0),
             mode: None,
-            here: true,
+            dimension: 0,
         },
     ]
 }
@@ -247,7 +247,7 @@ fn names(input: &str) -> Vec<&'static str> {
         .select(&source, world.first(), world.iter(), &mut |_| 0, &mut out)
         .unwrap();
     let mut names: Vec<_> = out.iter().map(|mob| mob.name).collect();
-    if !input.contains("sort") && !input.starts_with("@p") {
+    if !input.contains("sort") && !input.contains("limit") && !input.starts_with("@p") {
         names.sort_unstable();
     }
     names
@@ -255,8 +255,12 @@ fn names(input: &str) -> Vec<&'static str> {
 
 #[test]
 fn a_search_applies_the_kind_and_the_options() {
-    let cases: [(&str, &[&str]); 10] = [
+    let cases: [(&str, &[&str]); 14] = [
         ("@a", &["Alex", "Far", "Steve"]),
+        ("@e[limit=3]", &["Steve", "Alex", "Pig"]),
+        ("@a[limit=3]", &["Steve", "Alex", "Far"]),
+        ("@a[distance=0..]", &["Alex", "Steve"]),
+        ("@e[sort=nearest,x=1,limit=2]", &["Pig", "Alex"]),
         ("@e", &["Alex", "Far", "Pig", "Steve"]),
         ("@p", &["Far"]),
         ("@e[type=!player]", &["Pig"]),

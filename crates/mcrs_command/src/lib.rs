@@ -15,10 +15,7 @@ pub use argument::{
     LongArgument, StringArgument,
 };
 pub use error::{ErrorKind, LibraryError, Span, StringSpan, SyntaxError, utf16_position};
-pub use exec::{
-    Chain, Continuation, End, Executor, Failure, Limits, Resume, SourceLists, Stage, execute,
-    resume,
-};
+pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execute};
 pub use parse::{ContextView, ParseResult, ParseScratch};
 pub use reader::{Reader, StringValue};
 pub use suggest::{Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list};

@@ -20,26 +20,31 @@ pub struct RelativeMove {
 
 /// The move of a victim from `from` to `to` (CMD-TP-005 step 2, CMD-TP-006): each relative
 /// value is the destination minus the current value, the yaw and the pitch to apply are wrapped,
-/// and the final pitch is clamped.
+/// and the final pitch is clamped. A victim that changes dimension gets the absolute position
+/// and keeps only the velocity flags of the relative axes (CMD-TP-013).
 pub fn relative_move(
     from: Pose,
     to: Pose,
     relative_position: [bool; 3],
     relative_rotation: [bool; 2],
+    changes_dimension: bool,
 ) -> RelativeMove {
     let mut flags = Vec::new();
     let axes = [
-        [PositionFlag::X, PositionFlag::DeltaX],
-        [PositionFlag::Y, PositionFlag::DeltaY],
-        [PositionFlag::Z, PositionFlag::DeltaZ],
+        (PositionFlag::X, PositionFlag::DeltaX),
+        (PositionFlag::Y, PositionFlag::DeltaY),
+        (PositionFlag::Z, PositionFlag::DeltaZ),
     ];
-    for (axis, relative) in axes.into_iter().zip(relative_position) {
+    for ((axis, velocity), relative) in axes.into_iter().zip(relative_position) {
+        if relative && !changes_dimension {
+            flags.push(axis);
+        }
         if relative {
-            flags.extend(axis);
+            flags.push(velocity);
         }
     }
     let position = DVec3::select(
-        BVec3::from(relative_position),
+        BVec3::from(relative_position) & BVec3::splat(!changes_dimension),
         to.position - from.position,
         to.position,
     );
@@ -96,7 +101,7 @@ mod tests {
             (absolute(20.0, 95.0), [true; 2], (-10.0, 85.0), (20.0, 90.0)),
         ];
         for (to, relative, look, result) in cases {
-            let step = relative_move(AT, to, [false; 3], relative);
+            let step = relative_move(AT, to, [false; 3], relative, false);
             assert_eq!((step.look.yaw, step.look.pitch), look, "{to:?}");
             assert_eq!((step.result.yaw, step.result.pitch), result, "{to:?}");
         }
@@ -108,7 +113,7 @@ mod tests {
             position: DVec3::new(1.5, 64.0, 3.5),
             ..AT
         };
-        let step = relative_move(AT, to, [true, true, false], [false; 2]);
+        let step = relative_move(AT, to, [true, true, false], [false; 2], false);
         assert_eq!(step.position, DVec3::new(1.0, 0.0, 3.5));
         assert_eq!(
             step.flags,
@@ -120,5 +125,9 @@ mod tests {
             ]
         );
         assert_eq!(step.result.position, to.position);
+
+        let step = relative_move(AT, to, [true, true, false], [false; 2], true);
+        assert_eq!(step.position, to.position);
+        assert_eq!(step.flags, [PositionFlag::DeltaX, PositionFlag::DeltaY]);
     }
 }

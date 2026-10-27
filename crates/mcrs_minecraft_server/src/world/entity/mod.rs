@@ -37,6 +37,19 @@ impl Plugin for MinecraftEntityPlugin {
     }
 }
 
+/// The id of a player on the wire. It comes from the host anchor, which the player keeps in every
+/// dimension (DIM-CHG-001). Players take the odd ids and every other entity the even ones, so the
+/// ids of two allocators never meet.
+pub fn player_network_id(anchor: Entity) -> i32 {
+    (anchor.index_u32().wrapping_mul(2) | 1) as i32
+}
+
+/// The id on the wire of an entity that is not a player: a new one in each dimension it enters
+/// (DIM-CHG-009).
+pub fn entity_network_id(entity: Entity) -> i32 {
+    entity.index_u32().wrapping_mul(2) as i32
+}
+
 #[derive(Bundle)]
 pub struct EntityBundle {
     pub minecraft_entity: MinecraftEntity,
@@ -105,16 +118,20 @@ pub fn entity_pos_sync(
     // the type system: this observer must only fire on entities that
     // carry both transform components. The actual delta computation
     // moves to the bridge tier where per-player wire state lives.
-    entity_data: Query<&Transform, With<OldTransform>>,
+    entity_data: Query<(&Transform, Option<&HostAnchor>), With<OldTransform>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok(transform) = entity_data.get(event.entity) else {
+    let Ok((transform, anchor)) = entity_data.get(event.entity) else {
         return;
     };
+    let entity_id = anchor.map_or_else(
+        || entity_network_id(event.entity),
+        |anchor| player_network_id(anchor.0),
+    );
     packet_writer.write(to(
         event.player,
         PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
-            entity_id: VarInt(event.entity.index_u32() as i32),
+            entity_id: VarInt(entity_id),
             position: PositionPath::Linear(transform.translation),
             look: Look {
                 yaw: transform.rotation.yaw(),

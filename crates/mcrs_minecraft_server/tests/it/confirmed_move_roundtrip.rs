@@ -178,7 +178,7 @@ fn initiate_move(h: &Harness, source_dim: &mut App, move_id: MoveId) -> Entity {
         .send(FromDim::MoveEntity {
             move_id,
             target: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
-            cause: ArrivalCause::CommandTeleport {
+            cause: ArrivalCause::ExactRespawn {
                 pos: DVec3::new(0.0, 100.0, 0.0),
             },
             payload: MovePayload::Player {
