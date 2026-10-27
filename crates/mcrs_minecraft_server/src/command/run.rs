@@ -117,7 +117,7 @@ pub(crate) fn handle_chat_command(
         return;
     }
     let state = SourceState::of_player(host, label.0, level_of(op_level), transform);
-    let source = state.source(&context, 0);
+    let source = context.source_of(&state);
     let tree = &context.tree;
     let parse = tree.0.parse(line, 0, &source, &mut scratch);
     if let Err(error) = parse.check(&tree.0) {
@@ -212,7 +212,7 @@ pub(crate) fn answer_suggestion_requests(
             continue;
         };
         let state = SourceState::of_player(host, dimension, level_of(op_level), transform);
-        let source = state.source(&context, 0);
+        let source = context.source_of(&state);
         let start = usize::from(text.starts_with('/'));
         let parse = context
             .tree

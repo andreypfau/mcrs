@@ -218,11 +218,16 @@ pub struct CommandContext<'w, 's> {
 impl<'w, 's> CommandContext<'w, 's> {
     /// The source of the call, which reads the world through this context.
     pub fn source(&self, call: &Invocation) -> Source<'_, Self> {
+        self.source_of(&call.source)
+    }
+
+    /// The source of `state`, with the rank of its dimension in the dimension order.
+    pub(crate) fn source_of(&self, state: &SourceState) -> Source<'_, Self> {
         let dimension = self
             .targets
-            .dimension_of(call.source.dimension)
+            .dimension_of(state.dimension)
             .unwrap_or_default();
-        call.source.source(self, dimension)
+        state.source(self, dimension)
     }
 
     /// The dimensions that run and the players of every one of them.
