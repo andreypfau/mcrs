@@ -10,5 +10,6 @@ pub mod item_decorations;
 pub mod language;
 pub mod light_levels;
 pub mod scene;
+pub mod sprite;
 pub mod text;
 pub mod tooltip;

@@ -326,7 +326,13 @@ fn log_messages(
                 };
                 let spans = crate::gui::text::text_spans(text, language, 0xFFFF_FFFF);
                 match atlas.as_deref() {
-                    Some(atlas) => crate::gui::text::wrap(&spans, width, true, &atlas.0.font, rows),
+                    Some(atlas) => crate::gui::text::wrap(
+                        &spans,
+                        width,
+                        crate::gui::text::Wrap::ChatLog,
+                        &atlas.0.font,
+                        rows,
+                    ),
                     None => rows.push(spans),
                 }
             },

@@ -111,16 +111,28 @@ pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
     out
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Wrap {
+    /// Each row after the first starts with one unstyled space (CHAT-LOG-001).
+    ChatLog,
+    /// A space at the wrap point is dropped, and an empty text gives no row
+    /// (`client-tooltip.md`, section 0.3).
+    Tooltip,
+}
+
 /// Breaks spans into rows no wider than `width`: at the last space that fits, or inside a word
-/// that alone is too wide. With `indent`, each row after the first starts with one unstyled
-/// space (CHAT-LOG-001).
-pub fn wrap(spans: &[Span], width: i32, indent: bool, font: &Font, rows: &mut Vec<Vec<Span>>) {
+/// that alone is too wide. A line break starts a new row.
+pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec<Vec<Span>>) {
+    let tooltip = style == Wrap::Tooltip;
+    if tooltip && spans.iter().all(|span| span.text.is_empty()) {
+        return;
+    }
     let mut row: Vec<Span> = Vec::new();
     let mut used = 0;
     let start_row = |row: &mut Vec<Span>, used: &mut i32, rows: &mut Vec<Vec<Span>>| {
         rows.push(std::mem::take(row));
         *used = 0;
-        if indent {
+        if !tooltip {
             row.push(Span::new(" ", 0xFFFF_FFFF));
             *used = font.advance(' ', false);
         }
@@ -133,7 +145,14 @@ pub fn wrap(spans: &[Span], width: i32, indent: bool, font: &Font, rows: &mut Ve
             }
             let advance = font.advance(c, span.bold);
             if used + advance > width && used > 0 {
+                if tooltip && c == ' ' {
+                    start_row(&mut row, &mut used, rows);
+                    continue;
+                }
                 let carried = take_last_word(&mut row);
+                if tooltip {
+                    trim_space(&mut row);
+                }
                 start_row(&mut row, &mut used, rows);
                 for carried in carried {
                     used += font.width(std::slice::from_ref(&carried));
@@ -157,6 +176,17 @@ pub fn wrap(spans: &[Span], width: i32, indent: bool, font: &Font, rows: &mut Ve
         }
     }
     rows.push(row);
+}
+
+fn trim_space(row: &mut Vec<Span>) {
+    if let Some(last) = row.last_mut()
+        && last.text.ends_with(' ')
+    {
+        last.text.pop();
+        if last.text.is_empty() {
+            row.pop();
+        }
+    }
 }
 
 /// Removes the text after the last space of a row, when the row has a space after its start.
@@ -184,6 +214,13 @@ fn take_last_word(row: &mut Vec<Span>) -> Vec<Span> {
         }
     }
     carried
+}
+
+#[cfg(test)]
+pub(crate) fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
+    rows.iter()
+        .map(|row| row.iter().map(|span| span.text.as_str()).collect())
+        .collect()
 }
 
 #[cfg(test)]
@@ -221,12 +258,24 @@ mod tests {
             let spans = [Span::new(format!("{word} {word} {word}"), 0xFFFF_FFFF)];
             let width = font.width(&[Span::new(format!("{word} {word} "), 0)]);
             let mut rows = Vec::new();
-            wrap(&spans, width, true, font, &mut rows);
-            let texts: Vec<String> = rows
-                .iter()
-                .map(|row| row.iter().map(|span| span.text.as_str()).collect())
-                .collect();
-            assert_eq!(texts, ["aaaa aaaa ", " aaaa"]);
+            wrap(&spans, width, Wrap::ChatLog, font, &mut rows);
+            assert_eq!(row_texts(&rows), ["aaaa aaaa ", " aaaa"]);
+        }
+
+        #[test]
+        fn a_tooltip_wraps_without_indent_or_the_space_at_the_break() {
+            let font = corpus_font();
+            let width = font.width(&[Span::new("aaaa aaaa", 0)]);
+            for (text, lines) in [
+                ("", &[][..]),
+                ("aaaa aaaa aaaa", &["aaaa aaaa", "aaaa"]),
+                ("a\nb", &["a", "b"]),
+                ("a\n", &["a", ""]),
+            ] {
+                let mut rows = Vec::new();
+                wrap(&[Span::new(text, 0)], width, Wrap::Tooltip, font, &mut rows);
+                assert_eq!(row_texts(&rows), lines, "{text:?}");
+            }
         }
     }
 }

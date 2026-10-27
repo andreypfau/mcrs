@@ -6,8 +6,8 @@ use mcrs_minecraft_command::parse_error_line;
 
 use super::font::{Font, Hover, Span, draw_centered_text, draw_text, draw_tinted_text, span_at};
 use super::language::Language;
-use super::scene::{GuiAtlas, GuiQuad, GuiScene, GuiSize, sprite};
-use super::text::{text_spans, wrap};
+use super::scene::{GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize, sprite};
+use super::text::{Wrap, text_spans, wrap};
 use super::tooltip::Tooltip;
 use crate::chat::{Chat, ChatInput};
 use crate::screen::Screen;
@@ -84,11 +84,11 @@ pub struct Pointer<'a> {
 impl Pointer<'_> {
     fn tag_tooltip(&mut self, tag: Tag, font: &Font) {
         let language = self.language;
-        self.tooltip.request(self.at, None, false, |rows| {
+        self.tooltip.request(self.at, |rows| {
             // chisle: a `Modified` tooltip ends with the original text in gray (CHAT-LOG-005),
             // which the log does not keep; no message is tagged `Modified` yet.
             let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
-            wrap(&spans, TAG_TOOLTIP_WIDTH, false, font, rows);
+            wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
         });
     }
 }
@@ -200,6 +200,7 @@ pub fn chat_lines<'c>(
 fn hover_lines(
     hover: &Hover,
     gui_width: i32,
+    advanced: bool,
     language: &Language,
     font: &Font,
     rows: &mut Vec<Vec<Span>>,
@@ -207,14 +208,23 @@ fn hover_lines(
     match hover {
         Hover::ShowText { value } => {
             let spans = text_spans(value, language, WHITE);
-            wrap(&spans, (gui_width / 2).max(200), false, font, rows);
+            wrap(&spans, (gui_width / 2).max(200), Wrap::Tooltip, font, rows);
         }
         // chisle: `show_item` shows the item tooltip of the stack, which has no specification
         // yet; it shows nothing until one states its lines.
         Hover::ShowItem(_) => {}
-        // chisle: `show_entity` shows only with "Advanced Tooltips" on, and the client has no
-        // such option; its type line also waits for the spec to name the entity type's key.
-        Hover::ShowEntity { .. } => {}
+        Hover::ShowEntity { id, uuid, name } => {
+            if !advanced {
+                return;
+            }
+            if let Some(name) = name {
+                rows.push(text_spans(name, language, WHITE));
+            }
+            let key = format!("entity.{}.{}", id.namespace(), id.path().replace('/', "."));
+            let kind = vec![Span::new(language.get(&key), WHITE)];
+            rows.push(language.translate("gui.entity_tooltip.type", WHITE, &[kind]));
+            rows.push(vec![Span::new(uuid.to_string(), WHITE)]);
+        }
     }
 }
 
@@ -442,9 +452,9 @@ pub fn draw(
     chat: Res<Chat>,
     input: Res<ChatInput>,
     screen: Res<Screen>,
-    language: Option<Res<Language>>,
-    atlas: Option<Res<GuiAtlas>>,
+    (language, atlas): (Option<Res<Language>>, Option<Res<GuiAtlas>>),
     time: Res<Time<Real>>,
+    config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
 ) {
     let (Some(atlas), Some(language)) = (atlas, language) else {
@@ -491,7 +501,7 @@ pub fn draw(
             .and_then(|rows| row_at(rows.rect, mouse))
             .and_then(|_| list.entries().tooltip(list.selected()));
         if let Some(tip) = tip {
-            scene.tooltip.request(mouse, None, false, |rows| {
+            scene.tooltip.request(mouse, |rows| {
                 rows.push(match tip {
                     SuggestionTooltip::Key(key) => vec![Span::new(language.get(key), WHITE)],
                     SuggestionTooltip::Text(text) => text_spans(text, &language, WHITE),
@@ -502,8 +512,15 @@ pub fn draw(
         hint_lines(size, font, &language, screen, &mut scene.quads);
     }
     if let Some(hover) = hovered {
-        scene.tooltip.request(mouse, None, false, |rows| {
-            hover_lines(hover, size.width, &language, font, rows);
+        scene.tooltip.request(mouse, |rows| {
+            hover_lines(
+                hover,
+                size.width,
+                config.advanced_tooltips,
+                &language,
+                font,
+                rows,
+            );
         });
     }
 }
@@ -512,6 +529,7 @@ pub fn draw(
 mod tests {
     use super::*;
     use crate::gui::font::corpus_font;
+    use crate::gui::text::row_texts;
 
     #[test]
     fn a_row_answers_the_mouse_inside_its_edges_only() {
@@ -533,6 +551,40 @@ mod tests {
 
     mod jar {
         use super::*;
+
+        #[test]
+        fn an_entity_hover_shows_its_type_and_uuid_only_with_advanced_tooltips() {
+            let lines = |json: &str, advanced: bool| {
+                let hover: Hover = serde_json::from_str(json).unwrap();
+                let mut rows = Vec::new();
+                hover_lines(
+                    &hover,
+                    427,
+                    advanced,
+                    Language::corpus(),
+                    corpus_font(),
+                    &mut rows,
+                );
+                row_texts(&rows)
+            };
+            let pig = r#"{"action": "show_entity", "id": "minecraft:pig",
+                "uuid": "00000000-0000-0000-0000-000000000001"}"#;
+            assert_eq!(
+                lines(pig, true),
+                ["Type: Pig", "00000000-0000-0000-0000-000000000001"]
+            );
+            assert!(lines(pig, false).is_empty());
+            let nested = r#"{"action": "show_entity", "id": "example:a/b", "name": "Bob",
+                "uuid": "00000000-0000-0000-0000-000000000002"}"#;
+            assert_eq!(
+                lines(nested, true),
+                [
+                    "Bob",
+                    "Type: entity.example.a.b",
+                    "00000000-0000-0000-0000-000000000002"
+                ]
+            );
+        }
         use mcrs_minecraft_protocol::text::Text;
 
         #[test]
