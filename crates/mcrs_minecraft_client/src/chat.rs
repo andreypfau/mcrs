@@ -685,4 +685,45 @@ mod tests {
             assert_eq!(shown("a\u{1f600}b", hidden), expected, "{hidden:#06b}");
         }
     }
+
+    #[test]
+    fn saves_during_a_write_leave_the_file_with_the_newest_history() {
+        let path =
+            std::env::temp_dir().join(format!("mcrs-command-history-{}.txt", std::process::id()));
+        let mut app = App::new();
+        app.add_plugins(bevy::app::TaskPoolPlugin::default())
+            .insert_resource(CommandHistoryFile {
+                path: path.clone(),
+                writing: None,
+                next: None,
+            })
+            .add_systems(Update, finish_history_write.run_if(history_writing));
+        {
+            let mut file = app.world_mut().resource_mut::<CommandHistoryFile>();
+            for history in ["/a\n", "/a\n/b\n", "/a\n/b\n/c\n"] {
+                file.save(history.to_owned());
+            }
+        }
+        for _ in 0..10_000 {
+            if app
+                .world()
+                .resource::<CommandHistoryFile>()
+                .writing
+                .is_none()
+            {
+                break;
+            }
+            app.update();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(
+            app.world()
+                .resource::<CommandHistoryFile>()
+                .writing
+                .is_none()
+        );
+        let written = std::fs::read_to_string(&path);
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(written.unwrap(), "/a\n/b\n/c\n");
+    }
 }

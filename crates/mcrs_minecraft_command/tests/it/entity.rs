@@ -2,23 +2,27 @@ use crate::{GUEST, OP, read};
 use glam::DVec3;
 use mcrs_command::{LibraryError, Span, StringSpan, SuggestionBuilder, SyntaxError, build_list};
 use mcrs_minecraft_command::argument::entity::Target;
-use mcrs_minecraft_command::{ArgumentError, Candidate, EntityArgument, NoLookup, Source};
+use mcrs_minecraft_command::{
+    ArgumentError, Candidate, CommandSyntaxError, EntityArgument, Source, argument_text,
+};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_protocol::text::{IntoText, Text};
 use uuid::Uuid;
 
-fn kind(input: &str) -> Result<(), ArgumentError> {
-    kind_of(&EntityArgument::ENTITIES, input)
+fn parsed(argument: &EntityArgument, input: &str) -> Result<(), CommandSyntaxError> {
+    read(argument, input, &OP).0.map(drop)
 }
 
-fn kind_of(argument: &EntityArgument, input: &str) -> Result<(), ArgumentError> {
-    read(argument, input, &OP)
-        .0
-        .map(drop)
-        .map_err(|error| match error.kind {
-            mcrs_command::ErrorKind::Argument(kind) => kind,
-            mcrs_command::ErrorKind::Library(kind) => panic!("{input}: {kind:?}"),
-        })
+fn invalid(error: ArgumentError, position: usize) -> Result<(), CommandSyntaxError> {
+    Err(SyntaxError::argument(error, position))
+}
+
+fn key(start: usize, end: usize) -> StringSpan {
+    StringSpan {
+        span: Span::new(start, end),
+        quoted: false,
+    }
 }
 
 #[test]
@@ -46,81 +50,81 @@ fn uuid_text_has_five_hexadecimal_groups() {
         "+1-+2-3-4-5",
         "fffffffff-0-0-0-0",
         "00000000-0000-0000-0000-0000000000000",
+        "abcdefghijklmnopq",
     ] {
-        assert_eq!(kind(input), Err(ArgumentError::EntityInvalid), "{input}");
+        let (value, cursor) = read(&EntityArgument::ENTITIES, input, &OP);
+        assert_eq!(
+            (value.map(drop), cursor),
+            (invalid(ArgumentError::EntityInvalid, 0), 0),
+            "{input}"
+        );
     }
     let (name, _) = read(&EntityArgument::ENTITIES, "0-0-0-0", &OP);
     assert!(matches!(name.unwrap().target, Target::Name(_)));
-    assert_eq!(kind("abcdefghijklmnopq"), Err(ArgumentError::EntityInvalid));
 }
 
 #[test]
 fn options_follow_the_grammar_of_the_brackets() {
-    let unterminated = Err(ArgumentError::OptionsUnterminated);
-    let cases: [(&str, Result<(), ArgumentError>); 9] = [
+    use ArgumentError as E;
+    let nbt = |kind, position| {
+        invalid(
+            E::Nbt(mcrs_minecraft_nbt::snbt::SnbtError { kind, position }),
+            position,
+        )
+    };
+    let cases = [
         ("@e[]", Ok(())),
         ("@e[nbt={a:1},nbt=!{b:[2]}]", Ok(())),
         ("@e[ type = cow ]", Ok(())),
         ("@e[type=cow,]", Ok(())),
-        ("@e[type=cow", unterminated),
-        ("@e[type=cow x]", unterminated),
         ("@e[type=!cow,type=!pig]", Ok(())),
-        ("@e[limit=0]", Err(ArgumentError::LimitTooSmall)),
-        ("@e[distance=..]", Err(ArgumentError::RangeEmpty)),
-    ];
-    for (input, expected) in cases {
-        assert_eq!(kind(input), expected, "{input}");
-    }
-    let any = Span::new(0, 0);
-    let key = StringSpan {
-        span: any,
-        quoted: false,
-    };
-    let by_kind = [
-        ("@e[,type=cow]", ArgumentError::OptionsUnknown(key)),
-        ("@e[sort=up]", ArgumentError::SortIrreversible(any)),
+        ("@e[y_rotation=350..10]", Ok(())),
+        ("@e[type=cow", invalid(E::OptionsUnterminated, 11)),
+        ("@e[type=cow x]", invalid(E::OptionsUnterminated, 12)),
+        ("@e[,type=cow]", invalid(E::OptionsUnknown(key(3, 3)), 3)),
+        (
+            "@e[sort=up]",
+            invalid(E::SortIrreversible(Span::new(8, 10)), 8),
+        ),
         (
             "@e[type=cow,type=pig]",
-            ArgumentError::OptionsInapplicable(key),
+            invalid(E::OptionsInapplicable(key(12, 16)), 12),
         ),
         (
             "@e[type=!cow,type=pig]",
-            ArgumentError::OptionsInapplicable(key),
+            invalid(E::OptionsInapplicable(key(13, 17)), 18),
         ),
         (
             "@e[type=#a,type=!#a]",
-            ArgumentError::OptionsInapplicable(key),
+            invalid(E::OptionsInapplicable(key(11, 15)), 16),
         ),
         (
             "@e[limit=1,limit=2]",
-            ArgumentError::OptionsInapplicable(key),
+            invalid(E::OptionsInapplicable(key(11, 16)), 11),
         ),
-        ("@s[limit=1]", ArgumentError::OptionsInapplicable(key)),
-        ("@e[type=foo]", ArgumentError::TypeInvalid(any)),
+        ("@s[limit=1]", invalid(E::OptionsInapplicable(key(3, 8)), 3)),
+        ("@e[type=foo]", invalid(E::TypeInvalid(Span::new(8, 11)), 8)),
         (
             "@e[nbt=5]",
-            ArgumentError::Nbt(mcrs_minecraft_nbt::snbt::SnbtError {
-                kind: mcrs_minecraft_nbt::snbt::SnbtErrorKind::ExpectedCompound,
-                position: 0,
-            }),
+            nbt(mcrs_minecraft_nbt::snbt::SnbtErrorKind::ExpectedCompound, 8),
+        ),
+        ("@e[limit=0]", invalid(E::LimitTooSmall, 9)),
+        ("@e[distance=..]", invalid(E::RangeEmpty, 12)),
+        ("@e[distance=5..1]", invalid(E::RangeSwapped, 12)),
+        ("@x", invalid(E::SelectorUnknown('x'), 1)),
+        ("@", invalid(E::SelectorMissing, 1)),
+        (
+            "@e[x=a]",
+            Err(SyntaxError::library(LibraryError::ExpectedDouble, 5)),
         ),
     ];
-    for (input, expected) in by_kind {
+    for (input, expected) in cases {
         assert_eq!(
-            kind(input).map_err(|error| core::mem::discriminant(&error)),
-            Err(core::mem::discriminant(&expected)),
+            parsed(&EntityArgument::ENTITIES, input),
+            expected,
             "{input}"
         );
     }
-    assert_eq!(kind("@e[distance=5..1]"), Err(ArgumentError::RangeSwapped));
-    assert_eq!(kind("@e[y_rotation=350..10]"), Ok(()));
-    assert_eq!(kind("@x"), Err(ArgumentError::SelectorUnknown('x')));
-    assert_eq!(kind("@"), Err(ArgumentError::SelectorMissing));
-    let (error, _) = read(&EntityArgument::ENTITIES, "@e[x=a]", &OP);
-    assert_eq!(
-        error.unwrap_err(),
-        SyntaxError::library(LibraryError::ExpectedDouble, 5)
-    );
 }
 
 #[test]
@@ -129,29 +133,29 @@ fn the_argument_form_limits_the_selector() {
         (
             EntityArgument::ONE_ENTITY,
             "@e",
-            Err(ArgumentError::EntityTooMany),
+            invalid(ArgumentError::EntityTooMany, 0),
         ),
         (
             EntityArgument::ONE_PLAYER,
             "@a",
-            Err(ArgumentError::PlayerTooMany),
+            invalid(ArgumentError::PlayerTooMany, 0),
         ),
         (
             EntityArgument::PLAYERS,
             "@e",
-            Err(ArgumentError::PlayerEntities),
+            invalid(ArgumentError::PlayerEntities, 0),
         ),
         (
             EntityArgument::PLAYERS,
             "0-0-0-0-1",
-            Err(ArgumentError::PlayerEntities),
+            invalid(ArgumentError::PlayerEntities, 0),
         ),
         (EntityArgument::PLAYERS, "@e[type=player]", Ok(())),
         (EntityArgument::PLAYERS, "@s", Ok(())),
         (EntityArgument::ONE_ENTITY, "@e[limit=1]", Ok(())),
     ];
     for (argument, input, expected) in cases {
-        assert_eq!(kind_of(&argument, input), expected, "{input}");
+        assert_eq!(parsed(&argument, input), expected, "{input}");
     }
     let (value, _) = read(&EntityArgument::ENTITIES, "@a", &GUEST);
     assert_eq!(
@@ -161,7 +165,7 @@ fn the_argument_form_limits_the_selector() {
     assert!(read(&EntityArgument::ENTITIES, "Steve", &GUEST).0.is_ok());
 }
 
-struct Mob {
+pub(crate) struct Mob {
     uuid: Uuid,
     name: &'static str,
     entity_type: EntityType,
@@ -218,7 +222,7 @@ impl Candidate for Mob {
     }
 }
 
-fn world() -> Vec<Mob> {
+pub(crate) fn world() -> Vec<Mob> {
     let player = |n: u128, name, x, mode, dimension| Mob {
         uuid: Uuid::from_u128(n),
         name,
@@ -242,7 +246,15 @@ fn world() -> Vec<Mob> {
     ]
 }
 
-fn names(input: &str) -> Vec<&'static str> {
+#[derive(Clone, Copy)]
+enum Order {
+    Exact,
+    Unordered,
+    /// Each candidate of an earlier dimension first; unordered inside one dimension.
+    ByDimension,
+}
+
+fn names(input: &str, order: Order) -> Vec<&'static str> {
     let world = world();
     let source = Source {
         position: DVec3::new(0.0, 64.0, 0.0),
@@ -254,59 +266,96 @@ fn names(input: &str) -> Vec<&'static str> {
         .unwrap()
         .select(&source, world.first(), world.iter(), &mut |_| 0, &mut out)
         .unwrap();
-    let mut names: Vec<_> = out.iter().map(|mob| mob.name).collect();
-    if !input.contains("sort") && !input.contains("limit") && !input.starts_with("@p") {
-        names.sort_unstable();
+    match order {
+        Order::Exact => {}
+        Order::Unordered => out.sort_unstable_by_key(|mob| mob.name),
+        Order::ByDimension => {
+            assert!(
+                out.is_sorted_by_key(|mob| mob.dimension),
+                "{input}: the dimensions are out of order"
+            );
+            out.sort_unstable_by_key(|mob| (mob.dimension, mob.name));
+        }
     }
-    names
+    out.iter().map(|mob| mob.name).collect()
 }
 
 #[test]
 fn a_search_applies_the_kind_and_the_options() {
-    let cases: [(&str, &[&str]); 14] = [
-        ("@a", &["Alex", "Far", "Steve"]),
-        ("@e[limit=3]", &["Steve", "Alex", "Pig"]),
-        ("@a[limit=3]", &["Steve", "Alex", "Far"]),
-        ("@a[distance=0..]", &["Alex", "Steve"]),
-        ("@e[sort=nearest,x=1,limit=2]", &["Pig", "Alex"]),
-        ("@e", &["Alex", "Far", "Pig", "Steve"]),
-        ("@p", &["Far"]),
-        ("@e[type=!player]", &["Pig"]),
-        ("@a[gamemode=!creative]", &["Alex", "Far"]),
-        ("@e[distance=..5]", &["Alex", "Pig"]),
-        ("@e[sort=furthest,limit=2]", &["Steve", "Alex"]),
-        ("@s", &["Steve"]),
-        ("alex", &["Alex"]),
-        ("@a[x=2,y=64,z=0,dx=1,dy=0,dz=0]", &["Alex"]),
+    use Order::*;
+    let cases: [(&str, Order, &[&str]); 14] = [
+        ("@a", Unordered, &["Alex", "Far", "Steve"]),
+        ("@e[limit=3]", ByDimension, &["Alex", "Pig", "Steve"]),
+        ("@a[limit=3]", Unordered, &["Alex", "Far", "Steve"]),
+        ("@a[distance=0..]", Unordered, &["Alex", "Steve"]),
+        ("@e[sort=nearest,x=1,limit=2]", Exact, &["Pig", "Alex"]),
+        ("@e", ByDimension, &["Alex", "Pig", "Steve", "Far"]),
+        ("@p", Exact, &["Far"]),
+        ("@e[type=!player]", Exact, &["Pig"]),
+        ("@a[gamemode=!creative]", Unordered, &["Alex", "Far"]),
+        ("@e[distance=..5]", Unordered, &["Alex", "Pig"]),
+        ("@e[sort=furthest,limit=2]", Exact, &["Steve", "Alex"]),
+        ("@s", Exact, &["Steve"]),
+        ("alex", Exact, &["Alex"]),
+        ("@a[x=2,y=64,z=0,dx=1,dy=0,dz=0]", Exact, &["Alex"]),
     ];
-    for (input, expected) in cases {
-        assert_eq!(names(input), expected, "{input}");
+    for (input, order, expected) in cases {
+        assert_eq!(names(input, order), expected, "{input}");
     }
-    let (selector, _) = read(&EntityArgument::ENTITIES, "@e[predicate=x]", &OP);
-    let world = world();
-    let mut out = Vec::new();
-    let found =
-        selector
-            .unwrap()
-            .select::<Mob, NoLookup>(&OP, None, world.iter(), &mut |_| 0, &mut out);
-    assert!(found.is_err());
 }
 
-fn suggestions(input: &str) -> Vec<String> {
+#[test]
+fn a_search_fails_for_a_missing_predicate_or_a_source_without_selectors() {
+    let world = world();
+    let mut out = world.iter().take(1).collect();
+    let (selector, _) = read(&EntityArgument::ENTITIES, "@e[predicate=x]", &OP);
+    let error = selector
+        .unwrap()
+        .select(&OP, None, world.iter(), &mut |_| 0, &mut out)
+        .unwrap_err();
+    assert_eq!(
+        argument_text("@e[predicate=x]", error),
+        Text::translate(
+            "argument.resource.not_found",
+            vec!["minecraft:x".into_text(), "minecraft:predicate".into_text()],
+        )
+    );
+    assert!(out.is_empty());
+
+    let (selector, _) = read(&EntityArgument::ENTITIES, "@a", &OP);
+    let found = selector
+        .unwrap()
+        .select(&GUEST, None, world.iter(), &mut |_| 0, &mut out);
+    assert_eq!(found, Err(ArgumentError::SelectorNotAllowed));
+    let (selector, _) = read(&EntityArgument::ENTITIES, "steve", &OP);
+    let found = selector
+        .unwrap()
+        .select(&GUEST, None, world.iter(), &mut |_| 0, &mut out);
+    assert_eq!(found, Ok(()));
+    assert_eq!(
+        out.iter().map(|mob| mob.name).collect::<Vec<_>>(),
+        ["Steve"]
+    );
+}
+
+fn suggestions(input: &str) -> (Span, Vec<String>) {
     let mut out = Vec::new();
     EntityArgument::ENTITIES.suggest(&OP, &mut SuggestionBuilder::new(input, 0, &mut out));
-    build_list(input, &mut out)
+    let list = build_list(input, &mut out);
+    let texts = list
         .iter()
         .map(|(text, _)| text.chars().collect())
-        .collect()
+        .collect();
+    (list.span, texts)
 }
 
 #[test]
 fn suggestions_follow_the_place_where_the_read_stopped() {
-    let cases: [(&str, &[&str]); 9] = [
-        ("", &["@a", "@e", "@n", "@p", "@r", "@s"]),
+    let cases: [(&str, usize, &[&str]); 8] = [
+        ("", 0, &["@a", "@e", "@n", "@p", "@r", "@s"]),
         (
             "@a[gamemode=",
+            12,
             &[
                 "!adventure",
                 "!creative",
@@ -318,23 +367,45 @@ fn suggestions_follow_the_place_where_the_read_stopped() {
                 "survival",
             ],
         ),
-        ("@a[gamemode=!c", &["!creative"]),
+        ("@a[gamemode=!c", 12, &["!creative"]),
         (
             "@a[gamemode=!survival,gamemode=",
+            31,
             &["!adventure", "!creative", "!spectator", "!survival"],
         ),
-        ("@e[type=armadi", &["minecraft:armadillo"]),
-        ("@e[type=ARMADI", &["minecraft:armadillo"]),
-        ("@e[type=!armadi", &["!minecraft:armadillo"]),
-        ("@e[type=!cow,type=armadi", &[]),
-        ("@e[type=!cow,type=!armadi", &["!minecraft:armadillo"]),
+        ("@e[type=armadi", 8, &["minecraft:armadillo"]),
+        ("@e[type=ARMADI", 8, &["minecraft:armadillo"]),
+        ("@e[type=!armadi", 8, &["!minecraft:armadillo"]),
+        ("@e[type=!cow,type=!armadi", 18, &["!minecraft:armadillo"]),
     ];
-    for (input, expected) in cases {
-        assert_eq!(suggestions(input), expected, "{input}");
+    for (input, start, expected) in cases {
+        assert_eq!(
+            suggestions(input),
+            (
+                Span::new(start, input.len()),
+                expected.iter().map(|text| text.to_string()).collect()
+            ),
+            "{input}"
+        );
     }
-    for input in ["@e[", "@e[ ", "@e[type=cow,"] {
-        let keys = suggestions(input);
-        assert!(keys.iter().any(|key| key == "limit="), "{input}: {keys:?}");
-        assert!(!keys.iter().any(|key| key == "]"), "{input}: {keys:?}");
+    assert_eq!(
+        suggestions("@e[type=!cow,type=armadi").1,
+        Vec::<String>::new()
+    );
+    let keys: [(&str, usize, &[&str], &[&str]); 4] = [
+        ("@e[", 3, &["limit=", "sort=", "type="], &["]"]),
+        ("@e[ ", 4, &["limit=", "type="], &["]"]),
+        ("@e[type=cow,", 12, &["limit=", "tag="], &["]", "type="]),
+        ("@s[", 3, &["type=", "tag="], &["]", "limit=", "sort="]),
+    ];
+    for (input, start, present, absent) in keys {
+        let (span, keys) = suggestions(input);
+        assert_eq!(span, Span::new(start, input.len()), "{input}");
+        for key in present {
+            assert!(keys.iter().any(|k| k == key), "{input}: {key} in {keys:?}");
+        }
+        for key in absent {
+            assert!(!keys.iter().any(|k| k == key), "{input}: {key} in {keys:?}");
+        }
     }
 }

@@ -307,17 +307,46 @@ fn abilities_and_look_at_follow_their_field_layouts() {
     };
     let bytes = crate::common::hex("003d4ccccd3dcccccd");
     assert_eq!(encoded(&survival), bytes);
-    let spectator = ClientboundPlayerAbilities {
-        invulnerable: true,
-        flying: true,
-        may_fly: true,
-        ..survival
-    };
-    assert_eq!(encoded(&spectator)[0], 0x07);
-    assert_eq!(
-        ClientboundPlayerAbilities::decode(&mut &encoded(&spectator)[..]).unwrap(),
-        spectator
-    );
+    let single_flags = [
+        (
+            0x01,
+            ClientboundPlayerAbilities {
+                invulnerable: true,
+                ..survival
+            },
+        ),
+        (
+            0x02,
+            ClientboundPlayerAbilities {
+                flying: true,
+                ..survival
+            },
+        ),
+        (
+            0x04,
+            ClientboundPlayerAbilities {
+                may_fly: true,
+                ..survival
+            },
+        ),
+        (
+            0x08,
+            ClientboundPlayerAbilities {
+                instant_build: true,
+                ..survival
+            },
+        ),
+    ];
+    for (flag, abilities) in single_flags {
+        let mut bytes = bytes.clone();
+        bytes[0] = flag;
+        assert_eq!(encoded(&abilities), bytes, "{flag:#04x}");
+        assert_eq!(
+            ClientboundPlayerAbilities::decode(&mut &bytes[..]).unwrap(),
+            abilities,
+            "{flag:#04x}"
+        );
+    }
 
     let at_cow = ClientboundPlayerLookAt {
         from: LookAnchor::Feet,

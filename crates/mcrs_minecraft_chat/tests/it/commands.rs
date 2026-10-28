@@ -257,11 +257,11 @@ fn tab_inserts_each_entry_in_turn_and_shows_its_rest_as_ghost_text() {
         .iter()
         .map(str::to_owned)
         .collect();
-    assert_eq!(entries.len(), 2);
+    assert_eq!(entries, ["spectator", "survival"]);
     screen.key(Key::Tab { back: false }, &mut history, &cx);
-    assert_eq!(screen.input(), format!("/gamemode {}", entries[0]));
+    assert_eq!(screen.input(), "/gamemode spectator");
     screen.key(Key::Tab { back: false }, &mut history, &cx);
-    assert_eq!(screen.input(), format!("/gamemode {}", entries[1]));
+    assert_eq!(screen.input(), "/gamemode survival");
     assert_eq!(
         screen.commands.hints(),
         [],

@@ -253,29 +253,37 @@ mod tests {
         }
 
         #[test]
-        fn a_long_line_breaks_after_a_space_and_continues_indented() {
+        fn a_text_wraps_at_the_last_space_that_fits_or_inside_a_word_too_wide() {
             let font = corpus_font();
-            let word = "aaaa";
-            let spans = [Span::new(format!("{word} {word} {word}"), 0xFFFF_FFFF)];
-            let width = font.width(&[Span::new(format!("{word} {word} "), 0)]);
-            let mut rows = Vec::new();
-            wrap(&spans, width, Wrap::ChatLog, font, &mut rows);
-            assert_eq!(row_texts(&rows), ["aaaa aaaa ", " aaaa"]);
-        }
-
-        #[test]
-        fn a_tooltip_wraps_without_indent_or_the_space_at_the_break() {
-            let font = corpus_font();
-            let width = font.width(&[Span::new("aaaa aaaa", 0)]);
-            for (text, lines) in [
-                ("", &[][..]),
-                ("aaaa aaaa aaaa", &["aaaa aaaa", "aaaa"]),
-                ("a\nb", &["a", "b"]),
-                ("a\n", &["a", ""]),
-            ] {
+            let cases: [(Wrap, &str, &str, &[&str]); 6] = [
+                (
+                    Wrap::ChatLog,
+                    "aaaa aaaa ",
+                    "aaaa aaaa aaaa",
+                    &["aaaa aaaa ", " aaaa"],
+                ),
+                (Wrap::Tooltip, "aaaa aaaa", "", &[]),
+                (
+                    Wrap::Tooltip,
+                    "aaaa aaaa",
+                    "aaaa aaaa aaaa",
+                    &["aaaa aaaa", "aaaa"],
+                ),
+                (Wrap::Tooltip, "aaaa aaaa", "a\nb", &["a", "b"]),
+                (Wrap::Tooltip, "aaaa aaaa", "a\n", &["a", ""]),
+                (Wrap::Tooltip, "aaaaa", "aaaaaaaa", &["aaaaa", "aaa"]),
+            ];
+            for (style, fits, text, lines) in cases {
+                let width = font.width(&[Span::new(fits, 0)]);
                 let mut rows = Vec::new();
-                wrap(&[Span::new(text, 0)], width, Wrap::Tooltip, font, &mut rows);
-                assert_eq!(row_texts(&rows), lines, "{text:?}");
+                wrap(
+                    &[Span::new(text, 0xFFFF_FFFF)],
+                    width,
+                    style,
+                    font,
+                    &mut rows,
+                );
+                assert_eq!(row_texts(&rows), lines, "{text:?} in {fits:?}");
             }
         }
     }

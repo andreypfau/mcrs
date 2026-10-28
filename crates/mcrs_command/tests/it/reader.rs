@@ -105,9 +105,89 @@ fn doubles_follow_the_decimal_grammar_and_stay_finite() {
 }
 
 #[test]
-fn a_float_rounds_once_from_the_decimal_text() {
+fn longs_follow_the_number_token_grammar_with_the_64_bit_range() {
+    let cases: [(&str, Result<i64>, usize); 4] = [
+        ("9223372036854775807", Ok(i64::MAX), 19),
+        ("-9223372036854775808 ", Ok(i64::MIN), 20),
+        (
+            "9223372036854775808",
+            Err(SyntaxError::library(
+                LibraryError::InvalidLong(Span::new(0, 19)),
+                0,
+            )),
+            0,
+        ),
+        (
+            "x",
+            Err(SyntaxError::library(LibraryError::ExpectedLong, 0)),
+            0,
+        ),
+    ];
+    for (text, expected, cursor) in cases {
+        let mut reader = Reader::new(text);
+        assert_eq!(reader.read_long(), expected, "{text}");
+        assert_eq!(reader.cursor(), cursor, "{text}");
+    }
+}
+
+#[test]
+fn a_float_rounds_once_from_the_decimal_text_and_stays_finite() {
     let mut reader = Reader::new("1.00000017881393432617187499");
     assert_eq!(reader.read_float::<Infallible>(), Ok(1.000_000_1_f32));
+
+    let above_max = format!("1{}", "0".repeat(39));
+    let cases: [(&str, Result<f32>, usize); 3] = [
+        (
+            &above_max,
+            Err(SyntaxError::library(
+                LibraryError::InvalidFloat(Span::new(0, 40)),
+                0,
+            )),
+            0,
+        ),
+        (
+            "1.2.3",
+            Err(SyntaxError::library(
+                LibraryError::InvalidFloat(Span::new(0, 5)),
+                0,
+            )),
+            0,
+        ),
+        (
+            "e",
+            Err(SyntaxError::library(LibraryError::ExpectedFloat, 0)),
+            0,
+        ),
+    ];
+    for (text, expected, cursor) in cases {
+        let mut reader = Reader::new(text);
+        assert_eq!(reader.read_float(), expected, "{text}");
+        assert_eq!(reader.cursor(), cursor, "{text}");
+    }
+}
+
+#[test]
+fn an_expected_symbol_is_skipped_or_fails_at_the_cursor() {
+    let cases: [(&str, usize, Result<()>, usize); 3] = [
+        ("a[", 1, Ok(()), 2),
+        (
+            "a]",
+            1,
+            Err(SyntaxError::library(LibraryError::ExpectedSymbol('['), 1)),
+            1,
+        ),
+        (
+            "a",
+            1,
+            Err(SyntaxError::library(LibraryError::ExpectedSymbol('['), 1)),
+            1,
+        ),
+    ];
+    for (text, start, expected, cursor) in cases {
+        let mut reader = Reader::at(text, start);
+        assert_eq!(reader.expect('['), expected, "{text}");
+        assert_eq!(reader.cursor(), cursor, "{text}");
+    }
 }
 
 #[test]

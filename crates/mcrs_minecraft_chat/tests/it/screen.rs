@@ -6,13 +6,17 @@ use mcrs_minecraft_chat::{
 #[test]
 fn normalization_trims_and_collapses_whitespace() {
     let long = "a".repeat(300);
+    let accented = "\u{e9}".repeat(300);
+    let emoji = "\u{1f600}".repeat(200);
     for (input, sent) in [
-        ("  a   b  ", "a b"),
-        ("a\tb\u{3000}c", "a b c"),
-        ("a\u{a0} b", "a  b"),
-        ("\u{a0}hi\u{a0}", "hi"),
-        ("\u{1}a\u{1f}", "a"),
-        (long.as_str(), &long[..256]),
+        ("  a   b  ", "a b".to_owned()),
+        ("a\tb\u{3000}c", "a b c".to_owned()),
+        ("a\u{a0} b", "a  b".to_owned()),
+        ("\u{a0}hi\u{a0}", "hi".to_owned()),
+        ("\u{1}a\u{1f}", "a".to_owned()),
+        (long.as_str(), "a".repeat(256)),
+        (accented.as_str(), "\u{e9}".repeat(256)),
+        (emoji.as_str(), "\u{1f600}".repeat(128)),
     ] {
         let mut out = String::new();
         normalize(input, &mut out);
@@ -71,6 +75,28 @@ fn commands_outlive_a_disconnect_and_chat_text_does_not() {
         ["/old", "/help"]
     );
     assert_eq!(history.command_file(), "/old\n/help\n");
+}
+
+#[test]
+fn the_history_keeps_the_last_100_inputs_and_the_last_50_commands() {
+    let mut history = History::default();
+    for i in 0..=100 {
+        history.add(&format!("m{i}"));
+    }
+    assert_eq!(
+        (history.len(), history.get(0), history.get(99)),
+        (100, Some("m1"), Some("m100"))
+    );
+
+    let commands: Vec<String> = (0..=50).map(|i| format!("/c{i}")).collect();
+    let last_50: String = commands[1..].iter().map(|c| format!("{c}\n")).collect();
+    let mut history = History::default();
+    for command in &commands {
+        assert!(history.add(command));
+    }
+    assert_eq!(history.command_file(), last_50);
+    let all_51: String = commands.iter().map(|c| format!("{c}\n")).collect();
+    assert_eq!(History::from_command_file(&all_51).command_file(), last_50);
 }
 
 #[test]

@@ -310,60 +310,146 @@ mod tests {
         }
     }
 
+    type Quad = ([i32; 4], [i32; 4]);
+
+    fn sorted_quads(sprite: GuiSprite, target: IRect) -> Vec<Quad> {
+        let corners = |r: IRect| [r.min.x, r.min.y, r.max.x, r.max.y];
+        let mut out = Vec::new();
+        sprite.draw(target, &mut out);
+        let mut quads: Vec<Quad> = out
+            .into_iter()
+            .filter_map(|quad| match quad {
+                GuiQuad::Texels { rect, texels, .. } => {
+                    Some((corners(rect), corners(texels.as_irect())))
+                }
+                _ => None,
+            })
+            .collect();
+        quads.sort();
+        quads
+    }
+
     #[test]
-    fn tiles_cut_at_the_far_edge_and_nine_slice_corners_keep_their_size() {
-        let rects = |sprite: GuiSprite, target: IRect| {
-            let mut out = Vec::new();
-            sprite.draw(target, &mut out);
-            out.into_iter()
-                .filter_map(|quad| match quad {
-                    GuiQuad::Texels { rect, texels, .. } => Some((rect, texels.as_irect())),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        };
-        let tile = GuiSprite::new(
-            IRect::new(0, 0, 16, 16),
-            Scaling::Tile {
-                size: IVec2::splat(16),
-            },
-        );
-        assert_eq!(
-            rects(tile, IRect::new(0, 0, 40, 16)),
-            [
-                (IRect::new(0, 0, 16, 16), IRect::new(0, 0, 16, 16)),
-                (IRect::new(16, 0, 32, 16), IRect::new(0, 0, 16, 16)),
-                (IRect::new(32, 0, 40, 16), IRect::new(0, 0, 8, 16)),
-            ]
-        );
-        let nine = GuiSprite::new(
-            IRect::new(0, 0, 10, 10),
-            Scaling::NineSlice {
-                size: IVec2::splat(10),
-                border: Border {
-                    left: 2,
-                    top: 3,
-                    right: 4,
-                    bottom: 1,
+    fn a_tile_is_cut_at_the_far_edge_and_an_empty_target_draws_nothing() {
+        let cases: [(&str, GuiSprite, IRect, Vec<Quad>); 2] = [
+            (
+                "tile cut at the right edge",
+                GuiSprite::new(
+                    IRect::new(0, 0, 16, 16),
+                    Scaling::Tile {
+                        size: IVec2::splat(16),
+                    },
+                ),
+                IRect::new(0, 0, 40, 16),
+                vec![
+                    ([0, 0, 16, 16], [0, 0, 16, 16]),
+                    ([16, 0, 32, 16], [0, 0, 16, 16]),
+                    ([32, 0, 40, 16], [0, 0, 8, 16]),
+                ],
+            ),
+            (
+                "stretch into a target of width 0",
+                GuiSprite::new(IRect::new(0, 0, 16, 16), Scaling::Stretch),
+                IRect::new(5, 5, 5, 40),
+                vec![],
+            ),
+        ];
+        for (name, sprite, target, mut expected) in cases {
+            expected.sort();
+            assert_eq!(sorted_quads(sprite, target), expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn a_nine_slice_fills_the_target_with_these_quads() {
+        let nine = |atlas: IRect, border, stretch_inner| {
+            GuiSprite::new(
+                atlas,
+                Scaling::NineSlice {
+                    size: IVec2::splat(10),
+                    border,
+                    stretch_inner,
                 },
-                stretch_inner: true,
-            },
-        );
-        assert_eq!(
-            rects(nine, IRect::new(100, 100, 120, 106)),
-            [
-                (IRect::new(100, 100, 102, 103), IRect::new(0, 0, 2, 3)),
-                (IRect::new(100, 103, 102, 105), IRect::new(0, 3, 2, 9)),
-                (IRect::new(100, 105, 102, 106), IRect::new(0, 9, 2, 10)),
-                (IRect::new(102, 100, 116, 103), IRect::new(2, 0, 6, 3)),
-                (IRect::new(102, 103, 116, 105), IRect::new(2, 3, 6, 9)),
-                (IRect::new(102, 105, 116, 106), IRect::new(2, 9, 6, 10)),
-                (IRect::new(116, 100, 120, 103), IRect::new(6, 0, 10, 3)),
-                (IRect::new(116, 103, 120, 105), IRect::new(6, 3, 10, 9)),
-                (IRect::new(116, 105, 120, 106), IRect::new(6, 9, 10, 10)),
-            ]
-        );
-        let stretch = GuiSprite::new(IRect::new(0, 0, 16, 16), Scaling::Stretch);
-        assert!(rects(stretch, IRect::new(5, 5, 5, 40)).is_empty());
+            )
+        };
+        let uneven = Border {
+            left: 2,
+            top: 3,
+            right: 4,
+            bottom: 1,
+        };
+        let cases: [(&str, GuiSprite, IRect, Vec<Quad>); 4] = [
+            (
+                "nine slice, inner parts stretch",
+                nine(IRect::new(0, 0, 10, 10), uneven, true),
+                IRect::new(100, 100, 120, 106),
+                vec![
+                    ([100, 100, 102, 103], [0, 0, 2, 3]),
+                    ([100, 103, 102, 105], [0, 3, 2, 9]),
+                    ([100, 105, 102, 106], [0, 9, 2, 10]),
+                    ([102, 100, 116, 103], [2, 0, 6, 3]),
+                    ([102, 103, 116, 105], [2, 3, 6, 9]),
+                    ([102, 105, 116, 106], [2, 9, 6, 10]),
+                    ([116, 100, 120, 103], [6, 0, 10, 3]),
+                    ([116, 103, 120, 105], [6, 3, 10, 9]),
+                    ([116, 105, 120, 106], [6, 9, 10, 10]),
+                ],
+            ),
+            (
+                "nine slice at an atlas offset",
+                nine(IRect::new(32, 48, 42, 58), uneven, true),
+                IRect::new(0, 0, 10, 10),
+                vec![
+                    ([0, 0, 2, 3], [32, 48, 34, 51]),
+                    ([0, 3, 2, 9], [32, 51, 34, 57]),
+                    ([0, 9, 2, 10], [32, 57, 34, 58]),
+                    ([2, 0, 6, 3], [34, 48, 38, 51]),
+                    ([2, 3, 6, 9], [34, 51, 38, 57]),
+                    ([2, 9, 6, 10], [34, 57, 38, 58]),
+                    ([6, 0, 10, 3], [38, 48, 42, 51]),
+                    ([6, 3, 10, 9], [38, 51, 42, 57]),
+                    ([6, 9, 10, 10], [38, 57, 42, 58]),
+                ],
+            ),
+            (
+                "nine slice borders reduced to half the target",
+                nine(IRect::new(0, 0, 10, 10), uneven, true),
+                IRect::new(0, 0, 5, 3),
+                vec![
+                    ([0, 0, 2, 1], [0, 0, 2, 1]),
+                    ([0, 1, 2, 2], [0, 1, 2, 9]),
+                    ([0, 2, 2, 3], [0, 9, 2, 10]),
+                    ([2, 0, 3, 1], [2, 0, 8, 1]),
+                    ([2, 1, 3, 2], [2, 1, 8, 9]),
+                    ([2, 2, 3, 3], [2, 9, 8, 10]),
+                    ([3, 0, 5, 1], [8, 0, 10, 1]),
+                    ([3, 1, 5, 2], [8, 1, 10, 9]),
+                    ([3, 2, 5, 3], [8, 9, 10, 10]),
+                ],
+            ),
+            (
+                "nine slice, inner parts tile from their top left corner",
+                nine(IRect::new(0, 0, 10, 10), Border::splat(2), false),
+                IRect::new(0, 0, 15, 10),
+                vec![
+                    ([0, 0, 2, 2], [0, 0, 2, 2]),
+                    ([0, 2, 2, 8], [0, 2, 2, 8]),
+                    ([0, 8, 2, 10], [0, 8, 2, 10]),
+                    ([2, 0, 8, 2], [2, 0, 8, 2]),
+                    ([2, 2, 8, 8], [2, 2, 8, 8]),
+                    ([2, 8, 8, 10], [2, 8, 8, 10]),
+                    ([8, 0, 13, 2], [2, 0, 7, 2]),
+                    ([8, 2, 13, 8], [2, 2, 7, 8]),
+                    ([8, 8, 13, 10], [2, 8, 7, 10]),
+                    ([13, 0, 15, 2], [8, 0, 10, 2]),
+                    ([13, 2, 15, 8], [8, 2, 10, 8]),
+                    ([13, 8, 15, 10], [8, 8, 10, 10]),
+                ],
+            ),
+        ];
+        for (name, sprite, target, mut expected) in cases {
+            expected.sort();
+            assert_eq!(sorted_quads(sprite, target), expected, "{name}");
+        }
     }
 }

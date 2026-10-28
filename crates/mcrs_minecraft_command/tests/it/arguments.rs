@@ -8,7 +8,7 @@ use mcrs_minecraft_command::{
     block_floor, error_feedback, rotation_toward,
 };
 use mcrs_minecraft_protocol::GameMode;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 
 fn absolute(value: f64) -> WorldCoordinate {
     WorldCoordinate {
@@ -25,61 +25,64 @@ fn relative(value: f64) -> WorldCoordinate {
 }
 
 #[test]
-fn vec3_reads_world_and_local_coordinates() {
-    let vec3 = Vec3Argument;
+fn vec3_and_block_pos_read_world_and_local_coordinates() {
+    let world = |x, y, z| Ok(Coordinates::World([x, y, z]));
+    let local = |x, y, z| Ok(Coordinates::Local([x, y, z]));
+    let argument = |error, at| Err(SyntaxError::argument(error, at));
+    let library = |error, at| Err(SyntaxError::library(error, at));
+    let mixed = |at| argument(ArgumentError::PosMixed, at);
     let cases = [
         (
             "1 2 3",
-            Ok(Coordinates::World([
-                absolute(1.5),
-                absolute(2.0),
-                absolute(3.5),
-            ])),
+            world(absolute(1.5), absolute(2.0), absolute(3.5)),
+            world(absolute(1.0), absolute(2.0), absolute(3.0)),
         ),
         (
             "5.0 -0 -0",
-            Ok(Coordinates::World([
-                absolute(5.0),
-                absolute(-0.0),
-                absolute(0.5),
-            ])),
+            world(absolute(5.0), absolute(-0.0), absolute(0.5)),
+            library(LibraryError::InvalidInt(Span::new(0, 3)), 0),
+        ),
+        (
+            "-0 ~ ~",
+            world(absolute(0.5), relative(0.0), relative(0.0)),
+            world(absolute(0.0), relative(0.0), relative(0.0)),
         ),
         (
             "~ ~1 ~-2.5",
-            Ok(Coordinates::World([
-                relative(0.0),
-                relative(1.0),
-                relative(-2.5),
-            ])),
+            world(relative(0.0), relative(1.0), relative(-2.5)),
+            world(relative(0.0), relative(1.0), relative(-2.5)),
         ),
-        ("^ ^ ^5", Ok(Coordinates::Local([0.0, 0.0, 5.0]))),
-        (
-            "~ ^ ~",
-            Err(SyntaxError::argument(ArgumentError::PosMixed, 2)),
-        ),
-        (
-            "^ ~ ^",
-            Err(SyntaxError::argument(ArgumentError::PosMixed, 0)),
-        ),
+        ("^ ^ ^5", local(0.0, 0.0, 5.0), local(0.0, 0.0, 5.0)),
+        ("~ ^ ~", mixed(2), mixed(2)),
+        ("^ ~ ^", mixed(0), mixed(0)),
         (
             "1 2",
-            Err(SyntaxError::argument(ArgumentError::Pos3dIncomplete, 0)),
+            argument(ArgumentError::Pos3dIncomplete, 0),
+            argument(ArgumentError::Pos3dIncomplete, 0),
         ),
         (
             "1 2 ",
-            Err(SyntaxError::argument(ArgumentError::PosMissingDouble, 4)),
+            argument(ArgumentError::PosMissingDouble, 4),
+            argument(ArgumentError::PosMissingInt, 4),
         ),
         (
             "1  2 3",
-            Err(SyntaxError::library(LibraryError::ExpectedDouble, 2)),
+            library(LibraryError::ExpectedDouble, 2),
+            library(LibraryError::ExpectedInt, 2),
         ),
         (
             "~x ~ ~",
-            Err(SyntaxError::library(LibraryError::ExpectedDouble, 1)),
+            library(LibraryError::ExpectedDouble, 1),
+            library(LibraryError::ExpectedDouble, 1),
         ),
     ];
-    for (input, expected) in cases {
-        assert_eq!(read(&vec3, input, &OP).0, expected, "{input}");
+    for (input, vec3, block_pos) in cases {
+        assert_eq!(read(&Vec3Argument, input, &OP).0, vec3, "vec3 {input}");
+        assert_eq!(
+            read(&BlockPosArgument, input, &OP).0,
+            block_pos,
+            "block_pos {input}"
+        );
     }
 }
 
@@ -218,66 +221,35 @@ fn keywords_fail_at_their_own_positions() {
 fn an_error_shows_the_ten_code_units_before_it() {
     let input = "gamemode creativ";
     let error = SyntaxError::argument(ArgumentError::GameModeInvalid(Span::new(9, 16)), 16);
-    let [message, context] = error_feedback(input, &error);
+    let [message, _] = error_feedback(input, &error);
     assert_eq!(
         message,
-        mcrs_minecraft_protocol::text::IntoText::color(
-            Text::translate("argument.gamemode.invalid", vec!["creativ".into()]),
-            mcrs_minecraft_protocol::text::Color::RED
-        )
+        Text::translate("argument.gamemode.invalid", vec!["creativ".into()]).color(Color::RED)
     );
-    let plain = context.to_legacy_lossy();
-    assert!(plain.contains("...de creativ"), "{plain}");
-}
 
-#[test]
-fn block_pos_reads_integers_or_relative_and_local_values() {
-    let block = |x, y, z| Ok(Coordinates::World([x, y, z]));
     let cases = [
-        (
-            "1 64 -3",
-            block(absolute(1.0), absolute(64.0), absolute(-3.0)),
-        ),
-        ("-0 ~ ~", block(absolute(0.0), relative(0.0), relative(0.0))),
-        (
-            "~ ~-1 ~0.5",
-            block(relative(0.0), relative(-1.0), relative(0.5)),
-        ),
-        ("^ ^ ^2.5", Ok(Coordinates::Local([0.0, 0.0, 2.5]))),
-        (
-            "~ ^ ~",
-            Err(SyntaxError::argument(ArgumentError::PosMixed, 2)),
-        ),
-        (
-            "^ ~ ^",
-            Err(SyntaxError::argument(ArgumentError::PosMixed, 0)),
-        ),
-        (
-            "1 64",
-            Err(SyntaxError::argument(ArgumentError::Pos3dIncomplete, 0)),
-        ),
-        (
-            "1 64 ",
-            Err(SyntaxError::argument(ArgumentError::PosMissingInt, 5)),
-        ),
-        (
-            "1.5 64 0",
-            Err(SyntaxError::library(
-                LibraryError::InvalidInt(Span::new(0, 3)),
-                0,
-            )),
-        ),
-        (
-            "1  64 0",
-            Err(SyntaxError::library(LibraryError::ExpectedInt, 2)),
-        ),
-        (
-            "~x ~ ~",
-            Err(SyntaxError::library(LibraryError::ExpectedDouble, 1)),
-        ),
+        ("gamemode creativ", 16, "...de creativ", None),
+        ("gamemode creativ", 9, "gamemode ", Some("creativ")),
+        ("0123456789", 10, "0123456789", None),
+        ("a\u{1f600}bcdefghij", 14, "...bcdefghij", None),
+        ("a\u{1f600}bcdefghij x", 14, "...bcdefghij", Some(" x")),
     ];
-    for (input, expected) in cases {
-        assert_eq!(read(&BlockPosArgument, input, &OP).0, expected, "{input}");
+    for (input, position, before, rest) in cases {
+        let error = SyntaxError::argument(ArgumentError::PosMixed, position);
+        let [_, context] = error_feedback(input, &error);
+        let mut expected = before.into_text();
+        if let Some(rest) = rest {
+            expected = expected.add_child(rest.color(Color::RED).underlined());
+        }
+        let expected = expected
+            .add_child(
+                Text::translate("command.context.here", vec![])
+                    .color(Color::RED)
+                    .italic(),
+            )
+            .color(Color::GRAY)
+            .on_click_suggest_command(format!("/{input}"));
+        assert_eq!(context, expected, "{input} at {position}");
     }
 }
 

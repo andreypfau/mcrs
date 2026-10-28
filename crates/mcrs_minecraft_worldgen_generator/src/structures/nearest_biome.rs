@@ -65,4 +65,18 @@ mod tests {
         assert_eq!(nearest_biome(east, &[9], origin, -64, 384), None);
         assert_eq!(nearest_biome(east, &[7], origin, 0, 0), None);
     }
+
+    #[test]
+    fn a_nearer_point_on_a_later_ring_wins_over_a_corner_of_an_earlier_ring() {
+        let two_columns = |at: IVec3| {
+            Some(match (at.x, at.z) {
+                (96, 96) | (128, 0) => 7,
+                _ => 1,
+            })
+        };
+        assert_eq!(
+            nearest_biome(two_columns, &[7], IVec3::new(0, 70, 0), -64, 384),
+            Some((IVec3::new(128, 70, 0), 7))
+        );
+    }
 }

@@ -551,6 +551,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_click_or_a_wheel_step_counts_the_edges_of_the_list() {
+        let rect = IRect::new(9, 100, 50, 124);
+        for (point, row) in [
+            ((9, 100), Some(0)),
+            ((20, 111), Some(0)),
+            ((20, 112), Some(1)),
+            ((50, 124), Some(2)),
+            ((8, 105), None),
+            ((51, 105), None),
+            ((20, 99), None),
+            ((20, 125), None),
+        ] {
+            assert_eq!(row_under(rect, IVec2::from(point)), row, "{point:?}");
+        }
+    }
+
     mod jar {
         use super::*;
 
@@ -613,10 +630,15 @@ mod tests {
                     color: 0x7F00_0000
                 }
             );
-            assert!(matches!(
-                out[1],
-                GuiQuad::Glyph { origin, glyph: 'h', .. } if origin == IVec2::new(5, 193)
-            ));
+            let (chat_bottom, text_offset, frame_x) = (size.height - 40, 8, 4);
+            assert!(
+                out.contains(&GuiQuad::Glyph {
+                    origin: IVec2::new(frame_x, chat_bottom - text_offset),
+                    glyph: 'h',
+                    color: 0xFFFF_FFFF,
+                }),
+                "{out:?}"
+            );
             out.clear();
             chat.tick = 200;
             chat_lines(size, &chat, &lines, None, &mut out, font);

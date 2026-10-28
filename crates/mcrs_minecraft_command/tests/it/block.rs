@@ -1,11 +1,11 @@
 use mcrs_command::{
-    Argument, LibraryError, Reader, Suggestion, SuggestionBuilder, SyntaxError, build_list,
+    Argument, LibraryError, Reader, Span, Suggestion, SuggestionBuilder, SyntaxError, build_list,
 };
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
 use mcrs_minecraft_command::{
     BlockPredicate, BlockPredicateArgument, CommandLevel, CommandSyntaxError, Identifier, Lookup,
-    RegistryLookup, Source, error_message,
+    RegistryLookup, ResourceOrTag, Source, error_message,
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -107,6 +107,13 @@ fn source() -> Source<'static, Blocks> {
     Source::new(CommandLevel::Gamemasters, &BLOCKS)
 }
 
+static SOURCE: LazyLock<Source<'static, Blocks>> = LazyLock::new(source);
+
+pub(crate) fn suggest_block<'t>(input: &'t str, out: &mut Vec<Suggestion<'t, &'static str>>) {
+    let mut builder = SuggestionBuilder::new(input, 0, out);
+    BlockPredicateArgument::suggest(&SOURCE, &mut builder);
+}
+
 pub(crate) fn read(input: &str) -> (Result<BlockPredicate<'_>, CommandSyntaxError>, usize) {
     let mut reader = Reader::new(input);
     let value = BlockPredicateArgument.parse(&mut reader, &source());
@@ -131,23 +138,75 @@ fn key(key: &'static str, with: &[&str]) -> Text {
 
 #[test]
 fn a_predicate_reads_a_block_or_a_tag_and_its_property_list() {
-    let cases: [(&str, usize); 11] = [
-        ("stone", 5),
-        ("minecraft:stone", 15),
-        ("stone []", 5),
-        ("#logs[axis=y]{}", 15),
-        ("stone{}", 7),
-        ("stone{}[]", 7),
-        ("chest{Items:[{id:\"minecraft:stone\"}]} x", 37),
-        ("oak_stairs[ facing = north ]", 28),
-        ("oak_stairs[facing=north,]", 25),
-        ("oak_stairs[\"facing\"=\"north\"]", 28),
-        ("#logs[foo=bar]", 14),
+    let block = |path| {
+        ResourceOrTag::Entry(Identifier {
+            namespace: "minecraft",
+            path,
+        })
+    };
+    let tag = |path| {
+        ResourceOrTag::Tag(Identifier {
+            namespace: "minecraft",
+            path,
+        })
+    };
+    let cases = [
+        ("stone", block("stone"), 5),
+        ("minecraft:stone", block("stone"), 15),
+        ("stone []", block("stone"), 5),
+        ("#logs[axis=y]{}", tag("logs"), 15),
+        ("stone{}", block("stone"), 7),
+        ("stone{}[]", block("stone"), 7),
+        (
+            "chest{Items:[{id:\"minecraft:stone\"}]} x",
+            block("chest"),
+            37,
+        ),
+        ("oak_stairs[ facing = north ]", block("oak_stairs"), 28),
+        ("oak_stairs[facing=north,]", block("oak_stairs"), 25),
+        ("oak_stairs[\"facing\"=\"north\"]", block("oak_stairs"), 28),
+        ("#logs[foo=bar]", tag("logs"), 14),
     ];
-    for (input, cursor) in cases {
+    for (input, subject, cursor) in cases {
         let (value, end) = read(input);
-        assert!(value.is_ok(), "{input}: {value:?}");
+        assert_eq!(
+            value.map(|predicate| predicate.subject),
+            Ok(subject),
+            "{input}"
+        );
         assert_eq!(end, cursor, "{input}");
+    }
+
+    let stairs = entry(
+        "minecraft:oak_stairs",
+        vec![property("facing", words(&["north", "south"]))],
+        300,
+    );
+    let log = entry(
+        "minecraft:oak_log",
+        vec![property("axis", words(&["x", "y", "z"]))],
+        200,
+    );
+    let state = |id| BlockStateId::checked(id, usize::MAX).unwrap();
+    let lists: [(&str, &BlockEntry, u16, &[bool]); 6] = [
+        ("oak_stairs[ facing = north ]", &stairs, 300, &[true, false]),
+        ("oak_stairs[facing=north,]", &stairs, 300, &[true, false]),
+        (
+            "oak_stairs[\"facing\"=\"north\"]",
+            &stairs,
+            300,
+            &[true, false],
+        ),
+        ("oak_stairs[]", &stairs, 300, &[true, true]),
+        ("#logs[axis=y]{}", &log, 200, &[false, true, false]),
+        ("#logs[foo=bar]", &log, 200, &[false, false, false]),
+    ];
+    for (input, block, base, expected) in lists {
+        let predicate = read(input).0.unwrap();
+        let tested: Vec<bool> = (0..expected.len() as u16)
+            .map(|offset| predicate.test(block, state(base + offset)))
+            .collect();
+        assert_eq!(tested, expected, "{input}");
     }
 }
 
@@ -343,39 +402,82 @@ fn the_data_compound_matches_the_saved_data_of_the_block_entity() {
     }
 }
 
-fn suggestions(input: &str) -> Vec<String> {
-    let source = source();
-    let mut out: Vec<Suggestion<'_, &'static str>> = Vec::new();
-    let mut builder = SuggestionBuilder::new(input, 0, &mut out);
-    BlockPredicateArgument::suggest(&source, &mut builder);
+fn suggestions(input: &str) -> (Span, Vec<String>) {
+    let mut out = Vec::new();
+    suggest_block(input, &mut out);
     let list = build_list(input, &mut out);
     let mut texts: Vec<String> = list
         .iter()
         .map(|(text, _)| text.chars().collect())
         .collect();
     texts.sort();
-    texts
+    (list.span, texts)
 }
 
 #[test]
 fn suggestions_follow_the_stage_the_read_reached() {
-    let cases: [(&str, &[&str]); 11] = [
+    let every = "oak_stairs[facing=north,half=top,shape=straight,waterlogged=false";
+    let cases: [(&str, usize, &[&str]); 18] = [
+        (
+            "",
+            0,
+            &[
+                "#minecraft:logs",
+                "minecraft:chest",
+                "minecraft:oak_log",
+                "minecraft:oak_stairs",
+                "minecraft:stone",
+                "minecraft:wheat",
+            ],
+        ),
+        ("oak", 0, &["minecraft:oak_log", "minecraft:oak_stairs"]),
+        ("log", 0, &["minecraft:oak_log"]),
+        ("#lo", 0, &["#minecraft:logs"]),
         (
             "oak_stairs[",
+            11,
             &["]", "facing=", "half=", "shape=", "waterlogged="],
         ),
-        ("oak_stairs[FAC", &["facing="]),
-        ("oak_stairs[logged", &[]),
-        ("oak_stairs[facing=nor", &["east", "north", "south", "west"]),
-        ("oak_stairs[facing=north", &[",", "]"]),
-        ("wheat", &["["]),
-        ("#logs[axis", &["axis="]),
-        ("chest", &["{"]),
-        ("stone", &[]),
-        ("chest{", &[]),
-        ("#logs[axis=y]", &[]),
+        ("oak_stairs[FAC", 11, &["facing="]),
+        ("oak_stairs[facing", 17, &["="]),
+        (
+            "oak_stairs[facing=nor",
+            18,
+            &["east", "north", "south", "west"],
+        ),
+        ("oak_stairs[facing=north", 23, &[",", "]"]),
+        (every, every.len(), &["]"]),
+        (
+            "oak_stairs[facing=north,",
+            24,
+            &["half=", "shape=", "waterlogged="],
+        ),
+        ("wheat", 5, &["["]),
+        ("#logs[axis", 6, &["axis="]),
+        ("#logs[", 6, &["]", "axis="]),
+        ("#logs[axis=", 11, &["]", "x", "y", "z"]),
+        ("#logs[axis=y", 11, &["]", "x", "z"]),
+        ("chest", 5, &["{"]),
+        ("chest[]", 7, &["{"]),
     ];
-    for (input, expected) in cases {
-        assert_eq!(suggestions(input), expected, "{input}");
+    for (input, start, expected) in cases {
+        assert_eq!(
+            suggestions(input),
+            (
+                Span::new(start, input.len()),
+                expected.iter().map(|text| text.to_string()).collect()
+            ),
+            "{input}"
+        );
+    }
+    for input in [
+        "oak_stairs[logged",
+        "stone",
+        "chest{",
+        "#logs[axis=y]",
+        "oak_stairs[]",
+        "#a:b:c",
+    ] {
+        assert_eq!(suggestions(input).1, Vec::<String>::new(), "{input}");
     }
 }

@@ -1,6 +1,7 @@
 use crate::{Builder, Lib, OP, OPEN, TestGraph, executable_literal};
 use mcrs_command::{
-    BuildError, IntegerArgument, LibraryError, NodeId, ParseScratch, StringArgument, SyntaxError,
+    Argument, BuildError, Chain, IntegerArgument, LibraryError, NodeId, ParseScratch, Reader,
+    StringArgument, SyntaxError,
 };
 use std::convert::Infallible;
 
@@ -35,9 +36,15 @@ fn the_reported_error_follows_the_validity_rules() {
     b.redirect(t, a).unwrap();
     let graph = b.freeze().unwrap();
 
-    let cases: [(&str, SyntaxError<Infallible>); 6] = [
+    let cases: [(&str, SyntaxError<Infallible>); 9] = [
         ("b", SyntaxError::library(LibraryError::UnknownCommand, 0)),
+        ("ab", SyntaxError::library(LibraryError::UnknownCommand, 0)),
+        ("A", SyntaxError::library(LibraryError::UnknownCommand, 0)),
         ("a x", SyntaxError::library(LibraryError::ExpectedInt, 2)),
+        (
+            "a 5x",
+            SyntaxError::library(LibraryError::ExpectedSeparator, 3),
+        ),
         (
             "c !",
             SyntaxError::library(LibraryError::UnknownArgument, 2),
@@ -147,4 +154,81 @@ fn building_rejects_merges_and_redirects_that_conflict() {
     );
     b.redirect(y, x).unwrap();
     assert!(matches!(b.freeze(), Err(BuildError::RedirectCycle(_))));
+}
+
+#[test]
+fn an_integer_out_of_range_fails_at_its_start_with_the_bound() {
+    let range = IntegerArgument { min: 1, max: 5 };
+    let cases: [(&str, Result<i32, SyntaxError<Infallible>>, usize); 3] = [
+        ("x 3", Ok(3), 3),
+        (
+            "x 0",
+            Err(SyntaxError::library(
+                LibraryError::IntegerTooLow { value: 0, min: 1 },
+                2,
+            )),
+            2,
+        ),
+        (
+            "x 60",
+            Err(SyntaxError::library(
+                LibraryError::IntegerTooHigh { value: 60, max: 5 },
+                2,
+            )),
+            2,
+        ),
+    ];
+    for (input, expected, cursor) in cases {
+        let mut reader = Reader::at(input, 2);
+        assert_eq!(range.parse(&mut reader, &0u8), expected, "{input}");
+        assert_eq!(reader.cursor(), cursor, "{input}");
+    }
+}
+
+#[test]
+fn a_merge_replaces_the_command_and_adds_the_children_to_the_kept_node() {
+    let command = |graph: &TestGraph, input: &str| {
+        let mut scratch = ParseScratch::default();
+        let parse = graph.parse(input, 0, &0u8, &mut scratch);
+        parse.check(graph).map(|(_, command)| *command)
+    };
+    let mut b = Builder::new();
+    let first = b.literal(NodeId::ROOT, "a", OPEN).unwrap();
+    b.executes(first, 1).unwrap();
+    b.literal(NodeId::ROOT, "z", OPEN).unwrap();
+    let again = b.literal(NodeId::ROOT, "a", OPEN).unwrap();
+    b.executes(again, 2).unwrap();
+    let child = b.literal(again, "x", OPEN).unwrap();
+    b.executes(child, 3).unwrap();
+    let graph = b.freeze().unwrap();
+
+    assert_eq!(again, first);
+    assert_eq!(command(&graph, "a"), Ok(2));
+    assert_eq!(command(&graph, "a x"), Ok(3));
+    let root = graph.node(NodeId::ROOT).unwrap();
+    assert_eq!(root.children().len(), 2);
+    assert_eq!(root.children().first(), Some(&first));
+}
+
+#[test]
+fn each_context_of_a_chain_keeps_its_own_value_of_a_name() {
+    let mut b = Builder::new();
+    let a = b.literal(NodeId::ROOT, "a", OPEN).unwrap();
+    let n = b.argument(a, "n", IntegerArgument::ANY, OPEN).unwrap();
+    b.executes(n.node(), 0).unwrap();
+    b.redirect(n.node(), a).unwrap();
+    let graph = b.freeze().unwrap();
+
+    let input = "a 1 2";
+    let mut scratch = ParseScratch::default();
+    let parse = graph.parse(input, 0, &0u8, &mut scratch);
+    parse.check(&graph).unwrap();
+    let mut chain = Chain::default();
+    chain.copy_from(&graph, &parse);
+    assert_eq!(chain.stages().len(), 2);
+    let value = |stage| {
+        let span = chain.span(stage, n.node()).unwrap();
+        graph.value(input, span, n, &0u8).unwrap()
+    };
+    assert_eq!((value(0), value(1)), (Ok(1), Ok(2)));
 }

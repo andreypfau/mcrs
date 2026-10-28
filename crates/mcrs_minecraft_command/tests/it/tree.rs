@@ -4,7 +4,7 @@ use mcrs_minecraft_command::{
     CommandLevel, EntityArgument, GameModeArgument, PermissionCheck, VanillaArgument, VanillaGraph,
     player_tree, suggestion_reply,
 };
-use mcrs_minecraft_protocol::command::{CommandNodeKind, ParserProperties};
+use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 
@@ -37,69 +37,122 @@ fn assert_round_trip(packet: &ClientboundCommands<'_>) {
     assert_eq!(&decoded, packet);
 }
 
+fn child<'p, 'a>(
+    tree: &'p ClientboundCommands<'a>,
+    node: &'p CommandNode<'a>,
+    name: &str,
+) -> &'p CommandNode<'a> {
+    node.children
+        .iter()
+        .filter_map(|child| tree.nodes.get(child.0 as usize))
+        .find(|child| node_name(child) == name)
+        .unwrap_or_else(|| panic!("no child {name}"))
+}
+
+fn node_name<'p>(node: &'p CommandNode<'_>) -> &'p str {
+    match &node.kind {
+        CommandNodeKind::Literal(name) | CommandNodeKind::Argument { name, .. } => name,
+        CommandNodeKind::Root => "",
+    }
+}
+
+fn child_names<'p>(tree: &'p ClientboundCommands<'_>, node: &CommandNode<'_>) -> Vec<&'p str> {
+    node.children
+        .iter()
+        .filter_map(|child| tree.nodes.get(child.0 as usize))
+        .map(node_name)
+        .collect()
+}
+
+fn parser<'p>(node: &'p CommandNode<'_>) -> (VarInt, &'p ParserProperties<'p>) {
+    let CommandNodeKind::Argument { parser, .. } = &node.kind else {
+        panic!("{node:?}");
+    };
+    (parser.id, &parser.properties)
+}
+
 #[test]
 fn a_player_sees_only_the_nodes_it_can_use() {
     let graph = graph();
     let guest = player_tree(&graph, &GUEST);
+    let root = guest.nodes.get(guest.root.0 as usize).unwrap();
+    assert_eq!(child_names(&guest, root), ["help"]);
     assert_eq!(guest.nodes.len(), 2);
-    assert_eq!(guest.nodes[1].kind, CommandNodeKind::Literal("help".into()));
-    assert!(!guest.nodes[1].restricted);
+    assert!(!child(&guest, root, "help").restricted);
 
     let op = player_tree(&graph, &OP);
     assert_round_trip(&op);
-    let [root, gamemode, mode, target, tp, help] = op.nodes.as_slice() else {
-        panic!("{op:?}");
-    };
-    assert_eq!(root.children, [VarInt(1), VarInt(4), VarInt(5)]);
+    let root = op.nodes.get(op.root.0 as usize).unwrap();
+    assert_eq!(child_names(&op, root), ["gamemode", "tp", "help"]);
+    let gamemode = child(&op, root, "gamemode");
     assert!(gamemode.restricted && !gamemode.executable);
+    let mode = child(&op, gamemode, "gamemode");
     assert!(mode.executable && !mode.restricted);
-    let CommandNodeKind::Argument { parser, .. } = &target.kind else {
-        panic!("{target:?}");
-    };
-    assert_eq!(parser.id, VarInt(6));
+    assert_eq!(parser(mode), (VarInt(42), &ParserProperties::None));
+    let target = child(&op, mode, "target");
     assert_eq!(
-        parser.properties,
-        ParserProperties::Entity {
-            single: false,
-            players_only: true
-        }
+        parser(target),
+        (
+            VarInt(6),
+            &ParserProperties::Entity {
+                single: false,
+                players_only: true
+            }
+        )
     );
-    let CommandNodeKind::Argument { parser, .. } = &mode.kind else {
-        panic!("{mode:?}");
-    };
-    assert_eq!(parser.id, VarInt(42));
-    assert_eq!(tp.redirect, Some(VarInt(1)));
-    assert!(help.executable);
+    let tp = child(&op, root, "tp");
+    let redirect = tp.redirect.and_then(|id| op.nodes.get(id.0 as usize));
+    assert_eq!(redirect, Some(gamemode));
+    assert!(child(&op, root, "help").executable);
 }
 
-#[test]
-fn a_reply_counts_utf16_code_units_from_the_slash() {
-    let graph = graph();
-    let text = "/gamem";
+fn reply(graph: &VanillaGraph<u32>, text: &str) -> (VarInt, VarInt, Vec<String>) {
     let mut scratch = ParseScratch::default();
     let parse = graph.parse(text, 1, &OP, &mut scratch);
     let mut out = Vec::new();
     graph.suggest(&parse, &OP, &mut out);
     let list = build_list(text, &mut out);
     let reply = suggestion_reply(VarInt(7), text, &list);
-    assert_eq!((reply.start, reply.length), (VarInt(1), VarInt(5)));
-    assert_eq!(reply.suggestions.len(), 1);
-    assert_eq!(reply.suggestions[0].text, "gamemode");
-
-    let text = "/gamemode \u{1f600}";
-    let parse = graph.parse(text, 1, &OP, &mut scratch);
-    let mut out = Vec::new();
-    graph.suggest(&parse, &OP, &mut out);
-    let list = build_list(text, &mut out);
-    let reply = suggestion_reply(VarInt(8), text, &list);
-    assert!(reply.suggestions.is_empty());
+    let texts = reply
+        .suggestions
+        .iter()
+        .map(|suggestion| suggestion.text.to_string())
+        .collect();
+    (reply.start, reply.length, texts)
 }
 
-fn literal(
-    name: &'static str,
-    children: &[i32],
-) -> mcrs_minecraft_protocol::command::CommandNode<'static> {
-    mcrs_minecraft_protocol::command::CommandNode {
+#[test]
+fn a_reply_counts_utf16_code_units_from_the_slash() {
+    let open = PermissionCheck::AlwaysPass;
+    let mut b = GraphBuilder::<VanillaArgument, PermissionCheck, u32>::new();
+    let face = b.literal(NodeId::ROOT, "\u{1f600}", open).unwrap();
+    b.executes(face, 0).unwrap();
+    let go = b.literal(face, "go", open).unwrap();
+    b.executes(go, 0).unwrap();
+    let faces = b.literal(NodeId::ROOT, "\u{1f600}x", open).unwrap();
+    b.executes(faces, 0).unwrap();
+    let faces = b.freeze().unwrap();
+
+    let cases = [
+        (&graph(), "/gamem", (1, 5, vec!["gamemode"])),
+        (&faces, "/\u{1f600} g", (4, 1, vec!["go"])),
+        (&faces, "/\u{1f600}", (1, 2, vec!["\u{1f600}x"])),
+    ];
+    for (graph, text, (start, length, texts)) in cases {
+        assert_eq!(
+            reply(graph, text),
+            (
+                VarInt(start),
+                VarInt(length),
+                texts.iter().map(|t| t.to_string()).collect()
+            ),
+            "{text}"
+        );
+    }
+}
+
+fn literal(name: &'static str, children: &[i32]) -> CommandNode<'static> {
+    CommandNode {
         kind: CommandNodeKind::Literal(name.into()),
         children: children.iter().copied().map(VarInt).collect(),
         redirect: None,
@@ -108,9 +161,7 @@ fn literal(
     }
 }
 
-fn packet(
-    nodes: Vec<mcrs_minecraft_protocol::command::CommandNode<'static>>,
-) -> ClientboundCommands<'static> {
+fn packet(nodes: Vec<CommandNode<'static>>) -> ClientboundCommands<'static> {
     let mut root = literal("", &[1, 2]);
     root.kind = CommandNodeKind::Root;
     root.executable = false;

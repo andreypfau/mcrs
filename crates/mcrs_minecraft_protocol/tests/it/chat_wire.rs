@@ -16,13 +16,29 @@ fn a_time_argument_carries_its_minimum_as_a_big_endian_int() {
 }
 
 #[test]
-fn a_chat_type_names_the_registry_entry_one_below_it_and_a_mask_hides_bit_by_bit() {
+fn a_chat_type_names_the_registry_entry_one_below_it() {
     assert_eq!(ChatTypeId::decode(&mut &[1u8][..]).unwrap(), ChatTypeId(0));
     assert!(
         ChatTypeId::decode(&mut &[0u8][..]).is_err(),
         "an inline chat type"
     );
-    let mask = FilterMask::decode(&mut &[2u8, 2, 0b0000_0101, 0b1000_0000][..]).unwrap();
-    let hidden: Vec<usize> = (0..16).filter(|&i| mask.hides(i)).collect();
-    assert_eq!(hidden, [0, 2, 15]);
+}
+
+#[test]
+fn a_filter_mask_hides_nothing_everything_or_bit_by_bit() {
+    let cases: [(&[u8], &[usize]); 3] = [
+        (&[0], &[]),
+        (
+            &[1],
+            &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        ),
+        (&[2, 2, 0b0000_0101, 0b1000_0000], &[0, 2, 15]),
+    ];
+    for (bytes, expected) in cases {
+        let mut slice = bytes;
+        let mask = FilterMask::decode(&mut slice).unwrap();
+        assert!(slice.is_empty(), "{bytes:?}");
+        let hidden: Vec<usize> = (0..16).filter(|&i| mask.hides(i)).collect();
+        assert_eq!(hidden, expected, "{bytes:?}");
+    }
 }
