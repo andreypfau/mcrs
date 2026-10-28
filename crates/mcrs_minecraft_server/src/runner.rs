@@ -16,15 +16,19 @@ pub fn run_server_loop(app: App) -> AppExit {
     mcrs_minecraft_level::server_loop::run_server_loop(
         app,
         DEFAULT_TPS,
-        |app| {
-            pump_channels(app);
-            crate::command::run_pending_commands(app);
-            crate::world::entity::player::dimension_change::apply_dimension_change_requests(app);
-            drain_dim_spawn_queue(app);
-            drain_dim_despawn_queue(app);
-        },
+        between_ticks,
         drain_columns,
     )
+}
+
+/// What the host does after each tick: it takes the dimensions' output, runs the commands
+/// it parsed, moves the players that changed dimension and spawns or despawns dimensions.
+pub fn between_ticks(app: &mut App) {
+    pump_channels(app);
+    crate::command::run_pending_commands(app);
+    crate::world::entity::player::dimension_change::apply_dimension_change_requests(app);
+    drain_dim_spawn_queue(app);
+    drain_dim_despawn_queue(app);
 }
 
 /// Passes on what landed since the tick: every dimension sends the columns whose sections
