@@ -3,9 +3,7 @@ use bevy_app::{App, AppExit};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::dim::{
-    DimSubAppHandle, drain_dim_despawn_queue, expire_moves, pump_channels,
-};
+use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
@@ -21,7 +19,7 @@ pub fn run_server_loop(app: App) -> AppExit {
         |app| {
             pump_channels(app);
             crate::command::run_pending_commands(app);
-            expire_moves(app);
+            crate::world::entity::player::dimension_change::apply_dimension_change_requests(app);
             drain_dim_spawn_queue(app);
             drain_dim_despawn_queue(app);
         },

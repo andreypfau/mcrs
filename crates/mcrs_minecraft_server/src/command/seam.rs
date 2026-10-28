@@ -9,7 +9,6 @@ use crate::command::{
 };
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::PlayerGameMode;
-use crate::world::entity::player::dimension_change::change_dimension;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{In, With};
@@ -19,7 +18,6 @@ use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::dim::deliver;
 use mcrs_minecraft_engine::session::GameProfile;
@@ -197,7 +195,7 @@ fn collect_players(host: &World, worlds: &mut [&mut World], targets: &mut Comman
             };
             let placed = match placement.place() {
                 Place::InDim(dim) | Place::Joining(dim) => dim == label,
-                Place::Unplaced | Place::Transferring { .. } => false,
+                Place::Unplaced => false,
             };
             if placed {
                 targets.players.push(PlayerEntry {
@@ -431,34 +429,15 @@ impl Worlds<'_, '_> {
         Some((index, entity, transform))
     }
 
-    /// Sets the transform of a player in its own world, or moves it to the world of
-    /// `destination` (DIM-CHG-001), and gives its entity there.
-    pub(crate) fn move_player(
+    /// The host, the world at `origin` and the world at `destination`, for a move between two
+    /// worlds. `None` when the two are the same world or either does not exist.
+    pub(crate) fn across(
         &mut self,
-        player: Entity,
         origin: usize,
         destination: usize,
-        entity: Entity,
-        transform: Transform,
-    ) -> Option<Entity> {
-        if origin == destination {
-            let world = self.worlds.get_mut(origin)?;
-            *world.get_mut::<Transform>(entity)? = transform;
-            return Some(entity);
-        }
-        let label = self.targets.dimensions.get(destination)?.label;
-        // The packets already stamped for the player leave before its epoch changes, or the
-        // bridge drops them as packets of the dimension it left.
-        let _ = self.host.try_run_schedule(OutboundFlush);
-        let [from, into] = self.worlds.get_disjoint_mut([origin, destination]).ok()?;
-        let Some(arrived) = change_dimension(from, into, entity, transform) else {
-            tracing::error!(?player, "a player did not change dimension");
-            return None;
-        };
-        if let Some(mut placement) = self.host.get_mut::<SessionPlacement>(player) {
-            placement.set(Place::InDim(label));
-        }
-        Some(arrived)
+    ) -> Option<(&mut World, &mut World, &mut World)> {
+        let [from, to] = self.worlds.get_disjoint_mut([origin, destination]).ok()?;
+        Some((&mut *self.host, &mut **from, &mut **to))
     }
 
     /// Fills the scratch packets from the world at `index`, then sends them in order.

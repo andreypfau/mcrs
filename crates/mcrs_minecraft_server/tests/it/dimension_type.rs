@@ -23,7 +23,6 @@ use crate::{host_app, support};
 fn host_spawning(dimensions: &Dimensions) -> App {
     let mut app = host_app::make_host_app();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<InboundPlayerSpawn>();
     app.insert_resource(DimensionList::new(support::baked(
         dimensions,

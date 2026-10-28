@@ -60,31 +60,6 @@ fn session_count(app: &mut App) -> usize {
         .count()
 }
 
-fn insert_player_mid_transit(
-    app: &mut App,
-    host_anchor: Entity,
-    current_dim: Entity,
-    previous_dim: Option<Entity>,
-) {
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    let place = match previous_dim {
-        Some(from) => Place::Transferring {
-            from,
-            to: current_dim,
-        },
-        None => Place::Joining(current_dim),
-    };
-    app.world_mut()
-        .entity_mut(host_anchor)
-        .insert(SessionBundle::placed(
-            session,
-            SessionPlacement::new(place, 0),
-        ));
-}
-
 fn spawn_anchors(app: &mut App, count: usize, dim: Entity) -> Vec<Entity> {
     let mut anchors = Vec::with_capacity(count);
     for _ in 0..count {
@@ -189,68 +164,4 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     );
 
     assert!(session_count(&mut app) == 0, "every session cleared",);
-}
-
-#[test]
-fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
-    let mut app = build_app();
-    let source_dim = Entity::from_raw_u32(930).unwrap();
-    let dest_dim = Entity::from_raw_u32(931).unwrap();
-    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
-    let dest_ctl_rx = register_dim_channel(&mut app, dest_dim);
-
-    // Player A — mid-transit. Insert mid-transfer from source_dim so
-    // process_disconnect routes to BOTH dims when A is disconnected.
-    let player_a = app.world_mut().spawn_empty().id();
-    insert_player_mid_transit(&mut app, player_a, dest_dim, Some(source_dim));
-
-    // 50 bystander anchors, all in dest_dim, all about to disconnect.
-    let bystanders = spawn_anchors(&mut app, 50, dest_dim);
-
-    // Drive the disconnect for bystanders + A, all in the same tick.
-    let mut all_disconnected: Vec<Entity> = bystanders.clone();
-    all_disconnected.push(player_a);
-    fire_disconnect(&mut app, &all_disconnected);
-    tick_update_schedule(&mut app);
-
-    // Count despawns sent so far via channels.
-    let processed_src_1 = dim_despawn_count(&src_ctl_rx);
-    let processed_dest_1 = dim_despawn_count(&dest_ctl_rx);
-    let queued = app
-        .world()
-        .resource::<PendingDisconnectQueue>()
-        .entries
-        .len();
-    assert_eq!(
-        processed_dest_1 + queued,
-        51,
-        "every disconnect either processed or queued (no drops)",
-    );
-
-    // Drain across more ticks until everything is processed.
-    let mut total_src = processed_src_1;
-    let mut total_dest = processed_dest_1;
-    for _ in 0..4 {
-        tick_first_schedule(&mut app);
-        tick_update_schedule(&mut app);
-        total_src += dim_despawn_count(&src_ctl_rx);
-        total_dest += dim_despawn_count(&dest_ctl_rx);
-    }
-
-    assert!(
-        session_count(&mut app) == 0,
-        "all anchors evicted within the budget window",
-    );
-
-    // Player A's despawn must also have landed in the source_dim it is leaving
-    // (the dual-dim sub-case-1 path); this is the invariant the mass
-    // disconnect must not corrupt.
-    assert_eq!(
-        total_src, 1,
-        "player A's source-dim despawn routed regardless of budget contention",
-    );
-    assert_eq!(
-        total_dest, 51,
-        "all 51 disconnects emit a despawn in dest dim (50 bystanders + A's destination)",
-    );
 }

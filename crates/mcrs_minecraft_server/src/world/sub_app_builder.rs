@@ -13,10 +13,7 @@ use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{error, warn};
 
-use mcrs_minecraft_engine::bus::{
-    InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
-    InboundRollbackMove, OutboundPlayerPacket,
-};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::channel_types::{FromDim, ToDim};
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
@@ -26,7 +23,7 @@ use mcrs_minecraft_level::world::channels::{
 };
 
 /// System set for inbox drain systems, run early in `FixedPreUpdate`.
-/// Arrival and other systems that consume inbound messages run after this set.
+/// Systems that consume inbound messages run after this set.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DimInboxDrain;
 
@@ -255,12 +252,7 @@ pub fn spawn_dim_subapp(
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
     // extracted by the host to attach the session.
     sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerAttached>();
-    // Confirmed-move inbound messages drained from the control channel and read
-    // by the arrival systems (SpawnEntity) and source-dim systems (ConfirmMove,
-    // RollbackMove).
-    sub_app.add_message::<InboundEntitySpawn>();
-    sub_app.add_message::<InboundConfirmMove>();
-    sub_app.add_message::<InboundRollbackMove>();
+    sub_app.add_message::<mcrs_minecraft_level::entity::player::ChangeDimensionRequest>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -273,9 +265,6 @@ pub fn spawn_dim_subapp(
     if column_traces.is_some() {
         sub_app.init_resource::<ColumnTraceLog>();
     }
-    sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
-        label_entity,
-    ));
     sub_app.insert_resource(mcrs_minecraft_level::world::sub_app::DimensionLabel(
         label_entity,
     ));
@@ -495,7 +484,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
-    sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
     let default_op_level = app
         .world()
@@ -642,17 +630,13 @@ pub fn spawn_dim_subapp(
 }
 
 /// Drains both `ToDim` channel receivers into the dim's local message buses.
-/// The control channel (Spawn/Despawn/Attach/SpawnEntity/ConfirmMove/RollbackMove)
-/// is drained first so lifecycle messages always precede any same-tick Serverbound
-/// packet for a freshly transferred player.
+/// The control channel (Spawn/Despawn) is drained first so lifecycle messages
+/// always precede any same-tick Serverbound packet for a freshly spawned player.
 fn drain_to_dim_inbox(
     rx: Res<ToDimReceiver<ToDim>>,
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
-    mut entity_spawn_msgs: ResMut<Messages<InboundEntitySpawn>>,
-    mut confirm_msgs: ResMut<Messages<InboundConfirmMove>>,
-    mut rollback_msgs: ResMut<Messages<InboundRollbackMove>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -663,15 +647,6 @@ fn drain_to_dim_inbox(
                 despawn_msgs.write(m);
             }
             ToDim::Serverbound(_) => {}
-            ToDim::SpawnEntity(m) => {
-                entity_spawn_msgs.write(m);
-            }
-            ToDim::ConfirmMove(m) => {
-                confirm_msgs.write(m);
-            }
-            ToDim::RollbackMove(m) => {
-                rollback_msgs.write(m);
-            }
         }
     }
     for msg in rx.serverbound.try_iter() {

@@ -399,7 +399,7 @@ pub fn bridge_player_attach(
         let Ok(mut placement) = placements.get_mut(msg.host_anchor) else {
             continue;
         };
-        if let Place::Joining(dim) | Place::Transferring { to: dim, .. } = placement.place() {
+        if let Place::Joining(dim) = placement.place() {
             placement.set(Place::InDim(dim));
         }
     }

@@ -57,30 +57,16 @@ fn count_despawns(rx: &flume::Receiver<ToDim>) -> usize {
         .count()
 }
 
-fn insert_location(
-    app: &mut App,
-    host_anchor: Entity,
-    current_dim: Entity,
-    previous_dim: Option<Entity>,
-    in_dim_entity: Option<Entity>,
-) {
+fn insert_joining(app: &mut App, host_anchor: Entity, dim: Entity) {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    let place = match (previous_dim, in_dim_entity) {
-        (Some(from), _) => Place::Transferring {
-            from,
-            to: current_dim,
-        },
-        (None, Some(_)) => Place::InDim(current_dim),
-        (None, None) => Place::Joining(current_dim),
-    };
     app.world_mut()
         .entity_mut(host_anchor)
         .insert(SessionBundle::placed(
             session,
-            SessionPlacement::new(place, 0),
+            SessionPlacement::new(Place::Joining(dim), 0),
         ));
 }
 
@@ -101,11 +87,9 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
     let mut app = build_disconnect_app();
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    let source_dim = Entity::from_raw_u32(401).unwrap();
-    let dest_dim = Entity::from_raw_u32(402).unwrap();
-    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
-    let dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
-    insert_location(&mut app, host_anchor, dest_dim, Some(source_dim), None);
+    let dim = Entity::from_raw_u32(402).unwrap();
+    let ctl_rx = register_dim_channel(&mut app, dim);
+    insert_joining(&mut app, host_anchor, dim);
 
     app.world_mut()
         .resource_mut::<Messages<OutboundPlayerAttached>>()
@@ -124,8 +108,7 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
         remaining.len()
     );
 
-    assert_eq!(count_despawns(&dst_ctl_rx), 1);
-    assert_eq!(count_despawns(&src_ctl_rx), 1);
+    assert_eq!(count_despawns(&ctl_rx), 1);
 
     assert!(
         app.world().get_entity(host_anchor).is_err(),

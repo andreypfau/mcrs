@@ -7,14 +7,6 @@ use rustc_hash::FxHashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
-/// Named by the dimension that started the move, which alone counts its moves, so no two
-/// dimensions can hand the host the same id.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MoveId {
-    pub source: Entity,
-    pub seq: u64,
-}
-
 /// Marks a DimWorld player entity as owned by a session.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Owner(pub PlayerSession);
@@ -33,12 +25,6 @@ pub enum Place {
     /// Spawned into a dimension that has not yet attached the player.
     Joining(Entity),
     InDim(Entity),
-    /// Moving between dimensions; the source keeps the player hidden until the move is
-    /// confirmed or rolled back.
-    Transferring {
-        from: Entity,
-        to: Entity,
-    },
 }
 
 impl Place {
@@ -46,9 +32,7 @@ impl Place {
     pub fn dim(self) -> Option<Entity> {
         match self {
             Place::Unplaced => None,
-            Place::Joining(dim) | Place::InDim(dim) | Place::Transferring { to: dim, .. } => {
-                Some(dim)
-            }
+            Place::Joining(dim) | Place::InDim(dim) => Some(dim),
         }
     }
 
@@ -58,16 +42,6 @@ impl Place {
             Place::InDim(dim) => Some(dim),
             _ => None,
         }
-    }
-
-    /// Every dimension that may hold an entity of the session.
-    pub fn holding_dims(self) -> impl Iterator<Item = Entity> {
-        let (dim, leaving) = match self {
-            Place::Unplaced => (None, None),
-            Place::Joining(dim) | Place::InDim(dim) => (Some(dim), None),
-            Place::Transferring { from, to } => (Some(to), (from != to).then_some(from)),
-        };
-        dim.into_iter().chain(leaving)
     }
 }
 
@@ -165,44 +139,21 @@ mod tests {
         assert_eq!(placement.place(), Place::InDim(dim(1)));
         assert_eq!(placement.epoch(), 0, "joining a first dimension");
 
-        placement.set(Place::Transferring {
-            from: dim(1),
-            to: dim(1),
-        });
-        assert_eq!(placement.epoch(), 0, "a move within one dimension");
-
         let mut placement = SessionPlacement::new(Place::InDim(dim(1)), 3);
-        placement.set(Place::Transferring {
-            from: dim(1),
-            to: dim(2),
-        });
-        assert_eq!(placement.epoch(), 4, "moving to another dimension");
+        placement.set(Place::InDim(dim(1)));
+        assert_eq!(placement.epoch(), 3, "staying in one dimension");
         placement.set(Place::InDim(dim(2)));
-        assert_eq!(placement.epoch(), 4, "arriving where the move was headed");
+        assert_eq!(placement.epoch(), 4, "moving to another dimension");
         placement.set(Place::Unplaced);
         assert_eq!(placement.epoch(), 5, "leaving for reconfiguration");
     }
 
     #[test]
-    fn packets_belong_to_the_destination_but_only_an_attached_dimension_takes_them() {
-        let (a, b) = (dim(1), dim(2));
-        let transfer = Place::Transferring { from: a, to: b };
+    fn only_an_attached_dimension_takes_serverbound_packets() {
+        let a = dim(1);
         assert_eq!(Place::Unplaced.dim(), None);
         assert_eq!(Place::Joining(a).dim(), Some(a));
-        assert_eq!(transfer.dim(), Some(b));
         assert_eq!(Place::Joining(a).attached(), None);
-        assert_eq!(transfer.attached(), None);
         assert_eq!(Place::InDim(a).attached(), Some(a));
-    }
-
-    #[test]
-    fn a_transfer_is_held_by_both_ends() {
-        let (a, b) = (dim(1), dim(2));
-        let holding = |place: Place| place.holding_dims().collect::<Vec<_>>();
-        assert!(holding(Place::Unplaced).is_empty());
-        assert_eq!(holding(Place::Joining(a)), vec![a]);
-        assert_eq!(holding(Place::InDim(a)), vec![a]);
-        assert_eq!(holding(Place::Transferring { from: a, to: b }), vec![b, a]);
-        assert_eq!(holding(Place::Transferring { from: a, to: a }), vec![a]);
     }
 }

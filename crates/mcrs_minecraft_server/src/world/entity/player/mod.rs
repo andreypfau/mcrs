@@ -2,6 +2,7 @@ use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
+use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::{EntityBundle, EntityUuid};
@@ -15,19 +16,18 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::{ColumnPos, ResourceKey};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
-    InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
-    OutboundPlayerAttached, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
-    PlayerInfoEntry,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket,
+    OutboundPlayerReleased, PacketPayload, PlayerInfoEntry,
 };
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::aoi::every_n_ticks;
+use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
 use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
@@ -44,6 +44,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRa
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerAbilities;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use movement::TeleportState;
@@ -52,7 +53,7 @@ use tracing::{debug, info};
 pub mod ability;
 mod chat;
 pub mod column_view;
-pub(crate) mod dimension_change;
+pub mod dimension_change;
 pub(crate) mod game_mode;
 pub mod movement;
 pub mod persistence;
@@ -86,6 +87,11 @@ impl Plugin for DimPlayerPlugin {
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
+        app.carry_on_dimension_change::<GameProfile>()
+            .carry_on_dimension_change::<PlayerViewDistance>()
+            .carry_on_dimension_change::<PlayerOpLevel>()
+            .carry_on_dimension_change::<persistence::LoadedPlayerDat>()
+            .carry_on_dimension_change::<persistence::UnreadablePlayerDat>();
         app.add_systems(
             Update,
             (
@@ -99,12 +105,6 @@ impl Plugin for DimPlayerPlugin {
                 // lingers and its autosaves overwrite the next session's file.
                 despawn_inbound_player.after(consume_inbound_player_spawn),
             ),
-        );
-        app.add_systems(
-            FixedUpdate,
-            (despawn_on_confirm, unhide_on_rollback)
-                .in_set(TickSet::Input)
-                .before(movement::process_movement),
         );
         app.add_systems(
             FixedUpdate,
@@ -206,8 +206,6 @@ fn consume_inbound_player_spawn(
         let host = spawn.host_anchor;
         let wire_id = crate::world::entity::player_network_id(host);
         let spawn_pos = spawn.snapshot.position;
-        let center_x = (spawn_pos.x / 16.0).floor() as i32;
-        let center_z = (spawn_pos.z / 16.0).floor() as i32;
 
         let dimensions = spawn.dimensions.to_vec();
 
@@ -246,14 +244,6 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::PlayerAbilities(game_mode::abilities(default_game_mode.0, false)),
-            )
-            .critical(),
-        );
-
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
         // packet. Without this the client treats itself as non-spectator and
@@ -272,18 +262,6 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
-                    x: VarInt(center_x),
-                    z: VarInt(center_z),
-                }),
-            )
-            .critical(),
-        );
-
         packet_writer.write(
             to(
                 host,
@@ -293,33 +271,22 @@ fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::GameEvent(ClientboundGameEvent {
-                    game_event: GameEventKind::LevelChunksLoadStart,
-                }),
-            )
-            .critical(),
+        enter_level_packets(
+            host,
+            op_level,
+            tree.as_deref(),
+            ClientboundPlayerPosition {
+                teleport_id: VarInt(TeleportState::LOGIN_TELEPORT_ID),
+                position: spawn_pos,
+                velocity: DVec3::ZERO,
+                look: Look::default(),
+                flags: mcrs_minecraft_protocol::PositionFlags::default(),
+            },
+            game_mode::abilities(default_game_mode.0, false),
+            |packet| {
+                packet_writer.write(packet);
+            },
         );
-
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::PlayerPosition(ClientboundPlayerPosition {
-                    teleport_id: VarInt(TeleportState::LOGIN_TELEPORT_ID),
-                    position: spawn_pos,
-                    velocity: DVec3::ZERO,
-                    look: Look::default(),
-                    flags: mcrs_minecraft_protocol::PositionFlags::default(),
-                }),
-            )
-            .critical(),
-        );
-        level_packets(host, op_level, tree.as_deref(), |packet| {
-            packet_writer.write(packet);
-        });
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
@@ -368,11 +335,48 @@ pub(crate) fn level_packets(
     }
 }
 
+/// The packets that put a player into the level of its world, after the `login` of a join or
+/// the `respawn` of a dimension change: steps 3 to 7 and 12 of DIM-CHG-003, with `position` as
+/// the move of step 5.
+// chisle: steps 2, 8, 9, 10, 13 to 16 and 18 are not sent, because the server holds no
+// difficulty, world border, clock packet, spawn position, tick rate packet, inventory sync or post
+// effects yet; each step joins this sequence with its state.
+pub(crate) fn enter_level_packets(
+    host: Entity,
+    op_level: PlayerOpLevel,
+    tree: Option<&crate::command::CommandTreePackets>,
+    position: ClientboundPlayerPosition,
+    abilities: ClientboundPlayerAbilities,
+    mut push: impl FnMut(OutboundPlayerPacket),
+) {
+    let column = ColumnPos::from(position.position);
+    level_packets(host, op_level, tree, &mut push);
+    push(to(host, PacketPayload::PlayerPosition(position)).critical());
+    push(
+        to(
+            host,
+            PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+                x: VarInt(column.x),
+                z: VarInt(column.z),
+            }),
+        )
+        .critical(),
+    );
+    push(to(host, PacketPayload::PlayerAbilities(abilities)).critical());
+    push(
+        to(
+            host,
+            PacketPayload::GameEvent(ClientboundGameEvent {
+                game_event: GameEventKind::LevelChunksLoadStart,
+            }),
+        )
+        .critical(),
+    );
+}
+
 /// Per-dim consumer that despawns the in-dim player entity when an
-/// `InboundPlayerDespawn` arrives for its host anchor. Fires on both
-/// disconnect and dimension transfer (the transfer pushes a despawn into the
-/// dimension the player is leaving), so the departed dimension stops streaming
-/// chunks toward that connection.
+/// `InboundPlayerDespawn` arrives for its host anchor on a disconnect, so the
+/// dimension stops streaming chunks toward that connection.
 pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     players: Query<(Entity, &HostAnchor), With<Player>>,
@@ -424,44 +428,6 @@ fn network_add(
             data: VarInt(0),
         }),
     ));
-}
-
-/// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity
-/// and despawn it — the entity has safely arrived at the target and is no longer
-/// needed in the source dim.
-pub fn despawn_on_confirm(
-    mut reader: MessageReader<InboundConfirmMove>,
-    in_transit: Query<(Entity, &InTransit)>,
-    mut commands: Commands,
-) {
-    for msg in reader.read() {
-        for (entity, transit) in in_transit.iter() {
-            if transit.move_id == msg.move_id {
-                commands
-                    .entity(entity)
-                    .remove::<InTransit>()
-                    .insert(Despawned);
-                break;
-            }
-        }
-    }
-}
-
-/// Source-dim system: when `RollbackMove` arrives, remove `InTransit` from the
-/// in-transit entity so it reappears at its original position — no despawn.
-pub fn unhide_on_rollback(
-    mut reader: MessageReader<InboundRollbackMove>,
-    in_transit: Query<(Entity, &InTransit)>,
-    mut commands: Commands,
-) {
-    for msg in reader.read() {
-        for (entity, transit) in in_transit.iter() {
-            if transit.move_id == msg.move_id {
-                commands.entity(entity).remove::<InTransit>();
-                break;
-            }
-        }
-    }
 }
 
 #[cfg(test)]

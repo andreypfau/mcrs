@@ -7,7 +7,6 @@ use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest, Dimen
 use tracing::{debug, info, warn};
 
 pub mod aoi;
-pub mod arrival;
 pub mod block_entity;
 pub mod block_update;
 pub mod chunk;

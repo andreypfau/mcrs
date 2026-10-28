@@ -11,6 +11,7 @@ pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, Regist
 pub use run::{CommandEvent, CommandOutput};
 pub(crate) use run::{system_chat, system_message};
 pub use seam::run_pending_commands;
+pub(crate) use targets::dimension_rank;
 pub use targets::{CommandTargets, DimensionEntry, PlayerEntry};
 
 use crate::world::entity::player::ability::PlayerOpLevel;

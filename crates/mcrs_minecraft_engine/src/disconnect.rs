@@ -198,9 +198,9 @@ impl Disconnects<'_, '_> {
     }
 }
 
-/// Run a single host-anchor's cleanup: route the despawn into every dimension
-/// that may hold the player (both ends of a transfer) and despawn the host
-/// anchor, which takes the session with it.
+/// Run a single host-anchor's cleanup: route the despawn into the dimension
+/// that holds the player and despawn the host anchor, which takes the session
+/// with it.
 ///
 /// The session is unplaced before its anchor's despawn is applied, so a second
 /// cleanup of the same anchor routes nothing.
@@ -215,21 +215,21 @@ pub fn process_disconnect(
         return;
     };
 
-    let releasing = despawn_from_dims(
+    let releasing = despawn_from_dim(
         host_anchor,
         session.0,
         placement.place(),
         dim_channels,
         despawn_queue,
     );
-    if let Some(profile) = profile {
-        for dim in releasing {
-            commands.spawn(Departing {
-                id: profile.id,
-                dim,
-                session: session.0,
-            });
-        }
+    if let Some(profile) = profile
+        && let Some(dim) = releasing
+    {
+        commands.spawn(Departing {
+            id: profile.id,
+            dim,
+            session: session.0,
+        });
     }
     placement.set(Place::Unplaced);
 
@@ -244,31 +244,27 @@ pub fn process_disconnect(
     }
 }
 
-/// Routes the player's despawn into its current dimension and, mid-transfer,
-/// into the one it is leaving. Returns the dimensions that took it.
-pub fn despawn_from_dims(
+/// Routes the player's despawn into its dimension. Returns the dimension when it took it.
+pub fn despawn_from_dim(
     host_anchor: Entity,
     session: PlayerSession,
     place: Place,
     dim_channels: &DimChannelsResource,
     despawn_queue: &mut DimDespawnQueue,
-) -> SmallVec<[Entity; 2]> {
-    place
-        .holding_dims()
-        .filter(|&dim| {
-            dim_channels.get(dim).is_some_and(|chan| {
-                send_control_or_teardown(
-                    &chan.control_sender,
-                    dim,
-                    ToDim::Despawn(InboundPlayerDespawn {
-                        host_anchor,
-                        session,
-                    }),
-                    despawn_queue,
-                )
-            })
+) -> Option<Entity> {
+    place.dim().filter(|&dim| {
+        dim_channels.get(dim).is_some_and(|chan| {
+            send_control_or_teardown(
+                &chan.control_sender,
+                dim,
+                ToDim::Despawn(InboundPlayerDespawn {
+                    host_anchor,
+                    session,
+                }),
+                despawn_queue,
+            )
         })
-        .collect()
+    })
 }
 
 /// `First`-schedule system: refill the budget, then drain the queue up to

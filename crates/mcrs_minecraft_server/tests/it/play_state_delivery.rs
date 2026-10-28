@@ -45,7 +45,6 @@ fn build_host_app() -> App {
 
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>();
-    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();

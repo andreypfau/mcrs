@@ -4,7 +4,7 @@ use crate::command::{
     Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Facing,
     PlayerEntry, Teleport,
 };
-use crate::world::entity::player::dimension_change::arrival_packets;
+use crate::world::entity::player::dimension_change::{Arrival, change_dimension};
 use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
 use crate::world::entity::player_network_id;
 use bevy_ecs::prelude::*;
@@ -19,10 +19,8 @@ use mcrs_minecraft_command::{anchored, rotation_toward};
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundPlayerLookAt, ClientboundPlayerPosition,
-};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::{PositionFlags, VarInt};
 
@@ -280,16 +278,27 @@ pub(super) fn run(
 }
 
 /// The position a victim turns to, and the entity of `player_look_at` (CMD-TP-011,
-/// CMD-TP-012), read after the moves before it.
-fn facing(worlds: &mut Worlds, facing: Facing) -> Option<(DVec3, Option<(VarInt, LookAnchor)>)> {
+/// CMD-TP-012), read after the moves before it. A victim that faces itself faces its
+/// destination `at`.
+fn facing(
+    worlds: &mut Worlds,
+    victim: Entity,
+    at: DVec3,
+    facing: Facing,
+) -> Option<(DVec3, Option<(VarInt, LookAnchor)>)> {
     match facing {
         Facing::Position(position) => Some((position, None)),
-        Facing::Player { anchor, at } => worlds.transform_of(anchor).map(|(_, _, transform)| {
-            (
-                anchored(at, transform.translation, PLAYER_EYE_HEIGHT),
-                Some((VarInt(player_network_id(anchor)), at)),
-            )
-        }),
+        Facing::Player { anchor, at: part } => {
+            let position = if anchor == victim {
+                at
+            } else {
+                worlds.transform_of(anchor)?.2.translation
+            };
+            Some((
+                anchored(part, position, PLAYER_EYE_HEIGHT),
+                Some((VarInt(player_network_id(anchor)), part)),
+            ))
+        }
     }
 }
 
@@ -324,41 +333,47 @@ pub(crate) fn apply(worlds: &mut Worlds, player: Entity, to: Teleport) {
         translation: to.position,
         rotation: Rotation::new(step.result.yaw, step.result.pitch),
     };
-    let Some(arrived) = worlds.move_player(player, origin, destination, entity, transform) else {
-        return;
+    let facing = to
+        .facing
+        .and_then(|target| facing(worlds, player, to.position, target));
+    if let Some((target, _)) = facing {
+        let eyes = anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
+        let (yaw, pitch) = rotation_toward(eyes, target);
+        transform.rotation = Rotation::new(yaw, pitch);
+    }
+    let arrival = Arrival {
+        transform,
+        position: step.position,
+        look: step.look,
+        flags: PositionFlags(step.flags),
     };
-    let facing = to.facing.and_then(|target| facing(worlds, target));
-    worlds.send(destination, |world, out| {
-        if let Some((target, _)) = facing {
-            let from = anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
-            let (yaw, pitch) = rotation_toward(from, target);
-            transform.rotation = Rotation::new(yaw, pitch);
-            if let Some(mut moved) = world.get_mut::<Transform>(arrived) {
-                moved.rotation = transform.rotation;
+    if origin == destination {
+        worlds.send(origin, |world, out| {
+            if let Some(mut moved) = world.get_mut::<Transform>(entity) {
+                *moved = transform;
             }
-        }
-        let Some(mut state) = world.get_mut::<TeleportState>(arrived) else {
+            if let Some(mut state) = world.get_mut::<TeleportState>(entity) {
+                let position = arrival.position_packet(state.sent(transform));
+                out.push(to_player(player, PacketPayload::PlayerPosition(position)).critical());
+            }
+        });
+    } else {
+        let Some((host, from, into)) = worlds.across(origin, destination) else {
             return;
         };
-        let position = ClientboundPlayerPosition {
-            teleport_id: VarInt(state.sent(transform)),
-            position: step.position,
-            velocity: DVec3::ZERO,
-            look: step.look,
-            flags: PositionFlags(step.flags),
+        if let Err(error) = change_dimension(host, from, into, entity, arrival) {
+            tracing::error!(?player, "a player did not change dimension: {error}");
+            return;
+        }
+    }
+    if let Some((target, entity)) = facing {
+        let look_at = ClientboundPlayerLookAt {
+            from: to.anchor,
+            target,
+            entity,
         };
-        if origin == destination {
-            out.push(to_player(player, PacketPayload::PlayerPosition(position)).critical());
-        } else {
-            arrival_packets(world, arrived, position, out);
-        }
-        if let Some((target, entity)) = facing {
-            let look_at = ClientboundPlayerLookAt {
-                from: to.anchor,
-                target,
-                entity,
-            };
+        worlds.send(destination, |_, out| {
             out.push(to_player(player, PacketPayload::PlayerLookAt(look_at)).critical());
-        }
-    });
+        });
+    }
 }

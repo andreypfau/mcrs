@@ -28,7 +28,6 @@ struct InboundLog(Vec<i32>);
 fn build_app() -> App {
     let mut app = host_app::make_host_app();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_systems(Update, bridge_inbound_to_channel);
     app
 }

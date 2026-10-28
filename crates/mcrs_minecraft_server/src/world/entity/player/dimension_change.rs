@@ -1,127 +1,219 @@
 use crate::command::CommandTreePackets;
+use crate::command::dimension_rank;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::entity::player::movement::TeleportState;
-use crate::world::entity::player::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
-use crate::world::entity::player::{HostAnchor, game_mode, level_packets};
+use crate::world::entity::player::{HostAnchor, enter_level_packets, game_mode};
 use crate::world::entity::{EntityBundle, EntityUuid};
-use bevy_ecs::bundle::Bundle;
+use bevy_app::App;
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::With;
-use bevy_ecs::world::World;
-use mcrs_minecraft_core::{ColumnPos, ResourceKey};
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
-use mcrs_minecraft_engine::session::GameProfile;
+use bevy_ecs::message::Messages;
+use bevy_ecs::prelude::{Mut, With};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::world::{EntityWorldMut, World};
+use bevy_math::DVec3;
+use core::any::TypeId;
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension as DimensionKey;
+use mcrs_minecraft_engine::bridge::OutboundFlush;
+use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
+use mcrs_minecraft_engine::dim::deliver;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
+use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
+use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
+use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundGameEvent, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSetChunkCacheCenter,
+    ClientboundPlayerPosition, ClientboundRespawn,
 };
-use mcrs_minecraft_protocol::{GameEventKind, VarInt};
+use mcrs_minecraft_protocol::{Look, PositionFlags, VarInt};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data (DIM-CHG-004).
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
 
-/// The state of a player that is its own and goes with it to another dimension (DIM-CHG-001).
-/// Its view, its trackers and its dimension belong to the world it is in and start anew there.
-#[derive(Bundle)]
-struct Carried {
-    profile: GameProfile,
-    teleport: TeleportState,
-    view_distance: PlayerViewDistance,
-    mode: PlayerGameMode,
-    flying: PlayerFlying,
-    op_level: PlayerOpLevel,
-    anchor: HostAnchor,
-    owner: Owner,
+type Carry = fn(&mut EntityWorldMut<'_>, &mut EntityWorldMut<'_>);
+
+/// The components of a player that are its own and go with it to another dimension
+/// (DIM-CHG-001), each moved from the entity that leaves to the entity that arrives. A plugin of
+/// a dimension world registers the components it owns with
+/// [`CarryOnDimensionChange::carry_on_dimension_change`]; a change reads the list of the world
+/// that the player leaves. A component not in the list stays behind and is despawned.
+#[derive(Resource, Default)]
+pub struct CarriedComponents(Vec<(TypeId, Carry)>);
+
+pub trait CarryOnDimensionChange {
+    /// Moves `T` of a player to its entity in the new world when the player changes dimension.
+    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self;
 }
 
-/// Moves `player` out of `from` into `to` at `transform`, the same player with its own state,
-/// and gives its entity in `to`. Observers in `from` lose sight of it; the view of the player
-/// in `to` starts empty and fills as on a join (DIM-CHG-006, DIM-CHG-007). `None` when `from`
-/// does not hold the player or `to` holds no dimension.
-pub(crate) fn change_dimension(
+impl CarryOnDimensionChange for App {
+    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self {
+        let mut carried = self.world_mut().get_resource_or_init::<CarriedComponents>();
+        let id = TypeId::of::<T>();
+        if !carried.0.iter().any(|(known, _)| *known == id) {
+            carried.0.push((id, carry::<T>));
+        }
+        self
+    }
+}
+
+fn carry<T: Component>(from: &mut EntityWorldMut<'_>, to: &mut EntityWorldMut<'_>) {
+    if let Some(value) = from.take::<T>() {
+        to.insert(value);
+    }
+}
+
+/// Where a player arrives: its transform, and what `player_position` tells the client, whose
+/// relative axes carry the change and not the value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Arrival {
+    pub transform: Transform,
+    pub position: DVec3,
+    pub look: Look,
+    pub flags: PositionFlags,
+}
+
+impl Arrival {
+    /// An arrival that tells the client the absolute position and rotation of `transform`.
+    pub fn absolute(transform: Transform) -> Self {
+        Self {
+            transform,
+            position: transform.translation,
+            look: Look {
+                yaw: transform.rotation.yaw(),
+                pitch: transform.rotation.pitch(),
+            },
+            flags: PositionFlags::default(),
+        }
+    }
+
+    pub(crate) fn position_packet(&self, teleport_id: i32) -> ClientboundPlayerPosition {
+        ClientboundPlayerPosition {
+            teleport_id: VarInt(teleport_id),
+            position: self.position,
+            velocity: DVec3::ZERO,
+            look: self.look,
+            flags: self.flags.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum DimensionChangeError {
+    #[error("the new world holds no dimension")]
+    NoDimension,
+    #[error("the old world holds no such player")]
+    NoPlayer,
+    #[error("the player did not leave its dimension")]
+    NotLeft,
+}
+
+/// Moves `player`, an entity of `from`, into the dimension of `to` as the same player, places its
+/// session there and sends it the packets of DIM-CHG-003. Gives its entity in `to`. Observers in
+/// `from` lose sight of it; its view in `to` starts empty and fills as on a join (DIM-CHG-006,
+/// DIM-CHG-007). The host calls this between two ticks, with every world in reach.
+pub fn change_dimension(
+    host: &mut World,
     from: &mut World,
     to: &mut World,
     player: Entity,
-    transform: Transform,
-) -> Option<Entity> {
+    arrival: Arrival,
+) -> Result<Entity, DimensionChangeError> {
     let dimension = to
         .query_filtered::<Entity, With<Dimension>>()
         .single(to)
-        .ok()?;
-    if let Err(error) = from.run_system_cached_with(
+        .map_err(|_| DimensionChangeError::NoDimension)?;
+    let label = to
+        .get_resource::<DimensionLabel>()
+        .ok_or(DimensionChangeError::NoDimension)?
+        .0;
+    let leaving = from
+        .get_entity(player)
+        .map_err(|_| DimensionChangeError::NoPlayer)?;
+    let (Some(&anchor), Some(&owner), Some(&uuid), true) = (
+        leaving.get::<HostAnchor>(),
+        leaving.get::<Owner>(),
+        leaving.get::<EntityUuid>(),
+        leaving.contains::<Player>(),
+    ) else {
+        return Err(DimensionChangeError::NoPlayer);
+    };
+    // The packets already stamped for the player leave before its epoch changes, or the bridge
+    // drops them as packets of the dimension it left.
+    let _ = host.try_run_schedule(OutboundFlush);
+    from.run_system_cached_with(
         crate::world::aoi::drain_player_despawn::leave_dimension,
         player,
-    ) {
-        tracing::error!("a player did not leave its dimension: {error}");
-        return None;
-    }
-    let mut leaving = from.get_entity_mut(player).ok()?;
-    let uuid = leaving.take::<EntityUuid>()?;
-    let carried = leaving.take::<Carried>()?;
-    let loaded = leaving.take::<LoadedPlayerDat>();
-    let unreadable = leaving.take::<UnreadablePlayerDat>();
-    leaving.despawn();
-    let session = carried.owner.0;
+    )
+    .map_err(|_| DimensionChangeError::NotLeft)?;
+    let arrived = to
+        .spawn((
+            EntityBundle {
+                minecraft_entity: Default::default(),
+                dimension: InDimension(dimension),
+                transform: arrival.transform,
+                uuid,
+            },
+            anchor,
+            owner,
+            TrackedBy::default(),
+            Player,
+            ColumnView::default(),
+        ))
+        .id();
+    from.try_resource_scope(|from, carried: Mut<CarriedComponents>| {
+        let (Ok(mut leaving), Ok(mut arriving)) =
+            (from.get_entity_mut(player), to.get_entity_mut(arrived))
+        else {
+            return;
+        };
+        for (_, carry) in &carried.0 {
+            carry(&mut leaving, &mut arriving);
+        }
+    });
+    from.despawn(player);
     if let Some(mut index) = from.get_resource_mut::<DimPlayerIndex>() {
-        index.0.remove(&session);
+        index.0.remove(&owner.0);
     }
-    let mut arrived = to.spawn((
-        EntityBundle {
-            minecraft_entity: Default::default(),
-            dimension: InDimension(dimension),
-            transform,
-            uuid,
-        },
-        carried,
-        TrackedBy::default(),
-        Player,
-        ColumnView::default(),
-    ));
-    if let Some(loaded) = loaded {
-        arrived.insert(loaded);
-    }
-    if let Some(unreadable) = unreadable {
-        arrived.insert(unreadable);
-    }
-    let arrived = arrived.id();
     if let Some(mut index) = to.get_resource_mut::<DimPlayerIndex>() {
-        index.0.insert(session, arrived);
+        index.0.insert(owner.0, arrived);
     }
-    Some(arrived)
+    if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor.0) {
+        placement.set(Place::InDim(label));
+    }
+    if send_arrival(host, to, arrived, &arrival).is_none() {
+        tracing::error!(
+            ?player,
+            "a player that changed dimension lacks its own state"
+        );
+    }
+    Ok(arrived)
 }
 
-/// The packets that tell a player it is in the dimension of `world` now, in the order of
-/// DIM-CHG-003, with `position` as the move of step 5.
-// chisle: steps 2, 8, 9, 10, 13 to 16 and 18 are not sent, because the server holds no
-// difficulty, world border, clock packet, spawn position, tick rate packet, inventory sync or post
-// effects yet, and the join does not send them either; each step joins this sequence and the
-// join together with its state.
-pub(crate) fn arrival_packets(
-    world: &World,
+fn send_arrival(
+    host: &mut World,
+    world: &mut World,
     player: Entity,
-    position: ClientboundPlayerPosition,
-    out: &mut Vec<OutboundPlayerPacket>,
+    arrival: &Arrival,
 ) -> Option<()> {
+    let teleport_id = world
+        .get_mut::<TeleportState>(player)?
+        .sent(arrival.transform);
     let entity = world.get_entity(player).ok()?;
-    let &HostAnchor(host) = entity.get::<HostAnchor>()?;
+    let &HostAnchor(anchor) = entity.get::<HostAnchor>()?;
     let mode = entity.get::<PlayerGameMode>()?.0;
     let flying = entity.get::<PlayerFlying>()?.0;
     let op_level = *entity.get::<PlayerOpLevel>()?;
     let dimension = entity.get::<InDimension>()?.0;
-    let key = world.get::<ResourceKey<mcrs_minecraft_dimension::Dimension>>(dimension)?;
+    let key = world.get::<ResourceKey<DimensionKey>>(dimension)?;
     let dimension_type = world.get::<DimensionTypeId>(dimension)?.0;
-    let column = ColumnPos::from(position.position);
-    out.push(
-        to(
-            host,
+    deliver(
+        host,
+        to_player(
+            anchor,
             PacketPayload::Respawn(ClientboundRespawn {
                 player_spawn_info: PlayerSpawnInfo::new(dimension_type, key.clone(), mode),
                 data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
@@ -129,40 +221,66 @@ pub(crate) fn arrival_packets(
         )
         .critical(),
     );
-    level_packets(
-        host,
+    enter_level_packets(
+        anchor,
         op_level,
         world.get_resource::<CommandTreePackets>(),
-        |packet| {
-            out.push(packet);
-        },
-    );
-    out.push(to(host, PacketPayload::PlayerPosition(position)).critical());
-    out.push(
-        to(
-            host,
-            PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
-                x: VarInt(column.x),
-                z: VarInt(column.z),
-            }),
-        )
-        .critical(),
-    );
-    out.push(
-        to(
-            host,
-            PacketPayload::PlayerAbilities(game_mode::abilities(mode, flying)),
-        )
-        .critical(),
-    );
-    out.push(
-        to(
-            host,
-            PacketPayload::GameEvent(ClientboundGameEvent {
-                game_event: GameEventKind::LevelChunksLoadStart,
-            }),
-        )
-        .critical(),
+        arrival.position_packet(teleport_id),
+        game_mode::abilities(mode, flying),
+        |packet| deliver(host, packet),
     );
     Some(())
+}
+
+/// Applies the [`ChangeDimensionRequest`]s that the dimension worlds wrote in their last tick,
+/// in the order of the dimensions and then in the order of writing. The server calls it between
+/// two ticks, after the pending commands; an embedder that drives the app itself calls it at
+/// the same point.
+pub fn apply_dimension_change_requests(app: &mut App) {
+    let sub_apps = app.sub_apps_mut();
+    let requested = sub_apps.sub_apps.values().any(|sub| {
+        sub.world()
+            .get_resource::<Messages<ChangeDimensionRequest>>()
+            .is_some_and(|requests| !requests.is_empty())
+    });
+    if !requested {
+        return;
+    }
+    let host = sub_apps.main.world_mut();
+    let mut worlds: Vec<(ResourceKey<DimensionKey>, &mut World)> = sub_apps
+        .sub_apps
+        .values_mut()
+        .filter_map(|sub| {
+            let world = sub.world_mut();
+            let key = world
+                .query_filtered::<&ResourceKey<DimensionKey>, With<Dimension>>()
+                .single(world)
+                .ok()?
+                .clone();
+            Some((key, world))
+        })
+        .collect();
+    worlds.sort_by(|(a, _), (b, _)| dimension_rank(a).cmp(&dimension_rank(b)));
+    for origin in 0..worlds.len() {
+        let Some(requests) = worlds.get_mut(origin).and_then(|(_, world)| {
+            let mut requests = world.get_resource_mut::<Messages<ChangeDimensionRequest>>()?;
+            Some(requests.drain().collect::<Vec<_>>())
+        }) else {
+            continue;
+        };
+        for request in requests {
+            let Some(destination) = worlds.iter().position(|(key, _)| *key == request.to) else {
+                tracing::error!(to = %request.to, "a dimension change names no running dimension");
+                continue;
+            };
+            let Ok([(_, from), (_, to)]) = worlds.get_disjoint_mut([origin, destination]) else {
+                tracing::error!(to = %request.to, "a dimension change names its own dimension");
+                continue;
+            };
+            let arrival = Arrival::absolute(request.transform);
+            if let Err(error) = change_dimension(host, from, to, request.player, arrival) {
+                tracing::error!(player = ?request.player, "a player did not change dimension: {error}");
+            }
+        }
+    }
 }

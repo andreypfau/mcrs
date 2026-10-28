@@ -19,6 +19,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 
 use crate::world::entity::player::HostAnchor;
+use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 
 pub struct MovementPlugin;
@@ -31,6 +32,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_status_only);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
+        app.carry_on_dimension_change::<TeleportState>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::Input));
         app.add_systems(
             FixedPostUpdate,

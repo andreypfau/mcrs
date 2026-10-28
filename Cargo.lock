@@ -3768,7 +3768,6 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
- "mcrs_minecraft_entity",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_level",
  "mcrs_minecraft_network",

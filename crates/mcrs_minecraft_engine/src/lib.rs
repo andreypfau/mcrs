@@ -22,7 +22,6 @@ impl Plugin for EnginePlugin {
         // with `resource_mut`, which panics on a message that was never added.
         app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
         app.init_resource::<channel_types::DimChannelsResource>();
-        app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
         app.world_mut().get_resource_or_insert_with(

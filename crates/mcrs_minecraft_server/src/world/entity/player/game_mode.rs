@@ -1,5 +1,6 @@
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_command::CommandLevel;
@@ -22,7 +23,9 @@ pub struct GameModePlugin;
 impl Plugin for GameModePlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(handle_change_game_mode)
-            .add_observer(handle_player_abilities);
+            .add_observer(handle_player_abilities)
+            .carry_on_dimension_change::<PlayerGameMode>()
+            .carry_on_dimension_change::<PlayerFlying>();
     }
 }
 

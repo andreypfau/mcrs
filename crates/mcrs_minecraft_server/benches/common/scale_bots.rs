@@ -184,13 +184,7 @@ pub fn run_profile_ticks(
                     let idx = dim_entities.iter().position(|&d| d == old_dim).unwrap_or(0);
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
                     // Keeps the epoch: every injected packet is stamped with epoch 0.
-                    *placement = SessionPlacement::new(
-                        Place::Transferring {
-                            from: old_dim,
-                            to: new_dim,
-                        },
-                        placement.epoch(),
-                    );
+                    *placement = SessionPlacement::new(Place::InDim(new_dim), placement.epoch());
                     cross_dim_transfers += 1;
                 }
             }

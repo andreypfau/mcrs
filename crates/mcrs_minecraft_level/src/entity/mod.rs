@@ -1,6 +1,5 @@
 use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
-use crate::session::MoveId;
 use crate::tick::TickSet;
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
 use crate::world::storage::section::Section;
@@ -78,17 +77,6 @@ impl SectionEntities {
 #[component(storage = "SparseSet")]
 pub struct Despawned;
 
-/// Hides a live entity in place during a cross-dimension move.
-///
-/// The entity is NOT despawned — it remains in the source dim's world so the
-/// move can be rolled back by simply removing this marker.  Every system that
-/// excludes `Despawned` must also exclude `InTransit`.
-#[derive(Component, Debug)]
-#[component(storage = "SparseSet")]
-pub struct InTransit {
-    pub move_id: MoveId,
-}
-
 fn add_entity_to_chunk(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
@@ -99,7 +87,6 @@ fn add_entity_to_chunk(
             Without<Section>,
             Without<OldTransform>,
             Without<Despawned>,
-            Without<InTransit>,
         ),
     >,
 ) {
@@ -128,7 +115,6 @@ fn add_old_transform(
             Without<Section>,
             Without<OldTransform>,
             Without<Despawned>,
-            Without<InTransit>,
         ),
     >,
     mut commands: Commands,
@@ -149,12 +135,7 @@ fn update_chunk_entities(
             &OldTransform,
             &OldInDimension,
         ),
-        (
-            Without<Dimension>,
-            Without<Section>,
-            Without<Despawned>,
-            Without<InTransit>,
-        ),
+        (Without<Dimension>, Without<Section>, Without<Despawned>),
     >,
 ) {
     for (entity, dimension, transform, old_transform, old_dimension) in entities.iter() {
@@ -212,9 +193,7 @@ fn remove_entity_despawned(
         });
 }
 
-fn update_old_transforms(
-    mut entities: Query<(&mut OldTransform, &Transform), (Without<Despawned>, Without<InTransit>)>,
-) {
+fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform), Without<Despawned>>) {
     entities
         .iter_mut()
         .for_each(|(mut old_transform, transform)| {
@@ -242,15 +221,7 @@ pub struct EntityNetworkRemoveEvent {
 
 fn add_player_synced_entities(
     mut commands: Commands,
-    new_players: Query<
-        Entity,
-        (
-            With<Player>,
-            Added<InDimension>,
-            Without<Despawned>,
-            Without<InTransit>,
-        ),
-    >,
+    new_players: Query<Entity, (With<Player>, Added<InDimension>, Without<Despawned>)>,
 ) {
     new_players.iter().for_each(|entity| {
         commands
@@ -263,7 +234,7 @@ fn sync_entities(
     dim_players: Query<&DimensionPlayers>,
     player_data: Query<
         (&Transform, &PlayerSynchronizedEntities),
-        (With<Player>, Without<Despawned>, Without<InTransit>),
+        (With<Player>, Without<Despawned>),
     >,
     entities: Query<(
         Entity,

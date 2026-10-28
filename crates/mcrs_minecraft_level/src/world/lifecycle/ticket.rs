@@ -2,9 +2,9 @@
 
 use std::collections::VecDeque;
 
+use crate::entity::Despawned;
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
-use crate::entity::{Despawned, InTransit};
 use crate::palette::ChunkBlocks;
 use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
@@ -180,15 +180,9 @@ fn track_simulation_tickets(
             &InDimension,
             Option<&mut SimulationTicket>,
         ),
-        (With<Player>, Without<Despawned>, Without<InTransit>),
+        (With<Player>, Without<Despawned>),
     >,
-    departed: Query<
-        Entity,
-        (
-            With<SimulationTicket>,
-            Or<(With<Despawned>, With<InTransit>)>,
-        ),
-    >,
+    departed: Query<Entity, (With<SimulationTicket>, With<Despawned>)>,
     mut dims: Query<&mut SectionTickets>,
     mut commands: Commands,
 ) {

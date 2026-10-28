@@ -43,7 +43,6 @@ fn build_join_host_app() -> App {
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<InboundPlayerSpawn>();
 
     app.add_systems(

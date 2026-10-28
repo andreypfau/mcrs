@@ -73,15 +73,40 @@ and applies the effects in order. Each effect applies in the world that holds it
 
 - A game mode sets the component of the player. Its world sends the packets on its next tick.
 - A teleport in the same dimension sets the transform and sends `player_position`.
-- A teleport to another dimension moves the player from one world to the other
-  (`change_dimension`). The old world runs the eviction of a disconnect, so observers receive
-  `remove_entities`. The player takes its own state to the new world. Its view and its trackers
-  start new there. The host places the session in the new dimension. Then the host sends the
-  packets of DIM-CHG-003.
+- A teleport to another dimension calls `change_dimension`, the one operation that moves a
+  player between worlds. See "Change of dimension".
 
 After each effect, the host updates the entry of the player in `CommandTargets`. Thus a later
 effect, a later stage and a later line see the move. Then the host sends the messages of the
 call, so a player that a command moves hears of the move after the move.
+
+## Change of dimension
+
+`change_dimension` moves a player from one world to another. It takes the host world and the two
+dimension worlds, so only a seam between two ticks can call it. The steps are:
+
+1. The host runs its outbound flush. The packets that already have the old epoch leave first.
+2. The old world runs the eviction of a disconnect, so observers receive `remove_entities`.
+3. The new world spawns the player with its UUID, its host anchor and its owner. Its view and
+   its trackers start new there.
+4. Each component in `CarriedComponents` of the old world moves to the new entity. The old
+   entity is despawned.
+5. The host places the session in the new dimension.
+6. The host sends `respawn` and then the packets that a join sends after `login`
+   (`enter_level_packets`), in the order of DIM-CHG-003.
+
+A plugin of a dimension world adds a component of the player to `CarriedComponents` with
+`carry_on_dimension_change`. The list holds one function pointer for each component type. A
+component that is not in the list stays in the old world and is despawned with the old entity.
+The dimension worlds read the state of a player in each tick, so this state stays on the entity
+in the dimension world and does not move to the host.
+
+A system of a dimension world cannot reach another world. A move that a dimension decides in its
+tick, for example a portal, writes the message `ChangeDimensionRequest`. Between two ticks, after
+the pending commands, the host applies the requests of each world through `change_dimension`
+(`apply_dimension_change_requests`). The order is the dimension order and then the order of
+writing. A request that names no running dimension, or the dimension of its own world, is an
+error in the log.
 
 ## Why the result is synchronous
 
@@ -116,11 +141,14 @@ take the odd ids and other entities the even ids, so the ids of two allocators n
 | `CommandTargets` | materialized derived state of the players of all worlds | the host; filled at the start of a pass, changed only by the effects of the pass, dropped at its end |
 | `CommandOutbox` | temporal fact: the effects and messages of one call | the host; emptied after each call |
 | `DimensionLabel` | truth: the name of the dimension of a world | the sub-app builder |
-| `Carried` | truth of the player, moved, never copied | the world that holds the player |
+| Carried components of a player | truth of the player, moved, never copied | the world that holds the player |
+| `CarriedComponents` | truth: the component types that a player takes to another dimension | each dimension world; filled when its plugins build |
+| `ChangeDimensionRequest` | temporal fact: a move that a dimension decided in its tick | the dimension world that writes it; emptied by the host between two ticks |
 
 ## Cost model
 
 - An idle tick costs one look at `CommandQueue` in the host. Nothing else runs.
+- An idle tick costs one look at the `ChangeDimensionRequest` messages of each dimension world.
 - A pass with lines costs one query of the players of each dimension and one `CommandTargets`
   with a copy of each name. The lend of a parse or a call swaps four resources. Nothing else is
   copied.
