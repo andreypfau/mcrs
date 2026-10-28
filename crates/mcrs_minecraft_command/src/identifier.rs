@@ -75,13 +75,13 @@ fn matches_identifier_text(pattern: &str, text: &str) -> bool {
 }
 
 /// The remaining input matches a text candidate (CMD-SUG-008).
-pub fn text_matches(remaining: &str, text: &str) -> bool {
+pub fn text_matches(text: &str, remaining: &str) -> bool {
     matches_at_separator(remaining, text, starts_with_ignore_case)
 }
 
 /// `canonical` is `namespace:path`; the remaining input matches it as CMD-SUG-008 states for
 /// identifiers.
-pub(crate) fn identifier_matches(remaining: &str, canonical: &str) -> bool {
+pub(crate) fn identifier_matches(canonical: &str, remaining: &str) -> bool {
     if remaining.contains(':') {
         return matches_identifier_text(remaining, canonical);
     }
@@ -105,7 +105,7 @@ pub(crate) fn prefixed_identifier_matches(remaining: &str, prefix: &str, canonic
     }
     remaining
         .get(common..)
-        .is_some_and(|rest| identifier_matches(rest, canonical))
+        .is_some_and(|rest| identifier_matches(canonical, rest))
 }
 
 /// Suggests each id after each prefix that `matches` accepts against the remaining input.

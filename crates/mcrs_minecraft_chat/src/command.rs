@@ -1,6 +1,6 @@
 use crate::ability::ChatAbilities;
 use crate::byte_offset;
-use mcrs_command::suggest::{prefix_matches, recycle};
+use mcrs_command::suggest::{recycle, starts_with_ignore_case};
 use mcrs_command::{
     ArgumentSet, Node, NodeId, NodeKind, ParseResult, ParseScratch, Span, Suggestion,
     SuggestionBuilder, SuggestionText, build_list,
@@ -480,7 +480,9 @@ impl CommandInput {
         for child in children.iter().filter_map(|&child| cx.tree.node(child)) {
             match child.kind() {
                 NodeKind::Root => {}
-                NodeKind::Literal(name) => builder.suggest_matching([&**name], prefix_matches),
+                NodeKind::Literal(name) => {
+                    builder.suggest_matching([&**name], starts_with_ignore_case)
+                }
                 NodeKind::Argument { argument, .. } => {
                     if argument.needs_server(cx.source.lookup) {
                         needs_server = true;

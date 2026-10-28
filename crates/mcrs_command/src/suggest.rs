@@ -50,11 +50,6 @@ pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
     fold(prefix.chars()).all(|c| text.next() == Some(c))
 }
 
-/// Whether `text` starts with the remaining input, ignoring case.
-pub fn prefix_matches(remaining: &str, text: &str) -> bool {
-    starts_with_ignore_case(text, remaining)
-}
-
 #[expect(
     clippy::unnecessary_filter_map,
     reason = "the map changes the lifetime of the element type, which a filter cannot"
@@ -108,14 +103,14 @@ impl<'t, 'o, T> SuggestionBuilder<'t, 'o, T> {
         }
     }
 
-    /// Suggests each text that `matches` the remaining input.
+    /// Suggests each text that `matches` the remaining input, called as `matches(text, remaining)`.
     pub fn suggest_matching(
         &mut self,
         texts: impl IntoIterator<Item = &'t str>,
         matches: fn(&str, &str) -> bool,
     ) {
         for text in texts {
-            if matches(self.remaining(), text) {
+            if matches(text, self.remaining()) {
                 self.suggest(SuggestionText::new(text), None);
             }
         }

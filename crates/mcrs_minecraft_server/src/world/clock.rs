@@ -77,8 +77,14 @@ fn apply_clock_edit(
 
 /// Copies the host's game time into a dimension.
 pub(crate) fn extract_game_time(main_world: &World, sub_world: &mut World) {
-    if let Some(time) = main_world.get_resource::<GameTime>() {
-        sub_world.insert_resource(*time);
+    let Some(&time) = main_world.get_resource::<GameTime>() else {
+        return;
+    };
+    match sub_world.get_resource_mut::<GameTime>() {
+        Some(mut current) => {
+            current.set_if_neq(time);
+        }
+        None => sub_world.insert_resource(time),
     }
 }
 

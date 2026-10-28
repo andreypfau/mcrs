@@ -20,8 +20,7 @@ pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execut
 pub use parse::{ContextView, ParseResult, ParseScratch};
 pub use reader::{Reader, StringValue, is_whitespace};
 pub use suggest::{
-    Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list, prefix_matches,
-    recycle,
+    Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list, recycle,
 };
 pub use tree::{
     Arg, BuildError, Contains, Graph, GraphBuilder, Node, NodeId, NodeKind, Requirement,
