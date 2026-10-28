@@ -4,16 +4,14 @@ use crate::world::light_codec::{
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::lifecycle::{Add, Discard};
+use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
 use mcrs_minecraft_engine::bus::to;
-use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
 use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks};
@@ -84,7 +82,6 @@ impl Plugin for ColumnViewPlugin {
 
         app.add_observer(handle_batch_acknowledgement);
         app.add_observer(release_loading_tickets);
-        app.add_observer(drop_view_of_departed_player);
     }
 }
 
@@ -421,14 +418,6 @@ fn release_loading_tickets(
         if *state != ColumnState::Queued {
             apply_loading_tickets(&mut tickets, column, off, type_config.section_count, false);
         }
-    }
-}
-
-/// A player whose move to another dimension was confirmed stays behind as a `Despawned`
-/// entity, so its view goes here or it keeps its tickets for as long as the dimension runs.
-fn drop_view_of_departed_player(add: On<Add, Despawned>, mut commands: Commands) {
-    if let Ok(mut player) = commands.get_entity(add.event().entity) {
-        player.try_remove::<ColumnView>();
     }
 }
 
@@ -1108,20 +1097,6 @@ mod tests {
         assert_eq!(ticketed_sections(&world, fx.dim, col), 0);
     }
 
-    fn a_player_that_left_for_another_dimension_hands_back_its_loading_tickets() {
-        let mut world = World::new();
-        let col = ColumnPos::new(0, 0);
-        let fx = fixture(&mut world, &[col]);
-        world.add_observer(release_loading_tickets);
-        world.add_observer(drop_view_of_departed_player);
-        raise(&mut world, fx.player, col);
-
-        world.entity_mut(fx.player).insert(Despawned);
-        world.flush();
-
-        assert_eq!(ticketed_sections(&world, fx.dim, col), 0);
-    }
-
     /// The loading tickets make this unreachable, so the guard is what stops a broken
     /// invariant from putting half a column on the wire.
     fn a_column_missing_a_section_goes_back_to_waiting_instead_of_out() {
@@ -1264,7 +1239,6 @@ mod tests {
         a_batch_goes_out_nearest_first();
         a_column_waits_for_the_light_of_every_section_it_carries();
         a_despawned_view_hands_back_its_loading_tickets();
-        a_player_that_left_for_another_dimension_hands_back_its_loading_tickets();
         a_column_missing_a_section_goes_back_to_waiting_instead_of_out();
         the_view_raises_no_more_columns_than_a_tick_can_spawn_and_the_nearest_first();
         a_view_queues_every_column_of_its_square_in_the_tick_it_is_applied();

@@ -52,11 +52,8 @@ pub fn drain_inbound_player_despawn(
             .iter()
             .find_map(|(e, anchor)| (anchor.0 == host_anchor).then_some(e));
         let Some(target) = in_dim_entity else {
-            // No per-dim Player carries this host_anchor — happens when the
-            // disconnect message arrives for a dim the player never reached
-            // (mid-transit disconnect into the previous_dim bundle), or
-            // before the per-dim spawn consumer has wired HostAnchor onto
-            // the in-dim Player. Harmless: there is nothing to evict here.
+            // No player of this dimension carries the anchor yet: the disconnect came before
+            // the spawn of the player here. There is nothing to evict.
             continue;
         };
 
