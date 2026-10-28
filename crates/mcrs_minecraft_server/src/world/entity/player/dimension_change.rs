@@ -6,8 +6,10 @@ use crate::world::entity::player::column_view::ColumnView;
 use crate::world::entity::player::movement::TeleportState;
 use crate::world::entity::player::{HostAnchor, enter_level_packets, game_mode};
 use crate::world::entity::{EntityBundle, EntityUuid};
+use crate::world::sub_app_builder::FromDimBacklog;
 use bevy_app::{App, SubApp};
-use bevy_ecs::component::Component;
+use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, MAX_CHANGE_AGE, Tick};
+use bevy_ecs::component::{Component, Mutable};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
@@ -18,8 +20,10 @@ use core::any::TypeId;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, OutboundPlayerReleased};
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
-use mcrs_minecraft_engine::dim::deliver;
+use mcrs_minecraft_engine::channel_types::FromDim;
+use mcrs_minecraft_engine::dim::{deliver, pump_dim, receive_from_dim};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
@@ -46,11 +50,11 @@ pub struct CarriedComponents(Vec<(TypeId, Carry)>);
 
 pub trait CarryOnDimensionChange {
     /// Moves `T` of a player to its entity in the new world when the player changes dimension.
-    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self;
+    fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self;
 }
 
 impl CarryOnDimensionChange for App {
-    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self {
+    fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
         let mut carried = self.world_mut().get_resource_or_init::<CarriedComponents>();
         let id = TypeId::of::<T>();
         if !carried.0.iter().any(|(known, _)| *known == id) {
@@ -60,9 +64,31 @@ impl CarryOnDimensionChange for App {
     }
 }
 
-fn carry<T: Component>(from: &mut EntityWorldMut<'_>, to: &mut EntityWorldMut<'_>) {
-    if let Some(value) = from.take::<T>() {
-        to.insert(value);
+/// The moved value is not new to the systems of the new world, and it counts as changed only
+/// when a change in the old world was not yet seen there, such as a game mode a command set
+/// before the same pass moved the player.
+fn carry<T: Component<Mutability = Mutable>>(
+    from: &mut EntityWorldMut<'_>,
+    to: &mut EntityWorldMut<'_>,
+) {
+    let Some(unseen_change) = from.get_ref::<T>().map(|value| value.is_changed()) else {
+        return;
+    };
+    let Some(value) = from.take::<T>() else {
+        return;
+    };
+    let long_ago = Tick::new(
+        to.world()
+            .read_change_tick()
+            .get()
+            .wrapping_sub(MAX_CHANGE_AGE),
+    );
+    to.insert(value);
+    if let Some(mut moved) = to.get_mut::<T>() {
+        moved.set_last_added(long_ago);
+        if unseen_change {
+            moved.set_changed();
+        }
     }
 }
 
@@ -141,6 +167,7 @@ pub fn change_dimension(
     ) else {
         return Err(DimensionChangeError::NoPlayer);
     };
+    hand_over_outbound(host, from);
     // The packets already stamped for the player leave before its epoch changes, or the bridge
     // drops them as packets of the dimension it left.
     let _ = host.try_run_schedule(OutboundFlush);
@@ -191,6 +218,37 @@ pub fn change_dimension(
         );
     }
     Ok(arrived)
+}
+
+/// Stamps everything the old dimension produced and the host did not take yet, in the order it
+/// was written. Stamped later, after the epoch changes, the player would get those packets of
+/// the dimension it left after its respawn.
+fn hand_over_outbound(host: &mut World, from: &mut World) {
+    let Some(dim) = from.get_resource::<DimensionLabel>().map(|label| label.0) else {
+        return;
+    };
+    pump_dim(host, dim);
+    if let Some(mut backlog) = from.get_resource_mut::<FromDimBacklog>() {
+        for message in backlog.0.drain(..) {
+            receive_from_dim(host, dim, message);
+        }
+    }
+    if let Some(mut packets) = from.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
+        for packet in packets.drain() {
+            deliver(host, packet);
+        }
+    }
+    if let Some(mut released) = from.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
+        for released in released.drain() {
+            receive_from_dim(
+                host,
+                dim,
+                FromDim::Released {
+                    session: released.session,
+                },
+            );
+        }
+    }
 }
 
 fn send_arrival(

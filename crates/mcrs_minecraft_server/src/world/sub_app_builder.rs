@@ -229,6 +229,7 @@ pub fn spawn_dim_subapp(
         control: to_dim_ctl_rx,
     });
     sub_app.insert_resource(FromDimSender::<FromDim>(from_dim_tx));
+    sub_app.init_resource::<FromDimBacklog>();
 
     // Per-sub-app message registrations. Only types that still flow through
     // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
@@ -666,12 +667,17 @@ fn drain_to_dim_inbox(
 /// recorded as sent the moment it is queued and never offered again, so a lost
 /// packet is a hole in the client's world, and a lost batch-finished packet
 /// costs the acknowledgement the whole column stream is paced by.
+/// What a dimension produced and its full channel did not take yet, oldest first.
+#[derive(bevy_ecs::resource::Resource, Default)]
+pub(crate) struct FromDimBacklog(pub(crate) VecDeque<FromDim>);
+
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
     sender: Res<FromDimSender<FromDim>>,
-    mut backlog: Local<VecDeque<FromDim>>,
+    mut backlog: ResMut<FromDimBacklog>,
 ) {
+    let backlog = &mut backlog.0;
     backlog.extend(msgs.drain().map(FromDim::Clientbound));
     backlog.extend(released.drain().map(|released| FromDim::Released {
         session: released.session,
@@ -739,6 +745,7 @@ mod tests {
             Messages::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>::default(),
         );
         world.insert_resource(FromDimSender(tx));
+        world.init_resource::<FromDimBacklog>();
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {
             msgs.write(OutboundPlayerPacket {
