@@ -1,8 +1,9 @@
 use crate::identifier::Identifier;
 use mcrs_command::{ErrorKind, LibraryError, Span, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_nbt::snbt::{SnbtError, java_double, java_float};
-use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
+use mcrs_minecraft_nbt::snbt::SnbtError;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::text::{Color, IntoText, Text, TranslateArg};
 
 /// The syntax errors of the vanilla argument types. Text from the command line is a span.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -124,32 +125,48 @@ fn subject_text(input: &str, subject: BlockSubject) -> Text {
     if subject.tag { format!("#{id}") } else { id }.into_text()
 }
 
-fn bound(key: &'static str, limit: impl ToString, value: impl ToString) -> Text {
-    Text::translate(
+fn bound(key: &'static str, limit: NbtTag, value: NbtTag) -> Text {
+    Text::translate_args(
         key,
-        vec![limit.to_string().into_text(), value.to_string().into_text()],
+        vec![TranslateArg::Number(limit), TranslateArg::Number(value)],
     )
 }
 
 fn library_text(input: &str, error: LibraryError) -> Text {
     use LibraryError as E;
     match error {
-        E::DoubleTooLow { value, min } => {
-            bound("argument.double.low", java_double(min), java_double(value))
+        E::DoubleTooLow { value, min } => bound(
+            "argument.double.low",
+            NbtTag::Double(min),
+            NbtTag::Double(value),
+        ),
+        E::DoubleTooHigh { value, max } => bound(
+            "argument.double.big",
+            NbtTag::Double(max),
+            NbtTag::Double(value),
+        ),
+        E::FloatTooLow { value, min } => bound(
+            "argument.float.low",
+            NbtTag::Float(min),
+            NbtTag::Float(value),
+        ),
+        E::FloatTooHigh { value, max } => bound(
+            "argument.float.big",
+            NbtTag::Float(max),
+            NbtTag::Float(value),
+        ),
+        E::IntegerTooLow { value, min } => {
+            bound("argument.integer.low", NbtTag::Int(min), NbtTag::Int(value))
         }
-        E::DoubleTooHigh { value, max } => {
-            bound("argument.double.big", java_double(max), java_double(value))
+        E::IntegerTooHigh { value, max } => {
+            bound("argument.integer.big", NbtTag::Int(max), NbtTag::Int(value))
         }
-        E::FloatTooLow { value, min } => {
-            bound("argument.float.low", java_float(min), java_float(value))
+        E::LongTooLow { value, min } => {
+            bound("argument.long.low", NbtTag::Long(min), NbtTag::Long(value))
         }
-        E::FloatTooHigh { value, max } => {
-            bound("argument.float.big", java_float(max), java_float(value))
+        E::LongTooHigh { value, max } => {
+            bound("argument.long.big", NbtTag::Long(max), NbtTag::Long(value))
         }
-        E::IntegerTooLow { value, min } => bound("argument.integer.low", min, value),
-        E::IntegerTooHigh { value, max } => bound("argument.integer.big", max, value),
-        E::LongTooLow { value, min } => bound("argument.long.low", min, value),
-        E::LongTooHigh { value, max } => bound("argument.long.big", max, value),
         E::ExpectedEndOfQuote => Text::translate("parsing.quote.expected.end", vec![]),
         E::InvalidEscape(c) => {
             Text::translate("parsing.quote.escape", vec![c.to_string().into_text()])
