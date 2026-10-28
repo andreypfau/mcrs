@@ -12,6 +12,7 @@ use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionTypeConfig, InDimension};
@@ -19,7 +20,9 @@ use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSl
 use mcrs_minecraft_server::world::aoi::TrackedBy;
 
 use crate::harness;
-use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
+use harness::{
+    drive_aoi_tick, make_aoi_app, spawn_player_in_dim, spawn_player_in_dim_with_host_anchor,
+};
 
 #[test]
 fn tracked_by_observes_position_change_with_one_tick_latency() {
@@ -139,4 +142,43 @@ fn nudge(app: &mut App, player: Entity) {
         .get_mut::<Transform>(player)
         .expect("player has Transform");
     t.translation.x += 0.001;
+}
+
+#[test]
+fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
+    let mut app = make_aoi_app();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
+    let a_anchor = app.world_mut().spawn_empty().id();
+    let b_anchor = app.world_mut().spawn_empty().id();
+    let a =
+        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(0.0, 64.0, 0.0), a_anchor);
+    let b =
+        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(40.0, 64.0, 0.0), b_anchor);
+    seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
+
+    drive_aoi_tick(&mut app);
+    nudge(&mut app, a);
+    nudge(&mut app, b);
+    drive_aoi_tick(&mut app);
+
+    let mut entered: Vec<Entity> = app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .filter(|packet| matches!(packet.data, PacketPayload::PlayerEnteredView(_)))
+        .map(|packet| match packet.target {
+            PacketTarget::SinglePlayer(viewer) => viewer,
+            other => panic!("a view change goes to one player, not {other:?}"),
+        })
+        .collect();
+    entered.sort();
+    let mut anchors = vec![a_anchor, b_anchor];
+    anchors.sort();
+    assert_eq!(entered, anchors);
 }

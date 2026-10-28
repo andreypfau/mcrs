@@ -6,11 +6,12 @@
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_level::entity::EntityNetworkSyncEvent;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Rotation, Transform};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_server::world::entity::entity_pos_sync;
+use mcrs_minecraft_server::world::entity::player::HostAnchor;
 
 #[test]
 fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
@@ -24,7 +25,8 @@ fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
         .world_mut()
         .spawn((transform, OldTransform(transform)))
         .id();
-    let player = app.world_mut().spawn_empty().id();
+    let anchor = app.world_mut().spawn_empty().id();
+    let player = app.world_mut().spawn(HostAnchor(anchor)).id();
 
     app.world_mut()
         .trigger(EntityNetworkSyncEvent { entity, player });
@@ -41,6 +43,7 @@ fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
     else {
         panic!("expected an EntityPosSync payload, got {:?}", packet.data);
     };
+    assert!(matches!(packet.target, PacketTarget::SinglePlayer(to) if to == anchor));
     assert_eq!(look.yaw, 90.0);
     assert_eq!(look.pitch, -45.0);
 }

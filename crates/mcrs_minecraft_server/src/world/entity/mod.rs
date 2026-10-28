@@ -128,14 +128,18 @@ pub fn entity_pos_sync(
     // carry both transform components. The actual delta computation
     // moves to the bridge tier where per-player wire state lives.
     entity_data: Query<(&Transform, Option<&HostAnchor>), With<OldTransform>>,
+    viewers: Query<&HostAnchor>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Ok((transform, anchor)) = entity_data.get(event.entity) else {
         return;
     };
+    let Ok(&HostAnchor(viewer)) = viewers.get(event.player) else {
+        return;
+    };
     let entity_id = network_id(event.entity, anchor);
     packet_writer.write(to(
-        event.player,
+        viewer,
         PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
             entity_id: VarInt(entity_id),
             position: PositionPath::Linear(transform.translation),

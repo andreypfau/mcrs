@@ -104,8 +104,17 @@ pub fn update_tracked_by(
             }
         }
 
+        let anchor_of = |viewer: Entity| {
+            all_players
+                .get(viewer)
+                .ok()
+                .and_then(|(.., anchor)| anchor)
+                .map(|&HostAnchor(anchor)| anchor)
+        };
         for &new_entity in &new_observers {
-            if !tracked_by.0.contains(&new_entity) {
+            if !tracked_by.0.contains(&new_entity)
+                && let Some(viewer) = anchor_of(new_entity)
+            {
                 // Resolve the entered player's wire fields from the query.
                 // UUID from GameProfile; position from Transform. The per-dim
                 // producer will supply authoritative data when fully wired.
@@ -117,7 +126,7 @@ pub fn update_tracked_by(
                     })
                     .unwrap_or((Uuid::nil(), transform.translation));
                 packet_writer.write(to(
-                    new_entity,
+                    viewer,
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                         id: VarInt(wire_id),
                         uuid,
@@ -133,9 +142,11 @@ pub fn update_tracked_by(
             }
         }
         for &old_entity in tracked_by.0.iter() {
-            if !new_observers.contains(&old_entity) {
+            if !new_observers.contains(&old_entity)
+                && let Some(viewer) = anchor_of(old_entity)
+            {
                 packet_writer.write(to(
-                    old_entity,
+                    viewer,
                     PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
                         entity_ids: vec![VarInt(wire_id)],
                     }),
