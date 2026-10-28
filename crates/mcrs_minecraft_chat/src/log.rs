@@ -44,7 +44,7 @@ impl Tag {
 
 /// A message of the log, with the GUI tick when it arrived.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Logged<M> {
+pub(crate) struct Logged<M> {
     pub message: M,
     pub tick: u64,
     pub tag: Option<Tag>,

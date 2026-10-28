@@ -3576,7 +3576,6 @@ name = "mcrs_minecraft_chat"
 version = "0.5.8"
 dependencies = [
  "mcrs_command",
- "mcrs_minecraft_block",
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",

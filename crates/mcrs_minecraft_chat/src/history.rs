@@ -70,7 +70,7 @@ impl History {
 
 /// The position of Up and Down in the history while the chat screen is open (CHAT-HIST-002).
 #[derive(Clone, Debug, Default)]
-pub struct Recall {
+pub(crate) struct Recall {
     position: Option<usize>,
     saved: String,
 }

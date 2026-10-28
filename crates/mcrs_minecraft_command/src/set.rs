@@ -163,7 +163,7 @@ impl VanillaArgument {
         match self {
             VanillaArgument::ResourceOrTag(a) => Some(a.registry),
             VanillaArgument::Resource(a) => Some(a.registry),
-            VanillaArgument::Timeline(a) => Some(a.resource.registry),
+            VanillaArgument::Timeline(_) => Some(TimelineArgument::RESOURCE.registry),
             VanillaArgument::BlockPredicate(_) => Some(BLOCK.location()),
             _ => None,
         }
@@ -238,7 +238,10 @@ impl VanillaArgument {
             VanillaArgument::Time(a) => (parser::TIME, ParserProperties::Time(a.min)),
             VanillaArgument::Resource(a) => (parser::RESOURCE, registry(a.registry)),
             VanillaArgument::TimeMarker(_) => (parser::RESOURCE_LOCATION, ParserProperties::None),
-            VanillaArgument::Timeline(a) => (parser::RESOURCE, registry(a.resource.registry)),
+            VanillaArgument::Timeline(_) => (
+                parser::RESOURCE,
+                registry(TimelineArgument::RESOURCE.registry),
+            ),
         };
         ArgumentParser {
             id: parser_id(key),

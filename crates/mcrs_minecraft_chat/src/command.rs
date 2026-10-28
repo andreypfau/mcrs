@@ -193,12 +193,12 @@ impl SuggestionList {
     }
 
     /// The input with the range replaced by the selected suggestion (CCMD-LIST-003, step 3).
-    pub fn result(&self) -> &str {
+    pub(crate) fn result(&self) -> &str {
         &self.result
     }
 
     /// The caret after an insert of the selected suggestion (CCMD-LIST-005, step 2).
-    pub fn result_caret(&self) -> usize {
+    pub(crate) fn result_caret(&self) -> usize {
         self.entries.range.0 + self.entries.text(self.selected).len()
     }
 

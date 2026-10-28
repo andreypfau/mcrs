@@ -4,6 +4,7 @@ use crate::identifier::{Identifier, identifier_matches, read_identifier, text_ma
 use crate::source::{Lookup, Source};
 use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_environment::keys::TIMELINE;
 
 const TICKS_PER_DAY: f32 = 24_000.0;
 const TICKS_PER_SECOND: f32 = 20.0;
@@ -163,12 +164,15 @@ impl<S> Argument<S> for TimeMarkerArgument {
 /// server from the timelines of the selected clock (CMD-TIME-016).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimelineArgument {
-    pub resource: ResourceArgument,
     /// The node of `<clock>` the branch reads, or `None` for the default clock.
     pub clock: Option<NodeId>,
 }
 
 impl TimelineArgument {
+    pub const RESOURCE: ResourceArgument = ResourceArgument {
+        registry: TIMELINE.location(),
+    };
+
     pub fn suggest<'t, L: Lookup, T>(
         &self,
         source: &'t Source<'_, L>,
@@ -191,6 +195,6 @@ impl<L: Lookup> Argument<Source<'_, L>> for TimelineArgument {
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
     ) -> Result<Identifier<'a>, CommandSyntaxError> {
-        self.resource.parse(reader, source)
+        Self::RESOURCE.parse(reader, source)
     }
 }

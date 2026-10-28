@@ -27,7 +27,7 @@ use mcrs_minecraft_engine::dim::deliver;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_level::session::{Session, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -255,11 +255,7 @@ fn collect_players(
             ) else {
                 continue;
             };
-            let placed = match placement.place() {
-                Place::InDim(dim) | Place::Joining(dim) => dim == label,
-                Place::Unplaced => false,
-            };
-            if !placed {
+            if placement.place().dim() != Some(label) {
                 continue;
             }
             let entry = PlayerEntry {

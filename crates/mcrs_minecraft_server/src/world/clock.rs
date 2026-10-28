@@ -40,7 +40,7 @@ fn advance_game_time(mut time: ResMut<GameTime>) {
 }
 
 /// The `set_time` entry of one clock (CMD-TIME-009).
-pub fn clock_update(clock: Id<WorldClock>, state: &ClockState, advance_time: bool) -> ClockUpdate {
+fn clock_update(clock: Id<WorldClock>, state: &ClockState, advance_time: bool) -> ClockUpdate {
     ClockUpdate {
         clock: VarInt(i32::from(clock.number())),
         total_ticks: VarLong(state.total_ticks),
@@ -77,14 +77,11 @@ fn apply_clock_edit(
 
 /// Copies the host's game time into a dimension.
 pub(crate) fn extract_game_time(main_world: &World, sub_world: &mut World) {
-    let Some(&time) = main_world.get_resource::<GameTime>() else {
-        return;
-    };
-    match sub_world.get_resource_mut::<GameTime>() {
-        Some(mut current) => {
-            current.set_if_neq(time);
-        }
-        None => sub_world.insert_resource(time),
+    if let (Some(&time), Some(mut current)) = (
+        main_world.get_resource::<GameTime>(),
+        sub_world.get_resource_mut::<GameTime>(),
+    ) {
+        current.set_if_neq(time);
     }
 }
 

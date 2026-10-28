@@ -13,8 +13,8 @@ pub use command::{
     CommandInput, Context, Entries, Highlight, Hint, LIST_ROWS, Request, SuggestionList, Tooltip,
 };
 pub use edit::EditBox;
-pub use history::{History, Recall};
-pub use log::{ChatLines, ChatLog, Line, Logged, Overlay, Tag, fade};
+pub use history::History;
+pub use log::{ChatLines, ChatLog, Line, Overlay, Tag, fade};
 pub use normalize::normalize;
 pub use screen::{ChatScreen, Closed, Key, Outcome, Send, keeps_draft};
 
