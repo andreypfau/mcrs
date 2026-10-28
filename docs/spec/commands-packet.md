@@ -232,7 +232,8 @@ node 1 redirects to node 1, with a modified server. The client disconnects.
 
 The parser id of a type is its id in `assets/mcrs/reports/registries.json`, registry
 `minecraft:command_argument_type`. The table lists the types that the parser and the first
-commands use.
+commands use, and every type that has properties. Every other type of the registry has no
+properties.
 
 | Type | Parser id | Properties |
 |------|-----------|------------|
@@ -247,6 +248,7 @@ commands use.
 | `minecraft:vec3` | 10 | none |
 | `minecraft:block_predicate` | 13 | none |
 | `minecraft:rotation` | 29 | none |
+| `minecraft:score_holder` | 31 | Byte: `0x01` more than one holder |
 | `minecraft:swizzle` | 32 | none |
 | `minecraft:resource_location` | 36 | none |
 | `minecraft:entity_anchor` | 38 | none |
@@ -256,6 +258,8 @@ commands use.
 | `minecraft:resource_or_tag` | 44 | Identifier: the registry |
 | `minecraft:resource_or_tag_key` | 45 | Identifier: the registry |
 | `minecraft:resource` | 46 | Identifier: the registry |
+| `minecraft:resource_key` | 47 | Identifier: the registry |
+| `minecraft:resource_selector` | 48 | Identifier: the registry |
 | `minecraft:heightmap` | 51 | none |
 
 A number range is a Byte of flags, then the minimum when flag `0x01` is set. The maximum follows
@@ -265,7 +269,8 @@ differs from the default of `command-parser.md`, CMD-ARG-002.
 The Int of `minecraft:time` is 4 bytes, big-endian, and is always present.
 `command-time.md`, CMD-TIME-001, lists the values that the `time` command sends for `time` and
 `resource`. The registry of `resource`, `resource_or_tag` and `resource_or_tag_key` is the
-identifier of the registry, for example `minecraft:timeline`.
+identifier of the registry, for example `minecraft:timeline`. `resource_key` and
+`resource_selector` send the registry in the same form.
 
 Provenance: `black_box_confirmed` (`assets/mcrs/reports/registries.json`) for the ids.
 `source_suggested` for the properties. Kind: wire. Confidence: medium. Experiment: decode the

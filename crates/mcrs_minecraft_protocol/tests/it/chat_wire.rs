@@ -1,18 +1,32 @@
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::chat::{ChatTypeId, FilterMask};
 use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, ParserProperties};
 
 #[test]
-fn a_time_argument_carries_its_minimum_as_a_big_endian_int() {
-    // Argument, no children, name "time", parser id 43 (`minecraft:time`), minimum 20.
-    let bytes = [0x02, 0x00, 0x04, b't', b'i', b'm', b'e', 43, 0, 0, 0, 20];
-    let mut slice = &bytes[..];
-    let node = CommandNode::decode(&mut slice).unwrap();
-    assert!(slice.is_empty());
-    let CommandNodeKind::Argument { parser, .. } = node.kind else {
-        panic!("{node:?}");
-    };
-    assert_eq!(parser.properties, ParserProperties::Time(20));
+fn an_argument_reads_the_properties_of_its_parser() {
+    let registry =
+        |id: &str| ParserProperties::Registry(ResourceLocation::read(id).unwrap().into());
+    let item = b"\x0eminecraft:item";
+    let cases: [(u8, &[u8], ParserProperties); 5] = [
+        (20, &[], ParserProperties::None),
+        (31, &[1], ParserProperties::ScoreHolder { multiple: true }),
+        (43, &[0, 0, 0, 20], ParserProperties::Time(20)),
+        (47, item, registry("minecraft:item")),
+        (48, item, registry("minecraft:item")),
+    ];
+    for (id, properties, expected) in cases {
+        // Argument, no children, name "a", the parser id, its properties.
+        let mut bytes = vec![0x02, 0x00, 0x01, b'a', id];
+        bytes.extend_from_slice(properties);
+        let mut slice = &bytes[..];
+        let node = CommandNode::decode(&mut slice).unwrap();
+        assert!(slice.is_empty(), "parser {id}");
+        let CommandNodeKind::Argument { parser, .. } = node.kind else {
+            panic!("{node:?}");
+        };
+        assert_eq!(parser.properties, expected, "parser {id}");
+    }
 }
 
 #[test]
