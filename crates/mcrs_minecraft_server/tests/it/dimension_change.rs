@@ -1,33 +1,29 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::With;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
+use mcrs_minecraft_level::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerFlying;
 use mcrs_minecraft_server::world::entity::player::dimension_change;
 
 use crate::host_app::{self, PlayServer};
 
 fn player_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Option<(Entity, Transform)> {
-    let world = server.world_in(dim);
-    world
-        .query_filtered::<(Entity, &HostAnchor, &Transform), With<Player>>()
-        .iter(world)
-        .find(|(_, host, _)| host.0 == anchor)
-        .map(|(entity, _, transform)| (entity, *transform))
+    let player = server.player_in(dim, anchor)?;
+    let transform = *server.world_in(dim).get::<Transform>(player)?;
+    Some((player, transform))
 }
 
-#[test]
-fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_change() {
+/// A server with the Overworld and the End, and the player `Walker` in the Overworld: the
+/// server, the anchor of the player, the Overworld and the End.
+fn walker_in_the_overworld() -> (PlayServer, Entity, Entity, Entity) {
     let mut server = PlayServer::start_in(
         host_app::make_host_app(),
         &[
@@ -40,6 +36,16 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
     let (anchor, _) = server.join(Uuid::new_v4(), "Walker");
     let overworld = server.dim;
     let end = host_app::label_of(&server.app, "minecraft:the_end");
+    (server, anchor, overworld, end)
+}
+
+fn the_end() -> ResourceKey<mcrs_minecraft_dimension::Dimension> {
+    ResourceKey::from_location(ResourceLocation::read("minecraft:the_end").unwrap())
+}
+
+#[test]
+fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_change() {
+    let (mut server, anchor, overworld, end) = walker_in_the_overworld();
     let (player, _) = player_in(&mut server, overworld, anchor).unwrap();
     let transform = Transform {
         translation: DVec3::new(100.5, 49.0, 0.5),
@@ -50,7 +56,7 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
         .resource_mut::<Messages<ChangeDimensionRequest>>()
         .write(ChangeDimensionRequest {
             player,
-            to: ResourceKey::from_location(ResourceLocation::read("minecraft:the_end").unwrap()),
+            to: the_end(),
             transform,
         });
 
@@ -91,17 +97,7 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
 
 #[test]
 fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_epoch() {
-    let mut server = PlayServer::start_in(
-        host_app::make_host_app(),
-        &[
-            ("minecraft:overworld", "minecraft:overworld"),
-            ("minecraft:the_end", "minecraft:the_end"),
-        ],
-        &[],
-        0,
-    );
-    let (anchor, _) = server.join(Uuid::new_v4(), "Walker");
-    let overworld = server.dim;
+    let (mut server, anchor, overworld, _) = walker_in_the_overworld();
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     let epoch = server
         .app
@@ -120,7 +116,7 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
         .resource_mut::<Messages<ChangeDimensionRequest>>()
         .write(ChangeDimensionRequest {
             player,
-            to: ResourceKey::from_location(ResourceLocation::read("minecraft:the_end").unwrap()),
+            to: the_end(),
             transform,
         });
 
@@ -171,18 +167,7 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
         ("without its arrival state", &strip),
     ];
     for (case, prepare) in cases {
-        let mut server = PlayServer::start_in(
-            host_app::make_host_app(),
-            &[
-                ("minecraft:overworld", "minecraft:overworld"),
-                ("minecraft:the_end", "minecraft:the_end"),
-            ],
-            &[],
-            0,
-        );
-        let (anchor, _) = server.join(Uuid::new_v4(), "Walker");
-        let overworld = server.dim;
-        let end = host_app::label_of(&server.app, "minecraft:the_end");
+        let (mut server, anchor, overworld, end) = walker_in_the_overworld();
         let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
         prepare(&mut server, anchor, player);
         server
@@ -190,9 +175,7 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
             .resource_mut::<Messages<ChangeDimensionRequest>>()
             .write(ChangeDimensionRequest {
                 player,
-                to: ResourceKey::from_location(
-                    ResourceLocation::read("minecraft:the_end").unwrap(),
-                ),
+                to: the_end(),
                 transform,
             });
 
