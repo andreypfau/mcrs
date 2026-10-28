@@ -1,5 +1,5 @@
 use crate::command::effect::CommandOutbox;
-use crate::command::run::{CommandEvent, answer_suggestion, parse_line};
+use crate::command::run::{CommandEvent, LineToParse, answer_suggestion, parse_line};
 use crate::command::targets::{DimensionEntry, PlayerEntry, in_dimension_order};
 use crate::command::{
     CommandFailure, CommandHandlers, CommandLimits, CommandResult, CommandTargets, CommandTree,
@@ -328,17 +328,23 @@ impl SeamExecutor<'_, '_> {
             return;
         };
         let (index, entity) = (player.dimension, player.entity);
-        let Some((source, chain)) = self
+        let mut input = LineToParse {
+            queued,
+            chain: std::mem::take(&mut self.running.chain),
+        };
+        let parsed = self
             .in_world(index, |world| {
-                world.run_system_cached_with(parse_line, &queued)
+                world.run_system_cached_with(parse_line, &mut input)
             })
             .and_then(|parsed| {
                 parsed
                     .inspect_err(|error| tracing::error!("a command line did not parse: {error}"))
                     .ok()
             })
-            .flatten()
-        else {
+            .flatten();
+        let LineToParse { queued, chain } = input;
+        self.running.chain = chain;
+        let Some(source) = parsed else {
             return;
         };
         let Some(world) = self.worlds.get_mut(index) else {
@@ -356,7 +362,6 @@ impl SeamExecutor<'_, '_> {
         }
         let CommandEvent { source, line, .. } = event;
         self.running.line = line;
-        self.running.chain = chain;
         stages.clear();
         stages.extend_from_slice(self.running.chain.stages());
         let end = execute(stages, source, limits, self, lists);

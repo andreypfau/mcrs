@@ -1,4 +1,4 @@
-use crate::command::vanilla::targets_or_self;
+use crate::command::vanilla::{FoundPlayers, targets_or_self};
 use crate::command::{
     Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
 };
@@ -50,17 +50,20 @@ pub(super) fn run(
     context: CommandContext,
     mut output: CommandOutput,
     mut modes: ResMut<EffectQueue<SetGameMode>>,
+    mut found: Local<FoundPlayers>,
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call, command.mode)?;
-    let targets = targets_or_self(
+    let mut targets = found.lend();
+    targets_or_self(
         &context,
         &call,
         command.target,
         "argument.entity.notfound.player",
+        &mut targets,
     )?;
     let mut changed = 0;
-    for target in targets {
+    for &target in &targets {
         if target.mode == mode {
             continue;
         }
@@ -93,6 +96,7 @@ pub(super) fn run(
             );
         }
     }
+    found.give_back(targets);
     Ok(changed)
 }
 

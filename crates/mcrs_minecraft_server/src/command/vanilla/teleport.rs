@@ -1,4 +1,5 @@
-use crate::command::vanilla::{select, targets_or_self};
+use crate::command::Invocation;
+use crate::command::vanilla::{FoundPlayers, select, targets_or_self};
 use crate::command::{
     Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
     EffectQueue, PlayerEntry, Worlds,
@@ -152,19 +153,27 @@ struct Destination {
 }
 
 /// A single entity argument finds at most one entity.
-fn one(found: Vec<&PlayerEntry>) -> Result<&PlayerEntry, CommandFailure> {
-    found
-        .first()
-        .copied()
-        .ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
+/// The first player a selector argument finds.
+fn one<'c>(
+    context: &'c CommandContext,
+    call: &Invocation,
+    arg: Arg<EntityArgument>,
+    found: &mut FoundPlayers,
+) -> Result<&'c PlayerEntry, CommandFailure> {
+    let mut out = found.lend();
+    select(context, call, arg, &mut out)?;
+    let first = out.first().copied();
+    found.give_back(out);
+    first.ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
 }
 
 fn to_entity(
     context: &CommandContext,
     call: &Call<Branch, TeleportCommand>,
     arg: Arg<EntityArgument>,
+    found: &mut FoundPlayers,
 ) -> Result<Destination, CommandFailure> {
-    let entity = one(select(context, call, arg)?)?;
+    let entity = one(context, call, arg, found)?;
     let dimension = context
         .targets()
         .label_of(entity.dimension)
@@ -191,11 +200,14 @@ fn destination(
     command: &TeleportCommand,
     context: &CommandContext,
     call: &Call<Branch, TeleportCommand>,
+    found: &mut FoundPlayers,
 ) -> Result<Destination, CommandFailure> {
     let source = context.source(call)?;
     let (location, rotation, facing) = match call.branch {
-        Branch::ToEntity => return to_entity(context, call, command.destination),
-        Branch::TargetsToEntity => return to_entity(context, call, command.target_destination),
+        Branch::ToEntity => return to_entity(context, call, command.destination, found),
+        Branch::TargetsToEntity => {
+            return to_entity(context, call, command.target_destination, found);
+        }
         Branch::ToLocation => (context.arg(call, command.location)?, None, None),
         Branch::TargetsToLocation => (context.arg(call, command.target_location)?, None, None),
         Branch::TargetsToLocationRotated => (
@@ -204,7 +216,7 @@ fn destination(
             None,
         ),
         Branch::TargetsFacingEntity => {
-            let entity = one(select(context, call, command.facing_entity)?)?;
+            let entity = one(context, call, command.facing_entity, found)?;
             let at: LookAnchor = context
                 .opt(call, command.facing_anchor)?
                 .unwrap_or_default();
@@ -254,22 +266,26 @@ pub(super) fn run(
     context: CommandContext,
     mut output: CommandOutput,
     mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
+    mut found_victims: Local<FoundPlayers>,
+    mut found_entity: Local<FoundPlayers>,
 ) -> CommandResult {
     let command = call.command;
-    let victims = targets_or_self(
+    let mut victims = found_victims.lend();
+    targets_or_self(
         &context,
         &call,
         command.targets,
         "argument.entity.notfound.entity",
+        &mut victims,
     )?;
-    let destination = destination(&command, &context, &call)?;
+    let destination = destination(&command, &context, &call, &mut found_entity)?;
     if !spawnable(destination.to.position) {
         return Err(CommandFailure::translate(
             "commands.teleport.invalidPosition",
             vec![],
         ));
     }
-    let Some(first) = victims.first() else {
+    let Some(&first) = victims.first() else {
         return Ok(0);
     };
     for victim in &victims {
@@ -313,6 +329,7 @@ pub(super) fn run(
         ),
     };
     output.success(&call, message, true);
+    found_victims.give_back(victims);
     Ok(i32::try_from(moved).unwrap_or(i32::MAX))
 }
 

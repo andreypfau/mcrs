@@ -50,52 +50,83 @@ impl Plugin for VanillaCommandsPlugin {
     }
 }
 
-/// The players a selector argument finds in every dimension (ARG-ENT-013, ARG-ENT-014), or the
-/// failure of its search.
+/// The players a selector found, which a handler keeps between its runs so that a search
+/// allocates only when it finds more players than every search before it.
+#[derive(Default)]
+pub(crate) struct FoundPlayers(Vec<&'static PlayerEntry>);
+
+impl FoundPlayers {
+    pub(crate) fn lend<'c>(&mut self) -> Vec<&'c PlayerEntry> {
+        relifetime(core::mem::take(&mut self.0))
+    }
+
+    pub(crate) fn give_back(&mut self, found: Vec<&PlayerEntry>) {
+        self.0 = relifetime(found);
+    }
+}
+
+#[expect(
+    clippy::unnecessary_filter_map,
+    reason = "the map changes the lifetime of the element type, which a filter cannot"
+)]
+fn relifetime<'b>(buffer: Vec<&PlayerEntry>) -> Vec<&'b PlayerEntry> {
+    buffer.into_iter().filter_map(|_| None).collect()
+}
+
+/// The players a selector argument finds in every dimension (ARG-ENT-013, ARG-ENT-014), in
+/// `out`, or the failure of its search.
 pub(crate) fn select<'c>(
     context: &'c CommandContext,
     call: &Invocation,
     arg: Arg<EntityArgument>,
-) -> Result<Vec<&'c PlayerEntry>, CommandFailure> {
-    select_if_present(context, call, arg)?.ok_or_else(CommandFailure::failed)
+    out: &mut Vec<&'c PlayerEntry>,
+) -> Result<(), CommandFailure> {
+    if select_if_present(context, call, arg, out)? {
+        Ok(())
+    } else {
+        Err(CommandFailure::failed())
+    }
 }
 
 fn select_if_present<'c>(
     context: &'c CommandContext,
     call: &Invocation,
     arg: Arg<EntityArgument>,
-) -> Result<Option<Vec<&'c PlayerEntry>>, CommandFailure> {
+    out: &mut Vec<&'c PlayerEntry>,
+) -> Result<bool, CommandFailure> {
     let Some(selector) = context.opt(call, arg)? else {
-        return Ok(None);
+        return Ok(false);
     };
     let source = context.source(call)?;
     let targets = context.targets();
     let me = call.source.entity.and_then(|anchor| targets.player(anchor));
-    let mut out = Vec::new();
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     selector
-        .select(&source, me, targets.players().iter(), &mut random, &mut out)
+        .select(&source, me, targets.players().iter(), &mut random, out)
         .map_err(|error| CommandFailure(argument_text(context.line(), error)))?;
-    Ok(Some(out))
+    Ok(true)
 }
 
-/// The players a selector finds, or the source player when the branch has no selector.
+/// The players a selector finds, or the source player when the branch has no selector, in
+/// `out`.
 pub(crate) fn targets_or_self<'c>(
     context: &'c CommandContext,
     call: &Invocation,
     arg: Arg<EntityArgument>,
     none_found: &'static str,
-) -> Result<Vec<&'c PlayerEntry>, CommandFailure> {
-    let Some(found) = select_if_present(context, call, arg)? else {
-        return Ok(call
-            .source
-            .entity
-            .and_then(|anchor| context.targets().player(anchor))
-            .into_iter()
-            .collect());
-    };
-    if found.is_empty() {
+    out: &mut Vec<&'c PlayerEntry>,
+) -> Result<(), CommandFailure> {
+    if !select_if_present(context, call, arg, out)? {
+        out.clear();
+        out.extend(
+            call.source
+                .entity
+                .and_then(|anchor| context.targets().player(anchor)),
+        );
+        return Ok(());
+    }
+    if out.is_empty() {
         return Err(CommandFailure::translate(none_found, vec![]));
     }
-    Ok(found)
+    Ok(())
 }

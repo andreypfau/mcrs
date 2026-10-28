@@ -147,16 +147,25 @@ fn player_source(
     Some((state, mode.0))
 }
 
+/// A queued line and the chain its parse fills, which the seam reuses from line to line.
+pub(crate) struct LineToParse {
+    pub(crate) queued: QueuedLine,
+    pub(crate) chain: Chain<Handler>,
+}
+
 /// Parses a queued line in the world of its source dimension, with the graph and the targets
 /// lent to it. A parse error goes to the outbox, and the line does not run.
 pub(crate) fn parse_line(
-    queued: InRef<QueuedLine>,
+    input: InMut<LineToParse>,
     context: CommandContext,
     levels: Query<(&PlayerOpLevel, &PlayerGameMode), With<Player>>,
     mut outbox: ResMut<CommandOutbox>,
     mut scratch: Local<ParseScratch<ArgumentError>>,
-) -> Option<(SourceState, Chain<Handler>)> {
-    let QueuedLine { player, line } = &*queued;
+) -> Option<SourceState> {
+    let LineToParse {
+        queued: QueuedLine { player, line },
+        chain,
+    } = input.0;
     let (state, _) = player_source(context.targets(), &levels, *player)?;
     let graph = context.tree.graph()?;
     let source = context.source_of(&state).ok()?;
@@ -167,9 +176,8 @@ pub(crate) fn parse_line(
         }
         return None;
     }
-    let mut chain = Chain::default();
     chain.copy_from(graph, &parse);
-    Some((state, chain))
+    Some(state)
 }
 
 #[derive(Default)]
