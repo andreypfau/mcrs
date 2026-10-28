@@ -15,14 +15,19 @@ The result is known when the command returns.
 
 ## Where a command runs
 
-A dimension parses a command line and keeps it in its `PendingLines` resource. The host runs
-the lines between two ticks, in `run_pending_commands`. At that point no schedule runs, and the
-host holds each dimension world by a mutable reference. This is a seam: it drives the
-sub-apps, so it can take `&mut World` of each dimension.
+The host receives each command line and each suggestion request. It keeps them in its
+`CommandQueue` resource. The host parses and runs the lines between two ticks, in
+`run_pending_commands`. At that point no schedule runs, and the host holds each dimension world
+by a mutable reference. This is a seam: it drives the sub-apps, so it can take `&mut World` of
+each dimension.
 
-The lines run one after another: first the dimensions in the dimension order, then the lines of
-one dimension in the order that they arrived. This is the ordering policy. A line ends, with
-all its effects, before the next line starts.
+The lines run one after another, in the order that they arrived. This is the ordering policy.
+A line ends, with all its effects, before the next line starts. After the last line, the host
+answers the latest suggestion request of each player, in the order of the first request of
+that player in the pass (CMDP-SUG-003).
+
+The host owns the one command graph, `CommandTree`. A dimension world holds only the
+`commands` packets of each command level, which it sends to a player that joins it.
 
 ## The source carries its dimension
 
@@ -36,18 +41,29 @@ the world of the dimension of its source. `execute in` changes the dimension of 
 scales x and z. No source leaves the run, so the stages keep the order of CMD-EX-030 across
 all dimensions.
 
-## Where a selector is resolved
+## Where a line parses and a selector is resolved
 
 The host fills `CommandTargets` before the first line of a pass. It holds the dimensions in the
 dimension order and the online players of all dimensions in the order of the player list. A
 player is online when its session places it in the world that holds it. A player that leaves
-has no place, so no command finds it.
+has no place, so no command finds it, and its lines and requests do not parse.
 
-Before a stage call, the host lends `CommandTargets`, the line and the outbox to the world of
-the call. A lend is a swap of the values of two resources. The handler resolves the selector
-in that world against `CommandTargets`. The library search (`Selector::select`) applies the
-world limit of ARG-ENT-018 and the order of ARG-ENT-019. The distance uses the coordinates
-alone (ARG-ENT-020).
+A line parses in the world of the dimension of its source player. The source takes the
+position and the rotation of the player from `CommandTargets`, and the level of the player from
+that world. Before the parse, the host lends the graph, `CommandTargets` and the outbox to that
+world. A lend is a swap of the values of two resources. A parse error goes to the outbox, and
+the line does not run. A suggestion request parses in the same way.
+
+Before a stage call, the host lends the graph, `CommandTargets`, the line and the outbox to the
+world of the call. The handler reads its arguments from the graph, and resolves the selector in
+that world against `CommandTargets`. The library search (`Selector::select`) applies the world
+limit of ARG-ENT-018 and the order of ARG-ENT-019. The distance uses the coordinates alone
+(ARG-ENT-020).
+
+The names of the players and the dimensions that a parse suggests come from `CommandTargets`.
+The dimensions that a command accepts are the dimensions that run (ARG-RES-004). A source whose
+dimension `CommandTargets` does not hold is an internal error: the line fails with
+`command.failed`.
 
 ## How an effect reaches its world
 
@@ -94,7 +110,9 @@ take the odd ids and other entities the even ids, so the ids of two allocators n
 | Value | Kind | Owner |
 |-------|------|-------|
 | `SourceState::dimension` | truth of the run | the run of the line |
-| `PendingLines` | temporal fact: lines parsed and not run | the dimension that parsed them, until the host takes them |
+| `CommandQueue` | temporal fact: lines and the latest suggestion request of each player, not parsed | the host; emptied by each pass |
+| `CommandTree` | truth: the command graph | the host; lent to one world at a time during a pass |
+| `CommandTreePackets` | materialized derived state: the encoded graph of each command level | built once when the graph freezes; each dimension holds handles to the same bytes |
 | `CommandTargets` | materialized derived state of the players of all worlds | the host; filled at the start of a pass, changed only by the effects of the pass, dropped at its end |
 | `CommandOutbox` | temporal fact: the effects and messages of one call | the host; emptied after each call |
 | `DimensionLabel` | truth: the name of the dimension of a world | the sub-app builder |
@@ -102,9 +120,10 @@ take the odd ids and other entities the even ids, so the ids of two allocators n
 
 ## Cost model
 
-- An idle tick costs one look at `PendingLines` in each dimension. Nothing else runs.
+- An idle tick costs one look at `CommandQueue` in the host. Nothing else runs.
 - A pass with lines costs one query of the players of each dimension and one `CommandTargets`
-  with a copy of each name. The lend of a call swaps three resources. Nothing else is copied.
+  with a copy of each name. The lend of a parse or a call swaps four resources. Nothing else is
+  copied.
 - A call allocates its list of found players and its effects. The buffers of the host
   (`CommandSeam`) keep their capacity from one pass to the next.
 - A change of dimension moves the components of one player and runs the outbound flush of the

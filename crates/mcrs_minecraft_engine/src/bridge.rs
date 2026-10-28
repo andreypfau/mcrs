@@ -329,7 +329,8 @@ fn encode_and_send(
 /// Routes serverbound packets written to the bus into the dim channel seam.
 ///
 /// `bridge_inbound` handles packets read from sockets; this system handles the
-/// ones written by upstream callers. A full serverbound channel disconnects the
+/// ones written by upstream callers, and raises their typed events on the host
+/// connection as `bridge_inbound` does. A full serverbound channel disconnects the
 /// offending session.
 pub fn bridge_inbound_to_channel(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
@@ -345,6 +346,14 @@ pub fn bridge_inbound_to_channel(
         let Ok((placement, mut pending, connection)) = sessions.get_mut(msg.player) else {
             continue;
         };
+        if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
+            trigger.raise(
+                &mut commands,
+                connection.entity(),
+                msg.data.clone(),
+                msg.timestamp,
+            );
+        }
         if !route_serverbound(placement, &mut pending, &dim_channels, msg)
             && let Some(connection) = connection
         {

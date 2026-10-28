@@ -5,7 +5,6 @@ use crate::identifier::{
 use crate::source::{Lookup, Source};
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_dimension::keys::DIMENSION;
 
 /// `minecraft:resource_location` (ARG-RES-003).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -33,8 +32,7 @@ impl DimensionArgument {
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
     ) {
-        let dimensions = source.lookup.entries(DIMENSION.location());
-        builder.suggest_matching(dimensions, identifier_matches);
+        builder.suggest_matching(source.lookup.dimensions(), identifier_matches);
     }
 }
 

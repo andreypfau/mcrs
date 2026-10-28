@@ -76,6 +76,10 @@ impl Lookup for Blocks {
         core::iter::empty()
     }
 
+    fn dimensions(&self) -> impl Iterator<Item = &str> {
+        core::iter::empty()
+    }
+
     fn tag_entries(
         &self,
         _: StaticResourceLocation,

@@ -1,10 +1,10 @@
 use crate::command::effect::{CommandOutbox, Effect};
-use crate::command::run::CommandEvent;
+use crate::command::run::{CommandEvent, answer_suggestion, parse_line};
 use crate::command::targets::{DimensionEntry, PlayerEntry, dimension_rank};
 use crate::command::vanilla::{gamemode, teleport, time};
 use crate::command::{
-    CommandFailure, CommandHandlers, CommandLimits, CommandResult, CommandTargets, Handler,
-    Invocation, Modified, ModifierHandlers, ModifyResult, RunningCommand, SourceState,
+    CommandFailure, CommandHandlers, CommandLimits, CommandResult, CommandTargets, CommandTree,
+    Handler, Invocation, Modified, ModifierHandlers, ModifyResult, RunningCommand, SourceState,
     system_message,
 };
 use crate::world::entity::player::HostAnchor;
@@ -16,7 +16,7 @@ use bevy_ecs::prelude::{In, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
-use mcrs_command::{Chain, End, Executor, Failure, SourceLists, Stage, execute};
+use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
@@ -28,46 +28,62 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_registries::CurrentRegistries;
 
-/// The command lines this dimension parsed since the host last ran them.
+/// The command lines and the suggestion requests that the host received since the last pass.
 #[derive(Resource, Default)]
-pub(crate) struct PendingLines(pub(crate) Vec<PendingLine>);
+pub(crate) struct CommandQueue {
+    pub(crate) lines: Vec<QueuedLine>,
+    pub(crate) suggestions: Vec<QueuedSuggestion>,
+}
 
-pub(crate) struct PendingLine {
-    /// The host anchor of the player who receives the messages of the line.
-    pub(crate) output: Entity,
-    pub(crate) event: CommandEvent,
-    pub(crate) chain: Chain<Handler>,
+impl CommandQueue {
+    fn is_empty(&self) -> bool {
+        self.lines.is_empty() && self.suggestions.is_empty()
+    }
+}
+
+/// A command line in the order of arrival, from the player with the host anchor `player`.
+pub(crate) struct QueuedLine {
+    pub(crate) player: Entity,
+    pub(crate) line: String,
+}
+
+/// The latest suggestion request of the player with the host anchor `player`.
+pub(crate) struct QueuedSuggestion {
+    pub(crate) player: Entity,
+    pub(crate) id: VarInt,
+    pub(crate) text: String,
 }
 
 /// The host's buffers for running command lines, reused from one run to the next.
 #[derive(Resource, Default)]
 pub(crate) struct CommandSeam {
+    tree: CommandTree,
     targets: CommandTargets,
     running: RunningCommand,
     outbox: CommandOutbox,
     stages: Vec<Stage<Handler>>,
     lists: SourceLists<SourceState>,
-    lines: Vec<PendingLine>,
+    queue: CommandQueue,
     packets: Vec<OutboundPlayerPacket>,
 }
 
-/// Runs the command lines that every dimension parsed, one after another, with every
-/// dimension world in reach. The server calls it between two ticks, after the dimensions hand
-/// over their packets; an embedder that drives the app itself calls it at the same point.
+/// Parses and runs the command lines the host received, one after another in the order they
+/// arrived, then answers the suggestion requests, with every dimension world in reach. The
+/// server calls it between two ticks, after the dimensions hand over their packets; an embedder
+/// that drives the app itself calls it at the same point.
 pub fn run_pending_commands(app: &mut App) {
     let sub_apps = app.sub_apps_mut();
-    let waiting = sub_apps.sub_apps.values().any(|sub| {
-        sub.world()
-            .get_resource::<PendingLines>()
-            .is_some_and(|pending| !pending.0.is_empty())
-    });
-    if !waiting {
+    let host = sub_apps.main.world_mut();
+    if host
+        .get_resource::<CommandQueue>()
+        .is_none_or(CommandQueue::is_empty)
+    {
         return;
     }
-    let host = sub_apps.main.world_mut();
     let Some(mut seam) = host.remove_resource::<CommandSeam>() else {
         return;
     };
@@ -76,6 +92,22 @@ pub fn run_pending_commands(app: &mut App) {
         .copied()
         .unwrap_or_default()
         .0;
+    let CommandSeam {
+        tree,
+        targets,
+        running,
+        outbox,
+        stages,
+        lists,
+        queue,
+        packets,
+    } = &mut seam;
+    if let Some(mut received) = host.get_resource_mut::<CommandQueue>() {
+        std::mem::swap(&mut *received, queue);
+    }
+    if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
+        std::mem::swap(&mut *owned, tree);
+    }
     let mut found: Vec<(DimensionEntry, &mut World)> = sub_apps
         .sub_apps
         .values_mut()
@@ -86,15 +118,6 @@ pub fn run_pending_commands(app: &mut App) {
         })
         .collect();
     found.sort_by(|(a, _), (b, _)| dimension_rank(&a.key).cmp(&dimension_rank(&b.key)));
-    let CommandSeam {
-        targets,
-        running,
-        outbox,
-        stages,
-        lists,
-        lines,
-        packets,
-    } = &mut seam;
     targets.dimensions.clear();
     let mut worlds: Vec<&mut World> = found
         .into_iter()
@@ -104,22 +127,26 @@ pub fn run_pending_commands(app: &mut App) {
         })
         .collect();
     collect_players(host, &mut worlds, targets);
-    for world in &mut worlds {
-        if let Some(mut pending) = world.get_resource_mut::<PendingLines>() {
-            lines.append(&mut pending.0);
-        }
+    let mut executor = SeamExecutor {
+        host: &mut *host,
+        worlds: &mut worlds,
+        tree: &mut *tree,
+        targets: &mut *targets,
+        running: &mut *running,
+        outbox: &mut *outbox,
+        packets: &mut *packets,
+        output: Entity::PLACEHOLDER,
+    };
+    for queued in queue.lines.drain(..) {
+        executor.output = queued.player;
+        executor.run_line(queued, stages, lists, limits);
     }
-    for line in lines.drain(..) {
-        let mut executor = SeamExecutor {
-            host: &mut *host,
-            worlds: &mut worlds,
-            targets: &mut *targets,
-            running: &mut *running,
-            outbox: &mut *outbox,
-            packets: &mut *packets,
-            output: line.output,
-        };
-        executor.run_line(line, stages, lists, limits);
+    for queued in queue.suggestions.drain(..) {
+        executor.output = queued.player;
+        executor.answer(&queued);
+    }
+    if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
+        std::mem::swap(&mut *owned, tree);
     }
     host.insert_resource(seam);
 }
@@ -189,12 +216,13 @@ fn collect_players(host: &World, worlds: &mut [&mut World], targets: &mut Comman
     targets.players.sort_by_key(|player| player.list_order);
 }
 
-/// The run of one command line. Each stage call runs in the world of the dimension of its
-/// source, with the line, the targets and the outbox lent to that world; what the call leaves
-/// in the outbox applies before the next call.
+/// The run of one command line. The line parses, and each stage call runs, in the world of the
+/// dimension of its source, with the graph, the line, the targets and the outbox lent to that
+/// world; what the call leaves in the outbox applies before the next call.
 struct SeamExecutor<'a, 'w> {
     host: &'a mut World,
     worlds: &'a mut [&'w mut World],
+    tree: &'a mut CommandTree,
     targets: &'a mut CommandTargets,
     running: &'a mut RunningCommand,
     outbox: &'a mut CommandOutbox,
@@ -205,14 +233,17 @@ struct SeamExecutor<'a, 'w> {
 /// Swaps the values of the host and of `world`; a second swap gives them back.
 fn lend(
     world: &mut World,
+    tree: &mut CommandTree,
     targets: &mut CommandTargets,
     running: &mut RunningCommand,
     outbox: &mut CommandOutbox,
 ) -> bool {
-    let present = world.contains_resource::<CommandTargets>()
+    let present = world.contains_resource::<CommandTree>()
+        && world.contains_resource::<CommandTargets>()
         && world.contains_resource::<RunningCommand>()
         && world.contains_resource::<CommandOutbox>();
     if present {
+        std::mem::swap(&mut *world.resource_mut::<CommandTree>(), tree);
         std::mem::swap(&mut *world.resource_mut::<CommandTargets>(), targets);
         std::mem::swap(&mut *world.resource_mut::<RunningCommand>(), running);
         std::mem::swap(&mut *world.resource_mut::<CommandOutbox>(), outbox);
@@ -223,20 +254,36 @@ fn lend(
 impl SeamExecutor<'_, '_> {
     fn run_line(
         &mut self,
-        line: PendingLine,
+        queued: QueuedLine,
         stages: &mut Vec<Stage<Handler>>,
         lists: &mut SourceLists<SourceState>,
         limits: mcrs_command::Limits,
     ) {
-        let PendingLine {
-            mut event, chain, ..
-        } = line;
-        let Some(world) = self
-            .targets
-            .dimension_of(event.source.dimension)
-            .and_then(|index| self.worlds.get_mut(index))
+        let Some(player) = self.targets.player(queued.player) else {
+            return;
+        };
+        let (index, entity) = (player.dimension, player.entity);
+        let Some((source, chain)) = self
+            .in_world(index, |world| {
+                world.run_system_cached_with(parse_line, &queued)
+            })
+            .and_then(|parsed| {
+                parsed
+                    .inspect_err(|error| tracing::error!("a command line did not parse: {error}"))
+                    .ok()
+            })
+            .flatten()
         else {
             return;
+        };
+        let Some(world) = self.worlds.get_mut(index) else {
+            return;
+        };
+        let mut event = CommandEvent {
+            player: entity,
+            source,
+            line: queued.line,
+            cancelled: false,
         };
         world.trigger_ref(&mut event);
         if event.cancelled {
@@ -256,6 +303,22 @@ impl SeamExecutor<'_, '_> {
         }
     }
 
+    fn answer(&mut self, queued: &QueuedSuggestion) {
+        let Some(index) = self
+            .targets
+            .player(queued.player)
+            .map(|player| player.dimension)
+        else {
+            return;
+        };
+        let answered = self.in_world(index, |world| {
+            world.run_system_cached_with(answer_suggestion, queued)
+        });
+        if let Some(Err(error)) = answered {
+            tracing::error!("a suggestion request was not answered: {error}");
+        }
+    }
+
     fn invocation(&self, stage: usize, handler: &Handler, source: &SourceState) -> Invocation {
         Invocation {
             output: self.output,
@@ -265,6 +328,19 @@ impl SeamExecutor<'_, '_> {
         }
     }
 
+    /// Runs `run` in the world at `index` with the host's values lent to it, then settles what
+    /// the run left. `None` when there is no such world or it lacks the command resources.
+    fn in_world<R>(&mut self, index: usize, run: impl FnOnce(&mut World) -> R) -> Option<R> {
+        let world = self.worlds.get_mut(index)?;
+        if !lend(world, self.tree, self.targets, self.running, self.outbox) {
+            return None;
+        }
+        let result = run(world);
+        lend(world, self.tree, self.targets, self.running, self.outbox);
+        self.settle();
+        Some(result)
+    }
+
     /// Runs the system `pick` finds in the world of the source dimension, then settles what
     /// the run left. `None` when that world has no such system or the system did not run.
     fn call<O: 'static>(
@@ -272,18 +348,9 @@ impl SeamExecutor<'_, '_> {
         invocation: Invocation,
         pick: impl FnOnce(&World) -> Option<SystemId<In<Invocation>, O>>,
     ) -> Option<O> {
-        let world = self
-            .targets
-            .dimension_of(invocation.source.dimension)
-            .and_then(|index| self.worlds.get_mut(index))?;
-        let system = pick(world)?;
-        if !lend(world, self.targets, self.running, self.outbox) {
-            return None;
-        }
-        let result = world.run_system_with(system, invocation);
-        lend(world, self.targets, self.running, self.outbox);
-        self.settle();
-        result
+        let index = self.targets.dimension_of(invocation.source.dimension)?;
+        let system = pick(self.worlds.get(index)?)?;
+        self.in_world(index, |world| world.run_system_with(system, invocation))?
             .inspect_err(|error| tracing::error!("a command handler did not run: {error}"))
             .ok()
     }

@@ -1,31 +1,28 @@
 use crate::command::effect::OperatorBroadcast;
 use crate::command::effect::{CommandOutbox, Effect, Teleport};
-use crate::command::seam::{PendingLine, PendingLines};
-use crate::command::{CommandContext, CommandTargets, Invocation, SourceState, level_of};
+use crate::command::seam::{CommandQueue, QueuedLine, QueuedSuggestion};
+use crate::command::{CommandContext, CommandTargets, Handler, Invocation, SourceState, level_of};
 use crate::ops::OpList;
 use crate::world::clock::EditClock;
-use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::system::{InRef, SystemParam};
 use mcrs_command::{Chain, ParseScratch, Suggestion, build_list, recycle};
 use mcrs_minecraft_command::{ArgumentError, CommandLevel, error_feedback, suggestion_reply};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
 };
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_engine::session::{GameProfile, HostAnchorRef};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::Session;
-use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text, is_allowed_chat_character};
-use mcrs_minecraft_protocol::{GameMode, VarInt};
 use smallvec::SmallVec;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
@@ -43,20 +40,31 @@ pub(crate) fn system_chat(content: Text) -> PacketPayload {
     })
 }
 
-/// The host disconnects a player whose command line holds a code unit no player can type
-/// (CMDP-EXEC-002); the dimension drops the line.
-pub(crate) fn reject_illegal_characters(
+/// Queues a command line for the seam. The host disconnects a player whose command line holds a
+/// code unit no player can type (CMDP-EXEC-002), and drops the line.
+pub(crate) fn queue_command_line(
     event: On<Received<ServerboundChatCommand<'static>>>,
-    mut connections: Query<&mut ServerSideConnection>,
+    mut connections: Query<(Option<&HostAnchorRef>, Option<&mut ServerSideConnection>)>,
+    mut queue: ResMut<CommandQueue>,
     mut commands: Commands,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
-    if packet.command.0.chars().all(is_allowed_chat_character) {
+    let Ok((anchor, connection)) = connections.get_mut(event.entity) else {
+        return;
+    };
+    let line = packet.command.0;
+    if line.chars().all(is_allowed_chat_character) {
+        if let Some(&HostAnchorRef(player)) = anchor {
+            queue.lines.push(QueuedLine {
+                player,
+                line: line.to_owned(),
+            });
+        }
         return;
     }
-    if let Ok(mut connection) = connections.get_mut(event.entity) {
+    if let Some(mut connection) = connection {
         connection
             .disconnect(
                 ConnectionState::Game,
@@ -66,6 +74,38 @@ pub(crate) fn reject_illegal_characters(
         commands
             .entity(event.entity)
             .remove::<ServerSideConnection>();
+    }
+}
+
+/// Keeps the latest suggestion request of each player for the seam (CMDP-SUG-003). A newer
+/// request replaces an older one, and the replaced one gets no reply.
+pub(crate) fn queue_suggestion_request(
+    event: On<Received<ServerboundCommandSuggestion<'static>>>,
+    connections: Query<&HostAnchorRef>,
+    mut queue: ResMut<CommandQueue>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let Ok(&HostAnchorRef(player)) = connections.get(event.entity) else {
+        return;
+    };
+    let text = packet.text.0;
+    match queue
+        .suggestions
+        .iter_mut()
+        .find(|request| request.player == player)
+    {
+        Some(request) => {
+            request.id = packet.id;
+            request.text.clear();
+            request.text.push_str(text);
+        }
+        None => queue.suggestions.push(QueuedSuggestion {
+            player,
+            id: packet.id,
+            text: text.to_owned(),
+        }),
     }
 }
 
@@ -94,88 +134,43 @@ impl CommandEvent {
     }
 }
 
-/// Parses a command line and leaves it for the host, which runs it with every dimension in
-/// reach.
-pub(crate) fn handle_chat_command(
-    event: On<Received<ServerboundChatCommand<'static>>>,
+/// The source of the player with the host anchor `player`, from its entry in the targets and its
+/// level in this world.
+fn player_source(
+    targets: &CommandTargets,
+    levels: &Query<(&PlayerOpLevel, &PlayerGameMode), With<Player>>,
+    player: Entity,
+) -> Option<(SourceState, GameMode)> {
+    let entry = targets.player(player)?;
+    let dimension = targets.label_of(entry.dimension)?;
+    let (&op_level, mode) = levels.get(entry.entity).ok()?;
+    let state = SourceState::of_player(player, dimension, level_of(op_level), &entry.transform);
+    Some((state, mode.0))
+}
+
+/// Parses a queued line in the world of its source dimension, with the graph and the targets
+/// lent to it. A parse error goes to the outbox, and the line does not run.
+pub(crate) fn parse_line(
+    queued: InRef<QueuedLine>,
     context: CommandContext,
-    players: Query<(&PlayerOpLevel, &Transform, &HostAnchor), With<Player>>,
-    label: Option<Res<DimensionLabel>>,
-    mut pending: ResMut<PendingLines>,
+    levels: Query<(&PlayerOpLevel, &PlayerGameMode), With<Player>>,
+    mut outbox: ResMut<CommandOutbox>,
     mut scratch: Local<ParseScratch<ArgumentError>>,
-    mut writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    let Some(packet) = event.packet() else {
-        return;
-    };
-    let line = packet.command.0;
-    let (Ok((&op_level, transform, &HostAnchor(host))), Some(label)) =
-        (players.get(event.entity), label)
-    else {
-        return;
-    };
-    if !line.chars().all(is_allowed_chat_character) {
-        return;
-    }
-    let state = SourceState::of_player(host, label.0, level_of(op_level), transform);
-    let source = context.source_of(&state);
-    let tree = &context.tree;
-    let parse = tree.0.parse(line, 0, &source, &mut scratch);
-    if let Err(error) = parse.check(&tree.0) {
+) -> Option<(SourceState, Chain<Handler>)> {
+    let QueuedLine { player, line } = &*queued;
+    let (state, _) = player_source(context.targets(), &levels, *player)?;
+    let graph = context.tree.graph()?;
+    let source = context.source_of(&state).ok()?;
+    let parse = graph.parse(line, 0, &source, &mut scratch);
+    if let Err(error) = parse.check(graph) {
         for message in error_feedback(line, &error) {
-            writer.write(system_message(host, message));
+            outbox.packets.push(system_message(*player, message));
         }
-        return;
+        return None;
     }
     let mut chain = Chain::default();
-    chain.copy_from(&tree.0, &parse);
-    pending.0.push(PendingLine {
-        output: host,
-        event: CommandEvent {
-            player: event.entity,
-            source: state,
-            line: line.to_owned(),
-            cancelled: false,
-        },
-        chain,
-    });
-}
-
-/// The latest suggestion request of a player that has no reply yet (CMDP-SUG-003). A newer
-/// request replaces it, and the replaced one gets no reply.
-#[derive(Component, Debug, Default)]
-pub(crate) struct PendingSuggestion(Option<(VarInt, String)>);
-
-pub(crate) fn queue_suggestion_request(
-    event: On<Received<ServerboundCommandSuggestion<'static>>>,
-    mut players: Query<(&PlayerOpLevel, &PlayerGameMode, &mut PendingSuggestion), With<Player>>,
-) {
-    let Some(packet) = event.packet() else {
-        return;
-    };
-    let Ok((&op_level, mode, mut pending)) = players.get_mut(event.entity) else {
-        return;
-    };
-    let text = packet.text.0;
-    let edits_command_blocks =
-        mode.0 == GameMode::Creative && level_of(op_level) >= CommandLevel::Gamemasters;
-    if !edits_command_blocks && text.encode_utf16().count() > CHAT_SUGGESTION_UNITS {
-        return;
-    }
-    match &mut pending.0 {
-        Some((id, stored)) => {
-            *id = packet.id;
-            stored.clear();
-            stored.push_str(text);
-        }
-        slot @ None => *slot = Some((packet.id, text.to_owned())),
-    }
-}
-
-pub(crate) fn has_pending_suggestion(
-    pending: Query<&PendingSuggestion, Changed<PendingSuggestion>>,
-) -> bool {
-    pending.iter().any(|pending| pending.0.is_some())
+    chain.copy_from(graph, &parse);
+    Some((state, chain))
 }
 
 #[derive(Default)]
@@ -184,45 +179,38 @@ pub(crate) struct SuggestionScratch {
     suggestions: Vec<Suggestion<'static, &'static str>>,
 }
 
-/// Answers the pending request of each player, one per player per tick, then clears it.
-pub(crate) fn answer_suggestion_requests(
+/// Answers a queued suggestion request in the world of its source dimension, with the graph and
+/// the targets lent to it. The reply goes to the outbox.
+pub(crate) fn answer_suggestion(
+    queued: InRef<QueuedSuggestion>,
     context: CommandContext,
-    mut players: Query<
-        (
-            &PlayerOpLevel,
-            &Transform,
-            &HostAnchor,
-            &mut PendingSuggestion,
-        ),
-        (With<Player>, Changed<PendingSuggestion>),
-    >,
-    label: Option<Res<DimensionLabel>>,
+    levels: Query<(&PlayerOpLevel, &PlayerGameMode), With<Player>>,
+    mut outbox: ResMut<CommandOutbox>,
     mut scratch: Local<SuggestionScratch>,
-    mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let scratch = &mut *scratch;
-    let dimension = label.map_or(Entity::PLACEHOLDER, |label| label.0);
-    for (&op_level, transform, &HostAnchor(host), mut pending) in &mut players {
-        let Some((id, text)) = pending.0.as_ref() else {
-            continue;
-        };
-        let state = SourceState::of_player(host, dimension, level_of(op_level), transform);
-        let source = context.source_of(&state);
-        let start = usize::from(text.starts_with('/'));
-        let parse = context
-            .tree
-            .0
-            .parse(text, start, &source, &mut scratch.parse);
-        let mut suggestions = recycle(std::mem::take(&mut scratch.suggestions));
-        context.tree.0.suggest(&parse, &source, &mut suggestions);
-        let list = build_list(text, &mut suggestions);
-        writer.write(to(
-            host,
-            PacketPayload::CommandSuggestions(suggestion_reply(*id, text, &list)),
-        ));
-        scratch.suggestions = recycle(suggestions);
-        pending.0 = None;
+    let QueuedSuggestion { player, id, text } = &*queued;
+    let Some((state, mode)) = player_source(context.targets(), &levels, *player) else {
+        return;
+    };
+    let edits_command_blocks =
+        mode == GameMode::Creative && state.level >= CommandLevel::Gamemasters;
+    if !edits_command_blocks && text.encode_utf16().count() > CHAT_SUGGESTION_UNITS {
+        return;
     }
+    let (Some(graph), Ok(source)) = (context.tree.graph(), context.source_of(&state)) else {
+        return;
+    };
+    let scratch = &mut *scratch;
+    let start = usize::from(text.starts_with('/'));
+    let parse = graph.parse(text, start, &source, &mut scratch.parse);
+    let mut suggestions = recycle(std::mem::take(&mut scratch.suggestions));
+    graph.suggest(&parse, &source, &mut suggestions);
+    let list = build_list(text, &mut suggestions);
+    outbox.packets.push(to(
+        *player,
+        PacketPayload::CommandSuggestions(suggestion_reply(*id, text, &list)),
+    ));
+    scratch.suggestions = recycle(suggestions);
 }
 
 /// What a handler sends and changes. Its messages go out after its effects apply, so a player

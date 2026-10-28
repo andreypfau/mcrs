@@ -46,6 +46,10 @@ impl Lookup for Players {
         self.0.iter().copied()
     }
 
+    fn dimensions(&self) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
     fn tag_entries(
         &self,
         _: StaticResourceLocation,

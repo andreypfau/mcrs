@@ -27,10 +27,8 @@ use mcrs_minecraft_command::{
 };
 use mcrs_minecraft_command::{NoLookup, player_tree};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
-use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::DimensionTypeId;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_protocol::Packet;
@@ -42,21 +40,36 @@ use mcrs_minecraft_registries::CurrentRegistries;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct HandlerKey(pub(crate) u16);
 
-/// Each dimension world holds a copy.
-#[derive(Resource, Clone, Debug)]
-pub struct CommandTree(pub VanillaGraph<Handler>, [Bytes; 5]);
+/// The command graph. The host owns it and lends it to the world in which a line parses, gets
+/// suggestions or runs; in every other world it is empty.
+#[derive(Resource, Debug, Default)]
+pub struct CommandTree {
+    graph: Option<VanillaGraph<Handler>>,
+}
 
 impl CommandTree {
-    /// Freezes the packets of the tree each command level sees (CMDP-TREE-002).
-    fn new(graph: VanillaGraph<Handler>) -> mcrs_minecraft_protocol::anyhow::Result<Self> {
-        let mut packets: [Bytes; 5] = Default::default();
-        for (id, packet) in (0..).zip(&mut packets) {
+    pub fn graph(&self) -> Option<&VanillaGraph<Handler>> {
+        self.graph.as_ref()
+    }
+}
+
+/// The `commands` packet of each command level (CMDP-TREE-002), which every dimension sends to
+/// the players that join it.
+#[derive(Resource, Clone, Debug)]
+pub(crate) struct CommandTreePackets {
+    by_level: [Bytes; 5],
+}
+
+impl CommandTreePackets {
+    fn new(graph: &VanillaGraph<Handler>) -> mcrs_minecraft_protocol::anyhow::Result<Self> {
+        let mut by_level: [Bytes; 5] = Default::default();
+        for (id, packet) in (0..).zip(&mut by_level) {
             let source = Source::new(CommandLevel::from_id(id), &NoLookup);
             let mut bytes = Vec::new();
-            player_tree(&graph, &source).encode_with_id(&mut bytes)?;
+            player_tree(graph, &source).encode_with_id(&mut bytes)?;
             *packet = Bytes::from(bytes);
         }
-        Ok(Self(graph, packets))
+        Ok(Self { by_level })
     }
 }
 
@@ -78,7 +91,9 @@ impl Plugin for CommandPlugin {
         });
         app.init_resource::<CommandLimits>();
         app.init_resource::<seam::CommandSeam>();
-        app.add_observer(run::reject_illegal_characters)
+        app.init_resource::<seam::CommandQueue>();
+        app.add_observer(run::queue_command_line)
+            .add_observer(run::queue_suggestion_request)
             .add_observer(run::broadcast_to_operators);
     }
 
@@ -93,9 +108,10 @@ impl Plugin for CommandPlugin {
                 return;
             }
         };
-        match CommandTree::new(graph) {
-            Ok(tree) => {
-                app.add_dimension_plugin(DimCommandPlugin { tree });
+        match CommandTreePackets::new(&graph) {
+            Ok(packets) => {
+                app.insert_resource(CommandTree { graph: Some(graph) });
+                app.add_dimension_plugin(DimCommandPlugin { packets });
             }
             Err(error) => tracing::error!("the command tree does not encode: {error:#}"),
         }
@@ -194,11 +210,14 @@ pub(crate) struct RunningCommand {
 
 /// The command tree a player with `op_level` can see (CMDP-TREE-002).
 pub(crate) fn tree_packet(
-    tree: &CommandTree,
+    packets: &CommandTreePackets,
     host: Entity,
     op_level: PlayerOpLevel,
 ) -> Option<OutboundPlayerPacket> {
-    let packet = tree.1.get(usize::from(op_level.clamped()))?.clone();
+    let packet = packets
+        .by_level
+        .get(usize::from(op_level.clamped()))?
+        .clone();
     Some(to(host, PacketPayload::Commands(packet)).critical())
 }
 
@@ -220,23 +239,26 @@ pub struct CommandContext<'w, 's> {
     targets: Res<'w, CommandTargets>,
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
-    profiles: Query<'w, 's, &'static GameProfile, With<Player>>,
     dimension_type: Query<'w, 's, &'static DimensionTypeId>,
 }
 
 impl<'w, 's> CommandContext<'w, 's> {
     /// The source of the call, which reads the world through this context.
-    pub fn source(&self, call: &Invocation) -> Source<'_, Self> {
+    pub fn source(&self, call: &Invocation) -> Result<Source<'_, Self>, CommandFailure> {
         self.source_of(&call.source)
     }
 
-    /// The source of `state`, with the rank of its dimension in the dimension order.
-    pub(crate) fn source_of(&self, state: &SourceState) -> Source<'_, Self> {
-        let dimension = self
-            .targets
-            .dimension_of(state.dimension)
-            .unwrap_or_default();
-        Source {
+    /// The source of `state`, with the rank of its dimension in the dimension order. The host
+    /// fills the targets before a line parses, so a dimension they lack fails the source.
+    pub(crate) fn source_of(
+        &self,
+        state: &SourceState,
+    ) -> Result<Source<'_, Self>, CommandFailure> {
+        let Some(dimension) = self.targets.dimension_of(state.dimension) else {
+            tracing::error!(dimension = ?state.dimension, "a command source names no running dimension");
+            return Err(CommandFailure::failed());
+        };
+        Ok(Source {
             position: state.position,
             yaw: state.yaw,
             pitch: state.pitch,
@@ -244,7 +266,7 @@ impl<'w, 's> CommandContext<'w, 's> {
             eye_height: Some(PLAYER_EYE_HEIGHT),
             dimension,
             ..Source::new(state.level, self)
-        }
+        })
     }
 
     /// The dimensions that run and the players of every one of them.
@@ -285,9 +307,10 @@ impl<'w, 's> CommandContext<'w, 's> {
         let Some(span) = self.running.chain.span(call.stage, arg.node()) else {
             return Ok(None);
         };
-        let source = self.source(call);
+        let graph = self.tree.graph().ok_or_else(CommandFailure::failed)?;
+        let source = self.source(call)?;
         let line = self.line();
-        match self.tree.0.value(line, span, arg, &source) {
+        match graph.value(line, span, arg, &source) {
             None => Err(CommandFailure::failed()),
             Some(Ok(value)) => Ok(Some(value)),
             Some(Err(error)) => Err(CommandFailure(error_message(line, &error.map_into()))),
@@ -314,32 +337,22 @@ impl<O: Send + Sync + 'static> Handlers<O> {
 type CommandHandlers = Handlers<CommandResult>;
 type ModifierHandlers = Handlers<ModifyResult>;
 
-/// Parses and suggests commands in a dimension world, against the tree the host froze, and
-/// holds the handlers the host runs there.
+/// Holds the handlers the host runs in a dimension world, the resources the host lends to it,
+/// and the `commands` packets the world sends.
 #[derive(Clone)]
 pub(crate) struct DimCommandPlugin {
-    pub tree: CommandTree,
+    pub packets: CommandTreePackets,
 }
 
 impl Plugin for DimCommandPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(self.tree.clone());
+        app.insert_resource(self.packets.clone());
+        app.init_resource::<CommandTree>();
         app.init_resource::<CommandHandlers>();
         app.init_resource::<ModifierHandlers>();
         app.init_resource::<RunningCommand>();
         app.init_resource::<CommandTargets>();
         app.init_resource::<effect::CommandOutbox>();
-        app.init_resource::<seam::PendingLines>();
-        app.add_observer(run::handle_chat_command);
-        app.register_required_components::<Player, run::PendingSuggestion>();
-        app.add_observer(run::queue_suggestion_request);
-        app.add_systems(
-            bevy_app::FixedUpdate,
-            run::answer_suggestion_requests
-                .in_set(mcrs_minecraft_level::tick::TickSet::Output)
-                .before(crate::world::entity::player::persistence::autosave_players)
-                .run_if(run::has_pending_suggestion),
-        );
     }
 }
 

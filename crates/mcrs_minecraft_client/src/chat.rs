@@ -13,7 +13,6 @@ use mcrs_minecraft_command::{
     ClientGraph, CommandLevel, Identifier, Lookup, RegistryLookup, Source, client_tree,
 };
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
-use mcrs_minecraft_dimension::keys::DIMENSION;
 use mcrs_minecraft_network::client::{
     ClientConnection, ClientNetworkSystems, CurrentDimension, JoinedGame, close_connection_later,
 };
@@ -131,17 +130,10 @@ pub struct ClientLookup<'a> {
 
 impl Lookup for ClientLookup<'_> {
     fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
-        let dimensions = if registry == DIMENSION.location() {
-            self.dimensions
-        } else {
-            &[]
-        };
-        dimensions.iter().map(|key| key.as_str()).chain(
-            self.registries
-                .names(registry)
-                .iter()
-                .map(ResourceLocation::as_str),
-        )
+        self.registries
+            .names(registry)
+            .iter()
+            .map(ResourceLocation::as_str)
     }
 
     fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
@@ -149,7 +141,7 @@ impl Lookup for ClientLookup<'_> {
     }
 
     fn has_registry(&self, registry: StaticResourceLocation) -> bool {
-        registry == DIMENSION.location() || self.registries.has_registry(registry)
+        self.registries.has_registry(registry)
     }
 
     fn tag_contains(
@@ -163,6 +155,10 @@ impl Lookup for ClientLookup<'_> {
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
         self.players.0.iter().map(|(_, name)| name.as_str())
+    }
+
+    fn dimensions(&self) -> impl Iterator<Item = &str> {
+        self.dimensions.iter().map(|key| key.as_str())
     }
 
     fn tag_entries(

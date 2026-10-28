@@ -61,7 +61,7 @@ fn select_if_present<'c>(
     let Some(selector) = context.opt(call, arg)? else {
         return Ok(None);
     };
-    let source = context.source(call);
+    let source = context.source(call)?;
     let targets = context.targets();
     let me = call.source.entity.and_then(|anchor| targets.player(anchor));
     let mut out = Vec::new();

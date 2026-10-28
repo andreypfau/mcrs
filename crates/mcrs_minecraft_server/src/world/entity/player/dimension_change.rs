@@ -1,4 +1,4 @@
-use crate::command::CommandTree;
+use crate::command::CommandTreePackets;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::column_view::ColumnView;
@@ -132,7 +132,7 @@ pub(crate) fn arrival_packets(
     level_packets(
         host,
         op_level,
-        world.get_resource::<CommandTree>(),
+        world.get_resource::<CommandTreePackets>(),
         |packet| {
             out.push(packet);
         },

@@ -162,7 +162,7 @@ fn destination(
     context: &CommandContext,
     call: &Call<Branch, TeleportCommand>,
 ) -> Result<Destination, CommandFailure> {
-    let source = context.source(call);
+    let source = context.source(call)?;
     let (location, rotation, facing) = match call.branch {
         Branch::ToEntity => return to_entity(context, call, command.destination),
         Branch::TargetsToEntity => return to_entity(context, call, command.target_destination),

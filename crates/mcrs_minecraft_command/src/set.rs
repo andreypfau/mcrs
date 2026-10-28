@@ -14,6 +14,7 @@ use mcrs_command::{
     Argument, ArgumentSet, BoolArgument, Contains, ContextView, DoubleArgument, FloatArgument,
     IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder,
 };
+use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
@@ -157,6 +158,17 @@ fn parser_id(key: StaticResourceLocation) -> VarInt {
 }
 
 impl VanillaArgument {
+    /// The registry whose entries the argument reads, if it reads one.
+    pub fn registry(&self) -> Option<StaticResourceLocation> {
+        match self {
+            VanillaArgument::ResourceOrTag(a) => Some(a.registry),
+            VanillaArgument::Resource(a) => Some(a.registry),
+            VanillaArgument::Timeline(a) => Some(a.resource.registry),
+            VanillaArgument::BlockPredicate(_) => Some(BLOCK.location()),
+            _ => None,
+        }
+    }
+
     /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
     pub(crate) fn suggestion_type(&self) -> Option<StaticResourceLocation> {
         matches!(

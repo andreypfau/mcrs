@@ -164,7 +164,7 @@ fn consume_inbound_player_spawn(
     default_game_mode: Res<DefaultGameMode>,
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
-    tree: Option<Res<crate::command::CommandTree>>,
+    tree: Option<Res<crate::command::CommandTreePackets>>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -343,7 +343,7 @@ pub(crate) fn op_level_event(host: Entity, op_level: PlayerOpLevel) -> OutboundP
 /// in; this tells it every later change, with the tree of its new level.
 pub(crate) fn send_op_level(
     players: Query<(Ref<PlayerOpLevel>, &HostAnchor), Changed<PlayerOpLevel>>,
-    tree: Option<Res<crate::command::CommandTree>>,
+    tree: Option<Res<crate::command::CommandTreePackets>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (op_level, &HostAnchor(host)) in &players {
@@ -359,7 +359,7 @@ pub(crate) fn send_op_level(
 pub(crate) fn level_packets(
     host: Entity,
     op_level: PlayerOpLevel,
-    tree: Option<&crate::command::CommandTree>,
+    tree: Option<&crate::command::CommandTreePackets>,
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
     push(op_level_event(host, op_level));
