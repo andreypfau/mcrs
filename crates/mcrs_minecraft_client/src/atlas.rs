@@ -128,10 +128,11 @@ impl SpriteRegistry {
             });
         }
         if model::split_id(id) == model::split_id(MISSING_SPRITE) {
+            let (data, width, height) = missing_pixels();
             return Ok(Source {
-                data: missing_image(),
-                width: 16,
-                height: 16,
+                data,
+                width,
+                height,
                 animation: None,
             });
         }
@@ -271,17 +272,18 @@ pub(crate) fn rgba(argb: u32) -> [u8; 4] {
     [r, g, b, a]
 }
 
-/// The 16x16 magenta and black checker vanilla generates for a texture it cannot find.
-fn missing_image() -> Vec<u8> {
-    (0..256)
-        .flat_map(|i| {
-            if (i % 16 < 8) == (i / 16 < 8) {
-                [0xF8, 0x00, 0xF8, 0xFF]
-            } else {
-                [0x00, 0x00, 0x00, 0xFF]
-            }
-        })
-        .collect()
+const MISSING_SIZE: u32 = 16;
+const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
+const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
+
+/// The pixels of the missing sprite, RGBA, with its width and height (GSPR-MISS-001).
+pub fn missing_pixels() -> (Vec<u8>, u32, u32) {
+    let half = MISSING_SIZE / 2;
+    let pixels = (0..MISSING_SIZE)
+        .flat_map(|y| (0..MISSING_SIZE).map(move |x| (x < half) != (y < half)))
+        .flat_map(|magenta| if magenta { MAGENTA } else { BLACK })
+        .collect();
+    (pixels, MISSING_SIZE, MISSING_SIZE)
 }
 
 #[derive(Deserialize)]
@@ -888,8 +890,8 @@ mod tests {
         let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();
         let pixels = registry.frames(sprite)[0];
         assert_eq!(pixels.len(), 16 * 16 * 4);
-        assert_eq!(&pixels[..4], &[0xF8, 0, 0xF8, 0xFF]);
-        assert_eq!(&pixels[8 * 4..8 * 4 + 4], &[0, 0, 0, 0xFF]);
+        assert_eq!(&pixels[..4], &[0, 0, 0, 0xFF]);
+        assert_eq!(&pixels[8 * 4..8 * 4 + 4], &[0xF8, 0, 0xF8, 0xFF]);
         assert_eq!(registry.opacity(sprite), Opacity::Solid);
     }
 
