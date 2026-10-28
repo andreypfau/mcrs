@@ -57,8 +57,9 @@ fn uuid_text_has_five_hexadecimal_groups() {
 #[test]
 fn options_follow_the_grammar_of_the_brackets() {
     let unterminated = Err(ArgumentError::OptionsUnterminated);
-    let cases: [(&str, Result<(), ArgumentError>); 8] = [
+    let cases: [(&str, Result<(), ArgumentError>); 9] = [
         ("@e[]", Ok(())),
+        ("@e[nbt={a:1},nbt=!{b:[2]}]", Ok(())),
         ("@e[ type = cow ]", Ok(())),
         ("@e[type=cow,]", Ok(())),
         ("@e[type=cow", unterminated),
@@ -96,6 +97,13 @@ fn options_follow_the_grammar_of_the_brackets() {
         ),
         ("@s[limit=1]", ArgumentError::OptionsInapplicable(key)),
         ("@e[type=foo]", ArgumentError::TypeInvalid(any)),
+        (
+            "@e[nbt=5]",
+            ArgumentError::Nbt(mcrs_minecraft_nbt::snbt::SnbtError {
+                kind: mcrs_minecraft_nbt::snbt::SnbtErrorKind::ExpectedCompound,
+                position: 0,
+            }),
+        ),
     ];
     for (input, expected) in by_kind {
         assert_eq!(

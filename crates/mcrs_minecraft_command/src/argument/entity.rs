@@ -12,6 +12,7 @@ use mcrs_command::{
 use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_entity::keys::{ENTITY_TYPE, EntityType};
 use mcrs_minecraft_loot::keys::PREDICATE;
+use mcrs_minecraft_nbt::snbt::check_compound;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use uuid::Uuid;
@@ -242,6 +243,9 @@ enum ListOption<'a> {
     },
     Tag {
         tag: &'a str,
+        negated: bool,
+    },
+    Nbt {
         negated: bool,
     },
     Scores {
@@ -620,9 +624,15 @@ fn read_value<'a>(
                 negated,
             });
         }
-        // chisle: the text form of NBT has no specification yet, so no `nbt` value parses;
-        // a parser of that grammar lifts it.
-        Key::Nbt => return rewind(reader, start, inapplicable),
+        Key::Nbt => {
+            let negated = read_negation(reader);
+            reader.skip_whitespace();
+            let end = check_compound(input, reader.cursor()).map_err(|error| {
+                SyntaxError::argument(ArgumentError::Nbt(error), error.position)
+            })?;
+            reader.set_cursor(end);
+            visit(ListOption::Nbt { negated });
+        }
         Key::Scores => {
             let empty = read_map(reader, read_unquoted_key, |reader| {
                 read_bounds::<i32>(reader).map(drop)
@@ -1049,6 +1059,9 @@ impl<'a> Selector<'a> {
                 // No scoreboard and no advancements exist, so an objective or an
                 // advancement that the map names never does either.
                 ListOption::Scores { empty } | ListOption::Advancements { empty } => empty,
+                // chisle: no saved data of an entity reaches a candidate yet, so the data of each
+                // one counts as not containing the compound; a saved-data view lifts it.
+                ListOption::Nbt { negated } => negated,
                 // chisle: a loot predicate is not evaluated against an entity yet, so one that
                 // exists selects nothing; evaluating loot conditions here lifts it.
                 ListOption::Predicate { .. } => false,
