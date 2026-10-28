@@ -3971,6 +3971,7 @@ dependencies = [
  "bytes",
  "cesu8",
  "flate2",
+ "mcrs_command",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_wire",
  "serde",

@@ -7,11 +7,9 @@ mod time;
 pub use gamemode::SetGameMode;
 pub use teleport::{Facing, Teleport, TeleportPlayer};
 
-use crate::command::{
-    AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry, relifetime,
-};
+use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
 use bevy_app::{App, Plugin};
-use mcrs_command::Arg;
+use mcrs_command::{Arg, recycle};
 use mcrs_minecraft_command::{EntityArgument, argument_text};
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
@@ -58,12 +56,12 @@ impl Plugin for VanillaCommandsPlugin {
 pub(crate) struct FoundPlayers(Vec<&'static PlayerEntry>);
 
 impl FoundPlayers {
-    pub(crate) fn lend<'c>(&mut self) -> Vec<&'c PlayerEntry> {
-        relifetime(core::mem::take(&mut self.0))
-    }
-
-    pub(crate) fn give_back(&mut self, found: Vec<&PlayerEntry>) {
-        self.0 = relifetime(found);
+    /// Lends the buffer to `search` and takes it back on every path out of it.
+    pub(crate) fn with<'c, R>(&mut self, search: impl FnOnce(&mut Vec<&'c PlayerEntry>) -> R) -> R {
+        let mut found = recycle(core::mem::take(&mut self.0));
+        let result = search(&mut found);
+        self.0 = recycle(found);
+        result
     }
 }
 

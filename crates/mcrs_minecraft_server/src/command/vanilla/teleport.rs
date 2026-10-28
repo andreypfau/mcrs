@@ -159,10 +159,10 @@ fn one<'c>(
     arg: Arg<EntityArgument>,
     found: &mut FoundPlayers,
 ) -> Result<&'c PlayerEntry, CommandFailure> {
-    let mut out = found.lend();
-    select(context, call, arg, &mut out)?;
-    let first = out.first().copied();
-    found.give_back(out);
+    let first = found.with(|out| {
+        select(context, call, arg, out)?;
+        Ok::<_, CommandFailure>(out.first().copied())
+    })?;
     first.ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
 }
 
@@ -269,67 +269,67 @@ pub(super) fn run(
     mut found_entity: Local<FoundPlayers>,
 ) -> CommandResult {
     let command = call.command;
-    let mut victims = found_victims.lend();
-    targets_or_self(
-        &context,
-        &call,
-        command.targets,
-        "argument.entity.notfound.entity",
-        &mut victims,
-    )?;
-    let destination = destination(&command, &context, &call, &mut found_entity)?;
-    if !spawnable(destination.to.position) {
-        return Err(CommandFailure::translate(
-            "commands.teleport.invalidPosition",
-            vec![],
-        ));
-    }
-    let Some(&first) = victims.first() else {
-        return Ok(0);
-    };
-    for victim in &victims {
-        output.effect(
-            &mut teleports,
-            TeleportPlayer {
-                player: victim.anchor,
-                to: destination.to,
-            },
-        );
-    }
-    let moved = victims.len();
-    let single = moved == 1;
-    let subject = if single {
-        first.name.clone().into_text()
-    } else {
-        moved.to_string().into_text()
-    };
-    let position = destination.to.position;
-    let message = match destination.to_entity {
-        Some(entity) => Text::translate(
-            if single {
-                "commands.teleport.success.entity.single"
-            } else {
-                "commands.teleport.success.entity.multiple"
-            },
-            vec![subject, entity],
-        ),
-        None => Text::translate(
-            if single {
-                "commands.teleport.success.location.single"
-            } else {
-                "commands.teleport.success.location.multiple"
-            },
-            vec![
-                subject,
-                coordinate(position.x),
-                coordinate(position.y),
-                coordinate(position.z),
-            ],
-        ),
-    };
-    output.success(&call, message, true);
-    found_victims.give_back(victims);
-    Ok(i32::try_from(moved).unwrap_or(i32::MAX))
+    found_victims.with(|victims| {
+        targets_or_self(
+            &context,
+            &call,
+            command.targets,
+            "argument.entity.notfound.entity",
+            victims,
+        )?;
+        let destination = destination(&command, &context, &call, &mut found_entity)?;
+        if !spawnable(destination.to.position) {
+            return Err(CommandFailure::translate(
+                "commands.teleport.invalidPosition",
+                vec![],
+            ));
+        }
+        let Some(&first) = victims.first() else {
+            return Ok(0);
+        };
+        for victim in victims.iter() {
+            output.effect(
+                &mut teleports,
+                TeleportPlayer {
+                    player: victim.anchor,
+                    to: destination.to,
+                },
+            );
+        }
+        let moved = victims.len();
+        let single = moved == 1;
+        let subject = if single {
+            first.name.clone().into_text()
+        } else {
+            moved.to_string().into_text()
+        };
+        let position = destination.to.position;
+        let message = match destination.to_entity {
+            Some(entity) => Text::translate(
+                if single {
+                    "commands.teleport.success.entity.single"
+                } else {
+                    "commands.teleport.success.entity.multiple"
+                },
+                vec![subject, entity],
+            ),
+            None => Text::translate(
+                if single {
+                    "commands.teleport.success.location.single"
+                } else {
+                    "commands.teleport.success.location.multiple"
+                },
+                vec![
+                    subject,
+                    coordinate(position.x),
+                    coordinate(position.y),
+                    coordinate(position.z),
+                ],
+            ),
+        };
+        output.success(&call, message, true);
+        Ok(i32::try_from(moved).unwrap_or(i32::MAX))
+    })
 }
 
 /// The position a victim turns to, and the entity of `player_look_at` (CMD-TP-011,

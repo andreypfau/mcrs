@@ -270,6 +270,12 @@ impl CommandOutput<'_> {
         });
     }
 
+    /// A source a modifier gives, after the ones it gave before in this run. The modifier then
+    /// returns [`Modified::Forked`](crate::command::Modified::Forked).
+    pub fn fork(&mut self, source: SourceState) {
+        self.outbox.forked.push(source);
+    }
+
     /// An effect for the host to apply after this run, in the order of writing across all
     /// effect types, before the messages of the run go out.
     pub fn effect<E: Send + Sync + 'static>(&mut self, queue: &mut EffectQueue<E>, effect: E) {

@@ -50,13 +50,10 @@ pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
     fold(prefix.chars()).all(|c| text.next() == Some(c))
 }
 
-#[expect(
-    clippy::unnecessary_filter_map,
-    reason = "the map changes the lifetime of the element type, which a filter cannot"
-)]
-/// Empties a buffer of suggestions and gives it another lifetime; the allocation stays,
-/// because the element types have one layout.
-pub fn recycle<'a, 'b, T>(buffer: Vec<Suggestion<'a, T>>) -> Vec<Suggestion<'b, T>> {
+/// Empties a buffer and gives its elements another type, most often the same type with another
+/// lifetime. The allocation stays when the two types have one layout, so a buffer of borrows
+/// outlives the borrows it held.
+pub fn recycle<T, U>(buffer: Vec<T>) -> Vec<U> {
     buffer.into_iter().filter_map(|_| None).collect()
 }
 

@@ -54,50 +54,50 @@ pub(super) fn run(
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call, command.mode)?;
-    let mut targets = found.lend();
-    targets_or_self(
-        &context,
-        &call,
-        command.target,
-        "argument.entity.notfound.player",
-        &mut targets,
-    )?;
-    let mut changed = 0;
-    for &target in &targets {
-        if target.mode == mode {
-            continue;
+    found.with(|targets| {
+        targets_or_self(
+            &context,
+            &call,
+            command.target,
+            "argument.entity.notfound.player",
+            targets,
+        )?;
+        let mut changed = 0;
+        for &target in targets.iter() {
+            if target.mode == mode {
+                continue;
+            }
+            changed += 1;
+            output.effect(
+                &mut modes,
+                SetGameMode {
+                    player: target.anchor,
+                    mode,
+                },
+            );
+            if Some(target.anchor) == call.source.entity {
+                output.success(
+                    &call,
+                    Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),
+                    true,
+                );
+            } else {
+                output.tell(
+                    target.anchor,
+                    Text::translate("gameMode.changed", vec![mode_text(mode)]),
+                );
+                output.success(
+                    &call,
+                    Text::translate(
+                        "commands.gamemode.success.other",
+                        vec![target.name.clone().into_text(), mode_text(mode)],
+                    ),
+                    true,
+                );
+            }
         }
-        changed += 1;
-        output.effect(
-            &mut modes,
-            SetGameMode {
-                player: target.anchor,
-                mode,
-            },
-        );
-        if Some(target.anchor) == call.source.entity {
-            output.success(
-                &call,
-                Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),
-                true,
-            );
-        } else {
-            output.tell(
-                target.anchor,
-                Text::translate("gameMode.changed", vec![mode_text(mode)]),
-            );
-            output.success(
-                &call,
-                Text::translate(
-                    "commands.gamemode.success.other",
-                    vec![target.name.clone().into_text(), mode_text(mode)],
-                ),
-                true,
-            );
-        }
-    }
-    found.give_back(targets);
-    Ok(changed)
+        Ok(changed)
+    })
 }
 
 pub(crate) fn apply(worlds: &mut Worlds, SetGameMode { player, mode }: SetGameMode) {

@@ -13,11 +13,6 @@ pub(crate) use run::{system_chat, system_message};
 pub use seam::{PlayerChangeError, Worlds, run_pending_commands};
 pub(crate) use targets::in_dimension_order;
 
-/// An emptied buffer whose elements differ from `buffer`'s only in a lifetime, in the same
-/// allocation, so a buffer of borrows outlives the borrows it held.
-pub(crate) fn relifetime<T, U>(buffer: Vec<T>) -> Vec<U> {
-    buffer.into_iter().filter_map(|_| None).collect()
-}
 pub use targets::{CommandTargets, DimensionEntry, PlayerEntry};
 
 use crate::world::entity::player::ability::PlayerOpLevel;
@@ -222,7 +217,8 @@ pub(crate) struct RunningCommand {
 pub enum Modified {
     None,
     One(SourceState),
-    Many(Vec<SourceState>),
+    /// The sources the modifier gave with [`CommandOutput::fork`], in their order.
+    Forked,
 }
 
 pub type ModifyResult = Result<Modified, CommandFailure>;

@@ -1,4 +1,4 @@
-use crate::command::Worlds;
+use crate::command::{SourceState, Worlds};
 use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::Event;
@@ -70,4 +70,5 @@ pub(crate) struct CommandOutbox {
     pub(crate) effects: Vec<ApplyNext>,
     pub(crate) packets: Vec<OutboundPlayerPacket>,
     pub(crate) broadcasts: Vec<OperatorBroadcast>,
+    pub(crate) forked: Vec<SourceState>,
 }

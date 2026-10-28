@@ -1,5 +1,4 @@
 use crate::command::effect::CommandOutbox;
-use crate::command::relifetime;
 use crate::command::run::{CommandEvent, LineToParse, answer_suggestion, parse_line};
 use crate::command::targets::{DimensionEntry, PlayerEntry, in_dimension_order};
 use crate::command::{
@@ -19,6 +18,7 @@ use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::{World, WorldId};
+use mcrs_command::recycle;
 use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -160,7 +160,7 @@ pub fn run_pending_commands(app: &mut App) {
             .values()
             .any(|sub| sub.world().id() == query.world)
     });
-    let mut ordered = relifetime(core::mem::take(found));
+    let mut ordered = recycle(core::mem::take(found));
     in_dimension_order(
         sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
         |world| {
@@ -173,13 +173,13 @@ pub fn run_pending_commands(app: &mut App) {
     );
     targets.dimensions.clear();
     query_of.clear();
-    let mut in_order: Vec<&mut World> = relifetime(core::mem::take(worlds));
+    let mut in_order: Vec<&mut World> = recycle(core::mem::take(worlds));
     for ((entry, index), world) in ordered.drain(..) {
         targets.dimensions.push(entry);
         query_of.push(index);
         in_order.push(world);
     }
-    *found = relifetime(ordered);
+    *found = recycle(ordered);
     collect_players(host, &in_order, query_of, queries, targets);
     let mut executor = SeamExecutor {
         host: &mut *host,
@@ -198,7 +198,7 @@ pub fn run_pending_commands(app: &mut App) {
         executor.output = queued.player;
         executor.answer(&queued);
     }
-    *worlds = relifetime(in_order);
+    *worlds = recycle(in_order);
     if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
         std::mem::swap(&mut *owned, tree);
     }
@@ -576,17 +576,24 @@ impl Executor<SourceState, Handler> for SeamExecutor<'_, '_> {
     ) -> Result<(), CommandFailure> {
         let invocation = self.invocation(stage, modifier, source);
         let key = modifier.key;
-        let modified: ModifyResult = self
-            .call(invocation, |world| {
-                world.get_resource::<ModifierHandlers>()?.get(key)
-            })
-            .ok_or_else(CommandFailure::failed)?;
-        match modified? {
-            Modified::None => {}
-            Modified::One(source) => out.push(source),
-            Modified::Many(sources) => out.extend(sources),
-        }
-        Ok(())
+        let modified: Option<ModifyResult> = self.call(invocation, |world| {
+            world.get_resource::<ModifierHandlers>()?.get(key)
+        });
+        let forked = &mut self.outbox.forked;
+        let result = match modified.unwrap_or_else(|| Err(CommandFailure::failed())) {
+            Ok(Modified::None) => Ok(()),
+            Ok(Modified::One(source)) => {
+                out.push(source);
+                Ok(())
+            }
+            Ok(Modified::Forked) => {
+                out.append(forked);
+                Ok(())
+            }
+            Err(failure) => Err(failure),
+        };
+        forked.clear();
+        result
     }
 
     fn run(
