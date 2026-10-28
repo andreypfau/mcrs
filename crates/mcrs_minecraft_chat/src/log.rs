@@ -166,11 +166,12 @@ impl<L> ChatLines<L> {
     }
 
     /// Adds the lines of the messages pushed since the last sync, and drops every line when the
-    /// log was cleared. `open` is whether the chat screen is open.
+    /// log was cleared. `open` is the `perPage` of the open chat, `None` when the chat is
+    /// closed.
     pub fn sync<M>(
         &mut self,
         log: &ChatLog<M>,
-        open: bool,
+        open: Option<usize>,
         mut wrap: impl FnMut(&M, Option<Tag>, &mut Vec<L>),
     ) {
         if self.cleared != log.cleared {
@@ -181,7 +182,10 @@ impl<L> ChatLines<L> {
         let new = usize::try_from(log.pushed.saturating_sub(self.seen)).unwrap_or(usize::MAX);
         self.seen = log.pushed;
         for logged in log.messages.iter().take(new).rev() {
-            self.add(logged, open, &mut wrap);
+            self.add(logged, open.is_some(), &mut wrap);
+        }
+        if let Some(per_page) = open {
+            self.scroll_by(0, per_page);
         }
     }
 

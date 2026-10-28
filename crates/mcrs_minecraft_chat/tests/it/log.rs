@@ -11,7 +11,7 @@ fn the_log_keeps_the_hundred_newest_lines() {
     for message in 1..=150 {
         log.push(message, 0, None);
     }
-    lines.sync(&log, false, one_line);
+    lines.sync(&log, None, one_line);
     assert_eq!(lines.lines().len(), 100);
     assert_eq!(lines.lines().last().unwrap().content, 51);
     assert_eq!(lines.lines().next().unwrap().content, 150);
@@ -27,17 +27,22 @@ fn new_lines_keep_a_scrolled_open_chat_in_place() {
     for message in 0..40 {
         log.push(message, 0, None);
     }
-    lines.sync(&log, true, one_line);
+    lines.sync(&log, Some(20), one_line);
     lines.scroll_by(19, 20);
     log.push(40, 0, None);
-    lines.sync(&log, true, one_line);
+    lines.sync(&log, Some(20), one_line);
     assert_eq!(lines.scroll(), 20);
     assert!(lines.new_since_scroll());
+    for message in 41..200 {
+        log.push(message, 0, None);
+    }
+    lines.sync(&log, Some(20), one_line);
+    assert_eq!(lines.scroll(), 80, "the scroll stops at the oldest page");
     lines.scroll_by(-100, 20);
     assert_eq!(lines.scroll(), 0);
     assert!(!lines.new_since_scroll());
     log.clear();
-    lines.sync(&log, true, one_line);
+    lines.sync(&log, Some(20), one_line);
     assert_eq!(lines.lines().len(), 0);
 }
 

@@ -60,9 +60,8 @@ fn project_lines(
     if changed {
         lines.0.rebuild(&chat.log, wrap_message);
     } else {
-        lines
-            .0
-            .sync(&chat.log, *screen == Screen::Chat, wrap_message);
+        let open = (*screen == Screen::Chat).then(|| per_page(true));
+        lines.0.sync(&chat.log, open, wrap_message);
     }
 }
 

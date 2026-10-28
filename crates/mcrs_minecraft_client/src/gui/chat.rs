@@ -612,7 +612,7 @@ mod tests {
             let font = corpus_font();
             let mut lines = mcrs_minecraft_chat::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
-            lines.sync(&chat.log, false, |text, _, rows| {
+            lines.sync(&chat.log, None, |text, _, rows| {
                 rows.push(text_spans(text, Language::corpus(), 0xFFFF_FFFF));
             });
             let size = GuiSize {
