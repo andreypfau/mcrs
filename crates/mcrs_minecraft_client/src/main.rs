@@ -380,19 +380,22 @@ fn host_integrated_server(
             world: world.map(Path::to_path_buf),
             column_traces: traces,
             // The host of a singleplayer world is an operator at the highest level, unless the
-            // ops file says otherwise.
-            ops: OpList::read(Path::new(OPS_FILE))
-                .unwrap_or_else(|error| {
-                    eprintln!("{error}");
-                    std::process::exit(1);
-                })
-                .or_with(OpListEntry {
+            // ops file says otherwise: a later entry for the same player replaces it.
+            ops: OpList::new(
+                std::iter::once(OpListEntry {
                     uuid: host.id,
                     name: host.name.clone(),
                     level:
                         mcrs_minecraft_server::world::entity::player::ability::PlayerOpLevel::MAX,
                     bypasses_player_limit: true,
-                }),
+                })
+                .chain(OpList::read_entries(Path::new(OPS_FILE)).unwrap_or_else(
+                    |error| {
+                        eprintln!("{error}");
+                        std::process::exit(1);
+                    },
+                )),
+            ),
             seed: knobs.world_seed(),
             preset: knobs.world_preset(),
             default_game_mode: knobs.default_game_mode(),

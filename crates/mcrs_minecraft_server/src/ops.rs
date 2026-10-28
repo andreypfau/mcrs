@@ -56,9 +56,14 @@ impl OpList {
     }
 
     pub fn read(path: &Path) -> Result<Self, OpListError> {
+        Self::read_entries(path).map(Self::new)
+    }
+
+    /// The entries of the ops file at `path`; none when the file does not exist.
+    pub fn read_entries(path: &Path) -> Result<Vec<OpListEntry>, OpListError> {
         let bytes = match std::fs::read(path) {
             Ok(bytes) => bytes,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Self::default()),
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
             Err(source) => {
                 return Err(OpListError::Io {
                     path: path.to_owned(),
@@ -66,19 +71,10 @@ impl OpList {
                 });
             }
         };
-        let entries: Vec<OpListEntry> =
-            serde_json::from_slice(&bytes).map_err(|source| OpListError::Malformed {
-                path: path.to_owned(),
-                source,
-            })?;
-        Ok(Self::new(entries))
-    }
-
-    /// The list with `entry` added, unless the list already names its player.
-    pub fn or_with(self, entry: OpListEntry) -> Self {
-        let mut entries = Arc::unwrap_or_clone(self.0);
-        entries.entry(entry.uuid).or_insert(entry);
-        Self(Arc::new(entries))
+        serde_json::from_slice(&bytes).map_err(|source| OpListError::Malformed {
+            path: path.to_owned(),
+            source,
+        })
     }
 
     pub fn get(&self, uuid: &Uuid) -> Option<&OpListEntry> {
