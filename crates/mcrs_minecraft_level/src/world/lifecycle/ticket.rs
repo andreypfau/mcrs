@@ -2,7 +2,6 @@
 
 use std::collections::VecDeque;
 
-use crate::entity::Despawned;
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
 use crate::palette::ChunkBlocks;
@@ -180,15 +179,11 @@ fn track_simulation_tickets(
             &InDimension,
             Option<&mut SimulationTicket>,
         ),
-        (With<Player>, Without<Despawned>),
+        With<Player>,
     >,
-    departed: Query<Entity, (With<SimulationTicket>, With<Despawned>)>,
     mut dims: Query<&mut SectionTickets>,
     mut commands: Commands,
 ) {
-    for player in &departed {
-        commands.entity(player).remove::<SimulationTicket>();
-    }
     let ticket = Ticket::player_simulation(distance.0);
     for (player, transform, in_dim, held) in &mut players {
         let wanted = SimulationTicket {
@@ -659,7 +654,7 @@ mod tests {
         assert!(!levels_now.is_block_ticking(SectionPos::new(0, 0, 0)));
         assert!(levels_now.is_entity_ticking(SectionPos::new(10, 0, 0)));
 
-        app.world_mut().entity_mut(player).insert(Despawned);
+        app.world_mut().despawn(player);
         app.world_mut().run_schedule(FixedUpdate);
         assert!(!levels(&app, dim).is_block_ticking(SectionPos::new(10, 0, 0)));
     }
