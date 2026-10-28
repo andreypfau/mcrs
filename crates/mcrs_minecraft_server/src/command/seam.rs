@@ -1,4 +1,5 @@
 use crate::command::effect::CommandOutbox;
+use crate::command::relifetime;
 use crate::command::run::{CommandEvent, LineToParse, answer_suggestion, parse_line};
 use crate::command::targets::{DimensionEntry, PlayerEntry, in_dimension_order};
 use crate::command::{
@@ -71,6 +72,9 @@ pub(crate) struct CommandSeam {
     queue: CommandQueue,
     packets: Vec<OutboundPlayerPacket>,
     queries: Vec<WorldQueries>,
+    found: Vec<((DimensionEntry, usize), &'static mut World)>,
+    worlds: Vec<&'static mut World>,
+    query_of: Vec<usize>,
 }
 
 type PlayerRow = (
@@ -142,6 +146,9 @@ pub fn run_pending_commands(app: &mut App) {
         queue,
         packets,
         queries,
+        found,
+        worlds,
+        query_of,
     } = &mut seam;
     if let Some(mut received) = host.get_resource_mut::<CommandQueue>() {
         std::mem::swap(&mut *received, queue);
@@ -155,7 +162,8 @@ pub fn run_pending_commands(app: &mut App) {
             .values()
             .any(|sub| sub.world().id() == query.world)
     });
-    let found = in_dimension_order(
+    let mut ordered = relifetime(core::mem::take(found));
+    in_dimension_order(
         sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
         |world| {
             let index = WorldQueries::index(queries, world);
@@ -163,21 +171,21 @@ pub fn run_pending_commands(app: &mut App) {
             Some((entry, index))
         },
         |(entry, _)| &entry.key,
+        &mut ordered,
     );
     targets.dimensions.clear();
-    let mut query_of = Vec::with_capacity(found.len());
-    let mut worlds: Vec<&mut World> = found
-        .into_iter()
-        .map(|((entry, index), world)| {
-            targets.dimensions.push(entry);
-            query_of.push(index);
-            world
-        })
-        .collect();
-    collect_players(host, &worlds, &query_of, queries, targets);
+    query_of.clear();
+    let mut in_order: Vec<&mut World> = relifetime(core::mem::take(worlds));
+    for ((entry, index), world) in ordered.drain(..) {
+        targets.dimensions.push(entry);
+        query_of.push(index);
+        in_order.push(world);
+    }
+    *found = relifetime(ordered);
+    collect_players(host, &in_order, query_of, queries, targets);
     let mut executor = SeamExecutor {
         host: &mut *host,
-        worlds: &mut worlds,
+        worlds: &mut in_order,
         tree: &mut *tree,
         targets: &mut *targets,
         running: &mut *running,
@@ -193,6 +201,7 @@ pub fn run_pending_commands(app: &mut App) {
         executor.output = queued.player;
         executor.answer(&queued);
     }
+    *worlds = relifetime(in_order);
     if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
         std::mem::swap(&mut *owned, tree);
     }
@@ -347,17 +356,17 @@ impl SeamExecutor<'_, '_> {
         let Some(source) = parsed else {
             return;
         };
-        let Some(world) = self.worlds.get_mut(index) else {
-            return;
-        };
         let mut event = CommandEvent {
             player: entity,
             source,
             line: queued.line,
             cancelled: false,
         };
-        world.trigger_ref(&mut event);
-        if event.cancelled {
+        if self
+            .in_world(index, |world| world.trigger_ref(&mut event))
+            .is_none()
+            || event.cancelled
+        {
             return;
         }
         let CommandEvent { source, line, .. } = event;

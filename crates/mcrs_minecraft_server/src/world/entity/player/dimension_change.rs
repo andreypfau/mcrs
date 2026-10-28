@@ -305,7 +305,8 @@ pub fn apply_dimension_change_requests(app: &mut App) {
         return;
     }
     let host = sub_apps.main.world_mut();
-    let mut worlds = in_dimension_order(
+    let mut worlds = Vec::new();
+    in_dimension_order(
         sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
         |world| {
             world
@@ -315,6 +316,7 @@ pub fn apply_dimension_change_requests(app: &mut App) {
                 .cloned()
         },
         |key| key,
+        &mut worlds,
     );
     for origin in 0..worlds.len() {
         let Some(requests) = worlds.get_mut(origin).and_then(|(_, world)| {

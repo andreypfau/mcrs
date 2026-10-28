@@ -7,7 +7,9 @@ mod time;
 pub use gamemode::SetGameMode;
 pub use teleport::{Facing, Teleport, TeleportPlayer};
 
-use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
+use crate::command::{
+    AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry, relifetime,
+};
 use bevy_app::{App, Plugin};
 use mcrs_command::Arg;
 use mcrs_minecraft_command::{EntityArgument, argument_text};
@@ -63,14 +65,6 @@ impl FoundPlayers {
     pub(crate) fn give_back(&mut self, found: Vec<&PlayerEntry>) {
         self.0 = relifetime(found);
     }
-}
-
-#[expect(
-    clippy::unnecessary_filter_map,
-    reason = "the map changes the lifetime of the element type, which a filter cannot"
-)]
-fn relifetime<'b>(buffer: Vec<&PlayerEntry>) -> Vec<&'b PlayerEntry> {
-    buffer.into_iter().filter_map(|_| None).collect()
 }
 
 /// The players a selector argument finds in every dimension (ARG-ENT-013, ARG-ENT-014), in

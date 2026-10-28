@@ -112,12 +112,11 @@ pub(crate) fn in_dimension_order<'w, T>(
     worlds: impl Iterator<Item = &'w mut World>,
     mut read: impl FnMut(&mut World) -> Option<T>,
     key: impl Fn(&T) -> &ResourceKey<Dimension>,
-) -> Vec<(T, &'w mut World)> {
-    let mut found: Vec<(T, &'w mut World)> = worlds
-        .filter_map(|world| Some((read(world)?, world)))
-        .collect();
+    found: &mut Vec<(T, &'w mut World)>,
+) {
+    found.clear();
+    found.extend(worlds.filter_map(|world| Some((read(world)?, world))));
     found.sort_by(|(a, _), (b, _)| dimension_rank(key(a)).cmp(&dimension_rank(key(b))));
-    found
 }
 
 impl Candidate for PlayerEntry {
