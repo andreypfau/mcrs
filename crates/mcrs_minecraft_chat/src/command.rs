@@ -162,7 +162,8 @@ pub struct SuggestionList {
     result: String,
     selected: usize,
     offset: usize,
-    cycle: bool,
+    /// The flag "cycle" of CCMD-LIST-004.
+    pub(crate) cycle: bool,
 }
 
 impl SuggestionList {
@@ -235,15 +236,6 @@ impl SuggestionList {
             .push_str(self.origin.get(end..).unwrap_or_default());
     }
 
-    /// The flag "cycle" of CCMD-LIST-004.
-    pub fn cycling(&self) -> bool {
-        self.cycle
-    }
-
-    pub fn set_cycle(&mut self, cycle: bool) {
-        self.cycle = cycle;
-    }
-
     pub fn step(&mut self, delta: isize) {
         self.select(self.selected as isize + delta);
     }
@@ -264,7 +256,7 @@ impl SuggestionList {
 /// The client parse, the suggestion state, the server requests, the suggestion list and the
 /// hint lines of one chat screen (`client-commands.md`). It owns its buffers, so a parse after
 /// each key reuses them.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CommandInput {
     scratch: ParseScratch<ArgumentError>,
     local: Vec<Suggestion<'static, &'static str>>,
@@ -281,41 +273,13 @@ pub struct CommandInput {
     spare: Entries,
     ready: bool,
     single_child: bool,
-    counter: i32,
+    next_id: i32,
     open: Option<i32>,
     list: Option<SuggestionList>,
     hints: Vec<Hint>,
     usage: String,
     /// The flag "auto" of CCMD-LIST-001.
     pub auto: bool,
-}
-
-impl Default for CommandInput {
-    fn default() -> Self {
-        Self {
-            scratch: ParseScratch::default(),
-            local: Vec::new(),
-            input: String::new(),
-            caret: 0,
-            command: false,
-            cursor: 0,
-            errors: Vec::new(),
-            reported: None,
-            highlights: Vec::new(),
-            message: false,
-            parent: None,
-            entries: Entries::default(),
-            spare: Entries::default(),
-            ready: false,
-            single_child: false,
-            counter: -1,
-            open: None,
-            list: None,
-            hints: Vec::new(),
-            usage: String::new(),
-            auto: false,
-        }
-    }
 }
 
 /// Whether the parse passes a message argument, which picks `chat_command_signed`
@@ -501,10 +465,11 @@ impl CommandInput {
                 );
             }
             self.single_child = children.len() == 1;
-            self.counter += 1;
-            self.open = Some(self.counter);
+            let id = self.next_id;
+            self.next_id += 1;
+            self.open = Some(id);
             Some(Request {
-                id: self.counter,
+                id,
                 end: self.caret,
             })
         } else {
@@ -533,7 +498,7 @@ impl CommandInput {
         if self.open != Some(id) {
             return false;
         }
-        self.counter = -1;
+        self.next_id = 0;
         self.open = None;
         let truncated = self.input.get(..self.caret).unwrap_or_default();
         let start = byte_offset(truncated, start);
@@ -607,7 +572,6 @@ impl CommandInput {
             && let Some(parent) = self.parent.and_then(|parent| cx.tree.node(parent))
         {
             let optional = parent.command().is_some();
-            let first_usage = self.hints.len();
             for &child in parent.children() {
                 if cx
                     .tree
@@ -624,7 +588,7 @@ impl CommandInput {
                     self.hints.push(Hint::Usage(start..self.usage.len()));
                 }
             }
-            if self.hints.len() == first_usage
+            if self.hints.is_empty()
                 && trailing
                 && let Some(reported) = self.reported
             {

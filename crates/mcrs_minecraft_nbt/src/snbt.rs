@@ -25,10 +25,7 @@ pub fn read_compound(input: &str, start: usize) -> Result<(NbtCompound, usize), 
     let mut reader = Reader::new(input, start, Tags);
     match reader.read()? {
         (NbtTag::Compound(compound), _) => Ok((compound, reader.position())),
-        _ => Err(SnbtError {
-            kind: SnbtErrorKind::ExpectedCompound,
-            position: reader.position(),
-        }),
+        _ => Err(expected_compound(reader.position())),
     }
 }
 
@@ -38,10 +35,14 @@ pub fn check_compound(input: &str, start: usize) -> Result<usize, SnbtError> {
     let mut reader = Reader::new(input, start, Validate);
     match reader.read()? {
         ((), Shape::Compound) => Ok(reader.position()),
-        _ => Err(SnbtError {
-            kind: SnbtErrorKind::ExpectedCompound,
-            position: reader.position(),
-        }),
+        _ => Err(expected_compound(reader.position())),
+    }
+}
+
+fn expected_compound(position: usize) -> SnbtError {
+    SnbtError {
+        kind: SnbtErrorKind::ExpectedCompound,
+        position,
     }
 }
 
@@ -68,10 +69,7 @@ pub fn parse_tag(input: &str) -> Result<NbtTag, SnbtError> {
 pub fn parse_compound(input: &str) -> Result<NbtCompound, SnbtError> {
     match full_text(input)? {
         (NbtTag::Compound(compound), _) => Ok(compound),
-        (_, end) => Err(SnbtError {
-            kind: SnbtErrorKind::ExpectedCompound,
-            position: end,
-        }),
+        (_, end) => Err(expected_compound(end)),
     }
 }
 

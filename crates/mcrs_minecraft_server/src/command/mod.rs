@@ -23,8 +23,8 @@ use bytes::Bytes;
 use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{
-    ArgumentError, CommandLevel, Identifier, PermissionCheck, Source, VanillaArgument,
-    VanillaGraph, error_message,
+    ArgumentError, CommandLevel, PermissionCheck, Source, VanillaArgument, VanillaGraph,
+    error_message,
 };
 use mcrs_minecraft_command::{NoLookup, player_tree};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
@@ -128,13 +128,6 @@ pub struct CommandFailure(pub Text);
 impl CommandFailure {
     pub fn translate(key: &'static str, with: Vec<Text>) -> Self {
         Self(Text::translate(key, with))
-    }
-
-    pub(crate) fn invalid_dimension(id: Identifier<'_>) -> Self {
-        Self::translate(
-            "argument.dimension.invalid",
-            vec![id.to_string().into_text()],
-        )
     }
 
     pub(crate) fn failed() -> Self {

@@ -64,7 +64,11 @@ pub fn update_tracked_by(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
-        let anchor = all_players.get(player).ok().and_then(|(.., anchor)| anchor);
+        let (uuid, anchor) = all_players
+            .get(player)
+            .map_or((Uuid::nil(), None), |(_, _, profile, anchor)| {
+                (profile.map_or(Uuid::nil(), |profile| profile.id), anchor)
+            });
         let wire_id = network_id(player, anchor);
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
@@ -115,23 +119,13 @@ pub fn update_tracked_by(
             if !tracked_by.0.contains(&new_entity)
                 && let Some(viewer) = anchor_of(new_entity)
             {
-                // Resolve the entered player's wire fields from the query.
-                // UUID from GameProfile; position from Transform. The per-dim
-                // producer will supply authoritative data when fully wired.
-                let (uuid, pos) = all_players
-                    .get(player)
-                    .map(|(_, xf, profile, _)| {
-                        let uuid = profile.map(|p| p.id).unwrap_or(Uuid::nil());
-                        (uuid, xf.translation)
-                    })
-                    .unwrap_or((Uuid::nil(), transform.translation));
                 packet_writer.write(to(
                     viewer,
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                         id: VarInt(wire_id),
                         uuid,
                         kind: mcrs_minecraft_entity::keys::EntityType::Player,
-                        pos,
+                        pos: transform.translation,
                         movement: LpVec3(DVec3::ZERO),
                         yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
                         pitch: ByteAngle::from_degrees(transform.rotation.pitch()),

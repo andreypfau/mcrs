@@ -88,11 +88,6 @@ impl<M> ChatLog<M> {
         self.pushed += 1;
     }
 
-    /// The kept messages, newest first.
-    pub fn messages(&self) -> impl ExactSizeIterator<Item = &Logged<M>> {
-        self.messages.iter()
-    }
-
     pub fn clear(&mut self) {
         self.messages.clear();
         self.cleared += 1;

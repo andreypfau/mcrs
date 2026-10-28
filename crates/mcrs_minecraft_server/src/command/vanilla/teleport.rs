@@ -152,7 +152,6 @@ struct Destination {
     to_entity: Option<Text>,
 }
 
-/// A single entity argument finds at most one entity.
 /// The first player a selector argument finds.
 fn one<'c>(
     context: &'c CommandContext,

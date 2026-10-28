@@ -23,7 +23,7 @@ pub const MAX_INPUT: usize = 256;
 
 /// The length of a text in UTF-16 code units, the unit of every limit and position on the wire.
 pub fn utf16_len(text: &str) -> usize {
-    mcrs_command::utf16_position(text, text.len())
+    text.encode_utf16().count()
 }
 
 /// The longest start of `text` that holds at most `max` UTF-16 code units, never splitting a

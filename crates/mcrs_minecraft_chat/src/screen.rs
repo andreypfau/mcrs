@@ -148,7 +148,7 @@ impl ChatScreen {
         self.refresh(cx, true);
         if let Some(list) = self.commands.list_mut() {
             list.select(selected);
-            list.set_cycle(true);
+            list.cycle = true;
         }
         Outcome::Handled
     }
@@ -158,14 +158,14 @@ impl ChatScreen {
         match key {
             Key::Up => {
                 list.step(-1);
-                list.set_cycle(false);
+                list.cycle = false;
             }
             Key::Down => {
                 list.step(1);
-                list.set_cycle(false);
+                list.cycle = false;
             }
             Key::Tab { back } => {
-                if list.cycling() {
+                if list.cycle {
                     list.step(if back { -1 } else { 1 });
                 }
                 return Some(self.insert_suggestion(cx));

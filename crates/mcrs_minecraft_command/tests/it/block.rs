@@ -5,7 +5,7 @@ use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
 use mcrs_minecraft_command::{
     BlockPredicate, BlockPredicateArgument, CommandLevel, CommandSyntaxError, Identifier, Lookup,
-    Source, error_message,
+    RegistryLookup, Source, error_message,
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -48,6 +48,10 @@ static BLOCKS: LazyLock<Blocks> = LazyLock::new(|| Blocks {
 });
 
 impl Lookup for Blocks {
+    fn registry_lookup(&self) -> RegistryLookup<'_> {
+        RegistryLookup::default()
+    }
+
     fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
         [
             "minecraft:oak_stairs",
@@ -61,15 +65,6 @@ impl Lookup for Blocks {
 
     fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
         ["minecraft:logs"].into_iter()
-    }
-
-    fn tag_contains(
-        &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
-        _: StaticResourceLocation,
-    ) -> bool {
-        false
     }
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
@@ -105,14 +100,6 @@ impl Lookup for Blocks {
 
     fn has_block_entity(&self, block: Identifier<'_>) -> bool {
         block.eq_str("minecraft:chest")
-    }
-
-    fn suggested_time_markers(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
-        std::iter::empty()
-    }
-
-    fn timelines_of_clock(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
-        std::iter::empty()
     }
 }
 

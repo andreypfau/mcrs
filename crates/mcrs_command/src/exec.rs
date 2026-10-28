@@ -1,5 +1,5 @@
 use crate::error::Span;
-use crate::parse::{ContextView, Entry, ParseResult, contexts};
+use crate::parse::{Entry, ParseResult, contexts};
 use crate::tree::{Graph, NodeId};
 use alloc::vec::Vec;
 
@@ -55,13 +55,10 @@ impl<H> Chain<H> {
         &self.stages
     }
 
-    pub fn context(&self, stage: usize) -> Option<ContextView<'_>> {
-        contexts(&self.entries).nth(stage)
-    }
-
     /// The span of `node` in the stage `stage`.
     pub fn span(&self, stage: usize, node: NodeId) -> Option<Span> {
-        self.context(stage)?
+        contexts(&self.entries)
+            .nth(stage)?
             .nodes()
             .find(|&(parsed, _)| parsed == node)
             .map(|(_, span)| span)

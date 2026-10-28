@@ -294,18 +294,6 @@ fn consume_inbound_player_spawn(
     }
 }
 
-/// The `entity_event` that tells a player its operator level.
-pub(crate) fn op_level_event(host: Entity, op_level: PlayerOpLevel) -> OutboundPlayerPacket {
-    to(
-        host,
-        PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
-            entity_id: crate::world::entity::player_network_id(host),
-            entity_status: op_level.entity_status(),
-        }),
-    )
-    .critical()
-}
-
 /// A player that spawns or changes dimension learns its level in the sequence that brings it
 /// in; this tells it every later change, with the tree of its new level.
 pub(crate) fn send_op_level(
@@ -329,7 +317,16 @@ pub(crate) fn level_packets(
     tree: Option<&crate::command::CommandTreePackets>,
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
-    push(op_level_event(host, op_level));
+    push(
+        to(
+            host,
+            PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
+                entity_id: crate::world::entity::player_network_id(host),
+                entity_status: op_level.entity_status(),
+            }),
+        )
+        .critical(),
+    );
     if let Some(packet) = tree.and_then(|tree| crate::command::tree_packet(tree, host, op_level)) {
         push(packet);
     }

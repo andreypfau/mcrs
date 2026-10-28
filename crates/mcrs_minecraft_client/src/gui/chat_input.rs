@@ -169,12 +169,10 @@ fn chat_keys(
     let chat = &mut *state.chat;
     let opened = if *state.screen == Screen::Chat {
         None
+    } else if let opened @ Some(_) = opening(&keys.keys, *state.screen, world.has_joined(), chat) {
+        opened
     } else {
-        let opened = opening(&keys.keys, *state.screen, world.has_joined(), chat);
-        let Some(opened) = opened else {
-            return;
-        };
-        Some(opened)
+        return;
     };
     let lookup = world.lookup();
     let source = Source::new(world.level(), &lookup);

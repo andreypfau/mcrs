@@ -63,10 +63,7 @@ impl EditBox {
     }
 
     pub fn set_caret(&mut self, caret: usize, select: bool) {
-        let mut caret = caret.min(self.text.len());
-        while !self.text.is_char_boundary(caret) {
-            caret -= 1;
-        }
+        let caret = self.text.floor_char_boundary(caret);
         self.caret = caret;
         if !select {
             self.anchor = caret;
