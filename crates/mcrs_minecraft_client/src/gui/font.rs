@@ -122,8 +122,12 @@ impl Font {
     pub fn width(&self, spans: &[Span]) -> i32 {
         spans
             .iter()
-            .flat_map(|span| span.text.chars().map(|ch| self.advance(ch, span.bold)))
+            .map(|span| self.str_width(&span.text, span.bold))
             .sum()
+    }
+
+    pub fn str_width(&self, text: &str, bold: bool) -> i32 {
+        text.chars().map(|ch| self.advance(ch, bold)).sum()
     }
 }
 

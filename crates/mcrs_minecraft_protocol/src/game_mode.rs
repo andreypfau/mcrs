@@ -34,6 +34,15 @@ impl GameMode {
         }
     }
 
+    pub const fn translation_key(self) -> &'static str {
+        match self {
+            GameMode::Survival => "gameMode.survival",
+            GameMode::Creative => "gameMode.creative",
+            GameMode::Adventure => "gameMode.adventure",
+            GameMode::Spectator => "gameMode.spectator",
+        }
+    }
+
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|mode| mode.name() == name)
     }

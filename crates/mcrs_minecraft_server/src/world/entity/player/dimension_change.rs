@@ -10,7 +10,7 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::{ColumnPos, ResourceKey};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -118,7 +118,7 @@ pub(crate) fn arrival_packets(
     let dimension = entity.get::<InDimension>()?.0;
     let key = world.get::<ResourceKey<mcrs_minecraft_dimension::Dimension>>(dimension)?;
     let dimension_type = world.get::<DimensionTypeId>(dimension)?.0;
-    let center = position.position;
+    let column = ColumnPos::from(position.position);
     out.push(
         to(
             host,
@@ -142,8 +142,8 @@ pub(crate) fn arrival_packets(
         to(
             host,
             PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
-                x: VarInt((center.x / 16.0).floor() as i32),
-                z: VarInt((center.z / 16.0).floor() as i32),
+                x: VarInt(column.x),
+                z: VarInt(column.z),
             }),
         )
         .critical(),

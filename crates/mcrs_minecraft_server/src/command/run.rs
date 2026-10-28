@@ -33,13 +33,14 @@ use smallvec::SmallVec;
 const CHAT_SUGGESTION_UNITS: usize = 256;
 
 pub(crate) fn system_message(host: Entity, content: Text) -> OutboundPlayerPacket {
-    to(
-        host,
-        PacketPayload::SystemChat(ClientboundSystemChatPacket {
-            content,
-            overlay: false,
-        }),
-    )
+    to(host, system_chat(content))
+}
+
+pub(crate) fn system_chat(content: Text) -> PacketPayload {
+    PacketPayload::SystemChat(ClientboundSystemChatPacket {
+        content,
+        overlay: false,
+    })
 }
 
 /// The host disconnects a player whose command line holds a code unit no player can type
@@ -247,10 +248,11 @@ impl CommandOutput<'_> {
     pub fn success(&mut self, invocation: &Invocation, message: Text, broadcast: bool) {
         // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
-        self.send(system_message(invocation.output, message.clone()));
         if !broadcast {
+            self.send(system_message(invocation.output, message));
             return;
         }
+        self.send(system_message(invocation.output, message.clone()));
         let Some(source) = invocation
             .source
             .entity
@@ -311,9 +313,6 @@ pub(crate) fn broadcast_to_operators(
     }
     writer.write(to_target(
         PacketTarget::PlayerSet(operators),
-        PacketPayload::SystemChat(ClientboundSystemChatPacket {
-            content: broadcast.message.clone(),
-            overlay: false,
-        }),
+        system_chat(broadcast.message.clone()),
     ));
 }

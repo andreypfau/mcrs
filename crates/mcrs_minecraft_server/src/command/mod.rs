@@ -6,10 +6,10 @@ mod seam;
 mod targets;
 pub mod vanilla;
 
-pub use effect::{Effect, Facing, Teleport};
+pub use effect::{Facing, Teleport};
 pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, RegistrationError};
-pub(crate) use run::system_message;
 pub use run::{CommandEvent, CommandOutput};
+pub(crate) use run::{system_chat, system_message};
 pub use seam::run_pending_commands;
 pub use targets::{CommandTargets, DimensionEntry, PlayerEntry};
 

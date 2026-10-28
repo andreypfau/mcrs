@@ -1,14 +1,13 @@
 use crate::client_info::ClientInfo;
-use crate::command::system_message;
+use crate::command::{system_chat, system_message};
 use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Text;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChat;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::is_allowed_chat_character;
@@ -60,11 +59,5 @@ fn handle_chat(
     );
     info!("<{}> {}", profile.username, msg);
 
-    packet_writer.write(to_target(
-        PacketTarget::AllPlayers,
-        PacketPayload::SystemChat(ClientboundSystemChatPacket {
-            content: text,
-            overlay: false,
-        }),
-    ));
+    packet_writer.write(to_target(PacketTarget::AllPlayers, system_chat(text)));
 }

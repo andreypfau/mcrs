@@ -9,6 +9,7 @@ use mcrs_minecraft_chat::{
 use mcrs_minecraft_command::parse_error_line;
 
 use super::font::{Font, Hover, Span, draw_centered_text, draw_text, draw_tinted_text, span_at};
+use super::item_decorations::WHITE;
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize, sprite};
 use super::text::{Wrap, text_spans, wrap};
@@ -41,7 +42,6 @@ const ARGUMENT_COLOURS: [u32; 5] = [
     0xFFFF_AA00,
 ];
 const CARET_BLINK_MS: u128 = 300;
-const WHITE: u32 = 0xFFFF_FFFF;
 const TAG_TOOLTIP_WIDTH: i32 = 210;
 const MODIFIED_ICON: &str = "icon/chat_modified";
 
@@ -66,10 +66,6 @@ pub fn wrap_width(tag: Option<Tag>) -> i32 {
 fn with_alpha(color: u32, alpha: f32) -> u32 {
     let base = f32::from((color >> 24) as u8);
     ((base * alpha) as u32) << 24 | (color & 0x00FF_FFFF)
-}
-
-fn text_width(font: &Font, text: &str) -> i32 {
-    text.chars().map(|c| font.advance(c, false)).sum()
 }
 
 fn holds(rect: IRect, point: IVec2) -> bool {
@@ -235,7 +231,7 @@ fn hover_lines(
 fn column(size: GuiSize, font: &Font, input: &str, start: usize, width: i32) -> i32 {
     let x0 = input
         .get(..start)
-        .map_or(4, |before| 4 + text_width(font, before));
+        .map_or(4, |before| 4 + font.str_width(before, false));
     x0.clamp(0, (size.width - width).max(0))
 }
 
@@ -261,7 +257,10 @@ pub struct ListRows {
 pub fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Option<ListRows> {
     let list = screen.commands.list()?;
     let entries = list.entries();
-    let width = entries.iter().map(|text| text_width(font, text)).max()?;
+    let width = entries
+        .iter()
+        .map(|text| font.str_width(text, false))
+        .max()?;
     let rows = entries.len().min(LIST_ROWS) as i32;
     let x = column(size, font, screen.input(), entries.range().0, width);
     let top = size.height - 15 - ROW * rows;
@@ -287,7 +286,7 @@ fn suggestion_list(font: &Font, list: &SuggestionList, rows: &ListRows, out: &mu
                 for x in (rect.min.x..rect.max.x).step_by(2) {
                     out.push(GuiQuad::Fill {
                         rect: IRect::new(x, y, x + 1, y + 1),
-                        color: 0xFFFF_FFFF,
+                        color: WHITE,
                     });
                 }
             }
@@ -408,7 +407,7 @@ fn input_box(
     let caret = screen.edit().caret();
     let visible = size.width - 8;
     let mut skip = 0;
-    let mut width = text_width(font, input.get(..caret).unwrap_or_default());
+    let mut width = font.str_width(input.get(..caret).unwrap_or_default(), false);
     for ch in input.get(..caret).unwrap_or_default().chars() {
         if width <= visible {
             break;
@@ -430,7 +429,7 @@ fn input_box(
         })
         .collect();
     draw_text(font, IVec2::new(4, y), &spans, out);
-    let caret_x = 4 + text_width(font, input.get(skip..caret).unwrap_or_default());
+    let caret_x = 4 + font.str_width(input.get(skip..caret).unwrap_or_default(), false);
     let at_end = caret == input.len();
     if at_end
         && utf16_len(input) < MAX_INPUT

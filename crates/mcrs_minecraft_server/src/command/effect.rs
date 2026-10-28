@@ -47,7 +47,7 @@ pub enum Facing {
 /// the effects of one run in the order they were written, each in the world that holds its
 /// target, before the run's messages go out and before the next run starts.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Effect {
+pub(crate) enum Effect {
     Teleport { player: Entity, to: Teleport },
     GameMode { player: Entity, mode: GameMode },
     EditClock(EditClock),

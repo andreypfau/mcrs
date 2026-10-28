@@ -225,9 +225,12 @@ pub(super) fn run(
     mut output: CommandOutput,
 ) -> CommandResult {
     let command = call.command;
-    let selector =
-        (!matches!(call.branch, Branch::ToLocation | Branch::ToEntity)).then_some(command.targets);
-    let victims = targets_or_self(&context, &call, selector, "argument.entity.notfound.entity")?;
+    let victims = targets_or_self(
+        &context,
+        &call,
+        command.targets,
+        "argument.entity.notfound.entity",
+    )?;
     let destination = destination(&command, &context, &call)?;
     if !spawnable(destination.to.position) {
         return Err(CommandFailure::translate(

@@ -14,47 +14,42 @@ pub(super) struct GameModeCommand {
     target: Arg<EntityArgument>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Branch {
-    Source,
-    Targets,
-}
-
 /// CMD-GM-001.
-pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<GameModeCommand, BuildError> {
+pub(super) fn build(r: &mut CommandRegistrar<'_, ()>) -> Result<GameModeCommand, BuildError> {
     let gamemode = r
         .literal(NodeId::ROOT, "gamemode")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
         .id()?;
     let mode = r
         .arg(gamemode, "gamemode", GameModeArgument)
-        .runs(Branch::Source)
+        .runs(())
         .id()?;
     let target = r
         .arg(mode, "target", EntityArgument::PLAYERS)
-        .runs(Branch::Targets)
+        .runs(())
         .id()?;
     Ok(GameModeCommand { mode, target })
 }
 
 fn mode_text(mode: GameMode) -> Text {
-    Text::translate(format!("gameMode.{}", mode.name()), vec![])
+    Text::translate(mode.translation_key(), vec![])
 }
 
 /// CMD-GM-002 to CMD-GM-005, CMD-GM-009: each target that does not have the mode gets it, in
 /// any dimension, and its messages follow.
 pub(super) fn run(
-    In(call): In<Call<Branch, GameModeCommand>>,
+    In(call): In<Call<(), GameModeCommand>>,
     context: CommandContext,
     mut output: CommandOutput,
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call, command.mode)?;
-    let selector = match call.branch {
-        Branch::Source => None,
-        Branch::Targets => Some(command.target),
-    };
-    let targets = targets_or_self(&context, &call, selector, "argument.entity.notfound.player")?;
+    let targets = targets_or_self(
+        &context,
+        &call,
+        command.target,
+        "argument.entity.notfound.player",
+    )?;
     let mut changed = 0;
     for target in targets {
         if target.mode == mode {

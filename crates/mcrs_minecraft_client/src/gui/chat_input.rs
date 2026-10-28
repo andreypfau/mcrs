@@ -16,6 +16,7 @@ use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 
 use super::chat::{list_rows, per_page, row_at, row_under, wrap_width};
 use super::font::{Font, Span};
+use super::item_decorations::WHITE;
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiScene};
 use super::text::{Wrap, text_spans, wrap};
@@ -55,7 +56,7 @@ fn project_lines(
     }
     let font = &atlas.0.font;
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text_spans(text, &language, 0xFFFF_FFFF);
+        let spans = text_spans(text, &language, WHITE);
         wrap(&spans, wrap_width(tag), Wrap::ChatLog, font, rows);
     };
     if changed {

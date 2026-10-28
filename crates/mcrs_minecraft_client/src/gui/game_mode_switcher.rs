@@ -32,15 +32,6 @@ const ALL_SLOTS_WIDTH: i32 = ICONS.len() as i32 * SLOT_AREA_PADDED - 5;
 const WHITE: u32 = 0xFFFF_FFFF;
 const AQUA: u32 = 0xFF55_FFFF;
 
-fn name_key(mode: GameMode) -> &'static str {
-    match mode {
-        GameMode::Creative => "gameMode.creative",
-        GameMode::Survival => "gameMode.survival",
-        GameMode::Adventure => "gameMode.adventure",
-        GameMode::Spectator => "gameMode.spectator",
-    }
-}
-
 pub fn next(mode: GameMode) -> GameMode {
     let at = ICONS.iter().position(|&icon| icon == mode).unwrap_or(0);
     ICONS[(at + 1) % ICONS.len()]
@@ -183,7 +174,7 @@ fn switcher(
         IVec2::new(125, 75),
         "container/gamemode_switcher",
     ));
-    let name = [Span::new(language.get(name_key(selected)), WHITE)];
+    let name = [Span::new(language.get(selected.translation_key()), WHITE)];
     draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, &name, out);
     let key = vec![Span::new(language.get(SWITCH_KEY_NAME), AQUA)];
     let hint = language.translate("debug.gamemodes.select_next", WHITE, &[key]);

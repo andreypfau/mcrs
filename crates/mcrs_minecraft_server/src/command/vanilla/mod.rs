@@ -50,7 +50,17 @@ pub(crate) fn select<'c>(
     call: &Invocation,
     arg: Arg<EntityArgument>,
 ) -> Result<Vec<&'c PlayerEntry>, CommandFailure> {
-    let selector = context.arg(call, arg)?;
+    select_if_present(context, call, arg)?.ok_or_else(CommandFailure::failed)
+}
+
+fn select_if_present<'c>(
+    context: &'c CommandContext,
+    call: &Invocation,
+    arg: Arg<EntityArgument>,
+) -> Result<Option<Vec<&'c PlayerEntry>>, CommandFailure> {
+    let Some(selector) = context.opt(call, arg)? else {
+        return Ok(None);
+    };
     let source = context.source(call);
     let targets = context.targets();
     let me = call.source.entity.and_then(|anchor| targets.player(anchor));
@@ -59,17 +69,17 @@ pub(crate) fn select<'c>(
     selector
         .select(&source, me, targets.players().iter(), &mut random, &mut out)
         .map_err(|error| CommandFailure(argument_text(context.line(), error)))?;
-    Ok(out)
+    Ok(Some(out))
 }
 
 /// The players a selector finds, or the source player when the branch has no selector.
 pub(crate) fn targets_or_self<'c>(
     context: &'c CommandContext,
     call: &Invocation,
-    arg: Option<Arg<EntityArgument>>,
+    arg: Arg<EntityArgument>,
     none_found: &'static str,
 ) -> Result<Vec<&'c PlayerEntry>, CommandFailure> {
-    let Some(arg) = arg else {
+    let Some(found) = select_if_present(context, call, arg)? else {
         return Ok(call
             .source
             .entity
@@ -77,7 +87,6 @@ pub(crate) fn targets_or_self<'c>(
             .into_iter()
             .collect());
     };
-    let found = select(context, call, arg)?;
     if found.is_empty() {
         return Err(CommandFailure::translate(none_found, vec![]));
     }
