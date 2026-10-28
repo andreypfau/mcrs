@@ -171,6 +171,9 @@ pub(crate) fn process_movement(
         let Ok((mut state, mut transform)) = query.get_mut(m.entity) else {
             return;
         };
+        if state.pending_teleports > 0 {
+            return;
+        }
         if let Some(p) = m.position {
             transform.set_if_neq(transform.with_translation(p.clamp(MIN_POS, MAX_POS)));
         }
@@ -286,5 +289,30 @@ mod tests {
             (state.pending_teleports(), state.teleport_id_counter()),
             (0, 0)
         );
+    }
+
+    #[test]
+    fn a_client_move_applies_only_once_every_teleport_is_confirmed() {
+        let mut world = World::new();
+        world.init_resource::<Messages<PlayerMovement>>();
+        let awaiting = world
+            .spawn((Transform::default(), TeleportState::after_login()))
+            .id();
+        let confirmed = world
+            .spawn((Transform::default(), TeleportState::default()))
+            .id();
+        let to = DVec3::new(5.0, 64.0, 5.0);
+        for entity in [awaiting, confirmed] {
+            world.write_message(PlayerMovement {
+                entity,
+                position: Some(to),
+                look: None,
+            });
+        }
+
+        world.run_system_once(process_movement).unwrap();
+
+        let at = |entity| world.get::<Transform>(entity).unwrap().translation;
+        assert_eq!((at(awaiting), at(confirmed)), (DVec3::ZERO, to));
     }
 }

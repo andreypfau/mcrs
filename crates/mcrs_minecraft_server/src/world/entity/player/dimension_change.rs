@@ -14,11 +14,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::{EntityWorldMut, World};
+use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use bevy_math::DVec3;
 use core::any::TypeId;
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::Dimension as DimensionKey;
+use mcrs_minecraft_core::{Id, ResourceKey};
+use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, OutboundPlayerReleased};
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
@@ -33,7 +33,7 @@ use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition, ClientboundRespawn,
 };
-use mcrs_minecraft_protocol::{Look, PositionFlags, VarInt};
+use mcrs_minecraft_protocol::{GameMode, Look, PositionFlags, VarInt};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data (DIM-CHG-004).
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
@@ -135,6 +135,10 @@ pub enum DimensionChangeError {
     NoPlayer,
     #[error("the player did not leave its dimension")]
     NotLeft,
+    #[error("the session of the player is no longer placed in the old dimension")]
+    NotPlaced,
+    #[error("the player lacks the state its arrival sends")]
+    NoArrivalState,
 }
 
 /// Moves `player`, an entity of `from`, into the dimension of `to` as the same player, places its
@@ -167,6 +171,14 @@ pub fn change_dimension(
     ) else {
         return Err(DimensionChangeError::NoPlayer);
     };
+    let state = ArrivalState::read(to, dimension, leaving)?;
+    let placed_in_from = from.get_resource::<DimensionLabel>().is_some_and(|from| {
+        host.get::<SessionPlacement>(anchor.0)
+            .is_some_and(|placement| placement.place().dim() == Some(from.0))
+    });
+    if !placed_in_from {
+        return Err(DimensionChangeError::NotPlaced);
+    }
     hand_over_outbound(host, from);
     // The packets already stamped for the player leave before its epoch changes, or the bridge
     // drops them as packets of the dimension it left.
@@ -176,6 +188,10 @@ pub fn change_dimension(
         player,
     )
     .map_err(|_| DimensionChangeError::NotLeft)?;
+    let teleport_id = from
+        .get_mut::<TeleportState>(player)
+        .ok_or(DimensionChangeError::NoArrivalState)?
+        .sent(arrival.transform);
     let arrived = to
         .spawn((
             EntityBundle {
@@ -211,12 +227,13 @@ pub fn change_dimension(
     if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor.0) {
         placement.set(Place::InDim(label));
     }
-    if send_arrival(host, to, arrived, &arrival).is_none() {
-        tracing::error!(
-            ?player,
-            "a player that changed dimension lacks its own state"
-        );
-    }
+    send_arrival(
+        host,
+        anchor.0,
+        state,
+        arrival.position_packet(teleport_id),
+        to.get_resource::<CommandTreePackets>(),
+    );
     Ok(arrived)
 }
 
@@ -251,29 +268,63 @@ fn hand_over_outbound(host: &mut World, from: &mut World) {
     }
 }
 
+/// What the arrival of a player sends, read before the player moves so that a move never
+/// leaves the client in the old dimension.
+struct ArrivalState {
+    mode: GameMode,
+    flying: bool,
+    op_level: PlayerOpLevel,
+    key: ResourceKey<DimensionKey>,
+    dimension_type: Id<DimensionType>,
+}
+
+impl ArrivalState {
+    fn read(
+        to: &World,
+        dimension: Entity,
+        leaving: EntityRef<'_>,
+    ) -> Result<Self, DimensionChangeError> {
+        let (Some(key), Some(dimension_type)) = (
+            to.get::<ResourceKey<DimensionKey>>(dimension),
+            to.get::<DimensionTypeId>(dimension),
+        ) else {
+            return Err(DimensionChangeError::NoDimension);
+        };
+        let (Some(mode), Some(flying), Some(&op_level), true) = (
+            leaving.get::<PlayerGameMode>(),
+            leaving.get::<PlayerFlying>(),
+            leaving.get::<PlayerOpLevel>(),
+            leaving.contains::<TeleportState>(),
+        ) else {
+            return Err(DimensionChangeError::NoArrivalState);
+        };
+        Ok(Self {
+            mode: mode.0,
+            flying: flying.0,
+            op_level,
+            key: key.clone(),
+            dimension_type: dimension_type.0,
+        })
+    }
+}
+
 fn send_arrival(
     host: &mut World,
-    world: &mut World,
-    player: Entity,
-    arrival: &Arrival,
-) -> Option<()> {
-    let teleport_id = world
-        .get_mut::<TeleportState>(player)?
-        .sent(arrival.transform);
-    let entity = world.get_entity(player).ok()?;
-    let &HostAnchor(anchor) = entity.get::<HostAnchor>()?;
-    let mode = entity.get::<PlayerGameMode>()?.0;
-    let flying = entity.get::<PlayerFlying>()?.0;
-    let op_level = *entity.get::<PlayerOpLevel>()?;
-    let dimension = entity.get::<InDimension>()?.0;
-    let key = world.get::<ResourceKey<DimensionKey>>(dimension)?;
-    let dimension_type = world.get::<DimensionTypeId>(dimension)?.0;
+    anchor: Entity,
+    state: ArrivalState,
+    position: ClientboundPlayerPosition,
+    tree: Option<&CommandTreePackets>,
+) {
     deliver(
         host,
         to_player(
             anchor,
             PacketPayload::Respawn(ClientboundRespawn {
-                player_spawn_info: PlayerSpawnInfo::new(dimension_type, key.clone(), mode),
+                player_spawn_info: PlayerSpawnInfo::new(
+                    state.dimension_type,
+                    state.key,
+                    state.mode,
+                ),
                 data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
             }),
         )
@@ -281,13 +332,12 @@ fn send_arrival(
     );
     enter_level_packets(
         anchor,
-        op_level,
-        world.get_resource::<CommandTreePackets>(),
-        arrival.position_packet(teleport_id),
-        game_mode::abilities(mode, flying),
+        state.op_level,
+        tree,
+        position,
+        game_mode::abilities(state.mode, state.flying),
         |packet| deliver(host, packet),
     );
-    Some(())
 }
 
 /// Applies the [`ChangeDimensionRequest`]s that the dimension worlds wrote in their last tick,

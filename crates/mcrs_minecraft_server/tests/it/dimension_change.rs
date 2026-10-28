@@ -7,11 +7,12 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
-use mcrs_minecraft_level::session::SessionPlacement;
+use mcrs_minecraft_level::session::{Place, SessionPlacement};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
+use mcrs_minecraft_server::world::entity::player::ability::PlayerFlying;
 use mcrs_minecraft_server::world::entity::player::dimension_change;
 
 use crate::host_app::{self, PlayServer};
@@ -146,4 +147,61 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
         .unwrap();
     assert!(held < respawn);
     assert_eq!(sent[held].epoch, epoch);
+}
+
+#[test]
+fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
+    let unplace = |server: &mut PlayServer, anchor: Entity, _: Entity| {
+        server
+            .app
+            .world_mut()
+            .get_mut::<SessionPlacement>(anchor)
+            .unwrap()
+            .set(Place::Unplaced);
+    };
+    let strip = |server: &mut PlayServer, _: Entity, player: Entity| {
+        let dim = server.dim;
+        server
+            .world_in(dim)
+            .entity_mut(player)
+            .remove::<PlayerFlying>();
+    };
+    let cases: [(&str, &dyn Fn(&mut PlayServer, Entity, Entity)); 2] = [
+        ("disconnected", &unplace),
+        ("without its arrival state", &strip),
+    ];
+    for (case, prepare) in cases {
+        let mut server = PlayServer::start_in(
+            host_app::make_host_app(),
+            &[
+                ("minecraft:overworld", "minecraft:overworld"),
+                ("minecraft:the_end", "minecraft:the_end"),
+            ],
+            &[],
+            0,
+        );
+        let (anchor, _) = server.join(Uuid::new_v4(), "Walker");
+        let overworld = server.dim;
+        let end = host_app::label_of(&server.app, "minecraft:the_end");
+        let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
+        prepare(&mut server, anchor, player);
+        server
+            .world_in(overworld)
+            .resource_mut::<Messages<ChangeDimensionRequest>>()
+            .write(ChangeDimensionRequest {
+                player,
+                to: ResourceKey::from_location(
+                    ResourceLocation::read("minecraft:the_end").unwrap(),
+                ),
+                transform,
+            });
+
+        dimension_change::apply_dimension_change_requests(&mut server.app);
+
+        assert!(player_in(&mut server, end, anchor).is_none(), "{case}");
+        assert!(
+            player_in(&mut server, overworld, anchor).is_some(),
+            "{case}"
+        );
+    }
 }
