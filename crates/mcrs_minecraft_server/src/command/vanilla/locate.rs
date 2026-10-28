@@ -140,24 +140,16 @@ fn structure(
     let index = fill.and_then(|fill| fill.structures.as_deref());
     let frozen = index.map(|index| &index.tables().frozen);
     let id_of = |name: &ResourceLocation| frozen?.structure_ids.get(name).copied();
-    let structures: Vec<StructureId> = match value {
-        ResourceOrTag::Entry(id) => id_of(&id.to_location().ok_or_else(invalid)?)
-            .into_iter()
-            .collect(),
-        ResourceOrTag::Tag(_) => context
-            .registry_lookup()
-            .ids(STRUCTURE.location(), value)
-            .ok_or_else(invalid)?
-            .iter()
-            .filter_map(|&id| id_of(context.registry_lookup().name(STRUCTURE.location(), id)?))
-            .collect(),
-    };
+    let lookup = context.registry_lookup();
+    let structures: Vec<StructureId> = lookup
+        .ids(STRUCTURE.location(), value)
+        .ok_or_else(invalid)?
+        .iter()
+        .filter_map(|&id| id_of(lookup.name(STRUCTURE.location(), id)?))
+        .collect();
     let (Some(index), Some(frozen)) = (index, frozen) else {
         return Err(not_found("commands.locate.structure.not_found", value));
     };
-    if structures.is_empty() && matches!(value, ResourceOrTag::Entry(_)) {
-        return Err(invalid());
-    }
     let (at, structure) = index
         .locate(origin, &structures)
         .ok_or_else(|| not_found("commands.locate.structure.not_found", value))?;
