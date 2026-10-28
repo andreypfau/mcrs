@@ -506,13 +506,25 @@ fn filtered(body: &str, mask: &mcrs_minecraft_protocol::chat::FilterMask) -> Tex
         *text = std::mem::take(text).add_child(part);
     };
     for c in body.chars() {
-        let hidden = mask.hides(index);
-        index += c.len_utf16();
-        if hidden != hidden_run {
-            flush(&mut run, hidden_run, &mut text);
-            hidden_run = hidden;
+        let units = c.len_utf16();
+        let hidden_units = (index..index + units)
+            .filter(|&unit| mask.hides(unit))
+            .count();
+        for unit in index..index + units {
+            let hidden = mask.hides(unit);
+            if hidden != hidden_run {
+                flush(&mut run, hidden_run, &mut text);
+                hidden_run = hidden;
+            }
+            // A pair split by the mask keeps a lone surrogate, which a `str` cannot hold.
+            run.push(match (hidden, hidden_units) {
+                (true, _) => '#',
+                (false, 0) if unit == index => c,
+                (false, 0) => continue,
+                (false, _) => char::REPLACEMENT_CHARACTER,
+            });
         }
-        run.push(if hidden { '#' } else { c });
+        index += units;
     }
     flush(&mut run, hidden_run, &mut text);
     text
@@ -642,6 +654,35 @@ pub(crate) fn send(connection: &mut ClientConnection, send: &Send) {
                 argument_signatures: Vec::new(),
                 last_seen_messages: NOTHING_SEEN,
             });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_protocol::chat::FilterMask;
+    use mcrs_minecraft_protocol::text::TextContent;
+
+    fn shown(body: &str, hidden: u8) -> String {
+        let text = filtered(body, &FilterMask::PartiallyFiltered(vec![hidden]));
+        text.extra
+            .iter()
+            .map(|part| match &part.content {
+                TextContent::Text { text } => text.as_ref(),
+                _ => "",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_hidden_code_unit_shows_as_one_hash() {
+        for (hidden, expected) in [
+            (0b0110, "a##b"),
+            (0b0010, "a#\u{fffd}b"),
+            (0b1001, "#\u{1f600}#"),
+        ] {
+            assert_eq!(shown("a\u{1f600}b", hidden), expected, "{hidden:#06b}");
         }
     }
 }

@@ -10,6 +10,7 @@ fn normalization_trims_and_collapses_whitespace() {
         ("  a   b  ", "a b"),
         ("a\tb\u{3000}c", "a b c"),
         ("a\u{a0} b", "a  b"),
+        ("\u{a0}hi\u{a0}", "hi"),
         ("\u{1}a\u{1f}", "a"),
         (long.as_str(), &long[..256]),
     ] {

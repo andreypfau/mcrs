@@ -17,6 +17,10 @@ pub fn normalize(input: &str, out: &mut String) {
         }
         out.push(if c == '\u{a0}' { ' ' } else { c });
     }
+    let end = out.trim_end_matches(' ').len();
+    out.truncate(end);
+    let start = out.len() - out.trim_start_matches(' ').len();
+    out.drain(..start);
     let kept = utf16_prefix(out, MAX_INPUT).len();
     out.truncate(kept);
 }
