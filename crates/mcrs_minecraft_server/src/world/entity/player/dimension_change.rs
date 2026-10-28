@@ -16,7 +16,6 @@ use bevy_ecs::prelude::{Mut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use bevy_math::DVec3;
-use core::any::TypeId;
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine::bridge::OutboundFlush;
@@ -46,7 +45,7 @@ type Carry = fn(&mut EntityWorldMut<'_>, &mut EntityWorldMut<'_>);
 /// [`CarryOnDimensionChange::carry_on_dimension_change`]; a change reads the list of the world
 /// that the player leaves. A component not in the list stays behind and is despawned.
 #[derive(Resource, Default)]
-pub struct CarriedComponents(Vec<(TypeId, Carry)>);
+pub struct CarriedComponents(Vec<Carry>);
 
 pub trait CarryOnDimensionChange {
     /// Moves `T` of a player to its entity in the new world when the player changes dimension.
@@ -55,11 +54,10 @@ pub trait CarryOnDimensionChange {
 
 impl CarryOnDimensionChange for App {
     fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
-        let mut carried = self.world_mut().get_resource_or_init::<CarriedComponents>();
-        let id = TypeId::of::<T>();
-        if !carried.0.iter().any(|(known, _)| *known == id) {
-            carried.0.push((id, carry::<T>));
-        }
+        self.world_mut()
+            .get_resource_or_init::<CarriedComponents>()
+            .0
+            .push(carry::<T>);
         self
     }
 }
@@ -213,7 +211,7 @@ pub fn change_dimension(
         else {
             return;
         };
-        for (_, carry) in &carried.0 {
+        for carry in &carried.0 {
             carry(&mut leaving, &mut arriving);
         }
     });

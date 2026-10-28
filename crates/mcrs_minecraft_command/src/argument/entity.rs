@@ -1,3 +1,4 @@
+use crate::argument::keyword::by_name;
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::identifier::{
     Identifier, prefixed_identifier_matches, read_identifier, suggest_prefixed, text_matches,
@@ -554,7 +555,7 @@ fn read_scalar(reader: &mut Reader<'_>, state: &mut State<'_>, key: Key) -> Read
         }
         Key::Sort => {
             let word = reader.read_unquoted();
-            let Some(&(_, order)) = SORTS.iter().find(|(name, _)| *name == word.text(input)) else {
+            let Some(order) = by_name(&SORTS, word.text(input)) else {
                 return rewind(reader, start, ArgumentError::SortIrreversible(word));
             };
             s.order = order;

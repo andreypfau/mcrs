@@ -25,7 +25,7 @@ pub fn player_tree<H, L: Lookup>(
     graph: &VanillaGraph<H>,
     source: &Source<'_, L>,
 ) -> ClientboundCommands<'static> {
-    let mut numbers: Vec<Option<usize>> = vec![None; graph.len()];
+    let mut numbers: Vec<Option<usize>> = vec![None; graph.node_count()];
     let mut count = 0;
     for (id, node) in graph.nodes() {
         let visible = match node.parent() {

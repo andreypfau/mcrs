@@ -411,12 +411,8 @@ impl<A, R, H> Graph<A, R, H> {
         self.nodes.get(id.index())
     }
 
-    pub fn len(&self) -> usize {
+    pub fn node_count(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
     }
 
     pub fn nodes(&self) -> impl Iterator<Item = (NodeId, &Node<A, R, H>)> {

@@ -132,3 +132,43 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
         }
     }
 }
+
+/// `minecraft:resource` (CMD-TIME-004): an entry of the registry, which must exist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResourceArgument {
+    pub registry: StaticResourceLocation,
+}
+
+impl ResourceArgument {
+    pub fn suggest<'t, L: Lookup, T>(
+        &self,
+        source: &'t Source<'_, L>,
+        builder: &mut SuggestionBuilder<'t, '_, T>,
+    ) {
+        builder.suggest_matching(source.lookup.entries(self.registry), identifier_matches);
+    }
+}
+
+impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
+    type Value<'a> = Identifier<'a>;
+    type Error = ArgumentError;
+
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        source: &Source<'_, L>,
+    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+        let (identifier, id) = read_identifier(reader)?;
+        if source.lookup.has_entry(self.registry, identifier) {
+            Ok(identifier)
+        } else {
+            Err(SyntaxError::argument(
+                ArgumentError::ResourceNotFound {
+                    id,
+                    registry: self.registry,
+                },
+                reader.cursor(),
+            ))
+        }
+    }
+}

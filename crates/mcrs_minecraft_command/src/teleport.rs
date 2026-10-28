@@ -9,13 +9,13 @@ pub struct Pose {
     pub pitch: f32,
 }
 
-/// What `player_position` carries for one move, and the pose the move leaves the victim in.
+/// What `player_position` carries for one move, and the rotation the move leaves the victim in.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RelativeMove {
     pub position: DVec3,
     pub look: Look,
     pub flags: Vec<PositionFlag>,
-    pub result: Pose,
+    pub final_look: Look,
 }
 
 /// The move of a victim from `from` to `to` (CMD-TP-005 step 2, CMD-TP-006): each relative
@@ -63,8 +63,7 @@ pub fn relative_move(
         position,
         look: Look { yaw, pitch },
         flags,
-        result: Pose {
-            position: to.position,
+        final_look: Look {
             yaw: final_yaw,
             pitch: final_pitch.clamp(-90.0, 90.0),
         },
@@ -91,10 +90,14 @@ mod tests {
             (absolute(30.0, 10.0), [true; 2], (0.0, 0.0), (30.0, 10.0)),
             (absolute(20.0, 95.0), [true; 2], (-10.0, 85.0), (20.0, 90.0)),
         ];
-        for (to, relative, look, result) in cases {
+        for (to, relative, look, final_look) in cases {
             let step = relative_move(AT, to, [false; 3], relative, false);
             assert_eq!((step.look.yaw, step.look.pitch), look, "{to:?}");
-            assert_eq!((step.result.yaw, step.result.pitch), result, "{to:?}");
+            assert_eq!(
+                (step.final_look.yaw, step.final_look.pitch),
+                final_look,
+                "{to:?}"
+            );
         }
     }
 
@@ -115,7 +118,6 @@ mod tests {
                 PositionFlag::DeltaY
             ]
         );
-        assert_eq!(step.result.position, to.position);
 
         let step = relative_move(AT, to, [true, true, false], [false; 2], true);
         assert_eq!(step.position, to.position);

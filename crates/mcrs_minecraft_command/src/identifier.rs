@@ -1,7 +1,6 @@
 use crate::error::ArgumentError;
 use mcrs_command::suggest::starts_with_ignore_case;
 use mcrs_command::{Reader, Span, SuggestionBuilder, SuggestionText, SyntaxError};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::resource_location::parse_parts;
 
 /// An identifier borrowed from the command line; a missing namespace is `minecraft`.
@@ -22,10 +21,6 @@ impl<'a> Identifier<'a> {
         canonical
             .split_once(':')
             .is_some_and(|(namespace, path)| namespace == self.namespace && path == self.path)
-    }
-
-    pub fn to_location(&self) -> Option<ResourceLocation> {
-        ResourceLocation::new(self.namespace, self.path).ok()
     }
 }
 

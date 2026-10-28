@@ -387,7 +387,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
     );
     let mut transform = Transform {
         translation: to.position,
-        rotation: Rotation::new(step.result.yaw, step.result.pitch),
+        rotation: Rotation::new(step.final_look.yaw, step.final_look.pitch),
     };
     let facing = to
         .facing
@@ -411,12 +411,14 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
                 return;
             }
         };
-        worlds.send(origin, |world, out| {
-            if let Some(mut state) = world.get_mut::<TeleportState>(entity) {
-                let position = arrival.position_packet(state.sent(transform));
-                out.push(to_player(player, PacketPayload::PlayerPosition(position)).critical());
-            }
-        });
+        let teleport_id = worlds
+            .world_mut(origin)
+            .and_then(|world| world.get_mut::<TeleportState>(entity))
+            .map(|mut state| state.sent(transform));
+        if let Some(teleport_id) = teleport_id {
+            let position = arrival.position_packet(teleport_id);
+            worlds.deliver(to_player(player, PacketPayload::PlayerPosition(position)).critical());
+        }
     } else if let Err(error) = worlds.change_dimension(player, destination, arrival) {
         tracing::error!(?player, "a teleport did not move its victim: {error}");
         return;
@@ -427,8 +429,6 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
             target,
             entity,
         };
-        worlds.send(destination, |_, out| {
-            out.push(to_player(player, PacketPayload::PlayerLookAt(look_at)).critical());
-        });
+        worlds.deliver(to_player(player, PacketPayload::PlayerLookAt(look_at)).critical());
     }
 }

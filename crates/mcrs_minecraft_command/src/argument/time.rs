@@ -1,9 +1,8 @@
-use crate::argument::resource::ResourceLocationArgument;
+use crate::argument::resource::{ResourceArgument, ResourceLocationArgument};
 use crate::error::{ArgumentError, CommandSyntaxError};
-use crate::identifier::{Identifier, identifier_matches, read_identifier, text_matches};
+use crate::identifier::{Identifier, identifier_matches, text_matches};
 use crate::source::{Lookup, Source};
 use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
-use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_environment::keys::TIMELINE;
 
 const TICKS_PER_DAY: f32 = 24_000.0;
@@ -67,46 +66,6 @@ impl<S> Argument<S> for TimeArgument {
             ));
         }
         Ok(ticks)
-    }
-}
-
-/// `minecraft:resource` (CMD-TIME-004): an entry of the registry, which must exist.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ResourceArgument {
-    pub registry: StaticResourceLocation,
-}
-
-impl ResourceArgument {
-    pub fn suggest<'t, L: Lookup, T>(
-        &self,
-        source: &'t Source<'_, L>,
-        builder: &mut SuggestionBuilder<'t, '_, T>,
-    ) {
-        builder.suggest_matching(source.lookup.entries(self.registry), identifier_matches);
-    }
-}
-
-impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
-    type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
-
-    fn parse<'a>(
-        &self,
-        reader: &mut Reader<'a>,
-        source: &Source<'_, L>,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
-        let (identifier, id) = read_identifier(reader)?;
-        if source.lookup.has_entry(self.registry, identifier) {
-            Ok(identifier)
-        } else {
-            Err(SyntaxError::argument(
-                ArgumentError::ResourceNotFound {
-                    id,
-                    registry: self.registry,
-                },
-                reader.cursor(),
-            ))
-        }
     }
 }
 

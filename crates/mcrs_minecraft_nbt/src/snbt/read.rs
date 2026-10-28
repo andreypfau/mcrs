@@ -294,14 +294,7 @@ impl<'a, B: Build> Reader<'a, B> {
         let negative = self.sign()?;
         let parts = self.float_body()?;
         match float_value(negative, &parts) {
-            Some(scalar) => {
-                let nonzero = match scalar {
-                    Scalar::Float(v) => v != 0.0,
-                    Scalar::Double(v) => v != 0.0,
-                    _ => true,
-                };
-                Ok((self.build.scalar(scalar), Shape::Number { nonzero }))
-            }
+            Some((scalar, nonzero)) => Ok((self.build.scalar(scalar), Shape::Number { nonzero })),
             None => self.fail(self.pos, K::InfinityNotAllowed),
         }
     }
@@ -719,7 +712,8 @@ fn array_element(literal: IntLiteral<'_>, kind: ArrayKind) -> Result<i64, K> {
 const FLOAT_TEXT: usize = 128;
 
 /// SNBT-VAL-004: the value rounded once from the decimal text, or `None` when it is infinite.
-fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<Scalar> {
+/// The value and whether it is not zero.
+fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<(Scalar, bool)> {
     let mut stack = [0u8; FLOAT_TEXT];
     let mut heap = Vec::new();
     let pieces = [
@@ -753,10 +747,11 @@ fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<Scalar> {
         &heap
     };
     let text = core::str::from_utf8(text).ok()?;
-    let scalar = if parts.float {
-        Scalar::Float(text.parse::<f32>().ok().filter(|v| v.is_finite())? + 0.0)
+    Some(if parts.float {
+        let value = text.parse::<f32>().ok().filter(|v| v.is_finite())? + 0.0;
+        (Scalar::Float(value), value != 0.0)
     } else {
-        Scalar::Double(text.parse::<f64>().ok().filter(|v| v.is_finite())? + 0.0)
-    };
-    Some(scalar)
+        let value = text.parse::<f64>().ok().filter(|v| v.is_finite())? + 0.0;
+        (Scalar::Double(value), value != 0.0)
+    })
 }

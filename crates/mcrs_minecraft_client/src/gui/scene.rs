@@ -20,7 +20,7 @@ use super::item_decorations::{Decorated, WHITE, decorations};
 use super::language::Language;
 use super::sprite::{GuiSprite, Scaling};
 use super::tooltip::{Tooltip, TooltipSprites};
-use crate::atlas::{decode_png, missing_pixels, rgba};
+use crate::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
 use crate::model::Pack;
 use crate::player::Player;
@@ -186,8 +186,7 @@ impl GuiAtlasData {
             }
         }
         images.push((BLANK, vec![255; 16], 2, 2));
-        let (pixels, width, height) = missing_pixels();
-        images.push((MISSING, pixels, width, height));
+        images.push((MISSING, missing_pixels(), MISSING_SIZE, MISSING_SIZE));
         images.sort_by_key(|(name, _, _, height)| (std::cmp::Reverse(*height), *name));
         let (mut x, mut y, mut row) = (0u32, 0u32, 0u32);
         let mut placed = Vec::new();

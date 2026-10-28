@@ -55,7 +55,7 @@ pub fn per_page(open: bool) -> usize {
     ((height * 160.0 + 20.0).floor() as i32 / LINE) as usize
 }
 
-pub fn wrap_width(tag: Option<Tag>) -> i32 {
+pub(crate) fn wrap_width(tag: Option<Tag>) -> i32 {
     if tag.is_some_and(Tag::has_icon) {
         CHAT_WIDTH - ICON_WIDTH
     } else {
@@ -73,7 +73,7 @@ fn holds(rect: IRect, point: IVec2) -> bool {
 }
 
 /// The mouse over the open chat, and where the log makes its tooltip requests.
-pub struct Pointer<'a> {
+pub(crate) struct Pointer<'a> {
     pub at: IVec2,
     pub language: &'a Language,
     pub tooltip: &'a mut Tooltip,
@@ -95,7 +95,7 @@ impl Pointer<'_> {
 /// The lines of the chat log (CHAT-LOG-002 to CHAT-LOG-005) at the default options. With a
 /// pointer, the chat is open: the tag bars and icons make their tooltip requests, and the
 /// result is the hovered text style (CHAT-LOG-007).
-pub fn chat_lines<'c>(
+pub(crate) fn chat_lines<'c>(
     size: GuiSize,
     chat: &Chat,
     lines: &'c mcrs_minecraft_chat::ChatLines<Vec<Span>>,
@@ -249,12 +249,12 @@ pub fn row_under(rect: IRect, point: IVec2) -> Option<usize> {
 }
 
 /// Where the rows of the shown suggestion list are, and the entry of the top row.
-pub struct ListRows {
+pub(crate) struct ListRows {
     pub rect: IRect,
     pub first: usize,
 }
 
-pub fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Option<ListRows> {
+pub(crate) fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Option<ListRows> {
     let list = screen.commands.list()?;
     let entries = list.entries();
     let width = entries

@@ -28,6 +28,14 @@ impl<S> Argument<S> for GameModeArgument {
     }
 }
 
+/// The value named `text` in `table`.
+pub(crate) fn by_name<T: Copy>(table: &[(&str, T)], text: &str) -> Option<T> {
+    table
+        .iter()
+        .find(|(name, _)| *name == text)
+        .map(|&(_, value)| value)
+}
+
 const ANCHORS: [(&str, LookAnchor); 2] = [("feet", LookAnchor::Feet), ("eyes", LookAnchor::Eyes)];
 
 /// `minecraft:entity_anchor` (ARG-KW-002).
@@ -48,8 +56,7 @@ impl<S> Argument<S> for EntityAnchorArgument {
         let start = reader.cursor();
         let word = reader.read_unquoted();
         let text = word.text(reader.input());
-        let anchor = ANCHORS.iter().find(|(name, _)| *name == text);
-        let Some(&(_, anchor)) = anchor else {
+        let Some(anchor) = by_name(&ANCHORS, text) else {
             reader.set_cursor(start);
             return Err(SyntaxError::argument(
                 ArgumentError::AnchorInvalid(word),
@@ -90,14 +97,9 @@ impl<S> Argument<S> for HeightmapArgument {
         _: &S,
     ) -> Result<HeightmapName, CommandSyntaxError> {
         let word = reader.read_unquoted();
-        let text = word.text(reader.input());
-        HEIGHTMAPS
-            .iter()
-            .find(|(name, _)| *name == text)
-            .map(|&(_, heightmap)| heightmap)
-            .ok_or(SyntaxError::argument(
-                ArgumentError::EnumInvalid(word),
-                reader.cursor(),
-            ))
+        by_name(&HEIGHTMAPS, word.text(reader.input())).ok_or(SyntaxError::argument(
+            ArgumentError::EnumInvalid(word),
+            reader.cursor(),
+        ))
     }
 }

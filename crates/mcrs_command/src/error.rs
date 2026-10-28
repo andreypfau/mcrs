@@ -104,8 +104,6 @@ impl<E> SyntaxError<E> {
 /// The position counted in UTF-16 code units, the unit of every position on the wire.
 pub fn utf16_position(input: &str, position: usize) -> usize {
     input
-        .char_indices()
-        .take_while(|&(index, _)| index < position)
-        .map(|(_, c)| c.len_utf16())
-        .sum()
+        .get(..input.floor_char_boundary(position))
+        .map_or(0, |start| start.encode_utf16().count())
 }

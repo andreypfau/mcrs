@@ -5,9 +5,9 @@ use crate::argument::coordinates::{
 use crate::argument::entity::EntityArgument;
 use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArgument};
 use crate::argument::resource::{
-    DimensionArgument, ResourceLocationArgument, ResourceOrTagArgument,
+    DimensionArgument, ResourceArgument, ResourceLocationArgument, ResourceOrTagArgument,
 };
-use crate::argument::time::{ResourceArgument, TimeArgument, TimeMarkerArgument, TimelineArgument};
+use crate::argument::time::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::source::{Lookup, Source};
 use mcrs_command::{
@@ -159,7 +159,7 @@ fn parser_id(key: StaticResourceLocation) -> VarInt {
 
 impl VanillaArgument {
     /// The registry whose entries the argument reads, if it reads one.
-    pub fn registry(&self) -> Option<StaticResourceLocation> {
+    pub(crate) fn registry(&self) -> Option<StaticResourceLocation> {
         match self {
             VanillaArgument::ResourceOrTag(a) => Some(a.registry),
             VanillaArgument::Resource(a) => Some(a.registry),

@@ -70,7 +70,6 @@ pub(crate) struct CommandSeam {
     stages: Vec<Stage<Handler>>,
     lists: SourceLists<SourceState>,
     queue: CommandQueue,
-    packets: Vec<OutboundPlayerPacket>,
     queries: Vec<WorldQueries>,
     found: Vec<((DimensionEntry, usize), &'static mut World)>,
     worlds: Vec<&'static mut World>,
@@ -144,7 +143,6 @@ pub fn run_pending_commands(app: &mut App) {
         stages,
         lists,
         queue,
-        packets,
         queries,
         found,
         worlds,
@@ -190,7 +188,6 @@ pub fn run_pending_commands(app: &mut App) {
         targets: &mut *targets,
         running: &mut *running,
         outbox: &mut *outbox,
-        packets: &mut *packets,
         output: Entity::PLACEHOLDER,
     };
     for queued in queue.lines.drain(..) {
@@ -296,7 +293,6 @@ struct SeamExecutor<'a, 'w> {
     targets: &'a mut CommandTargets,
     running: &'a mut RunningCommand,
     outbox: &'a mut CommandOutbox,
-    packets: &'a mut Vec<OutboundPlayerPacket>,
     output: Entity,
 }
 
@@ -438,7 +434,6 @@ impl SeamExecutor<'_, '_> {
             host: self.host,
             worlds: self.worlds,
             targets: self.targets,
-            packets: self.packets,
         };
         for apply in effects.drain(..) {
             apply(&mut worlds, index);
@@ -474,7 +469,6 @@ pub struct Worlds<'s, 'w> {
     host: &'s mut World,
     worlds: &'s mut [&'w mut World],
     targets: &'s mut CommandTargets,
-    packets: &'s mut Vec<OutboundPlayerPacket>,
 }
 
 impl Worlds<'_, '_> {
@@ -497,20 +491,9 @@ impl Worlds<'_, '_> {
         self.worlds.get_mut(index).map(|world| &mut **world)
     }
 
-    /// Fills the scratch packets from the world at `index`, then sends them in order.
-    pub fn send(
-        &mut self,
-        index: usize,
-        fill: impl FnOnce(&mut World, &mut Vec<OutboundPlayerPacket>),
-    ) {
-        let Some(world) = self.worlds.get_mut(index) else {
-            return;
-        };
-        self.packets.clear();
-        fill(world, self.packets);
-        for packet in self.packets.drain(..) {
-            deliver(self.host, packet);
-        }
+    /// Sends `packet` after everything the dimensions handed over before it.
+    pub fn deliver(&mut self, packet: OutboundPlayerPacket) {
+        deliver(self.host, packet);
     }
 
     /// Sets the transform of the player with the host anchor `player` in the world that holds

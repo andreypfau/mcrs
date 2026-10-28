@@ -327,7 +327,7 @@ pub(crate) fn level_packets(
         )
         .critical(),
     );
-    if let Some(packet) = tree.and_then(|tree| crate::command::tree_packet(tree, host, op_level)) {
+    if let Some(packet) = tree.and_then(|tree| tree.to_player(host, op_level)) {
         push(packet);
     }
 }

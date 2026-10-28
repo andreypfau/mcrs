@@ -68,6 +68,16 @@ pub(crate) struct CommandTreePackets {
 }
 
 impl CommandTreePackets {
+    /// The command tree a player with `op_level` can see (CMDP-TREE-002).
+    pub(crate) fn to_player(
+        &self,
+        host: Entity,
+        op_level: PlayerOpLevel,
+    ) -> Option<OutboundPlayerPacket> {
+        let packet = self.by_level.get(usize::from(op_level.clamped()))?.clone();
+        Some(to(host, PacketPayload::Commands(packet)).critical())
+    }
+
     fn new(graph: &VanillaGraph<Handler>) -> mcrs_minecraft_protocol::anyhow::Result<Self> {
         let mut by_level: [Bytes; 5] = Default::default();
         for (id, packet) in (0..).zip(&mut by_level) {
@@ -181,7 +191,6 @@ pub struct Invocation {
 }
 
 impl SourceState {
-    /// The source of the player with the host anchor `anchor`, in the dimension `dimension`.
     pub fn of_player(
         anchor: Entity,
         dimension: Entity,
@@ -206,19 +215,6 @@ impl SourceState {
 pub(crate) struct RunningCommand {
     line: String,
     chain: Chain<Handler>,
-}
-
-/// The command tree a player with `op_level` can see (CMDP-TREE-002).
-pub(crate) fn tree_packet(
-    packets: &CommandTreePackets,
-    host: Entity,
-    op_level: PlayerOpLevel,
-) -> Option<OutboundPlayerPacket> {
-    let packet = packets
-        .by_level
-        .get(usize::from(op_level.clamped()))?
-        .clone();
-    Some(to(host, PacketPayload::Commands(packet)).critical())
 }
 
 /// What a modifier gives for one source.
@@ -274,7 +270,6 @@ impl<'w, 's> CommandContext<'w, 's> {
         &self.targets
     }
 
-    /// The command line that runs.
     pub fn line(&self) -> &str {
         &self.running.line
     }

@@ -128,11 +128,10 @@ impl SpriteRegistry {
             });
         }
         if model::split_id(id) == model::split_id(MISSING_SPRITE) {
-            let (data, width, height) = missing_pixels();
             return Ok(Source {
-                data,
-                width,
-                height,
+                data: missing_pixels(),
+                width: MISSING_SIZE,
+                height: MISSING_SIZE,
                 animation: None,
             });
         }
@@ -272,18 +271,17 @@ pub(crate) fn rgba(argb: u32) -> [u8; 4] {
     [r, g, b, a]
 }
 
-const MISSING_SIZE: u32 = 16;
+pub(crate) const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
-/// The pixels of the missing sprite, RGBA, with its width and height (GSPR-MISS-001).
-pub fn missing_pixels() -> (Vec<u8>, u32, u32) {
+/// The pixels of the missing sprite, RGBA, `MISSING_SIZE` on each side.
+pub fn missing_pixels() -> Vec<u8> {
     let half = MISSING_SIZE / 2;
-    let pixels = (0..MISSING_SIZE)
+    (0..MISSING_SIZE)
         .flat_map(|y| (0..MISSING_SIZE).map(move |x| (x < half) != (y < half)))
         .flat_map(|magenta| if magenta { MAGENTA } else { BLACK })
-        .collect();
-    (pixels, MISSING_SIZE, MISSING_SIZE)
+        .collect()
 }
 
 #[derive(Deserialize)]
