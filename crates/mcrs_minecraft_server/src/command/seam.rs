@@ -1,7 +1,6 @@
-use crate::command::effect::{CommandOutbox, Effect};
+use crate::command::effect::CommandOutbox;
 use crate::command::run::{CommandEvent, answer_suggestion, parse_line};
-use crate::command::targets::{DimensionEntry, PlayerEntry, dimension_rank};
-use crate::command::vanilla::{gamemode, teleport, time};
+use crate::command::targets::{DimensionEntry, PlayerEntry, in_dimension_order};
 use crate::command::{
     CommandFailure, CommandHandlers, CommandLimits, CommandResult, CommandTargets, CommandTree,
     Handler, Invocation, Modified, ModifierHandlers, ModifyResult, RunningCommand, SourceState,
@@ -9,12 +8,16 @@ use crate::command::{
 };
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::PlayerGameMode;
-use bevy_app::App;
+use crate::world::entity::player::dimension_change::{
+    Arrival, DimensionChangeError, change_dimension,
+};
+use bevy_app::{App, SubApp};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{In, With};
+use bevy_ecs::prelude::{DetectChangesMut, In, With};
+use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{World, WorldId};
 use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -26,8 +29,8 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_protocol::{GameMode, VarInt};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// The command lines and the suggestion requests that the host received since the last pass.
@@ -67,6 +70,45 @@ pub(crate) struct CommandSeam {
     lists: SourceLists<SourceState>,
     queue: CommandQueue,
     packets: Vec<OutboundPlayerPacket>,
+    queries: Vec<WorldQueries>,
+}
+
+type PlayerRow = (
+    Entity,
+    &'static HostAnchor,
+    &'static GameProfile,
+    &'static Transform,
+    &'static PlayerGameMode,
+);
+
+type DimensionRow = (
+    &'static ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    &'static DimensionTypeId,
+);
+
+/// The queries the seam runs in one dimension world, kept from one pass to the next.
+struct WorldQueries {
+    world: WorldId,
+    players: QueryState<PlayerRow, With<Player>>,
+    dimension: QueryState<DimensionRow, With<Dimension>>,
+}
+
+impl WorldQueries {
+    /// The index of the queries of `world`, built on its first pass.
+    fn index(queries: &mut Vec<WorldQueries>, world: &mut World) -> usize {
+        let id = world.id();
+        queries
+            .iter()
+            .position(|query| query.world == id)
+            .unwrap_or_else(|| {
+                queries.push(WorldQueries {
+                    world: id,
+                    players: world.query_filtered(),
+                    dimension: world.query_filtered(),
+                });
+                queries.len() - 1
+            })
+    }
 }
 
 /// Parses and runs the command lines the host received, one after another in the order they
@@ -99,6 +141,7 @@ pub fn run_pending_commands(app: &mut App) {
         lists,
         queue,
         packets,
+        queries,
     } = &mut seam;
     if let Some(mut received) = host.get_resource_mut::<CommandQueue>() {
         std::mem::swap(&mut *received, queue);
@@ -106,25 +149,32 @@ pub fn run_pending_commands(app: &mut App) {
     if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
         std::mem::swap(&mut *owned, tree);
     }
-    let mut found: Vec<(DimensionEntry, &mut World)> = sub_apps
-        .sub_apps
-        .values_mut()
-        .filter_map(|sub| {
-            let world = sub.world_mut();
-            let entry = dimension_entry(world)?;
-            Some((entry, world))
-        })
-        .collect();
-    found.sort_by(|(a, _), (b, _)| dimension_rank(&a.key).cmp(&dimension_rank(&b.key)));
+    queries.retain(|query| {
+        sub_apps
+            .sub_apps
+            .values()
+            .any(|sub| sub.world().id() == query.world)
+    });
+    let found = in_dimension_order(
+        sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
+        |world| {
+            let index = WorldQueries::index(queries, world);
+            let entry = dimension_entry(world, queries.get_mut(index)?)?;
+            Some((entry, index))
+        },
+        |(entry, _)| &entry.key,
+    );
     targets.dimensions.clear();
+    let mut query_of = Vec::with_capacity(found.len());
     let mut worlds: Vec<&mut World> = found
         .into_iter()
-        .map(|(entry, world)| {
+        .map(|((entry, index), world)| {
             targets.dimensions.push(entry);
+            query_of.push(index);
             world
         })
         .collect();
-    collect_players(host, &mut worlds, targets);
+    collect_players(host, &worlds, &query_of, queries, targets);
     let mut executor = SeamExecutor {
         host: &mut *host,
         worlds: &mut worlds,
@@ -149,13 +199,10 @@ pub fn run_pending_commands(app: &mut App) {
     host.insert_resource(seam);
 }
 
-fn dimension_entry(world: &mut World) -> Option<DimensionEntry> {
+fn dimension_entry(world: &World, queries: &mut WorldQueries) -> Option<DimensionEntry> {
     let label = world.get_resource::<DimensionLabel>()?.0;
-    let (key, type_id) = world
-        .query_filtered::<(
-            &ResourceKey<mcrs_minecraft_dimension::Dimension>,
-            &DimensionTypeId,
-        ), With<Dimension>>()
+    let (key, type_id) = queries
+        .dimension
         .single(world)
         .ok()
         .map(|(key, type_id)| (key.clone(), type_id.0))?;
@@ -172,21 +219,27 @@ fn dimension_entry(world: &mut World) -> Option<DimensionEntry> {
 }
 
 /// Every player that its session places in the world that holds it, in the order of the
-/// player list. A player that leaves has no place, so no command finds it.
-fn collect_players(host: &World, worlds: &mut [&mut World], targets: &mut CommandTargets) {
-    targets.players.clear();
-    for (dimension, world) in worlds.iter_mut().enumerate() {
+/// player list. A player that leaves has no place, so no command finds it. The entries keep
+/// their names' capacity from one pass to the next.
+fn collect_players(
+    host: &World,
+    worlds: &[&mut World],
+    query_of: &[usize],
+    queries: &mut [WorldQueries],
+    targets: &mut CommandTargets,
+) {
+    let mut filled = 0;
+    for (dimension, world) in worlds.iter().enumerate() {
         let Some(label) = targets.dimensions.get(dimension).map(|entry| entry.label) else {
             continue;
         };
-        let mut players = world.query_filtered::<(
-            Entity,
-            &HostAnchor,
-            &GameProfile,
-            &Transform,
-            &PlayerGameMode,
-        ), With<Player>>();
-        for (entity, &HostAnchor(anchor), profile, transform, mode) in players.iter(world) {
+        let Some(query) = query_of
+            .get(dimension)
+            .and_then(|&index| queries.get_mut(index))
+        else {
+            continue;
+        };
+        for (entity, &HostAnchor(anchor), profile, transform, mode) in query.players.iter(world) {
             let (Some(session), Some(placement)) = (
                 host.get::<Session>(anchor),
                 host.get::<SessionPlacement>(anchor),
@@ -197,21 +250,35 @@ fn collect_players(host: &World, worlds: &mut [&mut World], targets: &mut Comman
                 Place::InDim(dim) | Place::Joining(dim) => dim == label,
                 Place::Unplaced => false,
             };
-            if placed {
-                targets.players.push(PlayerEntry {
-                    anchor,
-                    dimension,
-                    entity,
-                    uuid: profile.id,
-                    name: profile.username.clone(),
-                    transform: *transform,
-                    mode: mode.0,
-                    list_order: session.0.0,
-                });
+            if !placed {
+                continue;
             }
+            let entry = PlayerEntry {
+                anchor,
+                dimension,
+                entity,
+                uuid: profile.id,
+                name: String::new(),
+                transform: *transform,
+                mode: mode.0,
+                list_order: session.0.0,
+            };
+            match targets.players.get_mut(filled) {
+                Some(reused) => {
+                    let name = std::mem::take(&mut reused.name);
+                    *reused = PlayerEntry { name, ..entry };
+                    reused.name.clone_from(&profile.username);
+                }
+                None => targets.players.push(PlayerEntry {
+                    name: profile.username.clone(),
+                    ..entry
+                }),
+            }
+            filled += 1;
         }
     }
-    targets.players.sort_by_key(|player| player.list_order);
+    targets.players.truncate(filled);
+    targets.index_players();
 }
 
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
@@ -335,7 +402,7 @@ impl SeamExecutor<'_, '_> {
         }
         let result = run(world);
         lend(world, self.tree, self.targets, self.running, self.outbox);
-        self.settle();
+        self.settle(index);
         Some(result)
     }
 
@@ -353,27 +420,20 @@ impl SeamExecutor<'_, '_> {
             .ok()
     }
 
-    /// Applies the effects of a run in order, then sends its messages.
-    fn settle(&mut self) {
+    /// Applies the effects of the run in the world at `index` in the order of writing, then
+    /// sends its messages.
+    fn settle(&mut self, index: usize) {
         let mut effects = std::mem::take(&mut self.outbox.effects);
-        let moved = !effects.is_empty();
         let mut worlds = Worlds {
             host: self.host,
             worlds: self.worlds,
             targets: self.targets,
             packets: self.packets,
         };
-        for effect in effects.drain(..) {
-            match effect {
-                Effect::GameMode { player, mode } => gamemode::apply(&mut worlds, player, mode),
-                Effect::Teleport { player, to } => teleport::apply(&mut worlds, player, to),
-                Effect::EditClock(edit) => time::apply(&mut worlds, edit),
-            }
+        for apply in effects.drain(..) {
+            apply(&mut worlds, index);
         }
         self.outbox.effects = effects;
-        if moved {
-            collect_players(self.host, self.worlds, self.targets);
-        }
         for packet in self.outbox.packets.drain(..) {
             deliver(self.host, packet);
         }
@@ -383,65 +443,52 @@ impl SeamExecutor<'_, '_> {
     }
 }
 
-/// Every world, lent to the effects of one run so each applies where its target is.
-pub(crate) struct Worlds<'s, 'w> {
+/// Why an operation of [`Worlds`] changed no player.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum PlayerChangeError {
+    #[error("no online player has this host anchor")]
+    NotOnline,
+    #[error("the world of the player does not hold its entity")]
+    NotInWorld,
+    #[error("no dimension runs at this index")]
+    NoDimension,
+    #[error("the player did not change dimension: {0}")]
+    DimensionChange(DimensionChangeError),
+}
+
+/// The host and every dimension world, lent to the appliers of the effects of one run, between
+/// two ticks. A player of [`CommandTargets`] changes only through [`Worlds::set_transform`],
+/// [`Worlds::change_dimension`] and [`Worlds::set_game_mode`], which keep its entry current for
+/// the later effects, stages and lines of the pass.
+pub struct Worlds<'s, 'w> {
     host: &'s mut World,
     worlds: &'s mut [&'w mut World],
-    targets: &'s CommandTargets,
+    targets: &'s mut CommandTargets,
     packets: &'s mut Vec<OutboundPlayerPacket>,
 }
 
 impl Worlds<'_, '_> {
-    pub(crate) fn host_and_worlds(&mut self) -> (&mut World, impl Iterator<Item = &mut World>) {
+    /// The dimensions in the dimension order and the online players, as the effects so far
+    /// left them.
+    pub fn targets(&self) -> &CommandTargets {
+        self.targets
+    }
+
+    /// The host world and every dimension world in the dimension order.
+    pub fn host_and_worlds(&mut self) -> (&mut World, impl Iterator<Item = &mut World>) {
         (
             &mut *self.host,
             self.worlds.iter_mut().map(|world| &mut **world),
         )
     }
 
-    pub(crate) fn dimension_of(&self, label: Entity) -> Option<usize> {
-        self.targets.dimension_of(label)
-    }
-
-    pub(crate) fn world_mut(&mut self, index: usize) -> Option<&mut World> {
+    /// The dimension world at `index` in the dimension order.
+    pub fn world_mut(&mut self, index: usize) -> Option<&mut World> {
         self.worlds.get_mut(index).map(|world| &mut **world)
     }
 
-    /// The index of the world that holds a player, and its entity there.
-    pub(crate) fn locate(&mut self, player: Entity) -> Option<(usize, Entity)> {
-        let (Place::InDim(label) | Place::Joining(label)) =
-            self.host.get::<SessionPlacement>(player)?.place()
-        else {
-            return None;
-        };
-        let index = self.targets.dimension_of(label)?;
-        let world = self.worlds.get_mut(index)?;
-        let entity = world
-            .query_filtered::<(Entity, &HostAnchor), With<Player>>()
-            .iter(world)
-            .find_map(|(entity, anchor)| (anchor.0 == player).then_some(entity))?;
-        Some((index, entity))
-    }
-
-    pub(crate) fn transform_of(&mut self, player: Entity) -> Option<(usize, Entity, Transform)> {
-        let (index, entity) = self.locate(player)?;
-        let transform = *self.worlds.get(index)?.get::<Transform>(entity)?;
-        Some((index, entity, transform))
-    }
-
-    /// The host, the world at `origin` and the world at `destination`, for a move between two
-    /// worlds. `None` when the two are the same world or either does not exist.
-    pub(crate) fn across(
-        &mut self,
-        origin: usize,
-        destination: usize,
-    ) -> Option<(&mut World, &mut World, &mut World)> {
-        let [from, to] = self.worlds.get_disjoint_mut([origin, destination]).ok()?;
-        Some((&mut *self.host, &mut **from, &mut **to))
-    }
-
     /// Fills the scratch packets from the world at `index`, then sends them in order.
-    pub(crate) fn send(
+    pub fn send(
         &mut self,
         index: usize,
         fill: impl FnOnce(&mut World, &mut Vec<OutboundPlayerPacket>),
@@ -454,6 +501,73 @@ impl Worlds<'_, '_> {
         for packet in self.packets.drain(..) {
             deliver(self.host, packet);
         }
+    }
+
+    /// Sets the transform of the player with the host anchor `player` in the world that holds
+    /// it. Returns the entity of the player there.
+    pub fn set_transform(
+        &mut self,
+        player: Entity,
+        transform: Transform,
+    ) -> Result<Entity, PlayerChangeError> {
+        let entry = self
+            .targets
+            .player_mut(player)
+            .ok_or(PlayerChangeError::NotOnline)?;
+        let mut current = self
+            .worlds
+            .get_mut(entry.dimension)
+            .and_then(|world| world.get_mut::<Transform>(entry.entity))
+            .ok_or(PlayerChangeError::NotInWorld)?;
+        *current = transform;
+        entry.transform = transform;
+        Ok(entry.entity)
+    }
+
+    /// Moves the player with the host anchor `player` to the dimension at `destination`
+    /// through [`change_dimension`]. Returns the entity of the player in its new world.
+    pub fn change_dimension(
+        &mut self,
+        player: Entity,
+        destination: usize,
+        arrival: Arrival,
+    ) -> Result<Entity, PlayerChangeError> {
+        let entry = self
+            .targets
+            .player_mut(player)
+            .ok_or(PlayerChangeError::NotOnline)?;
+        let [from, to] = self
+            .worlds
+            .get_disjoint_mut([entry.dimension, destination])
+            .map_err(|_| PlayerChangeError::NoDimension)?;
+        let transform = arrival.transform;
+        let arrived = change_dimension(self.host, from, to, entry.entity, arrival)
+            .map_err(PlayerChangeError::DimensionChange)?;
+        entry.dimension = destination;
+        entry.entity = arrived;
+        entry.transform = transform;
+        Ok(arrived)
+    }
+
+    /// Sets the game mode of the player with the host anchor `player`. Its world sends the
+    /// packets of the change on its next tick.
+    pub fn set_game_mode(
+        &mut self,
+        player: Entity,
+        mode: GameMode,
+    ) -> Result<(), PlayerChangeError> {
+        let entry = self
+            .targets
+            .player_mut(player)
+            .ok_or(PlayerChangeError::NotOnline)?;
+        let mut current = self
+            .worlds
+            .get_mut(entry.dimension)
+            .and_then(|world| world.get_mut::<PlayerGameMode>(entry.entity))
+            .ok_or(PlayerChangeError::NotInWorld)?;
+        current.set_if_neq(PlayerGameMode(mode));
+        entry.mode = mode;
+        Ok(())
     }
 }
 

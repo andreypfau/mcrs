@@ -1,9 +1,8 @@
 use crate::command::effect::OperatorBroadcast;
-use crate::command::effect::{CommandOutbox, Effect, Teleport};
+use crate::command::effect::{CommandOutbox, EffectQueue, apply_next};
 use crate::command::seam::{CommandQueue, QueuedLine, QueuedSuggestion};
 use crate::command::{CommandContext, CommandTargets, Handler, Invocation, SourceState, level_of};
 use crate::ops::OpList;
-use crate::world::clock::EditClock;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{InRef, SystemParam};
@@ -263,19 +262,11 @@ impl CommandOutput<'_> {
         });
     }
 
-    /// Moves the player with the host anchor `player`, in any dimension.
-    pub fn teleport(&mut self, player: Entity, to: Teleport) {
-        self.outbox.effects.push(Effect::Teleport { player, to });
-    }
-
-    /// Sets the game mode of the player with the host anchor `player`, in any dimension.
-    pub fn set_game_mode(&mut self, player: Entity, mode: GameMode) {
-        self.outbox.effects.push(Effect::GameMode { player, mode });
-    }
-
-    /// Changes a world clock, which the host owns.
-    pub fn edit_clock(&mut self, edit: EditClock) {
-        self.outbox.effects.push(Effect::EditClock(edit));
+    /// An effect for the host to apply after this run, in the order of writing across all
+    /// effect types, before the messages of the run go out.
+    pub fn effect<E: Send + Sync + 'static>(&mut self, queue: &mut EffectQueue<E>, effect: E) {
+        queue.values.push_back(effect);
+        self.outbox.effects.push(apply_next::<E>);
     }
 }
 

@@ -1,10 +1,9 @@
-use crate::command::seam::Worlds;
 use crate::command::vanilla::{select, targets_or_self};
 use crate::command::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Facing,
-    PlayerEntry, Teleport,
+    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
+    EffectQueue, PlayerEntry, Worlds,
 };
-use crate::world::entity::player::dimension_change::{Arrival, change_dimension};
+use crate::world::entity::player::dimension_change::Arrival;
 use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
 use crate::world::entity::player_network_id;
 use bevy_ecs::prelude::*;
@@ -23,6 +22,39 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::{PositionFlags, VarInt};
+
+/// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Teleport {
+    /// The label of the destination dimension.
+    pub dimension: Entity,
+    pub position: DVec3,
+    /// `None` keeps the rotation of the victim.
+    pub rotation: Option<(f32, f32)>,
+    pub relative_position: [bool; 3],
+    pub relative_rotation: [bool; 2],
+    pub facing: Option<Facing>,
+    /// The anchor of the source, from which the victim looks at its facing target.
+    pub anchor: LookAnchor,
+}
+
+/// What a victim turns to after its move (CMD-TP-011).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Facing {
+    Position(DVec3),
+    /// The player with this host anchor, at its feet or its eyes, read after each move.
+    Player {
+        anchor: Entity,
+        at: LookAnchor,
+    },
+}
+
+/// The command effect that moves the player with the host anchor `player`, in any dimension.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TeleportPlayer {
+    pub player: Entity,
+    pub to: Teleport,
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct TeleportCommand {
@@ -221,6 +253,7 @@ pub(super) fn run(
     In(call): In<Call<Branch, TeleportCommand>>,
     context: CommandContext,
     mut output: CommandOutput,
+    mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
 ) -> CommandResult {
     let command = call.command;
     let victims = targets_or_self(
@@ -240,7 +273,13 @@ pub(super) fn run(
         return Ok(0);
     };
     for victim in &victims {
-        output.teleport(victim.anchor, destination.to);
+        output.effect(
+            &mut teleports,
+            TeleportPlayer {
+                player: victim.anchor,
+                to: destination.to,
+            },
+        );
     }
     let moved = victims.len();
     let single = moved == 1;
@@ -281,7 +320,7 @@ pub(super) fn run(
 /// CMD-TP-012), read after the moves before it. A victim that faces itself faces its
 /// destination `at`.
 fn facing(
-    worlds: &mut Worlds,
+    worlds: &Worlds,
     victim: Entity,
     at: DVec3,
     facing: Facing,
@@ -292,7 +331,7 @@ fn facing(
             let position = if anchor == victim {
                 at
             } else {
-                worlds.transform_of(anchor)?.2.translation
+                worlds.targets().player(anchor)?.transform.translation
             };
             Some((
                 anchored(part, position, PLAYER_EYE_HEIGHT),
@@ -303,14 +342,15 @@ fn facing(
 }
 
 /// Moves one victim (CMD-TP-005, CMD-TP-013); to another dimension as DIM-CHG states.
-pub(crate) fn apply(worlds: &mut Worlds, player: Entity, to: Teleport) {
-    let (Some((origin, entity, current)), Some(destination)) = (
-        worlds.transform_of(player),
-        worlds.dimension_of(to.dimension),
-    ) else {
+pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: TeleportPlayer) {
+    let targets = worlds.targets();
+    let (Some(victim), Some(destination)) =
+        (targets.player(player), targets.dimension_of(to.dimension))
+    else {
         tracing::error!(?player, "a teleport names no online player or no dimension");
         return;
     };
+    let (origin, current) = (victim.dimension, victim.transform);
     let from = Pose {
         position: current.translation,
         yaw: current.rotation.yaw(),
@@ -348,23 +388,22 @@ pub(crate) fn apply(worlds: &mut Worlds, player: Entity, to: Teleport) {
         flags: PositionFlags(step.flags),
     };
     if origin == destination {
-        worlds.send(origin, |world, out| {
-            if let Some(mut moved) = world.get_mut::<Transform>(entity) {
-                *moved = transform;
+        let entity = match worlds.set_transform(player, transform) {
+            Ok(entity) => entity,
+            Err(error) => {
+                tracing::error!(?player, "a teleport did not move its victim: {error}");
+                return;
             }
+        };
+        worlds.send(origin, |world, out| {
             if let Some(mut state) = world.get_mut::<TeleportState>(entity) {
                 let position = arrival.position_packet(state.sent(transform));
                 out.push(to_player(player, PacketPayload::PlayerPosition(position)).critical());
             }
         });
-    } else {
-        let Some((host, from, into)) = worlds.across(origin, destination) else {
-            return;
-        };
-        if let Err(error) = change_dimension(host, from, into, entity, arrival) {
-            tracing::error!(?player, "a player did not change dimension: {error}");
-            return;
-        }
+    } else if let Err(error) = worlds.change_dimension(player, destination, arrival) {
+        tracing::error!(?player, "a teleport did not move its victim: {error}");
+        return;
     }
     if let Some((target, entity)) = facing {
         let look_at = ClientboundPlayerLookAt {

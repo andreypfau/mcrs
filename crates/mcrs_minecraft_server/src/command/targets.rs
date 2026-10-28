@@ -1,5 +1,6 @@
-use bevy_ecs::entity::Entity;
+use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_command::{Candidate, Identifier};
 use mcrs_minecraft_core::ResourceKey;
@@ -39,12 +40,14 @@ pub struct PlayerEntry {
 }
 
 /// The dimensions in the dimension order (ARG-ENT-019) and the online players of all of them in
-/// the order of the player list. The host collects it again after each run whose effects
-/// apply; a handler reads it in the world it runs in.
+/// the order of the player list. The host collects it at the start of a pass, and the
+/// [`Worlds`](crate::command::Worlds) operations that change a player update its entry; a
+/// handler reads it in the world it runs in.
 #[derive(Resource, Debug, Default)]
 pub struct CommandTargets {
     pub(crate) dimensions: Vec<DimensionEntry>,
     pub(crate) players: Vec<PlayerEntry>,
+    pub(crate) by_anchor: EntityHashMap<usize>,
 }
 
 impl CommandTargets {
@@ -74,18 +77,47 @@ impl CommandTargets {
     }
 
     pub fn player(&self, anchor: Entity) -> Option<&PlayerEntry> {
-        self.players.iter().find(|player| player.anchor == anchor)
+        self.players.get(*self.by_anchor.get(&anchor)?)
+    }
+
+    pub(crate) fn player_mut(&mut self, anchor: Entity) -> Option<&mut PlayerEntry> {
+        self.players.get_mut(*self.by_anchor.get(&anchor)?)
+    }
+
+    pub(crate) fn index_players(&mut self) {
+        self.players
+            .sort_unstable_by_key(|player| player.list_order);
+        self.by_anchor.clear();
+        self.by_anchor.extend(
+            self.players
+                .iter()
+                .enumerate()
+                .map(|(index, player)| (player.anchor, index)),
+        );
     }
 }
 
 /// The rank of a dimension in the dimension order: the three vanilla dimensions first, then
 /// the others by identifier (ARG-ENT-019).
-pub(crate) fn dimension_rank(key: &ResourceKey<Dimension>) -> (u8, &str) {
+fn dimension_rank(key: &ResourceKey<Dimension>) -> (u8, &str) {
     let rank = [OVERWORLD, THE_NETHER, THE_END]
         .iter()
         .position(|vanilla| vanilla.as_str() == key.as_str())
         .unwrap_or(3) as u8;
     (rank, key.as_str())
+}
+
+/// The worlds that `read` accepts, each with what it read, in the dimension order of `key`.
+pub(crate) fn in_dimension_order<'w, T>(
+    worlds: impl Iterator<Item = &'w mut World>,
+    mut read: impl FnMut(&mut World) -> Option<T>,
+    key: impl Fn(&T) -> &ResourceKey<Dimension>,
+) -> Vec<(T, &'w mut World)> {
+    let mut found: Vec<(T, &'w mut World)> = worlds
+        .filter_map(|world| Some((read(world)?, world)))
+        .collect();
+    found.sort_by(|(a, _), (b, _)| dimension_rank(key(a)).cmp(&dimension_rank(key(b))));
+    found
 }
 
 impl Candidate for PlayerEntry {

@@ -1,12 +1,20 @@
-use crate::command::seam::Worlds;
 use crate::command::vanilla::targets_or_self;
-use crate::command::{Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult};
-use crate::world::entity::player::ability::PlayerGameMode;
+use crate::command::{
+    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
+};
 use bevy_ecs::prelude::*;
 use mcrs_command::{Arg, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, EntityArgument, GameModeArgument, PermissionCheck};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+
+/// The command effect that sets the game mode of the player with the host anchor `player`, in
+/// any dimension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetGameMode {
+    pub player: Entity,
+    pub mode: GameMode,
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct GameModeCommand {
@@ -41,6 +49,7 @@ pub(super) fn run(
     In(call): In<Call<(), GameModeCommand>>,
     context: CommandContext,
     mut output: CommandOutput,
+    mut modes: ResMut<EffectQueue<SetGameMode>>,
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call, command.mode)?;
@@ -56,7 +65,13 @@ pub(super) fn run(
             continue;
         }
         changed += 1;
-        output.set_game_mode(target.anchor, mode);
+        output.effect(
+            &mut modes,
+            SetGameMode {
+                player: target.anchor,
+                mode,
+            },
+        );
         if Some(target.anchor) == call.source.entity {
             output.success(
                 &call,
@@ -81,14 +96,8 @@ pub(super) fn run(
     Ok(changed)
 }
 
-pub(crate) fn apply(worlds: &mut Worlds, player: Entity, mode: GameMode) {
-    let current = worlds
-        .locate(player)
-        .and_then(|(index, entity)| worlds.world_mut(index)?.get_mut::<PlayerGameMode>(entity));
-    match current {
-        Some(mut current) => {
-            current.set_if_neq(PlayerGameMode(mode));
-        }
-        None => tracing::error!(?player, "a game mode change names no online player"),
+pub(crate) fn apply(worlds: &mut Worlds, SetGameMode { player, mode }: SetGameMode) {
+    if let Err(error) = worlds.set_game_mode(player, mode) {
+        tracing::error!(?player, "a game mode change did not apply: {error}");
     }
 }

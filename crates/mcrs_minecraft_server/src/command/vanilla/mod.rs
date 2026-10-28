@@ -1,8 +1,11 @@
 mod execute;
-pub(crate) mod gamemode;
+mod gamemode;
 mod locate;
-pub(crate) mod teleport;
-pub(crate) mod time;
+mod teleport;
+mod time;
+
+pub use gamemode::SetGameMode;
+pub use teleport::{Facing, Teleport, TeleportPlayer};
 
 use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
 use bevy_app::{App, Plugin};
@@ -10,11 +13,15 @@ use mcrs_command::Arg;
 use mcrs_minecraft_command::{EntityArgument, argument_text};
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
-/// `time`.
+/// `time`, and their effects: [`TeleportPlayer`], [`SetGameMode`] and
+/// [`EditClock`](crate::world::clock::EditClock).
 pub struct VanillaCommandsPlugin;
 
 impl Plugin for VanillaCommandsPlugin {
     fn build(&self, app: &mut App) {
+        app.add_command_effect(teleport::apply)
+            .add_command_effect(gamemode::apply)
+            .add_command_effect(time::apply);
         let added = [
             (
                 "execute",

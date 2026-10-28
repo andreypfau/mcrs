@@ -1,5 +1,6 @@
+use crate::command::effect::EffectPlugin;
 use crate::command::{
-    CommandResult, CommandTreeBuilder, HandlerKey, Handlers, Invocation, ModifyResult,
+    CommandResult, CommandTreeBuilder, HandlerKey, Handlers, Invocation, ModifyResult, Worlds,
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
@@ -235,6 +236,15 @@ pub trait AppCommands {
         M: 'static,
         D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
         N: 'static;
+
+    /// Registers a command effect type: every dimension world gets an
+    /// [`EffectQueue<E>`](crate::command::EffectQueue), and the host applies each effect that a
+    /// handler writes with `apply`, in the order of writing across all effect types. A later
+    /// registration of the same type replaces `apply`.
+    fn add_command_effect<E: Send + Sync + 'static>(
+        &mut self,
+        apply: fn(&mut Worlds<'_, '_>, E),
+    ) -> &mut Self;
 }
 
 /// Adds the nodes of one command to the tree, or nothing when `build` returns an error.
@@ -331,6 +341,13 @@ impl AppCommands for App {
             system: modify,
             marker: PhantomData::<fn() -> (N, ModifyResult)>,
         }))
+    }
+
+    fn add_command_effect<E: Send + Sync + 'static>(
+        &mut self,
+        apply: fn(&mut Worlds<'_, '_>, E),
+    ) -> &mut Self {
+        self.add_dimension_plugin(EffectPlugin { apply })
     }
 }
 

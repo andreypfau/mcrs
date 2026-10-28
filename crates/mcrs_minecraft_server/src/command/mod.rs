@@ -6,12 +6,12 @@ mod seam;
 mod targets;
 pub mod vanilla;
 
-pub use effect::{Facing, Teleport};
+pub use effect::EffectQueue;
 pub use register::{AppCommands, Call, CommandRegistrar, Handler, NodeRef, RegistrationError};
 pub use run::{CommandEvent, CommandOutput};
 pub(crate) use run::{system_chat, system_message};
-pub use seam::run_pending_commands;
-pub(crate) use targets::dimension_rank;
+pub use seam::{PlayerChangeError, Worlds, run_pending_commands};
+pub(crate) use targets::in_dimension_order;
 pub use targets::{CommandTargets, DimensionEntry, PlayerEntry};
 
 use crate::world::entity::player::ability::PlayerOpLevel;

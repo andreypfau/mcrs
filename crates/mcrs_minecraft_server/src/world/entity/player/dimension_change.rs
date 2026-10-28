@@ -1,12 +1,12 @@
 use crate::command::CommandTreePackets;
-use crate::command::dimension_rank;
+use crate::command::in_dimension_order;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::entity::player::movement::TeleportState;
 use crate::world::entity::player::{HostAnchor, enter_level_packets, game_mode};
 use crate::world::entity::{EntityBundle, EntityUuid};
-use bevy_app::App;
+use bevy_app::{App, SubApp};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -247,20 +247,17 @@ pub fn apply_dimension_change_requests(app: &mut App) {
         return;
     }
     let host = sub_apps.main.world_mut();
-    let mut worlds: Vec<(ResourceKey<DimensionKey>, &mut World)> = sub_apps
-        .sub_apps
-        .values_mut()
-        .filter_map(|sub| {
-            let world = sub.world_mut();
-            let key = world
+    let mut worlds = in_dimension_order(
+        sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
+        |world| {
+            world
                 .query_filtered::<&ResourceKey<DimensionKey>, With<Dimension>>()
                 .single(world)
-                .ok()?
-                .clone();
-            Some((key, world))
-        })
-        .collect();
-    worlds.sort_by(|(a, _), (b, _)| dimension_rank(a).cmp(&dimension_rank(b)));
+                .ok()
+                .cloned()
+        },
+        |key| key,
+    );
     for origin in 0..worlds.len() {
         let Some(requests) = worlds.get_mut(origin).and_then(|(_, world)| {
             let mut requests = world.get_resource_mut::<Messages<ChangeDimensionRequest>>()?;

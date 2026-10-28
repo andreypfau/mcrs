@@ -67,18 +67,30 @@ dimension `CommandTargets` does not hold is an internal error: the line fails wi
 
 ## How an effect reaches its world
 
-A handler does not change a player. It writes an effect to the outbox through `CommandOutput`:
-a teleport or a game mode, for a host anchor. After the call, the host takes the outbox back
-and applies the effects in order. Each effect applies in the world that holds its player:
+A handler does not change a player. It writes an effect through `CommandOutput::effect`, with
+the `EffectQueue` of the effect type. The value goes to the queue of the world of the call. The
+outbox records one function pointer for each effect, in the order of writing. After the call,
+the host takes the outbox back. It calls the recorded functions in order. Each function takes
+the oldest value of its queue and gives it to the applier of its type. Thus the effects of one
+call apply in the order of writing, across all effect types.
 
-- A game mode sets the component of the player. Its world sends the packets on its next tick.
-- A teleport in the same dimension sets the transform and sends `player_position`.
-- A teleport to another dimension calls `change_dimension`, the one operation that moves a
-  player between worlds. See "Change of dimension".
+A plugin registers an effect type with `AppCommands::add_command_effect`. The registration
+gives each dimension world the queue of the type and the applier, a `fn` pointer. The applier
+receives `Worlds`: the host, each dimension world in the dimension order, and
+`CommandTargets`. `VanillaCommandsPlugin` registers the vanilla effects:
 
-After each effect, the host updates the entry of the player in `CommandTargets`. Thus a later
-effect, a later stage and a later line see the move. Then the host sends the messages of the
-call, so a player that a command moves hears of the move after the move.
+- `SetGameMode` sets the component of the player. Its world sends the packets on its next tick.
+- `TeleportPlayer` in the same dimension sets the transform and sends `player_position`.
+- `TeleportPlayer` to another dimension calls `change_dimension`, the one operation that moves
+  a player between worlds. See "Change of dimension".
+- `EditClock` changes a clock on the host and extracts the clocks into each world.
+
+An applier changes a player only through `Worlds::set_transform`, `Worlds::change_dimension`
+and `Worlds::set_game_mode`. Each operation also updates the entry of the player in
+`CommandTargets`: its dimension, its entity, its transform and its game mode. Thus a later
+effect, a later stage and a later line see the change, and the host does not collect the
+players again. After the effects, the host sends the messages of the call, so a player that a
+command moves hears of the move after the move.
 
 ## Change of dimension
 
@@ -119,7 +131,9 @@ line. This is the barrier at the end of each call.
 ## Failures
 
 - An effect that names no player of `CommandTargets`, or a player that its world does not hold,
-  is an internal error. The host logs it and applies the other effects.
+  is an internal error. The applier logs it, and the host applies the other effects.
+- A handler that names an `EffectQueue` of a type that no plugin registered does not run. The
+  call fails with `command.failed`.
 - A player that leaves before the pass is not online, so the search does not find it
   (CMD-TP-015).
 - A world without the command resources fails the call with `command.failed`.
@@ -138,8 +152,9 @@ take the odd ids and other entities the even ids, so the ids of two allocators n
 | `CommandQueue` | temporal fact: lines and the latest suggestion request of each player, not parsed | the host; emptied by each pass |
 | `CommandTree` | truth: the command graph | the host; lent to one world at a time during a pass |
 | `CommandTreePackets` | materialized derived state: the encoded graph of each command level | built once when the graph freezes; each dimension holds handles to the same bytes |
-| `CommandTargets` | materialized derived state of the players of all worlds | the host; filled at the start of a pass, changed only by the effects of the pass, dropped at its end |
-| `CommandOutbox` | temporal fact: the effects and messages of one call | the host; emptied after each call |
+| `CommandTargets` | materialized derived state of the players of all worlds | the host; filled at the start of a pass, changed only by the `Worlds` operations of the effects of the pass |
+| `CommandOutbox` | temporal fact: the order of the effects and the messages of one call | the host; emptied after each call |
+| `EffectQueue<E>` | temporal fact: the effects of one type that a call wrote | each dimension world; emptied by the effects of the call |
 | `DimensionLabel` | truth: the name of the dimension of a world | the sub-app builder |
 | Carried components of a player | truth of the player, moved, never copied | the world that holds the player |
 | `CarriedComponents` | truth: the component types that a player takes to another dimension | each dimension world; filled when its plugins build |
@@ -149,11 +164,15 @@ take the odd ids and other entities the even ids, so the ids of two allocators n
 
 - An idle tick costs one look at `CommandQueue` in the host. Nothing else runs.
 - An idle tick costs one look at the `ChangeDimensionRequest` messages of each dimension world.
-- A pass with lines costs one query of the players of each dimension and one `CommandTargets`
-  with a copy of each name. The lend of a parse or a call swaps four resources. Nothing else is
-  copied.
-- A call allocates its list of found players and its effects. The buffers of the host
-  (`CommandSeam`) keep their capacity from one pass to the next.
+- A pass with lines collects the players once: one iteration of the players of each dimension,
+  and one copy of each name into the capacity of the entry of the last pass. The queries are
+  built once for each world and kept in `CommandSeam`.
+- After an effect, the host updates only the entry of the player that the effect changed. A
+  search for a player by its host anchor is a lookup in a hash map of `CommandTargets`. Thus
+  `execute as @a run tp @s ...` with N players costs O(N) work in the seam, not O(N²).
+- The lend of a parse or a call swaps four resources. Nothing else is copied.
+- A call allocates its list of found players. The effects, the outbox and the buffers of the
+  host keep their capacity from one call and one pass to the next.
 - A change of dimension moves the components of one player and runs the outbound flush of the
   host once, so the packets already stamped for the player leave before its epoch changes.
 

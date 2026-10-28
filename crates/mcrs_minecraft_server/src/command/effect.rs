@@ -1,12 +1,11 @@
-use crate::world::clock::EditClock;
+use crate::command::Worlds;
+use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::Event;
 use bevy_ecs::resource::Resource;
-use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_protocol::GameMode;
-use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::Text;
+use std::collections::VecDeque;
 
 /// A command reported success with a message for the operators (CMDP-EXEC-004). The host,
 /// which knows every online player and the operators, delivers it to each operator but `source`.
@@ -17,47 +16,58 @@ pub struct OperatorBroadcast {
     pub message: Text,
 }
 
-/// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Teleport {
-    /// The label of the destination dimension.
-    pub dimension: Entity,
-    pub position: DVec3,
-    /// `None` keeps the rotation of the victim.
-    pub rotation: Option<(f32, f32)>,
-    pub relative_position: [bool; 3],
-    pub relative_rotation: [bool; 2],
-    pub facing: Option<Facing>,
-    /// The anchor of the source, from which the victim looks at its facing target.
-    pub anchor: LookAnchor,
+/// Applies the oldest effect of one type that a handler wrote in the world at the index.
+pub(crate) type ApplyNext = fn(&mut Worlds<'_, '_>, usize);
+
+/// The effects of type `E` that a handler of this world wrote and the host did not apply yet,
+/// in the order of writing, and the function that applies one. A handler writes one with
+/// [`CommandOutput::effect`](crate::command::CommandOutput::effect).
+#[derive(Resource)]
+pub struct EffectQueue<E: Send + Sync + 'static> {
+    pub(crate) values: VecDeque<E>,
+    apply: fn(&mut Worlds<'_, '_>, E),
 }
 
-/// What a victim turns to after its move (CMD-TP-011).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Facing {
-    Position(DVec3),
-    /// The player with this host anchor, at its feet or its eyes, read after each move.
-    Player {
-        anchor: Entity,
-        at: LookAnchor,
-    },
+pub(crate) fn apply_next<E: Send + Sync + 'static>(worlds: &mut Worlds<'_, '_>, index: usize) {
+    let next = worlds
+        .world_mut(index)
+        .and_then(|world| world.get_resource_mut::<EffectQueue<E>>())
+        .and_then(|mut queue| Some((queue.apply, queue.values.pop_front()?)));
+    match next {
+        Some((apply, effect)) => apply(worlds, effect),
+        None => tracing::error!("a command effect is not in the queue of its world"),
+    }
 }
 
-/// A change a command makes to a player of any dimension or to a world clock. The host applies
-/// the effects of one run in the order they were written, each in the world that holds its
-/// target, before the run's messages go out and before the next run starts.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Effect {
-    Teleport { player: Entity, to: Teleport },
-    GameMode { player: Entity, mode: GameMode },
-    EditClock(EditClock),
+/// Adds the queue of the effects of type `E` to each dimension world.
+pub(crate) struct EffectPlugin<E> {
+    pub(crate) apply: fn(&mut Worlds<'_, '_>, E),
 }
 
-/// What one run of a handler leaves for the host: its effects, then its messages. The host
-/// lends it to the world the handler runs in and empties it after the run.
+impl<E> Clone for EffectPlugin<E> {
+    fn clone(&self) -> Self {
+        Self { apply: self.apply }
+    }
+}
+
+impl<E: Send + Sync + 'static> Plugin for EffectPlugin<E> {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(EffectQueue {
+            values: VecDeque::new(),
+            apply: self.apply,
+        });
+    }
+
+    fn is_unique(&self) -> bool {
+        false
+    }
+}
+
+/// What one run of a handler leaves for the host: its effects in the order of writing, then its
+/// messages. The host lends it to the world the handler runs in and empties it after the run.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct CommandOutbox {
-    pub(crate) effects: Vec<Effect>,
+    pub(crate) effects: Vec<ApplyNext>,
     pub(crate) packets: Vec<OutboundPlayerPacket>,
     pub(crate) broadcasts: Vec<OperatorBroadcast>,
 }
