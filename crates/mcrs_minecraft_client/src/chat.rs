@@ -1,3 +1,4 @@
+use bevy::tasks::{IoTaskPool, Task};
 use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
 
@@ -233,8 +234,51 @@ pub struct ChatPlugin {
     pub command_history: Option<PathBuf>,
 }
 
+/// The command history file and its writes. One write runs at a time and only the newest
+/// history waits for it, so an older history never overwrites a newer one.
 #[derive(Resource)]
-pub(crate) struct CommandHistoryFile(pub(crate) PathBuf);
+pub(crate) struct CommandHistoryFile {
+    path: PathBuf,
+    writing: Option<Task<()>>,
+    next: Option<String>,
+}
+
+impl CommandHistoryFile {
+    pub(crate) fn save(&mut self, file: String) {
+        if self.writing.is_some() {
+            self.next = Some(file);
+        } else {
+            self.writing = Some(write_history(self.path.clone(), file));
+        }
+    }
+}
+
+fn write_history(path: PathBuf, file: String) -> Task<()> {
+    IoTaskPool::get().spawn(async move {
+        if let Err(error) = std::fs::write(&path, file) {
+            warn!("cannot write {}: {error}", path.display());
+        }
+    })
+}
+
+fn finish_history_write(mut file: ResMut<CommandHistoryFile>) {
+    let file = &mut *file;
+    if file
+        .writing
+        .as_ref()
+        .is_some_and(|task| !task.is_finished())
+    {
+        return;
+    }
+    file.writing = file
+        .next
+        .take()
+        .map(|next| write_history(file.path.clone(), next));
+}
+
+fn history_writing(file: Option<Res<CommandHistoryFile>>) -> bool {
+    file.is_some_and(|file| file.writing.is_some())
+}
 
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
@@ -243,7 +287,11 @@ impl Plugin for ChatPlugin {
             if let Ok(file) = std::fs::read_to_string(path) {
                 chat.history = History::from_command_file(&file);
             }
-            app.insert_resource(CommandHistoryFile(path.clone()));
+            app.insert_resource(CommandHistoryFile {
+                path: path.clone(),
+                writing: None,
+                next: None,
+            });
         }
         app.insert_resource(chat)
             .init_resource::<CommandTree>()
@@ -251,6 +299,7 @@ impl Plugin for ChatPlugin {
             .init_resource::<ChatInput>()
             .add_message::<ChatMessage>()
             .add_systems(FixedUpdate, advance_tick)
+            .add_systems(Update, finish_history_write.run_if(history_writing))
             .add_systems(
                 Update,
                 log_messages

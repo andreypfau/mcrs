@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::InputSystems;
@@ -125,7 +123,7 @@ struct ChatState<'w> {
     screen: ResMut<'w, Screen>,
     chat: ResMut<'w, Chat>,
     input: ResMut<'w, ChatInput>,
-    history_file: Option<Res<'w, CommandHistoryFile>>,
+    history_file: Option<ResMut<'w, CommandHistoryFile>>,
     lines: ResMut<'w, ChatLines>,
 }
 
@@ -282,24 +280,14 @@ fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientCo
         if let Some(connection) = connection {
             send(connection, sent);
         }
-        if *history_changed && let Some(file) = &state.history_file {
-            write_history(file.0.clone(), chat.history.command_file());
+        if *history_changed && let Some(file) = &mut state.history_file {
+            file.save(chat.history.command_file());
         }
     }
     chat.draft = keeps_draft(screen.input(), Some(&closed), chat.options.save_unsent)
         .then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
     *state.screen = Screen::None;
-}
-
-fn write_history(path: PathBuf, file: String) {
-    bevy::tasks::IoTaskPool::get()
-        .spawn(async move {
-            if let Err(error) = std::fs::write(&path, file) {
-                warn!("cannot write {}: {error}", path.display());
-            }
-        })
-        .detach();
 }
 
 /// The wheel and the left button over the open chat (CHAT-KEY-001, CCMD-LIST-007).
@@ -318,11 +306,18 @@ fn mouse(
         .as_ref()
         .and_then(|rows| row_under(rows.rect, scene.cursor).map(|row| rows.first + row));
     let hovered = rows.and_then(|rows| row_at(rows.rect, scene.cursor).map(|row| rows.first + row));
-    let step = keys.scroll.delta.y.clamp(-1.0, 1.0) as isize;
-    if step != 0 {
-        match (over, screen.commands.list_mut()) {
-            (Some(_), Some(list)) => list.scroll(step),
-            _ => log.scroll_by(if shift { step } else { step * 7 }, per_page(true)),
+    let step = keys.scroll.delta.y.clamp(-1.0, 1.0);
+    match (over, screen.commands.list_mut()) {
+        (Some(_), Some(list)) => {
+            if step as isize != 0 {
+                list.scroll(step as isize);
+            }
+        }
+        _ => {
+            let lines = if shift { step } else { step * 7.0 } as isize;
+            if lines != 0 {
+                log.scroll_by(lines, per_page(true));
+            }
         }
     }
     let Some(list) = screen.commands.list_mut() else {
