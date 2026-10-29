@@ -3,7 +3,7 @@ use crate::command_failure::CommandResult;
 use crate::command_set::CommandSet;
 use crate::command_tree::CommandTreeBuilder;
 use crate::effect_queue::EffectPlugin;
-use crate::handlers::{HandlerKey, Handlers};
+use crate::handlers::{HandlerKey, HandlerSlot, Handlers};
 use crate::modified::ModifyResult;
 use crate::registrar::CommandRegistrar;
 use crate::worlds::Worlds;
@@ -26,6 +26,9 @@ pub enum RegistrationError {
     /// The tree holds as many commands as a handler key can count.
     #[error("the command tree holds as many handlers as a handler key can count")]
     TooManyCommands,
+    /// A command has more branches than a branch index can count.
+    #[error("the command has more branches than a branch index can count")]
+    TooManyBranches,
 }
 
 /// Adds commands and command effects to an [`App`] that has the
@@ -106,8 +109,14 @@ where
         builder: &mut tree.builder,
         key,
         branches: Vec::new(),
+        overflowed: false,
     };
-    let handles = match build(&mut registrar) {
+    let built = build(&mut registrar);
+    if registrar.overflowed {
+        tree.builder = before;
+        return Err(RegistrationError::TooManyBranches);
+    }
+    let handles = match built {
         Ok(handles) => handles,
         Err(error) => {
             tree.builder = before;
@@ -244,10 +253,13 @@ where
         let mut handlers = app.world_mut().get_resource_or_init::<Handlers<O>>();
         let index = usize::from(self.key.0);
         if handlers.0.len() <= index {
-            handlers.0.resize(index + 1, None);
+            handlers.0.resize_with(index + 1, || None);
         }
         if let Some(slot) = handlers.0.get_mut(index) {
-            *slot = Some(id);
+            *slot = Some(HandlerSlot {
+                system: id,
+                branches: self.table.len(),
+            });
         }
     }
 

@@ -1,6 +1,5 @@
 use crate::invocation::Invocation;
 use bevy_ecs::prelude::In;
-use std::ops::Deref;
 
 /// The command line a handler runs, the branch its executable node names, and the handles
 /// the command's builder returned.
@@ -10,15 +9,8 @@ pub struct Call<B, C> {
     pub branch: B,
     /// The handles that the builder of the command returned.
     pub command: C,
-    invocation: Invocation,
-}
-
-impl<B, C> Deref for Call<B, C> {
-    type Target = Invocation;
-
-    fn deref(&self) -> &Invocation {
-        &self.invocation
-    }
+    /// The run of the stage that the call belongs to.
+    pub invocation: Invocation,
 }
 
 #[derive(Clone)]
@@ -28,7 +20,14 @@ pub(crate) struct BranchTable<B> {
 }
 
 impl<B: Copy> BranchTable<B> {
-    /// Every index a node holds came from this table, so the fallback is never taken.
+    pub(crate) fn len(&self) -> u16 {
+        u16::try_from(self.rest.len())
+            .ok()
+            .and_then(|rest| rest.checked_add(1))
+            .unwrap_or(u16::MAX)
+    }
+
+    /// The handler registry refuses an index outside the table before the call runs, so the fallback to the first branch is not reached.
     fn get(&self, index: u16) -> B {
         match index.checked_sub(1) {
             None => self.first,

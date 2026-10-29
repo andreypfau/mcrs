@@ -18,6 +18,7 @@ pub struct CommandRegistrar<'a, S: CommandSet, B> {
     pub(crate) builder: &'a mut Builder<S>,
     pub(crate) key: HandlerKey,
     pub(crate) branches: Vec<B>,
+    pub(crate) overflowed: bool,
 }
 
 impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
@@ -40,7 +41,7 @@ impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
         NodeRef::new(self, parent.into(), name, Some(argument.into()))
     }
 
-    fn branch(&mut self, branch: B) -> u16 {
+    fn branch(&mut self, branch: B) -> Option<u16> {
         let index = match self.branches.iter().position(|known| *known == branch) {
             Some(index) => index,
             None => {
@@ -48,7 +49,9 @@ impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
                 self.branches.len() - 1
             }
         };
-        u16::try_from(index).unwrap_or(u16::MAX)
+        let index = u16::try_from(index).ok();
+        self.overflowed |= index.is_none();
+        index
     }
 }
 
@@ -144,7 +147,7 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
         if let Some(branch) = self.branch {
             let handler = Handler {
                 key: registrar.key,
-                branch: registrar.branch(branch),
+                branch: registrar.branch(branch).ok_or(BuildError::TooManyNodes)?,
             };
             registrar.builder.executes(node, handler)?;
         }
@@ -154,7 +157,7 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
         if let Some(Modifier { branch, mode }) = self.modifier {
             let handler = Handler {
                 key: registrar.key,
-                branch: registrar.branch(branch),
+                branch: registrar.branch(branch).ok_or(BuildError::TooManyNodes)?,
             };
             registrar.builder.modifies(node, handler, mode)?;
         }
