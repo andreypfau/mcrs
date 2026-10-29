@@ -1,8 +1,10 @@
-use crate::argument::resource::{ResourceArgument, ResourceLocationArgument};
-use crate::error::{ArgumentError, CommandSyntaxError};
-use crate::identifier::{Identifier, identifier_matches, text_matches};
-use crate::source::{Lookup, Source};
+use crate::error::TimeError;
+use crate::time_lookup::TimeLookup;
 use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
+use mcrs_minecraft_command::{
+    Identifier, Lookup, ResourceArgument, ResourceError, ResourceLocationArgument, Source,
+    identifier_matches, text_matches,
+};
 use mcrs_minecraft_environment::keys::TIMELINE;
 
 const TICKS_PER_DAY: f32 = 24_000.0;
@@ -39,9 +41,9 @@ fn round_ticks(product: f32) -> i32 {
 
 impl<S> Argument<S> for TimeArgument {
     type Value<'a> = i32;
-    type Error = ArgumentError;
+    type Error = TimeError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<i32, CommandSyntaxError> {
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<i32, SyntaxError<TimeError>> {
         let value: f32 = reader.read_float()?;
         let unit = reader.read_unquoted();
         let per_unit = match unit.text(reader.input()) {
@@ -50,7 +52,7 @@ impl<S> Argument<S> for TimeArgument {
             "t" | "" => 1.0,
             _ => {
                 return Err(SyntaxError::argument(
-                    ArgumentError::TimeInvalidUnit,
+                    TimeError::TimeInvalidUnit,
                     reader.cursor(),
                 ));
             }
@@ -58,7 +60,7 @@ impl<S> Argument<S> for TimeArgument {
         let ticks = round_ticks(value * per_unit);
         if ticks < self.min {
             return Err(SyntaxError::argument(
-                ArgumentError::TickCountTooLow {
+                TimeError::TickCountTooLow {
                     min: self.min,
                     ticks,
                 },
@@ -93,7 +95,7 @@ pub struct TimeMarkerArgument {
 }
 
 impl TimeMarkerArgument {
-    pub fn suggest<'t, L: Lookup, T>(
+    pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,
         context: &ContextView<'_>,
@@ -108,13 +110,13 @@ impl TimeMarkerArgument {
 
 impl<S> Argument<S> for TimeMarkerArgument {
     type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &S,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
         ResourceLocationArgument.parse(reader, source)
     }
 }
@@ -132,7 +134,7 @@ impl TimelineArgument {
         registry: TIMELINE.location(),
     };
 
-    pub fn suggest<'t, L: Lookup, T>(
+    pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,
         context: &ContextView<'_>,
@@ -147,13 +149,13 @@ impl TimelineArgument {
 
 impl<L: Lookup> Argument<Source<'_, L>> for TimelineArgument {
     type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
         Self::RESOURCE.parse(reader, source)
     }
 }

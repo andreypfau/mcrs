@@ -10,7 +10,8 @@ pub use teleport::{Facing, Teleport, TeleportPlayer};
 use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
 use bevy_app::{App, Plugin};
 use mcrs_command::ArgumentHandle;
-use mcrs_minecraft_command::{EntityArgument, argument_text};
+use mcrs_minecraft_command::ErrorText;
+use mcrs_minecraft_command_entity::EntityArgument;
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
 /// `time`, and their effects: [`TeleportPlayer`], [`SetGameMode`] and
@@ -95,7 +96,7 @@ fn select_if_present<'c>(
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     selector
         .select(&source, me, targets.players().iter(), &mut random, out)
-        .map_err(|error| CommandFailure(argument_text(context.line(), error)))?;
+        .map_err(|error| CommandFailure(error.text(context.line())))?;
     Ok(true)
 }
 

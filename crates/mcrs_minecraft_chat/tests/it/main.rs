@@ -9,10 +9,12 @@ mod commands;
 mod log;
 mod screen;
 
+use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat::{ChatAbilities, Context};
-use mcrs_minecraft_command::{
-    ClientGraph, CommandLevel, Lookup, RegistryLookup, Source, client_tree,
-};
+use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
+use mcrs_minecraft_command_block::BlockLookup;
+use mcrs_minecraft_command_time::TimeLookup;
+use mcrs_minecraft_command_vanilla::{ClientGraph, client_tree};
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
@@ -26,8 +28,29 @@ use std::borrow::Cow;
 pub struct Players(pub &'static [&'static str]);
 
 impl Lookup for Players {
-    fn registry_lookup(&self) -> RegistryLookup<'_> {
-        RegistryLookup::default()
+    fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn tag_contains(
+        &self,
+        _: StaticResourceLocation,
+        _: Identifier<'_>,
+        _: StaticResourceLocation,
+    ) -> bool {
+        false
+    }
+
+    fn tag_entries(
+        &self,
+        _: StaticResourceLocation,
+        _: Identifier<'_>,
+    ) -> impl Iterator<Item = &str> {
+        std::iter::empty()
     }
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
@@ -35,6 +58,26 @@ impl Lookup for Players {
     }
 
     fn dimensions(&self) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+}
+
+impl BlockLookup for Players {
+    fn block_properties(&self, _: Identifier<'_>) -> Option<&[BlockProperty]> {
+        None
+    }
+
+    fn has_block_entity(&self, _: Identifier<'_>) -> bool {
+        false
+    }
+}
+
+impl TimeLookup for Players {
+    fn suggested_time_markers(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        std::iter::empty()
+    }
+
+    fn timelines_of_clock(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 }

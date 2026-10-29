@@ -23,11 +23,10 @@ use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_command::{Argument, ArgumentHandle, Chain, Contains, GraphBuilder, Limits};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_command::{
-    ArgumentError, CommandLevel, PermissionCheck, Source, VanillaArgument, VanillaGraph,
-    error_message,
-};
-use mcrs_minecraft_command::{NoLookup, player_tree};
+use mcrs_minecraft_command::NoLookup;
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck, Source, error_message};
+use mcrs_minecraft_command_vanilla::player_tree;
+use mcrs_minecraft_command_vanilla::{ArgumentError, VanillaArgument, VanillaGraph};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -304,7 +303,10 @@ impl<'w, 's> CommandContext<'w, 's> {
         match graph.value(line, span, arg, &source) {
             None => Err(CommandFailure::failed()),
             Some(Ok(value)) => Ok(Some(value)),
-            Some(Err(error)) => Err(CommandFailure(error_message(line, &error.map_into()))),
+            Some(Err(error)) => Err(CommandFailure(error_message(
+                line,
+                &error.map_into::<ArgumentError>(),
+            ))),
         }
     }
 }

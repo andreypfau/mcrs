@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_command_time"
+description = "The time, time marker and timeline arguments"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_protocol.workspace = true

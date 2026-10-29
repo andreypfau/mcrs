@@ -1,10 +1,10 @@
-use crate::error::{ArgumentError, CommandSyntaxError};
-use crate::source::Source;
+use crate::error::CoordinatesError;
 use glam::{BVec3, DVec3, Vec3};
 use mcrs_command::SEPARATOR;
 use mcrs_command::{
     Argument, LibraryError, Reader, SuggestionBuilder, SuggestionText, SyntaxError,
 };
+use mcrs_minecraft_command::Source;
 use mcrs_minecraft_core::mth::{atan2, cos_rounded, sin_rounded, wrap_degrees};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -26,13 +26,13 @@ impl WorldCoordinate {
 /// One coordinate: `~` with an optional offset, or an absolute value that `absolute` reads.
 fn read_axis(
     reader: &mut Reader<'_>,
-    missing: ArgumentError,
+    missing: CoordinatesError,
     expected: LibraryError,
-    absolute: impl FnOnce(&mut Reader<'_>) -> Result<f64, CommandSyntaxError>,
-) -> Result<WorldCoordinate, CommandSyntaxError> {
+    absolute: impl FnOnce(&mut Reader<'_>) -> Result<f64, SyntaxError<CoordinatesError>>,
+) -> Result<WorldCoordinate, SyntaxError<CoordinatesError>> {
     if reader.peek_is('^') {
         return Err(SyntaxError::argument(
-            ArgumentError::PosMixed,
+            CoordinatesError::PosMixed,
             reader.cursor(),
         ));
     }
@@ -64,10 +64,10 @@ fn read_axis(
 fn read_world(
     reader: &mut Reader<'_>,
     center: bool,
-) -> Result<WorldCoordinate, CommandSyntaxError> {
+) -> Result<WorldCoordinate, SyntaxError<CoordinatesError>> {
     read_axis(
         reader,
-        ArgumentError::PosMissingDouble,
+        CoordinatesError::PosMissingDouble,
         LibraryError::ExpectedDouble,
         |reader| {
             let start = reader.cursor();
@@ -86,8 +86,8 @@ fn read_world(
 fn separator(
     reader: &mut Reader<'_>,
     start: usize,
-    error: ArgumentError,
-) -> Result<(), CommandSyntaxError> {
+    error: CoordinatesError,
+) -> Result<(), SyntaxError<CoordinatesError>> {
     if reader.peek_is(SEPARATOR) {
         reader.skip();
         Ok(())
@@ -103,8 +103,8 @@ fn read_axes<T: Copy>(
     reader: &mut Reader<'_>,
     partial: bool,
     unread: T,
-    mut read_axis: impl FnMut(&mut Reader<'_>, usize) -> Result<T, CommandSyntaxError>,
-) -> Result<[T; 3], CommandSyntaxError> {
+    mut read_axis: impl FnMut(&mut Reader<'_>, usize) -> Result<T, SyntaxError<CoordinatesError>>,
+) -> Result<[T; 3], SyntaxError<CoordinatesError>> {
     let start = reader.cursor();
     let mut values = [unread; 3];
     for (axis, value) in values.iter_mut().enumerate() {
@@ -112,7 +112,7 @@ fn read_axes<T: Copy>(
             if partial && reader.at_end() {
                 break;
             }
-            separator(reader, start, ArgumentError::Pos3dIncomplete)?;
+            separator(reader, start, CoordinatesError::Pos3dIncomplete)?;
         }
         *value = read_axis(reader, axis)?;
     }
@@ -120,18 +120,21 @@ fn read_axes<T: Copy>(
 }
 
 /// Three local values in the order left, up, forwards (ARG-COORD-002).
-fn read_local(reader: &mut Reader<'_>, partial: bool) -> Result<[f64; 3], CommandSyntaxError> {
+fn read_local(
+    reader: &mut Reader<'_>,
+    partial: bool,
+) -> Result<[f64; 3], SyntaxError<CoordinatesError>> {
     let start = reader.cursor();
     read_axes(reader, partial, 0.0, |reader, _| {
         if reader.at_end() {
             return Err(SyntaxError::argument(
-                ArgumentError::PosMissingDouble,
+                CoordinatesError::PosMissingDouble,
                 reader.cursor(),
             ));
         }
         if !reader.peek_is('^') {
             reader.set_cursor(start);
-            return Err(SyntaxError::argument(ArgumentError::PosMixed, start));
+            return Err(SyntaxError::argument(CoordinatesError::PosMixed, start));
         }
         reader.skip();
         if reader.at_end() || reader.peek_is(SEPARATOR) {
@@ -201,8 +204,8 @@ impl Coordinates {
 fn read_coordinates(
     reader: &mut Reader<'_>,
     partial: bool,
-    axis: impl FnMut(&mut Reader<'_>, usize) -> Result<WorldCoordinate, CommandSyntaxError>,
-) -> Result<Coordinates, CommandSyntaxError> {
+    axis: impl FnMut(&mut Reader<'_>, usize) -> Result<WorldCoordinate, SyntaxError<CoordinatesError>>,
+) -> Result<Coordinates, SyntaxError<CoordinatesError>> {
     if reader.peek_is('^') {
         return read_local(reader, partial).map(Coordinates::Local);
     }
@@ -222,7 +225,7 @@ impl Vec3Argument {
         &self,
         reader: &mut Reader<'_>,
         partial: bool,
-    ) -> Result<Coordinates, CommandSyntaxError> {
+    ) -> Result<Coordinates, SyntaxError<CoordinatesError>> {
         read_coordinates(reader, partial, |reader, axis| {
             read_world(reader, axis != 1)
         })
@@ -266,13 +269,13 @@ fn suggest_coordinates<'t, T>(
 
 impl<L> Argument<Source<'_, L>> for Vec3Argument {
     type Value<'a> = Coordinates;
-    type Error = ArgumentError;
+    type Error = CoordinatesError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         _: &Source<'_, L>,
-    ) -> Result<Coordinates, CommandSyntaxError> {
+    ) -> Result<Coordinates, SyntaxError<CoordinatesError>> {
         self.read(reader, false)
     }
 }
@@ -299,34 +302,34 @@ pub struct RotationArgument;
 
 impl<S> Argument<S> for RotationArgument {
     type Value<'a> = RotationValue;
-    type Error = ArgumentError;
+    type Error = CoordinatesError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         _: &S,
-    ) -> Result<RotationValue, CommandSyntaxError> {
+    ) -> Result<RotationValue, SyntaxError<CoordinatesError>> {
         let start = reader.cursor();
         if reader.at_end() {
             return Err(SyntaxError::argument(
-                ArgumentError::RotationIncomplete,
+                CoordinatesError::RotationIncomplete,
                 reader.cursor(),
             ));
         }
         let yaw = read_world(reader, false)?;
-        separator(reader, start, ArgumentError::RotationIncomplete)?;
+        separator(reader, start, CoordinatesError::RotationIncomplete)?;
         let pitch = read_world(reader, false)?;
         Ok(RotationValue { yaw, pitch })
     }
 }
 
 /// One block coordinate (ARG-COORD-010).
-fn read_block(reader: &mut Reader<'_>) -> Result<WorldCoordinate, CommandSyntaxError> {
+fn read_block(reader: &mut Reader<'_>) -> Result<WorldCoordinate, SyntaxError<CoordinatesError>> {
     read_axis(
         reader,
-        ArgumentError::PosMissingInt,
+        CoordinatesError::PosMissingInt,
         LibraryError::ExpectedInt,
-        |reader| Ok(f64::from(reader.read_int::<ArgumentError>()?)),
+        |reader| Ok(f64::from(reader.read_int::<CoordinatesError>()?)),
     )
 }
 
@@ -342,7 +345,10 @@ pub fn block_floor(point: DVec3) -> [i32; 3] {
 pub struct BlockPosArgument;
 
 impl BlockPosArgument {
-    fn read(reader: &mut Reader<'_>, partial: bool) -> Result<Coordinates, CommandSyntaxError> {
+    fn read(
+        reader: &mut Reader<'_>,
+        partial: bool,
+    ) -> Result<Coordinates, SyntaxError<CoordinatesError>> {
         read_coordinates(reader, partial, |reader, _| read_block(reader))
     }
 
@@ -354,9 +360,13 @@ impl BlockPosArgument {
 
 impl<S> Argument<S> for BlockPosArgument {
     type Value<'a> = Coordinates;
-    type Error = ArgumentError;
+    type Error = CoordinatesError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<Coordinates, CommandSyntaxError> {
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        _: &S,
+    ) -> Result<Coordinates, SyntaxError<CoordinatesError>> {
         Self::read(reader, false)
     }
 }
@@ -372,12 +382,16 @@ pub struct SwizzleArgument;
 
 impl<S> Argument<S> for SwizzleArgument {
     type Value<'a> = BVec3;
-    type Error = ArgumentError;
+    type Error = CoordinatesError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<BVec3, CommandSyntaxError> {
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        _: &S,
+    ) -> Result<BVec3, SyntaxError<CoordinatesError>> {
         let mut axes = BVec3::FALSE;
         let invalid = |reader: &Reader<'_>| {
-            SyntaxError::argument(ArgumentError::SwizzleInvalid, reader.cursor())
+            SyntaxError::argument(CoordinatesError::SwizzleInvalid, reader.cursor())
         };
         while let Some(c) = reader.peek().filter(|&c| c != SEPARATOR) {
             reader.skip();

@@ -10,12 +10,12 @@ use crate::world::entity::player_network_id;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::teleport::{Pose, relative_move};
-use mcrs_minecraft_command::{
-    CommandLevel, EntityAnchorArgument, EntityArgument, PermissionCheck, RotationArgument,
-    Vec3Argument,
-};
-use mcrs_minecraft_command::{anchored, rotation_toward};
+use mcrs_minecraft_command::anchored;
+use mcrs_minecraft_command::{CommandLevel, EntityAnchorArgument, PermissionCheck};
+use mcrs_minecraft_command_coordinates::rotation_toward;
+use mcrs_minecraft_command_coordinates::{Pose, relative_move};
+use mcrs_minecraft_command_coordinates::{RotationArgument, Vec3Argument};
+use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};

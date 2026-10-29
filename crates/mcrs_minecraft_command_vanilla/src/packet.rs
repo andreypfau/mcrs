@@ -1,7 +1,6 @@
-use crate::permission::PermissionCheck;
-use crate::set::{UnknownParser, VanillaArgument};
-use crate::source::{Lookup, Source};
+use crate::vanilla_argument::{UnknownParser, VanillaArgument};
 use mcrs_command::{Graph, NodeKind, SuggestionList};
+use mcrs_minecraft_command::{PermissionCheck, Source};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, CommandSuggestion};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -22,7 +21,7 @@ fn number(index: usize) -> VarInt {
 
 /// The tree the source can see, numbered in the order of the full tree (CMDP-TREE-001,
 /// CMDP-TREE-003, CMDP-TREE-004).
-pub fn player_tree<H, L: Lookup>(
+pub fn player_tree<H, L>(
     graph: &VanillaGraph<H>,
     source: &Source<'_, L>,
 ) -> Result<ClientboundCommands<'static>, UnknownParser> {

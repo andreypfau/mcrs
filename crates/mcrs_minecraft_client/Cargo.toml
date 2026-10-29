@@ -61,6 +61,10 @@ mcrs_command.workspace = true
 mcrs_text_span.workspace = true
 mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_block.workspace = true
+mcrs_minecraft_command_registry.workspace = true
+mcrs_minecraft_command_time.workspace = true
+mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true

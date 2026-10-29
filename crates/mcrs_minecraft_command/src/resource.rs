@@ -1,4 +1,4 @@
-use crate::error::{ArgumentError, CommandSyntaxError};
+use crate::error::ResourceError;
 use crate::identifier::{
     Identifier, identifier_matches, prefixed_identifier_matches, read_identifier, suggest_prefixed,
 };
@@ -12,13 +12,13 @@ pub struct ResourceLocationArgument;
 
 impl<S> Argument<S> for ResourceLocationArgument {
     type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         _: &S,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
         read_identifier(reader).map(|(identifier, _)| identifier)
     }
 }
@@ -38,13 +38,13 @@ impl DimensionArgument {
 
 impl<S> Argument<S> for DimensionArgument {
     type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &S,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
         ResourceLocationArgument.parse(reader, source)
     }
 }
@@ -94,13 +94,13 @@ impl ResourceOrTagArgument {
 
 impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
     type Value<'a> = ResourceOrTag<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
-    ) -> Result<ResourceOrTag<'a>, CommandSyntaxError> {
+    ) -> Result<ResourceOrTag<'a>, SyntaxError<ResourceError>> {
         let tag = reader.peek_is('#');
         if tag {
             reader.skip();
@@ -118,11 +118,11 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
         let (exists, error) = match value {
             ResourceOrTag::Entry(entry) => (
                 source.lookup.has_entry(registry, entry),
-                ArgumentError::ResourceNotFound { id, registry },
+                ResourceError::ResourceNotFound { id, registry },
             ),
             ResourceOrTag::Tag(tag) => (
                 source.lookup.has_tag(registry, tag),
-                ArgumentError::ResourceTagNotFound { id, registry },
+                ResourceError::ResourceTagNotFound { id, registry },
             ),
         };
         if exists {
@@ -151,19 +151,19 @@ impl ResourceArgument {
 
 impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
     type Value<'a> = Identifier<'a>;
-    type Error = ArgumentError;
+    type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
-    ) -> Result<Identifier<'a>, CommandSyntaxError> {
+    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
         let (identifier, id) = read_identifier(reader)?;
         if source.lookup.has_entry(self.registry, identifier) {
             Ok(identifier)
         } else {
             Err(SyntaxError::argument(
-                ArgumentError::ResourceNotFound {
+                ResourceError::ResourceNotFound {
                     id,
                     registry: self.registry,
                 },

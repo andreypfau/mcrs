@@ -1,8 +1,9 @@
 use crate::{GUEST, OP};
 use mcrs_command::{GraphBuilder, NodeId, ParseScratch, SuggestionList};
-use mcrs_minecraft_command::{
-    CommandLevel, EntityArgument, GameModeArgument, PermissionCheck, VanillaArgument, VanillaGraph,
-    player_tree, suggestion_reply,
+use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
+use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_command_vanilla::{
+    VanillaArgument, VanillaGraph, player_tree, suggestion_reply,
 };
 use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
@@ -175,7 +176,7 @@ fn packet(nodes: Vec<CommandNode<'static>>) -> ClientboundCommands<'static> {
 
 #[test]
 fn the_client_tree_shares_a_node_two_parents_name_and_rejects_a_child_cycle() {
-    use mcrs_minecraft_command::{TreeError, client_tree};
+    use mcrs_minecraft_command_vanilla::{TreeError, client_tree};
     let shared = packet(vec![
         literal("a", &[3]),
         literal("b", &[3]),

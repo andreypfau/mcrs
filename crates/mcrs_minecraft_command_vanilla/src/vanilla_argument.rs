@@ -1,20 +1,20 @@
-use crate::argument::block::BlockPredicateArgument;
-use crate::argument::coordinates::{
-    BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
-};
-use crate::argument::entity::EntityArgument;
-use crate::argument::keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArgument};
-use crate::argument::resource::{
-    DimensionArgument, ResourceArgument, ResourceLocationArgument, ResourceOrTagArgument,
-};
-use crate::argument::time::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use crate::error::{ArgumentError, CommandSyntaxError};
-use crate::source::{Lookup, Source};
+use crate::vanilla_lookup::VanillaLookup;
 use mcrs_command::{
     Argument, ArgumentSet, BoolArgument, Contains, ContextView, DoubleArgument, FloatArgument,
     IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder,
 };
 use mcrs_minecraft_block::keys::BLOCK;
+use mcrs_minecraft_command::{
+    DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
+    ResourceLocationArgument, ResourceOrTagArgument, Source,
+};
+use mcrs_minecraft_command_block::BlockPredicateArgument;
+use mcrs_minecraft_command_coordinates::{
+    BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
+};
+use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_command_time::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
@@ -45,7 +45,7 @@ macro_rules! vanilla_arguments {
             }
         )+
 
-        impl<L: Lookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
+        impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             type Error = ArgumentError;
             type Tooltip = &'static str;
 

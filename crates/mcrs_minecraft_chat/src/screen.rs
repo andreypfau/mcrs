@@ -2,7 +2,7 @@ use crate::command_input::{CommandInput, Context, Request};
 use crate::edit_box::{Anchor, EditBox, Step};
 use crate::history::{History, Recall};
 use crate::normalize::normalize;
-use mcrs_minecraft_command::Lookup;
+use mcrs_minecraft_command_vanilla::VanillaLookup;
 
 /// A key of the chat screen, after the platform mapped Cmd or Ctrl.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,7 +109,12 @@ pub struct ChatScreen {
 impl ChatScreen {
     /// Opens on `initial` in `style` (CHAT-OPEN-001). The suggestion list does not show until
     /// the player types or presses Tab (CCMD-LIST-001).
-    pub fn open<L: Lookup>(&mut self, initial: &str, style: InputStyle, cx: &Context<'_, L>) {
+    pub fn open<L: VanillaLookup>(
+        &mut self,
+        initial: &str,
+        style: InputStyle,
+        cx: &Context<'_, L>,
+    ) {
         self.edit.set(initial);
         self.recall = Recall::default();
         self.draft = style == InputStyle::Draft;
@@ -138,7 +143,7 @@ impl ChatScreen {
         self.draft
     }
 
-    fn refresh<L: Lookup>(&mut self, cx: &Context<'_, L>) {
+    fn refresh<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) {
         if let Some(request) = self
             .commands
             .refresh(self.edit.text(), self.edit.caret(), cx)
@@ -148,7 +153,7 @@ impl ChatScreen {
     }
 
     /// The player changed the input.
-    fn changed<L: Lookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
+    fn changed<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
         self.draft = false;
         self.commands.auto = true;
         self.refresh(cx);
@@ -156,12 +161,12 @@ impl ChatScreen {
     }
 
     /// Typed or pasted text.
-    pub fn type_text<L: Lookup>(&mut self, text: &str, cx: &Context<'_, L>) -> Outcome {
+    pub fn type_text<L: VanillaLookup>(&mut self, text: &str, cx: &Context<'_, L>) -> Outcome {
         self.edited(|edit| edit.insert(text), cx)
     }
 
     /// Inserts the selected suggestion of the list in place (CCMD-LIST-005).
-    pub fn insert_suggestion<L: Lookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
+    pub fn insert_suggestion<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
         let Some(list) = self.commands.list() else {
             return Outcome::Ignored;
         };
@@ -184,7 +189,7 @@ impl ChatScreen {
         Outcome::Handled
     }
 
-    fn list_key<L: Lookup>(&mut self, key: Key, cx: &Context<'_, L>) -> Option<Outcome> {
+    fn list_key<L: VanillaLookup>(&mut self, key: Key, cx: &Context<'_, L>) -> Option<Outcome> {
         let list = self.commands.list_mut()?;
         match key {
             Key::Up => {
@@ -208,7 +213,7 @@ impl ChatScreen {
     }
 
     /// Handles one key in the order of CHAT-KEY-001.
-    pub fn key<L: Lookup>(
+    pub fn key<L: VanillaLookup>(
         &mut self,
         key: Key,
         history: &mut History,
@@ -255,7 +260,7 @@ impl ChatScreen {
         }
     }
 
-    fn edited<L: Lookup>(
+    fn edited<L: VanillaLookup>(
         &mut self,
         edit: impl FnOnce(&mut EditBox) -> bool,
         cx: &Context<'_, L>,
@@ -274,7 +279,7 @@ impl ChatScreen {
     }
 
     /// Up and Down with no list (CHAT-HIST-002).
-    fn recall<L: Lookup>(
+    fn recall<L: VanillaLookup>(
         &mut self,
         delta: isize,
         history: &History,
@@ -291,7 +296,7 @@ impl ChatScreen {
     }
 
     /// The input is blocked: Enter does nothing (CHAT-OPT-002).
-    fn blocked<L: Lookup>(&self, cx: &Context<'_, L>) -> bool {
+    fn blocked<L: VanillaLookup>(&self, cx: &Context<'_, L>) -> bool {
         let input = self.edit.text();
         if input.starts_with('/') {
             !cx.abilities.send_commands
@@ -302,7 +307,7 @@ impl ChatScreen {
     }
 
     /// Enter (CHAT-SEND-002).
-    fn enter<L: Lookup>(&mut self, history: &mut History, cx: &Context<'_, L>) -> Outcome {
+    fn enter<L: VanillaLookup>(&mut self, history: &mut History, cx: &Context<'_, L>) -> Outcome {
         if self.blocked(cx) {
             return Outcome::Handled;
         }

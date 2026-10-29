@@ -4,7 +4,8 @@ use crate::command::{
 };
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::{CommandLevel, EntityArgument, GameModeArgument, PermissionCheck};
+use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
+use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 

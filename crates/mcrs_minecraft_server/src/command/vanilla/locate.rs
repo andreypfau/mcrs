@@ -5,9 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_biome::keys::BIOME;
-use mcrs_minecraft_command::{
-    CommandLevel, Lookup, PermissionCheck, ResourceOrTag, ResourceOrTagArgument,
-};
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck, ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::STRUCTURE;
 use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;

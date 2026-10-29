@@ -1,4 +1,4 @@
-use crate::error::{ArgumentError, CommandSyntaxError};
+use crate::error::KeywordError;
 use crate::identifier::text_matches;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_core::heightmap::HeightmapName;
@@ -17,19 +17,23 @@ impl GameModeArgument {
 
 impl<S> Argument<S> for GameModeArgument {
     type Value<'a> = GameMode;
-    type Error = ArgumentError;
+    type Error = KeywordError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<GameMode, CommandSyntaxError> {
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        _: &S,
+    ) -> Result<GameMode, SyntaxError<KeywordError>> {
         let word = reader.read_unquoted();
         GameMode::from_name(word.text(reader.input())).ok_or(SyntaxError::argument(
-            ArgumentError::GameModeInvalid(word),
+            KeywordError::GameModeInvalid(word),
             reader.cursor(),
         ))
     }
 }
 
 /// The value named `text` in `table`.
-pub(crate) fn by_name<T: Copy>(table: &[(&str, T)], text: &str) -> Option<T> {
+pub fn by_name<T: Copy>(table: &[(&str, T)], text: &str) -> Option<T> {
     table
         .iter()
         .find(|(name, _)| *name == text)
@@ -50,16 +54,20 @@ impl EntityAnchorArgument {
 
 impl<S> Argument<S> for EntityAnchorArgument {
     type Value<'a> = LookAnchor;
-    type Error = ArgumentError;
+    type Error = KeywordError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<LookAnchor, CommandSyntaxError> {
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        _: &S,
+    ) -> Result<LookAnchor, SyntaxError<KeywordError>> {
         let start = reader.cursor();
         let word = reader.read_unquoted();
         let text = word.text(reader.input());
         let Some(anchor) = by_name(&ANCHORS, text) else {
             reader.set_cursor(start);
             return Err(SyntaxError::argument(
-                ArgumentError::AnchorInvalid(word),
+                KeywordError::AnchorInvalid(word),
                 start,
             ));
         };
@@ -89,16 +97,16 @@ impl HeightmapArgument {
 
 impl<S> Argument<S> for HeightmapArgument {
     type Value<'a> = HeightmapName;
-    type Error = ArgumentError;
+    type Error = KeywordError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         _: &S,
-    ) -> Result<HeightmapName, CommandSyntaxError> {
+    ) -> Result<HeightmapName, SyntaxError<KeywordError>> {
         let word = reader.read_unquoted();
         by_name(&HEIGHTMAPS, word.text(reader.input())).ok_or(SyntaxError::argument(
-            ArgumentError::EnumInvalid(word),
+            KeywordError::EnumInvalid(word),
             reader.cursor(),
         ))
     }

@@ -1,4 +1,4 @@
-use crate::error::ArgumentError;
+use crate::error::ResourceError;
 use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::resource_location::parse_parts;
@@ -36,16 +36,19 @@ pub(crate) const fn is_identifier_char(c: char) -> bool {
 }
 
 /// Reads an identifier (ARG-RES-001).
-pub(crate) fn read_identifier<'a>(
+pub fn read_identifier<'a, E: From<ResourceError>>(
     reader: &mut Reader<'a>,
-) -> Result<(Identifier<'a>, Span), SyntaxError<ArgumentError>> {
+) -> Result<(Identifier<'a>, Span), SyntaxError<E>> {
     let start = reader.cursor();
     let span = reader.read_while(is_identifier_char);
     match Identifier::parse(span.text(reader.input())) {
         Some(identifier) => Ok((identifier, span)),
         None => {
             reader.set_cursor(start);
-            Err(SyntaxError::argument(ArgumentError::IdInvalid, start))
+            Err(SyntaxError::argument(
+                ResourceError::IdInvalid.into(),
+                start,
+            ))
         }
     }
 }
@@ -77,7 +80,7 @@ pub fn text_matches(text: &str, remaining: &str) -> bool {
 
 /// `canonical` is `namespace:path`; the remaining input matches it as CMD-SUG-008 states for
 /// identifiers.
-pub(crate) fn identifier_matches(canonical: &str, remaining: &str) -> bool {
+pub fn identifier_matches(canonical: &str, remaining: &str) -> bool {
     if remaining.contains(':') {
         return matches_identifier_text(remaining, canonical);
     }
@@ -87,7 +90,7 @@ pub(crate) fn identifier_matches(canonical: &str, remaining: &str) -> bool {
 
 /// The remaining input matches `prefix` and then `canonical` (CMD-SUG-008, identifiers with a
 /// prefix).
-pub(crate) fn prefixed_identifier_matches(remaining: &str, prefix: &str, canonical: &str) -> bool {
+pub fn prefixed_identifier_matches(remaining: &str, prefix: &str, canonical: &str) -> bool {
     if remaining.is_empty() {
         return true;
     }
@@ -105,7 +108,7 @@ pub(crate) fn prefixed_identifier_matches(remaining: &str, prefix: &str, canonic
 }
 
 /// Suggests each id after each prefix that `matches` accepts against the remaining input.
-pub(crate) fn suggest_prefixed<'t, 'i: 't, T: Copy>(
+pub fn suggest_prefixed<'t, 'i: 't, T: Copy>(
     builder: &mut SuggestionBuilder<'t, '_, T>,
     prefixes: &[&'static str],
     ids: impl Iterator<Item = (&'i str, Option<T>)>,

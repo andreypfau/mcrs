@@ -5,7 +5,8 @@ use crate::command::{
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, ForkMode, GraphBuilder, NodeId};
-use mcrs_minecraft_command::{PermissionCheck, VanillaArgument};
+use mcrs_minecraft_command::PermissionCheck;
+use mcrs_minecraft_command_vanilla::VanillaArgument;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 use std::ops::Deref;

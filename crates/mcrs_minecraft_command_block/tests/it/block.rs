@@ -4,8 +4,10 @@ use mcrs_command::{
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
 use mcrs_minecraft_command::{
-    BlockPredicate, BlockPredicateArgument, CommandLevel, CommandSyntaxError, Identifier, Lookup,
-    RegistryLookup, ResourceOrTag, Source, error_message,
+    CommandLevel, Identifier, Lookup, ResourceOrTag, Source, error_message,
+};
+use mcrs_minecraft_command_block::{
+    BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -49,10 +51,6 @@ static BLOCKS: LazyLock<Blocks> = LazyLock::new(|| Blocks {
 });
 
 impl Lookup for Blocks {
-    fn registry_lookup(&self) -> RegistryLookup<'_> {
-        RegistryLookup::default()
-    }
-
     fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
         [
             "minecraft:oak_stairs",
@@ -66,6 +64,15 @@ impl Lookup for Blocks {
 
     fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
         ["minecraft:logs"].into_iter()
+    }
+
+    fn tag_contains(
+        &self,
+        _: StaticResourceLocation,
+        _: Identifier<'_>,
+        _: StaticResourceLocation,
+    ) -> bool {
+        false
     }
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
@@ -85,7 +92,9 @@ impl Lookup for Blocks {
             .then_some("minecraft:oak_log")
             .into_iter()
     }
+}
 
+impl BlockLookup for Blocks {
     fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
         [
             ("minecraft:oak_stairs", self.stairs.as_slice()),
@@ -115,7 +124,7 @@ pub(crate) fn suggest_block<'t>(input: &'t str, out: &mut Vec<Suggestion<'t, &'s
     BlockPredicateArgument::suggest(&SOURCE, &mut builder);
 }
 
-pub(crate) fn read(input: &str) -> (Result<BlockPredicate<'_>, CommandSyntaxError>, usize) {
+pub(crate) fn read(input: &str) -> (Result<BlockPredicate<'_>, SyntaxError<BlockError>>, usize) {
     let mut reader = Reader::new(input);
     let value = BlockPredicateArgument.parse(&mut reader, &source());
     (value, reader.cursor())

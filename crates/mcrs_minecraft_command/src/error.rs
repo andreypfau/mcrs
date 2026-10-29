@@ -6,9 +6,9 @@ use mcrs_minecraft_protocol::text::{Color, IntoText, Text, TranslateArg};
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_text_span::Span;
 
-/// The syntax errors of the vanilla argument types. Text from the command line is a span.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ArgumentError {
+/// The errors of an identifier and of the arguments that read a registry entry or a tag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResourceError {
     IdInvalid,
     ResourceNotFound {
         id: Span,
@@ -18,112 +18,39 @@ pub enum ArgumentError {
         id: Span,
         registry: StaticResourceLocation,
     },
-    TimeInvalidUnit,
-    TickCountTooLow {
-        min: i32,
-        ticks: i32,
-    },
+}
+
+/// The errors of the arguments that read one word of a fixed set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeywordError {
     GameModeInvalid(Span),
     AnchorInvalid(Span),
-    PosMixed,
-    PosMissingDouble,
-    Pos3dIncomplete,
-    RotationIncomplete,
-    SelectorNotAllowed,
-    SelectorMissing,
-    SelectorUnknown(char),
-    EntityInvalid,
-    OptionsUnknown(StringSpan),
-    OptionsInapplicable(StringSpan),
-    OptionsValueless(StringSpan),
-    OptionsUnterminated,
-    DistanceNegative,
-    LevelNegative,
-    LimitTooSmall,
-    SortIrreversible(Span),
-    ModeInvalid(Span),
-    TypeInvalid(Span),
-    RangeEmpty,
-    RangeSwapped,
-    PlayerTooMany,
-    EntityTooMany,
-    PlayerEntities,
-    PosMissingInt,
-    SwizzleInvalid,
     EnumInvalid(Span),
-    BlockIdInvalid(Span),
-    BlockTagUnknown(Span),
-    PropertyUnknown {
-        block: Span,
-        name: StringSpan,
-    },
-    PropertyDuplicate {
-        name: StringSpan,
-        subject: BlockSubject,
-    },
-    PropertyNoValue {
-        name: StringSpan,
-        subject: BlockSubject,
-    },
-    PropertyInvalid {
-        block: Span,
-        value: StringSpan,
-        name: StringSpan,
-    },
-    PropertyUnclosed,
-    /// An error of the SNBT read; its spans are positions in the command line.
-    Nbt(SnbtError),
 }
 
-/// The block identifier or the tag that an error of a property list names.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlockSubject {
-    pub span: Span,
-    pub tag: bool,
+/// The translated text of an argument error. Text from the command line is a span of `input`.
+pub trait ErrorText {
+    fn text(&self, input: &str) -> Text;
 }
 
-impl BlockSubject {
-    pub const fn block(span: Span) -> Self {
-        Self { span, tag: false }
-    }
-
-    pub const fn tag(span: Span) -> Self {
-        Self { span, tag: true }
-    }
-}
-
-pub type CommandSyntaxError = SyntaxError<ArgumentError>;
-
-/// A library argument type has no errors of its own.
-impl From<core::convert::Infallible> for ArgumentError {
-    fn from(never: core::convert::Infallible) -> Self {
-        match never {}
-    }
-}
-
-fn string(input: &str, string: StringSpan) -> Text {
+pub fn string_text(input: &str, string: StringSpan) -> Text {
     StringValue::new(input, string)
         .chars()
         .collect::<String>()
         .into_text()
 }
 
-fn span(input: &str, span: Span) -> Text {
+pub fn span_text(input: &str, span: Span) -> Text {
     span.text(input).to_owned().into_text()
 }
 
-fn identifier(input: &str, span: Span) -> Text {
+pub fn identifier_text(input: &str, span: Span) -> Text {
     identifier_string(input, span).into_text()
 }
 
-fn identifier_string(input: &str, span: Span) -> String {
+pub fn identifier_string(input: &str, span: Span) -> String {
     let text = span.text(input);
     Identifier::parse(text).map_or_else(|| text.to_owned(), |id| id.to_string())
-}
-
-fn subject_text(input: &str, subject: BlockSubject) -> Text {
-    let id = identifier_string(input, subject.span);
-    if subject.tag { format!("#{id}") } else { id }.into_text()
 }
 
 fn bound(key: &'static str, limit: NbtTag, value: NbtTag) -> Text {
@@ -172,18 +99,24 @@ fn library_text(input: &str, error: LibraryError) -> Text {
         E::InvalidEscape(c) => {
             Text::translate("parsing.quote.escape", vec![c.to_string().into_text()])
         }
-        E::InvalidBool(text) => Text::translate("parsing.bool.invalid", vec![string(input, text)]),
+        E::InvalidBool(text) => {
+            Text::translate("parsing.bool.invalid", vec![string_text(input, text)])
+        }
         E::ExpectedBool => Text::translate("parsing.bool.expected", vec![]),
-        E::InvalidInt(token) => Text::translate("parsing.int.invalid", vec![span(input, token)]),
+        E::InvalidInt(token) => {
+            Text::translate("parsing.int.invalid", vec![span_text(input, token)])
+        }
         E::ExpectedInt => Text::translate("parsing.int.expected", vec![]),
-        E::InvalidLong(token) => Text::translate("parsing.long.invalid", vec![span(input, token)]),
+        E::InvalidLong(token) => {
+            Text::translate("parsing.long.invalid", vec![span_text(input, token)])
+        }
         E::ExpectedLong => Text::translate("parsing.long.expected", vec![]),
         E::InvalidDouble(token) => {
-            Text::translate("parsing.double.invalid", vec![span(input, token)])
+            Text::translate("parsing.double.invalid", vec![span_text(input, token)])
         }
         E::ExpectedDouble => Text::translate("parsing.double.expected", vec![]),
         E::InvalidFloat(token) => {
-            Text::translate("parsing.float.invalid", vec![span(input, token)])
+            Text::translate("parsing.float.invalid", vec![span_text(input, token)])
         }
         E::ExpectedFloat => Text::translate("parsing.float.expected", vec![]),
         E::ExpectedSymbol(c) => {
@@ -196,108 +129,40 @@ fn library_text(input: &str, error: LibraryError) -> Text {
     }
 }
 
-pub fn argument_text(input: &str, error: ArgumentError) -> Text {
-    use ArgumentError as E;
-    let registry = |registry: StaticResourceLocation| registry.as_str().to_owned().into_text();
-    match error {
-        E::IdInvalid => Text::translate("argument.id.invalid", vec![]),
-        E::ResourceNotFound { id, registry: r } => Text::translate(
-            "argument.resource.not_found",
-            vec![identifier(input, id), registry(r)],
-        ),
-        E::ResourceTagNotFound { id, registry: r } => Text::translate(
-            "argument.resource_tag.not_found",
-            vec![identifier(input, id), registry(r)],
-        ),
-        E::TimeInvalidUnit => Text::translate("argument.time.invalid_unit", vec![]),
-        E::TickCountTooLow { min, ticks } => Text::translate_args(
-            "argument.time.tick_count_too_low",
-            vec![min.into(), ticks.into()],
-        ),
-        E::GameModeInvalid(word) => {
-            Text::translate("argument.gamemode.invalid", vec![span(input, word)])
+impl ErrorText for ResourceError {
+    fn text(&self, input: &str) -> Text {
+        let registry = |registry: StaticResourceLocation| registry.as_str().to_owned().into_text();
+        match *self {
+            ResourceError::IdInvalid => Text::translate("argument.id.invalid", vec![]),
+            ResourceError::ResourceNotFound { id, registry: r } => Text::translate(
+                "argument.resource.not_found",
+                vec![identifier_text(input, id), registry(r)],
+            ),
+            ResourceError::ResourceTagNotFound { id, registry: r } => Text::translate(
+                "argument.resource_tag.not_found",
+                vec![identifier_text(input, id), registry(r)],
+            ),
         }
-        E::AnchorInvalid(word) => {
-            Text::translate("argument.anchor.invalid", vec![span(input, word)])
-        }
-        E::PosMixed => Text::translate("argument.pos.mixed", vec![]),
-        E::PosMissingDouble => Text::translate("argument.pos.missing.double", vec![]),
-        E::Pos3dIncomplete => Text::translate("argument.pos3d.incomplete", vec![]),
-        E::RotationIncomplete => Text::translate("argument.rotation.incomplete", vec![]),
-        E::SelectorNotAllowed => Text::translate("argument.entity.selector.not_allowed", vec![]),
-        E::SelectorMissing => Text::translate("argument.entity.selector.missing", vec![]),
-        E::SelectorUnknown(kind) => Text::translate(
-            "argument.entity.selector.unknown",
-            vec![format!("@{kind}").into_text()],
-        ),
-        E::EntityInvalid => Text::translate("argument.entity.invalid", vec![]),
-        E::OptionsUnknown(name) => {
-            Text::translate("argument.entity.options.unknown", vec![string(input, name)])
-        }
-        E::OptionsInapplicable(name) => Text::translate(
-            "argument.entity.options.inapplicable",
-            vec![string(input, name)],
-        ),
-        E::OptionsValueless(name) => Text::translate(
-            "argument.entity.options.valueless",
-            vec![string(input, name)],
-        ),
-        E::OptionsUnterminated => Text::translate("argument.entity.options.unterminated", vec![]),
-        E::DistanceNegative => Text::translate("argument.entity.options.distance.negative", vec![]),
-        E::LevelNegative => Text::translate("argument.entity.options.level.negative", vec![]),
-        E::LimitTooSmall => Text::translate("argument.entity.options.limit.toosmall", vec![]),
-        E::SortIrreversible(word) => Text::translate(
-            "argument.entity.options.sort.irreversible",
-            vec![span(input, word)],
-        ),
-        E::ModeInvalid(word) => Text::translate(
-            "argument.entity.options.mode.invalid",
-            vec![span(input, word)],
-        ),
-        E::TypeInvalid(id) => Text::translate(
-            "argument.entity.options.type.invalid",
-            vec![identifier(input, id)],
-        ),
-        E::RangeEmpty => Text::translate("argument.range.empty", vec![]),
-        E::RangeSwapped => Text::translate("argument.range.swapped", vec![]),
-        E::PlayerTooMany => Text::translate("argument.player.toomany", vec![]),
-        E::EntityTooMany => Text::translate("argument.entity.toomany", vec![]),
-        E::PlayerEntities => Text::translate("argument.player.entities", vec![]),
-        E::PosMissingInt => Text::translate("argument.pos.missing.int", vec![]),
-        E::SwizzleInvalid => Text::translate("arguments.swizzle.invalid", vec![]),
-        E::EnumInvalid(word) => Text::translate("argument.enum.invalid", vec![span(input, word)]),
-        E::BlockIdInvalid(id) => {
-            Text::translate("argument.block.id.invalid", vec![identifier(input, id)])
-        }
-        E::BlockTagUnknown(id) => {
-            Text::translate("arguments.block.tag.unknown", vec![identifier(input, id)])
-        }
-        E::PropertyUnknown { block, name } => Text::translate(
-            "argument.block.property.unknown",
-            vec![identifier(input, block), string(input, name)],
-        ),
-        E::PropertyDuplicate { name, subject } => Text::translate(
-            "argument.block.property.duplicate",
-            vec![string(input, name), subject_text(input, subject)],
-        ),
-        E::PropertyNoValue { name, subject } => Text::translate(
-            "argument.block.property.novalue",
-            vec![string(input, name), subject_text(input, subject)],
-        ),
-        E::PropertyInvalid { block, value, name } => Text::translate(
-            "argument.block.property.invalid",
-            vec![
-                identifier(input, block),
-                string(input, value),
-                string(input, name),
-            ],
-        ),
-        E::PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
-        E::Nbt(error) => snbt_text(input, error),
     }
 }
 
-fn snbt_text(input: &str, error: SnbtError) -> Text {
+impl ErrorText for KeywordError {
+    fn text(&self, input: &str) -> Text {
+        match *self {
+            KeywordError::GameModeInvalid(word) => {
+                Text::translate("argument.gamemode.invalid", vec![span_text(input, word)])
+            }
+            KeywordError::AnchorInvalid(word) => {
+                Text::translate("argument.anchor.invalid", vec![span_text(input, word)])
+            }
+            KeywordError::EnumInvalid(word) => {
+                Text::translate("argument.enum.invalid", vec![span_text(input, word)])
+            }
+        }
+    }
+}
+
+pub fn snbt_text(input: &str, error: SnbtError) -> Text {
     let mut with = Vec::new();
     let mut argument = String::new();
     if error.kind.write_argument(input, &mut argument).is_ok() && !argument.is_empty() {
@@ -307,10 +172,10 @@ fn snbt_text(input: &str, error: SnbtError) -> Text {
 }
 
 /// The message of a syntax error, without its context text.
-pub fn error_message(input: &str, error: &CommandSyntaxError) -> Text {
-    match error.kind {
-        ErrorKind::Library(kind) => library_text(input, kind),
-        ErrorKind::Argument(kind) => argument_text(input, kind),
+pub fn error_message<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
+    match &error.kind {
+        ErrorKind::Library(kind) => library_text(input, *kind),
+        ErrorKind::Argument(kind) => kind.text(input),
     }
 }
 
@@ -342,7 +207,7 @@ fn context_text(input: &str, position: usize) -> String {
 
 /// The error line the chat screen shows over a command input (CCMD-HINT-002). `input` holds the
 /// `/`, and so does the position.
-pub fn parse_error_line(input: &str, error: &CommandSyntaxError) -> Text {
+pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
     let message = error_message(input, error);
     let position = mcrs_text_span::utf16_position(input, error.position);
     let mut context = context_text(input, error.position);
@@ -359,7 +224,7 @@ pub fn parse_error_line(input: &str, error: &CommandSyntaxError) -> Text {
 
 /// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten code units before the
 /// position, then the rest of the line in red and underlined, then `command.context.here`.
-pub(crate) fn error_context(input: &str, position: usize) -> Text {
+fn error_context(input: &str, position: usize) -> Text {
     let position = position.min(input.len());
     let mut context = context_text(input, position).into_text();
     if let Some(rest) = input.get(position..).filter(|rest| !rest.is_empty()) {
@@ -376,7 +241,7 @@ pub(crate) fn error_context(input: &str, position: usize) -> Text {
 }
 
 /// The two system messages a player receives for a command line that does not parse.
-pub fn error_feedback(input: &str, error: &CommandSyntaxError) -> [Text; 2] {
+pub fn error_feedback<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> [Text; 2] {
     [
         error_message(input, error).color(Color::RED),
         error_context(input, error.position),

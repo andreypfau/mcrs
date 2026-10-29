@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_command_coordinates"
+description = "The coordinate, rotation and swizzle arguments and the relative move of a teleport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_protocol.workspace = true
+glam.workspace = true
+
+[dev-dependencies]
+mcrs_text_span.workspace = true

@@ -3579,7 +3579,11 @@ name = "mcrs_minecraft_chat"
 version = "0.5.8"
 dependencies = [
  "mcrs_command",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
@@ -3616,6 +3620,10 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_registry",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
@@ -3678,21 +3686,94 @@ version = "0.5.8"
 dependencies = [
  "glam",
  "mcrs_command",
- "mcrs_minecraft_block",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
- "mcrs_minecraft_dimension_environment",
- "mcrs_minecraft_entity",
- "mcrs_minecraft_environment",
- "mcrs_minecraft_keys",
- "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
- "mcrs_minecraft_registries",
+ "mcrs_minecraft_snbt",
+ "mcrs_text_span",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_block"
+version = "0.5.8"
+dependencies = [
+ "mcrs_command",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_snbt",
+ "mcrs_text_span",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_coordinates"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_command",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_protocol",
+ "mcrs_text_span",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_entity"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_command",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_loot",
+ "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_value_provider",
  "mcrs_text_span",
  "uuid",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_registry"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_registries",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_time"
+version = "0.5.8"
+dependencies = [
+ "mcrs_command",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_protocol",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_vanilla"
+version = "0.5.8"
+dependencies = [
+ "mcrs_command",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_coordinates",
+ "mcrs_minecraft_command_entity",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_protocol",
+ "mcrs_text_span",
 ]
 
 [[package]]
@@ -4219,6 +4300,12 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_coordinates",
+ "mcrs_minecraft_command_entity",
+ "mcrs_minecraft_command_registry",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",

@@ -26,7 +26,7 @@ impl CommandLevel {
 
     /// The source holds `minecraft:commands/entity_selectors`, so it may use selectors that
     /// start with `@` (PERM-SET-001).
-    pub(crate) fn can_use_selectors(self) -> bool {
+    pub fn can_use_selectors(self) -> bool {
         self >= CommandLevel::Gamemasters
     }
 }
@@ -40,11 +40,11 @@ pub enum PermissionCheck {
 
 impl PermissionCheck {
     /// The node carries the restricted flag of the `commands` packet (PERM-SET-002).
-    pub(crate) const fn is_restricted(&self) -> bool {
+    pub const fn is_restricted(&self) -> bool {
         matches!(self, PermissionCheck::Require(_))
     }
 
-    pub(crate) fn passes(&self, level: CommandLevel) -> bool {
+    pub fn passes(&self, level: CommandLevel) -> bool {
         match *self {
             PermissionCheck::AlwaysPass => true,
             PermissionCheck::Require(required) => level >= required,

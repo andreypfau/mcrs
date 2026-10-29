@@ -1,21 +1,19 @@
 use crate::{GUEST, OP, read};
 use glam::DVec3;
 use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SuggestionList, SyntaxError};
-use mcrs_minecraft_command::argument::entity::Target;
-use mcrs_minecraft_command::{
-    ArgumentError, Candidate, CommandSyntaxError, EntityArgument, Source, argument_text,
-};
+use mcrs_minecraft_command::{ErrorText, Source};
+use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityError, Target};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_text_span::Span;
 use uuid::Uuid;
 
-fn parsed(argument: &EntityArgument, input: &str) -> Result<(), CommandSyntaxError> {
+fn parsed(argument: &EntityArgument, input: &str) -> Result<(), SyntaxError<EntityError>> {
     read(argument, input, &OP).0.map(drop)
 }
 
-fn invalid(error: ArgumentError, position: usize) -> Result<(), CommandSyntaxError> {
+fn invalid(error: EntityError, position: usize) -> Result<(), SyntaxError<EntityError>> {
     Err(SyntaxError::argument(error, position))
 }
 
@@ -56,7 +54,7 @@ fn uuid_text_has_five_hexadecimal_groups() {
         let (value, cursor) = read(&EntityArgument::ENTITIES, input, &OP);
         assert_eq!(
             (value.map(drop), cursor),
-            (invalid(ArgumentError::EntityInvalid, 0), 0),
+            (invalid(EntityError::EntityInvalid, 0), 0),
             "{input}"
         );
     }
@@ -66,7 +64,7 @@ fn uuid_text_has_five_hexadecimal_groups() {
 
 #[test]
 fn options_follow_the_grammar_of_the_brackets() {
-    use ArgumentError as E;
+    use EntityError as E;
     let nbt = |kind, position| {
         invalid(
             E::Nbt(mcrs_minecraft_snbt::SnbtError { kind, position }),
@@ -134,22 +132,22 @@ fn the_argument_form_limits_the_selector() {
         (
             EntityArgument::ONE_ENTITY,
             "@e",
-            invalid(ArgumentError::EntityTooMany, 0),
+            invalid(EntityError::EntityTooMany, 0),
         ),
         (
             EntityArgument::ONE_PLAYER,
             "@a",
-            invalid(ArgumentError::PlayerTooMany, 0),
+            invalid(EntityError::PlayerTooMany, 0),
         ),
         (
             EntityArgument::PLAYERS,
             "@e",
-            invalid(ArgumentError::PlayerEntities, 0),
+            invalid(EntityError::PlayerEntities, 0),
         ),
         (
             EntityArgument::PLAYERS,
             "0-0-0-0-1",
-            invalid(ArgumentError::PlayerEntities, 0),
+            invalid(EntityError::PlayerEntities, 0),
         ),
         (EntityArgument::PLAYERS, "@e[type=player]", Ok(())),
         (EntityArgument::PLAYERS, "@s", Ok(())),
@@ -161,7 +159,7 @@ fn the_argument_form_limits_the_selector() {
     let (value, _) = read(&EntityArgument::ENTITIES, "@a", &GUEST);
     assert_eq!(
         value.unwrap_err(),
-        SyntaxError::argument(ArgumentError::SelectorNotAllowed, 0)
+        SyntaxError::argument(EntityError::SelectorNotAllowed, 0)
     );
     assert!(read(&EntityArgument::ENTITIES, "Steve", &GUEST).0.is_ok());
 }
@@ -315,7 +313,7 @@ fn a_search_fails_for_a_missing_predicate_or_a_source_without_selectors() {
         .select(&OP, None, world.iter(), &mut |_| 0, &mut out)
         .unwrap_err();
     assert_eq!(
-        argument_text("@e[predicate=x]", error),
+        error.text("@e[predicate=x]"),
         Text::translate(
             "argument.resource.not_found",
             vec!["minecraft:x".into_text(), "minecraft:predicate".into_text()],
@@ -327,7 +325,7 @@ fn a_search_fails_for_a_missing_predicate_or_a_source_without_selectors() {
     let found = selector
         .unwrap()
         .select(&GUEST, None, world.iter(), &mut |_| 0, &mut out);
-    assert_eq!(found, Err(ArgumentError::SelectorNotAllowed));
+    assert_eq!(found, Err(EntityError::SelectorNotAllowed));
     let (selector, _) = read(&EntityArgument::ENTITIES, "steve", &OP);
     let found = selector
         .unwrap()

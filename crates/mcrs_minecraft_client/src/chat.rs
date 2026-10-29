@@ -5,12 +5,15 @@ use std::path::PathBuf;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat::{
     ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Tag,
 };
-use mcrs_minecraft_command::{
-    ClientGraph, CommandLevel, Lookup, RegistryLookup, Source, client_tree,
-};
+use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
+use mcrs_minecraft_command_block::BlockLookup;
+use mcrs_minecraft_command_registry::RegistryLookup;
+use mcrs_minecraft_command_time::TimeLookup;
+use mcrs_minecraft_command_vanilla::{ClientGraph, client_tree};
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_network::client::{
     ClientConnection, ClientNetworkSystems, CurrentDimension, JoinedGame, close_connection_later,
@@ -120,12 +123,25 @@ pub struct ClientLookup<'a> {
 }
 
 impl Lookup for ClientLookup<'_> {
-    fn registry_lookup(&self) -> RegistryLookup<'_> {
-        self.registries
+    fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+        self.registries.entries(registry)
+    }
+
+    fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+        self.registries.tags(registry)
     }
 
     fn has_registry(&self, registry: StaticResourceLocation) -> bool {
         self.registries.has_registry(registry)
+    }
+
+    fn tag_contains(
+        &self,
+        registry: StaticResourceLocation,
+        tag: Identifier<'_>,
+        entry: StaticResourceLocation,
+    ) -> bool {
+        self.registries.tag_contains(registry, tag, entry)
     }
 
     fn player_names(&self) -> impl Iterator<Item = &str> {
@@ -134,6 +150,34 @@ impl Lookup for ClientLookup<'_> {
 
     fn dimensions(&self) -> impl Iterator<Item = &str> {
         self.dimensions.iter().map(|key| key.as_str())
+    }
+
+    fn tag_entries(
+        &self,
+        registry: StaticResourceLocation,
+        tag: Identifier<'_>,
+    ) -> impl Iterator<Item = &str> {
+        self.registries.tag_entries(registry, tag)
+    }
+}
+
+impl BlockLookup for ClientLookup<'_> {
+    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
+        self.registries.block_properties(block)
+    }
+
+    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+        self.registries.has_block_entity(block)
+    }
+}
+
+impl TimeLookup for ClientLookup<'_> {
+    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.registries.suggested_time_markers(clock)
+    }
+
+    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+        self.registries.timelines_of_clock(clock)
     }
 }
 

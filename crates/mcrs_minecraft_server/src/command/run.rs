@@ -7,7 +7,8 @@ use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{InRef, SystemParam};
 use mcrs_command::{Chain, ParseScratch, Suggestion, SuggestionList};
-use mcrs_minecraft_command::{ArgumentError, CommandLevel, error_feedback, suggestion_reply};
+use mcrs_minecraft_command::{CommandLevel, error_feedback};
+use mcrs_minecraft_command_vanilla::{ArgumentError, suggestion_reply};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
 };
