@@ -3,6 +3,7 @@ name = "mcrs_minecraft_block_entity"
 description = "Block entities in the typed shape the save, the chunk packet and the anvil reader share"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [lib]
 doctest = false

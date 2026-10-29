@@ -716,6 +716,13 @@ mod exhaustive {
                 "{id}: RandomizableContainer membership"
             );
         }
+        assert_eq!(
+            seeded,
+            GeneratedBlockEntity::LOOT_SEEDED_IDS
+                .into_iter()
+                .collect::<BTreeSet<_>>(),
+            "every RandomizableContainer kind is listed, described or not"
+        );
 
         let frozen = frozen_shared();
         let mut checked = 0;
