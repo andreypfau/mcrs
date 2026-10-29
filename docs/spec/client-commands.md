@@ -23,8 +23,8 @@ that send the input. The document does not prescribe an architecture.
 - **Suggestion type**, **restricted**: as `commands-packet.md`, section 0.1, defines them.
 - **Chat screen**, **input box**, **input**, **caret**, **GUI unit**, **W**, **H**: as
   `client-chat.md`, section 0.1, defines them.
-- **Command input**: an input whose first code unit is `/`.
-- **Position**: an offset into the input, counted in code units from the start of the input.
+- **Command input**: an input whose first character is `/`.
+- **Position**: an offset into the input, counted in characters from the start of the input.
   The `/` is at position 0. Every position in this document includes the `/`.
 - **Client tree**: the command tree of the last `commands` packet that the client received.
 - **Client source**: the source of the client parse (CCMD-TREE-001).
@@ -291,7 +291,8 @@ server that replies, the ids are 0, 0 and 0.
 - **Behavior:**
   1. If its id is not the id of the open request, ignore the packet.
   2. Otherwise the suggestions of the packet are the suggestions of the child that needs the
-     server. The range of each suggestion is the range of the packet. The tooltip of each
+     server. The range of each suggestion is the range of the packet, converted from code
+     units to characters (`commands-packet.md`, CMDP-SUG-002). The tooltip of each
      suggestion is the tooltip of the packet.
   3. The request is no longer open.
 - **Postconditions:**
@@ -365,7 +366,7 @@ ends 15 GUI units above the bottom of the screen.
   4. If the result starts with the current input, the ghost text is the rest of the result.
      Otherwise there is no ghost text.
   5. The ghost text shows only when the caret is at the end of the input, and the input is
-     shorter than 256 code units. It starts 1 GUI unit left of the caret, in `FF808080`.
+     shorter than 256 characters. It starts 1 GUI unit left of the caret, in `FF808080`.
 - **Postconditions:** the ghost text never changes the input.
 
 Provenance: `source_suggested`. Kind: semantic for steps 1 to 4, layout for step 5. Confidence:

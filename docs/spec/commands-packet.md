@@ -333,9 +333,9 @@ nothing.
   `/`. The client keeps one request open. A new request replaces it. The client takes only a
   reply whose id equals the id of the open request.
 
-The limits agree with the client. The chat screen holds at most 256 code units, and the editor
-of a command block holds at most 32500. The client sends a request when its parse reaches one
-of these arguments:
+The limits agree with the vanilla client. Its chat screen holds at most 256 code units, and
+the editor of a command block holds at most 32500. The client sends a request when its parse
+reaches one of these arguments:
 
 - an argument with the suggestion type `minecraft:ask_server`, or an unknown one;
 - an argument of a registry that the client does not have;
@@ -357,6 +357,8 @@ and capture the request. Its text is `/x a`.
   4. Send `command_suggestions`.
 - **Postconditions:**
   - All positions count from the start of the text, the `/` included.
+  - The start and the length count code units (`command-parser.md`, section 0.1). The server
+    converts the range of its parse from characters to code units (CMD-TEXT-001).
   - Let `n` be the number of suggestions of step 3. The reply holds at least the first
     `min(n, 1000)` suggestions, in the order of `command-parser.md`, section 6.
   - The server must limit the number of suggestions in one reply. The limit is 1000 or more.
@@ -425,7 +427,7 @@ the key `chat.disabled.invalid_command_signature`, and nothing is broadcast.
 
 ### CMDP-EXEC-002: Checks before the parse
 
-1. If a code unit of the command line is U+00A7, U+007F or less than U+0020, the server
+1. If a character of the command line is U+00A7, U+007F or less than U+0020, the server
    disconnects the player with `multiplayer.disconnect.illegal_characters`.
 2. Otherwise the server runs the command line. The command counts against the command spam
    limit of the player. The spam limit is part of the chat specification, which does not exist

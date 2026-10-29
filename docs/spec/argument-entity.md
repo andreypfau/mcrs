@@ -85,7 +85,7 @@ succeed: the first reads a name, the second a target selector.
      `argument.entity.selector.not_allowed` at the `@`.
   2. Skip the `@`. At the end of the command line, fail with `argument.entity.selector.missing`
      at the end.
-  3. Read one code unit, the selector kind:
+  3. Read one character, the selector kind:
 
 | Kind | Maximum results | Includes entities | Order | Type limit | Must be alive |
 |------|-----------------|-------------------|-------|------------|---------------|
@@ -96,8 +96,8 @@ succeed: the first reads a name, the second a target selector.
 | `e` | unlimited | true | arbitrary | none | yes |
 | `n` | 1 | true | nearest | none | yes |
 
-     Any other code unit: set the cursor back to it. Fail with
-     `argument.entity.selector.unknown`, with `@` and the code unit as its argument.
+     Any other character: set the cursor back to it. Fail with
+     `argument.entity.selector.unknown`, with `@` and the character as its argument.
   4. `s` marks the selector as the current entity.
   5. If next is `[`, skip it and read the options (ARG-ENT-004).
 - **Edge cases:** `@P` is an unknown kind: the kinds are lower case only. `@ea` fails at the
@@ -115,16 +115,16 @@ stays, because `@a` finds only players.
   2. If the string is a UUID (ARG-ENT-005), the selector is a UUID selector. It includes
      entities. If the string has exactly four `-` and is not a UUID, fail as ARG-ENT-005
      states.
-  3. Otherwise, if the string is empty, or longer than 16 code units, set the cursor back to
-     the start. Fail with `argument.entity.invalid`.
+  3. Otherwise, if the string is empty, or longer than 16 bytes in UTF-8, set the cursor back
+     to the start. Fail with `argument.entity.invalid` (ARG-ENT-DEV-008).
   4. Otherwise the selector is a name selector. It does not include entities.
   5. The maximum results is 1.
-- **Edge cases:** an unquoted name stops at the first code unit that is not unquoted
+- **Edge cases:** an unquoted name stops at the first character that is not unquoted
   (`command-parser.md`, CMD-RD-006). `Steve!` reads `Steve` and fails at the next step of the
   parser.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: as an
-operator, send `kill abcdefghijklmnopq`, a name of 17 code units. The reply has
+operator, send `kill abcdefghijklmnopq`, a name of 17 bytes. The reply has
 `argument.entity.invalid`. With a player `Steve` online, send `kill "Steve"`: the player dies.
 
 ### ARG-ENT-004: Options
@@ -163,28 +163,28 @@ reply has `argument.entity.options.unterminated`, and its context ends at the en
 ### ARG-ENT-005: UUID text
 
 - **Behavior:** a string is a UUID when it has exactly four `-`, and these split it into five
-  groups of hexadecimal digits. The groups have 1 to 8, 1 to 4, 1 to 4, 1 to 4 and 1 to 12
-  digits. A hexadecimal digit is `0` to `9`, `a` to `f` or `A` to `F`. A short group has
-  zeros at the start.
+  groups of 8, 4, 4, 4 and 12 hexadecimal digits. The string then has 36 characters. A
+  hexadecimal digit is `0` to `9`, `a` to `f` or `A` to `F`.
   - The first three groups make the high 64 bits of the UUID, in the order of the text. The
     last two groups make the low 64 bits.
   - A string with exactly four `-` that is not a UUID must not become a name selector. Set the
-    cursor back to the start, and fail with `argument.entity.invalid`.
+    cursor back to the start, and fail with `argument.entity.invalid` (ARG-ENT-DEV-001).
 - **Edge cases:**
 
 | Text | Result |
 |------|--------|
 | `dd12be42-52a9-4a91-a8a1-11c01849e498` | a UUID |
 | `DD12BE42-52A9-4A91-A8A1-11C01849E498` | the same UUID |
-| `0-0-0-0-0` | the UUID with all bits zero |
-| `0-0-0-0-1` | the UUID with only the lowest bit set |
+| `00000000-0000-0000-0000-000000000000` | the UUID with all bits zero |
+| `0-0-0-0-1` | `argument.entity.invalid`: the groups are short (ARG-ENT-DEV-001) |
 | `+1-+2-3-4-5` | `argument.entity.invalid` (ARG-ENT-DEV-001) |
-| `fffffffff-0-0-0-0` | `argument.entity.invalid`: the first group has nine digits (ARG-ENT-DEV-001) |
+| `fffffffff-0-0-0-0` | `argument.entity.invalid` (ARG-ENT-DEV-001) |
 | `0-0-0-0` | not a UUID: three `-`; a name selector |
 | `00000000-0000-0000-0000-0000000000000` | `argument.entity.invalid`: the last group has 13 digits |
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: as an
-operator on a vanilla server, run `gamemode creative 0-0-0-0-1` and `gamemode creative 0-0-0-0`.
+operator on a vanilla server, run `gamemode creative 00000000-0000-0000-0000-000000000001` and
+`gamemode creative 0-0-0-0`.
 The first reply has `argument.player.entities`, because a UUID selector includes entities. The
 second reply has `argument.entity.notfound.player`, because `0-0-0-0` is a player name.
 
@@ -283,7 +283,7 @@ vanilla server, run `kill @e[limit=0]`, `kill @e[sort=up]` and
   1. At the end of the command line, fail with `argument.range.empty` at the end.
   2. Read a number: the longest run of `0` to `9`, `-`, and `.` that is not followed by
      another `.`.
-  3. If the next two code units are `..`, skip them and read a second number. Otherwise the
+  3. If the next two characters are `..`, skip them and read a second number. Otherwise the
      second number equals the first.
   4. If both numbers are empty, fail with `argument.range.empty`.
   5. A number that does not parse fails with the `reader_invalid_*` error of its type
@@ -630,11 +630,13 @@ type.
 
 - **Rule:** ARG-ENT-005.
 - **Reference:** the game reads the UUID with the UUID parser of the Java library. That parser
-  accepts a `+` before a group, a group longer than its width, and digits outside ASCII. It
-  keeps only the low bits of a long group. A string with four `-` that it rejects becomes a
-  name selector when it has at most 16 code units.
-- **Visible to the client:** yes. The client accepts such text, and the server replies with
-  `argument.entity.invalid`.
+  accepts groups of 1 to 8, 1 to 4, 1 to 4, 1 to 4 and 1 to 12 digits, and fills a short group
+  with zeros at the start. It also accepts a `+` before a group, a group longer than its width,
+  and digits outside ASCII. It keeps only the low bits of a long group. A string with four `-`
+  that it rejects becomes a name selector when it has at most 16 code units.
+- **Visible to the client:** yes, but only for unusual input. The client accepts such text, for
+  example `0-0-0-0-1`, and the server replies with `argument.entity.invalid`. The server is
+  stricter than the client, as `command-parser.md`, section 0.2.1, allows.
 - **Test:** a differential test skips UUID text that is not in the grammar of ARG-ENT-005.
 
 ### ARG-ENT-DEV-002: Position of the checks of the argument
@@ -697,3 +699,13 @@ type.
 - **Test:** a differential test compares the set of selected entities, and ignores their order.
   The maximum results can remove entities. Then the test compares the result only when no tie
   and no `arbitrary` or `random` order decides which entities stay.
+
+### ARG-ENT-DEV-008: The length of a name counts bytes
+
+- **Rule:** ARG-ENT-003, step 3.
+- **Reference:** the game counts the length of a name in code units.
+- **Visible to the client:** yes, but only for a name with a character outside ASCII. A UTF-8
+  form never has fewer bytes than code units, so the server is stricter than the client. A
+  player name has only ASCII characters (`login.md`, LOGIN-SEQ-001), so no player has such a
+  name.
+- **Test:** a differential test skips a name with a character outside ASCII.

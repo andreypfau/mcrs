@@ -19,10 +19,10 @@ accepted language and the order of the errors. It is not a design for a parser.
 
 ### 0.1 Terms
 
-- **Code unit**, **position**, **cursor**, **whitespace**, **context text**: as
+- **Character**, **code unit**, **position**, **cursor**, **whitespace**, **context text**: as
   `command-parser.md`, section 0.1, CMD-TEXT-002 and CMD-ERR-003, defines them.
 - **Command line**: the text that holds the SNBT text. Every position in this document is a
-  position in the command line. The examples give positions as offsets from the first code unit
+  position in the command line. The examples give positions as offsets from the first character
   of the SNBT text.
 - **SNBT text**: the part of the command line that the read starts at.
 - **Read**: the operation that converts SNBT text to one tag (SNBT-GR-001).
@@ -35,7 +35,7 @@ accepted language and the order of the errors. It is not a design for a parser.
 - **Array**: a byte array, an int array or a long array.
 - **Token**: the unit of the grammar that the read takes from the text. SNBT-TOK-002 to
   SNBT-TOK-006 state the kinds of token.
-- **Character token**: a token of one code unit from a fixed set (SNBT-TOK-003).
+- **Character token**: a token of one character from a fixed set (SNBT-TOK-003).
 - **Digit run**: a token of digits and `_` (SNBT-TOK-004).
 - **Word**: a token of unquoted characters (SNBT-TOK-005).
 - **Production**: one named rule of the grammar of section 2, for example `float`.
@@ -94,7 +94,7 @@ errors are out of scope.
 
 | Notation | Meaning |
 |----------|---------|
-| `'c'` | a character token that accepts the code unit `c` |
+| `'c'` | a character token that accepts the character `c` |
 | `'a\|A'` | a character token that accepts `a` or `A`. It is one token with one error |
 | `DEC`, `HEX`, `BIN` | a digit run (SNBT-TOK-004) |
 | `WORD` | a word (SNBT-TOK-005) |
@@ -155,11 +155,11 @@ other cases. Experiment: run `data modify storage t:s v set value "a\ nb"`. Run
 
 ### SNBT-TOK-003: Character tokens
 
-- **Behavior:** a character token accepts one code unit from its set. When the next code unit
+- **Behavior:** a character token accepts one character from its set. When the next character
   is not in the set, or the read is at the end, the token fails. It records
   `argument.literal.incorrect` at the cursor after the whitespace. The key argument is the set,
-  each code unit as text, joined with `|`, for example `f|F`.
-- **Postconditions:** the order of the code units in the key argument is the order of section
+  each character as text, joined with `|`, for example `f|F`.
+- **Postconditions:** the order of the characters in the key argument is the order of section
   2: the lower case letter comes first.
 
 Provenance: `source_suggested`. Kind: wire for the key and its argument, client agreement for
@@ -168,9 +168,9 @@ the position. Confidence: medium. Experiment: run `data merge storage t:s {a b:1
 
 ### SNBT-TOK-004: Digit runs
 
-- **Behavior:** a digit run reads the longest sequence of its code units at the cursor:
+- **Behavior:** a digit run reads the longest sequence of its characters at the cursor:
 
-| Run | Code units |
+| Run | Characters |
 |-----|-----------|
 | `DEC` | `0` to `9`, `_` |
 | `HEX` | `0` to `9`, `a` to `f`, `A` to `F`, `_` |
@@ -204,13 +204,13 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Expe
 
 These tokens do not skip whitespace.
 
-| Token | Code units | Error on failure | Position |
+| Token | Characters | Error on failure | Position |
 |-------|-----------|------------------|----------|
-| `TEXT` | one or more code units that are not `"`, `'` or `\` | `snbt.parser.invalid_string_contents` | its start |
-| `HEX2`, `HEX4`, `HEX8` | exactly 2, 4 or 8 code units `0`–`9`, `a`–`f`, `A`–`F` | `snbt.parser.expected_hex_escape`, with the text `2`, `4` or `8` | its start |
+| `TEXT` | one or more characters that are not `"`, `'` or `\` | `snbt.parser.invalid_string_contents` | its start |
+| `HEX2`, `HEX4`, `HEX8` | exactly 2, 4 or 8 characters `0`–`9`, `a`–`f`, `A`–`F` | `snbt.parser.expected_hex_escape`, with the text `2`, `4` or `8` | its start |
 | `NAME` | one or more of `-`, `A`–`Z`, `a`–`z`, `0`–`9` and space | `snbt.parser.invalid_character_name` | its start |
 
-`HEXn` reads at most `n` code units. When fewer than `n` hex digits are next, it fails. `TEXT`
+`HEXn` reads at most `n` characters. When fewer than `n` hex digits are next, it fails. `TEXT`
 includes whitespace and line feeds.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: run
@@ -269,14 +269,14 @@ word-value   = WORD [ '(' [ value { ',' value } [ ',' ] ] ')' ]  check: start, o
 
 ### SNBT-GR-001: Value
 
-- **Behavior:** the read reads one `value`. The first code unit after whitespace selects the
+- **Behavior:** the read reads one `value`. The first character after whitespace selects the
   form:
   - `+`, `-`, `.` or a digit: the read tries `float`, then `integer`. If both fail, the read
     tries `word-value`, which then fails (SNBT-GR-008).
   - `"` or `'`: a quoted string. No other form is tried.
   - `{`: a compound. No other form is tried.
   - `[`: a list or an array. No other form is tried.
-  - another code unit or the end: `word-value`.
+  - another character or the end: `word-value`.
 - **Postconditions:** the float form comes before the integer form. A text that both can read
   is a float only when it has `.`, an exponent or a float suffix.
 - **Edge cases:** an empty text, or a text of whitespace only, fails with
@@ -338,9 +338,9 @@ medium for `[B]`. Experiment: run `data modify storage t:s v set value [B]`.
 
 ### SNBT-GR-004: Quoted string
 
-- **Behavior:** a quoted string starts with `"` or `'` and ends with the same code unit. Between
-  them, the read reads `TEXT`, escapes, and the other quote code unit, in any order.
-- **Postconditions:** in a string in `"`, the code unit `'` needs no escape, and the reverse.
+- **Behavior:** a quoted string starts with `"` or `'` and ends with the same character. Between
+  them, the read reads `TEXT`, escapes, and the other quote character, in any order.
+- **Postconditions:** in a string in `"`, the character `'` needs no escape, and the reverse.
   The escapes `\"` and `\'` are valid in both kinds of string.
 - **Edge cases:** `""` and `''` are the empty string. A string that does not end before the
   end of the command line fails (SNBT-ERR-004).
@@ -351,7 +351,7 @@ Provenance: `source_suggested_black_box_confirmed` (the fixture cases `{a:""}`, 
 
 ### SNBT-GR-005: Escapes
 
-- **Behavior:** after `\`, the read reads one escape letter and gives these code units:
+- **Behavior:** after `\`, the read reads one escape letter and gives these characters:
 
 | Escape | Result |
 |--------|--------|
@@ -361,7 +361,7 @@ Provenance: `source_suggested_black_box_confirmed` (the fixture cases `{a:""}`, 
 | `\n` | U+000A |
 | `\f` | U+000C |
 | `\r` | U+000D |
-| `\\`, `\'`, `\"` | the code unit after `\` |
+| `\\`, `\'`, `\"` | the character after `\` |
 | `\xHH` | the code point with the hex value `HH` |
 | `\uHHHH` | the code point with the hex value `HHHH` |
 | `\UHHHHHHHH` | the code point with the hex value `HHHHHHHH` |
@@ -369,7 +369,7 @@ Provenance: `source_suggested_black_box_confirmed` (the fixture cases `{a:""}`, 
 
 - **Postconditions:** each escape letter is a character token. Whitespace before it is
   skipped (SNBT-TOK-002). The hex digits and the name are not character tokens.
-- **Edge cases:** any other code unit after `\` fails. The escape letters are case-sensitive:
+- **Edge cases:** any other character after `\` fails. The escape letters are case-sensitive:
   `\X` and `\S` fail. `\U` is the only escape with upper case.
 
 Provenance: `source_suggested_black_box_confirmed` (the fixture cases with `\x41`, `é`,
@@ -639,12 +639,12 @@ agreement for the errors. Confidence: high. Experiment: run
 
 ### SNBT-VAL-006: String value
 
-- **Behavior:** a string is a sequence of UTF-16 code units. `TEXT` gives its code units. An
-  escape gives the code units of its code point: one code unit below U+10000, two code units
-  above.
-- **Postconditions:** `😀` gives the two code units of U+1F600, one character.
+- **Behavior:** a string is a sequence of characters. `TEXT` gives its characters. An escape
+  gives the character of its code point. A high surrogate escape and a low surrogate escape
+  directly after it give one character.
+- **Postconditions:** `😀` gives one character, U+1F600.
   SNBT-DEV-003 states the case of a surrogate without its pair.
-- **Edge cases:** `\u0000` gives the code unit U+0000. `\U00110000` fails with
+- **Edge cases:** `\u0000` gives the character U+0000. `\U00110000` fails with
   `snbt.parser.invalid_codepoint`, with the text `U+00110000`. `\UFFFFFFFF` fails with the text
   `U+FFFFFFFF`.
 
@@ -748,7 +748,7 @@ The key arguments come in the order of the column. Each key argument is a plain 
 
 | Translation key | Key arguments | Position | Rule |
 |-----------------|---------------|----------|------|
-| `argument.literal.incorrect` | the code units of the token, joined with `\|` | the token, after whitespace | SNBT-TOK-003 |
+| `argument.literal.incorrect` | the characters of the token, joined with `\|` | the token, after whitespace | SNBT-TOK-003 |
 | `snbt.parser.expected_unquoted_string` | none | the word, after whitespace | SNBT-TOK-005 |
 | `snbt.parser.expected_decimal_numeral` | none | the run, after whitespace | SNBT-TOK-004 |
 | `snbt.parser.expected_hex_numeral` | none | the run, after whitespace | SNBT-TOK-004 |
@@ -769,7 +769,7 @@ The key arguments come in the order of the column. Each key argument is a plain 
 | `snbt.parser.expected_number_or_boolean` | none | after `)` | SNBT-VAL-009 |
 | `snbt.parser.expected_string_uuid` | none | after `)` | SNBT-VAL-009 |
 | `argument.nbt.expected.compound` | none | after the value | SNBT-ARG-002 |
-| `argument.nbt.trailing` | none | the first code unit after the value that is not whitespace | SNBT-ARG-004 |
+| `argument.nbt.trailing` | none | the first character after the value that is not whitespace | SNBT-ARG-004 |
 | `arguments.nbtpath.too_deep` | none | the `{` or `[` that opens the level 513 | SNBT-LIM-001 |
 
 - **The message of `snbt.parser.number_parse_failure`:** the text is unspecified. An
@@ -874,7 +874,7 @@ number of elements of a list or an array. The limits of the command line apply
 That limit applies when the game saves the tag, not in the read.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: run
-`data merge storage t:s {a:"<x>"}`, where `<x>` is 1000 code units `a`. Run
+`data merge storage t:s {a:"<x>"}`, where `<x>` is 1000 characters `a`. Run
 `data get storage t:s a`. The reply shows the string.
 
 ---
@@ -890,7 +890,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   2. If the read keeps no record, there are no suggestions.
   3. Otherwise make a builder at the largest position of the records (CMD-SUG-005).
   4. For each record at that position, take its candidates:
-     - a record of a character token: each code unit of its set, as one text. `f|F` gives `f`
+     - a record of a character token: each character of its set, as one text. `f|F` gives `f`
        and `F`;
      - a record of `snbt.parser.invalid_unquoted_start`: `false`, `true`, `bool` and `uuid`;
      - any other record: no candidate.
@@ -953,13 +953,13 @@ reply shows `1.23456789E7d`.
 - **Behavior:** to quote a string `s`:
   1. Select the quote. If `s` has no `"` and no `'`, the quote is `"`. Otherwise find the first
      `"` or `'` in `s`. If it is `"`, the quote is `'`. If it is `'`, the quote is `"`.
-  2. Write the quote. Then write each code unit of `s`:
+  2. Write the quote. Then write each character of `s`:
      - `\` as `\\`;
-     - the quote code unit as `\` and the quote;
-     - the other quote code unit as it is;
+     - the quote character as `\` and the quote;
+     - the other quote character as it is;
      - U+0008, U+0009, U+000A, U+000C and U+000D as `\b`, `\t`, `\n`, `\f` and `\r`;
-     - any other code unit below U+0020 as `\x` and two upper case hex digits;
-     - any other code unit as it is.
+     - any other character below U+0020 as `\x` and two upper case hex digits;
+     - any other character as it is.
   3. Write the quote.
 - **Edge cases:** `it's "q"` prints as `"it's \"q\""`. `both "\'` prints as `'both "\''`.
   U+0001 prints as `\x01`. U+007F and U+00A0 print as they are.
@@ -1120,8 +1120,8 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Expe
 ### SNBT-ARG-004: Full-text read
 
 - **Behavior:** a full-text read reads one tag from a text that holds only SNBT. After the tag,
-  it skips whitespace. If a code unit is left, the read fails with `argument.nbt.trailing` at
-  that code unit.
+  it skips whitespace. If a character is left, the read fails with `argument.nbt.trailing` at
+  that character.
 - **Postconditions:** a data pack field that holds SNBT as a string uses the full-text read, for
   example the text form of `minecraft:custom_data`. A field that needs a compound also rejects
   a tag of another type.
@@ -1172,7 +1172,7 @@ trailing data".
   group can have any number of hex digits, a sign at its start, and digits of other scripts.
   The value of each group is cut to the bits of its field.
 - **The canonical form:** 8, 4, 4, 4 and 12 hex digits `0`–`9`, `a`–`f`, `A`–`F`, separated by
-  `-`. 36 code units in total.
+  `-`. 36 characters in total.
 - **Visible to the client:** yes, but only for unusual input. The client accepts
   `uuid("0-0-0-0-0")`. The server rejects it with `snbt.parser.expected_string_uuid`.
 - **Test:** use only the canonical form in a differential test of `uuid`.
@@ -1184,8 +1184,8 @@ trailing data".
   holds an unpaired surrogate. A high surrogate escape and a low surrogate escape directly
   after it give one character.
 - **The rule of the server:** a high surrogate from an escape must be followed directly by a
-  low surrogate, from an escape or from the text. A low surrogate from an escape must come
-  directly after a high surrogate. Otherwise the escape fails with
+  low surrogate from an escape. A low surrogate from an escape must come directly after a high
+  surrogate from an escape. Otherwise the escape fails with
   `snbt.parser.invalid_codepoint`, with the text of the surrogate code point, for example
   `U+0000D800`. The position is after the escape that gives the unpaired surrogate.
 - **Visible to the client:** yes, but only for unusual input. The client accepts `"\uD800"`.

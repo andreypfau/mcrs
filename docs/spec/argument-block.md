@@ -308,7 +308,7 @@ Part 2: the errors of the SNBT read that reach this argument through ARG-BLK-007
 
 | Translation key | Key arguments |
 |-----------------|---------------|
-| `argument.literal.incorrect` | the expected code units, joined with `\|`, for example `}` |
+| `argument.literal.incorrect` | the expected characters, joined with `\|`, for example `}` |
 | `argument.nbt.expected.compound` | none |
 | `snbt.parser.number_parse_failure` | a message |
 | `snbt.parser.expected_hex_escape` | a length |

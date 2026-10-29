@@ -24,13 +24,16 @@ and the errors. It does not prescribe an architecture.
 
 - **Command line**: the text that the parser reads. A command line that the client sends has no
   `/` at the start (`commands-packet.md`, CMDP-EXEC-001).
-- **Code unit**: one UTF-16 code unit of the command line. A character outside the Basic
-  Multilingual Plane is two code units.
-- **Position**: an offset into the command line, counted in code units. Position 0 is before
-  the first code unit. Every position on the wire and in an error is a position in this sense.
+- **Character**: one Unicode scalar value of the command line. A character outside the Basic
+  Multilingual Plane is one character.
+- **Code unit**: one UTF-16 code unit. A character outside the Basic Multilingual Plane is two
+  code units. A rule that counts code units says so.
+- **Position**: an offset into the command line, counted in characters. Position 0 is before
+  the first character. Every position in an error and in a suggestion is a position in this
+  sense.
 - **Cursor**: the position where the reader reads next.
-- **Separator**: the code unit U+0020. No other whitespace code unit separates two nodes.
-- **Whitespace**: a code unit in the set of CMD-TEXT-002. Only argument types skip whitespace.
+- **Separator**: the character U+0020. No other whitespace character separates two nodes.
+- **Whitespace**: a character in the set of CMD-TEXT-002. Only argument types skip whitespace.
 - **Tree**: a directed graph of nodes with one root.
 - **Root**: the node where a parse starts. It reads no text.
 - **Literal**: a node that matches one fixed word, its name.
@@ -86,7 +89,7 @@ input that both accept.
 
 | Prefix | Subject |
 |--------|---------|
-| `CMD-TEXT` | code units, positions, whitespace |
+| `CMD-TEXT` | characters, positions, whitespace |
 | `CMD-RD` | the reader |
 | `CMD-TREE` | nodes, children, merges, redirects |
 | `CMD-PARSE` | the parse and the choice of a result |
@@ -111,46 +114,50 @@ specification of the executor exists yet (section 12).
 
 ---
 
-## 1. Code units and positions
+## 1. Characters and positions
 
-### CMD-TEXT-001: Positions count code units
+### CMD-TEXT-001: Positions count characters
 
-- **Behavior:** every position of this document is a count of UTF-16 code units from the start
-  of the command line. A reader that stores the command line in another encoding must convert
-  each position that leaves the parser. These positions are error positions, suggestion ranges
-  and node ranges.
-- **Edge cases:** when the command line has no unpaired surrogate, the reader operations of
-  section 2 never put the cursor inside a surrogate pair. The context text of CMD-ERR-003 never
-  starts inside a surrogate pair (CMD-DEV-006).
+- **Behavior:**
+  - Every position of this document is a count of characters from the start of the command
+    line. These positions are error positions, suggestion ranges and node ranges.
+  - An implementation can store a position in another unit, for example a UTF-8 byte offset.
+    The stored position is always on a character boundary.
+  - A position on the wire is a count of code units. Only the codec of a packet converts a
+    position between characters and code units (`commands-packet.md`, CMDP-SUG-002).
+- **Edge cases:** the reader operations of section 2 never put the cursor inside a character.
+  The context text of CMD-ERR-003 always starts at a character boundary (CMD-DEV-006).
 
-Provenance: `library_source`. Kind: wire. Confidence: high.
+Provenance: `library_source`. Kind: semantic (CMD-DEV-006, CMD-DEV-013). Confidence: high.
 
 ### CMD-TEXT-002: Whitespace
 
-The whitespace set is:
+A character is whitespace when it has the Unicode property `White_Space` and is not one of
+U+00A0, U+0085, U+2007 and U+202F. The whitespace set is:
 
 | Code points | Note |
 |-------------|------|
 | U+0009 to U+000D | tab, line feed, line tabulation, form feed, carriage return |
-| U+001C to U+001F | information separators |
 | U+0020 | space |
 | U+1680, U+2000 to U+2006, U+2008 to U+200A, U+205F, U+3000 | space separators |
 | U+2028, U+2029 | line and paragraph separators |
 
-U+00A0, U+2007 and U+202F are not whitespace. U+0085 and U+180E are not whitespace.
+U+00A0, U+2007 and U+202F are not whitespace. U+0085 and U+180E are not whitespace. U+001C to
+U+001F are not whitespace (CMD-DEV-014).
 
 No argument type of the command library skips whitespace. Argument types of the game do. A
-player cannot send a code unit below U+0020 in a chat command: the server disconnects the
-player. Command blocks and functions can contain these code units.
+player cannot send a character below U+0020 in a chat command: the server disconnects the
+player. Command blocks and functions can contain these characters.
 
-Provenance: `library_source`. Kind: client agreement. Confidence: high.
+Provenance: `library_source`. Kind: client agreement, with a deviation (CMD-DEV-014).
+Confidence: high.
 
 ---
 
 ## 2. The reader
 
 The reader holds the command line and a cursor. Each operation below starts at the cursor.
-"Next" is the code unit at the cursor. "At the end" means the cursor equals the length.
+"Next" is the character at the cursor. "At the end" means the cursor equals the length.
 
 ### CMD-RD-001: Number characters
 
@@ -241,13 +248,13 @@ Provenance: `library_source`. Kind: client agreement. Confidence: high.
 ### CMD-RD-007: Quoted string body
 
 - **Inputs:** a terminator, `"` or `'`. The cursor is after the first quote.
-- **Behavior:** read code units one at a time.
-  - A `\` starts an escape. The next code unit must be the terminator or `\`. The result
-    receives that code unit.
-  - After a `\`, any other code unit fails with `reader_invalid_escape`, with that code unit as
-    its argument. The position is that code unit, not the `\`.
+- **Behavior:** read characters one at a time.
+  - A `\` starts an escape. The next character must be the terminator or `\`. The result
+    receives that character.
+  - After a `\`, any other character fails with `reader_invalid_escape`, with that character as
+    its argument. The position is that character, not the `\`.
   - The terminator ends the string. The cursor stays after it.
-  - Any other code unit goes into the result.
+  - Any other character goes into the result.
   - At the end of the command line, fail with `reader_expected_end_of_quote` at the end.
 - **Edge cases:** in a string in `'`, the text `\"` fails: `"` is not the terminator. In a
   string in `"`, the text `'` needs no escape.
@@ -294,14 +301,14 @@ Provenance: `library_source`. Kind: client agreement. Confidence: high.
 
 ### CMD-RD-011: Expect a symbol
 
-To expect a code unit `c`: if next is `c`, skip it. Otherwise, or at the end, fail with
+To expect a character `c`: if next is `c`, skip it. Otherwise, or at the end, fail with
 `reader_expected_symbol`, with `c` as its argument, at the cursor.
 
 Provenance: `library_source`. Kind: semantic. Confidence: high.
 
 ### CMD-RD-012: Skip whitespace
 
-To skip whitespace, move the cursor past each whitespace code unit (CMD-TEXT-002) until next is
+To skip whitespace, move the cursor past each whitespace character (CMD-TEXT-002) until next is
 not whitespace or the reader is at the end.
 
 Provenance: `library_source`. Kind: semantic. Confidence: high.
@@ -440,19 +447,19 @@ Provenance: `library_source`. Kind: client agreement. Confidence: high.
 
 - **Inputs:** a candidate `C` that succeeded, with the cursor at position `e` after it.
 - **Behavior:**
-  - **`C` has a redirect that the parse follows (CMD-TREE-004), and at least one code unit
+  - **`C` has a redirect that the parse follows (CMD-TREE-004), and at least one character
     remains.** Skip the separator. Start a
     new context at the cursor, with the redirect target as its root. Parse the target from
     there (CMD-PARSE-002 onwards). Attach the new context as the child context. The result of
     this level is: this context, the cursor of the nested parse, and the errors of the nested
     parse. The candidates after `C` are not tried. The potential results of the candidates
     before `C` are discarded.
-  - **The parse does not follow a redirect of `C`, and at least two code units remain.** Skip
+  - **The parse does not follow a redirect of `C`, and at least two characters remain.** Skip
     the separator. Parse the children of `C` from there. The nested result is a potential result.
   - **Otherwise.** The potential result is this context, with the cursor at `e` and no errors.
 - **Edge cases:**
   - A single trailing separator after a node without a redirect is not consumed. The potential
-    result has one code unit left, so it is not complete (CMD-PARSE-007).
+    result has one character left, so it is not complete (CMD-PARSE-007).
   - A single trailing separator after a redirect node is consumed. The nested parse starts at
     the end of the command line.
   - The new context after a redirect has the source of this context. The parse does not
@@ -467,7 +474,7 @@ Provenance: `library_source`. Kind: client agreement. Confidence: high.
 - **Behavior:**
   - If there is at least one potential result, order them by a stable sort with this
     precedence, and take the first:
-    1. a result with the cursor at the end comes before a result with code units left;
+    1. a result with the cursor at the end comes before a result with characters left;
     2. among the remaining ties, a result with no errors comes before a result with errors.
   - If there is no potential result, the result of this level is the context and the cursor
     before this level. The errors of the result are the noted errors, in the order of the
@@ -570,12 +577,12 @@ Provenance: `library_source`. Kind: client agreement; the bounds are wire
 - **Read:**
   - `word`: read an unquoted string (CMD-RD-006). It can be empty.
   - `phrase`: read a string (CMD-RD-009).
-  - `greedy`: the value is all code units from the cursor to the end. The cursor moves to the
+  - `greedy`: the value is all characters from the cursor to the end. The cursor moves to the
     end. It never fails.
 - **Suggest:** nothing.
 - **Examples:** `word`: `word`, `words_with_underscores`. `phrase`: `"quoted phrase"`, `word`,
   `""`. `greedy`: `word`, `words with spaces`, `"and symbols"`.
-- **Edge cases:** a `word` can read the empty string at a code unit that is neither an
+- **Edge cases:** a `word` can read the empty string at a character that is neither an
   unquoted character nor a separator. Then it fails at the next step: CMD-PARSE-003, step 2.
 
 Provenance: `library_source`. Kind: client agreement. Confidence: high.
@@ -698,8 +705,8 @@ documents cite this rule.
   2. For a candidate that is a text, map the text to lower case in the same way. For a
      candidate that is an identifier, keep the text of the identifier as it is.
   3. A pattern `p` matches a text `t` when `t` starts with `p`. It also matches when `p`
-     occurs in `t` directly after a `.`, a `_` or a `/`. The comparison is exact, code unit
-     by code unit.
+     occurs in `t` directly after a `.`, a `_` or a `/`. The comparison is exact, character
+     by character.
   4. A text candidate matches when `r` matches its text from step 2.
   5. An identifier candidate matches as follows:
      - if `r` contains a `:`, when `r` matches the full identifier `namespace:path`;
@@ -773,7 +780,7 @@ of the last column. The key arguments of the range kinds come in the order bound
 | `literal_incorrect` | `argument.literal.incorrect` | literal |
 | `reader_expected_start_of_quote` | `parsing.quote.expected.start` | none |
 | `reader_expected_end_of_quote` | `parsing.quote.expected.end` | none |
-| `reader_invalid_escape` | `parsing.quote.escape` | code unit |
+| `reader_invalid_escape` | `parsing.quote.escape` | character |
 | `reader_invalid_bool` | `parsing.bool.invalid` | text |
 | `reader_expected_bool` | `parsing.bool.expected` | none |
 | `reader_invalid_int` | `parsing.int.invalid` | token |
@@ -806,10 +813,9 @@ chat line of `integer_too_low`, and look for the order "1" then "0".
 
 - **Inputs:** an error with a position `q` over a command line of length `n`.
 - **Behavior:**
-  1. Let `k` = the smaller of `q` and `n`, and let `j` = `max(0, k − 10)`.
-  2. If the code unit at `j` is the second code unit of a surrogate pair, add 1 to `j`
-     (CMD-DEV-006).
-  3. The context text is the code units from `j` to `k`. When `k > 10`, it starts with an
+  1. Let `k` = the smaller of `q` and `n`, and let `j` = `max(0, k − 10)`. `q`, `n`, `j` and
+     `k` count characters (CMD-DEV-006).
+  2. The context text is the characters from `j` to `k`. When `k > 10`, it starts with an
      ellipsis.
 - `commands-packet.md`, CMDP-EXEC-003, states how the server shows the context text.
 
@@ -953,15 +959,18 @@ whitespace of CMD-TEXT-002, and runs of separators.
   argument types.
 - **Test:** an implementation argument type that fails without a syntax error is a defect.
 
-### CMD-DEV-006: The context text does not split a surrogate pair
+### CMD-DEV-006: The context text and the error position count characters
 
-- **Rule:** CMD-ERR-003.
-- **Reference:** the context text starts 10 code units before the error position, also when
-  that start is inside a surrogate pair.
-- **Visible to the client:** yes, in the chat message of an error. The reference shows an
-  unpaired surrogate at the start of the context text. The implementation shows one code unit
-  less.
-- **Test:** accept a context text that is one code unit shorter at its start.
+- **Rule:** CMD-TEXT-001 and CMD-ERR-003.
+- **Reference:** the error position and the context text count code units. The context text
+  starts 10 code units before the error position, also when that start is inside a surrogate
+  pair.
+- **Visible to the client:** yes, but only for a command line with a character outside the
+  Basic Multilingual Plane before the error. The position number in the error message is
+  smaller. The context text holds 10 characters, not 10 code units, and never starts with an
+  unpaired surrogate.
+- **Test:** for such a command line, compare the error kind and ignore the position number and
+  the context text.
 
 ### CMD-DEV-007: A redirect node has no children
 
@@ -985,10 +994,10 @@ whitespace of CMD-TEXT-002, and runs of separators.
 
 - **Rule:** CMD-SUG-005.
 - **Reference:** the library takes the lower case form of the whole truncated input, then cuts
-  it at the start. When a code unit before the start changes length in lower case, for example
+  it at the start. When a character before the start changes length in lower case, for example
   U+0130, the lower case remaining input moves.
-- **Visible to the client:** only for a server suggestion after such a code unit.
-- **Test:** do not compare suggestions for an input with such a code unit before the start.
+- **Visible to the client:** only for a server suggestion after such a character.
+- **Test:** do not compare suggestions for an input with such a character before the start.
 
 ### CMD-DEV-010: Every suggestion is a text
 
@@ -1024,6 +1033,28 @@ whitespace of CMD-TEXT-002, and runs of separators.
   its start. The grammar policy of section 0.2.1 allows this difference.
 - **Test:** expect `reader_invalid_double` or `reader_invalid_float` from the implementation
   where the reference reads an infinity.
+
+### CMD-DEV-013: Positions inside the implementation are not code units
+
+- **Rule:** CMD-TEXT-001.
+- **Reference:** the library stores the command line as UTF-16 and counts every position in
+  code units.
+- **Visible to the client:** no. The codec of `command_suggestions` converts the range to code
+  units (`commands-packet.md`, CMDP-SUG-002). An error position reaches the client only as text
+  (CMD-DEV-006).
+- **Test:** a differential test converts each suggestion range to code units before it compares
+  the range.
+
+### CMD-DEV-014: The information separators are not whitespace
+
+- **Rule:** CMD-TEXT-002.
+- **Reference:** U+001C to U+001F are whitespace.
+- **Visible to the client:** no for a player, who cannot send a character below U+0020
+  (`commands-packet.md`, CMDP-EXEC-002). A command block or a function that skips such a
+  character in an argument of the game fails with a syntax error. The server is then stricter
+  than the client, as section 0.2.1 allows.
+  An SNBT text in a data pack field fails in the same way (`snbt.md`, SNBT-ARG-004).
+- **Test:** do not compare a command line with a character from U+001C to U+001F.
 
 ---
 

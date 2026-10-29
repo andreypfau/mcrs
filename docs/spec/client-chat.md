@@ -26,8 +26,9 @@ and usage lines. The document does not prescribe an architecture.
 - **Chat screen**: the screen with the input box at the bottom and the chat log above it.
 - **Input box**: the one-line text field of the chat screen.
 - **Input**: the text in the input box.
-- **Caret**: the position in the input where the next typed code unit goes, counted in UTF-16
-  code units.
+- **Caret**: the position in the input where the next typed character goes, counted in
+  characters.
+- **Character**, **code unit**: as `command-parser.md`, section 0.1, defines them.
 - **Command input**, **client parse**, **hint line**, **suggestion list**: as
   `client-commands.md`, section 0.1, defines them.
 - **Draft**: an input that the client keeps after the chat screen closes without a send.
@@ -155,9 +156,9 @@ The input is `abc` in gray italic.
 ### CHAT-BOX-001: The input box
 
 - **Behavior:**
-  - The input box holds at most 256 code units. A paste or a typed text that is longer is cut
-    at the limit. The cut does not split a surrogate pair.
-  - The box rejects the code units U+00A7, U+007F and each code unit below U+0020. A paste
+  - The input box holds at most 256 characters (CHAT-DEV-002). A paste or a typed text that
+    is longer is cut at the limit.
+  - The box rejects the characters U+00A7, U+007F and each character below U+0020. A paste
     loses them, and the rest of the paste stays.
   - The box rectangle has the left edge 4, the top `H − 12`, the width `W − 4` and the height
     12. It has no border. The text starts at x = 4 and y = `H − 12`.
@@ -169,12 +170,12 @@ The input is `abc` in gray italic.
     At the end of a shorter input, the caret is the glyph `_`. Otherwise it is a bar of
     1 GUI unit, from y − 1 to y + 10 of the text.
   - When the text is wider than the box, the box shows the part around the caret.
-- **Postconditions:** the input never holds a code unit that the server rejects
+- **Postconditions:** the input never holds a character that the server rejects
   (`commands-packet.md`, CMDP-EXEC-002).
 
 Provenance: `source_suggested`. Kind: layout for the rectangles and colours, semantic for the
 rest. Confidence: medium. Experiment: paste a text of 300 `a` into the input box. The input has
-256 code units.
+256 characters.
 
 ### CHAT-BOX-002: Edit keys
 
@@ -182,8 +183,8 @@ The input box has the edit keys of a one-line text field:
 
 | Key | Effect |
 |-----|--------|
-| Backspace, Delete | remove the code unit before or after the caret; with Ctrl, remove a word |
-| Left, Right | move the caret by one code unit; with Ctrl, by one word |
+| Backspace, Delete | remove the character before or after the caret; with Ctrl, remove a word |
+| Left, Right | move the caret by one character; with Ctrl, by one word |
 | Home, End | move the caret to the start or to the end |
 | Shift with a move key | select text |
 | Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X | select all, copy, paste, cut |
@@ -260,12 +261,12 @@ the chat log, open the chat and press Page Up. The log moves by 19 lines.
 
 - **Inputs:** the input.
 - **Behavior:**
-  1. Remove each code unit up to U+0020 at the start and at the end.
+  1. Remove each character up to U+0020 at the start and at the end.
   2. Replace U+00A0 with U+0020.
-  3. Replace each run of whitespace code units with one U+0020. A whitespace code unit is
-     U+0009 to U+000D, U+001C to U+001F, U+0020, U+1680, U+2000 to U+2006, U+2008 to U+200A,
-     U+2028, U+2029, U+205F and U+3000. Remove a run at the start or at the end.
-  4. If the result is longer than 256 code units, keep the first 256.
+  3. Replace each run of whitespace characters with one U+0020. A whitespace character is a
+     character in the set of `command-parser.md`, CMD-TEXT-002. Remove a run at the start or
+     at the end.
+  4. If the result is longer than 256 characters, keep the first 256.
 - **Postconditions:** the result has no whitespace at the ends and no two adjacent spaces.
   A U+00A0 next to a space stays as a second space.
 
@@ -278,12 +279,14 @@ and press Enter. Capture the `chat` packet. Its text is `a b`.
   use the key:
   1. If the input is blocked (CHAT-OPT-002), do nothing. The screen stays open.
   2. Normalize the input (CHAT-SEND-001). If the result is empty, send nothing and go to
-     step 6.
+     step 7.
   3. Add the result to the history (CHAT-HIST-001).
   4. If the result starts with `/`, the command line is the result without the first `/`.
      Send it as CHAT-SEND-004 states.
-  5. Otherwise send the result in a `chat` packet (CHAT-SEND-003).
-  6. Close the chat screen.
+  5. Otherwise, if the result has more than 256 code units, send nothing. The screen stays
+     open (CHAT-DEV-002).
+  6. Otherwise send the result in a `chat` packet (CHAT-SEND-003).
+  7. Close the chat screen.
 - **Postconditions:**
   - The client sends a command line also when the client parse fails or does not end at an
     executable node.
@@ -775,6 +778,18 @@ first.
   hidden for the wrong mouse position. The tooltip of the icon is the same.
 - **Test:** a differential test ignores the icon `icon/chat_modified` and its tooltip at the
   end of a line that is not the last line of its message.
+
+### CHAT-DEV-002: The input box counts characters
+
+- **Rule:** CHAT-BOX-001 and CHAT-SEND-002, step 5.
+- **Reference:** the input box holds at most 256 code units. A cut at the limit does not split a
+  surrogate pair. The caret and the edit keys move by code units, and skip the second code unit
+  of a pair.
+- **Visible to the client:** yes, but only for text outside the Basic Multilingual Plane. The
+  box holds up to 256 such characters. The client does not send a `chat` packet with more than
+  256 code units, so a vanilla server never receives a text that it rejects.
+- **Test:** a differential test of the input box uses only text inside the Basic Multilingual
+  Plane.
 
 ---
 

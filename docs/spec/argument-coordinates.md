@@ -391,7 +391,7 @@ server suggests nothing.
 
 - **Behavior:** start with an empty axis set.
   1. While the reader is not at the end and next is not a separator:
-     1. Read one code unit `c`.
+     1. Read one character `c`.
      2. If `c` is `x`, `y` or `z`, let `a` be that axis. Otherwise fail with
         `arguments.swizzle.invalid` at the cursor after `c`.
      3. If `a` is in the axis set, fail with `arguments.swizzle.invalid` at the cursor after `c`.
@@ -503,7 +503,7 @@ ARG-COORD-011, ARG-COORD-013 and ARG-COORD-015 have the experiments for the othe
 
 - **Rule:** ARG-COORD-015.
 - **Reference:** a `swizzle` that starts at a separator or at the end of the command line reads
-  no code unit. Its value is the empty axis set, and `execute align` with it does not change the
+  no character. Its value is the empty axis set, and `execute align` with it does not change the
   source. Thus `execute align  run say a`, with two separators, runs `say a`.
 - **Visible to the client:** yes, for text that does not come from the chat screen. The chat
   screen of the vanilla client changes each run of whitespace to one separator, and removes a
