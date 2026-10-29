@@ -4,7 +4,7 @@ const RADIUS: i32 = 200;
 const STEP: i32 = 32;
 const Y_STEP: i32 = 64;
 
-/// The nearest sample point with one of the `wanted` biomes (CMD-LOC-003), searched ring by
+/// The nearest sample point with one of the `wanted` biomes, searched ring by
 /// ring so the search stops once no farther ring can be nearer. `None` for a dimension with no
 /// height.
 // chisle: the search runs on the caller's thread, as long as a few seconds for a biome that is
@@ -32,11 +32,11 @@ pub fn nearest_biome(
         for i in -ring..=ring {
             let step = if i.abs() == ring { 1 } else { 2 * ring };
             for j in (-ring..=ring).step_by(step as usize) {
-                let x = origin.x + STEP * i;
-                let z = origin.z + STEP * j;
+                let x = origin.x.saturating_add(STEP * i);
+                let z = origin.z.saturating_add(STEP * j);
                 for y in (first..=high).step_by(Y_STEP as usize) {
                     let at = IVec3::new(x, y, z);
-                    let distance = (at - origin).as_i64vec3().length_squared();
+                    let distance = (at.as_i64vec3() - origin.as_i64vec3()).length_squared();
                     if best.is_some_and(|(nearest, ..)| nearest <= distance) {
                         continue;
                     }

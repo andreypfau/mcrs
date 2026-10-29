@@ -264,7 +264,7 @@ impl Plugin for ChatPlugin {
 }
 
 fn advance_tick(mut chat: ResMut<Chat>) {
-    chat.tick += 1;
+    chat.tick = chat.tick.saturating_add(1);
     chat.overlay.tick();
 }
 

@@ -68,12 +68,12 @@ pub(crate) fn run(
             "argument.entity.notfound.player",
             targets,
         )?;
-        let mut changed = 0;
+        let mut changed: i32 = 0;
         for &target in targets.iter() {
             if target.mode == mode {
                 continue;
             }
-            changed += 1;
+            changed = changed.saturating_add(1);
             output.effect(
                 &mut modes,
                 SetGameMode {

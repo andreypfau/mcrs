@@ -85,12 +85,12 @@ impl<M> ChatLog<M> {
     pub fn push(&mut self, message: M, tick: u64, tag: Option<Tag>) {
         self.messages.push_front(Logged { message, tick, tag });
         self.messages.truncate(MAX_MESSAGES);
-        self.pushed += 1;
+        self.pushed = self.pushed.saturating_add(1);
     }
 
     pub fn clear(&mut self) {
         self.messages.clear();
-        self.cleared += 1;
+        self.cleared = self.cleared.wrapping_add(1);
     }
 }
 
@@ -153,7 +153,7 @@ impl<L> ChatLines<L> {
         let rows = self.rows.len();
         for (row, content) in self.rows.drain(..).enumerate() {
             if scrolls && self.scroll > 0 {
-                self.scroll += 1;
+                self.scroll = self.scroll.saturating_add(1);
                 self.new_since_scroll = true;
             }
             self.lines.push_front(Line {

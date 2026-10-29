@@ -91,7 +91,10 @@ impl SuggestionMenu {
 
     /// Selects the entry `delta` entries after the selected one, wrapping around.
     pub fn step(&mut self, delta: isize) {
-        self.select(self.selected as isize + delta);
+        let Ok(selected) = isize::try_from(self.selected) else {
+            return;
+        };
+        self.select(selected.saturating_add(delta));
     }
 
     /// A wheel step over the list, upwards positive; the selection stays.

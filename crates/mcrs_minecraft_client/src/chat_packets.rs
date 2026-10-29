@@ -171,7 +171,7 @@ pub(crate) fn on_player_chat(
         );
         return;
     }
-    chat.player_chats += 1;
+    chat.player_chats = chat.player_chats.wrapping_add(1);
     let registries = registries.as_deref().map(|registries| &**registries);
     let decorate = |content| {
         decorate(
