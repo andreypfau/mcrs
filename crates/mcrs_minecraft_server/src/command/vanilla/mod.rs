@@ -9,7 +9,7 @@ pub use teleport::{Facing, Teleport, TeleportPlayer};
 
 use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
 use bevy_app::{App, Plugin};
-use mcrs_command::{Arg, recycle};
+use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::{EntityArgument, argument_text};
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
@@ -58,9 +58,9 @@ pub(crate) struct FoundPlayers(Vec<&'static PlayerEntry>);
 impl FoundPlayers {
     /// Lends the buffer to `search` and takes it back on every path out of it.
     pub(crate) fn with<'c, R>(&mut self, search: impl FnOnce(&mut Vec<&'c PlayerEntry>) -> R) -> R {
-        let mut found = recycle(core::mem::take(&mut self.0));
+        let mut found = mcrs_command::recycle(core::mem::take(&mut self.0));
         let result = search(&mut found);
-        self.0 = recycle(found);
+        self.0 = mcrs_command::recycle(found);
         result
     }
 }
@@ -70,7 +70,7 @@ impl FoundPlayers {
 pub(crate) fn select<'c>(
     context: &'c CommandContext,
     call: &Invocation,
-    arg: Arg<EntityArgument>,
+    arg: ArgumentHandle<EntityArgument>,
     out: &mut Vec<&'c PlayerEntry>,
 ) -> Result<(), CommandFailure> {
     if select_if_present(context, call, arg, out)? {
@@ -83,7 +83,7 @@ pub(crate) fn select<'c>(
 fn select_if_present<'c>(
     context: &'c CommandContext,
     call: &Invocation,
-    arg: Arg<EntityArgument>,
+    arg: ArgumentHandle<EntityArgument>,
     out: &mut Vec<&'c PlayerEntry>,
 ) -> Result<bool, CommandFailure> {
     let Some(selector) = context.opt(call, arg)? else {
@@ -104,7 +104,7 @@ fn select_if_present<'c>(
 pub(crate) fn targets_or_self<'c>(
     context: &'c CommandContext,
     call: &Invocation,
-    arg: Arg<EntityArgument>,
+    arg: ArgumentHandle<EntityArgument>,
     none_found: &'static str,
     out: &mut Vec<&'c PlayerEntry>,
 ) -> Result<(), CommandFailure> {

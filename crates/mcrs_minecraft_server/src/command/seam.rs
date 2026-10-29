@@ -19,7 +19,6 @@ use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::{World, WorldId};
-use mcrs_command::recycle;
 use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -161,7 +160,7 @@ pub fn run_pending_commands(app: &mut App) {
             .values()
             .any(|sub| sub.world().id() == query.world)
     });
-    let mut ordered = recycle(core::mem::take(found));
+    let mut ordered = mcrs_command::recycle(core::mem::take(found));
     in_dimension_order(
         sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
         |world| {
@@ -174,13 +173,13 @@ pub fn run_pending_commands(app: &mut App) {
     );
     targets.dimensions.clear();
     query_of.clear();
-    let mut in_order: Vec<&mut World> = recycle(core::mem::take(worlds));
+    let mut in_order: Vec<&mut World> = mcrs_command::recycle(core::mem::take(worlds));
     for ((entry, index), world) in ordered.drain(..) {
         targets.dimensions.push(entry);
         query_of.push(index);
         in_order.push(world);
     }
-    *found = recycle(ordered);
+    *found = mcrs_command::recycle(ordered);
     collect_players(host, &in_order, query_of, queries, targets);
     let mut executor = SeamExecutor {
         host: &mut *host,
@@ -199,7 +198,7 @@ pub fn run_pending_commands(app: &mut App) {
         executor.output = queued.player;
         executor.answer(&queued);
     }
-    *worlds = recycle(in_order);
+    *worlds = mcrs_command::recycle(in_order);
     if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
         std::mem::swap(&mut *owned, tree);
     }

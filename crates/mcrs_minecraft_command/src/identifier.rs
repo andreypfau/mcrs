@@ -1,5 +1,5 @@
 use crate::error::ArgumentError;
-use mcrs_command::suggest::starts_with_ignore_case;
+use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::resource_location::parse_parts;
 use mcrs_text_span::Span;

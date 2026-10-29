@@ -23,57 +23,57 @@ impl Requirement<u8> for Level {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Lib {
+pub enum TestArgument {
     Bool(BoolArgument),
     Integer(IntegerArgument),
     String(StringArgument),
 }
 
-impl From<IntegerArgument> for Lib {
+impl From<IntegerArgument> for TestArgument {
     fn from(value: IntegerArgument) -> Self {
-        Lib::Integer(value)
+        TestArgument::Integer(value)
     }
 }
 
-impl From<StringArgument> for Lib {
+impl From<StringArgument> for TestArgument {
     fn from(value: StringArgument) -> Self {
-        Lib::String(value)
+        TestArgument::String(value)
     }
 }
 
-impl From<BoolArgument> for Lib {
+impl From<BoolArgument> for TestArgument {
     fn from(value: BoolArgument) -> Self {
-        Lib::Bool(value)
+        TestArgument::Bool(value)
     }
 }
 
-impl Contains<IntegerArgument> for Lib {
+impl Contains<IntegerArgument> for TestArgument {
     fn get(&self) -> Option<&IntegerArgument> {
         match self {
-            Lib::Integer(argument) => Some(argument),
+            TestArgument::Integer(argument) => Some(argument),
             _ => None,
         }
     }
 }
 
-impl Contains<StringArgument> for Lib {
+impl Contains<StringArgument> for TestArgument {
     fn get(&self) -> Option<&StringArgument> {
         match self {
-            Lib::String(argument) => Some(argument),
+            TestArgument::String(argument) => Some(argument),
             _ => None,
         }
     }
 }
 
-impl ArgumentSet<u8> for Lib {
+impl ArgumentSet<u8> for TestArgument {
     type Error = Infallible;
     type Tooltip = ();
 
     fn check(&self, reader: &mut Reader<'_>, source: &u8) -> Result<(), SyntaxError<Infallible>> {
         match self {
-            Lib::Bool(argument) => argument.parse(reader, source).map(drop),
-            Lib::Integer(argument) => argument.parse(reader, source).map(drop),
-            Lib::String(argument) => argument.parse(reader, source).map(drop),
+            TestArgument::Bool(argument) => argument.parse(reader, source).map(drop),
+            TestArgument::Integer(argument) => argument.parse(reader, source).map(drop),
+            TestArgument::String(argument) => argument.parse(reader, source).map(drop),
         }
     }
 
@@ -83,14 +83,14 @@ impl ArgumentSet<u8> for Lib {
         _: &mcrs_command::ContextView<'_>,
         builder: &mut SuggestionBuilder<'t, '_, ()>,
     ) {
-        if let Lib::Bool(_) = self {
+        if let TestArgument::Bool(_) = self {
             BoolArgument::suggest(builder);
         }
     }
 }
 
-pub type TestGraph = Graph<Lib, Level, u32>;
-pub type Builder = GraphBuilder<Lib, Level, u32>;
+pub type TestGraph = Graph<TestArgument, Level, u32>;
+pub type Builder = GraphBuilder<TestArgument, Level, u32>;
 
 pub const OPEN: Level = Level(0);
 pub const OP: Level = Level(2);

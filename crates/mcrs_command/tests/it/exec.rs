@@ -1,6 +1,6 @@
 use crate::{Builder, OPEN, TestGraph};
 use mcrs_command::{
-    Chain, End, Executor, Failure, Limits, NodeId, ParseScratch, SourceLists, execute,
+    Chain, End, Executor, Failure, ForkMode, Limits, NodeId, ParseScratch, SourceLists, execute,
 };
 
 const SAY: u32 = 0;
@@ -14,16 +14,16 @@ const DROP: u32 = 14;
 fn graph() -> TestGraph {
     let mut b = Builder::new();
     let x = b.literal(NodeId::ROOT, "x", OPEN).unwrap();
-    for (name, modifier, forks) in [
-        ("fork", FORK, true),
-        ("single", SINGLE, false),
-        ("fail", FAIL, false),
-        ("forkfail", FORK_FAIL, true),
-        ("drop", DROP, true),
+    for (name, modifier, mode) in [
+        ("fork", FORK, ForkMode::Fork),
+        ("single", SINGLE, ForkMode::Single),
+        ("fail", FAIL, ForkMode::Single),
+        ("forkfail", FORK_FAIL, ForkMode::Fork),
+        ("drop", DROP, ForkMode::Fork),
     ] {
         let node = b.literal(x, name, OPEN).unwrap();
         b.redirect(node, x).unwrap();
-        b.modifies(node, modifier, forks).unwrap();
+        b.modifies(node, modifier, mode).unwrap();
     }
     let run = b.literal(x, "run", OPEN).unwrap();
     b.redirect(run, NodeId::ROOT).unwrap();

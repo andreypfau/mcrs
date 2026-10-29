@@ -1,4 +1,4 @@
-use crate::{Builder, Lib, OP, OPEN, TestGraph, executable_literal};
+use crate::{Builder, OP, OPEN, TestArgument, TestGraph, executable_literal};
 use mcrs_command::{
     Argument, BuildError, Chain, IntegerArgument, LibraryError, NodeId, ParseScratch, Reader,
     StringArgument, SyntaxError,
@@ -25,8 +25,8 @@ fn the_reported_error_follows_the_validity_rules() {
     b.executes(n.node(), 0).unwrap();
     let c = b.literal(NodeId::ROOT, "c", OPEN).unwrap();
     for (name, argument) in [
-        ("n", Lib::Integer(IntegerArgument::ANY)),
-        ("w", Lib::String(StringArgument::Word)),
+        ("n", TestArgument::Integer(IntegerArgument::ANY)),
+        ("w", TestArgument::String(StringArgument::Word)),
     ] {
         let node = b.argument(c, name, argument, OPEN).unwrap();
         b.executes(node.node(), 0).unwrap();

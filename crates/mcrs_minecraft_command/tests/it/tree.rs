@@ -1,5 +1,5 @@
 use crate::{GUEST, OP};
-use mcrs_command::{GraphBuilder, NodeId, ParseScratch, build_list};
+use mcrs_command::{GraphBuilder, NodeId, ParseScratch, SuggestionList};
 use mcrs_minecraft_command::{
     CommandLevel, EntityArgument, GameModeArgument, PermissionCheck, VanillaArgument, VanillaGraph,
     player_tree, suggestion_reply,
@@ -111,7 +111,7 @@ fn reply(graph: &VanillaGraph<u32>, text: &str) -> (VarInt, VarInt, Vec<String>)
     let parse = graph.parse(text, 1, &OP, &mut scratch);
     let mut out = Vec::new();
     graph.suggest(&parse, &OP, &mut out);
-    let list = build_list(text, &mut out);
+    let list = SuggestionList::build(text, &mut out);
     let reply = suggestion_reply(VarInt(7), text, &list);
     let texts = reply
         .suggestions

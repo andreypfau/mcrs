@@ -6,9 +6,12 @@ use core::convert::Infallible;
 
 /// An argument type: how it reads a value from the command line.
 pub trait Argument<S> {
+    /// The value read, which may borrow the command line.
     type Value<'a>;
+    /// The errors of this type beside those of the library.
     type Error;
 
+    /// Reads a value at the reader's cursor and leaves the cursor after it.
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
@@ -18,7 +21,9 @@ pub trait Argument<S> {
 
 /// The argument types of one tree, composed by the application into one enum.
 pub trait ArgumentSet<S> {
+    /// The errors of every argument type of the set.
     type Error: Copy;
+    /// The tooltip a suggestion of the set carries.
     type Tooltip: PartialEq;
 
     /// Reads a value and keeps only whether it was valid.
@@ -34,10 +39,12 @@ pub trait ArgumentSet<S> {
     );
 }
 
+/// `true` or `false`, quoted or not.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BoolArgument;
 
 impl BoolArgument {
+    /// Suggests `true` and `false` where they match the remaining input.
     pub fn suggest<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>) {
         builder.suggest_matching(["true", "false"], starts_with_ignore_case);
     }
@@ -52,81 +59,140 @@ impl<S> Argument<S> for BoolArgument {
     }
 }
 
-macro_rules! number_argument {
-    ($name:ident, $ty:ty, $read:ident, $low:ident, $high:ident) => {
-        #[derive(Clone, Copy, Debug, PartialEq)]
-        pub struct $name {
-            pub min: $ty,
-            pub max: $ty,
-        }
+/// A number type an argument reads, with the errors of its bounds.
+pub trait Number: Copy + PartialOrd {
+    const MIN: Self;
+    const MAX: Self;
 
-        impl $name {
-            pub const ANY: Self = Self {
-                min: <$ty>::MIN,
-                max: <$ty>::MAX,
-            };
+    fn read<E>(reader: &mut Reader<'_>) -> Result<Self, SyntaxError<E>>;
 
-            /// The minimum and the maximum, each where it differs from [`Self::ANY`].
-            pub fn limits(&self) -> (Option<$ty>, Option<$ty>) {
-                (
-                    (self.min != Self::ANY.min).then_some(self.min),
-                    (self.max != Self::ANY.max).then_some(self.max),
-                )
-            }
-        }
+    fn too_low(value: Self, min: Self) -> LibraryError;
 
-        impl<S> Argument<S> for $name {
-            type Value<'a> = $ty;
-            type Error = Infallible;
-
-            fn parse<'a>(
-                &self,
-                reader: &mut Reader<'a>,
-                _: &S,
-            ) -> Result<$ty, SyntaxError<Infallible>> {
-                let start = reader.cursor();
-                let value = reader.$read()?;
-                let error = if value < self.min {
-                    LibraryError::$low {
-                        value,
-                        min: self.min,
-                    }
-                } else if value > self.max {
-                    LibraryError::$high {
-                        value,
-                        max: self.max,
-                    }
-                } else {
-                    return Ok(value);
-                };
-                reader.set_cursor(start);
-                Err(SyntaxError::library(error, start))
-            }
-        }
-    };
+    fn too_high(value: Self, max: Self) -> LibraryError;
 }
 
-number_argument!(
-    IntegerArgument,
-    i32,
-    read_int,
-    IntegerTooLow,
-    IntegerTooHigh
-);
-number_argument!(LongArgument, i64, read_long, LongTooLow, LongTooHigh);
-number_argument!(FloatArgument, f32, read_float, FloatTooLow, FloatTooHigh);
-number_argument!(
-    DoubleArgument,
-    f64,
-    read_double,
-    DoubleTooLow,
-    DoubleTooHigh
-);
+impl Number for i32 {
+    const MIN: Self = i32::MIN;
+    const MAX: Self = i32::MAX;
 
+    fn read<E>(reader: &mut Reader<'_>) -> Result<Self, SyntaxError<E>> {
+        reader.read_int()
+    }
+
+    fn too_low(value: Self, min: Self) -> LibraryError {
+        LibraryError::IntegerTooLow { value, min }
+    }
+
+    fn too_high(value: Self, max: Self) -> LibraryError {
+        LibraryError::IntegerTooHigh { value, max }
+    }
+}
+
+impl Number for i64 {
+    const MIN: Self = i64::MIN;
+    const MAX: Self = i64::MAX;
+
+    fn read<E>(reader: &mut Reader<'_>) -> Result<Self, SyntaxError<E>> {
+        reader.read_long()
+    }
+
+    fn too_low(value: Self, min: Self) -> LibraryError {
+        LibraryError::LongTooLow { value, min }
+    }
+
+    fn too_high(value: Self, max: Self) -> LibraryError {
+        LibraryError::LongTooHigh { value, max }
+    }
+}
+
+impl Number for f32 {
+    const MIN: Self = f32::MIN;
+    const MAX: Self = f32::MAX;
+
+    fn read<E>(reader: &mut Reader<'_>) -> Result<Self, SyntaxError<E>> {
+        reader.read_float()
+    }
+
+    fn too_low(value: Self, min: Self) -> LibraryError {
+        LibraryError::FloatTooLow { value, min }
+    }
+
+    fn too_high(value: Self, max: Self) -> LibraryError {
+        LibraryError::FloatTooHigh { value, max }
+    }
+}
+
+impl Number for f64 {
+    const MIN: Self = f64::MIN;
+    const MAX: Self = f64::MAX;
+
+    fn read<E>(reader: &mut Reader<'_>) -> Result<Self, SyntaxError<E>> {
+        reader.read_double()
+    }
+
+    fn too_low(value: Self, min: Self) -> LibraryError {
+        LibraryError::DoubleTooLow { value, min }
+    }
+
+    fn too_high(value: Self, max: Self) -> LibraryError {
+        LibraryError::DoubleTooHigh { value, max }
+    }
+}
+
+/// A number between `min` and `max`, both inclusive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NumberArgument<T> {
+    pub min: T,
+    pub max: T,
+}
+
+pub type IntegerArgument = NumberArgument<i32>;
+pub type LongArgument = NumberArgument<i64>;
+pub type FloatArgument = NumberArgument<f32>;
+pub type DoubleArgument = NumberArgument<f64>;
+
+impl<T: Number> NumberArgument<T> {
+    pub const ANY: Self = Self {
+        min: T::MIN,
+        max: T::MAX,
+    };
+
+    /// The minimum and the maximum, each where it differs from [`Self::ANY`].
+    pub fn limits(&self) -> (Option<T>, Option<T>) {
+        (
+            (self.min != T::MIN).then_some(self.min),
+            (self.max != T::MAX).then_some(self.max),
+        )
+    }
+}
+
+impl<S, T: Number> Argument<S> for NumberArgument<T> {
+    type Value<'a> = T;
+    type Error = Infallible;
+
+    fn parse<'a>(&self, reader: &mut Reader<'a>, _: &S) -> Result<T, SyntaxError<Infallible>> {
+        let start = reader.cursor();
+        let value = T::read(reader)?;
+        let error = if value < self.min {
+            T::too_low(value, self.min)
+        } else if value > self.max {
+            T::too_high(value, self.max)
+        } else {
+            return Ok(value);
+        };
+        reader.set_cursor(start);
+        Err(SyntaxError::library(error, start))
+    }
+}
+
+/// A string argument, by how much of the command line it takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StringArgument {
+    /// One unquoted word.
     Word,
+    /// One unquoted word or one quoted string.
     Phrase,
+    /// The rest of the command line.
     Greedy,
 }
 

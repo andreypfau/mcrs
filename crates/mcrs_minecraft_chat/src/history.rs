@@ -41,6 +41,7 @@ impl History {
         self.entries.is_empty()
     }
 
+    /// The sent input at `index`, oldest first.
     pub fn get(&self, index: usize) -> Option<&str> {
         self.entries.get(index).map(String::as_str)
     }

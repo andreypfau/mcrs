@@ -1,7 +1,7 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::source::Source;
 use glam::{BVec3, DVec3, Vec3};
-use mcrs_command::reader::SEPARATOR;
+use mcrs_command::SEPARATOR;
 use mcrs_command::{
     Argument, LibraryError, Reader, SuggestionBuilder, SuggestionText, SyntaxError,
 };

@@ -1,6 +1,6 @@
 use crate::{GUEST, OP, read};
 use glam::DVec3;
-use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SyntaxError, build_list};
+use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SuggestionList, SyntaxError};
 use mcrs_minecraft_command::argument::entity::Target;
 use mcrs_minecraft_command::{
     ArgumentError, Candidate, CommandSyntaxError, EntityArgument, Source, argument_text,
@@ -342,7 +342,7 @@ fn a_search_fails_for_a_missing_predicate_or_a_source_without_selectors() {
 fn suggestions(input: &str) -> (Span, Vec<String>) {
     let mut out = Vec::new();
     EntityArgument::ENTITIES.suggest(&OP, &mut SuggestionBuilder::new(input, 0, &mut out));
-    let list = build_list(input, &mut out);
+    let list = SuggestionList::build(input, &mut out);
     let texts = list
         .iter()
         .map(|(text, _)| text.chars().collect())

@@ -5,7 +5,10 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_chat::{ChatScreen, Closed, Context, Key, Outcome, Tag, keeps_draft};
+use mcrs_minecraft_chat::{
+    Anchor, ChatScreen, Closed, Context, InputStyle, Key, Outcome, Step, Tag, UnsentDraft,
+    keeps_draft,
+};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundCommandSuggestion;
@@ -78,24 +81,20 @@ fn modifiers(keys: &ButtonInput<KeyCode>) -> (bool, bool) {
 
 /// The key of the chat screen, or `None` for a key that types text or does nothing.
 fn screen_key(code: KeyCode, control: bool, shift: bool) -> Option<Key> {
+    let step = if control { Step::Word } else { Step::Char };
+    let anchor = if shift { Anchor::Keep } else { Anchor::Move };
     Some(match code {
         KeyCode::ArrowUp => Key::Up,
         KeyCode::ArrowDown => Key::Down,
         KeyCode::Tab => Key::Tab { back: shift },
         KeyCode::Escape => Key::Escape,
         KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
-        KeyCode::Backspace => Key::Backspace { word: control },
-        KeyCode::Delete => Key::Delete { word: control },
-        KeyCode::ArrowLeft => Key::Left {
-            word: control,
-            select: shift,
-        },
-        KeyCode::ArrowRight => Key::Right {
-            word: control,
-            select: shift,
-        },
-        KeyCode::Home => Key::Home { select: shift },
-        KeyCode::End => Key::End { select: shift },
+        KeyCode::Backspace => Key::Backspace { step },
+        KeyCode::Delete => Key::Delete { step },
+        KeyCode::ArrowLeft => Key::Left { step, anchor },
+        KeyCode::ArrowRight => Key::Right { step, anchor },
+        KeyCode::Home => Key::Home { anchor },
+        KeyCode::End => Key::End { anchor },
         KeyCode::PageUp => Key::PageUp,
         KeyCode::PageDown => Key::PageDown,
         KeyCode::KeyA if control => Key::SelectAll,
@@ -126,14 +125,13 @@ struct ChatState<'w> {
     lines: ResMut<'w, ChatLines>,
 }
 
-/// The initial input of a key that opens the chat screen, and whether it is a draft
-/// (CHAT-OPEN-001).
+/// The initial input of a key that opens the chat screen, and its style (CHAT-OPEN-001).
 fn opening(
     keys: &ButtonInput<KeyCode>,
     screen: Screen,
     joined: bool,
     chat: &mut Chat,
-) -> Option<(String, bool)> {
+) -> Option<(String, InputStyle)> {
     if screen != Screen::None || !joined {
         return None;
     }
@@ -141,17 +139,19 @@ fn opening(
         return Some(
             chat.draft
                 .take()
-                .map_or((String::new(), false), |draft| (draft, true)),
+                .map_or((String::new(), InputStyle::Plain), |draft| {
+                    (draft, InputStyle::Draft)
+                }),
         );
     }
     if !keys.just_pressed(KeyCode::Slash) {
         return None;
     }
     Some(match chat.draft.take() {
-        Some(draft) if draft.starts_with('/') => (draft, true),
+        Some(draft) if draft.starts_with('/') => (draft, InputStyle::Draft),
         other => {
             chat.draft = other;
-            ("/".to_owned(), false)
+            ("/".to_owned(), InputStyle::Plain)
         }
     })
 }
@@ -182,8 +182,8 @@ fn chat_keys(
         chat.options,
         &chat.completions,
     );
-    if let Some((initial, draft)) = opened {
-        state.input.0.open(&initial, draft, &cx);
+    if let Some((initial, style)) = opened {
+        state.input.0.open(&initial, style, &cx);
         flush_request(&mut state.input.0, &mut connection);
         *state.screen = Screen::Chat;
         grab(&mut cursor, false);
@@ -221,7 +221,7 @@ fn chat_keys(
                     let _ = clipboard.set_text(text);
                 }
             }
-            Outcome::Ignored | Outcome::Handled => {}
+            _ => {}
         }
         flush_request(screen, &mut connection);
     }
@@ -281,8 +281,13 @@ fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientCo
             file.save(chat.history.command_file());
         }
     }
-    chat.draft = keeps_draft(screen.input(), Some(&closed), chat.options.save_unsent)
-        .then(|| screen.input().to_owned());
+    let unsent = if chat.options.save_unsent {
+        UnsentDraft::Save
+    } else {
+        UnsentDraft::Discard
+    };
+    chat.draft =
+        keeps_draft(screen.input(), Some(&closed), unsent).then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
     *state.screen = Screen::None;
 }

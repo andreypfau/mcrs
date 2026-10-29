@@ -6,7 +6,7 @@ use crate::ops::OpList;
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::{InRef, SystemParam};
-use mcrs_command::{Chain, ParseScratch, Suggestion, build_list, recycle};
+use mcrs_command::{Chain, ParseScratch, Suggestion, SuggestionList};
 use mcrs_minecraft_command::{ArgumentError, CommandLevel, error_feedback, suggestion_reply};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
@@ -210,14 +210,14 @@ pub(crate) fn answer_suggestion(
     let scratch = &mut *scratch;
     let start = usize::from(text.starts_with('/'));
     let parse = graph.parse(text, start, &source, &mut scratch.parse);
-    let mut suggestions = recycle(std::mem::take(&mut scratch.suggestions));
+    let mut suggestions = mcrs_command::recycle(std::mem::take(&mut scratch.suggestions));
     graph.suggest(&parse, &source, &mut suggestions);
-    let list = build_list(text, &mut suggestions);
+    let list = SuggestionList::build(text, &mut suggestions);
     outbox.packets.push(to(
         *player,
         PacketPayload::CommandSuggestions(suggestion_reply(*id, text, &list)),
     ));
-    scratch.suggestions = recycle(suggestions);
+    scratch.suggestions = mcrs_command::recycle(suggestions);
 }
 
 /// What a handler sends and changes. Its messages go out after its effects apply, so a player

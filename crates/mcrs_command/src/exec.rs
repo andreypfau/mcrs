@@ -1,6 +1,7 @@
+use crate::graph::{Graph, NodeId};
 use crate::parse::{Entry, ParseResult, contexts};
-use crate::tree::{Graph, NodeId};
 use alloc::vec::Vec;
+use core::mem;
 use mcrs_text_span::Span;
 
 /// What one stage of a chain runs: the modifier of the redirect it follows, or the command of
@@ -29,6 +30,7 @@ impl<H> Default for Chain<H> {
 }
 
 impl<H: Copy> Chain<H> {
+    /// Replaces the chain with the contexts of `parse` and the handlers of their nodes.
     pub fn copy_from<A, R, E: Copy>(
         &mut self,
         graph: &Graph<A, R, H>,
@@ -86,17 +88,21 @@ impl Default for Limits {
 /// What the output of the original source receives when a stage that is not forked fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure<E> {
+    /// A modifier or a command returned this error.
     Command(E),
+    /// A source list reached this many sources.
     ForkLimit(usize),
 }
 
 /// How a run of a chain ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum End {
     /// Every source of the last list ran, or a list became empty.
     Completed,
     /// A stage that is not forked failed, or the chain has no command to run.
     Failed,
+    /// A source list reached [`Limits::forks`].
     ForkLimit,
     /// The run stopped before a run of the run stage; the output receives no message.
     SequenceLimit,
@@ -115,8 +121,10 @@ pub trait Executor<S, H> {
         out: &mut Vec<S>,
     ) -> Result<(), Self::Error>;
 
+    /// Runs the command for one source and returns its result.
     fn run(&mut self, stage: usize, command: &H, source: &S) -> Result<i32, Self::Error>;
 
+    /// Sends a failure to the output of the original source.
     fn report(&mut self, failure: Failure<Self::Error>);
 }
 
@@ -176,7 +184,7 @@ pub fn execute<S, H, X: Executor<S, H>>(
                 return End::ForkLimit;
             }
         }
-        core::mem::swap(current, next);
+        mem::swap(current, next);
         if current.is_empty() {
             return End::Completed;
         }

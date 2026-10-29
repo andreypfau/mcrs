@@ -20,31 +20,53 @@ impl<'t> SuggestionText<'t> {
         self.0.into_iter().flat_map(str::chars)
     }
 
-    pub fn eq_str(&self, text: &str) -> bool {
-        self.chars().eq(text.chars())
-    }
-
     pub fn starts_with(&self, prefix: &str) -> bool {
         let mut chars = self.chars();
         prefix.chars().all(|c| chars.next() == Some(c))
     }
 }
 
+impl PartialEq<str> for SuggestionText<'_> {
+    fn eq(&self, other: &str) -> bool {
+        self.chars().eq(other.chars())
+    }
+}
+
+impl PartialEq<&str> for SuggestionText<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        *self == **other
+    }
+}
+
+/// A text that replaces the input from byte `start` to the end, with an optional tooltip.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct Suggestion<'t, T> {
     pub start: usize,
     pub text: SuggestionText<'t>,
     pub tooltip: Option<T>,
 }
 
+impl<'t, T> Suggestion<'t, T> {
+    pub const fn new(start: usize, text: SuggestionText<'t>, tooltip: Option<T>) -> Self {
+        Self {
+            start,
+            text,
+            tooltip,
+        }
+    }
+}
+
 fn fold(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
     chars.flat_map(char::to_lowercase)
 }
 
+/// Whether the two texts are equal after a lowercase fold.
 pub fn eq_ignore_case(a: impl Iterator<Item = char>, b: impl Iterator<Item = char>) -> bool {
     fold(a).eq(fold(b))
 }
 
+/// Whether `text` starts with `prefix` after a lowercase fold.
 pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
     let mut text = fold(text.chars());
     fold(prefix.chars()).all(|c| text.next() == Some(c))
@@ -53,6 +75,7 @@ pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
 /// Empties a buffer and gives its elements another type, most often the same type with another
 /// lifetime. The allocation stays when the two types have one layout, so a buffer of borrows
 /// outlives the borrows it held.
+#[must_use]
 pub fn recycle<T, U>(buffer: Vec<T>) -> Vec<U> {
     buffer.into_iter().filter_map(|_| None).collect()
 }
@@ -90,8 +113,9 @@ impl<'t, 'o, T> SuggestionBuilder<'t, 'o, T> {
         SuggestionBuilder::new(self.input, start, self.out)
     }
 
+    /// Adds a suggestion at the builder's start, unless it equals the remaining input.
     pub fn suggest(&mut self, text: SuggestionText<'t>, tooltip: Option<T>) {
-        if !text.eq_str(self.remaining()) {
+        if text != self.remaining() {
             self.out.push(Suggestion {
                 start: self.start,
                 text,
@@ -123,6 +147,47 @@ pub struct SuggestionList<'b, 't, T> {
 }
 
 impl<'b, 't, T> SuggestionList<'b, 't, T> {
+    /// Sorts and deduplicates the suggestions in place and returns them as one list.
+    #[must_use]
+    pub fn build(input: &'t str, suggestions: &'b mut Vec<Suggestion<'t, T>>) -> Self
+    where
+        T: PartialEq,
+    {
+        let start = suggestions
+            .iter()
+            .map(|suggestion| suggestion.start)
+            .min()
+            .unwrap_or(input.len());
+        suggestions.sort_unstable_by(|a, b| compare(input, start, a, b));
+        let mut kept = 0;
+        for index in 0..suggestions.len() {
+            let duplicate = {
+                let Some(current) = suggestions.get(index) else {
+                    break;
+                };
+                suggestions
+                    .get(..kept)
+                    .unwrap_or_default()
+                    .iter()
+                    .rev()
+                    .take_while(|earlier| {
+                        compare(input, start, earlier, current) == Ordering::Equal
+                    })
+                    .any(|earlier| earlier.tooltip == current.tooltip)
+            };
+            if !duplicate {
+                suggestions.swap(kept, index);
+                kept += 1;
+            }
+        }
+        suggestions.truncate(kept);
+        Self {
+            span: Span::new(start, input.len()),
+            input,
+            suggestions,
+        }
+    }
+
     /// Each suggestion expanded to the span of the list: the input before its own start, then
     /// its text.
     pub fn iter(&self) -> impl Iterator<Item = (SuggestionText<'t>, Option<&'b T>)> + '_ {
@@ -155,42 +220,4 @@ fn compare<'t, T>(
     fold(a.chars())
         .cmp(fold(b.chars()))
         .then_with(|| a.chars().cmp(b.chars()))
-}
-
-/// Sorts and deduplicates the suggestions in place and returns them as one list.
-pub fn build_list<'b, 't, T: PartialEq>(
-    input: &'t str,
-    suggestions: &'b mut Vec<Suggestion<'t, T>>,
-) -> SuggestionList<'b, 't, T> {
-    let start = suggestions
-        .iter()
-        .map(|suggestion| suggestion.start)
-        .min()
-        .unwrap_or(input.len());
-    suggestions.sort_unstable_by(|a, b| compare(input, start, a, b));
-    let mut kept = 0;
-    for index in 0..suggestions.len() {
-        let duplicate = {
-            let Some(current) = suggestions.get(index) else {
-                break;
-            };
-            suggestions
-                .get(..kept)
-                .unwrap_or_default()
-                .iter()
-                .rev()
-                .take_while(|earlier| compare(input, start, earlier, current) == Ordering::Equal)
-                .any(|earlier| earlier.tooltip == current.tooltip)
-        };
-        if !duplicate {
-            suggestions.swap(kept, index);
-            kept += 1;
-        }
-    }
-    suggestions.truncate(kept);
-    SuggestionList {
-        span: Span::new(start, input.len()),
-        input,
-        suggestions,
-    }
 }

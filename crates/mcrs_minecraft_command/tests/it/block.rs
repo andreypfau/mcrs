@@ -1,5 +1,5 @@
 use mcrs_command::{
-    Argument, LibraryError, Reader, Suggestion, SuggestionBuilder, SyntaxError, build_list,
+    Argument, LibraryError, Reader, Suggestion, SuggestionBuilder, SuggestionList, SyntaxError,
 };
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
@@ -406,7 +406,7 @@ fn the_data_compound_matches_the_saved_data_of_the_block_entity() {
 fn suggestions(input: &str) -> (Span, Vec<String>) {
     let mut out = Vec::new();
     suggest_block(input, &mut out);
-    let list = build_list(input, &mut out);
+    let list = SuggestionList::build(input, &mut out);
     let mut texts: Vec<String> = list
         .iter()
         .map(|(text, _)| text.chars().collect())

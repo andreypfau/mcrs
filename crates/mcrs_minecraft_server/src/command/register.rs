@@ -4,7 +4,7 @@ use crate::command::{
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_command::{Arg, BuildError, GraphBuilder, NodeId};
+use mcrs_command::{ArgumentHandle, BuildError, ForkMode, GraphBuilder, NodeId};
 use mcrs_minecraft_command::{PermissionCheck, VanillaArgument};
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
@@ -40,7 +40,7 @@ impl<'a, B: Copy + PartialEq> CommandRegistrar<'a, B> {
         parent: impl Into<NodeId>,
         name: &'r str,
         argument: T,
-    ) -> NodeRef<'r, 'a, B, Arg<T>> {
+    ) -> NodeRef<'r, 'a, B, ArgumentHandle<T>> {
         NodeRef::new(self, parent.into(), name, Some(argument.into()))
     }
 
@@ -66,7 +66,7 @@ pub struct NodeRef<'r, 'a, B, K> {
     check: PermissionCheck,
     branch: Option<B>,
     redirect: Option<NodeId>,
-    modifier: Option<(B, bool)>,
+    modifier: Option<(B, ForkMode)>,
     handle: PhantomData<fn() -> K>,
 }
 
@@ -108,14 +108,14 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
     /// A redirect whose modifier maps each source to one source, or fails.
     pub fn modify(mut self, target: impl Into<NodeId>, branch: B) -> Self {
         self.redirect = Some(target.into());
-        self.modifier = Some((branch, false));
+        self.modifier = Some((branch, ForkMode::Single));
         self
     }
 
     /// A redirect whose modifier maps each source to any number of sources.
     pub fn fork(mut self, target: impl Into<NodeId>, branch: B) -> Self {
         self.redirect = Some(target.into());
-        self.modifier = Some((branch, true));
+        self.modifier = Some((branch, ForkMode::Fork));
         self
     }
 
@@ -125,7 +125,7 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
         let node = match self.argument {
             Some(argument) => builder
                 .argument(self.parent, self.name, argument, self.check)
-                .map(Arg::node),
+                .map(ArgumentHandle::node),
             None => builder.literal(self.parent, self.name, self.check),
         }?;
         if let Some(branch) = self.branch {
@@ -138,12 +138,12 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
         if let Some(target) = self.redirect {
             registrar.builder.redirect(node, target)?;
         }
-        if let Some((branch, forks)) = self.modifier {
+        if let Some((branch, mode)) = self.modifier {
             let handler = Handler {
                 key: registrar.key,
                 branch: registrar.branch(branch),
             };
-            registrar.builder.modifies(node, handler, forks)?;
+            registrar.builder.modifies(node, handler, mode)?;
         }
         Ok(K::from(node))
     }

@@ -3,8 +3,6 @@ use std::collections::VecDeque;
 const MAX_MESSAGES: usize = 100;
 const MAX_LINES: usize = 100;
 const LIFETIME: f64 = 200.0;
-const OVERLAY_TICKS: u32 = 60;
-const OVERLAY_FADE: f32 = 20.0;
 
 /// A mark on a message (CHAT-LOG-005).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,6 +24,7 @@ impl Tag {
         }
     }
 
+    /// The translation key of the tooltip of the indicator.
     pub fn tooltip_key(self) -> &'static str {
         match self {
             Tag::SystemSinglePlayer => "chat.tag.system_single_player",
@@ -52,6 +51,7 @@ pub(crate) struct Logged<M> {
 
 /// One row of a wrapped message.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Line<L> {
     pub content: L,
     pub tick: u64,
@@ -122,6 +122,7 @@ impl<L> Default for ChatLines<L> {
 
 /// The alpha of a line of the closed chat `age` ticks after its message arrived
 /// (CHAT-LOG-003).
+#[must_use]
 pub fn fade(age: u64) -> f32 {
     let t = (10.0 * (1.0 - age as f64 / LIFETIME)).clamp(0.0, 1.0);
     (t * t) as f32
@@ -227,42 +228,5 @@ impl<L> ChatLines<L> {
             .skip(self.scroll)
             .take(per_page)
             .enumerate()
-    }
-}
-
-/// The text above the hotbar (CHAT-RECV-005).
-#[derive(Clone, Debug)]
-pub struct Overlay<M> {
-    message: Option<M>,
-    time_left: u32,
-}
-
-impl<M> Default for Overlay<M> {
-    fn default() -> Self {
-        Self {
-            message: None,
-            time_left: 0,
-        }
-    }
-}
-
-impl<M> Overlay<M> {
-    pub fn set(&mut self, message: M) {
-        self.message = Some(message);
-        self.time_left = OVERLAY_TICKS;
-    }
-
-    pub fn tick(&mut self) {
-        self.time_left = self.time_left.saturating_sub(1);
-    }
-
-    /// The message and its alpha from 0 to 255, while it shows.
-    pub fn shown(&self, partial_tick: f32) -> Option<(&M, u8)> {
-        let t = self.time_left as f32 - partial_tick;
-        let alpha = (t * 255.0 / OVERLAY_FADE).floor().min(255.0);
-        if alpha <= 0.0 {
-            return None;
-        }
-        Some((self.message.as_ref()?, alpha as u8))
     }
 }

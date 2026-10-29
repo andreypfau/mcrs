@@ -1,5 +1,5 @@
-use crate::command::{CommandInput, Context, Request};
-use crate::edit::EditBox;
+use crate::command_input::{CommandInput, Context, Request};
+use crate::edit_box::{Anchor, EditBox, Step};
 use crate::history::{History, Recall};
 use crate::normalize::normalize;
 use mcrs_minecraft_command::Lookup;
@@ -12,12 +12,12 @@ pub enum Key {
     Tab { back: bool },
     Escape,
     Enter,
-    Backspace { word: bool },
-    Delete { word: bool },
-    Left { word: bool, select: bool },
-    Right { word: bool, select: bool },
-    Home { select: bool },
-    End { select: bool },
+    Backspace { step: Step },
+    Delete { step: Step },
+    Left { step: Step, anchor: Anchor },
+    Right { step: Step, anchor: Anchor },
+    Home { anchor: Anchor },
+    End { anchor: Anchor },
     PageUp,
     PageDown,
     SelectAll,
@@ -27,7 +27,7 @@ pub enum Key {
 
 /// What a send carries (CHAT-SEND-002 to CHAT-SEND-004).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Send {
+pub enum Outgoing {
     Chat(String),
     /// The command line without its `/`; `signed` picks `chat_command_signed`.
     Command {
@@ -43,29 +43,53 @@ pub enum Closed {
     /// Enter closed the screen, with what to send, if anything. `history_changed` asks the
     /// caller to write the command history again.
     Sent {
-        send: Option<Send>,
+        send: Option<Outgoing>,
         history_changed: bool,
     },
 }
 
+/// What the chat screen did with an input event.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Outcome {
+    /// The screen did nothing; the caller may give the event to someone else.
     Ignored,
+    /// The screen used the event.
     Handled,
+    /// The screen closed.
     Closed(Closed),
     /// Page Up (`1`) or Page Down (`-1`) scrolls the chat log by `perPage − 1` lines.
     Page(isize),
+    /// The caller puts this text on the clipboard.
     Copy(String),
 }
 
+/// What Escape does with an unsent input.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum UnsentDraft {
+    #[default]
+    Discard,
+    Save,
+}
+
+/// How the initial text of the screen shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InputStyle {
+    #[default]
+    Plain,
+    /// The draft style, until the first change.
+    Draft,
+}
+
 /// The input the client keeps after the screen closed, if any (CHAT-OPEN-002).
-pub fn keeps_draft(input: &str, closed: Option<&Closed>, save_unsent: bool) -> bool {
+#[must_use]
+pub fn keeps_draft(input: &str, closed: Option<&Closed>, unsent: UnsentDraft) -> bool {
     if input.trim().is_empty() {
         return false;
     }
     match closed {
         Some(Closed::Sent { .. }) => false,
-        Some(Closed::Escape) => save_unsent,
+        Some(Closed::Escape) => unsent == UnsentDraft::Save,
         None => true,
     }
 }
@@ -83,16 +107,15 @@ pub struct ChatScreen {
 }
 
 impl ChatScreen {
-    /// Opens on `initial`; a draft shows in its own style until the first change
-    /// (CHAT-OPEN-001). The suggestion list does not show until the player types or presses
-    /// Tab (CCMD-LIST-001).
-    pub fn open<L: Lookup>(&mut self, initial: &str, draft: bool, cx: &Context<'_, L>) {
+    /// Opens on `initial` in `style` (CHAT-OPEN-001). The suggestion list does not show until
+    /// the player types or presses Tab (CCMD-LIST-001).
+    pub fn open<L: Lookup>(&mut self, initial: &str, style: InputStyle, cx: &Context<'_, L>) {
         self.edit.set(initial);
         self.recall = Recall::default();
-        self.draft = draft;
+        self.draft = style == InputStyle::Draft;
         self.commands.auto = false;
         self.commands.hide_list();
-        self.refresh(cx, false);
+        self.refresh(cx);
     }
 
     /// The server request the last call made, to send now (CCMD-REQ-001).
@@ -100,22 +123,25 @@ impl ChatScreen {
         self.request.take()
     }
 
+    /// The text of the input box.
     pub fn input(&self) -> &str {
         self.edit.text()
     }
 
+    /// The input box.
     pub fn edit(&self) -> &EditBox {
         &self.edit
     }
 
+    /// Whether the input still shows in the draft style.
     pub fn is_draft(&self) -> bool {
         self.draft
     }
 
-    fn refresh<L: Lookup>(&mut self, cx: &Context<'_, L>, keep_list: bool) {
-        if let Some(request) =
-            self.commands
-                .refresh(self.edit.text(), self.edit.caret(), cx, keep_list)
+    fn refresh<L: Lookup>(&mut self, cx: &Context<'_, L>) {
+        if let Some(request) = self
+            .commands
+            .refresh(self.edit.text(), self.edit.caret(), cx)
         {
             self.request = Some(request);
         }
@@ -125,7 +151,7 @@ impl ChatScreen {
     fn changed<L: Lookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
         self.draft = false;
         self.commands.auto = true;
-        self.refresh(cx, false);
+        self.refresh(cx);
         Outcome::Handled
     }
 
@@ -144,8 +170,13 @@ impl ChatScreen {
         self.sent.clear();
         self.sent.push_str(list.result());
         self.edit.set(&self.sent);
-        self.edit.set_caret(caret, false);
-        self.refresh(cx, true);
+        self.edit.set_caret(caret, Anchor::Move);
+        if let Some(request) =
+            self.commands
+                .refresh_after_insert(self.edit.text(), self.edit.caret(), cx)
+        {
+            self.request = Some(request);
+        }
         if let Some(list) = self.commands.list_mut() {
             list.select(selected);
             list.cycle = true;
@@ -199,8 +230,8 @@ impl ChatScreen {
                 self.changed(cx)
             }
             Key::Escape => Outcome::Closed(Closed::Escape),
-            Key::Backspace { word } => self.edited(|edit| edit.backspace(word), cx),
-            Key::Delete { word } => self.edited(|edit| edit.delete(word), cx),
+            Key::Backspace { step } => self.edited(|edit| edit.backspace(step), cx),
+            Key::Delete { step } => self.edited(|edit| edit.delete(step), cx),
             Key::Cut => {
                 let selected = self.edit.selected().to_owned();
                 if self.edit.cut() {
@@ -211,10 +242,10 @@ impl ChatScreen {
                 }
             }
             Key::Copy => Outcome::Copy(self.edit.selected().to_owned()),
-            Key::Left { word, select } => self.moved(|edit| edit.left(word, select)),
-            Key::Right { word, select } => self.moved(|edit| edit.right(word, select)),
-            Key::Home { select } => self.moved(|edit| edit.home(select)),
-            Key::End { select } => self.moved(|edit| edit.end(select)),
+            Key::Left { step, anchor } => self.moved(|edit| edit.left(step, anchor)),
+            Key::Right { step, anchor } => self.moved(|edit| edit.right(step, anchor)),
+            Key::Home { anchor } => self.moved(|edit| edit.home(anchor)),
+            Key::End { anchor } => self.moved(|edit| edit.end(anchor)),
             Key::SelectAll => self.moved(EditBox::select_all),
             Key::Enter => self.enter(history, cx),
             Key::PageUp => Outcome::Page(1),
@@ -255,7 +286,7 @@ impl ChatScreen {
         self.edit.set(text);
         self.draft = false;
         self.commands.auto = false;
-        self.refresh(cx, false);
+        self.refresh(cx);
         Outcome::Handled
     }
 
@@ -284,11 +315,11 @@ impl ChatScreen {
         }
         let history_changed = history.add(&self.sent);
         let send = match self.sent.strip_prefix('/') {
-            Some(line) => Send::Command {
+            Some(line) => Outgoing::Command {
                 line: line.to_owned(),
                 signed: self.commands.line_has_message(line, cx),
             },
-            None => Send::Chat(self.sent.clone()),
+            None => Outgoing::Chat(self.sent.clone()),
         };
         Outcome::Closed(Closed::Sent {
             send: Some(send),

@@ -1,7 +1,27 @@
 use mcrs_minecraft_protocol::text::is_allowed_chat_character;
 
 use crate::MAX_INPUT;
-use mcrs_text_span::{utf16_len, utf16_prefix};
+use mcrs_text_span::{Span, utf16_len, utf16_prefix};
+
+/// How far a caret move or a removal goes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Step {
+    /// One character.
+    #[default]
+    Char,
+    /// To the next word boundary.
+    Word,
+}
+
+/// What a caret move does with the other end of the selection.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Anchor {
+    /// The anchor moves with the caret, so nothing stays selected.
+    #[default]
+    Move,
+    /// The anchor stays, so the selection grows or shrinks.
+    Keep,
+}
 
 /// A one-line text field (CHAT-BOX-001, CHAT-BOX-002). Positions are byte offsets into the text.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -37,22 +57,24 @@ fn next_word(text: &str, at: usize) -> usize {
 }
 
 impl EditBox {
+    /// The text of the field.
     pub fn text(&self) -> &str {
         &self.text
     }
 
+    /// The byte offset of the caret.
     pub fn caret(&self) -> usize {
         self.caret
     }
 
-    /// The selected range, start first.
-    pub fn selection(&self) -> (usize, usize) {
-        (self.caret.min(self.anchor), self.caret.max(self.anchor))
+    /// The selected range between the caret and the anchor.
+    pub fn selection(&self) -> Span {
+        Span::new(self.caret.min(self.anchor), self.caret.max(self.anchor))
     }
 
+    /// The selected text.
     pub fn selected(&self) -> &str {
-        let (start, end) = self.selection();
-        self.text.get(start..end).unwrap_or_default()
+        self.selection().text(&self.text)
     }
 
     /// Replaces the text and puts the caret at its end.
@@ -63,10 +85,11 @@ impl EditBox {
         self.anchor = self.caret;
     }
 
-    pub fn set_caret(&mut self, caret: usize, select: bool) {
+    /// Moves the caret to the character boundary at or before `caret`.
+    pub fn set_caret(&mut self, caret: usize, anchor: Anchor) {
         let caret = self.text.floor_char_boundary(caret);
         self.caret = caret;
-        if !select {
+        if anchor == Anchor::Move {
             self.anchor = caret;
         }
     }
@@ -74,8 +97,8 @@ impl EditBox {
     /// Types or pastes `typed` over the selection; rejected code units go and the rest is cut
     /// at the limit. Returns whether the text changed.
     pub fn insert(&mut self, typed: &str) -> bool {
-        let (start, end) = self.selection();
-        let kept = utf16_len(&self.text) - utf16_len(self.text.get(start..end).unwrap_or_default());
+        let Span { start, end } = self.selection();
+        let kept = utf16_len(&self.text) - utf16_len(self.selected());
         let room = MAX_INPUT.saturating_sub(kept);
         let mut added = String::new();
         let mut units = 0;
@@ -96,10 +119,10 @@ impl EditBox {
     }
 
     fn remove_to(&mut self, to: usize) -> bool {
-        let (start, end) = if self.caret != self.anchor {
+        let Span { start, end } = if self.caret != self.anchor {
             self.selection()
         } else {
-            (to.min(self.caret), to.max(self.caret))
+            Span::new(to.min(self.caret), to.max(self.caret))
         };
         if start == end {
             return false;
@@ -110,46 +133,51 @@ impl EditBox {
         true
     }
 
-    fn previous(&self, word: bool) -> usize {
-        if word {
-            previous_word(&self.text, self.caret)
-        } else {
-            previous_boundary(&self.text, self.caret)
+    fn previous(&self, step: Step) -> usize {
+        match step {
+            Step::Char => previous_boundary(&self.text, self.caret),
+            Step::Word => previous_word(&self.text, self.caret),
         }
     }
 
-    fn next(&self, word: bool) -> usize {
-        if word {
-            next_word(&self.text, self.caret)
-        } else {
-            next_boundary(&self.text, self.caret)
+    fn next(&self, step: Step) -> usize {
+        match step {
+            Step::Char => next_boundary(&self.text, self.caret),
+            Step::Word => next_word(&self.text, self.caret),
         }
     }
 
-    pub fn backspace(&mut self, word: bool) -> bool {
-        self.remove_to(self.previous(word))
+    /// Removes the selection, or the step before the caret; returns whether the text changed.
+    pub fn backspace(&mut self, step: Step) -> bool {
+        self.remove_to(self.previous(step))
     }
 
-    pub fn delete(&mut self, word: bool) -> bool {
-        self.remove_to(self.next(word))
+    /// Removes the selection, or the step after the caret; returns whether the text changed.
+    pub fn delete(&mut self, step: Step) -> bool {
+        self.remove_to(self.next(step))
     }
 
-    pub fn left(&mut self, word: bool, select: bool) {
-        self.set_caret(self.previous(word), select);
+    /// Moves the caret one step back.
+    pub fn left(&mut self, step: Step, anchor: Anchor) {
+        self.set_caret(self.previous(step), anchor);
     }
 
-    pub fn right(&mut self, word: bool, select: bool) {
-        self.set_caret(self.next(word), select);
+    /// Moves the caret one step forward.
+    pub fn right(&mut self, step: Step, anchor: Anchor) {
+        self.set_caret(self.next(step), anchor);
     }
 
-    pub fn home(&mut self, select: bool) {
-        self.set_caret(0, select);
+    /// Moves the caret to the start of the text.
+    pub fn home(&mut self, anchor: Anchor) {
+        self.set_caret(0, anchor);
     }
 
-    pub fn end(&mut self, select: bool) {
-        self.set_caret(self.text.len(), select);
+    /// Moves the caret to the end of the text.
+    pub fn end(&mut self, anchor: Anchor) {
+        self.set_caret(self.text.len(), anchor);
     }
 
+    /// Selects the whole text, the caret at its end.
     pub fn select_all(&mut self) {
         self.anchor = 0;
         self.caret = self.text.len();

@@ -5,7 +5,7 @@ use crate::identifier::{
 };
 use crate::source::{Lookup, Source};
 use glam::DVec3;
-use mcrs_command::suggest::eq_ignore_case;
+use mcrs_command::eq_ignore_case;
 use mcrs_command::{
     Argument, LibraryError, Reader, StringSpan, StringValue, SuggestionBuilder, SuggestionText,
     SyntaxError,
@@ -742,7 +742,7 @@ fn read_options<'a>(
         let key_start = reader.cursor();
         let key_span = reader.read_string()?;
         let name = StringValue::new(reader.input(), key_span);
-        let Some(&(_, key, _)) = KEYS.iter().find(|(text, ..)| name.eq_str(text)) else {
+        let Some(&(_, key, _)) = KEYS.iter().find(|(text, ..)| name == *text) else {
             return rewind(reader, key_start, ArgumentError::OptionsUnknown(key_span));
         };
         if !state.available(key) {
@@ -1032,7 +1032,7 @@ impl<'a> Selector<'a> {
     fn retain_listed<C: Candidate, L: Lookup>(&self, found: &mut Vec<&C>, lookup: &L) {
         self.list_options(|option| {
             found.retain(|candidate| match option {
-                ListOption::Name { name, negated } => name.eq_str(candidate.name()) != negated,
+                ListOption::Name { name, negated } => (name == candidate.name()) != negated,
                 ListOption::GameMode { mode, negated } => candidate
                     .game_mode()
                     .is_some_and(|actual| (actual == mode) != negated),

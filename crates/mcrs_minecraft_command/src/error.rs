@@ -192,6 +192,7 @@ fn library_text(input: &str, error: LibraryError) -> Text {
         E::UnknownCommand => Text::translate("command.unknown.command", vec![]),
         E::UnknownArgument => Text::translate("command.unknown.argument", vec![]),
         E::ExpectedSeparator => Text::translate("command.expected.separator", vec![]),
+        _ => error.to_string().into_text(),
     }
 }
 

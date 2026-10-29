@@ -21,7 +21,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::{SystemId, SystemParam};
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_command::{Arg, Argument, Chain, Contains, GraphBuilder, Limits};
+use mcrs_command::{Argument, ArgumentHandle, Chain, Contains, GraphBuilder, Limits};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{
     ArgumentError, CommandLevel, PermissionCheck, Source, VanillaArgument, VanillaGraph,
@@ -274,7 +274,7 @@ impl<'w, 's> CommandContext<'w, 's> {
     pub fn arg<'a, T>(
         &'a self,
         call: &Invocation,
-        arg: Arg<T>,
+        arg: ArgumentHandle<T>,
     ) -> Result<T::Value<'a>, CommandFailure>
     where
         VanillaArgument: Contains<T>,
@@ -288,7 +288,7 @@ impl<'w, 's> CommandContext<'w, 's> {
     pub fn opt<'a, T>(
         &'a self,
         call: &Invocation,
-        arg: Arg<T>,
+        arg: ArgumentHandle<T>,
     ) -> Result<Option<T::Value<'a>>, CommandFailure>
     where
         VanillaArgument: Contains<T>,

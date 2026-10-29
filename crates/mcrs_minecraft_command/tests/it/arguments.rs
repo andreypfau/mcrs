@@ -1,6 +1,6 @@
 use crate::{OP, read};
 use glam::{BVec3, DVec3};
-use mcrs_command::{LibraryError, SuggestionBuilder, SyntaxError, build_list};
+use mcrs_command::{LibraryError, SuggestionBuilder, SuggestionList, SyntaxError};
 use mcrs_minecraft_command::argument::coordinates::{Coordinates, WorldCoordinate};
 use mcrs_minecraft_command::{
     ArgumentError, BlockPosArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument,
@@ -99,7 +99,7 @@ fn vec3_completes_the_fields_that_the_input_lacks() {
     for (input, expected) in cases {
         let mut out = Vec::<mcrs_command::Suggestion<'_, ()>>::new();
         Vec3Argument.suggest(&mut SuggestionBuilder::new(input, 0, &mut out));
-        let texts: Vec<String> = build_list(input, &mut out)
+        let texts: Vec<String> = SuggestionList::build(input, &mut out)
             .iter()
             .map(|(text, _)| text.chars().collect())
             .collect();

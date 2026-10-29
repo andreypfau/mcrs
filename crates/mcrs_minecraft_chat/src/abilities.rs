@@ -1,5 +1,13 @@
 use mcrs_minecraft_protocol::setting::ChatMode;
 
+/// Whether the launcher and the account let the player chat.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ChatAccess {
+    #[default]
+    Allowed,
+    Forbidden,
+}
+
 /// What the player can send and receive (CHAT-OPT-002).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChatAbilities {
@@ -10,13 +18,13 @@ pub struct ChatAbilities {
 }
 
 impl ChatAbilities {
-    /// `chat_allowed` is false when the launcher or the account forbids chat.
-    pub fn new(mode: ChatMode, chat_allowed: bool) -> Self {
+    pub fn new(mode: ChatMode, access: ChatAccess) -> Self {
         let (messages, commands) = match mode {
             ChatMode::Enabled => (true, true),
             ChatMode::CommandsOnly => (false, true),
             ChatMode::Hidden => (false, false),
         };
+        let chat_allowed = access == ChatAccess::Allowed;
         Self {
             send_messages: messages && chat_allowed,
             send_commands: commands,
@@ -28,6 +36,6 @@ impl ChatAbilities {
 
 impl Default for ChatAbilities {
     fn default() -> Self {
-        Self::new(ChatMode::Enabled, true)
+        Self::new(ChatMode::Enabled, ChatAccess::Allowed)
     }
 }

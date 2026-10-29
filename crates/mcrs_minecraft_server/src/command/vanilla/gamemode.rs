@@ -3,7 +3,7 @@ use crate::command::{
     Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
 };
 use bevy_ecs::prelude::*;
-use mcrs_command::{Arg, BuildError, NodeId};
+use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, EntityArgument, GameModeArgument, PermissionCheck};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -18,8 +18,8 @@ pub struct SetGameMode {
 
 #[derive(Clone, Copy)]
 pub(super) struct GameModeCommand {
-    mode: Arg<GameModeArgument>,
-    target: Arg<EntityArgument>,
+    mode: ArgumentHandle<GameModeArgument>,
+    target: ArgumentHandle<EntityArgument>,
 }
 
 /// CMD-GM-001.

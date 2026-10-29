@@ -3,7 +3,7 @@ use crate::command::{
 };
 use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
-use mcrs_command::{Arg, BuildError, NodeId};
+use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_biome::keys::BIOME;
 use mcrs_minecraft_command::{
     CommandLevel, Lookup, PermissionCheck, ResourceOrTag, ResourceOrTagArgument,
@@ -19,9 +19,9 @@ use mcrs_minecraft_worldgen_structure::frozen::StructureId;
 
 #[derive(Clone, Copy)]
 pub(super) struct LocateCommand {
-    structure: Arg<ResourceOrTagArgument>,
-    biome: Arg<ResourceOrTagArgument>,
-    poi: Arg<ResourceOrTagArgument>,
+    structure: ArgumentHandle<ResourceOrTagArgument>,
+    biome: ArgumentHandle<ResourceOrTagArgument>,
+    poi: ArgumentHandle<ResourceOrTagArgument>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

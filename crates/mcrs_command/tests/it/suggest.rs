@@ -1,5 +1,7 @@
 use crate::{Builder, OP, OPEN, TestGraph};
-use mcrs_command::{BoolArgument, NodeId, ParseScratch, Suggestion, SuggestionText, build_list};
+use mcrs_command::{
+    BoolArgument, NodeId, ParseScratch, Suggestion, SuggestionList, SuggestionText,
+};
 use mcrs_text_span::Span;
 
 fn suggestions(graph: &TestGraph, input: &str, level: u8) -> (Span, Vec<String>) {
@@ -7,7 +9,7 @@ fn suggestions(graph: &TestGraph, input: &str, level: u8) -> (Span, Vec<String>)
     let parse = graph.parse(input, 0, &level, &mut scratch);
     let mut out = Vec::new();
     graph.suggest(&parse, &level, &mut out);
-    let list = build_list(input, &mut out);
+    let list = SuggestionList::build(input, &mut out);
     let texts = list
         .iter()
         .map(|(text, _)| text.chars().collect())
@@ -52,28 +54,12 @@ fn suggestions_come_from_the_children_the_source_can_use() {
 fn a_list_expands_each_suggestion_to_its_span_and_drops_duplicates() {
     let input = "say ab";
     let mut out: Vec<Suggestion<'_, ()>> = vec![
-        Suggestion {
-            start: 4,
-            text: SuggestionText::new("abc"),
-            tooltip: None,
-        },
-        Suggestion {
-            start: 6,
-            text: SuggestionText::new("Z"),
-            tooltip: None,
-        },
-        Suggestion {
-            start: 4,
-            text: SuggestionText::concat("ab", "c"),
-            tooltip: None,
-        },
-        Suggestion {
-            start: 4,
-            text: SuggestionText::new("ABD"),
-            tooltip: None,
-        },
+        Suggestion::new(4, SuggestionText::new("abc"), None),
+        Suggestion::new(6, SuggestionText::new("Z"), None),
+        Suggestion::new(4, SuggestionText::concat("ab", "c"), None),
+        Suggestion::new(4, SuggestionText::new("ABD"), None),
     ];
-    let list = build_list(input, &mut out);
+    let list = SuggestionList::build(input, &mut out);
     assert_eq!(list.span, Span::new(4, 6));
     let texts: Vec<String> = list
         .iter()

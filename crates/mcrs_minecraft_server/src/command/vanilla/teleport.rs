@@ -9,7 +9,7 @@ use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
 use crate::world::entity::player_network_id;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_command::{Arg, BuildError, NodeId};
+use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::teleport::{Pose, relative_move};
 use mcrs_minecraft_command::{
     CommandLevel, EntityAnchorArgument, EntityArgument, PermissionCheck, RotationArgument,
@@ -59,15 +59,15 @@ pub struct TeleportPlayer {
 
 #[derive(Clone, Copy)]
 pub(super) struct TeleportCommand {
-    location: Arg<Vec3Argument>,
-    destination: Arg<EntityArgument>,
-    targets: Arg<EntityArgument>,
-    target_location: Arg<Vec3Argument>,
-    rotation: Arg<RotationArgument>,
-    facing_entity: Arg<EntityArgument>,
-    facing_anchor: Arg<EntityAnchorArgument>,
-    facing_location: Arg<Vec3Argument>,
-    target_destination: Arg<EntityArgument>,
+    location: ArgumentHandle<Vec3Argument>,
+    destination: ArgumentHandle<EntityArgument>,
+    targets: ArgumentHandle<EntityArgument>,
+    target_location: ArgumentHandle<Vec3Argument>,
+    rotation: ArgumentHandle<RotationArgument>,
+    facing_entity: ArgumentHandle<EntityArgument>,
+    facing_anchor: ArgumentHandle<EntityAnchorArgument>,
+    facing_location: ArgumentHandle<Vec3Argument>,
+    target_destination: ArgumentHandle<EntityArgument>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -156,7 +156,7 @@ struct Destination {
 fn one<'c>(
     context: &'c CommandContext,
     call: &Invocation,
-    arg: Arg<EntityArgument>,
+    arg: ArgumentHandle<EntityArgument>,
     found: &mut FoundPlayers,
 ) -> Result<&'c PlayerEntry, CommandFailure> {
     let first = found.with(|out| {
@@ -169,7 +169,7 @@ fn one<'c>(
 fn to_entity(
     context: &CommandContext,
     call: &Call<Branch, TeleportCommand>,
-    arg: Arg<EntityArgument>,
+    arg: ArgumentHandle<EntityArgument>,
     found: &mut FoundPlayers,
 ) -> Result<Destination, CommandFailure> {
     let entity = one(context, call, arg, found)?;

@@ -6,7 +6,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chat::{
-    ChatAbilities, ChatLog, ChatScreen, Context, History, Overlay, Send, Tag,
+    ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Tag,
 };
 use mcrs_minecraft_command::{
     ClientGraph, CommandLevel, Lookup, RegistryLookup, Source, client_tree,
@@ -622,22 +622,22 @@ const NOTHING_SEEN: MessageSignature = MessageSignature {
     checksum: 1,
 };
 
-pub(crate) fn send(connection: &mut ClientConnection, send: &Send) {
+pub(crate) fn send(connection: &mut ClientConnection, send: &Outgoing) {
     match send {
-        Send::Chat(message) => connection.write_packet(&ServerboundChat {
+        Outgoing::Chat(message) => connection.write_packet(&ServerboundChat {
             message: Bounded(message),
             timestamp: now_millis(),
             salt: salt(),
             signature: None,
             last_seen_messages: NOTHING_SEEN,
         }),
-        Send::Command {
+        Outgoing::Command {
             line,
             signed: false,
         } => connection.write_packet(&ServerboundChatCommand {
             command: Bounded(line),
         }),
-        Send::Command { line, signed: true } => {
+        Outgoing::Command { line, signed: true } => {
             connection.write_packet(&ServerboundChatCommandSigned {
                 command: Bounded(line),
                 timestamp: now_millis(),

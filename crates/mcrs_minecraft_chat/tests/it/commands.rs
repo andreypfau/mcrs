@@ -1,6 +1,8 @@
 use crate::{Tree, Wire, context, greedy, source};
 use mcrs_command::{ErrorKind, LibraryError};
-use mcrs_minecraft_chat::{ChatScreen, CommandInput, Highlight, Hint, History, Key, Request};
+use mcrs_minecraft_chat::{
+    ChatScreen, CommandInput, Highlight, Hint, History, InputStyle, Key, Request,
+};
 use mcrs_minecraft_command::ClientGraph;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::command::{CommandSuggestion, ParserProperties};
@@ -51,7 +53,7 @@ fn usage_lines_name_the_argument_children_of_the_suggestion_parent() {
     let source = source();
     let cx = context(&tree, &source);
     let mut input = CommandInput::default();
-    assert_eq!(input.refresh("/tp ", 4, &cx, false), None);
+    assert_eq!(input.refresh("/tp ", 4, &cx), None);
     assert!(input.is_ready());
     assert_eq!(
         usage_lines(&input),
@@ -67,13 +69,13 @@ fn an_unknown_command_gives_one_error_line_and_a_known_one_none() {
     let source = source();
     let cx = context(&tree, &source);
     let mut input = CommandInput::default();
-    input.refresh("/b", 2, &cx, false);
+    input.refresh("/b", 2, &cx);
     let [Hint::Error(error)] = input.hints() else {
         panic!("{:?}", input.hints());
     };
     assert_eq!(error.kind, ErrorKind::Library(LibraryError::UnknownCommand));
     assert_eq!(error.position, 1);
-    input.refresh("/a", 2, &cx, false);
+    input.refresh("/a", 2, &cx);
     assert_eq!(input.hints(), []);
 }
 
@@ -129,7 +131,7 @@ fn arguments_of_the_last_context_take_the_colour_cycle_and_trailing_text_is_red(
     let mut input = CommandInput::default();
 
     let line = "/give @s stone 5";
-    input.refresh(line, line.len(), &cx, false);
+    input.refresh(line, line.len(), &cx);
     assert_eq!(
         input.highlights(),
         [
@@ -140,7 +142,7 @@ fn arguments_of_the_last_context_take_the_colour_cycle_and_trailing_text_is_red(
     );
 
     let line = "/execute as @s run give @s stone x";
-    input.refresh(line, line.len(), &cx, false);
+    input.refresh(line, line.len(), &cx);
     assert_eq!(
         input.highlights(),
         [
@@ -194,11 +196,11 @@ fn request_ids_grow_until_a_reply_and_a_stale_reply_changes_nothing() {
     let mut input = CommandInput::default();
 
     assert_eq!(
-        input.refresh("/x ", 3, &cx, false),
+        input.refresh("/x ", 3, &cx),
         Some(Request { id: 0, end: 3 })
     );
     assert_eq!(
-        input.refresh("/x a", 4, &cx, false),
+        input.refresh("/x a", 4, &cx),
         Some(Request { id: 1, end: 4 })
     );
     assert!(!input.is_ready(), "no list and no hint before the reply");
@@ -215,11 +217,11 @@ fn request_ids_grow_until_a_reply_and_a_stale_reply_changes_nothing() {
         "the only child keeps the order of the server"
     );
     assert_eq!(
-        input.refresh("/x ab", 5, &cx, false),
+        input.refresh("/x ab", 5, &cx),
         Some(Request { id: 0, end: 5 })
     );
 
-    input.refresh("/y", 2, &cx, false);
+    input.refresh("/y", 2, &cx);
     assert_eq!(input.open_request(), None);
     assert!(!reply(&mut input, &cx, 0, &["late"]));
     assert!(input.suggestions().iter().all(|text| text != "late"));
@@ -239,7 +241,7 @@ fn tab_inserts_each_entry_in_turn_and_shows_its_rest_as_ghost_text() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("/", false, &cx);
+    screen.open("/", InputStyle::Plain, &cx);
     assert!(
         screen.commands.list().is_none(),
         "no list until the player types"
@@ -277,7 +279,7 @@ fn chat_text_suggests_player_names_only_after_tab() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("", false, &cx);
+    screen.open("", InputStyle::Plain, &cx);
     screen.type_text("hi al", &cx);
     assert!(screen.commands.list().is_none());
     screen.key(Key::Tab { back: false }, &mut history, &cx);

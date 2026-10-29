@@ -1,39 +1,12 @@
 use crate::{Builder, OPEN, executable_literal};
 use mcrs_command::{
-    BoolArgument, Chain, Executor, Failure, IntegerArgument, Limits, NodeId, ParseScratch,
-    SourceLists, StringArgument, build_list, execute,
+    BoolArgument, Chain, Executor, Failure, ForkMode, IntegerArgument, Limits, NodeId,
+    ParseScratch, SourceLists, StringArgument, SuggestionList, execute,
 };
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::cell::Cell;
-
-struct Counting;
-
-thread_local! {
-    static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
-}
-
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { System.realloc(ptr, layout, size) }
-    }
-}
+use mcrs_test_alloc::{CountingAllocator, allocations};
 
 #[global_allocator]
-static GLOBAL: Counting = Counting;
-
-fn allocations() -> usize {
-    ALLOCATIONS.with(Cell::get)
-}
+static GLOBAL: CountingAllocator = CountingAllocator;
 
 #[derive(Default)]
 struct Count {
@@ -74,7 +47,7 @@ fn a_warm_parse_run_and_suggestion_pass_allocate_nothing() {
     b.redirect(alias, root).unwrap();
     let fork = b.literal(NodeId::ROOT, "f", OPEN).unwrap();
     b.redirect(fork, NodeId::ROOT).unwrap();
-    b.modifies(fork, 1, true).unwrap();
+    b.modifies(fork, 1, ForkMode::Fork).unwrap();
     let graph = b.freeze().unwrap();
 
     let inputs = [
@@ -84,6 +57,8 @@ fn a_warm_parse_run_and_suggestion_pass_allocate_nothing() {
         "cmd x y",
         "c c",
         "f f c 7",
+        "cm",
+        "cmd 12 ",
     ];
     let mut scratch = ParseScratch::default();
     let mut out = Vec::new();
@@ -94,7 +69,8 @@ fn a_warm_parse_run_and_suggestion_pass_allocate_nothing() {
     let mut run = |scratch: &mut ParseScratch<_>,
                    out: &mut Vec<_>,
                    chain: &mut Chain<u32>,
-                   lists: &mut SourceLists<u32>| {
+                   lists: &mut SourceLists<u32>,
+                   suggested: &mut usize| {
         for input in inputs {
             let parse = graph.parse(input, 0, &0u8, scratch);
             let checked = std::hint::black_box(parse.check(&graph));
@@ -109,13 +85,30 @@ fn a_warm_parse_run_and_suggestion_pass_allocate_nothing() {
             }
             out.clear();
             graph.suggest(&parse, &0u8, out);
-            let list = build_list(input, out);
+            *suggested += out.len();
+            let list = SuggestionList::build(input, out);
             std::hint::black_box(list);
         }
     };
-    run(&mut scratch, &mut out, &mut chain, &mut lists);
+    let mut warm_suggested = 0;
+    let mut measured_suggested = 0;
+    run(
+        &mut scratch,
+        &mut out,
+        &mut chain,
+        &mut lists,
+        &mut warm_suggested,
+    );
     let before = allocations();
-    run(&mut scratch, &mut out, &mut chain, &mut lists);
+    run(
+        &mut scratch,
+        &mut out,
+        &mut chain,
+        &mut lists,
+        &mut measured_suggested,
+    );
     assert_eq!(allocations() - before, 0);
+    assert!(warm_suggested > 0, "the passes build suggestions");
+    assert_eq!(measured_suggested, warm_suggested);
     assert_eq!((count.modified, count.ran, values), (2 * 3, 2 * 7, 2 * 2));
 }

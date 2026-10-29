@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use mcrs_minecraft_chat::LIST_ROWS;
 use mcrs_minecraft_chat::{
-    ChatScreen, Highlight, Hint, MAX_INPUT, SuggestionList, Tag, Tooltip as SuggestionTooltip, fade,
+    ChatScreen, Highlight, Hint, MAX_INPUT, SuggestionMenu, Tag, Tooltip as SuggestionTooltip, fade,
 };
 use mcrs_minecraft_command::parse_error_line;
 use mcrs_text_span::utf16_len;
@@ -262,7 +262,7 @@ pub(crate) fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Opti
         .map(|text| font.str_width(text, false))
         .max()?;
     let rows = entries.len().min(LIST_ROWS) as i32;
-    let x = column(size, font, screen.input(), entries.range().0, width);
+    let x = column(size, font, screen.input(), entries.range().start, width);
     let top = size.height - 15 - ROW * rows;
     Some(ListRows {
         rect: IRect::new(x - 1, top, x + width, top + ROW * rows),
@@ -270,7 +270,7 @@ pub(crate) fn list_rows(size: GuiSize, font: &Font, screen: &ChatScreen) -> Opti
     })
 }
 
-fn suggestion_list(font: &Font, list: &SuggestionList, rows: &ListRows, out: &mut Vec<GuiQuad>) {
+fn suggestion_list(font: &Font, list: &SuggestionMenu, rows: &ListRows, out: &mut Vec<GuiQuad>) {
     let count = list.entries().len();
     let rect = rows.rect;
     if count > LIST_ROWS {
@@ -343,7 +343,7 @@ fn hint_lines(
             size,
             font,
             commands.input(),
-            commands.suggestions().range().0,
+            commands.suggestions().range().start,
             width,
         )
     };

@@ -220,7 +220,7 @@ fn a_quoted_string_unescapes_only_its_terminator_and_the_backslash() {
     let input = r#""a\"b\\c'd" rest"#;
     let mut reader = Reader::new(input);
     let string = reader.read_string::<Infallible>().unwrap();
-    assert!(StringValue::new(input, string).eq_str(r#"a"b\c'd"#));
+    assert!(StringValue::new(input, string) == r#"a"b\c'd"#);
     assert_eq!(reader.remaining(), " rest");
 
     let cases: [(&str, LibraryError, usize); 3] = [

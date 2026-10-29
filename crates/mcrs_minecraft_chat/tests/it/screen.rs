@@ -1,6 +1,7 @@
 use crate::{Tree, context, source};
 use mcrs_minecraft_chat::{
-    ChatScreen, Closed, EditBox, History, Key, Outcome, Send, keeps_draft, normalize,
+    ChatScreen, Closed, EditBox, History, InputStyle, Key, Outcome, Outgoing, Step, UnsentDraft,
+    keeps_draft, normalize,
 };
 
 #[test]
@@ -47,7 +48,7 @@ fn up_and_down_recall_the_history_and_restore_the_typed_line() {
     history.add("a");
     history.add("b");
     let mut screen = ChatScreen::default();
-    screen.open("", false, &cx);
+    screen.open("", InputStyle::Plain, &cx);
     screen.type_text("c", &cx);
     let mut seen = Vec::new();
     for key in [Key::Up, Key::Up, Key::Down, Key::Down] {
@@ -107,17 +108,17 @@ fn enter_sends_the_normalized_input_and_picks_the_packet() {
     let mut history = History::default();
     let mut screen = ChatScreen::default();
     for (typed, send) in [
-        ("  hi  there ", Some(Send::Chat("hi there".into()))),
+        ("  hi  there ", Some(Outgoing::Chat("hi there".into()))),
         (
             "/",
-            Some(Send::Command {
+            Some(Outgoing::Command {
                 line: String::new(),
                 signed: false,
             }),
         ),
         ("   ", None),
     ] {
-        screen.open("", false, &cx);
+        screen.open("", InputStyle::Plain, &cx);
         screen.type_text(typed, &cx);
         let Outcome::Closed(Closed::Sent { send: sent, .. }) =
             screen.key(Key::Enter, &mut history, &cx)
@@ -135,16 +136,16 @@ fn a_draft_is_kept_only_when_the_screen_closed_without_a_send() {
         history_changed: false,
     };
     for (input, closed, save, kept) in [
-        ("abc", Some(&Closed::Escape), false, false),
-        ("abc", Some(&Closed::Escape), true, true),
-        ("abc", Some(&sent), true, false),
-        ("abc", None, false, true),
-        ("  ", None, true, false),
+        ("abc", Some(&Closed::Escape), UnsentDraft::Discard, false),
+        ("abc", Some(&Closed::Escape), UnsentDraft::Save, true),
+        ("abc", Some(&sent), UnsentDraft::Save, false),
+        ("abc", None, UnsentDraft::Discard, true),
+        ("  ", None, UnsentDraft::Save, false),
     ] {
         assert_eq!(
             keeps_draft(input, closed, save),
             kept,
-            "{input:?} {closed:?} {save}"
+            "{input:?} {closed:?} {save:?}"
         );
     }
 }
@@ -156,8 +157,8 @@ fn backspace_on_a_draft_clears_it() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("abc", true, &cx);
-    screen.key(Key::Backspace { word: false }, &mut history, &cx);
+    screen.open("abc", InputStyle::Draft, &cx);
+    screen.key(Key::Backspace { step: Step::Char }, &mut history, &cx);
     assert_eq!(screen.input(), "");
     assert!(!screen.is_draft());
 }
