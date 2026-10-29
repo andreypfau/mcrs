@@ -27,14 +27,15 @@ const WASM32_PACKAGES: [&str; 10] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
+const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_text_span"];
 
-const NO_BEVY_PACKAGES: [&str; 58] = [
+const NO_BEVY_PACKAGES: [&str; 61] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
+    "mcrs_minecraft_block_entity",
     "mcrs_minecraft_block_predicate",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_chunk",
@@ -71,6 +72,7 @@ const NO_BEVY_PACKAGES: [&str; 58] = [
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
     "mcrs_minecraft_simulation",
+    "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
     "mcrs_minecraft_text",
     "mcrs_minecraft_value_provider",
@@ -88,6 +90,7 @@ const NO_BEVY_PACKAGES: [&str; 58] = [
     "mcrs_minecraft_worldgen_structure_place",
     "mcrs_minecraft_worldgen_surface",
     "mcrs_minecraft_worldgen_testing",
+    "mcrs_text_span",
 ];
 
 struct Changes {
