@@ -23,6 +23,7 @@ mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_entity.workspace = true
 mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_time.workspace = true
+mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true

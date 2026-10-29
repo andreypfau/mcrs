@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command_vanilla"
-description = "The vanilla argument set, its errors and the command trees of the commands packet"
+description = "The vanilla argument set, its errors, its parsers on the wire and the client command tree"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 mcrs_command.workspace = true
-mcrs_text_span.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_block.workspace = true
 mcrs_minecraft_command_coordinates.workspace = true
@@ -23,3 +22,6 @@ mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_protocol.workspace = true
+
+[dev-dependencies]
+mcrs_text_span.workspace = true

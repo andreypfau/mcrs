@@ -1,12 +1,12 @@
 use crate::command_outbox::CommandOutbox;
 use crate::command_queue::QueuedLine;
+use crate::command_set::CommandSet;
 use crate::context::CommandContext;
 use crate::registrar::Handler;
 use crate::source_state::{PlayerLevels, SourceState, player_source};
 use crate::system_message::system_message;
 use bevy_ecs::prelude::{InMut, Local, ResMut};
 use mcrs_command::{Chain, ParseScratch};
-use mcrs_minecraft_command_vanilla::ArgumentError;
 
 /// A queued line and the chain its parse fills, which the pass reuses from line to line.
 pub(crate) struct LineToParse {
@@ -16,12 +16,12 @@ pub(crate) struct LineToParse {
 
 /// Parses a queued line in the world of its source dimension, with the graph and the targets
 /// lent to it. A parse error goes to the outbox, and the line does not run.
-pub(crate) fn parse_line(
+pub(crate) fn parse_line<S: CommandSet>(
     input: InMut<LineToParse>,
-    context: CommandContext,
+    context: CommandContext<S>,
     levels: PlayerLevels,
     mut outbox: ResMut<CommandOutbox>,
-    mut scratch: Local<ParseScratch<ArgumentError>>,
+    mut scratch: Local<ParseScratch<S::Error>>,
 ) -> Option<SourceState> {
     let LineToParse {
         queued: QueuedLine { player, line },

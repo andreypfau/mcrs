@@ -1,33 +1,31 @@
 use crate::command_failure::CommandFailure;
+use crate::command_set::{CommandSet, SetLookup};
 use crate::command_targets::CommandTargets;
 use crate::command_tree::CommandTree;
 use crate::invocation::Invocation;
 use crate::running_command::RunningCommand;
 use crate::source_state::SourceState;
-use bevy_ecs::prelude::{Query, Res};
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::prelude::Res;
+use bevy_ecs::system::{StaticSystemParam, SystemParam};
 use mcrs_command::{Argument, ArgumentHandle, Contains};
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_command_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
-use mcrs_minecraft_level::world::dimension::DimensionTypeId;
-use mcrs_minecraft_registries::CurrentRegistries;
 
-/// What a handler reads its arguments with.
+/// What a handler of a command of the set `S` reads its arguments with.
 #[derive(SystemParam)]
-pub struct CommandContext<'w, 's> {
-    pub(crate) tree: Res<'w, CommandTree>,
+pub struct CommandContext<'w, 's, S: CommandSet> {
+    pub(crate) tree: Res<'w, CommandTree<S>>,
     running: Res<'w, RunningCommand>,
     pub(crate) targets: Res<'w, CommandTargets>,
-    pub(crate) registries: Option<Res<'w, CurrentRegistries>>,
-    pub(crate) blocks: Option<Res<'w, Blocks>>,
-    pub(crate) dimension_type: Query<'w, 's, &'static DimensionTypeId>,
+    lookup: StaticSystemParam<'w, 's, <S as CommandSet>::Lookup>,
 }
 
-impl<'w, 's> CommandContext<'w, 's> {
-    /// The source of the call, which reads the world through this context.
-    pub fn source(&self, call: &Invocation) -> Result<Source<'_, Self>, CommandFailure> {
+impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
+    /// The source of the call, which reads the world through the lookup of the set.
+    pub fn source(
+        &self,
+        call: &Invocation,
+    ) -> Result<Source<'_, SetLookup<'w, 's, S>>, CommandFailure> {
         self.source_of(&call.source)
     }
 
@@ -36,7 +34,7 @@ impl<'w, 's> CommandContext<'w, 's> {
     pub(crate) fn source_of(
         &self,
         state: &SourceState,
-    ) -> Result<Source<'_, Self>, CommandFailure> {
+    ) -> Result<Source<'_, SetLookup<'w, 's, S>>, CommandFailure> {
         let Some(dimension) = self.targets.dimension_of(state.dimension) else {
             tracing::error!(dimension = ?state.dimension, "a command source names no running dimension");
             return Err(CommandFailure::failed());
@@ -48,18 +46,18 @@ impl<'w, 's> CommandContext<'w, 's> {
             anchor: state.anchor,
             eye_height: Some(PLAYER_EYE_HEIGHT),
             dimension,
-            ..Source::new(state.level, self)
+            ..Source::new(state.level, self.lookup())
         })
+    }
+
+    /// What the arguments of the set read from this world.
+    pub fn lookup(&self) -> &SetLookup<'w, 's, S> {
+        &self.lookup
     }
 
     /// The dimensions that run and the players of every one of them.
     pub fn targets(&self) -> &CommandTargets {
         &self.targets
-    }
-
-    /// The block table of this world, when it has one.
-    pub fn blocks(&self) -> Option<&Blocks> {
-        self.blocks.as_deref()
     }
 
     /// The command line that runs, without its leading slash.
@@ -74,9 +72,9 @@ impl<'w, 's> CommandContext<'w, 's> {
         arg: ArgumentHandle<T>,
     ) -> Result<T::Value<'a>, CommandFailure>
     where
-        VanillaArgument: Contains<T>,
-        T: Argument<Source<'a, Self>>,
-        ArgumentError: From<T::Error>,
+        S::Argument: Contains<T>,
+        T: Argument<Source<'a, SetLookup<'w, 's, S>>>,
+        S::Error: From<T::Error>,
     {
         self.opt(call, arg)?.ok_or_else(CommandFailure::failed)
     }
@@ -88,9 +86,9 @@ impl<'w, 's> CommandContext<'w, 's> {
         arg: ArgumentHandle<T>,
     ) -> Result<Option<T::Value<'a>>, CommandFailure>
     where
-        VanillaArgument: Contains<T>,
-        T: Argument<Source<'a, Self>>,
-        ArgumentError: From<T::Error>,
+        S::Argument: Contains<T>,
+        T: Argument<Source<'a, SetLookup<'w, 's, S>>>,
+        S::Error: From<T::Error>,
     {
         let Some(span) = self.running.chain.span(call.stage, arg.node()) else {
             return Ok(None);
@@ -103,7 +101,7 @@ impl<'w, 's> CommandContext<'w, 's> {
             Some(Ok(value)) => Ok(Some(value)),
             Some(Err(error)) => Err(CommandFailure(mcrs_minecraft_command::error_message(
                 line,
-                &error.map_into::<ArgumentError>(),
+                &error.map_into::<S::Error>(),
             ))),
         }
     }

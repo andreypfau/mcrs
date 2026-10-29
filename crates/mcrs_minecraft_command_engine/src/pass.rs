@@ -1,6 +1,7 @@
 use crate::command_limits::CommandLimits;
 use crate::command_outbox::CommandOutbox;
 use crate::command_queue::CommandQueue;
+use crate::command_set::CommandSet;
 use crate::command_targets::CommandTargets;
 use crate::command_tree::CommandTree;
 use crate::dimension_entry::DimensionEntry;
@@ -30,9 +31,9 @@ use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// The host's buffers for running command lines, reused from one run to the next.
-#[derive(Resource, Default)]
-pub(crate) struct PassBuffers {
-    tree: CommandTree,
+#[derive(Resource)]
+pub(crate) struct PassBuffers<S: CommandSet> {
+    tree: CommandTree<S>,
     targets: CommandTargets,
     running: RunningCommand,
     outbox: CommandOutbox,
@@ -43,6 +44,24 @@ pub(crate) struct PassBuffers {
     found: Vec<DimensionWorld<'static, FoundDimension>>,
     worlds: Vec<&'static mut World>,
     query_of: Vec<usize>,
+}
+
+impl<S: CommandSet> Default for PassBuffers<S> {
+    fn default() -> Self {
+        Self {
+            tree: CommandTree::default(),
+            targets: CommandTargets::default(),
+            running: RunningCommand::default(),
+            outbox: CommandOutbox::default(),
+            stages: Vec::new(),
+            lists: SourceLists::default(),
+            queue: CommandQueue::default(),
+            queries: Vec::new(),
+            found: Vec::new(),
+            worlds: Vec::new(),
+            query_of: Vec::new(),
+        }
+    }
 }
 
 /// A dimension world that a pass found, and the index of its queries.
@@ -89,8 +108,9 @@ impl WorldQueries {
 /// Parses and runs the command lines the host received, one after another in the order they
 /// arrived, then answers the suggestion requests, with every dimension world in reach. The
 /// server calls it between two ticks, after the dimensions hand over their packets; an embedder
-/// that drives the app itself calls it at the same point.
-pub fn run_pending_commands(app: &mut App) {
+/// that drives the app itself calls it at the same point, with the set its
+/// [`CommandPlugin`](crate::CommandPlugin) names.
+pub fn run_pending_commands<S: CommandSet>(app: &mut App) {
     let sub_apps = app.sub_apps_mut();
     let host = sub_apps.main.world_mut();
     if host
@@ -99,7 +119,7 @@ pub fn run_pending_commands(app: &mut App) {
     {
         return;
     }
-    let Some(mut buffers) = host.remove_resource::<PassBuffers>() else {
+    let Some(mut buffers) = host.remove_resource::<PassBuffers<S>>() else {
         return;
     };
     let limits = host
@@ -125,10 +145,10 @@ pub fn run_pending_commands(app: &mut App) {
     host.insert_resource(buffers);
 }
 
-impl PassBuffers {
+impl<S: CommandSet> PassBuffers<S> {
     /// Lends the graph of the host to the pass; a second swap gives it back.
     fn swap_tree(&mut self, host: &mut World) {
-        if let Some(mut owned) = host.get_resource_mut::<CommandTree>() {
+        if let Some(mut owned) = host.get_resource_mut::<CommandTree<S>>() {
             std::mem::swap(&mut *owned, &mut self.tree);
         }
     }

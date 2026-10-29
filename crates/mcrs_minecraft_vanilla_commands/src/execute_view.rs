@@ -1,6 +1,7 @@
 use crate::dimension_view::{DimensionView, unloaded};
 use crate::execute::{Branch, ExecuteCommand, Polarity, Test};
 use crate::select::{FoundPlayers, select};
+use crate::set::VanillaContext;
 use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
@@ -8,8 +9,8 @@ use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command::{DimensionArgument, Lookup, ResourceOrTag};
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult,
-    PlayerEntry, SourceState,
+    Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, PlayerEntry,
+    SourceState,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -19,7 +20,7 @@ use mcrs_minecraft_protocol::text::IntoText;
 /// and the blocks of the source dimension, the world the stage runs in.
 #[derive(SystemParam)]
 pub(crate) struct ExecuteView<'w, 's> {
-    pub(crate) context: CommandContext<'w, 's>,
+    pub(crate) context: VanillaContext<'w, 's>,
     pub(crate) dimension: DimensionView<'w, 's>,
 }
 
@@ -79,7 +80,10 @@ impl ExecuteView<'_, '_> {
                 self.dimension.readable(pos)?;
                 let predicate = context.arg(call, args.block)?;
                 let state = self.dimension.block_state(pos).ok_or_else(unloaded)?;
-                let entry = context.blocks().and_then(|blocks| blocks.0.owner(state));
+                let entry = context
+                    .lookup()
+                    .blocks()
+                    .and_then(|blocks| blocks.0.owner(state));
                 let Some(entry) = entry else {
                     return Ok(Outcome::Boolean(false));
                 };
@@ -87,6 +91,7 @@ impl ExecuteView<'_, '_> {
                 let in_subject = match predicate.subject {
                     ResourceOrTag::Entry(id) => id.eq_str(name),
                     ResourceOrTag::Tag(tag) => context
+                        .lookup()
                         .tag_entries(BLOCK.location(), tag)
                         .any(|member| member == name),
                 };
@@ -131,7 +136,7 @@ impl ExecuteView<'_, '_> {
 
 /// The running dimension an argument names (ARG-RES-004).
 fn dimension<'a>(
-    context: &'a CommandContext,
+    context: &'a VanillaContext,
     call: &Call<Branch, ExecuteCommand>,
     arg: ArgumentHandle<DimensionArgument>,
 ) -> Result<&'a DimensionEntry, CommandFailure> {

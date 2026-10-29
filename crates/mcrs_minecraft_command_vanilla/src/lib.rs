@@ -1,4 +1,4 @@
-//! The vanilla argument set, its errors, the `commands` packet of a player and the client tree.
+//! The vanilla argument set, its errors, its parsers on the wire and the client tree.
 
 // std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the identifiers and the
 // command packets, need it.
@@ -10,6 +10,6 @@ mod vanilla_lookup;
 
 pub use client::{ClientArgument, ClientGraph, SuggestionType, TreeError, client_tree};
 pub use error::{ArgumentError, CommandSyntaxError};
-pub use packet::{VanillaGraph, player_tree, suggestion_reply};
+pub use packet::VanillaGraph;
 pub use vanilla_argument::{UnknownParser, VanillaArgument};
 pub use vanilla_lookup::VanillaLookup;

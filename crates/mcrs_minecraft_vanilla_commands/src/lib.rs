@@ -10,9 +10,11 @@ mod gamemode;
 mod locate;
 mod plugin;
 mod select;
+mod set;
 mod teleport;
 mod time;
 
 pub use gamemode::SetGameMode;
 pub use plugin::VanillaCommandsPlugin;
+pub use set::{VanillaCommands, VanillaContext, VanillaWorld};
 pub use teleport::{Facing, Teleport, TeleportPlayer};

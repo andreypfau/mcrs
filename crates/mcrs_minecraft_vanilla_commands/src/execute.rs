@@ -1,6 +1,7 @@
 use crate::dimension_view::unloaded;
 use crate::execute_view::{ExecuteView, Outcome};
 use crate::select::FoundPlayers;
+use crate::set::VanillaCommands;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
@@ -112,7 +113,7 @@ impl ExecuteCommand {
 
 /// The condition subtree of `if` or `unless` (CMD-EX-002), with the branches of the core set.
 fn conditions(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     parent: NodeId,
     execute: NodeId,
     polarity: Polarity,
@@ -154,7 +155,7 @@ fn conditions(
 
 /// The `positioned` subtree: a position, `as` an entity, or `over` a heightmap.
 fn positioned(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
 ) -> Result<PositionedArgs, BuildError> {
     let positioned = registrar.literal(execute, "positioned").id()?;
@@ -181,7 +182,7 @@ fn positioned(
 
 /// The `rotated` subtree: a rotation, or `as` an entity.
 fn rotated(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
 ) -> Result<RotatedArgs, BuildError> {
     let rotated = registrar.literal(execute, "rotated").id()?;
@@ -202,7 +203,7 @@ fn rotated(
 
 /// The `facing` subtree: an `entity` and its anchor, or a position.
 fn facing(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
 ) -> Result<FacingArgs, BuildError> {
     let facing = registrar.literal(execute, "facing").id()?;
@@ -227,7 +228,7 @@ fn facing(
 
 /// CMD-EX-001, the branches of the core set (CMD-EX section 8.1).
 pub(crate) fn build(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
 ) -> Result<ExecuteCommand, BuildError> {
     let execute = registrar
         .literal(NodeId::ROOT, "execute")

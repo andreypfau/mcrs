@@ -1,4 +1,5 @@
 use crate::select::{FoundPlayers, select, targets_or_self};
+use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::{BVec3, DVec3};
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
@@ -7,8 +8,8 @@ use mcrs_minecraft_command_coordinates::{
     DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument,
 };
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
-    EffectQueue, Feedback, Invocation, PlayerEntry, Worlds,
+    Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
+    Invocation, PlayerEntry, Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
@@ -89,7 +90,7 @@ pub(crate) enum Branch {
 
 /// CMD-TP-001.
 pub(crate) fn build(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
 ) -> Result<TeleportCommand, BuildError> {
     let teleport = registrar
         .literal(NodeId::ROOT, "teleport")
@@ -165,7 +166,7 @@ struct Destination {
 
 /// The first player a selector argument finds.
 fn one<'c>(
-    context: &'c CommandContext,
+    context: &'c VanillaContext,
     call: &Invocation,
     arg: ArgumentHandle<EntityArgument>,
     found: &mut FoundPlayers,
@@ -178,7 +179,7 @@ fn one<'c>(
 }
 
 fn to_entity(
-    context: &CommandContext,
+    context: &VanillaContext,
     call: &Call<Branch, TeleportCommand>,
     arg: ArgumentHandle<EntityArgument>,
     found: &mut FoundPlayers,
@@ -211,7 +212,7 @@ fn to_entity(
 /// Where the branch of the call sends each victim (CMD-TP-004).
 fn destination(
     command: &TeleportCommand,
-    context: &CommandContext,
+    context: &VanillaContext,
     call: &Call<Branch, TeleportCommand>,
     found: &mut FoundPlayers,
 ) -> Result<Destination, CommandFailure> {
@@ -285,7 +286,7 @@ fn coordinate(value: f64) -> Text {
 /// applies, so each victim moves and counts.
 pub(crate) fn run(
     In(call): In<Call<Branch, TeleportCommand>>,
-    context: CommandContext,
+    context: VanillaContext,
     mut output: CommandOutput,
     mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
     mut found_victims: Local<FoundPlayers>,

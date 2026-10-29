@@ -3,6 +3,7 @@ use crate::command_event::CommandEvent;
 use crate::command_failure::{CommandFailure, CommandResult};
 use crate::command_outbox::CommandOutbox;
 use crate::command_queue::{QueuedLine, QueuedSuggestion};
+use crate::command_set::CommandSet;
 use crate::command_targets::CommandTargets;
 use crate::command_tree::CommandTree;
 use crate::handlers::{CommandHandlers, ModifierHandlers};
@@ -27,10 +28,10 @@ use mcrs_minecraft_protocol::text::{IntoText, Text};
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
 /// dimension of its source, with the graph, the line, the targets and the outbox lent to that
 /// world; what the call leaves in the outbox applies before the next call.
-pub(crate) struct PassExecutor<'a, 'w> {
+pub(crate) struct PassExecutor<'a, 'w, S: CommandSet> {
     pub(crate) host: &'a mut World,
     pub(crate) worlds: &'a mut [&'w mut World],
-    pub(crate) tree: &'a mut CommandTree,
+    pub(crate) tree: &'a mut CommandTree<S>,
     pub(crate) targets: &'a mut CommandTargets,
     pub(crate) running: &'a mut RunningCommand,
     pub(crate) outbox: &'a mut CommandOutbox,
@@ -38,14 +39,14 @@ pub(crate) struct PassExecutor<'a, 'w> {
 }
 
 /// Swaps the values of the host and of `world`; a second swap gives them back.
-fn lend(
+fn lend<S: CommandSet>(
     world: &mut World,
-    tree: &mut CommandTree,
+    tree: &mut CommandTree<S>,
     targets: &mut CommandTargets,
     running: &mut RunningCommand,
     outbox: &mut CommandOutbox,
 ) -> bool {
-    let present = world.contains_resource::<CommandTree>()
+    let present = world.contains_resource::<CommandTree<S>>()
         && world.contains_resource::<CommandTargets>()
         && world.contains_resource::<RunningCommand>()
         && world.contains_resource::<CommandOutbox>();
@@ -64,7 +65,7 @@ fn swap_resource<T: Resource<Mutability = Mutable>>(world: &mut World, value: &m
     }
 }
 
-impl PassExecutor<'_, '_> {
+impl<S: CommandSet> PassExecutor<'_, '_, S> {
     pub(crate) fn run_line(
         &mut self,
         queued: QueuedLine,
@@ -81,7 +82,7 @@ impl PassExecutor<'_, '_> {
             chain: std::mem::take(&mut self.running.chain),
         };
         let parsed = self.in_world(index, |world| {
-            world.run_system_cached_with(parse_line, &mut input)
+            world.run_system_cached_with(parse_line::<S>, &mut input)
         });
         let LineToParse { queued, chain } = input;
         self.running.chain = chain;
@@ -128,7 +129,7 @@ impl PassExecutor<'_, '_> {
             return;
         };
         let answered = self.in_world(index, |world| {
-            world.run_system_cached_with(answer_suggestion, queued)
+            world.run_system_cached_with(answer_suggestion::<S>, queued)
         });
         if let Some(Err(error)) = answered {
             tracing::error!("a suggestion request was not answered: {error}");
@@ -193,7 +194,7 @@ impl PassExecutor<'_, '_> {
     }
 }
 
-impl Executor<SourceState, Handler> for PassExecutor<'_, '_> {
+impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
     type Error = CommandFailure;
 
     fn modify(

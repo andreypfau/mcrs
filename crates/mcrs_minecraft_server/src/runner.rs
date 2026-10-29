@@ -25,7 +25,9 @@ pub fn run_server_loop(app: App) -> AppExit {
 /// it parsed, moves the players that changed dimension and spawns or despawns dimensions.
 pub fn between_ticks(app: &mut App) {
     pump_channels(app);
-    mcrs_minecraft_command_engine::run_pending_commands(app);
+    mcrs_minecraft_command_engine::run_pending_commands::<
+        mcrs_minecraft_vanilla_commands::VanillaCommands,
+    >(app);
     crate::world::entity::player::dimension_change::apply_dimension_change_requests(app);
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);

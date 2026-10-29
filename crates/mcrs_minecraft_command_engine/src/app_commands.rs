@@ -1,5 +1,6 @@
 use crate::call::{BranchTable, Call, to_call};
 use crate::command_failure::CommandResult;
+use crate::command_set::CommandSet;
 use crate::command_tree::CommandTreeBuilder;
 use crate::effect_queue::EffectPlugin;
 use crate::handlers::{HandlerKey, Handlers};
@@ -18,8 +19,8 @@ pub enum RegistrationError {
     /// A node of the command conflicts with the tree; nothing of the command is added.
     #[error("the command tree does not take the command: {0}")]
     Tree(#[from] BuildError),
-    /// The app has no tree to add to: [`CommandPlugin`](crate::CommandPlugin) is not added, or
-    /// the app already finished.
+    /// The app has no tree to add to: the [`CommandPlugin`](crate::CommandPlugin) of the set is
+    /// not added, or the app already finished.
     #[error("commands are added after CommandPlugin and before the app finishes")]
     NoTree,
     /// The tree holds as many commands as a handler key can count.
@@ -30,15 +31,16 @@ pub enum RegistrationError {
 /// Adds commands and command effects to an [`App`] that has the
 /// [`CommandPlugin`](crate::CommandPlugin).
 pub trait AppCommandsExt {
-    /// Registers a command: `build` adds its nodes and returns the handles its handler reads,
-    /// and every dimension world runs `handler` when one of its branches runs. Nothing is
-    /// registered when `build` returns an error.
-    fn add_command<B, C, S, M>(
+    /// Registers a command in the tree of the set `A`: `build` adds its nodes and returns the
+    /// handles its handler reads, and every dimension world runs `handler` when one of its
+    /// branches runs. Nothing is registered when `build` returns an error.
+    fn add_command<A, B, C, S, M>(
         &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
         handler: S,
     ) -> Result<&mut Self, RegistrationError>
     where
+        A: CommandSet,
         B: Copy + PartialEq + Send + Sync + 'static,
         C: Copy + Send + Sync + 'static,
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
@@ -46,13 +48,14 @@ pub trait AppCommandsExt {
 
     /// Registers a command whose redirects have modifiers: every dimension world runs
     /// `modify` for a source when a stage of a chain follows one of them.
-    fn add_modifying_command<B, C, S, M, D, N>(
+    fn add_modifying_command<A, B, C, S, M, D, N>(
         &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
         handler: S,
         modify: D,
     ) -> Result<&mut Self, RegistrationError>
     where
+        A: CommandSet,
         B: Copy + PartialEq + Send + Sync + 'static,
         C: Copy + Send + Sync + 'static,
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
@@ -80,16 +83,17 @@ struct Registration<B, C> {
 
 /// Adds the nodes of one command to the tree, or nothing when `build` returns an error. `None`
 /// when the command has no executable node.
-fn register<B, C>(
+fn register<A, B, C>(
     app: &mut App,
-    build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+    build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
 ) -> Result<Option<Registration<B, C>>, RegistrationError>
 where
+    A: CommandSet,
     B: Copy + PartialEq,
 {
     let mut tree = app
         .world_mut()
-        .get_resource_mut::<CommandTreeBuilder>()
+        .get_resource_mut::<CommandTreeBuilder<A>>()
         .ok_or(RegistrationError::NoTree)?;
     let tree = &mut *tree;
     let key = HandlerKey(tree.next);
@@ -127,12 +131,13 @@ where
 }
 
 impl AppCommandsExt for App {
-    fn add_command<B, C, S, M>(
+    fn add_command<A, B, C, S, M>(
         &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
         handler: S,
     ) -> Result<&mut Self, RegistrationError>
     where
+        A: CommandSet,
         B: Copy + PartialEq + Send + Sync + 'static,
         C: Copy + Send + Sync + 'static,
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
@@ -155,13 +160,14 @@ impl AppCommandsExt for App {
         }))
     }
 
-    fn add_modifying_command<B, C, S, M, D, N>(
+    fn add_modifying_command<A, B, C, S, M, D, N>(
         &mut self,
-        build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
+        build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
         handler: S,
         modify: D,
     ) -> Result<&mut Self, RegistrationError>
     where
+        A: CommandSet,
         B: Copy + PartialEq + Send + Sync + 'static,
         C: Copy + Send + Sync + 'static,
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,

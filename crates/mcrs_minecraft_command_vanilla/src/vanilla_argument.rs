@@ -8,7 +8,7 @@ use mcrs_command::{
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_command::{
     DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
-    ResourceLocationArgument, ResourceOrTagArgument, Source,
+    ResourceLocationArgument, ResourceOrTagArgument, Source, WireArgument,
 };
 use mcrs_minecraft_command_block::BlockPredicateArgument;
 use mcrs_minecraft_command_coordinates::{
@@ -261,87 +261,7 @@ impl VanillaArgument {
         }
     }
 
-    /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
-    pub(crate) fn suggestion_type(&self) -> Option<StaticResourceLocation> {
-        matches!(
-            self,
-            VanillaArgument::TimeMarker(_) | VanillaArgument::Timeline(_)
-        )
-        .then_some(ASK_SERVER)
-    }
-
-    /// The parser id and the properties of the `commands` packet (CMDP-ARG-001).
-    pub(crate) fn wire(&self) -> Result<ArgumentParser<'static>, UnknownParser> {
-        let registry =
-            |registry: StaticResourceLocation| ParserProperties::Registry(registry.into());
-        let (key, properties) = match *self {
-            VanillaArgument::Bool(_) => (parser::BRIGADIER_BOOL, ParserProperties::None),
-            VanillaArgument::Integer(argument) => (
-                parser::BRIGADIER_INTEGER,
-                ParserProperties::Integer(range(argument.limits())),
-            ),
-            VanillaArgument::Long(argument) => (
-                parser::BRIGADIER_LONG,
-                ParserProperties::Long(range(argument.limits())),
-            ),
-            VanillaArgument::Float(argument) => (
-                parser::BRIGADIER_FLOAT,
-                ParserProperties::Float(range(argument.limits())),
-            ),
-            VanillaArgument::Double(argument) => (
-                parser::BRIGADIER_DOUBLE,
-                ParserProperties::Double(range(argument.limits())),
-            ),
-            VanillaArgument::String(mode) => (
-                parser::BRIGADIER_STRING,
-                ParserProperties::String(match mode {
-                    StringArgument::Word => StringMode::Word,
-                    StringArgument::Phrase => StringMode::Phrase,
-                    StringArgument::Greedy => StringMode::Greedy,
-                }),
-            ),
-            VanillaArgument::Entity(argument) => (
-                parser::ENTITY,
-                ParserProperties::Entity {
-                    single: argument.single,
-                    players_only: argument.players_only,
-                },
-            ),
-            VanillaArgument::Vec3(_) => (parser::VEC3, ParserProperties::None),
-            VanillaArgument::Rotation(_) => (parser::ROTATION, ParserProperties::None),
-            VanillaArgument::ResourceLocation(_) => {
-                (parser::RESOURCE_LOCATION, ParserProperties::None)
-            }
-            VanillaArgument::EntityAnchor(_) => (parser::ENTITY_ANCHOR, ParserProperties::None),
-            VanillaArgument::Dimension(_) => (parser::DIMENSION, ParserProperties::None),
-            VanillaArgument::GameMode(_) => (parser::GAMEMODE, ParserProperties::None),
-            VanillaArgument::ResourceOrTag(argument) => (
-                if argument.must_exist {
-                    parser::RESOURCE_OR_TAG
-                } else {
-                    parser::RESOURCE_OR_TAG_KEY
-                },
-                registry(argument.registry),
-            ),
-            VanillaArgument::BlockPos(_) => (parser::BLOCK_POS, ParserProperties::None),
-            VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
-            VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
-            VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
-            VanillaArgument::Time(argument) => (parser::TIME, ParserProperties::Time(argument.min)),
-            VanillaArgument::Resource(argument) => (parser::RESOURCE, registry(argument.registry)),
-            VanillaArgument::TimeMarker(_) => (parser::RESOURCE_LOCATION, ParserProperties::None),
-            VanillaArgument::Timeline(_) => (
-                parser::RESOURCE,
-                registry(TimelineArgument::RESOURCE.registry),
-            ),
-        };
-        Ok(ArgumentParser {
-            id: parser_id(key)?,
-            properties,
-        })
-    }
-
-    /// The inverse of [`Self::wire`], or `None` when no argument has that parser, or
+    /// The inverse of [`WireArgument::wire`], or `None` when no argument has that parser, or
     /// `registry` does not resolve its registry. A time marker and a timeline read back as the
     /// resource location and the resource they are sent as: their clock is not on the wire.
     pub(crate) fn from_wire(
@@ -414,6 +334,89 @@ impl VanillaArgument {
             _ => return None,
         };
         Some(argument)
+    }
+}
+
+impl WireArgument for VanillaArgument {
+    type WireError = UnknownParser;
+
+    /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
+    fn suggestion_type(&self) -> Option<StaticResourceLocation> {
+        matches!(
+            self,
+            VanillaArgument::TimeMarker(_) | VanillaArgument::Timeline(_)
+        )
+        .then_some(ASK_SERVER)
+    }
+
+    fn wire(&self) -> Result<ArgumentParser<'static>, UnknownParser> {
+        let registry =
+            |registry: StaticResourceLocation| ParserProperties::Registry(registry.into());
+        let (key, properties) = match *self {
+            VanillaArgument::Bool(_) => (parser::BRIGADIER_BOOL, ParserProperties::None),
+            VanillaArgument::Integer(argument) => (
+                parser::BRIGADIER_INTEGER,
+                ParserProperties::Integer(range(argument.limits())),
+            ),
+            VanillaArgument::Long(argument) => (
+                parser::BRIGADIER_LONG,
+                ParserProperties::Long(range(argument.limits())),
+            ),
+            VanillaArgument::Float(argument) => (
+                parser::BRIGADIER_FLOAT,
+                ParserProperties::Float(range(argument.limits())),
+            ),
+            VanillaArgument::Double(argument) => (
+                parser::BRIGADIER_DOUBLE,
+                ParserProperties::Double(range(argument.limits())),
+            ),
+            VanillaArgument::String(mode) => (
+                parser::BRIGADIER_STRING,
+                ParserProperties::String(match mode {
+                    StringArgument::Word => StringMode::Word,
+                    StringArgument::Phrase => StringMode::Phrase,
+                    StringArgument::Greedy => StringMode::Greedy,
+                }),
+            ),
+            VanillaArgument::Entity(argument) => (
+                parser::ENTITY,
+                ParserProperties::Entity {
+                    single: argument.single,
+                    players_only: argument.players_only,
+                },
+            ),
+            VanillaArgument::Vec3(_) => (parser::VEC3, ParserProperties::None),
+            VanillaArgument::Rotation(_) => (parser::ROTATION, ParserProperties::None),
+            VanillaArgument::ResourceLocation(_) => {
+                (parser::RESOURCE_LOCATION, ParserProperties::None)
+            }
+            VanillaArgument::EntityAnchor(_) => (parser::ENTITY_ANCHOR, ParserProperties::None),
+            VanillaArgument::Dimension(_) => (parser::DIMENSION, ParserProperties::None),
+            VanillaArgument::GameMode(_) => (parser::GAMEMODE, ParserProperties::None),
+            VanillaArgument::ResourceOrTag(argument) => (
+                if argument.must_exist {
+                    parser::RESOURCE_OR_TAG
+                } else {
+                    parser::RESOURCE_OR_TAG_KEY
+                },
+                registry(argument.registry),
+            ),
+            VanillaArgument::BlockPos(_) => (parser::BLOCK_POS, ParserProperties::None),
+            VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
+            VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
+            VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
+            VanillaArgument::Time(argument) => (parser::TIME, ParserProperties::Time(argument.min)),
+            VanillaArgument::Resource(argument) => (parser::RESOURCE, registry(argument.registry)),
+            VanillaArgument::TimeMarker(_) => (parser::RESOURCE_LOCATION, ParserProperties::None),
+            VanillaArgument::Timeline(_) => (
+                parser::RESOURCE,
+                registry(TimelineArgument::RESOURCE.registry),
+            ),
+        };
+        Ok(ArgumentParser {
+            id: parser_id(key)?,
+            properties,
+        })
     }
 }
 

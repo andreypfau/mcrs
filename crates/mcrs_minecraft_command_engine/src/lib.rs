@@ -1,9 +1,9 @@
 //! The command engine: the command tree, the registration of commands and their handlers, and
 //! the pass that parses and runs the command lines of the players across every dimension world.
-//! It registers no command.
+//! It registers no command and knows no argument type: the application composes a
+//! [`CommandSet`].
 
-// std: bevy_ecs, mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the worlds, the
-// identifiers and the command packets, need it.
+// std: bevy_ecs needs it.
 mod answer_suggestion;
 mod app_commands;
 mod call;
@@ -13,6 +13,7 @@ mod command_limits;
 mod command_outbox;
 mod command_output;
 mod command_queue;
+mod command_set;
 mod command_targets;
 mod command_tree;
 mod context;
@@ -22,7 +23,6 @@ mod effect_queue;
 mod executor;
 mod handlers;
 mod invocation;
-mod lookup;
 mod modified;
 mod operator_broadcast;
 mod parse_line;
@@ -41,8 +41,9 @@ pub use command_event::CommandEvent;
 pub use command_failure::{CommandFailure, CommandResult};
 pub use command_limits::CommandLimits;
 pub use command_output::{CommandOutput, Feedback};
+pub use command_set::{CommandSet, SetLookup};
 pub use command_targets::CommandTargets;
-pub use command_tree::{CommandTree, CommandTreePackets};
+pub use command_tree::{CommandTree, CommandTreePackets, SetGraph};
 pub use context::CommandContext;
 pub use dimension_entry::DimensionEntry;
 pub use dimension_order::{DimensionWorld, in_dimension_order};

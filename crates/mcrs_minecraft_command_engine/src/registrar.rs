@@ -1,7 +1,7 @@
+use crate::command_set::CommandSet;
 use crate::handlers::HandlerKey;
 use mcrs_command::{ArgumentHandle, BuildError, ForkMode, GraphBuilder, NodeId};
 use mcrs_minecraft_command::PermissionCheck;
-use mcrs_minecraft_command_vanilla::VanillaArgument;
 use std::marker::PhantomData;
 
 /// The command an executable node runs, and which branch of that command.
@@ -11,32 +11,32 @@ pub struct Handler {
     pub(crate) branch: u16,
 }
 
-pub(crate) type Builder = GraphBuilder<VanillaArgument, PermissionCheck, Handler>;
+pub(crate) type Builder<S> = GraphBuilder<<S as CommandSet>::Argument, PermissionCheck, Handler>;
 
-/// Registers the nodes of one command whose branches are the values of `B`.
-pub struct CommandRegistrar<'a, B> {
-    pub(crate) builder: &'a mut Builder,
+/// Registers the nodes of one command of the set `S` whose branches are the values of `B`.
+pub struct CommandRegistrar<'a, S: CommandSet, B> {
+    pub(crate) builder: &'a mut Builder<S>,
     pub(crate) key: HandlerKey,
     pub(crate) branches: Vec<B>,
 }
 
-impl<'a, B: Copy + PartialEq> CommandRegistrar<'a, B> {
+impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
     /// A literal node named `name` under `parent`.
     pub fn literal<'r>(
         &'r mut self,
         parent: impl Into<NodeId>,
         name: &'r str,
-    ) -> NodeRef<'r, 'a, B, NodeId> {
+    ) -> NodeRef<'r, 'a, S, B, NodeId> {
         NodeRef::new(self, parent.into(), name, None)
     }
 
     /// An argument node named `name` under `parent`, which parses `argument`.
-    pub fn arg<'r, T: Into<VanillaArgument>>(
+    pub fn arg<'r, T: Into<S::Argument>>(
         &'r mut self,
         parent: impl Into<NodeId>,
         name: &'r str,
         argument: T,
-    ) -> NodeRef<'r, 'a, B, ArgumentHandle<T>> {
+    ) -> NodeRef<'r, 'a, S, B, ArgumentHandle<T>> {
         NodeRef::new(self, parent.into(), name, Some(argument.into()))
     }
 
@@ -61,11 +61,11 @@ struct Modifier<B> {
 
 /// A node that [`NodeRef::id`] adds to the tree.
 #[must_use]
-pub struct NodeRef<'r, 'a, B, K> {
-    registrar: &'r mut CommandRegistrar<'a, B>,
+pub struct NodeRef<'r, 'a, S: CommandSet, B, K> {
+    registrar: &'r mut CommandRegistrar<'a, S, B>,
     parent: NodeId,
     name: &'r str,
-    argument: Option<VanillaArgument>,
+    argument: Option<S::Argument>,
     check: PermissionCheck,
     branch: Option<B>,
     redirect: Option<NodeId>,
@@ -73,12 +73,12 @@ pub struct NodeRef<'r, 'a, B, K> {
     handle: PhantomData<fn() -> K>,
 }
 
-impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
+impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, S, B, K> {
     fn new(
-        registrar: &'r mut CommandRegistrar<'a, B>,
+        registrar: &'r mut CommandRegistrar<'a, S, B>,
         parent: NodeId,
         name: &'r str,
-        argument: Option<VanillaArgument>,
+        argument: Option<S::Argument>,
     ) -> Self {
         Self {
             registrar,

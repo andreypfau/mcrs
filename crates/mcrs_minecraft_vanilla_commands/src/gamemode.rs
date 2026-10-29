@@ -1,10 +1,10 @@
 use crate::select::{FoundPlayers, targets_or_self};
+use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
-    Worlds,
+    Call, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback, Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_protocol::GameMode;
@@ -28,7 +28,7 @@ pub(crate) struct GameModeCommand {
 
 /// CMD-GM-001.
 pub(crate) fn build(
-    registrar: &mut CommandRegistrar<'_, ()>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, ()>,
 ) -> Result<GameModeCommand, BuildError> {
     let gamemode = registrar
         .literal(NodeId::ROOT, "gamemode")
@@ -53,7 +53,7 @@ fn mode_text(mode: GameMode) -> Text {
 /// any dimension, and its messages follow.
 pub(crate) fn run(
     In(call): In<Call<(), GameModeCommand>>,
-    context: CommandContext,
+    context: VanillaContext,
     mut output: CommandOutput,
     mut modes: ResMut<EffectQueue<SetGameMode>>,
     mut found: Local<FoundPlayers>,

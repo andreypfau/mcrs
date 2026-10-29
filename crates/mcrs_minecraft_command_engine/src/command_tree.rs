@@ -1,24 +1,33 @@
+use crate::command_set::CommandSet;
 use crate::registrar::Handler;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bytes::Bytes;
-use mcrs_command::GraphBuilder;
+use mcrs_command::{Graph, GraphBuilder};
 use mcrs_minecraft_command::{CommandLevel, NoLookup, PermissionCheck, Source};
-use mcrs_minecraft_command_vanilla::{VanillaArgument, VanillaGraph};
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_protocol::{Packet, anyhow};
 
 /// The command graph. The host owns it and lends it to the world in which a line parses, gets
 /// suggestions or runs; in every other world it is empty.
-#[derive(Resource, Debug, Default)]
-pub struct CommandTree {
-    pub(crate) graph: Option<VanillaGraph<Handler>>,
+#[derive(Resource)]
+pub struct CommandTree<S: CommandSet> {
+    pub(crate) graph: Option<SetGraph<S>>,
 }
 
-impl CommandTree {
+/// The command graph of the set `S`.
+pub type SetGraph<S> = Graph<<S as CommandSet>::Argument, PermissionCheck, Handler>;
+
+impl<S: CommandSet> Default for CommandTree<S> {
+    fn default() -> Self {
+        Self { graph: None }
+    }
+}
+
+impl<S: CommandSet> CommandTree<S> {
     /// The frozen graph, in the world it is lent to.
-    pub fn graph(&self) -> Option<&VanillaGraph<Handler>> {
+    pub fn graph(&self) -> Option<&SetGraph<S>> {
         self.graph.as_ref()
     }
 }
@@ -37,13 +46,12 @@ impl CommandTreePackets {
         Some(bus::to(host, PacketPayload::Commands(packet)).critical())
     }
 
-    pub(crate) fn new(graph: &VanillaGraph<Handler>) -> anyhow::Result<Self> {
+    pub(crate) fn new<S: CommandSet>(graph: &SetGraph<S>) -> anyhow::Result<Self> {
         let mut by_level: [Bytes; 5] = Default::default();
         for (id, packet) in (0..).zip(&mut by_level) {
             let source = Source::new(CommandLevel::from(id), &NoLookup);
             let mut bytes = Vec::new();
-            mcrs_minecraft_command_vanilla::player_tree(graph, &source)?
-                .encode_with_id(&mut bytes)?;
+            mcrs_minecraft_command::player_tree(graph, &source)?.encode_with_id(&mut bytes)?;
             *packet = Bytes::from(bytes);
         }
         Ok(Self { by_level })
@@ -52,7 +60,7 @@ impl CommandTreePackets {
 
 /// The tree that plugins add commands to while the app builds.
 #[derive(Resource)]
-pub(crate) struct CommandTreeBuilder {
-    pub(crate) builder: GraphBuilder<VanillaArgument, PermissionCheck, Handler>,
+pub(crate) struct CommandTreeBuilder<S: CommandSet> {
+    pub(crate) builder: GraphBuilder<S::Argument, PermissionCheck, Handler>,
     pub(crate) next: u16,
 }

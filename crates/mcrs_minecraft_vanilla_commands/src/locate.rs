@@ -1,10 +1,11 @@
+use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_biome::keys::BIOME;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck, ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
+    Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::STRUCTURE;
@@ -31,7 +32,7 @@ pub(crate) enum Branch {
 
 /// CMD-LOC-001.
 pub(crate) fn build(
-    registrar: &mut CommandRegistrar<'_, Branch>,
+    registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
 ) -> Result<LocateCommand, BuildError> {
     let locate = registrar
         .literal(NodeId::ROOT, "locate")
@@ -142,7 +143,7 @@ fn not_found(key: &'static str, value: ResourceOrTag<'_>) -> CommandFailure {
 
 fn structure(
     fill: Option<&FillContext>,
-    context: &CommandContext,
+    context: &VanillaContext,
     value: ResourceOrTag<'_>,
     origin: IVec3,
 ) -> Result<(Text, i32), CommandFailure> {
@@ -150,7 +151,7 @@ fn structure(
     let index = fill.and_then(|fill| fill.structures.as_deref());
     let frozen = index.map(|index| &index.tables().frozen);
     let id_of = |name: &ResourceLocation| frozen?.structure_ids.get(name).copied();
-    let lookup = context.registry_lookup();
+    let lookup = context.lookup().registry_lookup();
     let structures: Vec<StructureId> = lookup
         .ids(STRUCTURE.location(), value)
         .ok_or_else(invalid)?
@@ -180,7 +181,7 @@ fn structure(
 
 pub(crate) fn run(
     In(call): In<Call<Branch, LocateCommand>>,
-    context: CommandContext,
+    context: VanillaContext,
     fill: Option<Res<FillContext>>,
     dimension: Query<&DimensionTypeConfig, With<Dimension>>,
     mut feedback: CommandOutput,
@@ -196,6 +197,7 @@ pub(crate) fn run(
             let value = context.arg(&call, command.biome)?;
             let not_found = || not_found("commands.locate.biome.not_found", value);
             let wanted = context
+                .lookup()
                 .registry_lookup()
                 .ids(BIOME.location(), value)
                 .ok_or_else(not_found)?;
@@ -214,6 +216,7 @@ pub(crate) fn run(
             )
             .ok_or_else(not_found)?;
             let entry = context
+                .lookup()
                 .registry_lookup()
                 .name(BIOME.location(), biome)
                 .map_or_else(String::new, ToString::to_string);
