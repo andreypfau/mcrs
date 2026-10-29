@@ -109,6 +109,11 @@ impl Knobs {
         self.knob("USERNAME").unwrap_or("Player").to_owned()
     }
 
+    /// `HISTORY=<file>` is where the command history is kept.
+    pub fn command_history(&self) -> Option<std::path::PathBuf> {
+        self.knob("HISTORY").map(std::path::PathBuf::from)
+    }
+
     pub fn server(&self) -> Option<&str> {
         self.knob("SERVER")
     }

@@ -275,8 +275,12 @@ fn main() -> AppExit {
     app.init_resource::<mcrs_minecraft_client::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client::game_mode::GameModePlugin);
     app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
-    app.add_plugins(mcrs_minecraft_client::chat::ChatPlugin {
-        command_history: Some(std::path::PathBuf::from("command_history.txt")),
+    app.add_plugins(mcrs_minecraft_client::chat::ClientChatPlugin {
+        command_history: knobs.command_history().or_else(|| {
+            world
+                .as_deref()
+                .map(|world| world.join("command_history.txt"))
+        }),
     });
     app.add_plugins(gui::chat_input::ChatScreenPlugin);
     app.insert_resource(ExitOnDisconnect);
