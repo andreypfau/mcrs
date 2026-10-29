@@ -1,6 +1,6 @@
 use glam::{BVec3, DVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_protocol::{Look, PositionFlag};
+use mcrs_minecraft_protocol::{Look, PositionFlag, PositionFlags};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
@@ -10,11 +10,11 @@ pub struct Pose {
 }
 
 /// What `player_position` carries for one move, and the rotation the move leaves the victim in.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RelativeMove {
     pub position: DVec3,
     pub look: Look,
-    pub flags: Vec<PositionFlag>,
+    pub flags: PositionFlags,
     pub final_look: Look,
 }
 
@@ -29,7 +29,7 @@ pub fn relative_move(
     relative_rotation: [bool; 2],
     changes_dimension: bool,
 ) -> RelativeMove {
-    let mut flags = Vec::new();
+    let mut flags = PositionFlags::default();
     let axes = [
         (PositionFlag::X, PositionFlag::DeltaX),
         (PositionFlag::Y, PositionFlag::DeltaY),
@@ -37,10 +37,10 @@ pub fn relative_move(
     ];
     for ((axis, velocity), relative) in axes.into_iter().zip(relative_position) {
         if relative && !changes_dimension {
-            flags.push(axis);
+            flags.insert(axis);
         }
         if relative {
-            flags.push(velocity);
+            flags.insert(velocity);
         }
     }
     let position = DVec3::select(
@@ -51,7 +51,7 @@ pub fn relative_move(
     let [yaw_relative, pitch_relative] = relative_rotation;
     let mut apply = |to: f32, from: f32, relative: bool, flag: PositionFlag| {
         if relative {
-            flags.push(flag);
+            flags.insert(flag);
             (wrap_degrees(to - from), from + wrap_degrees(to - from))
         } else {
             (wrap_degrees(to), wrap_degrees(to))
@@ -111,16 +111,19 @@ mod tests {
         assert_eq!(step.position, DVec3::new(1.0, 0.0, 3.5));
         assert_eq!(
             step.flags,
-            [
+            PositionFlags::from_iter([
                 PositionFlag::X,
                 PositionFlag::DeltaX,
                 PositionFlag::Y,
                 PositionFlag::DeltaY
-            ]
+            ])
         );
 
         let step = relative_move(AT, to, [true, true, false], [false; 2], true);
         assert_eq!(step.position, to.position);
-        assert_eq!(step.flags, [PositionFlag::DeltaX, PositionFlag::DeltaY]);
+        assert_eq!(
+            step.flags,
+            PositionFlags::from_iter([PositionFlag::DeltaX, PositionFlag::DeltaY])
+        );
     }
 }

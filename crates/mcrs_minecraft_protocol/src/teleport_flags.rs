@@ -16,57 +16,69 @@ pub enum PositionFlag {
 }
 
 impl PositionFlag {
-    fn get_mask(&self) -> i32 {
-        match self {
-            PositionFlag::X => 1 << 0,
-            PositionFlag::Y => 1 << 1,
-            PositionFlag::Z => 1 << 2,
-            PositionFlag::YRot => 1 << 3,
-            PositionFlag::XRot => 1 << 4,
-            PositionFlag::DeltaX => 1 << 5,
-            PositionFlag::DeltaY => 1 << 6,
-            PositionFlag::DeltaZ => 1 << 7,
-            PositionFlag::RotateDelta => 1 << 8,
-        }
-    }
+    const ALL: [PositionFlag; 9] = [
+        PositionFlag::X,
+        PositionFlag::Y,
+        PositionFlag::Z,
+        PositionFlag::YRot,
+        PositionFlag::XRot,
+        PositionFlag::DeltaX,
+        PositionFlag::DeltaY,
+        PositionFlag::DeltaZ,
+        PositionFlag::RotateDelta,
+    ];
 
-    pub fn get_bitfield(flags: &[PositionFlag]) -> i32 {
-        flags.iter().fold(0, |acc, flag| acc | flag.get_mask())
+    const fn mask(self) -> u16 {
+        1 << self as u16
     }
 }
 
 /// The flags of a teleport, one bit each on the wire.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
-pub struct PositionFlags(pub Vec<PositionFlag>);
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
+pub struct PositionFlags(u16);
+
+impl PositionFlags {
+    pub fn insert(&mut self, flag: PositionFlag) {
+        self.0 |= flag.mask();
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn contains(self, flag: PositionFlag) -> bool {
+        self.0 & flag.mask() != 0
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = PositionFlag> {
+        PositionFlag::ALL
+            .into_iter()
+            .filter(move |&flag| self.contains(flag))
+    }
+}
+
+impl FromIterator<PositionFlag> for PositionFlags {
+    fn from_iter<I: IntoIterator<Item = PositionFlag>>(flags: I) -> Self {
+        let mut set = Self::default();
+        for flag in flags {
+            set.insert(flag);
+        }
+        set
+    }
+}
 
 impl Encode for PositionFlags {
     fn encode(&self, w: impl Write) -> Result<()> {
-        let bitfield = PositionFlag::get_bitfield(&self.0);
-        bitfield.encode(w)
+        i32::from(self.0).encode(w)
     }
 }
 
 impl Decode<'_> for PositionFlags {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let bitfield = i32::decode(r)?;
-        let mut flags = Vec::with_capacity(9);
-        for i in 0..9 {
-            if (bitfield & (1 << i)) != 0 {
-                let flag = match i {
-                    0 => PositionFlag::X,
-                    1 => PositionFlag::Y,
-                    2 => PositionFlag::Z,
-                    3 => PositionFlag::YRot,
-                    4 => PositionFlag::XRot,
-                    5 => PositionFlag::DeltaX,
-                    6 => PositionFlag::DeltaY,
-                    7 => PositionFlag::DeltaZ,
-                    8 => PositionFlag::RotateDelta,
-                    _ => continue,
-                };
-                flags.push(flag);
-            }
-        }
-        Ok(PositionFlags(flags))
+        Ok(PositionFlag::ALL
+            .into_iter()
+            .filter(|&flag| bitfield & i32::from(flag.mask()) != 0)
+            .collect())
     }
 }

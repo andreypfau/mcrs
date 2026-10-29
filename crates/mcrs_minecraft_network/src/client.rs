@@ -644,7 +644,7 @@ fn on_player_position(
     else {
         return;
     };
-    if !position.flags.0.is_empty() {
+    if !position.flags.is_empty() {
         // chisle: every relative flag is treated as absolute. Our server
         // only ever sends absolute teleports; the upgrade is vanilla's
         // `PositionMoveRotation.calculateAbsolute`.

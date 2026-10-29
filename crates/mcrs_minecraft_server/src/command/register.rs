@@ -204,6 +204,8 @@ pub enum RegistrationError {
     Tree(#[from] BuildError),
     #[error("commands are added after CommandPlugin and before the app finishes")]
     NoTree,
+    #[error("the command tree holds as many handlers as a handler key can count")]
+    TooManyCommands,
 }
 
 pub trait AppCommands {
@@ -261,6 +263,10 @@ where
         .ok_or(RegistrationError::NoTree)?;
     let tree = &mut *tree;
     let key = HandlerKey(tree.next);
+    let next = tree
+        .next
+        .checked_add(1)
+        .ok_or(RegistrationError::TooManyCommands)?;
     let before = tree.builder.clone();
     let mut registrar = CommandRegistrar {
         builder: &mut tree.builder,
@@ -275,7 +281,7 @@ where
         }
     };
     let branches = registrar.branches;
-    tree.next += 1;
+    tree.next = next;
     let Some((&first, rest)) = branches.split_first() else {
         return Ok(None);
     };

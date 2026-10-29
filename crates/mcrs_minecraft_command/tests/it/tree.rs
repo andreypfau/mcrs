@@ -74,13 +74,13 @@ fn parser<'p>(node: &'p CommandNode<'_>) -> (VarInt, &'p ParserProperties<'p>) {
 #[test]
 fn a_player_sees_only_the_nodes_it_can_use() {
     let graph = graph();
-    let guest = player_tree(&graph, &GUEST);
+    let guest = player_tree(&graph, &GUEST).unwrap();
     let root = guest.nodes.get(guest.root.0 as usize).unwrap();
     assert_eq!(child_names(&guest, root), ["help"]);
     assert_eq!(guest.nodes.len(), 2);
     assert!(!child(&guest, root, "help").restricted);
 
-    let op = player_tree(&graph, &OP);
+    let op = player_tree(&graph, &OP).unwrap();
     assert_round_trip(&op);
     let root = op.nodes.get(op.root.0 as usize).unwrap();
     assert_eq!(child_names(&op, root), ["gamemode", "tp", "help"]);

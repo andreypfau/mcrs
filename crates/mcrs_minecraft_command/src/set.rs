@@ -149,12 +149,29 @@ const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
     VanillaArgument::BlockPredicate(BlockPredicateArgument),
 ];
 
-fn parser_id(key: StaticResourceLocation) -> VarInt {
-    let index = parser::ENTRIES
+/// The parser of an argument has no id in the `command_argument_type` registry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnknownParser(pub StaticResourceLocation);
+
+impl core::fmt::Display for UnknownParser {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the argument parser {} has no registry id",
+            self.0.as_str()
+        )
+    }
+}
+
+impl core::error::Error for UnknownParser {}
+
+fn parser_id(key: StaticResourceLocation) -> Result<VarInt, UnknownParser> {
+    parser::ENTRIES
         .iter()
         .position(|&entry| entry == key)
-        .unwrap_or_default();
-    VarInt(i32::try_from(index).unwrap_or_default())
+        .and_then(|index| i32::try_from(index).ok())
+        .map(VarInt)
+        .ok_or(UnknownParser(key))
 }
 
 impl VanillaArgument {
@@ -179,7 +196,7 @@ impl VanillaArgument {
     }
 
     /// The parser id and the properties of the `commands` packet (CMDP-ARG-001).
-    pub(crate) fn wire(&self) -> ArgumentParser<'static> {
+    pub(crate) fn wire(&self) -> Result<ArgumentParser<'static>, UnknownParser> {
         let registry =
             |registry: StaticResourceLocation| ParserProperties::Registry(registry.into());
         let (key, properties) = match *self {
@@ -243,10 +260,10 @@ impl VanillaArgument {
                 registry(TimelineArgument::RESOURCE.registry),
             ),
         };
-        ArgumentParser {
-            id: parser_id(key),
+        Ok(ArgumentParser {
+            id: parser_id(key)?,
             properties,
-        }
+        })
     }
 
     /// The inverse of [`Self::wire`], or `None` when no argument has that parser, or
@@ -312,7 +329,7 @@ impl VanillaArgument {
             (k, &ParserProperties::Time(min)) if k == parser::TIME => TimeArgument { min }.into(),
             (_, ParserProperties::None) => UNIT_ARGUMENTS
                 .into_iter()
-                .find(|argument| argument.wire().id == parser.id)?,
+                .find(|argument| argument.wire().is_ok_and(|wire| wire.id == parser.id))?,
             _ => return None,
         };
         Some(argument)
@@ -368,9 +385,9 @@ mod tests {
         ];
         arguments.extend(UNIT_ARGUMENTS);
         for argument in arguments {
-            let read = VanillaArgument::from_wire(&argument.wire(), |name| {
-                (name == ITEM.as_str()).then_some(ITEM)
-            });
+            let wire = argument.wire().expect("every vanilla parser has an id");
+            let read =
+                VanillaArgument::from_wire(&wire, |name| (name == ITEM.as_str()).then_some(ITEM));
             assert_eq!(read, Some(argument));
         }
     }

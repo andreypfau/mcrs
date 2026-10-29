@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use mcrs_command::GraphBuilder;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chat::{
     ChatAbilities, ChatLog, ChatScreen, Context, History, Overlay, Send, Tag,
@@ -68,18 +67,8 @@ impl ChatMessage {
 }
 
 /// The client tree of the last `commands` packet (CCMD-TREE-001).
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct CommandTree(pub ClientGraph);
-
-impl Default for CommandTree {
-    fn default() -> Self {
-        Self(
-            GraphBuilder::default()
-                .freeze()
-                .expect("a tree of one root freezes"),
-        )
-    }
-}
 
 /// The names of the players in the player list.
 #[derive(Resource, Default, Debug)]

@@ -12,6 +12,7 @@ use crate::world::entity::player::dimension_change::{
     Arrival, DimensionChangeError, change_dimension,
 };
 use bevy_app::{App, SubApp};
+use bevy_ecs::component::Mutable;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{DetectChangesMut, In, With};
 use bevy_ecs::query::QueryState;
@@ -309,12 +310,18 @@ fn lend(
         && world.contains_resource::<RunningCommand>()
         && world.contains_resource::<CommandOutbox>();
     if present {
-        std::mem::swap(&mut *world.resource_mut::<CommandTree>(), tree);
-        std::mem::swap(&mut *world.resource_mut::<CommandTargets>(), targets);
-        std::mem::swap(&mut *world.resource_mut::<RunningCommand>(), running);
-        std::mem::swap(&mut *world.resource_mut::<CommandOutbox>(), outbox);
+        swap_resource(world, tree);
+        swap_resource(world, targets);
+        swap_resource(world, running);
+        swap_resource(world, outbox);
     }
     present
+}
+
+fn swap_resource<T: Resource<Mutability = Mutable>>(world: &mut World, value: &mut T) {
+    if let Some(mut resource) = world.get_resource_mut::<T>() {
+        std::mem::swap(&mut *resource, value);
+    }
 }
 
 impl SeamExecutor<'_, '_> {

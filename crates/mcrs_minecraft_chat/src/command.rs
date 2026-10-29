@@ -466,7 +466,7 @@ impl CommandInput {
             }
             self.single_child = children.len() == 1;
             let id = self.next_id;
-            self.next_id += 1;
+            self.next_id = self.next_id.wrapping_add(1);
             self.open = Some(id);
             Some(Request {
                 id,

@@ -1,5 +1,5 @@
 use crate::permission::PermissionCheck;
-use crate::set::VanillaArgument;
+use crate::set::{UnknownParser, VanillaArgument};
 use crate::source::{Lookup, Source};
 use mcrs_command::{Graph, NodeKind, SuggestionList, utf16_position};
 use mcrs_minecraft_protocol::VarInt;
@@ -24,7 +24,7 @@ fn number(index: usize) -> VarInt {
 pub fn player_tree<H, L: Lookup>(
     graph: &VanillaGraph<H>,
     source: &Source<'_, L>,
-) -> ClientboundCommands<'static> {
+) -> Result<ClientboundCommands<'static>, UnknownParser> {
     let mut numbers: Vec<Option<usize>> = vec![None; graph.node_count()];
     let mut count = 0;
     for (id, node) in graph.nodes() {
@@ -51,7 +51,7 @@ pub fn player_tree<H, L: Lookup>(
             NodeKind::Literal(name) => CommandNodeKind::Literal(Cow::Owned(name.to_string())),
             NodeKind::Argument { name, argument } => CommandNodeKind::Argument {
                 name: Cow::Owned(name.to_string()),
-                parser: argument.wire(),
+                parser: argument.wire()?,
                 suggestions: argument.suggestion_type().map(Into::into),
             },
         };
@@ -70,10 +70,10 @@ pub fn player_tree<H, L: Lookup>(
             restricted: node.requirement().is_restricted(),
         });
     }
-    ClientboundCommands {
+    Ok(ClientboundCommands {
         nodes,
         root: VarInt(0),
-    }
+    })
 }
 
 /// The reply to a `command_suggestion` request (CMDP-SUG-002). Positions count UTF-16 code

@@ -19,10 +19,10 @@ use mcrs_minecraft_command::{anchored, rotation_toward};
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt;
 use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_minecraft_protocol::{PositionFlags, VarInt};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -401,7 +401,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         transform,
         position: step.position,
         look: step.look,
-        flags: PositionFlags(step.flags),
+        flags: step.flags,
     };
     if origin == destination {
         let entity = match worlds.set_transform(player, transform) {

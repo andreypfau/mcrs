@@ -217,16 +217,7 @@ impl<A: PartialEq, R: PartialEq + Default, H> Default for GraphBuilder<A, R, H> 
 impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
     pub fn new() -> Self {
         Self {
-            nodes: vec![Node {
-                kind: NodeKind::Root,
-                parent: None,
-                children: Vec::new(),
-                requirement: R::default(),
-                command: None,
-                redirect: None,
-                modifier: None,
-                forks: false,
-            }],
+            nodes: vec![Node::root()],
         }
     }
 
@@ -404,6 +395,30 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
 #[derive(Clone, Debug)]
 pub struct Graph<A, R, H> {
     nodes: Vec<Node<A, R, H>>,
+}
+
+impl<A, R: Default, H> Node<A, R, H> {
+    fn root() -> Self {
+        Node {
+            kind: NodeKind::Root,
+            parent: None,
+            children: Vec::new(),
+            requirement: R::default(),
+            command: None,
+            redirect: None,
+            modifier: None,
+            forks: false,
+        }
+    }
+}
+
+/// A tree of the root alone.
+impl<A, R: Default, H> Default for Graph<A, R, H> {
+    fn default() -> Self {
+        Self {
+            nodes: vec![Node::root()],
+        }
+    }
 }
 
 impl<A, R, H> Graph<A, R, H> {

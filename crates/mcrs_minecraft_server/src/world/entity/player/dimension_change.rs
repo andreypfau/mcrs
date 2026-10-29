@@ -120,7 +120,7 @@ impl Arrival {
             position: self.position,
             velocity: DVec3::ZERO,
             look: self.look,
-            flags: self.flags.clone(),
+            flags: self.flags,
         }
     }
 }

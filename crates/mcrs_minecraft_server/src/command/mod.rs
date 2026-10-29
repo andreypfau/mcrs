@@ -78,7 +78,7 @@ impl CommandTreePackets {
         for (id, packet) in (0..).zip(&mut by_level) {
             let source = Source::new(CommandLevel::from_id(id), &NoLookup);
             let mut bytes = Vec::new();
-            player_tree(graph, &source).encode_with_id(&mut bytes)?;
+            player_tree(graph, &source)?.encode_with_id(&mut bytes)?;
             *packet = Bytes::from(bytes);
         }
         Ok(Self { by_level })
