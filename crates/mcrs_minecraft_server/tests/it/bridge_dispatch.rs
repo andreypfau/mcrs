@@ -22,6 +22,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use bevy_tasks::{ComputeTaskPool, TaskPool};
 use bytes::Bytes;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
@@ -43,6 +44,9 @@ use tokio::sync::mpsc;
 
 /// Build a minimal ECS world with the resources `dispatch_encode` needs.
 fn build_dispatch_world() -> World {
+    // With bevy_ecs `multi_threaded` on, `par_iter_mut` in `dispatch_encode` needs the pool
+    // that `TaskPoolPlugin` installs in a real app.
+    ComputeTaskPool::get_or_init(TaskPool::default);
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<BridgeTelemetry>();
