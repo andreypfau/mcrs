@@ -5,7 +5,7 @@ use core::fmt::Write;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use crate::java_number::{java_double, java_float};
+use crate::java_number::write_java_number;
 use crate::text;
 
 pub fn write(tag: &NbtTag) -> String {
@@ -25,8 +25,8 @@ fn write_tag(tag: &NbtTag, out: &mut String) {
         NbtTag::Short(v) => _ = write!(out, "{v}s"),
         NbtTag::Int(v) => _ = write!(out, "{v}"),
         NbtTag::Long(v) => _ = write!(out, "{v}L"),
-        NbtTag::Float(v) => _ = write!(out, "{}f", java_float(*v)),
-        NbtTag::Double(v) => _ = write!(out, "{}d", java_double(*v)),
+        NbtTag::Float(v) => _ = write_java_number(out, *v).and_then(|()| out.write_char('f')),
+        NbtTag::Double(v) => _ = write_java_number(out, *v).and_then(|()| out.write_char('d')),
         NbtTag::String(v) => quote_and_escape(v, out),
         NbtTag::ByteArray(v) => {
             out.push_str("[B;");
@@ -101,15 +101,16 @@ fn is_unquoted_key(key: &str) -> bool {
 }
 
 fn quote_and_escape(input: &str, out: &mut String) {
-    let mark = out.len();
-    out.push(' ');
-    let mut quote = None;
+    let quote = match input.chars().find(|c| matches!(c, '"' | '\'')) {
+        Some('"') => '\'',
+        _ => '"',
+    };
+    out.push(quote);
     for c in input.chars() {
         match c {
             '\\' => out.push_str("\\\\"),
             '"' | '\'' => {
-                let chosen = *quote.get_or_insert(if c == '"' { '\'' } else { '"' });
-                if chosen == c {
+                if quote == c {
                     out.push('\\');
                 }
                 out.push(c);
@@ -123,7 +124,5 @@ fn quote_and_escape(input: &str, out: &mut String) {
             _ => out.push(c),
         }
     }
-    let quote = quote.unwrap_or('"');
-    out.replace_range(mark..mark + 1, quote.encode_utf8(&mut [0; 4]));
     out.push(quote);
 }
