@@ -32,8 +32,8 @@ use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::world::dimension::DimensionTypeId;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_protocol::LookAnchor;
 use mcrs_minecraft_protocol::Packet;
-use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -75,7 +75,7 @@ impl CommandTreePackets {
     fn new(graph: &VanillaGraph<Handler>) -> mcrs_minecraft_protocol::anyhow::Result<Self> {
         let mut by_level: [Bytes; 5] = Default::default();
         for (id, packet) in (0..).zip(&mut by_level) {
-            let source = Source::new(CommandLevel::from_id(id), &NoLookup);
+            let source = Source::new(CommandLevel::from(id), &NoLookup);
             let mut bytes = Vec::new();
             player_tree(graph, &source)?.encode_with_id(&mut bytes)?;
             *packet = Bytes::from(bytes);
@@ -350,5 +350,5 @@ impl Plugin for DimCommandPlugin {
 }
 
 pub(crate) fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
-    CommandLevel::from_id(op_level.clamped())
+    CommandLevel::from(op_level.clamped())
 }

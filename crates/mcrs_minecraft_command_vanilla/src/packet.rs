@@ -1,5 +1,5 @@
 use crate::vanilla_argument::{UnknownParser, VanillaArgument};
-use mcrs_command::{Graph, NodeKind, SuggestionList};
+use mcrs_command::{Graph, NodeId, NodeKind, SuggestionList};
 use mcrs_minecraft_command::{PermissionCheck, Source};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, CommandSuggestion};
@@ -10,6 +10,7 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_text_span::utf16_position;
 use std::borrow::Cow;
 
+/// The command tree of the vanilla argument types, with handlers of type `H`.
 pub type VanillaGraph<H> = Graph<VanillaArgument, PermissionCheck, H>;
 
 /// The most suggestions one reply carries (CMDP-SUG-002).
@@ -40,7 +41,7 @@ pub fn player_tree<H, L>(
             count += 1;
         }
     }
-    let number_of = |id: mcrs_command::NodeId| numbers.get(id.index()).copied().flatten();
+    let number_of = |id: NodeId| numbers.get(id.index()).copied().flatten();
     let mut nodes = Vec::with_capacity(count);
     for (id, node) in graph.nodes() {
         if number_of(id).is_none() {

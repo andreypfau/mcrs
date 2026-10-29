@@ -142,6 +142,7 @@ fn structure(
     let structures: Vec<StructureId> = lookup
         .ids(STRUCTURE.location(), value)
         .ok_or_else(invalid)?
+        .as_slice()
         .iter()
         .filter_map(|&id| id_of(lookup.name(STRUCTURE.location(), id)?))
         .collect();
@@ -192,9 +193,14 @@ pub(super) fn run(
                 .ok_or_else(not_found)?;
             let config = dimension.iter().next().ok_or_else(not_found)?;
             let height = i32::try_from(config.height).unwrap_or(i32::MAX);
-            let (at, biome) =
-                nearest_biome(index.noise_biomes(), &wanted, origin, config.min_y, height)
-                    .ok_or_else(not_found)?;
+            let (at, biome) = nearest_biome(
+                index.noise_biomes(),
+                wanted.as_slice(),
+                origin,
+                config.min_y,
+                height,
+            )
+            .ok_or_else(not_found)?;
             let entry = context
                 .registry_lookup()
                 .name(BIOME.location(), biome)

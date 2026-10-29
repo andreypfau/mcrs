@@ -1,3 +1,5 @@
+//! The coordinate, rotation and swizzle arguments and the relative move of a teleport.
+
 // std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the angle functions and the
 // text of every argument, need it.
 mod coordinates;
@@ -9,4 +11,4 @@ pub use coordinates::{
     WorldCoordinate, align, block_floor, rotation_toward,
 };
 pub use error::CoordinatesError;
-pub use teleport::{Pose, RelativeMove, relative_move};
+pub use teleport::{DimensionChange, Pose, RelativeMove, RelativeRotation, relative_move};

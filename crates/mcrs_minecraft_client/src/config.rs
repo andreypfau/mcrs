@@ -207,10 +207,15 @@ impl Knobs {
         let Some(mode) = self.knob("DEFAULT_GAMEMODE") else {
             return GameMode::Creative;
         };
-        GameMode::from_name(&mode.trim().to_ascii_lowercase()).unwrap_or_else(|| {
-            eprintln!("MCRS_DEFAULT_GAMEMODE={mode} is not a game mode; defaulting to creative");
-            GameMode::Creative
-        })
+        mode.trim()
+            .to_ascii_lowercase()
+            .parse()
+            .unwrap_or_else(|_| {
+                eprintln!(
+                    "MCRS_DEFAULT_GAMEMODE={mode} is not a game mode; defaulting to creative"
+                );
+                GameMode::Creative
+            })
     }
 
     /// `SLOW_CHUNK_MS` is the latency above which the integrated server logs a column.

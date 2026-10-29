@@ -1,3 +1,5 @@
+use core::fmt;
+use core::str::FromStr;
 use std::io::Write;
 
 use crate::wire::bail;
@@ -43,13 +45,38 @@ impl GameMode {
         }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|mode| mode.name() == name)
-    }
-
     #[inline]
     pub fn is_block_placing_restricted(&self) -> bool {
         self == &GameMode::Adventure || self == &GameMode::Spectator
+    }
+}
+
+impl fmt::Display for GameMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// A name that no [`GameMode`] has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnknownGameMode;
+
+impl fmt::Display for UnknownGameMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("unknown game mode")
+    }
+}
+
+impl core::error::Error for UnknownGameMode {}
+
+impl FromStr for GameMode {
+    type Err = UnknownGameMode;
+
+    fn from_str(name: &str) -> core::result::Result<Self, UnknownGameMode> {
+        Self::ALL
+            .into_iter()
+            .find(|mode| mode.name() == name)
+            .ok_or(UnknownGameMode)
     }
 }
 

@@ -2,7 +2,7 @@ use crate::{GUEST, OP, read};
 use glam::DVec3;
 use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SuggestionList, SyntaxError};
 use mcrs_minecraft_command::{ErrorText, Source};
-use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityError, Target};
+use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityBounds, EntityError, Target};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -186,11 +186,11 @@ impl Candidate for Mob {
     fn position(&self) -> DVec3 {
         self.position
     }
-    fn bounding_box(&self) -> (DVec3, DVec3) {
-        (
-            self.position - DVec3::new(0.3, 0.0, 0.3),
-            self.position + DVec3::new(0.3, 1.8, 0.3),
-        )
+    fn bounding_box(&self) -> EntityBounds {
+        EntityBounds {
+            min: self.position - DVec3::new(0.3, 0.0, 0.3),
+            max: self.position + DVec3::new(0.3, 1.8, 0.3),
+        }
     }
     fn yaw(&self) -> f32 {
         0.0

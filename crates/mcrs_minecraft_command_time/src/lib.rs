@@ -1,3 +1,5 @@
+//! The tick count, time marker and timeline arguments.
+
 // std: mcrs_minecraft_environment and mcrs_minecraft_protocol, which hold the timeline registry
 // and the text of every argument, need it.
 mod error;

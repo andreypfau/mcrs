@@ -3,12 +3,19 @@ use alloc::vec::Vec;
 use mcrs_text_span::Span;
 
 use crate::build::{ArrayKind, Build, Scalar};
-use crate::error::{IntegerType, SnbtErrorKind as K};
-use crate::reader::{R, Reader, Shape};
+use crate::error::{IntegerType, SnbtErrorKind};
+use crate::reader::{ReadResult, Reader, Shape};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Signedness {
+    Signed,
+    Unsigned,
+}
 
 #[derive(Clone, Copy)]
 struct Suffix {
-    signed: Option<bool>,
+    /// `None` when the suffix has no `s` or `u`, so the radix decides.
+    signedness: Option<Signedness>,
     ty: IntegerType,
 }
 
@@ -24,12 +31,18 @@ pub(crate) struct IntLiteral<'a> {
 struct FloatParts<'a> {
     whole: Option<&'a str>,
     fraction: Option<&'a str>,
-    exponent: Option<(bool, &'a str)>,
+    exponent: Option<Exponent<'a>>,
     float: bool,
 }
 
+#[derive(Clone, Copy)]
+struct Exponent<'a> {
+    negative: bool,
+    digits: &'a str,
+}
+
 impl<'a, B: Build> Reader<'a, B> {
-    fn run(&mut self, accept: fn(char) -> bool, empty: K) -> R<&'a str> {
+    fn run(&mut self, accept: fn(char) -> bool, empty: SnbtErrorKind) -> ReadResult<&'a str> {
         let start = self.pos;
         self.skip_whitespace();
         let at = self.pos;
@@ -41,7 +54,7 @@ impl<'a, B: Build> Reader<'a, B> {
         let kind = if run.is_empty() {
             empty
         } else if run.starts_with('_') || run.ends_with('_') {
-            K::UnderscoreNotAllowed
+            SnbtErrorKind::UnderscoreNotAllowed
         } else {
             self.pos = at + length;
             return Ok(run);
@@ -50,21 +63,27 @@ impl<'a, B: Build> Reader<'a, B> {
         self.fail(at, kind)
     }
 
-    fn decimal(&mut self) -> R<&'a str> {
-        self.run(|c| c.is_ascii_digit(), K::ExpectedDecimalNumeral)
+    fn decimal(&mut self) -> ReadResult<&'a str> {
+        self.run(
+            |c| c.is_ascii_digit(),
+            SnbtErrorKind::ExpectedDecimalNumeral,
+        )
     }
 
-    fn sign(&mut self) -> R<bool> {
+    fn sign(&mut self) -> ReadResult<bool> {
         Ok(self.opt(|r| r.first_token(&["+", "-"]))? == Some('-'))
     }
 
-    fn exponent(&mut self) -> R<(bool, &'a str)> {
+    fn exponent(&mut self) -> ReadResult<Exponent<'a>> {
         self.token("e|E")?;
         let negative = self.sign()?;
-        Ok((negative, self.decimal()?))
+        Ok(Exponent {
+            negative,
+            digits: self.decimal()?,
+        })
     }
 
-    fn float_suffix(&mut self) -> R<bool> {
+    fn float_suffix(&mut self) -> ReadResult<bool> {
         Ok(self
             .first_token(&["f|F", "d|D"])?
             .eq_ignore_ascii_case(&'f'))
@@ -74,7 +93,7 @@ impl<'a, B: Build> Reader<'a, B> {
         &mut self,
         whole: Option<&'a str>,
         fraction: Option<&'a str>,
-    ) -> R<FloatParts<'a>> {
+    ) -> ReadResult<FloatParts<'a>> {
         let exponent = self.opt(Self::exponent)?;
         let float = self.opt(Self::float_suffix)? == Some(true);
         Ok(FloatParts {
@@ -85,7 +104,7 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    fn float_body(&mut self) -> R<FloatParts<'a>> {
+    fn float_body(&mut self) -> ReadResult<FloatParts<'a>> {
         let start = self.pos;
         if let Some(whole) = self.opt(Self::decimal)?
             && self.opt(|r| r.token("."))?.is_some()
@@ -114,16 +133,16 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    pub(crate) fn float(&mut self) -> R<(B::Value, Shape<'a>)> {
+    pub(crate) fn float(&mut self) -> ReadResult<(B::Value, Shape<'a>)> {
         let negative = self.sign()?;
         let parts = self.float_body()?;
         match float_value(negative, &parts) {
             Some((scalar, nonzero)) => Ok((self.build.scalar(scalar), Shape::Number { nonzero })),
-            None => self.fail(self.pos, K::InfinityNotAllowed),
+            None => self.fail(self.pos, SnbtErrorKind::InfinityNotAllowed),
         }
     }
 
-    fn type_letter(&mut self) -> R<IntegerType> {
+    fn type_letter(&mut self) -> ReadResult<IntegerType> {
         Ok(match self.first_token(&["b|B", "s|S", "i|I", "l|L"])? {
             'b' | 'B' => IntegerType::Byte,
             's' | 'S' => IntegerType::Short,
@@ -132,45 +151,49 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    fn integer_suffix(&mut self) -> R<Option<Suffix>> {
-        for (mark, signed) in [("u|U", false), ("s|S", true)] {
+    fn integer_suffix(&mut self) -> ReadResult<Option<Suffix>> {
+        for (mark, signedness) in [("u|U", Signedness::Unsigned), ("s|S", Signedness::Signed)] {
             let start = self.pos;
             if self.opt(|r| r.token(mark))?.is_some() {
                 if let Some(ty) = self.opt(Self::type_letter)? {
                     return Ok(Some(Suffix {
-                        signed: Some(signed),
+                        signedness: Some(signedness),
                         ty,
                     }));
                 }
                 self.pos = start;
             }
         }
-        Ok(self
-            .opt(Self::type_letter)?
-            .map(|ty| Suffix { signed: None, ty }))
+        Ok(self.opt(Self::type_letter)?.map(|ty| Suffix {
+            signedness: None,
+            ty,
+        }))
     }
 
-    fn after_zero(&mut self) -> R<(u32, &'a str)> {
+    fn after_zero(&mut self) -> ReadResult<(u32, &'a str)> {
         if self.opt(|r| r.token("x|X"))?.is_some() {
             return Ok((
                 16,
-                self.run(|c| c.is_ascii_hexdigit(), K::ExpectedHexNumeral)?,
+                self.run(|c| c.is_ascii_hexdigit(), SnbtErrorKind::ExpectedHexNumeral)?,
             ));
         }
         let binary = self.opt(|r| {
             r.token("b|B")?;
-            r.run(|c| matches!(c, '0' | '1'), K::ExpectedBinaryNumeral)
+            r.run(
+                |c| matches!(c, '0' | '1'),
+                SnbtErrorKind::ExpectedBinaryNumeral,
+            )
         })?;
         if let Some(digits) = binary {
             return Ok((2, digits));
         }
         if self.opt(Self::decimal)?.is_some() {
-            return self.fail(self.pos, K::LeadingZeroNotAllowed);
+            return self.fail(self.pos, SnbtErrorKind::LeadingZeroNotAllowed);
         }
         Ok((10, "0"))
     }
 
-    pub(crate) fn integer(&mut self) -> R<IntLiteral<'a>> {
+    pub(crate) fn integer(&mut self) -> ReadResult<IntLiteral<'a>> {
         self.skip_whitespace();
         let body = self.pos;
         let negative = self.sign()?;
@@ -192,7 +215,7 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    pub(crate) fn check_integer(&mut self, literal: IntLiteral<'a>) -> R<(Scalar, bool)> {
+    pub(crate) fn check_integer(&mut self, literal: IntLiteral<'a>) -> ReadResult<(Scalar, bool)> {
         let ty = literal.suffix.map_or(IntegerType::Int, |suffix| suffix.ty);
         match integer_value(literal, ty) {
             Ok(value) => Ok((Scalar::integer(ty, value), value != 0)),
@@ -202,15 +225,17 @@ impl<'a, B: Build> Reader<'a, B> {
 }
 
 /// SNBT-VAL-003: the value of an integer literal as `ty`, sign-extended to 64 bits.
-fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, K> {
+fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtErrorKind> {
     let signed = literal
         .suffix
-        .and_then(|suffix| suffix.signed)
-        .unwrap_or(literal.radix == 10);
+        .and_then(|suffix| suffix.signedness)
+        .map_or(literal.radix == 10, |signedness| {
+            signedness == Signedness::Signed
+        });
     if !signed && literal.negative {
-        return Err(K::ExpectedNonNegativeNumber);
+        return Err(SnbtErrorKind::ExpectedNonNegativeNumber);
     }
-    let failure = K::NumberParseFailure {
+    let failure = SnbtErrorKind::NumberParseFailure {
         number: literal.span,
         ty,
     };
@@ -245,7 +270,10 @@ fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, K> {
 }
 
 /// SNBT-VAL-005: the type of an element is its own, or the type of the array.
-pub(crate) fn array_element(literal: IntLiteral<'_>, kind: ArrayKind) -> Result<i64, K> {
+pub(crate) fn array_element(
+    literal: IntLiteral<'_>,
+    kind: ArrayKind,
+) -> Result<i64, SnbtErrorKind> {
     let ty = literal.suffix.map_or(kind.element(), |suffix| suffix.ty);
     let allowed = match kind {
         ArrayKind::Byte => matches!(ty, IntegerType::Byte),
@@ -253,7 +281,7 @@ pub(crate) fn array_element(literal: IntLiteral<'_>, kind: ArrayKind) -> Result<
         ArrayKind::Long => true,
     };
     if !allowed {
-        return Err(K::InvalidArrayElementType);
+        return Err(SnbtErrorKind::InvalidArrayElementType);
     }
     integer_value(literal, ty)
 }
@@ -272,10 +300,10 @@ fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<(Scalar, bool)>
         parts.fraction.unwrap_or("0"),
         if parts.exponent.is_some() { "e" } else { "" },
         match parts.exponent {
-            Some((true, _)) => "-",
+            Some(Exponent { negative: true, .. }) => "-",
             _ => "",
         },
-        parts.exponent.map_or("", |(_, digits)| digits),
+        parts.exponent.map_or("", |exponent| exponent.digits),
     ];
     let length: usize = pieces.iter().map(|piece| piece.len()).sum();
     let bytes = pieces

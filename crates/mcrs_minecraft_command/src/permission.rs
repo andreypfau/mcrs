@@ -1,7 +1,7 @@
 use crate::source::Source;
 use mcrs_command::Requirement;
 
-/// The five ordered command levels (PERM-LEVEL-001).
+/// The five ordered command levels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CommandLevel {
     #[default]
@@ -12,9 +12,9 @@ pub enum CommandLevel {
     Owners,
 }
 
-impl CommandLevel {
-    /// A level above `owners` is `owners`.
-    pub const fn from_id(id: u8) -> Self {
+/// A level above `owners` is `owners`.
+impl From<u8> for CommandLevel {
+    fn from(id: u8) -> Self {
         match id {
             0 => CommandLevel::All,
             1 => CommandLevel::Moderators,
@@ -23,27 +23,33 @@ impl CommandLevel {
             _ => CommandLevel::Owners,
         }
     }
+}
 
+impl CommandLevel {
     /// The source holds `minecraft:commands/entity_selectors`, so it may use selectors that
-    /// start with `@` (PERM-SET-001).
+    /// start with `@`.
     pub fn can_use_selectors(self) -> bool {
         self >= CommandLevel::Gamemasters
     }
 }
 
+/// The requirement of a command node on the level of its source.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PermissionCheck {
+    /// Every source passes.
     #[default]
     AlwaysPass,
+    /// A source at this level or above passes.
     Require(CommandLevel),
 }
 
 impl PermissionCheck {
-    /// The node carries the restricted flag of the `commands` packet (PERM-SET-002).
+    /// The node carries the restricted flag of the `commands` packet.
     pub const fn is_restricted(&self) -> bool {
         matches!(self, PermissionCheck::Require(_))
     }
 
+    /// Whether a source at `level` passes the check.
     pub fn passes(&self, level: CommandLevel) -> bool {
         match *self {
             PermissionCheck::AlwaysPass => true,

@@ -3,7 +3,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_command::Identifier;
-use mcrs_minecraft_command_entity::Candidate;
+use mcrs_minecraft_command_entity::{Candidate, EntityBounds};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_END, THE_NETHER};
@@ -137,10 +137,13 @@ impl Candidate for PlayerEntry {
         self.transform.translation
     }
 
-    fn bounding_box(&self) -> (DVec3, DVec3) {
+    fn bounding_box(&self) -> EntityBounds {
         let half = DVec3::new(PLAYER_WIDTH / 2.0, 0.0, PLAYER_WIDTH / 2.0);
-        let p = self.transform.translation;
-        (p - half, p + half + DVec3::Y * PLAYER_HEIGHT)
+        let position = self.transform.translation;
+        EntityBounds {
+            min: position - half,
+            max: position + half + DVec3::Y * PLAYER_HEIGHT,
+        }
     }
 
     fn yaw(&self) -> f32 {

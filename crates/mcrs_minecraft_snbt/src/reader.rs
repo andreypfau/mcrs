@@ -2,7 +2,7 @@ use mcrs_minecraft_nbt::MAX_DEPTH;
 use mcrs_text_span::{Span, is_whitespace};
 
 use crate::build::{ArrayKind, Build, Scalar};
-use crate::error::{SnbtError, SnbtErrorKind as K};
+use crate::error::{SnbtError, SnbtErrorKind};
 use crate::number::array_element;
 use crate::text::{
     ESCAPE_LETTERS, StrText, char_by_name, hex_digits, hex_length, is_high_surrogate,
@@ -14,7 +14,7 @@ pub(crate) enum Fail {
     Abort(SnbtError),
 }
 
-pub(crate) type R<T> = Result<T, Fail>;
+pub(crate) type ReadResult<T> = Result<T, Fail>;
 
 /// What an operation and the compound read need to know about a value, whatever the builder.
 #[derive(Clone, Copy)]
@@ -57,19 +57,19 @@ impl<'a, B: Build> Reader<'a, B> {
             Ok(value) => Ok(value),
             Err(Fail::Abort(error)) => Err(error),
             Err(Fail::Soft) => Err(self.best.unwrap_or(SnbtError {
-                kind: K::ExpectedUnquotedString,
+                kind: SnbtErrorKind::ExpectedUnquotedString,
                 position: self.pos,
             })),
         }
     }
 
-    fn record(&mut self, position: usize, kind: K) {
+    fn record(&mut self, position: usize, kind: SnbtErrorKind) {
         if self.best.is_none_or(|best| position > best.position) {
             self.best = Some(SnbtError { kind, position });
         }
     }
 
-    pub(crate) fn fail<T>(&mut self, position: usize, kind: K) -> R<T> {
+    pub(crate) fn fail<T>(&mut self, position: usize, kind: SnbtErrorKind) -> ReadResult<T> {
         self.record(position, kind);
         Err(Fail::Soft)
     }
@@ -88,7 +88,7 @@ impl<'a, B: Build> Reader<'a, B> {
     }
 
     /// A character token: one code unit of `set`, whose members are joined with `|`.
-    pub(crate) fn token(&mut self, set: &'static str) -> R<char> {
+    pub(crate) fn token(&mut self, set: &'static str) -> ReadResult<char> {
         let start = self.pos;
         self.skip_whitespace();
         match self.peek() {
@@ -99,12 +99,15 @@ impl<'a, B: Build> Reader<'a, B> {
             _ => {
                 let at = self.pos;
                 self.pos = start;
-                self.fail(at, K::LiteralIncorrect(set))
+                self.fail(at, SnbtErrorKind::LiteralIncorrect(set))
             }
         }
     }
 
-    pub(crate) fn opt<T>(&mut self, read: impl FnOnce(&mut Self) -> R<T>) -> R<Option<T>> {
+    pub(crate) fn opt<T>(
+        &mut self,
+        read: impl FnOnce(&mut Self) -> ReadResult<T>,
+    ) -> ReadResult<Option<T>> {
         let start = self.pos;
         match read(self) {
             Ok(value) => Ok(Some(value)),
@@ -116,7 +119,7 @@ impl<'a, B: Build> Reader<'a, B> {
         }
     }
 
-    pub(crate) fn first_token(&mut self, sets: &[&'static str]) -> R<char> {
+    pub(crate) fn first_token(&mut self, sets: &[&'static str]) -> ReadResult<char> {
         for set in sets {
             if let Some(c) = self.opt(|r| r.token(set))? {
                 return Ok(c);
@@ -125,7 +128,7 @@ impl<'a, B: Build> Reader<'a, B> {
         Err(Fail::Soft)
     }
 
-    fn word(&mut self) -> R<&'a str> {
+    fn word(&mut self) -> ReadResult<&'a str> {
         let start = self.pos;
         self.skip_whitespace();
         let at = self.pos;
@@ -138,13 +141,13 @@ impl<'a, B: Build> Reader<'a, B> {
             }
             _ => {
                 self.pos = start;
-                self.fail(at, K::ExpectedUnquotedString)
+                self.fail(at, SnbtErrorKind::ExpectedUnquotedString)
             }
         }
     }
 
     /// `[ item { ',' item } [ ',' ] ]` (SNBT-GR-009).
-    fn items(&mut self, mut item: impl FnMut(&mut Self) -> R<()>) -> R<()> {
+    fn items(&mut self, mut item: impl FnMut(&mut Self) -> ReadResult<()>) -> ReadResult<()> {
         if self.opt(&mut item)?.is_none() {
             return Ok(());
         }
@@ -162,7 +165,7 @@ impl<'a, B: Build> Reader<'a, B> {
         Ok(())
     }
 
-    fn value(&mut self, depth: u32) -> R<(B::Value, Shape<'a>)> {
+    fn value(&mut self, depth: u32) -> ReadResult<(B::Value, Shape<'a>)> {
         match self.peek_token() {
             Some(c) if is_number_start(c) => {
                 let start = self.pos;
@@ -186,7 +189,7 @@ impl<'a, B: Build> Reader<'a, B> {
         }
     }
 
-    fn quoted(&mut self) -> R<StrText<'a>> {
+    fn quoted(&mut self) -> ReadResult<StrText<'a>> {
         if self.opt(|r| r.token("\""))?.is_some() {
             return self.string_body("\"", "'");
         }
@@ -194,7 +197,7 @@ impl<'a, B: Build> Reader<'a, B> {
         self.string_body("'", "\"")
     }
 
-    fn string_body(&mut self, quote: &'static str, other: &'static str) -> R<StrText<'a>> {
+    fn string_body(&mut self, quote: &'static str, other: &'static str) -> ReadResult<StrText<'a>> {
         let body = self.pos;
         let mut after_high = false;
         loop {
@@ -215,17 +218,17 @@ impl<'a, B: Build> Reader<'a, B> {
         Ok(StrText::Quoted(text))
     }
 
-    fn string_text(&mut self) -> R<()> {
+    fn string_text(&mut self) -> ReadResult<()> {
         let rest = self.rest();
         let length = rest.find(['"', '\'', '\\']).unwrap_or(rest.len());
         if length == 0 {
-            return self.fail(self.pos, K::InvalidStringContents);
+            return self.fail(self.pos, SnbtErrorKind::InvalidStringContents);
         }
         self.pos += length;
         Ok(())
     }
 
-    fn escape(&mut self, after_high: &mut bool) -> R<()> {
+    fn escape(&mut self, after_high: &mut bool) -> ReadResult<()> {
         let letter = self.first_token(&ESCAPE_LETTERS)?;
         if simple_escape(letter).is_some() {
             return Ok(());
@@ -234,7 +237,7 @@ impl<'a, B: Build> Reader<'a, B> {
             return self.named_escape();
         };
         let Some(code) = hex_digits(self.rest(), length) else {
-            return self.fail(self.pos, K::ExpectedHexEscape(length as u8));
+            return self.fail(self.pos, SnbtErrorKind::ExpectedHexEscape(length as u8));
         };
         self.pos += length;
         let unpaired = if is_high_surrogate(code) {
@@ -244,28 +247,28 @@ impl<'a, B: Build> Reader<'a, B> {
         };
         *after_high = is_high_surrogate(code);
         if code > 0x10_ffff || unpaired {
-            return self.fail(self.pos, K::InvalidCodepoint(code));
+            return self.fail(self.pos, SnbtErrorKind::InvalidCodepoint(code));
         }
         Ok(())
     }
 
-    fn named_escape(&mut self) -> R<()> {
+    fn named_escape(&mut self) -> ReadResult<()> {
         self.token("{")?;
         let rest = self.rest();
         let length = rest.find(|c| !is_name_char(c)).unwrap_or(rest.len());
         let name = rest.get(..length).unwrap_or_default();
         if name.is_empty() {
-            return self.fail(self.pos, K::InvalidCharacterName);
+            return self.fail(self.pos, SnbtErrorKind::InvalidCharacterName);
         }
         self.pos += length;
         self.token("}")?;
         if char_by_name(name).is_none() {
-            return self.fail(self.pos, K::InvalidCharacterName);
+            return self.fail(self.pos, SnbtErrorKind::InvalidCharacterName);
         }
         Ok(())
     }
 
-    fn compound(&mut self, depth: u32) -> R<(B::Value, Shape<'a>)> {
+    fn compound(&mut self, depth: u32) -> ReadResult<(B::Value, Shape<'a>)> {
         self.skip_whitespace();
         too_deep(depth, self.pos)?;
         self.token("{")?;
@@ -275,7 +278,7 @@ impl<'a, B: Build> Reader<'a, B> {
             r.token(":")?;
             let (value, _) = r.value(depth + 1)?;
             if key.is_empty() {
-                return r.fail(r.pos, K::EmptyKey);
+                return r.fail(r.pos, SnbtErrorKind::EmptyKey);
             }
             r.build.insert(&mut compound, key, value);
             Ok(())
@@ -284,14 +287,14 @@ impl<'a, B: Build> Reader<'a, B> {
         Ok((self.build.finish_compound(compound), Shape::Compound))
     }
 
-    fn key(&mut self) -> R<StrText<'a>> {
+    fn key(&mut self) -> ReadResult<StrText<'a>> {
         if let Some(text) = self.opt(Self::quoted)? {
             return Ok(text);
         }
         self.word().map(StrText::Word)
     }
 
-    fn list(&mut self, depth: u32) -> R<(B::Value, Shape<'a>)> {
+    fn list(&mut self, depth: u32) -> ReadResult<(B::Value, Shape<'a>)> {
         self.skip_whitespace();
         let open = self.pos;
         self.token("[")?;
@@ -318,7 +321,7 @@ impl<'a, B: Build> Reader<'a, B> {
         Ok((self.build.finish_list(list), Shape::Other))
     }
 
-    fn array(&mut self, kind: ArrayKind) -> R<(B::Value, Shape<'a>)> {
+    fn array(&mut self, kind: ArrayKind) -> ReadResult<(B::Value, Shape<'a>)> {
         let mut array = self.build.array(kind);
         let mut invalid = None;
         self.items(|r| {
@@ -338,7 +341,7 @@ impl<'a, B: Build> Reader<'a, B> {
         Ok((self.build.finish_array(array), Shape::Other))
     }
 
-    fn word_value(&mut self, depth: u32) -> R<(B::Value, Shape<'a>)> {
+    fn word_value(&mut self, depth: u32) -> ReadResult<(B::Value, Shape<'a>)> {
         self.skip_whitespace();
         let start = self.pos;
         let word = self.word()?;
@@ -348,7 +351,7 @@ impl<'a, B: Build> Reader<'a, B> {
         };
         let call = self.opt(|r| r.arguments(depth))?;
         if word.starts_with(is_number_start) {
-            return self.fail(self.pos, K::InvalidUnquotedStart);
+            return self.fail(self.pos, SnbtErrorKind::InvalidUnquotedStart);
         }
         if let Some((arguments, first)) = call {
             return self.operation(word, name, arguments, first);
@@ -372,7 +375,7 @@ impl<'a, B: Build> Reader<'a, B> {
         })
     }
 
-    fn arguments(&mut self, depth: u32) -> R<(usize, Option<Shape<'a>>)> {
+    fn arguments(&mut self, depth: u32) -> ReadResult<(usize, Option<Shape<'a>>)> {
         self.skip_whitespace();
         let open = self.pos;
         self.token("(")?;
@@ -395,13 +398,13 @@ impl<'a, B: Build> Reader<'a, B> {
         name: Span,
         arguments: usize,
         first: Option<Shape<'a>>,
-    ) -> R<(B::Value, Shape<'a>)> {
+    ) -> ReadResult<(B::Value, Shape<'a>)> {
         match (word, arguments, first) {
             ("bool", 1, Some(Shape::Number { nonzero })) => Ok((
                 self.build.scalar(Scalar::Byte(i8::from(nonzero))),
                 Shape::Number { nonzero },
             )),
-            ("bool", 1, _) => self.fail(self.pos, K::ExpectedNumberOrBoolean),
+            ("bool", 1, _) => self.fail(self.pos, SnbtErrorKind::ExpectedNumberOrBoolean),
             ("uuid", 1, Some(Shape::Str(text))) => match canonical_uuid(text) {
                 Some(uuid) => {
                     let mut array = self.build.array(ArrayKind::Int);
@@ -410,18 +413,18 @@ impl<'a, B: Build> Reader<'a, B> {
                     }
                     Ok((self.build.finish_array(array), Shape::Other))
                 }
-                None => self.fail(self.pos, K::ExpectedStringUuid),
+                None => self.fail(self.pos, SnbtErrorKind::ExpectedStringUuid),
             },
-            ("uuid", 1, _) => self.fail(self.pos, K::ExpectedStringUuid),
-            _ => self.fail(self.pos, K::NoSuchOperation { name, arguments }),
+            ("uuid", 1, _) => self.fail(self.pos, SnbtErrorKind::ExpectedStringUuid),
+            _ => self.fail(self.pos, SnbtErrorKind::NoSuchOperation { name, arguments }),
         }
     }
 }
 
-fn too_deep(depth: u32, position: usize) -> R<()> {
+fn too_deep(depth: u32, position: usize) -> ReadResult<()> {
     if depth > MAX_DEPTH {
         return Err(Fail::Abort(SnbtError {
-            kind: K::TooDeep,
+            kind: SnbtErrorKind::TooDeep,
             position,
         }));
     }

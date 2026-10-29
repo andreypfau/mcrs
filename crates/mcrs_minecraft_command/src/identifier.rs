@@ -1,4 +1,5 @@
 use crate::error::ResourceError;
+use core::fmt;
 use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::resource_location::parse_parts;
@@ -11,13 +12,23 @@ pub struct Identifier<'a> {
     pub path: &'a str,
 }
 
+/// An identifier and the span of the command line it was read from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpannedIdentifier<'a> {
+    pub identifier: Identifier<'a>,
+    pub span: Span,
+}
+
 impl<'a> Identifier<'a> {
     /// The identifier of `text` (REG-ID-001), or `None` when it is not one.
+    #[must_use]
     pub fn parse(text: &'a str) -> Option<Self> {
         let (namespace, path) = parse_parts(text)?;
         Some(Self { namespace, path })
     }
 
+    /// Whether `canonical`, written `namespace:path`, names this identifier.
+    #[must_use]
     pub fn eq_str(&self, canonical: &str) -> bool {
         canonical
             .split_once(':')
@@ -25,8 +36,8 @@ impl<'a> Identifier<'a> {
     }
 }
 
-impl core::fmt::Display for Identifier<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for Identifier<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.namespace, self.path)
     }
 }
@@ -38,11 +49,11 @@ pub(crate) const fn is_identifier_char(c: char) -> bool {
 /// Reads an identifier (ARG-RES-001).
 pub fn read_identifier<'a, E: From<ResourceError>>(
     reader: &mut Reader<'a>,
-) -> Result<(Identifier<'a>, Span), SyntaxError<E>> {
+) -> Result<SpannedIdentifier<'a>, SyntaxError<E>> {
     let start = reader.cursor();
     let span = reader.read_while(is_identifier_char);
     match Identifier::parse(span.text(reader.input())) {
-        Some(identifier) => Ok((identifier, span)),
+        Some(identifier) => Ok(SpannedIdentifier { identifier, span }),
         None => {
             reader.set_cursor(start);
             Err(SyntaxError::argument(
@@ -74,6 +85,7 @@ fn matches_identifier_text(pattern: &str, text: &str) -> bool {
 }
 
 /// The remaining input matches a text candidate (CMD-SUG-008).
+#[must_use]
 pub fn text_matches(text: &str, remaining: &str) -> bool {
     matches_at_separator(remaining, text, starts_with_ignore_case)
 }

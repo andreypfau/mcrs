@@ -1,5 +1,6 @@
-// std: mcrs_minecraft_registries and mcrs_minecraft_block, which hold the registries and the
-// block table, need it.
+//! The command lookup over the registries and the block table that a host lends.
+
+// std: mcrs_minecraft_registries needs it.
 mod registry_lookup;
 
-pub use registry_lookup::{Ids, RegistryLookup};
+pub use registry_lookup::{DimensionClock, Ids, RegistryLookup};

@@ -1,8 +1,9 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::vanilla_lookup::VanillaLookup;
+use core::fmt;
 use mcrs_command::{
     Argument, ArgumentSet, BoolArgument, Contains, ContextView, DoubleArgument, FloatArgument,
-    IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder,
+    IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder, SyntaxError,
 };
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_command::{
@@ -20,14 +21,58 @@ use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::command::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 
-macro_rules! vanilla_arguments {
-    ($($variant:ident($ty:ty),)+ ; $($suggest:tt)+) => {
-        /// The argument types of the vanilla commands.
-        #[derive(Clone, Copy, Debug, PartialEq)]
-        pub enum VanillaArgument {
-            $($variant($ty),)+
-        }
+/// The argument types of the vanilla commands.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum VanillaArgument {
+    /// `brigadier:bool`.
+    Bool(BoolArgument),
+    /// `brigadier:integer`.
+    Integer(IntegerArgument),
+    /// `brigadier:long`.
+    Long(LongArgument),
+    /// `brigadier:float`.
+    Float(FloatArgument),
+    /// `brigadier:double`.
+    Double(DoubleArgument),
+    /// `brigadier:string`.
+    String(StringArgument),
+    /// `minecraft:entity`.
+    Entity(EntityArgument),
+    /// `minecraft:vec3`.
+    Vec3(Vec3Argument),
+    /// `minecraft:rotation`.
+    Rotation(RotationArgument),
+    /// `minecraft:resource_location`.
+    ResourceLocation(ResourceLocationArgument),
+    /// `minecraft:entity_anchor`.
+    EntityAnchor(EntityAnchorArgument),
+    /// `minecraft:dimension`.
+    Dimension(DimensionArgument),
+    /// `minecraft:gamemode`.
+    GameMode(GameModeArgument),
+    /// `minecraft:resource_or_tag` or `minecraft:resource_or_tag_key`.
+    ResourceOrTag(ResourceOrTagArgument),
+    /// `minecraft:block_pos`.
+    BlockPos(BlockPosArgument),
+    /// `minecraft:swizzle`.
+    Swizzle(SwizzleArgument),
+    /// `minecraft:heightmap`.
+    Heightmap(HeightmapArgument),
+    /// `minecraft:block_predicate`.
+    BlockPredicate(BlockPredicateArgument),
+    /// `minecraft:time`.
+    Time(TimeArgument),
+    /// `minecraft:resource`.
+    Resource(ResourceArgument),
+    /// A time marker of a clock.
+    TimeMarker(TimeMarkerArgument),
+    /// A timeline of a clock.
+    Timeline(TimelineArgument),
+}
 
+macro_rules! variant_conversions {
+    ($($variant:ident($ty:ty))+) => {
         $(
             impl From<$ty> for VanillaArgument {
                 fn from(argument: $ty) -> Self {
@@ -44,53 +89,83 @@ macro_rules! vanilla_arguments {
                 }
             }
         )+
-
-        impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
-            type Error = ArgumentError;
-            type Tooltip = &'static str;
-
-            fn check(
-                &self,
-                reader: &mut Reader<'_>,
-                source: &Source<'_, L>,
-            ) -> Result<(), CommandSyntaxError> {
-                match self {
-                    $(VanillaArgument::$variant(argument) => argument
-                        .parse(reader, source)
-                        .map(drop)
-                        .map_err(mcrs_command::SyntaxError::map_into),)+
-                }
-            }
-
-            $($suggest)+
-        }
     };
 }
 
-vanilla_arguments! {
-    Bool(BoolArgument),
-    Integer(IntegerArgument),
-    Long(LongArgument),
-    Float(FloatArgument),
-    Double(DoubleArgument),
-    String(StringArgument),
-    Entity(EntityArgument),
-    Vec3(Vec3Argument),
-    Rotation(RotationArgument),
-    ResourceLocation(ResourceLocationArgument),
-    EntityAnchor(EntityAnchorArgument),
-    Dimension(DimensionArgument),
-    GameMode(GameModeArgument),
-    ResourceOrTag(ResourceOrTagArgument),
-    BlockPos(BlockPosArgument),
-    Swizzle(SwizzleArgument),
-    Heightmap(HeightmapArgument),
-    BlockPredicate(BlockPredicateArgument),
-    Time(TimeArgument),
-    Resource(ResourceArgument),
-    TimeMarker(TimeMarkerArgument),
-    Timeline(TimelineArgument),
-    ;
+variant_conversions! {
+    Bool(BoolArgument)
+    Integer(IntegerArgument)
+    Long(LongArgument)
+    Float(FloatArgument)
+    Double(DoubleArgument)
+    String(StringArgument)
+    Entity(EntityArgument)
+    Vec3(Vec3Argument)
+    Rotation(RotationArgument)
+    ResourceLocation(ResourceLocationArgument)
+    EntityAnchor(EntityAnchorArgument)
+    Dimension(DimensionArgument)
+    GameMode(GameModeArgument)
+    ResourceOrTag(ResourceOrTagArgument)
+    BlockPos(BlockPosArgument)
+    Swizzle(SwizzleArgument)
+    Heightmap(HeightmapArgument)
+    BlockPredicate(BlockPredicateArgument)
+    Time(TimeArgument)
+    Resource(ResourceArgument)
+    TimeMarker(TimeMarkerArgument)
+    Timeline(TimelineArgument)
+}
+
+fn check<S, A: Argument<S>>(
+    argument: &A,
+    reader: &mut Reader<'_>,
+    source: &S,
+) -> Result<(), CommandSyntaxError>
+where
+    ArgumentError: From<A::Error>,
+{
+    argument
+        .parse(reader, source)
+        .map(drop)
+        .map_err(SyntaxError::map_into)
+}
+
+impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
+    type Error = ArgumentError;
+    type Tooltip = &'static str;
+
+    fn check(
+        &self,
+        reader: &mut Reader<'_>,
+        source: &Source<'_, L>,
+    ) -> Result<(), CommandSyntaxError> {
+        match self {
+            VanillaArgument::Bool(argument) => check(argument, reader, source),
+            VanillaArgument::Integer(argument) => check(argument, reader, source),
+            VanillaArgument::Long(argument) => check(argument, reader, source),
+            VanillaArgument::Float(argument) => check(argument, reader, source),
+            VanillaArgument::Double(argument) => check(argument, reader, source),
+            VanillaArgument::String(argument) => check(argument, reader, source),
+            VanillaArgument::Entity(argument) => check(argument, reader, source),
+            VanillaArgument::Vec3(argument) => check(argument, reader, source),
+            VanillaArgument::Rotation(argument) => check(argument, reader, source),
+            VanillaArgument::ResourceLocation(argument) => check(argument, reader, source),
+            VanillaArgument::EntityAnchor(argument) => check(argument, reader, source),
+            VanillaArgument::Dimension(argument) => check(argument, reader, source),
+            VanillaArgument::GameMode(argument) => check(argument, reader, source),
+            VanillaArgument::ResourceOrTag(argument) => check(argument, reader, source),
+            VanillaArgument::BlockPos(argument) => check(argument, reader, source),
+            VanillaArgument::Swizzle(argument) => check(argument, reader, source),
+            VanillaArgument::Heightmap(argument) => check(argument, reader, source),
+            VanillaArgument::BlockPredicate(argument) => check(argument, reader, source),
+            VanillaArgument::Time(argument) => check(argument, reader, source),
+            VanillaArgument::Resource(argument) => check(argument, reader, source),
+            VanillaArgument::TimeMarker(argument) => check(argument, reader, source),
+            VanillaArgument::Timeline(argument) => check(argument, reader, source),
+        }
+    }
+
     fn suggest<'t>(
         &'t self,
         source: &'t Source<'_, L>,
@@ -99,19 +174,19 @@ vanilla_arguments! {
     ) {
         match self {
             VanillaArgument::Bool(_) => BoolArgument::suggest(builder),
-            VanillaArgument::Entity(a) => a.suggest(source, builder),
-            VanillaArgument::Vec3(a) => a.suggest(builder),
+            VanillaArgument::Entity(argument) => argument.suggest(source, builder),
+            VanillaArgument::Vec3(argument) => argument.suggest(builder),
             VanillaArgument::EntityAnchor(_) => EntityAnchorArgument::suggest(builder),
             VanillaArgument::Dimension(_) => DimensionArgument::suggest(source, builder),
             VanillaArgument::GameMode(_) => GameModeArgument::suggest(builder),
-            VanillaArgument::ResourceOrTag(a) => a.suggest(source, builder),
+            VanillaArgument::ResourceOrTag(argument) => argument.suggest(source, builder),
             VanillaArgument::BlockPos(_) => BlockPosArgument::suggest(builder),
             VanillaArgument::Heightmap(_) => HeightmapArgument::suggest(builder),
             VanillaArgument::BlockPredicate(_) => BlockPredicateArgument::suggest(source, builder),
             VanillaArgument::Time(_) => TimeArgument::suggest(builder),
-            VanillaArgument::Resource(a) => a.suggest(source, builder),
-            VanillaArgument::TimeMarker(a) => a.suggest(source, context, builder),
-            VanillaArgument::Timeline(a) => a.suggest(source, context, builder),
+            VanillaArgument::Resource(argument) => argument.suggest(source, builder),
+            VanillaArgument::TimeMarker(argument) => argument.suggest(source, context, builder),
+            VanillaArgument::Timeline(argument) => argument.suggest(source, context, builder),
             VanillaArgument::Swizzle(_)
             | VanillaArgument::Integer(_)
             | VanillaArgument::Long(_)
@@ -153,8 +228,8 @@ const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownParser(pub StaticResourceLocation);
 
-impl core::fmt::Display for UnknownParser {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for UnknownParser {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "the argument parser {} has no registry id",
@@ -178,8 +253,8 @@ impl VanillaArgument {
     /// The registry whose entries the argument reads, if it reads one.
     pub(crate) fn registry(&self) -> Option<StaticResourceLocation> {
         match self {
-            VanillaArgument::ResourceOrTag(a) => Some(a.registry),
-            VanillaArgument::Resource(a) => Some(a.registry),
+            VanillaArgument::ResourceOrTag(argument) => Some(argument.registry),
+            VanillaArgument::Resource(argument) => Some(argument.registry),
             VanillaArgument::Timeline(_) => Some(TimelineArgument::RESOURCE.registry),
             VanillaArgument::BlockPredicate(_) => Some(BLOCK.location()),
             _ => None,
@@ -201,21 +276,21 @@ impl VanillaArgument {
             |registry: StaticResourceLocation| ParserProperties::Registry(registry.into());
         let (key, properties) = match *self {
             VanillaArgument::Bool(_) => (parser::BRIGADIER_BOOL, ParserProperties::None),
-            VanillaArgument::Integer(a) => (
+            VanillaArgument::Integer(argument) => (
                 parser::BRIGADIER_INTEGER,
-                ParserProperties::Integer(range(a.limits())),
+                ParserProperties::Integer(range(argument.limits())),
             ),
-            VanillaArgument::Long(a) => (
+            VanillaArgument::Long(argument) => (
                 parser::BRIGADIER_LONG,
-                ParserProperties::Long(range(a.limits())),
+                ParserProperties::Long(range(argument.limits())),
             ),
-            VanillaArgument::Float(a) => (
+            VanillaArgument::Float(argument) => (
                 parser::BRIGADIER_FLOAT,
-                ParserProperties::Float(range(a.limits())),
+                ParserProperties::Float(range(argument.limits())),
             ),
-            VanillaArgument::Double(a) => (
+            VanillaArgument::Double(argument) => (
                 parser::BRIGADIER_DOUBLE,
-                ParserProperties::Double(range(a.limits())),
+                ParserProperties::Double(range(argument.limits())),
             ),
             VanillaArgument::String(mode) => (
                 parser::BRIGADIER_STRING,
@@ -225,11 +300,11 @@ impl VanillaArgument {
                     StringArgument::Greedy => StringMode::Greedy,
                 }),
             ),
-            VanillaArgument::Entity(a) => (
+            VanillaArgument::Entity(argument) => (
                 parser::ENTITY,
                 ParserProperties::Entity {
-                    single: a.single,
-                    players_only: a.players_only,
+                    single: argument.single,
+                    players_only: argument.players_only,
                 },
             ),
             VanillaArgument::Vec3(_) => (parser::VEC3, ParserProperties::None),
@@ -240,20 +315,20 @@ impl VanillaArgument {
             VanillaArgument::EntityAnchor(_) => (parser::ENTITY_ANCHOR, ParserProperties::None),
             VanillaArgument::Dimension(_) => (parser::DIMENSION, ParserProperties::None),
             VanillaArgument::GameMode(_) => (parser::GAMEMODE, ParserProperties::None),
-            VanillaArgument::ResourceOrTag(a) => (
-                if a.must_exist {
+            VanillaArgument::ResourceOrTag(argument) => (
+                if argument.must_exist {
                     parser::RESOURCE_OR_TAG
                 } else {
                     parser::RESOURCE_OR_TAG_KEY
                 },
-                registry(a.registry),
+                registry(argument.registry),
             ),
             VanillaArgument::BlockPos(_) => (parser::BLOCK_POS, ParserProperties::None),
             VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
             VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
             VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
-            VanillaArgument::Time(a) => (parser::TIME, ParserProperties::Time(a.min)),
-            VanillaArgument::Resource(a) => (parser::RESOURCE, registry(a.registry)),
+            VanillaArgument::Time(argument) => (parser::TIME, ParserProperties::Time(argument.min)),
+            VanillaArgument::Resource(argument) => (parser::RESOURCE, registry(argument.registry)),
             VanillaArgument::TimeMarker(_) => (parser::RESOURCE_LOCATION, ParserProperties::None),
             VanillaArgument::Timeline(_) => (
                 parser::RESOURCE,
@@ -278,55 +353,61 @@ impl VanillaArgument {
             .and_then(|index| parser::ENTRIES.get(index))
             .copied()?;
         let argument = match (key, &parser.properties) {
-            (k, ParserProperties::None) if k == parser::BRIGADIER_BOOL => BoolArgument.into(),
-            (k, ParserProperties::Integer(range)) if k == parser::BRIGADIER_INTEGER => {
+            (key, ParserProperties::None) if key == parser::BRIGADIER_BOOL => BoolArgument.into(),
+            (key, ParserProperties::Integer(range)) if key == parser::BRIGADIER_INTEGER => {
                 let (min, max) =
                     limits(range, (IntegerArgument::ANY.min, IntegerArgument::ANY.max));
                 IntegerArgument { min, max }.into()
             }
-            (k, ParserProperties::Long(range)) if k == parser::BRIGADIER_LONG => {
+            (key, ParserProperties::Long(range)) if key == parser::BRIGADIER_LONG => {
                 let (min, max) = limits(range, (LongArgument::ANY.min, LongArgument::ANY.max));
                 LongArgument { min, max }.into()
             }
-            (k, ParserProperties::Float(range)) if k == parser::BRIGADIER_FLOAT => {
+            (key, ParserProperties::Float(range)) if key == parser::BRIGADIER_FLOAT => {
                 let (min, max) = limits(range, (FloatArgument::ANY.min, FloatArgument::ANY.max));
                 FloatArgument { min, max }.into()
             }
-            (k, ParserProperties::Double(range)) if k == parser::BRIGADIER_DOUBLE => {
+            (key, ParserProperties::Double(range)) if key == parser::BRIGADIER_DOUBLE => {
                 let (min, max) = limits(range, (DoubleArgument::ANY.min, DoubleArgument::ANY.max));
                 DoubleArgument { min, max }.into()
             }
-            (k, ParserProperties::String(mode)) if k == parser::BRIGADIER_STRING => match mode {
-                StringMode::Word => StringArgument::Word,
-                StringMode::Phrase => StringArgument::Phrase,
-                StringMode::Greedy => StringArgument::Greedy,
+            (key, ParserProperties::String(mode)) if key == parser::BRIGADIER_STRING => {
+                match mode {
+                    StringMode::Word => StringArgument::Word,
+                    StringMode::Phrase => StringArgument::Phrase,
+                    StringMode::Greedy => StringArgument::Greedy,
+                }
+                .into()
             }
-            .into(),
             (
-                k,
+                key,
                 &ParserProperties::Entity {
                     single,
                     players_only,
                 },
-            ) if k == parser::ENTITY => EntityArgument {
+            ) if key == parser::ENTITY => EntityArgument {
                 single,
                 players_only,
             }
             .into(),
-            (k, ParserProperties::Registry(name))
-                if k == parser::RESOURCE_OR_TAG || k == parser::RESOURCE_OR_TAG_KEY =>
+            (key, ParserProperties::Registry(name))
+                if key == parser::RESOURCE_OR_TAG || key == parser::RESOURCE_OR_TAG_KEY =>
             {
                 ResourceOrTagArgument {
                     registry: registry(name.as_str())?,
-                    must_exist: k == parser::RESOURCE_OR_TAG,
+                    must_exist: key == parser::RESOURCE_OR_TAG,
                 }
                 .into()
             }
-            (k, ParserProperties::Registry(name)) if k == parser::RESOURCE => ResourceArgument {
-                registry: registry(name.as_str())?,
+            (key, ParserProperties::Registry(name)) if key == parser::RESOURCE => {
+                ResourceArgument {
+                    registry: registry(name.as_str())?,
+                }
+                .into()
             }
-            .into(),
-            (k, &ParserProperties::Time(min)) if k == parser::TIME => TimeArgument { min }.into(),
+            (key, &ParserProperties::Time(min)) if key == parser::TIME => {
+                TimeArgument { min }.into()
+            }
             (_, ParserProperties::None) => UNIT_ARGUMENTS
                 .into_iter()
                 .find(|argument| argument.wire().is_ok_and(|wire| wire.id == parser.id))?,

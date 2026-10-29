@@ -5,6 +5,7 @@ use mcrs_minecraft_command_coordinates::{
     BlockPosArgument, Coordinates, CoordinatesError, RotationArgument, SwizzleArgument,
     Vec3Argument, WorldCoordinate, align, block_floor, rotation_toward,
 };
+use mcrs_minecraft_protocol::Look;
 use mcrs_text_span::Span;
 
 fn absolute(value: f64) -> WorldCoordinate {
@@ -159,7 +160,13 @@ fn rotation_needs_two_world_coordinates() {
         ..OP
     };
     let (value, _) = read(&RotationArgument, "~15 ~-5", &OP);
-    assert_eq!(value.unwrap().resolve(&source), (45.0, 5.0));
+    assert_eq!(
+        value.unwrap().resolve(&source),
+        Look {
+            yaw: 45.0,
+            pitch: 5.0
+        }
+    );
 }
 
 #[test]
@@ -238,7 +245,7 @@ fn the_rotation_toward_a_point_uses_the_arctangent_of_the_game() {
         (from, (-90.0, -0.0)),
     ];
     for (to, expected) in cases {
-        let (yaw, pitch) = rotation_toward(from, to);
+        let Look { yaw, pitch } = rotation_toward(from, to);
         assert_eq!((yaw, pitch), expected, "{to}");
         assert_eq!(
             pitch.is_sign_negative(),
@@ -246,6 +253,6 @@ fn the_rotation_toward_a_point_uses_the_arctangent_of_the_game() {
             "{to}"
         );
     }
-    let (_, down) = rotation_toward(from + DVec3::Y * 1.62, DVec3::new(0.5, 64.0, 10.5));
+    let down = rotation_toward(from + DVec3::Y * 1.62, DVec3::new(0.5, 64.0, 10.5)).pitch;
     assert!(down > 0.0, "{down}");
 }

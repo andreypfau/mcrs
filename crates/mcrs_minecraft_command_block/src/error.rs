@@ -1,3 +1,4 @@
+use core::fmt;
 use mcrs_command::StringSpan;
 use mcrs_minecraft_command::{
     ErrorText, ResourceError, identifier_string, identifier_text, snbt_text, string_text,
@@ -8,47 +9,63 @@ use mcrs_text_span::Span;
 
 /// The errors of a block predicate.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum BlockError {
+    /// The identifier at the span names no block.
     BlockIdInvalid(Span),
+    /// The identifier at the span names no block tag.
     BlockTagUnknown(Span),
-    PropertyUnknown {
-        block: Span,
-        name: StringSpan,
-    },
+    /// The block at `block` has no property `name`.
+    PropertyUnknown { block: Span, name: StringSpan },
+    /// The property `name` appears twice in the list of `subject`.
     PropertyDuplicate {
         name: StringSpan,
         subject: BlockSubject,
     },
+    /// The property `name` in the list of `subject` has no `=` and value.
     PropertyNoValue {
         name: StringSpan,
         subject: BlockSubject,
     },
+    /// The property `name` of the block at `block` has no value `value`.
     PropertyInvalid {
         block: Span,
         value: StringSpan,
         name: StringSpan,
     },
+    /// The property list has no closing `]`.
     PropertyUnclosed,
     /// An error of the SNBT read; its spans are positions in the command line.
     Nbt(SnbtError),
+    /// An error of the identifier of the block or the tag.
     Resource(ResourceError),
 }
 
-/// The block identifier or the tag that an error of a property list names.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlockSubject {
-    pub span: Span,
-    pub tag: bool,
+impl fmt::Display for BlockError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            BlockError::BlockIdInvalid(_) => "unknown block",
+            BlockError::BlockTagUnknown(_) => "unknown block tag",
+            BlockError::PropertyUnknown { .. } => "unknown block property",
+            BlockError::PropertyDuplicate { .. } => "duplicate block property",
+            BlockError::PropertyNoValue { .. } => "block property without a value",
+            BlockError::PropertyInvalid { .. } => "invalid block property value",
+            BlockError::PropertyUnclosed => "unclosed block property list",
+            BlockError::Nbt(_) => "invalid SNBT",
+            BlockError::Resource(error) => return fmt::Display::fmt(error, f),
+        })
+    }
 }
 
-impl BlockSubject {
-    pub const fn block(span: Span) -> Self {
-        Self { span, tag: false }
-    }
+impl core::error::Error for BlockError {}
 
-    pub const fn tag(span: Span) -> Self {
-        Self { span, tag: true }
-    }
+/// The block identifier or the tag that an error of a property list names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockSubject {
+    /// The span of a block identifier.
+    Block(Span),
+    /// The span of a tag identifier, after its `#`.
+    Tag(Span),
 }
 
 impl From<ResourceError> for BlockError {
@@ -58,35 +75,38 @@ impl From<ResourceError> for BlockError {
 }
 
 fn subject_text(input: &str, subject: BlockSubject) -> Text {
-    let id = identifier_string(input, subject.span);
-    if subject.tag { format!("#{id}") } else { id }.into_text()
+    match subject {
+        BlockSubject::Block(span) => identifier_string(input, span),
+        BlockSubject::Tag(span) => format!("#{}", identifier_string(input, span)),
+    }
+    .into_text()
 }
 
 impl ErrorText for BlockError {
     fn text(&self, input: &str) -> Text {
-        use BlockError as E;
+        use BlockError::*;
         match *self {
-            E::BlockIdInvalid(id) => Text::translate(
+            BlockIdInvalid(id) => Text::translate(
                 "argument.block.id.invalid",
                 vec![identifier_text(input, id)],
             ),
-            E::BlockTagUnknown(id) => Text::translate(
+            BlockTagUnknown(id) => Text::translate(
                 "arguments.block.tag.unknown",
                 vec![identifier_text(input, id)],
             ),
-            E::PropertyUnknown { block, name } => Text::translate(
+            PropertyUnknown { block, name } => Text::translate(
                 "argument.block.property.unknown",
                 vec![identifier_text(input, block), string_text(input, name)],
             ),
-            E::PropertyDuplicate { name, subject } => Text::translate(
+            PropertyDuplicate { name, subject } => Text::translate(
                 "argument.block.property.duplicate",
                 vec![string_text(input, name), subject_text(input, subject)],
             ),
-            E::PropertyNoValue { name, subject } => Text::translate(
+            PropertyNoValue { name, subject } => Text::translate(
                 "argument.block.property.novalue",
                 vec![string_text(input, name), subject_text(input, subject)],
             ),
-            E::PropertyInvalid { block, value, name } => Text::translate(
+            PropertyInvalid { block, value, name } => Text::translate(
                 "argument.block.property.invalid",
                 vec![
                     identifier_text(input, block),
@@ -94,9 +114,9 @@ impl ErrorText for BlockError {
                     string_text(input, name),
                 ],
             ),
-            E::PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
-            E::Nbt(error) => snbt_text(input, error),
-            E::Resource(error) => error.text(input),
+            PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
+            Nbt(error) => snbt_text(input, error),
+            Resource(error) => error.text(input),
         }
     }
 }

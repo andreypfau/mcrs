@@ -219,7 +219,7 @@ impl CommandWorld<'_, '_> {
     }
 
     pub(crate) fn level(&self) -> CommandLevel {
-        CommandLevel::from_id(self.level.iter().next().map_or(0, |level| level.0))
+        CommandLevel::from(self.level.iter().next().map_or(0, |level| level.0))
     }
 }
 

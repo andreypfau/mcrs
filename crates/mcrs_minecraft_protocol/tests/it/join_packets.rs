@@ -15,7 +15,9 @@ use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, VarInt};
+use mcrs_minecraft_protocol::{
+    Bounded, Decode, Encode, GameMode, GlobalPos, LookAnchor, RawBytes, VarInt,
+};
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("join_packets").text());
@@ -351,7 +353,10 @@ fn abilities_and_look_at_follow_their_field_layouts() {
     let at_cow = ClientboundPlayerLookAt {
         from: LookAnchor::Feet,
         target: glam::DVec3::new(1.0, 2.0, 3.0),
-        entity: Some((VarInt(5), LookAnchor::Eyes)),
+        entity: Some(LookAtEntity {
+            id: VarInt(5),
+            anchor: LookAnchor::Eyes,
+        }),
     };
     let mut expected = vec![0];
     for value in [1.0f64, 2.0, 3.0] {

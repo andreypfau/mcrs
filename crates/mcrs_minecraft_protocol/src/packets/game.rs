@@ -2,7 +2,9 @@ pub mod clientbound {
     use crate::ByteAngle;
     use crate::advancement::{AdvancementProgress, PositionedAdvancement};
     use crate::block::BlockStateNumber;
+    use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
     use crate::chunk::ChunkBlockUpdateEntry;
+    use crate::command::{CommandNode, CommandSuggestion};
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
     use crate::entity::{EquipmentSlot, Metadata};
@@ -12,7 +14,9 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, LpVec3, PositionFlags, Result, VarInt};
+    use crate::{
+        Bounded, ColumnPos, Look, LookAnchor, LpVec3, PositionFlags, Result, VarInt, VarLong,
+    };
     use glam::DVec3;
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_core::ResourceKey;
@@ -385,7 +389,7 @@ pub mod clientbound {
     }
 
     impl Encode for ClientboundPlayerAbilities {
-        fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
+        fn encode(&self, mut w: impl Write) -> Result<()> {
             let flags = u8::from(self.invulnerable)
                 | u8::from(self.flying) << 1
                 | u8::from(self.may_fly) << 2
@@ -412,19 +416,20 @@ pub mod clientbound {
         }
     }
 
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Encode, Decode)]
-    pub enum LookAnchor {
-        #[default]
-        Feet,
-        Eyes,
-    }
-
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundPlayerLookAt {
         pub from: LookAnchor,
         pub target: DVec3,
-        /// The network id of the entity and the anchor of it to look at.
-        pub entity: Option<(VarInt, LookAnchor)>,
+        pub entity: Option<LookAtEntity>,
+    }
+
+    /// The entity of `player_look_at` that the client keeps looking at.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+    pub struct LookAtEntity {
+        /// The network id of the entity.
+        pub id: VarInt,
+        /// The part of the entity to look at.
+        pub anchor: LookAnchor,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -607,7 +612,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundCommands<'a> {
-        pub nodes: Vec<crate::command::CommandNode<'a>>,
+        pub nodes: Vec<CommandNode<'a>>,
         pub root: VarInt,
     }
 
@@ -616,7 +621,7 @@ pub mod clientbound {
         pub id: VarInt,
         pub start: VarInt,
         pub length: VarInt,
-        pub suggestions: Vec<crate::command::CommandSuggestion<'a>>,
+        pub suggestions: Vec<CommandSuggestion<'a>>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -629,7 +634,7 @@ pub mod clientbound {
     #[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
     pub struct ClockUpdate {
         pub clock: VarInt,
-        pub total_ticks: crate::VarLong,
+        pub total_ticks: VarLong,
         pub partial_tick: f32,
         pub rate: f32,
     }
@@ -648,7 +653,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundDisguisedChat {
         pub message: Text,
-        pub chat_type: crate::chat::ChatTypeId,
+        pub chat_type: ChatTypeId,
         pub sender_name: Text,
         pub target_name: Option<Text>,
     }
@@ -659,20 +664,20 @@ pub mod clientbound {
         pub sender: Uuid,
         pub index: VarInt,
         pub signature: Option<&'a [u8; 256]>,
-        pub content: crate::Bounded<&'a str, 256>,
+        pub content: Bounded<&'a str, 256>,
         pub timestamp: u64,
         pub salt: u64,
-        pub last_seen: crate::Bounded<Vec<crate::chat::PackedSignature<'a>>, 20>,
+        pub last_seen: Bounded<Vec<PackedSignature<'a>>, 20>,
         pub unsigned_content: Option<Text>,
-        pub filter: crate::chat::FilterMask,
-        pub chat_type: crate::chat::ChatTypeId,
+        pub filter: FilterMask,
+        pub chat_type: ChatTypeId,
         pub sender_name: Text,
         pub target_name: Option<Text>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundCustomChatCompletions<'a> {
-        pub action: crate::chat::CompletionAction,
+        pub action: CompletionAction,
         pub entries: Vec<Cow<'a, str>>,
     }
 

@@ -1,5 +1,6 @@
 use crate::error::EntityError;
-use crate::selector::{ListOption, Order, Selector, State, Target, read_options};
+use crate::options::{ListOption, read_options};
+use crate::selector::{Order, Selector, SelectorKind, State, Target};
 use glam::DVec3;
 use mcrs_command::{Reader, eq_ignore_case};
 use mcrs_minecraft_command::{Lookup, ResourceError, Source};
@@ -11,6 +12,13 @@ use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use mcrs_text_span::Span;
 use uuid::Uuid;
 
+/// The minimum and the maximum corner of the bounding box of an entity.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityBounds {
+    pub min: DVec3,
+    pub max: DVec3,
+}
+
 /// An entity as the search sees it.
 pub trait Candidate {
     fn uuid(&self) -> Uuid;
@@ -18,8 +26,7 @@ pub trait Candidate {
     fn name(&self) -> &str;
     fn entity_type(&self) -> EntityType;
     fn position(&self) -> DVec3;
-    /// The minimum and the maximum corner of its bounding box.
-    fn bounding_box(&self) -> (DVec3, DVec3);
+    fn bounding_box(&self) -> EntityBounds;
     fn yaw(&self) -> f32;
     fn pitch(&self) -> f32;
     fn game_mode(&self) -> Option<GameMode>;
@@ -52,13 +59,13 @@ impl<'a> Selector<'a> {
         if self.size.iter().all(Option::is_none) {
             return true;
         }
-        let size = DVec3::from(self.size.map(|d| d.unwrap_or(0.0)));
+        let size = DVec3::from(self.size.map(|axis| axis.unwrap_or(0.0)));
         let low = origin + size.min(DVec3::ZERO);
         let high = origin + size.max(DVec3::ZERO) + DVec3::ONE;
-        let (min, max) = candidate.bounding_box();
+        let EntityBounds { min, max } = candidate.bounding_box();
         if min == max {
-            let p = candidate.position();
-            return p.cmpge(low).all() && p.cmple(high).all();
+            let position = candidate.position();
+            return position.cmpge(low).all() && position.cmple(high).all();
         }
         min.cmplt(high).all() && max.cmpgt(low).all()
     }
@@ -119,7 +126,7 @@ impl<'a> Selector<'a> {
         if let Some(level) = &self.level
             && !candidate
                 .experience_level()
-                .is_some_and(|l| level.matches(l))
+                .is_some_and(|experience| level.matches(experience))
         {
             return false;
         }
@@ -174,7 +181,7 @@ impl<'a> Selector<'a> {
         &self,
         source: &Source<'_, L>,
         source_entity: Option<&'c C>,
-        candidates: impl Iterator<Item = &'c C>,
+        candidates: impl IntoIterator<Item = &'c C>,
         random: &mut impl FnMut(usize) -> usize,
         out: &mut Vec<&'c C>,
     ) -> Result<(), EntityError> {
@@ -182,13 +189,14 @@ impl<'a> Selector<'a> {
         if matches!(self.target, Target::Kind(_)) && !source.level.can_use_selectors() {
             return Err(EntityError::SelectorNotAllowed);
         }
-        if let Some(id) = self.missing_predicate(source.lookup) {
+        if let Some(span) = self.missing_predicate(source.lookup) {
             let registry = PREDICATE.location();
             return Err(EntityError::Resource(ResourceError::ResourceNotFound {
-                id,
+                span,
                 registry,
             }));
         }
+        let candidates = candidates.into_iter();
         let [x, y, z] = self.origin;
         let origin = DVec3::new(
             x.unwrap_or(source.position.x),
@@ -212,7 +220,7 @@ impl<'a> Selector<'a> {
                 );
                 return Ok(());
             }
-            Target::Kind('s') => {
+            Target::Kind(SelectorKind::SelfEntity) => {
                 out.extend(source_entity.filter(|entity| {
                     (self.includes_entities || entity.is_player()) && self.passes(*entity, origin)
                 }));

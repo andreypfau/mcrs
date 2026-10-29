@@ -2,14 +2,14 @@ use crate::error::KeywordError;
 use crate::identifier::text_matches;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_protocol::GameMode;
-use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
+use mcrs_minecraft_protocol::{GameMode, LookAnchor};
 
 /// `minecraft:gamemode` (ARG-KW-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GameModeArgument;
 
 impl GameModeArgument {
+    /// Suggests the game modes.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(GameMode::ALL.map(GameMode::name), text_matches);
     }
@@ -25,10 +25,9 @@ impl<S> Argument<S> for GameModeArgument {
         _: &S,
     ) -> Result<GameMode, SyntaxError<KeywordError>> {
         let word = reader.read_unquoted();
-        GameMode::from_name(word.text(reader.input())).ok_or(SyntaxError::argument(
-            KeywordError::GameModeInvalid(word),
-            reader.cursor(),
-        ))
+        word.text(reader.input()).parse().map_err(|_| {
+            SyntaxError::argument(KeywordError::GameModeInvalid(word), reader.cursor())
+        })
     }
 }
 
@@ -47,6 +46,7 @@ const ANCHORS: [(&str, LookAnchor); 2] = [("feet", LookAnchor::Feet), ("eyes", L
 pub struct EntityAnchorArgument;
 
 impl EntityAnchorArgument {
+    /// Suggests the anchors.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(ANCHORS.map(|(name, _)| name), text_matches);
     }
@@ -90,6 +90,7 @@ const HEIGHTMAPS: [(&str, HeightmapName); 4] = [
 pub struct HeightmapArgument;
 
 impl HeightmapArgument {
+    /// Suggests the heightmaps.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(HEIGHTMAPS.map(|(name, _)| name), text_matches);
     }

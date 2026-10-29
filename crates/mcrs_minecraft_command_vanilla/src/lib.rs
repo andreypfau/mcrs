@@ -1,3 +1,5 @@
+//! The vanilla argument set, its errors, the `commands` packet of a player and the client tree.
+
 // std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the identifiers and the
 // command packets, need it.
 mod client;

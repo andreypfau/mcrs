@@ -1,3 +1,4 @@
+use core::fmt;
 use mcrs_command::SyntaxError;
 use mcrs_minecraft_command::{ErrorText, KeywordError, ResourceError};
 use mcrs_minecraft_command_block::BlockError;
@@ -9,15 +10,38 @@ use mcrs_minecraft_protocol::text::Text;
 /// The syntax errors of the vanilla argument types. An error of an identifier or of a resource
 /// is [`ArgumentError::Resource`] whichever argument read it.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ArgumentError {
+    /// An error of an identifier or of a registry entry.
     Resource(ResourceError),
+    /// An error of an argument that reads one word of a fixed set.
     Keyword(KeywordError),
+    /// An error of a coordinate, rotation or swizzle argument.
     Coordinates(CoordinatesError),
+    /// An error of an entity selector.
     Entity(EntityError),
+    /// An error of a block predicate.
     Block(BlockError),
+    /// An error of a tick count.
     Time(TimeError),
 }
 
+impl fmt::Display for ArgumentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArgumentError::Resource(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Keyword(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Coordinates(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Entity(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Block(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Time(error) => fmt::Display::fmt(error, f),
+        }
+    }
+}
+
+impl core::error::Error for ArgumentError {}
+
+/// A syntax error of a vanilla command line.
 pub type CommandSyntaxError = SyntaxError<ArgumentError>;
 
 /// A library argument type has no errors of its own.

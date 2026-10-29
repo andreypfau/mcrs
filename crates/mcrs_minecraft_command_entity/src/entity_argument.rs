@@ -1,7 +1,7 @@
 use crate::error::EntityError;
-use crate::selector::{
-    Invertible, KEYS, KINDS, Next, Read, SORTS, Selector, State, error, read_selector,
-};
+use crate::option_key::KEYS;
+use crate::options::Invertible;
+use crate::selector::{KINDS, Next, SORTS, Selector, SelectorResult, State, error, read_selector};
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SuggestionText};
 use mcrs_minecraft_command::{
     Lookup, Source, prefixed_identifier_matches, suggest_prefixed, text_matches,
@@ -36,7 +36,7 @@ impl EntityArgument {
 }
 
 impl EntityArgument {
-    fn check(&self, selector: &Selector<'_>, start: usize) -> Read<()> {
+    fn check(&self, selector: &Selector<'_>, start: usize) -> SelectorResult<()> {
         if self.single && selector.max_results.is_none_or(|max| max > 1) {
             let kind = if self.players_only {
                 EntityError::PlayerTooMany
@@ -51,8 +51,8 @@ impl EntityArgument {
         Ok(())
     }
 
-    /// ARG-ENT-011, for the server: player names, kinds, option keys and the values of `sort`,
-    /// `gamemode` and `type`.
+    /// Suggests what can follow the read (ARG-ENT-011), for the server: player names, kinds,
+    /// option keys and the values of `sort`, `gamemode` and `type`.
     pub fn suggest<'t, L: Lookup>(
         &self,
         source: &'t Source<'_, L>,
@@ -63,14 +63,12 @@ impl EntityArgument {
         let mut reader = Reader::at(input, start);
         let mut state = State::new(input);
         let _ = read_selector(&mut reader, source, &mut state);
-        let (next, at) = state.next;
+        let next = state.stop.next;
         let selectors = source.level.can_use_selectors();
-        let mut at = builder.at(at);
+        let mut at = builder.at(state.stop.cursor);
         let remaining = at.remaining();
         if next == Next::Kind || next == Next::NameOrSelector && selectors {
-            let kinds = KINDS
-                .iter()
-                .map(|&(kind, tooltip, ..)| (kind, Some(tooltip)));
+            let kinds = KINDS.iter().map(|entry| (entry.text, Some(entry.tooltip)));
             suggest_prefixed(&mut at, &[""], kinds, text_starts);
         }
         match next {
@@ -80,10 +78,10 @@ impl EntityArgument {
             Next::Kind => {}
             Next::Open => at.suggest(SuggestionText::new("["), None),
             Next::Key => {
-                for (name, key, tooltip) in KEYS {
-                    let text = SuggestionText::concat(name, "=");
-                    if state.available(key) && text.starts_with(remaining) {
-                        at.suggest(text, Some(tooltip));
+                for entry in &KEYS {
+                    let text = SuggestionText::concat(entry.name, "=");
+                    if state.available(entry.key) && text.starts_with(remaining) {
+                        at.suggest(text, Some(entry.tooltip));
                     }
                 }
             }
@@ -127,7 +125,11 @@ impl<L> Argument<Source<'_, L>> for EntityArgument {
     type Value<'a> = Selector<'a>;
     type Error = EntityError;
 
-    fn parse<'a>(&self, reader: &mut Reader<'a>, source: &Source<'_, L>) -> Read<Selector<'a>> {
+    fn parse<'a>(
+        &self,
+        reader: &mut Reader<'a>,
+        source: &Source<'_, L>,
+    ) -> SelectorResult<Selector<'a>> {
         let start = reader.cursor();
         let mut state = State::new(reader.input());
         read_selector(reader, source, &mut state)?;

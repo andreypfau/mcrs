@@ -1,8 +1,10 @@
 use crate::error::ResourceError;
 use crate::identifier::{
-    Identifier, identifier_matches, prefixed_identifier_matches, read_identifier, suggest_prefixed,
+    Identifier, SpannedIdentifier, identifier_matches, prefixed_identifier_matches,
+    read_identifier, suggest_prefixed,
 };
 use crate::source::{Lookup, Source};
+use core::fmt;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
 
@@ -19,7 +21,7 @@ impl<S> Argument<S> for ResourceLocationArgument {
         reader: &mut Reader<'a>,
         _: &S,
     ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
-        read_identifier(reader).map(|(identifier, _)| identifier)
+        read_identifier(reader).map(|read| read.identifier)
     }
 }
 
@@ -28,6 +30,7 @@ impl<S> Argument<S> for ResourceLocationArgument {
 pub struct DimensionArgument;
 
 impl DimensionArgument {
+    /// Suggests the dimensions that the source knows.
     pub fn suggest<'t, L: Lookup, T>(
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
@@ -49,14 +52,17 @@ impl<S> Argument<S> for DimensionArgument {
     }
 }
 
+/// An entry of a registry, or a tag of it written with a leading `#`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResourceOrTag<'a> {
+    /// One entry of the registry.
     Entry(Identifier<'a>),
+    /// A tag of the registry.
     Tag(Identifier<'a>),
 }
 
-impl core::fmt::Display for ResourceOrTag<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for ResourceOrTag<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ResourceOrTag::Entry(id) => write!(f, "{id}"),
             ResourceOrTag::Tag(id) => write!(f, "#{id}"),
@@ -74,6 +80,7 @@ pub struct ResourceOrTagArgument {
 }
 
 impl ResourceOrTagArgument {
+    /// Suggests the tags of the registry, then its entries.
     pub fn suggest<'t, L: Lookup, T: Copy>(
         &self,
         source: &'t Source<'_, L>,
@@ -105,7 +112,7 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
         if tag {
             reader.skip();
         }
-        let (identifier, id) = read_identifier(reader)?;
+        let SpannedIdentifier { identifier, span } = read_identifier(reader)?;
         let value = if tag {
             ResourceOrTag::Tag(identifier)
         } else {
@@ -118,11 +125,11 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
         let (exists, error) = match value {
             ResourceOrTag::Entry(entry) => (
                 source.lookup.has_entry(registry, entry),
-                ResourceError::ResourceNotFound { id, registry },
+                ResourceError::ResourceNotFound { span, registry },
             ),
             ResourceOrTag::Tag(tag) => (
                 source.lookup.has_tag(registry, tag),
-                ResourceError::ResourceTagNotFound { id, registry },
+                ResourceError::ResourceTagNotFound { span, registry },
             ),
         };
         if exists {
@@ -140,6 +147,7 @@ pub struct ResourceArgument {
 }
 
 impl ResourceArgument {
+    /// Suggests the entries of the registry.
     pub fn suggest<'t, L: Lookup, T>(
         &self,
         source: &'t Source<'_, L>,
@@ -158,13 +166,13 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
     ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
-        let (identifier, id) = read_identifier(reader)?;
+        let SpannedIdentifier { identifier, span } = read_identifier(reader)?;
         if source.lookup.has_entry(self.registry, identifier) {
             Ok(identifier)
         } else {
             Err(SyntaxError::argument(
                 ResourceError::ResourceNotFound {
-                    id,
+                    span,
                     registry: self.registry,
                 },
                 reader.cursor(),

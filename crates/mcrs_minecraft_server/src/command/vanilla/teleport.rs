@@ -8,21 +8,22 @@ use crate::world::entity::player::dimension_change::Arrival;
 use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
 use crate::world::entity::player_network_id;
 use bevy_ecs::prelude::*;
-use bevy_math::DVec3;
+use bevy_math::{BVec3, DVec3};
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::anchored;
 use mcrs_minecraft_command::{CommandLevel, EntityAnchorArgument, PermissionCheck};
-use mcrs_minecraft_command_coordinates::rotation_toward;
-use mcrs_minecraft_command_coordinates::{Pose, relative_move};
-use mcrs_minecraft_command_coordinates::{RotationArgument, Vec3Argument};
+use mcrs_minecraft_command_coordinates::{
+    DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument, relative_move,
+    rotation_toward,
+};
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt;
-use mcrs_minecraft_protocol::packets::game::clientbound::LookAnchor;
+use mcrs_minecraft_protocol::LookAnchor;
+use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_protocol::{Look, VarInt};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,9 +32,9 @@ pub struct Teleport {
     pub dimension: Entity,
     pub position: DVec3,
     /// `None` keeps the rotation of the victim.
-    pub rotation: Option<(f32, f32)>,
-    pub relative_position: [bool; 3],
-    pub relative_rotation: [bool; 2],
+    pub rotation: Option<Look>,
+    pub relative_position: BVec3,
+    pub relative_rotation: RelativeRotation,
     pub facing: Option<Facing>,
     /// The anchor of the source, from which the victim looks at its facing target.
     pub anchor: LookAnchor,
@@ -181,12 +182,15 @@ fn to_entity(
         to: Teleport {
             dimension,
             position: entity.transform.translation,
-            rotation: Some((
-                entity.transform.rotation.yaw(),
-                entity.transform.rotation.pitch(),
-            )),
-            relative_position: [false; 3],
-            relative_rotation: [false; 2],
+            rotation: Some(Look {
+                yaw: entity.transform.rotation.yaw(),
+                pitch: entity.transform.rotation.pitch(),
+            }),
+            relative_position: BVec3::FALSE,
+            relative_rotation: RelativeRotation {
+                yaw: false,
+                pitch: false,
+            },
             facing: None,
             anchor: call.source.anchor,
         },
@@ -244,7 +248,16 @@ fn destination(
             position: location.position(&source),
             rotation: rotation.map(|rotation| rotation.resolve(&source)),
             relative_position: location.relative(),
-            relative_rotation: rotation.map_or([true; 2], |r| [r.yaw.relative, r.pitch.relative]),
+            relative_rotation: rotation.map_or(
+                RelativeRotation {
+                    yaw: true,
+                    pitch: true,
+                },
+                |rotation| RelativeRotation {
+                    yaw: rotation.yaw.relative,
+                    pitch: rotation.pitch.relative,
+                },
+            ),
             facing,
             anchor: source.anchor,
         },
@@ -340,7 +353,7 @@ fn facing(
     victim: Entity,
     at: DVec3,
     facing: Facing,
-) -> Option<(DVec3, Option<(VarInt, LookAnchor)>)> {
+) -> Option<(DVec3, Option<LookAtEntity>)> {
     match facing {
         Facing::Position(position) => Some((position, None)),
         Facing::Player { anchor, at: part } => {
@@ -351,7 +364,10 @@ fn facing(
             };
             Some((
                 anchored(part, position, PLAYER_EYE_HEIGHT),
-                Some((VarInt(player_network_id(anchor)), part)),
+                Some(LookAtEntity {
+                    id: VarInt(player_network_id(anchor)),
+                    anchor: part,
+                }),
             ))
         }
     }
@@ -369,21 +385,26 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
     let (origin, current) = (victim.dimension, victim.transform);
     let from = Pose {
         position: current.translation,
-        yaw: current.rotation.yaw(),
-        pitch: current.rotation.pitch(),
+        look: Look {
+            yaw: current.rotation.yaw(),
+            pitch: current.rotation.pitch(),
+        },
     };
-    let (yaw, pitch) = to.rotation.unwrap_or((from.yaw, from.pitch));
     let destination_pose = Pose {
         position: to.position,
-        yaw,
-        pitch,
+        look: to.rotation.unwrap_or(from.look),
+    };
+    let dimension_change = if origin == destination {
+        DimensionChange::Stays
+    } else {
+        DimensionChange::Changes
     };
     let step = relative_move(
         from,
         destination_pose,
         to.relative_position,
         to.relative_rotation,
-        origin != destination,
+        dimension_change,
     );
     let mut transform = Transform {
         translation: to.position,
@@ -394,8 +415,8 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         .and_then(|target| facing(worlds, player, to.position, target));
     if let Some((target, _)) = facing {
         let eyes = anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
-        let (yaw, pitch) = rotation_toward(eyes, target);
-        transform.rotation = Rotation::new(yaw, pitch);
+        let look = rotation_toward(eyes, target);
+        transform.rotation = Rotation::new(look.yaw, look.pitch);
     }
     let arrival = Arrival {
         transform,

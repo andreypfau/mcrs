@@ -17,6 +17,7 @@ pub struct TimeArgument {
 }
 
 impl TimeArgument {
+    /// Suggests the units after the number.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         let mut reader = Reader::at(builder.input(), builder.start());
         if reader.read_float::<()>().is_err() {
@@ -71,19 +72,27 @@ impl<S> Argument<S> for TimeArgument {
     }
 }
 
-/// The clock that a parsed context selects: the value of the node `clock`, or the default
-/// clock of the source dimension when the branch has no such node. `None` when the context
-/// lacks the node.
-fn selected_clock<'i>(
-    input: &'i str,
-    context: &ContextView<'_>,
-    clock: Option<NodeId>,
-) -> Option<Option<Identifier<'i>>> {
-    let Some(clock) = clock else {
-        return Some(None);
-    };
-    let (_, span) = context.nodes().find(|&(node, _)| node == clock)?;
-    Identifier::parse(span.text(input)).map(Some)
+/// The clock that a parsed context selects.
+enum SelectedClock<'i> {
+    /// The branch has no clock node, so the default clock of the source dimension.
+    Default,
+    /// The value of the clock node.
+    Named(Identifier<'i>),
+    /// The context lacks the clock node or holds no identifier there.
+    Unread,
+}
+
+impl<'i> SelectedClock<'i> {
+    fn read(input: &'i str, context: &ContextView<'_>, clock: Option<NodeId>) -> Self {
+        let Some(clock) = clock else {
+            return SelectedClock::Default;
+        };
+        context
+            .nodes()
+            .find(|&(node, _)| node == clock)
+            .and_then(|(_, span)| Identifier::parse(span.text(input)))
+            .map_or(SelectedClock::Unread, SelectedClock::Named)
+    }
 }
 
 /// A time marker of the selected clock: read as `minecraft:resource_location`, suggested by
@@ -95,16 +104,20 @@ pub struct TimeMarkerArgument {
 }
 
 impl TimeMarkerArgument {
+    /// Suggests the time markers of the selected clock.
     pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,
         context: &ContextView<'_>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
     ) {
-        if let Some(clock) = selected_clock(builder.input(), context, self.clock) {
-            let markers = source.lookup.suggested_time_markers(clock);
-            builder.suggest_matching(markers, identifier_matches);
-        }
+        let clock = match SelectedClock::read(builder.input(), context, self.clock) {
+            SelectedClock::Default => None,
+            SelectedClock::Named(clock) => Some(clock),
+            SelectedClock::Unread => return,
+        };
+        let markers = source.lookup.suggested_time_markers(clock);
+        builder.suggest_matching(markers, identifier_matches);
     }
 }
 
@@ -134,16 +147,20 @@ impl TimelineArgument {
         registry: TIMELINE.location(),
     };
 
+    /// Suggests the timelines of the selected clock.
     pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,
         context: &ContextView<'_>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
     ) {
-        if let Some(clock) = selected_clock(builder.input(), context, self.clock) {
-            let timelines = source.lookup.timelines_of_clock(clock);
-            builder.suggest_matching(timelines, identifier_matches);
-        }
+        let clock = match SelectedClock::read(builder.input(), context, self.clock) {
+            SelectedClock::Default => None,
+            SelectedClock::Named(clock) => Some(clock),
+            SelectedClock::Unread => return,
+        };
+        let timelines = source.lookup.timelines_of_clock(clock);
+        builder.suggest_matching(timelines, identifier_matches);
     }
 }
 

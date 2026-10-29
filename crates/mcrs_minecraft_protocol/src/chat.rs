@@ -29,7 +29,9 @@ impl<'a> Decode<'a> for ChatTypeId {
 /// signature cache.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PackedSignature<'a> {
+    /// The full signature.
     Full(&'a [u8; 256]),
+    /// The index of the signature in the cache.
     Cached(u32),
 }
 
@@ -61,16 +63,19 @@ impl<'a> Decode<'a> for PackedSignature<'a> {
     }
 }
 
-/// Which code units of a `player_chat` body the server hid (CHAT-RECV-002).
+/// Which code units of a `player_chat` body the server hid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FilterMask {
+    /// The server hid nothing.
     PassThrough,
+    /// The server hid the whole body.
     FullyFiltered,
     /// Bit `i` is bit `i mod 8` of byte `i / 8`.
     PartiallyFiltered(Vec<u8>),
 }
 
 impl FilterMask {
+    /// Whether the server hid the code unit at `index`.
     pub fn hides(&self, index: usize) -> bool {
         match self {
             FilterMask::PassThrough => false,
@@ -108,10 +113,13 @@ impl<'a> Decode<'a> for FilterMask {
     }
 }
 
-/// What a `custom_chat_completions` packet does to the custom completion set (CCMD-SUG-004).
+/// What a `custom_chat_completions` packet does to the custom completion set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub enum CompletionAction {
+    /// Adds the entries to the set.
     Add,
+    /// Removes the entries from the set.
     Remove,
+    /// Replaces the set with the entries.
     Set,
 }
