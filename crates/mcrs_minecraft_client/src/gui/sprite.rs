@@ -1,3 +1,5 @@
+//! GUI sprites and how their `.mcmeta` scaling fills a target.
+
 use std::fmt;
 
 use bevy::math::{IRect, IVec2, Rect};
@@ -7,6 +9,7 @@ use serde::{Deserialize, Deserializer};
 
 use super::scene::GuiQuad;
 
+/// The widths of the edges of a nine-slice sprite, in texels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub struct Border {
     pub left: i32,
@@ -16,6 +19,7 @@ pub struct Border {
 }
 
 impl Border {
+    /// The same width on every edge.
     pub fn splat(border: i32) -> Self {
         Self {
             left: border,
@@ -26,7 +30,7 @@ impl Border {
     }
 }
 
-/// How a GUI sprite fills a target (GSPR-META-001).
+/// How a GUI sprite fills a target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scaling {
     Stretch,
@@ -38,6 +42,12 @@ pub enum Scaling {
         border: Border,
         stretch_inner: bool,
     },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PartFill {
+    Stretch,
+    Tile,
 }
 
 #[derive(Deserialize)]
@@ -107,8 +117,8 @@ fn size(width: u32, height: u32) -> Result<IVec2, String> {
 }
 
 impl Scaling {
-    /// The scaling in the sprite metadata, or `stretch` without one (GSPR-META-001). An error
-    /// stops the load of this sprite only (GSPR-META-002).
+    /// The scaling in the sprite metadata, or `stretch` without one. An error
+    /// stops the load of this sprite only.
     pub fn read(mcmeta: Option<&[u8]>) -> Result<Self, String> {
         let Some(bytes) = mcmeta else {
             return Ok(Self::Stretch);
@@ -157,6 +167,7 @@ pub struct GuiSprite {
 }
 
 impl GuiSprite {
+    /// A sprite at `texels` in the GUI atlas.
     pub fn new(texels: IRect, scaling: Scaling) -> Self {
         Self {
             texels: texels.as_rect(),
@@ -164,7 +175,7 @@ impl GuiSprite {
         }
     }
 
-    /// Fills `target` by the scaling (GSPR-DRAW-001 to GSPR-DRAW-003).
+    /// Fills `target` by the scaling.
     pub fn draw(&self, target: IRect, out: &mut Vec<GuiQuad>) {
         match self.scaling {
             Scaling::Stretch => {
@@ -180,7 +191,7 @@ impl GuiSprite {
                     size,
                     target,
                     IRect::from_corners(IVec2::ZERO, size),
-                    false,
+                    PartFill::Tile,
                     out,
                 );
             }
@@ -203,12 +214,16 @@ impl GuiSprite {
                 for (column, (x0, x1, u0, u1)) in columns.into_iter().enumerate() {
                     for (row, (y0, y1, v0, v1)) in rows.into_iter().enumerate() {
                         let area = IRect::new(x0, y0, x1, y1);
-                        let inner = column == 1 || row == 1;
+                        let fill = if (column == 1 || row == 1) && stretch_inner {
+                            PartFill::Stretch
+                        } else {
+                            PartFill::Tile
+                        };
                         self.fill(
                             size,
                             IRect::from_corners(target.min + area.min, target.min + area.max),
                             IRect::new(u0, v0, u1, v1),
-                            inner && stretch_inner,
+                            fill,
                             out,
                         );
                     }
@@ -217,11 +232,11 @@ impl GuiSprite {
         }
     }
 
-    fn fill(&self, size: IVec2, area: IRect, part: IRect, stretch: bool, out: &mut Vec<GuiQuad>) {
+    fn fill(&self, size: IVec2, area: IRect, part: IRect, fill: PartFill, out: &mut Vec<GuiQuad>) {
         if area.width() <= 0 || area.height() <= 0 || part.width() <= 0 || part.height() <= 0 {
             return;
         }
-        if stretch {
+        if fill == PartFill::Stretch {
             out.push(self.quad(size, area, part));
             return;
         }

@@ -17,6 +17,7 @@ impl Language {
             .map_err(|error| format!("{EN_US}: {error}"))
     }
 
+    /// Whether the language has a translation for `key`.
     pub fn contains(&self, key: &str) -> bool {
         self.0.contains_key(key)
     }

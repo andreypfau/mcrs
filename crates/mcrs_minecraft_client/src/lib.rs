@@ -32,6 +32,8 @@ pub mod blocks;
 pub mod camera;
 pub mod cave;
 pub mod chat;
+mod chat_history;
+mod chat_packets;
 pub mod columns;
 pub mod config;
 #[cfg(feature = "dev")]

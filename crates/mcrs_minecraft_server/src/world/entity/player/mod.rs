@@ -136,10 +136,6 @@ pub struct PlayerBundle {
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one system turns an inbound player spawn into the full set of player components, which read against each other"
-)]
 fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -169,39 +165,20 @@ fn consume_inbound_player_spawn(
             ..Default::default()
         };
         let op_level = ops.level_of(&spawn.snapshot.uuid, *default_op_level);
-        let new_entity = commands
-            .spawn((
-                EntityBundle {
-                    minecraft_entity: Default::default(),
-                    dimension: InDimension(dim),
-                    transform: Transform::default().with_translation(spawn.snapshot.position),
-                    uuid: EntityUuid(spawn.snapshot.uuid),
-                },
-                PlayerBundle {
-                    game_mode: PlayerGameMode(default_game_mode.0),
-                    op_level,
-                    teleport_state: TeleportState::after_login(),
-                    view_distance,
-                    ..Default::default()
-                },
-                ColumnView::default(),
-                HostAnchor(spawn.host_anchor),
-                Owner(spawn.session),
-                GameProfile {
-                    id: spawn.snapshot.uuid,
-                    username: spawn.snapshot.username.clone(),
-                    properties: Vec::new(),
-                },
-            ))
-            .id();
+        let new_entity = spawn_player_entity(
+            &mut commands,
+            spawn,
+            dim,
+            view_distance,
+            op_level,
+            default_game_mode.0,
+        );
         commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
         let wire_id = mcrs_minecraft_engine::network_id::player_network_id(host);
         let spawn_pos = spawn.snapshot.position;
-
-        let dimensions = spawn.dimensions.to_vec();
 
         info!(
             "{} logged in with entity id {wire_id} in {dim_key} at ({:.2}, {:.2}, {:.2})",
@@ -217,24 +194,13 @@ fn consume_inbound_player_spawn(
         packet_writer.write(
             to(
                 host,
-                PacketPayload::PlayerLogin(ClientboundLogin {
-                    player_id: wire_id,
-                    hardcore: false,
-                    dimensions,
-                    max_players: VarInt(100),
-                    chunk_radius: VarInt(view_distance.distance as i32),
-                    simulation_distance: VarInt(simulation_distance.0 as i32),
-                    reduced_debug_info: false,
-                    show_death_screen: false,
-                    do_limited_crafting: false,
-                    player_spawn_info: PlayerSpawnInfo::new(
-                        dimension_type.0,
-                        dim_key.clone(),
-                        default_game_mode.0,
-                    ),
-                    online_mode: false,
-                    enforces_secure_chat: false,
-                }),
+                login_packet(
+                    spawn,
+                    wire_id,
+                    PlayerSpawnInfo::new(dimension_type.0, dim_key.clone(), default_game_mode.0),
+                    view_distance.distance,
+                    simulation_distance.0,
+                ),
             )
             .critical(),
         );
@@ -286,6 +252,64 @@ fn consume_inbound_player_spawn(
             host_anchor: spawn.host_anchor,
         });
     }
+}
+
+fn login_packet(
+    spawn: &InboundPlayerSpawn,
+    wire_id: i32,
+    player_spawn_info: PlayerSpawnInfo,
+    view_distance: u8,
+    simulation_distance: u8,
+) -> PacketPayload {
+    PacketPayload::PlayerLogin(ClientboundLogin {
+        player_id: wire_id,
+        hardcore: false,
+        dimensions: spawn.dimensions.to_vec(),
+        max_players: VarInt(100),
+        chunk_radius: VarInt(i32::from(view_distance)),
+        simulation_distance: VarInt(i32::from(simulation_distance)),
+        reduced_debug_info: false,
+        show_death_screen: false,
+        do_limited_crafting: false,
+        player_spawn_info,
+        online_mode: false,
+        enforces_secure_chat: false,
+    })
+}
+
+fn spawn_player_entity(
+    commands: &mut Commands,
+    spawn: &InboundPlayerSpawn,
+    dim: Entity,
+    view_distance: PlayerViewDistance,
+    op_level: PlayerOpLevel,
+    game_mode: GameMode,
+) -> Entity {
+    commands
+        .spawn((
+            EntityBundle {
+                minecraft_entity: Default::default(),
+                dimension: InDimension(dim),
+                transform: Transform::default().with_translation(spawn.snapshot.position),
+                uuid: EntityUuid(spawn.snapshot.uuid),
+            },
+            PlayerBundle {
+                game_mode: PlayerGameMode(game_mode),
+                op_level,
+                teleport_state: TeleportState::after_login(),
+                view_distance,
+                ..Default::default()
+            },
+            ColumnView::default(),
+            HostAnchor(spawn.host_anchor),
+            Owner(spawn.session),
+            GameProfile {
+                id: spawn.snapshot.uuid,
+                username: spawn.snapshot.username.clone(),
+                properties: Vec::new(),
+            },
+        ))
+        .id()
 }
 
 /// A player that spawns or changes dimension learns its level in the sequence that brings it

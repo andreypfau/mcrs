@@ -1,3 +1,5 @@
+//! The game time and the world clocks, owned by the host and read by every dimension.
+
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
@@ -17,7 +19,7 @@ pub struct EditClock {
     pub edit: ClockEdit,
 }
 
-/// The tick counter that every dimension reads as its game time (SIM-TICK-003).
+/// The tick counter that every dimension reads as its game time.
 // chisle: the game time and the clock states start fresh each run and a player gets
 // `set_time` only after a change; reading and writing them with the save, and a full
 // `set_time` on join and every 20 ticks, lift it.
@@ -41,7 +43,7 @@ fn advance_game_time(mut time: ResMut<GameTime>) {
     time.0 = time.0.saturating_add(1);
 }
 
-/// The `set_time` entry of one clock (CMD-TIME-009).
+/// The `set_time` entry of one clock.
 fn clock_update(clock: Id<WorldClock>, state: &ClockState, advance_time: bool) -> ClockUpdate {
     ClockUpdate {
         clock: VarInt(i32::from(clock.number())),

@@ -410,10 +410,6 @@ fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
     commands.insert_resource(language);
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "one pass over the scene's quads emits vertices and closes flat draw ranges as it goes, so the range bookkeeping stays in a single frame"
-)]
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
@@ -466,94 +462,105 @@ fn build_gui_batch(
     };
     for quad in expanded {
         let vertices = &mut batch.vertices;
-        match quad {
-            GuiQuad::Item { origin, stack } => {
-                let end = vertices.len() as u32;
-                close_flat(&mut flat_start, end, &mut batch.draws);
-                let Ok(layers) = layers.get(stack) else {
-                    continue;
-                };
-                for layer in &layers.layers {
-                    let glint = if layer.foil { GLINT_BIT } else { 0 };
-                    for quad in layer.vertices.as_chunks::<4>().0 {
-                        let shifted = |v: &GuiVertex| GuiVertex {
-                            pos: [
-                                v.pos[0] + origin.x as f32,
-                                v.pos[1] + origin.y as f32,
-                                v.pos[2],
-                            ],
-                            sprite: v.sprite | glint,
-                            ..*v
-                        };
-                        vertices.extend([0, 1, 2, 0, 2, 3].map(|i| shifted(&quad[i])));
-                    }
-                }
-                let after = vertices.len() as u32;
-                if after != end {
-                    batch.draws.push(GuiDraw {
-                        range: end..after,
-                        item: true,
-                    });
-                }
+        if let GuiQuad::Item { origin, stack } = quad {
+            let end = vertices.len() as u32;
+            close_flat(&mut flat_start, end, &mut batch.draws);
+            let Ok(layers) = layers.get(stack) else {
+                continue;
+            };
+            push_item_layers(vertices, layers, origin);
+            let after = vertices.len() as u32;
+            if after != end {
+                batch.draws.push(GuiDraw {
+                    range: end..after,
+                    item: true,
+                });
             }
-            flat => {
-                if flat_start.is_none() {
-                    flat_start = Some(vertices.len() as u32);
-                }
-                match flat {
-                    GuiQuad::Sprite {
-                        rect,
-                        region,
-                        color,
-                    } => {
-                        push_quad(
-                            vertices,
-                            rect,
-                            atlas.uv(atlas.region(region)),
-                            [color; 4],
-                            GUI_ATLAS_BIT,
-                        );
-                    }
-                    GuiQuad::Fill { rect, color } => {
-                        push_quad(vertices, rect, blank, [color; 4], GUI_ATLAS_BIT)
-                    }
-                    GuiQuad::Texels { rect, texels } => push_quad(
-                        vertices,
-                        rect,
-                        atlas.texel_uv(texels),
-                        [WHITE; 4],
-                        GUI_ATLAS_BIT,
-                    ),
-                    GuiQuad::FillGradient { rect, top, bottom } => {
-                        push_quad(
-                            vertices,
-                            rect,
-                            blank,
-                            [top, top, bottom, bottom],
-                            GUI_ATLAS_BIT,
-                        );
-                    }
-                    GuiQuad::Glyph {
-                        origin,
-                        glyph,
-                        color,
-                    } => {
-                        let Some(glyph) = atlas.font.glyph(glyph) else {
-                            continue;
-                        };
-                        let ascii = atlas.region("font/ascii").min + glyph.cell;
-                        let cell = atlas.font.cell_size;
-                        let pixel = IRect::from_corners(ascii, ascii + cell);
-                        let rect = IRect::from_corners(origin, origin + cell);
-                        push_quad(vertices, rect, atlas.uv(pixel), [color; 4], GUI_ATLAS_BIT);
-                    }
-                    GuiQuad::Item { .. } => unreachable!(),
-                }
+        } else {
+            if flat_start.is_none() {
+                flat_start = Some(vertices.len() as u32);
             }
+            push_flat_quad(vertices, atlas, blank, quad);
         }
     }
     let end = batch.vertices.len() as u32;
     close_flat(&mut flat_start, end, &mut batch.draws);
+}
+
+fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, origin: IVec2) {
+    for layer in &layers.layers {
+        let glint = if layer.foil { GLINT_BIT } else { 0 };
+        for quad in layer.vertices.as_chunks::<4>().0 {
+            let shifted = |v: &GuiVertex| GuiVertex {
+                pos: [
+                    v.pos[0] + origin.x as f32,
+                    v.pos[1] + origin.y as f32,
+                    v.pos[2],
+                ],
+                sprite: v.sprite | glint,
+                ..*v
+            };
+            vertices.extend([0, 1, 2, 0, 2, 3].map(|i| shifted(&quad[i])));
+        }
+    }
+}
+
+/// The vertices of a quad drawn from the GUI atlas; an item quad draws its own layers instead.
+fn push_flat_quad(
+    vertices: &mut Vec<GuiVertex>,
+    atlas: &GuiAtlasData,
+    blank: [[f32; 2]; 4],
+    quad: GuiQuad,
+) {
+    match quad {
+        GuiQuad::Sprite {
+            rect,
+            region,
+            color,
+        } => {
+            push_quad(
+                vertices,
+                rect,
+                atlas.uv(atlas.region(region)),
+                [color; 4],
+                GUI_ATLAS_BIT,
+            );
+        }
+        GuiQuad::Fill { rect, color } => {
+            push_quad(vertices, rect, blank, [color; 4], GUI_ATLAS_BIT)
+        }
+        GuiQuad::Texels { rect, texels } => push_quad(
+            vertices,
+            rect,
+            atlas.texel_uv(texels),
+            [WHITE; 4],
+            GUI_ATLAS_BIT,
+        ),
+        GuiQuad::FillGradient { rect, top, bottom } => {
+            push_quad(
+                vertices,
+                rect,
+                blank,
+                [top, top, bottom, bottom],
+                GUI_ATLAS_BIT,
+            );
+        }
+        GuiQuad::Glyph {
+            origin,
+            glyph,
+            color,
+        } => {
+            let Some(glyph) = atlas.font.glyph(glyph) else {
+                return;
+            };
+            let ascii = atlas.region("font/ascii").min + glyph.cell;
+            let cell = atlas.font.cell_size;
+            let pixel = IRect::from_corners(ascii, ascii + cell);
+            let rect = IRect::from_corners(origin, origin + cell);
+            push_quad(vertices, rect, atlas.uv(pixel), [color; 4], GUI_ATLAS_BIT);
+        }
+        GuiQuad::Item { .. } => {}
+    }
 }
 
 pub struct GuiPlugin;

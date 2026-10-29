@@ -122,12 +122,13 @@ impl Font {
     pub fn width(&self, spans: &[Span]) -> i32 {
         spans
             .iter()
-            .map(|span| self.str_width(&span.text, span.bold))
+            .flat_map(|span| span.text.chars().map(|ch| self.advance(ch, span.bold)))
             .sum()
     }
 
-    pub fn str_width(&self, text: &str, bold: bool) -> i32 {
-        text.chars().map(|ch| self.advance(ch, bold)).sum()
+    /// The width of `text` in the regular weight.
+    pub fn str_width(&self, text: &str) -> i32 {
+        text.chars().map(|ch| self.advance(ch, false)).sum()
     }
 }
 
@@ -136,6 +137,7 @@ fn normalized(id: &str) -> String {
     format!("{namespace}:{path}")
 }
 
+/// The hover event of a span.
 pub type Hover = mcrs_minecraft_protocol::text::HoverEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
@@ -173,6 +175,7 @@ pub fn draw_text(font: &Font, origin: IVec2, spans: &[Span], out: &mut Vec<GuiQu
     draw_tinted_text(font, origin, spans, |color| color, out);
 }
 
+/// Draws `spans` as [`draw_text`] does, with each colour passed through `tint`.
 pub fn draw_tinted_text(
     font: &Font,
     origin: IVec2,

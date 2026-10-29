@@ -1,5 +1,5 @@
-use super::dimension_view::{DimensionView, unloaded};
-use super::{Branch, ExecuteCommand, Polarity, Test};
+use crate::dimension_view::{DimensionView, unloaded};
+use crate::execute::{Branch, ExecuteCommand, Polarity, Test};
 use crate::select::{FoundPlayers, select};
 use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
@@ -19,20 +19,20 @@ use mcrs_minecraft_protocol::text::IntoText;
 /// and the blocks of the source dimension, the world the stage runs in.
 #[derive(SystemParam)]
 pub(crate) struct ExecuteView<'w, 's> {
-    pub(super) context: CommandContext<'w, 's>,
-    pub(super) dimension: DimensionView<'w, 's>,
+    pub(crate) context: CommandContext<'w, 's>,
+    pub(crate) dimension: DimensionView<'w, 's>,
 }
 
 /// The result of a condition: a boolean, or a count (CMD-EX section 0.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Outcome {
+pub(crate) enum Outcome {
     Boolean(bool),
     Count(i32),
 }
 
 impl ExecuteView<'_, '_> {
     /// One source for each entity of `targets` in any dimension, from `each` (CMD-EX-024).
-    pub(super) fn fork(
+    pub(crate) fn fork(
         &self,
         call: &Call<Branch, ExecuteCommand>,
         targets: ArgumentHandle<EntityArgument>,
@@ -49,7 +49,7 @@ impl ExecuteView<'_, '_> {
         })
     }
 
-    pub(super) fn condition(
+    pub(crate) fn condition(
         &self,
         call: &Call<Branch, ExecuteCommand>,
         test: Test,
@@ -102,7 +102,7 @@ impl ExecuteView<'_, '_> {
     }
 
     /// CMD-EX-021: the source gets the dimension, and its x and z are scaled.
-    pub(super) fn move_to(
+    pub(crate) fn move_to(
         &self,
         call: &Call<Branch, ExecuteCommand>,
         state: SourceState,

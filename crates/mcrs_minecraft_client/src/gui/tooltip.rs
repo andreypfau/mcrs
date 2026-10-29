@@ -1,20 +1,22 @@
+//! The tooltip of a frame: one request, drawn over the rest of the GUI.
+
 use bevy::math::{IRect, IVec2};
 
-use super::font::{Font, Span, draw_text};
+use super::font::{self, Font, Span};
 use super::scene::{GuiAtlasData, GuiQuad, GuiSize};
 use super::sprite::GuiSprite;
 
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
 
-/// The background and the outline sprites, when the pack has them (TIP-BG-001).
+/// The background and the outline sprites, when the pack has them.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TooltipSprites {
     pub background: Option<GuiSprite>,
     pub frame: Option<GuiSprite>,
 }
 
-/// The tooltip request of the current frame (TIP-REQ-001). The buffers stay between frames.
+/// The tooltip request of the current frame. The buffers stay between frames.
 #[derive(Debug, Default)]
 pub struct Tooltip {
     lines: Vec<Vec<Span>>,
@@ -23,6 +25,7 @@ pub struct Tooltip {
 }
 
 impl Tooltip {
+    /// Forgets the request of the previous frame.
     pub fn clear(&mut self) {
         self.requested = false;
     }
@@ -42,19 +45,20 @@ impl Tooltip {
         self.at = at;
     }
 
+    /// The lines of the request of this frame, if there is one.
     pub fn lines(&self) -> Option<&[Vec<Span>]> {
         self.requested.then_some(self.lines.as_slice())
     }
 }
 
-/// The width and the height of the content box (TIP-BOX-001).
 // chisle: no gap after the first line; only an item tooltip sets that flag, and none exists.
+/// The width and the height of the content box.
 pub fn content_size(font: &Font, lines: &[Vec<Span>]) -> IVec2 {
     let width = lines.iter().map(|line| font.width(line)).max().unwrap_or(0);
     IVec2::new(width, LINE * lines.len() as i32 - 2)
 }
 
-/// The top left corner of the content box (TIP-POS-001).
+/// The top left corner of the content box.
 pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     let mut at = mouse + IVec2::new(OFFSET, -OFFSET);
     if at.x + size.x > gui.x {
@@ -66,10 +70,10 @@ pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     at
 }
 
-/// The background, the outline and the lines of the request, if there is one (TIP-BG-001,
-/// TIP-BOX-002). A sprite the pack lacks draws as the missing sprite.
 // chisle: always the default sprites; only an item's `tooltip_style` selects others, and item
 // tooltips do not exist yet.
+/// The background, the outline and the lines of the request, if there is one. A sprite the pack
+/// lacks draws as the missing sprite.
 pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec<GuiQuad>) {
     let Some(lines) = tooltip.lines() else {
         return;
@@ -82,7 +86,7 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
         sprite.unwrap_or(atlas.missing).draw(background, out);
     }
     for (index, line) in lines.iter().enumerate() {
-        draw_text(
+        font::draw_text(
             font,
             IVec2::new(at.x, at.y + LINE * index as i32),
             line,

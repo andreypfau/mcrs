@@ -139,19 +139,25 @@ fn update_index(
     entities: Query<(Entity, &OldInDimension, Ref<InDimension>), With<Player>>,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {
-    entities
-        .iter()
-        .filter(|(.., in_dimension)| in_dimension.is_changed())
-        .for_each(|(player, old_in_dimension, in_dimension)| {
-            if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
-                let removed = viewers.0.remove(&player);
-                debug_assert!(removed);
-            }
-            if let Ok(mut viewers) = dimensions.get_mut(**in_dimension) {
-                let inserted = viewers.0.insert(player);
-                debug_assert!(inserted);
-            }
-        })
+    for (player, old_in_dimension, in_dimension) in &entities {
+        if !in_dimension.is_changed() {
+            continue;
+        }
+        if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
+            let removed = viewers.0.remove(&player);
+            debug_assert!(
+                removed,
+                "a player is in the players of the dimension its OldInDimension names"
+            );
+        }
+        if let Ok(mut viewers) = dimensions.get_mut(**in_dimension) {
+            let inserted = viewers.0.insert(player);
+            debug_assert!(
+                inserted,
+                "a player is in the players of one dimension only, the one it just left"
+            );
+        }
+    }
 }
 
 /// A player that leaves before `update_index` ran is still in the set of its old dimension.

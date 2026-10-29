@@ -3,7 +3,9 @@
 
 // std: bevy_ecs, mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the worlds, the
 // identifiers and the command packets, need it.
+mod dimension_view;
 mod execute;
+mod execute_view;
 mod gamemode;
 mod locate;
 mod plugin;

@@ -1,3 +1,5 @@
+//! The keys and the mouse of the chat screen, and the log wrapped into lines.
+
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::InputSystems;
@@ -6,8 +8,7 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_chat::{
-    Anchor, ChatScreen, Closed, Context, InputStyle, Key, Outcome, Step, Tag, UnsentDraft,
-    keeps_draft,
+    Anchor, ChatScreen, Closed, Context, History, InputStyle, Key, Outcome, Step, Tag, UnsentDraft,
 };
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_network::client::ClientConnection;
@@ -15,14 +16,16 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundCommandSugge
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 
-use super::chat::{list_rows, per_page, row_at, row_under, wrap_width};
+use super::chat::{self as chat_view, ChatFocus};
+use super::chat_suggestions;
 use super::font::{Font, Span};
 use super::item_decorations::WHITE;
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiScene};
-use super::text::{Wrap, text_spans, wrap};
-use crate::chat::{Chat, ChatInput, ClientLookup, CommandHistoryFile, CommandWorld, context, send};
-use crate::screen::{Screen, grab};
+use super::text::{self, Wrap};
+use crate::chat::{self, Chat, ChatInput, ClientLookup, CommandWorld};
+use crate::chat_history::CommandHistoryFile;
+use crate::screen::{self, Screen};
 
 /// The lines of the chat log as the GUI wraps them, and the scroll of the open chat.
 #[derive(Resource, Default)]
@@ -57,18 +60,30 @@ fn project_lines(
     }
     let font = &atlas.0.font;
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text_spans(text, &language, WHITE);
-        wrap(&spans, wrap_width(tag), Wrap::ChatLog, font, rows);
+        let spans = text::text_spans(text, &language, WHITE);
+        text::wrap(
+            &spans,
+            chat_view::wrap_width(tag),
+            Wrap::ChatLog,
+            font,
+            rows,
+        );
     };
     if changed {
         lines.0.rebuild(&chat.log, wrap_message);
     } else {
-        let open = (*screen == Screen::Chat).then(|| per_page(true));
+        let open = (*screen == Screen::Chat).then(|| chat_view::per_page(ChatFocus::Focused));
         lines.0.sync(&chat.log, open, wrap_message);
     }
 }
 
-fn modifiers(keys: &ButtonInput<KeyCode>) -> (bool, bool) {
+#[derive(Clone, Copy)]
+struct Modifiers {
+    control: bool,
+    shift: bool,
+}
+
+fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
     let control = keys.any_pressed([
         KeyCode::ControlLeft,
         KeyCode::ControlRight,
@@ -76,11 +91,11 @@ fn modifiers(keys: &ButtonInput<KeyCode>) -> (bool, bool) {
         KeyCode::SuperRight,
     ]);
     let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    (control, shift)
+    Modifiers { control, shift }
 }
 
 /// The key of the chat screen, or `None` for a key that types text or does nothing.
-fn screen_key(code: KeyCode, control: bool, shift: bool) -> Option<Key> {
+fn screen_key(code: KeyCode, Modifiers { control, shift }: Modifiers) -> Option<Key> {
     let step = if control { Step::Word } else { Step::Char };
     let anchor = if shift { Anchor::Keep } else { Anchor::Move };
     Some(match code {
@@ -175,7 +190,7 @@ fn chat_keys(
     };
     let lookup = world.lookup();
     let source = Source::new(world.level(), &lookup);
-    let cx = context(
+    let cx = chat::context(
         &world,
         &source,
         chat.abilities,
@@ -184,47 +199,26 @@ fn chat_keys(
     );
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, &cx);
-        flush_request(&mut state.input.0, &mut connection);
+        flush_request(
+            &mut state.input.0,
+            connection.as_deref_mut().map(|c| &mut **c),
+        );
         *state.screen = Screen::Chat;
-        grab(&mut cursor, false);
+        screen::grab(&mut cursor, false);
         keys.keyboard.clear();
         keys.keys.reset_all();
         return;
     }
-    let (control, shift) = modifiers(&keys.keys);
+    let modifiers = modifiers(&keys.keys);
     let screen = &mut state.input.0;
-    let mut closed = None;
-    let mut page = 0;
-    for event in keys.keyboard.read() {
-        if event.state != ButtonState::Pressed || closed.is_some() {
-            continue;
-        }
-        let outcome = if let Some(key) = screen_key(event.key_code, control, shift) {
-            screen.key(key, &mut chat.history, &cx)
-        } else if control && event.key_code == KeyCode::KeyV {
-            match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
-                Some(bevy::clipboard::ClipboardRead::Ready(Ok(text))) => {
-                    screen.type_text(&text, &cx)
-                }
-                _ => Outcome::Ignored,
-            }
-        } else if let Some(text) = event.text.as_ref().filter(|_| !control) {
-            screen.type_text(text, &cx)
-        } else {
-            Outcome::Ignored
-        };
-        match outcome {
-            Outcome::Closed(how) => closed = Some(how),
-            Outcome::Page(direction) => page += direction,
-            Outcome::Copy(text) => {
-                if let Some(clipboard) = keys.clipboard.as_deref_mut() {
-                    let _ = clipboard.set_text(text);
-                }
-            }
-            _ => {}
-        }
-        flush_request(screen, &mut connection);
-    }
+    let typed = type_keys(
+        &mut keys,
+        modifiers,
+        screen,
+        &mut chat.history,
+        &cx,
+        &mut connection,
+    );
     let moved = *keys.last_cursor != keys.scene.cursor;
     *keys.last_cursor = keys.scene.cursor;
     if let Some(atlas) = keys.atlas.as_deref() {
@@ -233,30 +227,83 @@ fn chat_keys(
             moved,
             screen,
             &mut state.lines.0,
-            shift,
+            modifiers.shift,
             &atlas.0.font,
             &cx,
         );
-        flush_request(screen, &mut connection);
+        flush_request(screen, connection.as_deref_mut().map(|c| &mut **c));
     }
-    if page != 0 {
-        let lines = per_page(true).saturating_sub(1) as isize;
-        state.lines.0.scroll_by(page * lines, per_page(true));
+    if typed.page != 0 {
+        let page = chat_view::per_page(ChatFocus::Focused);
+        let lines = page.saturating_sub(1) as isize;
+        state.lines.0.scroll_by(typed.page * lines, page);
     }
     keys.keys.reset_all();
-    if let Some(closed) = closed {
+    if let Some(closed) = typed.closed {
         close(
             &mut state,
             closed,
             connection.as_deref_mut().map(|c| &mut **c),
         );
-        grab(&mut cursor, true);
+        screen::grab(&mut cursor, true);
     }
 }
 
-fn flush_request(screen: &mut ChatScreen, connection: &mut Option<Single<&mut ClientConnection>>) {
+/// What the keys of one frame did to the open chat screen beyond its input.
+struct Typed {
+    closed: Option<Closed>,
+    page: isize,
+}
+
+fn type_keys(
+    keys: &mut ChatKeys,
+    modifiers: Modifiers,
+    screen: &mut ChatScreen,
+    history: &mut History,
+    cx: &Context<'_, ClientLookup<'_>>,
+    connection: &mut Option<Single<&mut ClientConnection>>,
+) -> Typed {
+    let control = modifiers.control;
+    let mut typed = Typed {
+        closed: None,
+        page: 0,
+    };
+    for event in keys.keyboard.read() {
+        if event.state != ButtonState::Pressed || typed.closed.is_some() {
+            continue;
+        }
+        let outcome = if let Some(key) = screen_key(event.key_code, modifiers) {
+            screen.key(key, history, cx)
+        } else if control && event.key_code == KeyCode::KeyV {
+            match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
+                Some(bevy::clipboard::ClipboardRead::Ready(Ok(text))) => {
+                    screen.type_text(&text, cx)
+                }
+                _ => Outcome::Ignored,
+            }
+        } else if let Some(text) = event.text.as_ref().filter(|_| !control) {
+            screen.type_text(text, cx)
+        } else {
+            Outcome::Ignored
+        };
+        match outcome {
+            Outcome::Closed(how) => typed.closed = Some(how),
+            Outcome::Page(direction) => typed.page += direction,
+            Outcome::Copy(text) => {
+                if let Some(clipboard) = keys.clipboard.as_deref_mut() {
+                    let _ = clipboard.set_text(text);
+                }
+            }
+            _ => {}
+        }
+        flush_request(screen, connection.as_deref_mut().map(|c| &mut **c));
+    }
+    typed
+}
+
+fn flush_request(screen: &mut ChatScreen, connection: Option<&mut ClientConnection>) {
     if let Some(request) = screen.take_request()
-        && let Some(connection) = connection.as_deref_mut()
+        && let Some(connection) = connection
     {
         connection.write_packet(&ServerboundCommandSuggestion {
             id: VarInt(request.id),
@@ -275,7 +322,7 @@ fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientCo
     } = &closed
     {
         if let Some(connection) = connection {
-            send(connection, sent);
+            chat::send(connection, sent);
         }
         if *history_changed && let Some(file) = &mut state.history_file {
             file.save(chat.history.command_file());
@@ -286,8 +333,8 @@ fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientCo
     } else {
         UnsentDraft::Discard
     };
-    chat.draft =
-        keeps_draft(screen.input(), Some(&closed), unsent).then(|| screen.input().to_owned());
+    chat.draft = mcrs_minecraft_chat::keeps_draft(screen.input(), Some(&closed), unsent)
+        .then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
     *state.screen = Screen::None;
 }
@@ -303,11 +350,13 @@ fn mouse(
     cx: &Context<'_, ClientLookup<'_>>,
 ) {
     let scene = &*keys.scene;
-    let rows = list_rows(scene.size, font, screen);
-    let over = rows
-        .as_ref()
-        .and_then(|rows| row_under(rows.rect, scene.cursor).map(|row| rows.first + row));
-    let hovered = rows.and_then(|rows| row_at(rows.rect, scene.cursor).map(|row| rows.first + row));
+    let rows = chat_suggestions::list_rows(scene.size, font, screen);
+    let over = rows.as_ref().and_then(|rows| {
+        chat_suggestions::row_under(rows.rect, scene.cursor).map(|row| rows.first + row)
+    });
+    let hovered = rows.and_then(|rows| {
+        chat_suggestions::row_at(rows.rect, scene.cursor).map(|row| rows.first + row)
+    });
     let step = keys.scroll.delta.y.clamp(-1.0, 1.0);
     match (over, screen.commands.list_mut()) {
         (Some(_), Some(list)) => {
@@ -318,7 +367,7 @@ fn mouse(
         _ => {
             let lines = if shift { step } else { step * 7.0 } as isize;
             if lines != 0 {
-                log.scroll_by(lines, per_page(true));
+                log.scroll_by(lines, chat_view::per_page(ChatFocus::Focused));
             }
         }
     }

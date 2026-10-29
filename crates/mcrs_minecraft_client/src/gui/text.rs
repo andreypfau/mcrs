@@ -1,7 +1,8 @@
+//! Text components as styled spans, and the wrap of spans into rows.
+
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
-use mcrs_minecraft_snbt::{java_double, java_float};
 
 use super::font::{Font, Hover, Span};
 use super::language::Language;
@@ -13,6 +14,7 @@ struct Inherited<'a> {
     hover: Option<&'a Hover>,
 }
 
+/// An opaque ARGB colour.
 pub fn argb(color: Color) -> u32 {
     let rgb = match color {
         Color::Rgb(rgb) => rgb,
@@ -27,8 +29,8 @@ fn number(tag: &NbtTag) -> String {
         NbtTag::Short(v) => v.to_string(),
         NbtTag::Int(v) => v.to_string(),
         NbtTag::Long(v) => v.to_string(),
-        NbtTag::Float(v) => java_float(*v),
-        NbtTag::Double(v) => java_double(*v),
+        NbtTag::Float(v) => mcrs_minecraft_snbt::java_float(*v),
+        NbtTag::Double(v) => mcrs_minecraft_snbt::java_double(*v),
         _ => String::new(),
     }
 }
@@ -112,6 +114,7 @@ pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
     out
 }
 
+/// How [`wrap`] starts a row after a break.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Wrap {
     /// Each row after the first starts with one unstyled space (CHAT-LOG-001).

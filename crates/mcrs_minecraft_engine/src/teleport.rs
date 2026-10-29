@@ -1,3 +1,5 @@
+//! The bounds of a teleport and the teleport state of a player.
+
 use bevy_ecs::component::Component;
 use mcrs_minecraft_level::entity::physics::Transform;
 

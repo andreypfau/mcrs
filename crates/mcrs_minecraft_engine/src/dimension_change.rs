@@ -1,3 +1,5 @@
+//! The move of a player from one dimension world to another.
+
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;

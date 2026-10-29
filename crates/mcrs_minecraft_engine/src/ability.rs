@@ -1,3 +1,5 @@
+//! The game mode, the flight and the operator level of a player.
+
 use bevy_ecs::prelude::Component;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_protocol::GameMode;

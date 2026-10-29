@@ -1,10 +1,8 @@
-mod dimension_view;
-mod view;
-
+use crate::dimension_view::unloaded;
+use crate::execute_view::{ExecuteView, Outcome};
 use crate::select::FoundPlayers;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use dimension_view::unloaded;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{
     CommandLevel, DimensionArgument, EntityAnchorArgument, HeightmapArgument, PermissionCheck,
@@ -21,7 +19,6 @@ use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::{Look, LookAnchor};
-use view::{ExecuteView, Outcome};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Test {
@@ -62,12 +59,12 @@ pub(crate) enum Branch {
 }
 
 #[derive(Clone, Copy)]
-struct ConditionArgs {
-    block_pos: ArgumentHandle<BlockPosArgument>,
-    block: ArgumentHandle<BlockPredicateArgument>,
-    loaded: ArgumentHandle<BlockPosArgument>,
-    dimension: ArgumentHandle<DimensionArgument>,
-    entities: ArgumentHandle<EntityArgument>,
+pub(crate) struct ConditionArgs {
+    pub(crate) block_pos: ArgumentHandle<BlockPosArgument>,
+    pub(crate) block: ArgumentHandle<BlockPredicateArgument>,
+    pub(crate) loaded: ArgumentHandle<BlockPosArgument>,
+    pub(crate) dimension: ArgumentHandle<DimensionArgument>,
+    pub(crate) entities: ArgumentHandle<EntityArgument>,
 }
 
 #[derive(Clone, Copy)]
@@ -99,13 +96,13 @@ pub(crate) struct ExecuteCommand {
     facing: FacingArgs,
     align: ArgumentHandle<SwizzleArgument>,
     anchored: ArgumentHandle<EntityAnchorArgument>,
-    dimension: ArgumentHandle<DimensionArgument>,
+    pub(crate) dimension: ArgumentHandle<DimensionArgument>,
     when: ConditionArgs,
     unless: ConditionArgs,
 }
 
 impl ExecuteCommand {
-    fn condition(&self, polarity: Polarity) -> &ConditionArgs {
+    pub(crate) fn condition(&self, polarity: Polarity) -> &ConditionArgs {
         match polarity {
             Polarity::If => &self.when,
             Polarity::Unless => &self.unless,

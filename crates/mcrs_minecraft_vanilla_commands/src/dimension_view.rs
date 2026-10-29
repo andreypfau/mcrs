@@ -20,13 +20,13 @@ fn local(axis: i32) -> Option<usize> {
     usize::try_from(axis & SectionPos::MASK as i32).ok()
 }
 
-pub(super) fn unloaded() -> CommandFailure {
+pub(crate) fn unloaded() -> CommandFailure {
     CommandFailure::translate("argument.pos.unloaded", vec![])
 }
 
 /// The blocks, the columns and the heightmaps of the dimension of this world.
 #[derive(SystemParam)]
-pub(super) struct DimensionView<'w, 's> {
+pub(crate) struct DimensionView<'w, 's> {
     dimension: Query<'w, 's, (&'static ColumnIndex, &'static DimensionTypeConfig), With<Dimension>>,
     columns: Query<
         'w,
@@ -69,7 +69,7 @@ impl DimensionView<'_, '_> {
     /// The column holds every section of its height, each at the loaded stage.
     // chisle: a loaded chunk and a ticking chunk are the same test: the dimension has no
     // chunk levels for entity ticking yet. A ticking stage of the column lifts it.
-    pub(super) fn loaded(&self, x: i32, z: i32) -> bool {
+    pub(crate) fn loaded(&self, x: i32, z: i32) -> bool {
         self.column(x, z).is_some_and(|column| {
             column.iter().all(|section| match section {
                 SectionLookup::Loaded(entity) => self
@@ -82,7 +82,7 @@ impl DimensionView<'_, '_> {
     }
 
     /// CMD-EX-050: the position must be in a loaded chunk and inside the world.
-    pub(super) fn readable(&self, [x, y, z]: [i32; 3]) -> Result<(), CommandFailure> {
+    pub(crate) fn readable(&self, [x, y, z]: [i32; 3]) -> Result<(), CommandFailure> {
         if !self.loaded(x, z) {
             return Err(unloaded());
         }
@@ -97,7 +97,7 @@ impl DimensionView<'_, '_> {
         Ok(())
     }
 
-    pub(super) fn block_state(&self, pos: [i32; 3]) -> Option<BlockStateId> {
+    pub(crate) fn block_state(&self, pos: [i32; 3]) -> Option<BlockStateId> {
         let (blocks, _) = self.sections.get(self.section(pos)?).ok()?;
         let [x, y, z] = pos;
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
@@ -105,7 +105,7 @@ impl DimensionView<'_, '_> {
 
     // chisle: a linear scan of the block entities of one section; an index by position in the
     // section lifts it.
-    pub(super) fn block_entity(&self, pos: [i32; 3]) -> Option<&GeneratedBlockEntity> {
+    pub(crate) fn block_entity(&self, pos: [i32; 3]) -> Option<&GeneratedBlockEntity> {
         let section = self.section(pos)?;
         let [x, y, z] = pos;
         let pos = BlockPos::new(x, y, z);
@@ -116,7 +116,7 @@ impl DimensionView<'_, '_> {
     }
 
     /// HM-006 for a column of a loaded chunk.
-    pub(super) fn height(&self, heightmap: HeightmapName, x: i32, z: i32) -> Option<i32> {
+    pub(crate) fn height(&self, heightmap: HeightmapName, x: i32, z: i32) -> Option<i32> {
         let (_, surface, solid, motion, no_leaves) =
             self.columns.get(self.column_entity(x, z)?).ok()?;
         let heights = match heightmap {
