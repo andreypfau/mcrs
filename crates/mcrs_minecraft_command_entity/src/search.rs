@@ -1,5 +1,6 @@
 use crate::error::EntityError;
-use crate::options::{ListOption, read_options};
+use crate::list_option::ListOption;
+use crate::options::read_options;
 use crate::selector::{Order, Selector, SelectorKind, State, Target};
 use glam::DVec3;
 use mcrs_command::{Reader, eq_ignore_case};

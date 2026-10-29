@@ -1,6 +1,6 @@
 use crate::error::EntityError;
+use crate::invertible::Invertible;
 use crate::option_key::KEYS;
-use crate::options::Invertible;
 use crate::selector::{KINDS, Next, SORTS, Selector, SelectorResult, State, error, read_selector};
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SuggestionText};
 use mcrs_minecraft_command::{

@@ -2,12 +2,18 @@
 
 // std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the identifiers and the text
 // of every argument, need it.
+mod bounds;
 mod entity_argument;
 mod error;
+mod invertible;
+mod list_option;
 mod option_key;
+mod option_map;
 mod options;
+mod scalar_option;
 mod search;
 mod selector;
+mod type_option;
 
 pub use entity_argument::EntityArgument;
 pub use error::EntityError;
