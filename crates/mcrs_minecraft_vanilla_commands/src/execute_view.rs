@@ -7,7 +7,7 @@ use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_command::{DimensionArgument, Lookup, ResourceOrTag};
+use mcrs_minecraft_command::{DimensionArgument, ResourceOrTag};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, PlayerEntry,
     SourceState,
@@ -80,23 +80,32 @@ impl ExecuteView<'_, '_> {
                 self.dimension.readable(pos)?;
                 let predicate = context.arg(call, args.block)?;
                 let state = self.dimension.block_state(pos).ok_or_else(unloaded)?;
-                let entry = context
-                    .lookup()
-                    .blocks()
-                    .and_then(|blocks| blocks.0.owner(state));
-                let Some(entry) = entry else {
+                let owner = context.lookup().blocks().and_then(|blocks| {
+                    let index = blocks.0.block_index(state)?;
+                    Some((index, blocks.0.entry(index)?))
+                });
+                let Some((index, entry)) = owner else {
                     return Ok(Outcome::Boolean(false));
                 };
                 let name = entry.identifier.as_str();
                 let in_subject = match predicate.subject {
                     ResourceOrTag::Entry(id) => id.eq_str(name),
-                    ResourceOrTag::Tag(tag) => context
-                        .lookup()
-                        .tag_entries(BLOCK.location(), tag)
-                        .any(|member| member == name),
+                    // chisle: the tag is found by a scan of the tag names per test; a tag id
+                    // resolved when the argument is parsed lifts it.
+                    ResourceOrTag::Tag(tag) => {
+                        let id = u16::try_from(index.index()).ok();
+                        context
+                            .lookup()
+                            .registry_lookup()
+                            .tag_members(BLOCK.location(), tag)
+                            .is_some_and(|members| id.is_some_and(|id| members.contains(&id)))
+                    }
                 };
                 let passes = in_subject
                     && predicate.test(entry, state)
+                    // chisle: the block entity is serialized to NBT per test; matching the
+                    // predicate compound against the entity without serializing needs a visitor
+                    // on the block entity type.
                     && predicate.test_data(|| {
                         let entry = self.dimension.block_entity(pos)?;
                         saved_data(entry).ok()

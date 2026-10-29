@@ -55,6 +55,7 @@ pub(crate) fn read_type<'a>(
 }
 
 /// Whether an earlier `type` option of the same selector named this tag.
+// chisle: re-reads the option prefix per `type=#tag`, O(n^2) in the options; a heap-free seen-set in `State` lifts it
 fn type_tag_seen(input: &str, options_start: usize, before: usize, tag: Identifier<'_>) -> bool {
     let prefix = input.get(..before).unwrap_or_default();
     let mut reader = Reader::at(prefix, options_start);

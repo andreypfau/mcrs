@@ -170,6 +170,9 @@ fn forget_removed_entity(
     mut synced: Query<&mut PlayerSynchronizedEntities>,
 ) {
     let entity = remove.event().entity;
+    // chisle: walks every player per despawn because a player keeps entities synced from a
+    // dimension it or the entity has left; a per-player reverse index of tracked entities,
+    // or clearing the set on dimension change, lifts it.
     for mut synced_entities in &mut synced {
         synced_entities.0.remove(entity);
     }

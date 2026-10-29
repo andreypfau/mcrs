@@ -152,6 +152,7 @@ fn structure(
     let frozen = index.map(|index| &index.tables().frozen);
     let id_of = |name: &ResourceLocation| frozen?.structure_ids.get(name).copied();
     let lookup = context.lookup().registry_lookup();
+    // chisle: `StructureIndex::locate` takes a slice and builds its own placement lists per search; an iterator parameter and caller-owned scratch lift both allocations.
     let structures: Vec<StructureId> = lookup
         .ids(STRUCTURE.location(), value)
         .ok_or_else(invalid)?

@@ -200,6 +200,10 @@ impl<S: CommandSet> PassBuffers<S> {
         for queued in self.queue.lines.drain(..) {
             executor.output = queued.player;
             executor.run_line(queued, &mut self.stages, &mut self.lists, limits);
+            let line = std::mem::take(&mut executor.running.line);
+            if line.capacity() > 0 {
+                self.queue.spare.push(line);
+            }
         }
         for queued in self.queue.suggestions.drain(..) {
             executor.output = queued.player;

@@ -15,6 +15,7 @@ use mcrs_minecraft_protocol::text::{self, Text};
 pub(crate) struct CommandQueue {
     pub(crate) lines: Vec<QueuedLine>,
     pub(crate) suggestions: Vec<QueuedSuggestion>,
+    pub(crate) spare: Vec<String>,
 }
 
 impl CommandQueue {
@@ -53,9 +54,12 @@ pub(crate) fn queue_command_line(
     let line = packet.command.0;
     if line.chars().all(text::is_allowed_chat_character) {
         if let Some(&HostAnchorRef(player)) = anchor {
+            let mut owned = queue.spare.pop().unwrap_or_default();
+            owned.clear();
+            owned.push_str(line);
             queue.lines.push(QueuedLine {
                 player,
-                line: line.to_owned(),
+                line: owned,
             });
         }
         return;

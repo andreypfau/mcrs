@@ -129,10 +129,14 @@ impl Build for Tags {
     }
 
     fn insert(&mut self, compound: &mut NbtCompound, key: StrText<'_>, value: NbtTag) {
-        let key = string(key);
-        match compound.child_tags.iter_mut().find(|(k, _)| *k == key) {
+        // chisle: linear duplicate scan makes a compound O(n^2) in its keys; a key index lifts it
+        match compound
+            .child_tags
+            .iter_mut()
+            .find(|(k, _)| key.chars().eq(k.chars()))
+        {
             Some(entry) => entry.1 = value,
-            None => compound.child_tags.push((key, value)),
+            None => compound.child_tags.push((string(key), value)),
         }
     }
 
