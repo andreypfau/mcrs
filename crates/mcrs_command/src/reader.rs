@@ -1,4 +1,5 @@
-use mcrs_text_span::{Span, is_whitespace};
+use crate::span::Span;
+use crate::whitespace::is_whitespace;
 
 use crate::error::{LibraryError, SyntaxError};
 

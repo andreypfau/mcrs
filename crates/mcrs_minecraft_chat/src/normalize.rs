@@ -1,5 +1,5 @@
 use crate::MAX_INPUT;
-use mcrs_text_span::is_whitespace;
+use mcrs_command::is_whitespace;
 
 /// The text a send carries (CHAT-SEND-001), written into `out`.
 pub fn normalize(input: &str, out: &mut String) {

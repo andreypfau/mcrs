@@ -1,8 +1,10 @@
-use crate::graph::{Graph, NodeId};
+use crate::graph::Graph;
+use crate::node_id::NodeId;
 use crate::parse::{Entry, ParseResult, contexts};
+use crate::span::Span;
 use alloc::vec::Vec;
+use core::fmt;
 use core::mem;
-use mcrs_text_span::Span;
 
 /// What one stage of a chain runs: the modifier of the redirect it follows, or the command of
 /// its last node.
@@ -67,7 +69,7 @@ impl<H> Chain<H> {
     }
 }
 
-/// The limits of one run of a chain (CMD-EX-036, CMD-EX-037).
+/// The limits of one run of a chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// A source list never holds this many sources.
@@ -93,6 +95,17 @@ pub enum Failure<E> {
     /// A source list reached this many sources.
     ForkLimit(usize),
 }
+
+impl<E: fmt::Display> fmt::Display for Failure<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Command(error) => error.fmt(f),
+            Self::ForkLimit(limit) => write!(f, "a source list reached {limit} sources"),
+        }
+    }
+}
+
+impl<E: fmt::Debug + fmt::Display> core::error::Error for Failure<E> {}
 
 /// How a run of a chain ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,7 +158,7 @@ impl<S> Default for SourceLists<S> {
 }
 
 /// Runs each modifier stage over the whole source list, then the run stage for each source of
-/// the last list (CMD-EX-030 to CMD-EX-037).
+/// the last list.
 pub fn execute<S, H, X: Executor<S, H>>(
     stages: &[Stage<H>],
     source: S,

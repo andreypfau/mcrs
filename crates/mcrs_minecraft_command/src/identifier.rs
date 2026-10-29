@@ -1,9 +1,9 @@
 use crate::error::ResourceError;
 use core::fmt;
+use mcrs_command::Span;
 use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::resource_location::parse_parts;
-use mcrs_text_span::Span;
 
 /// An identifier borrowed from the command line; a missing namespace is `minecraft`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -20,19 +20,26 @@ pub struct SpannedIdentifier<'a> {
 }
 
 impl<'a> Identifier<'a> {
-    /// The identifier of `text` (REG-ID-001), or `None` when it is not one.
+    /// The identifier of `text`, or `None` when it is not one.
     #[must_use]
     pub fn parse(text: &'a str) -> Option<Self> {
         let (namespace, path) = parse_parts(text)?;
         Some(Self { namespace, path })
     }
+}
 
-    /// Whether `canonical`, written `namespace:path`, names this identifier.
-    #[must_use]
-    pub fn eq_str(&self, canonical: &str) -> bool {
+/// An identifier equals a string that spells it as `namespace:path`.
+impl PartialEq<str> for Identifier<'_> {
+    fn eq(&self, canonical: &str) -> bool {
         canonical
             .split_once(':')
             .is_some_and(|(namespace, path)| namespace == self.namespace && path == self.path)
+    }
+}
+
+impl PartialEq<&str> for Identifier<'_> {
+    fn eq(&self, canonical: &&str) -> bool {
+        *self == **canonical
     }
 }
 
@@ -46,7 +53,6 @@ pub(crate) const fn is_identifier_char(c: char) -> bool {
     matches!(c, '0'..='9' | 'a'..='z' | '_' | ':' | '/' | '.' | '-')
 }
 
-/// Reads an identifier (ARG-RES-001).
 pub fn read_identifier<'a, E: From<ResourceError>>(
     reader: &mut Reader<'a>,
 ) -> Result<SpannedIdentifier<'a>, SyntaxError<E>> {
@@ -64,7 +70,7 @@ pub fn read_identifier<'a, E: From<ResourceError>>(
     }
 }
 
-/// `pattern` starts `text` or follows a `.`, `_` or `/` in it (CMD-SUG-008).
+/// `pattern` starts `text` or follows a `.`, `_` or `/` in it.
 fn matches_at_separator(pattern: &str, text: &str, starts_with: fn(&str, &str) -> bool) -> bool {
     starts_with(text, pattern)
         || text.match_indices(['.', '_', '/']).any(|(index, _)| {
@@ -73,7 +79,7 @@ fn matches_at_separator(pattern: &str, text: &str, starts_with: fn(&str, &str) -
         })
 }
 
-/// The identifier keeps its case and the remaining input is lowered (CMD-SUG-008).
+/// The identifier keeps its case and the remaining input is lowered.
 fn matches_identifier_text(pattern: &str, text: &str) -> bool {
     matches_at_separator(pattern, text, |text, pattern| {
         let mut text = text.chars();
@@ -84,14 +90,14 @@ fn matches_identifier_text(pattern: &str, text: &str) -> bool {
     })
 }
 
-/// The remaining input matches a text candidate (CMD-SUG-008).
+/// The remaining input matches a text candidate.
 #[must_use]
 pub fn text_matches(text: &str, remaining: &str) -> bool {
     matches_at_separator(remaining, text, starts_with_ignore_case)
 }
 
-/// `canonical` is `namespace:path`; the remaining input matches it as CMD-SUG-008 states for
-/// identifiers.
+/// `canonical` is `namespace:path`; the remaining input matches the whole of it, or its namespace
+/// or path alone.
 pub fn identifier_matches(canonical: &str, remaining: &str) -> bool {
     if remaining.contains(':') {
         return matches_identifier_text(remaining, canonical);
@@ -100,8 +106,7 @@ pub fn identifier_matches(canonical: &str, remaining: &str) -> bool {
     matches_identifier_text(remaining, namespace) || matches_identifier_text(remaining, path)
 }
 
-/// The remaining input matches `prefix` and then `canonical` (CMD-SUG-008, identifiers with a
-/// prefix).
+/// The remaining input matches `prefix` and then `canonical`.
 pub fn prefixed_identifier_matches(remaining: &str, prefix: &str, canonical: &str) -> bool {
     if remaining.is_empty() {
         return true;
@@ -124,9 +129,9 @@ pub fn suggest_prefixed<'t, 'i: 't, T: Copy>(
     builder: &mut SuggestionBuilder<'t, '_, T>,
     prefixes: &[&'static str],
     ids: impl Iterator<Item = (&'i str, Option<T>)>,
-    remaining: &str,
     matches: fn(&str, &str, &str) -> bool,
 ) {
+    let remaining = builder.remaining();
     for (id, tooltip) in ids {
         for &prefix in prefixes {
             if matches(remaining, prefix, id) {

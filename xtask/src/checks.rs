@@ -27,9 +27,9 @@ const WASM32_PACKAGES: [&str; 10] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_text_span"];
+const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
 
-const NO_BEVY_PACKAGES: [&str; 61] = [
+const NO_BEVY_PACKAGES: [&str; 60] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -90,7 +90,6 @@ const NO_BEVY_PACKAGES: [&str; 61] = [
     "mcrs_minecraft_worldgen_structure_place",
     "mcrs_minecraft_worldgen_surface",
     "mcrs_minecraft_worldgen_testing",
-    "mcrs_text_span",
 ];
 
 struct Changes {

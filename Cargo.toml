@@ -83,7 +83,6 @@ mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = 
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
-mcrs_text_span = { path = "crates/mcrs_text_span" }
 mcrs_command = { path = "crates/mcrs_command" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }
 mcrs_minecraft_command_block = { path = "crates/mcrs_minecraft_command_block" }

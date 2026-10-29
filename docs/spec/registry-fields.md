@@ -3595,7 +3595,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - The discriminator `action` is an enum string: `show_text`, `show_item` or `show_entity`. It is not a reference.
   - `show_text`: `value` is a text component.
   - `show_item`: the fields of item stack (REG-FLD-500) are written in the hover event object.
-  - `show_entity`: `uuid` is a UUID. The load accepts more than one UUID form. `name` is an optional text component.
+  - `show_entity`: `uuid` is a UUID. The load accepts an int array of 4 elements or the hyphenated text of 8, 4, 4, 4 and 12 hex digits. The reference also accepts shorter groups, for example `1-2-3-4-5`; the server rejects a pack with such text at load. `name` is an optional text component.
 - **Nested types:** item stack (REG-FLD-500), text component (REG-FLD-429).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.

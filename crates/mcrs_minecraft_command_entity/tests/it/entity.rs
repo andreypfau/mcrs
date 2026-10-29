@@ -1,12 +1,12 @@
 use crate::{GUEST, OP, read};
 use glam::DVec3;
+use mcrs_command::Span;
 use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SuggestionList, SyntaxError};
 use mcrs_minecraft_command::{ErrorText, Source};
 use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityBounds, EntityError, Target};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_text_span::Span;
 use uuid::Uuid;
 
 fn parsed(argument: &EntityArgument, input: &str) -> Result<(), SyntaxError<EntityError>> {
@@ -35,8 +35,7 @@ fn uuid_text_has_five_hexadecimal_groups() {
             "DD12BE42-52A9-4A91-A8A1-11C01849E498",
             0xdd12be42_52a9_4a91_a8a1_11c01849e498,
         ),
-        ("0-0-0-0-0", 0),
-        ("0-0-0-0-1", 1),
+        ("00000000-0000-0000-0000-000000000001", 1),
     ];
     for (input, expected) in cases {
         let (value, _) = read(&EntityArgument::ENTITIES, input, &OP);
@@ -46,8 +45,10 @@ fn uuid_text_has_five_hexadecimal_groups() {
         }
     }
     for input in [
+        "0-0-0-0-1",
         "+1-+2-3-4-5",
         "fffffffff-0-0-0-0",
+        "\"urn:uuid:00000000-0000-0000-0000-000000000001\"",
         "00000000-0000-0000-0000-0000000000000",
         "abcdefghijklmnopq",
         "\"\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\"",
@@ -147,7 +148,7 @@ fn the_argument_form_limits_the_selector() {
         ),
         (
             EntityArgument::PLAYERS,
-            "0-0-0-0-1",
+            "00000000-0000-0000-0000-000000000001",
             invalid(EntityError::PlayerEntities, 0),
         ),
         (EntityArgument::PLAYERS, "@e[type=player]", Ok(())),

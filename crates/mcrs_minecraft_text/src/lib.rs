@@ -1129,7 +1129,7 @@ pub enum HoverEvent<I: TextTypes> {
     ShowItem(Box<I>),
     ShowEntity {
         id: I::EntityKey,
-        #[serde(with = "lenient_uuid")]
+        #[serde(with = "uuid_form")]
         uuid: Uuid,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<Text<I>>,
@@ -1148,7 +1148,7 @@ impl<'de, I: TextSerde> Deserialize<'de> for HoverEvent<I> {
         #[serde(bound = "I: TextSerde")]
         struct ShowEntity<I: TextTypes> {
             id: I::EntityKey,
-            #[serde(deserialize_with = "lenient_uuid::deserialize")]
+            #[serde(deserialize_with = "uuid_form::deserialize")]
             uuid: Uuid,
             #[serde(default)]
             name: Option<Text<I>>,
@@ -1174,17 +1174,20 @@ impl<'de, I: TextSerde> Deserialize<'de> for HoverEvent<I> {
     }
 }
 
-/// Four ints, or on read the hyphenated string.
-mod lenient_uuid {
+/// Four ints, or on read the hyphenated string of 36 characters.
+mod uuid_form {
     use super::*;
 
     pub(super) fn serialize<S: serde::Serializer>(uuid: &Uuid, s: S) -> Result<S::Ok, S::Error> {
         mcrs_minecraft_profile::uuid_ints(*uuid).serialize(s)
     }
 
+    const HYPHENATED_LENGTH: usize = 36;
+
     fn from_string(v: &str) -> Result<Uuid, String> {
-        mcrs_minecraft_snbt::parse_lenient_uuid(v)
-            .map(|(most, least)| Uuid::from_u64_pair(most as u64, least as u64))
+        Uuid::try_parse(v)
+            .ok()
+            .filter(|_| v.len() == HYPHENATED_LENGTH && v.matches('-').count() == 4)
             .ok_or_else(|| format!("Invalid UUID string: {v}"))
     }
 

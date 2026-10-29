@@ -337,20 +337,8 @@ fn vanilla_json_edge_cases() {
             r#"{"text":"x","shadow_color":-98432}"#,
         ),
         (
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":"1-2-3-4-5"}}"#,
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[1,131075,262144,5]}}"#,
-        ),
-        (
             r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":[1.5,2,3,4]}}"#,
             r#"{"text":"x","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[1,2,3,4]}}"#,
-        ),
-        (
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"100000000-2-3-4-5"}}"#,
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[0,131075,262144,5]}}"#,
-        ),
-        (
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"00000001-0002-0003-0004-00000000000"}}"#,
-            r#"{"text":"x","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[1,131075,262144,0]}}"#,
         ),
         (
             r#"{"text":"x","click_event":{"action":"change_page","page":1e10}}"#,
@@ -384,6 +372,18 @@ fn vanilla_json_edge_cases() {
         Text::from_str(&input).unwrap_or_else(|e| panic!("{url}: {e}"));
     }
     for (input, message) in [
+        (
+            r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"1-2-3-4-5"}}"#,
+            "Invalid UUID string: 1-2-3-4-5",
+        ),
+        (
+            r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"100000000-2-3-4-5"}}"#,
+            "Invalid UUID string: 100000000-2-3-4-5",
+        ),
+        (
+            r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"00000001-0002-0003-0004-00000000000"}}"#,
+            "Invalid UUID string: 00000001-0002-0003-0004-00000000000",
+        ),
         (
             r#"{"text":"x","hover_event":{"action":"show_entity","id":"pig","uuid":"-1-2-3-4-5"}}"#,
             "Invalid UUID string: -1-2-3-4-5",

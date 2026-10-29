@@ -1,7 +1,7 @@
 use mcrs_minecraft_protocol::text::is_allowed_chat_character;
 
 use crate::MAX_INPUT;
-use mcrs_text_span::Span;
+use mcrs_command::Span;
 
 /// How far a caret move or a removal goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

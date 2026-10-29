@@ -1,11 +1,11 @@
 use crate::{OP, read};
+use mcrs_command::Span;
 use mcrs_command::SyntaxError;
 use mcrs_minecraft_command::{
     EntityAnchorArgument, GameModeArgument, HeightmapArgument, Identifier, KeywordError,
     ResourceError, ResourceLocationArgument,
 };
 use mcrs_minecraft_protocol::GameMode;
-use mcrs_text_span::Span;
 
 #[test]
 fn identifiers_default_their_namespace() {

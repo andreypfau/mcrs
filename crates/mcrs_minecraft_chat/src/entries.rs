@@ -1,6 +1,6 @@
+use mcrs_command::Span;
 use mcrs_command::SuggestionList;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_text_span::Span;
 use std::ops::Range;
 
 /// What a suggestion shows when the player points at it.

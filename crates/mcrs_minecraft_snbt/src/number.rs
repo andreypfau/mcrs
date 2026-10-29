@@ -1,7 +1,5 @@
 use alloc::vec::Vec;
 
-use mcrs_text_span::Span;
-
 use crate::build::{ArrayKind, Build, Scalar};
 use crate::error::{IntegerType, SnbtErrorKind};
 use crate::reader::{ReadResult, Reader, Shape};
@@ -25,7 +23,8 @@ pub(crate) struct IntLiteral<'a> {
     radix: u32,
     digits: &'a str,
     suffix: Option<Suffix>,
-    span: Span,
+    start: usize,
+    end: usize,
 }
 
 struct FloatParts<'a> {
@@ -208,10 +207,8 @@ impl<'a, B: Build> Reader<'a, B> {
             radix,
             digits,
             suffix,
-            span: Span {
-                start: body,
-                end: self.pos,
-            },
+            start: body,
+            end: self.pos,
         })
     }
 
@@ -224,7 +221,7 @@ impl<'a, B: Build> Reader<'a, B> {
     }
 }
 
-/// SNBT-VAL-003: the value of an integer literal as `ty`, sign-extended to 64 bits.
+/// The value of an integer literal as `ty`, sign-extended to 64 bits.
 fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtErrorKind> {
     let signed = literal
         .suffix
@@ -236,7 +233,8 @@ fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtEr
         return Err(SnbtErrorKind::ExpectedNonNegativeNumber);
     }
     let failure = SnbtErrorKind::NumberParseFailure {
-        number: literal.span,
+        start: literal.start,
+        end: literal.end,
         ty,
     };
     let mut magnitude: u128 = 0;
@@ -269,7 +267,7 @@ fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtEr
     Ok((raw << shift) >> shift)
 }
 
-/// SNBT-VAL-005: the type of an element is its own, or the type of the array.
+/// The type of an element is its own, or the type of the array.
 pub(crate) fn array_element(
     literal: IntLiteral<'_>,
     kind: ArrayKind,
@@ -288,7 +286,7 @@ pub(crate) fn array_element(
 
 const FLOAT_TEXT: usize = 128;
 
-/// SNBT-VAL-004: the value rounded once from the decimal text, or `None` when it is infinite.
+/// The value rounded once from the decimal text, or `None` when it is infinite.
 /// The value and whether it is not zero.
 fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<(Scalar, bool)> {
     let mut stack = [0u8; FLOAT_TEXT];

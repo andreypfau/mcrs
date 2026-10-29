@@ -24,4 +24,3 @@ mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_protocol.workspace = true
 
 [dev-dependencies]
-mcrs_text_span.workspace = true

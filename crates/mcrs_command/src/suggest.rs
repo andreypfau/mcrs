@@ -1,6 +1,6 @@
+use crate::span::Span;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-use mcrs_text_span::Span;
 
 /// The text of a suggestion: borrowed parts, written one after the other. A caller gives up
 /// to two; the list puts the input before its start in front.

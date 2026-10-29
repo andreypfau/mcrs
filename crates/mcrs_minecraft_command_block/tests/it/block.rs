@@ -1,3 +1,4 @@
+use mcrs_command::Span;
 use mcrs_command::{
     Argument, LibraryError, Reader, Suggestion, SuggestionBuilder, SuggestionList, SyntaxError,
 };
@@ -11,7 +12,6 @@ use mcrs_minecraft_command_block::{
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_text_span::Span;
 use std::sync::LazyLock;
 
 /// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block

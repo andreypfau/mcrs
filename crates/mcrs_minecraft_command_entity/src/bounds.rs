@@ -1,8 +1,8 @@
 use crate::error::EntityError;
 use crate::selector::{SelectorResult, error, rewind};
+use mcrs_command::Span;
 use mcrs_command::{LibraryError, Reader, SyntaxError};
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
-use mcrs_text_span::Span;
 
 pub(crate) trait BoundNumber: Copy + PartialOrd {
     const SWAPPABLE: bool;

@@ -1,9 +1,9 @@
+use mcrs_command::Span;
 use mcrs_command::SyntaxError;
 use mcrs_minecraft_command::{KeywordError, error_feedback};
 use mcrs_minecraft_command_coordinates::CoordinatesError;
 use mcrs_minecraft_command_vanilla::ArgumentError;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
-use mcrs_text_span::Span;
 
 #[test]
 fn an_error_shows_the_ten_characters_before_it() {

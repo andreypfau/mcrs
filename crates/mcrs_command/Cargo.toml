@@ -11,5 +11,5 @@ doctest = false
 [lints]
 workspace = true
 
-[dependencies]
-mcrs_text_span.workspace = true
+[dev-dependencies]
+mcrs_test_alloc.workspace = true

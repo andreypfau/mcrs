@@ -1,4 +1,7 @@
-use mcrs_text_span::is_whitespace;
+/// Whitespace that the read skips.
+pub(crate) const fn is_whitespace(c: char) -> bool {
+    c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}')
+}
 
 pub(crate) const fn is_unquoted(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '+')

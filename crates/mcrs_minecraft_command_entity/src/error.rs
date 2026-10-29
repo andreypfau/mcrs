@@ -1,11 +1,11 @@
 use core::fmt;
+use mcrs_command::Span;
 use mcrs_command::StringSpan;
 use mcrs_minecraft_command::{
     ErrorText, ResourceError, identifier_text, snbt_text, span_text, string_text,
 };
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_snbt::SnbtError;
-use mcrs_text_span::Span;
 
 /// The errors of an entity selector and of its search.
 #[derive(Clone, Copy, Debug, PartialEq)]

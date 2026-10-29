@@ -1,7 +1,5 @@
 use core::fmt;
 
-use mcrs_text_span::Span;
-
 /// The integer types of SNBT, by their suffix letter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntegerType {
@@ -62,8 +60,12 @@ pub enum SnbtErrorKind {
     InvalidCharacterName,
     /// An escape names no Unicode scalar value.
     InvalidCodepoint(u32),
-    /// The integer at `number` does not fit in `ty`.
-    NumberParseFailure { number: Span, ty: IntegerType },
+    /// The integer at the bytes `start..end` does not fit in `ty`.
+    NumberParseFailure {
+        start: usize,
+        end: usize,
+        ty: IntegerType,
+    },
     /// An unsigned integer has a `-`.
     ExpectedNonNegativeNumber,
     /// The type of an element does not fit the array.
@@ -74,8 +76,12 @@ pub enum SnbtErrorKind {
     EmptyKey,
     /// An unquoted string starts with a character that it may not start with.
     InvalidUnquotedStart,
-    /// No operation has the name at `name` and this number of arguments.
-    NoSuchOperation { name: Span, arguments: usize },
+    /// No operation has the name at the bytes `start..end` and this number of arguments.
+    NoSuchOperation {
+        start: usize,
+        end: usize,
+        arguments: usize,
+    },
     /// An operation takes a number or a boolean.
     ExpectedNumberOrBoolean,
     /// An operation takes a UUID string.
@@ -119,21 +125,26 @@ impl SnbtErrorKind {
         }
     }
 
-    /// Writes the key argument, if the key has one; the text of a span comes from `input`.
+    /// Writes the key argument, if the key has one; the text of a byte range comes from `input`.
     pub fn write_argument(self, input: &str, out: &mut impl fmt::Write) -> fmt::Result {
         use SnbtErrorKind::*;
         match self {
             LiteralIncorrect(set) => out.write_str(set),
             ExpectedHexEscape(length) => write!(out, "{length}"),
             InvalidCodepoint(code) => write!(out, "U+{code:08X}"),
-            NumberParseFailure { number, ty } => write!(
+            NumberParseFailure { start, end, ty } => write!(
                 out,
                 "{} does not fit in a {}",
-                number.text(input),
+                input.get(start..end).unwrap_or_default(),
                 ty.name()
             ),
-            NoSuchOperation { name, arguments } => {
-                write!(out, "{}/{arguments}", name.text(input))
+            NoSuchOperation {
+                start,
+                end,
+                arguments,
+            } => {
+                let name = input.get(start..end).unwrap_or_default();
+                write!(out, "{name}/{arguments}")
             }
             _ => Ok(()),
         }

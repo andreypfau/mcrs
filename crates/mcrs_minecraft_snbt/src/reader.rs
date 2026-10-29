@@ -1,12 +1,13 @@
+use core::ops::Range;
+
 use mcrs_minecraft_nbt::MAX_DEPTH;
-use mcrs_text_span::{Span, is_whitespace};
 
 use crate::build::{ArrayKind, Build, Scalar};
 use crate::error::{SnbtError, SnbtErrorKind};
 use crate::number::array_element;
 use crate::text::{
     ESCAPE_LETTERS, StrText, char_by_name, hex_digits, hex_length, is_high_surrogate,
-    is_low_surrogate, is_name_char, is_number_start, is_unquoted, simple_escape,
+    is_low_surrogate, is_name_char, is_number_start, is_unquoted, is_whitespace, simple_escape,
 };
 
 pub(crate) enum Fail {
@@ -50,8 +51,8 @@ impl<'a, B: Build> Reader<'a, B> {
         self.input.get(self.pos..).unwrap_or_default()
     }
 
-    /// One tag from the cursor (SNBT-GR-001); the error is the first record at the furthest
-    /// position (SNBT-ERR-002).
+    /// One tag from the cursor; the error is the first record at the furthest
+    /// position.
     pub(crate) fn read(&mut self) -> Result<(B::Value, Shape<'a>), SnbtError> {
         match self.value(1) {
             Ok(value) => Ok(value),
@@ -146,7 +147,7 @@ impl<'a, B: Build> Reader<'a, B> {
         }
     }
 
-    /// `[ item { ',' item } [ ',' ] ]` (SNBT-GR-009).
+    /// `[ item { ',' item } [ ',' ] ]`.
     fn items(&mut self, mut item: impl FnMut(&mut Self) -> ReadResult<()>) -> ReadResult<()> {
         if self.opt(&mut item)?.is_none() {
             return Ok(());
@@ -345,10 +346,7 @@ impl<'a, B: Build> Reader<'a, B> {
         self.skip_whitespace();
         let start = self.pos;
         let word = self.word()?;
-        let name = Span {
-            start,
-            end: self.pos,
-        };
+        let name = start..self.pos;
         let call = self.opt(|r| r.arguments(depth))?;
         if word.starts_with(is_number_start) {
             return self.fail(self.pos, SnbtErrorKind::InvalidUnquotedStart);
@@ -395,7 +393,7 @@ impl<'a, B: Build> Reader<'a, B> {
     fn operation(
         &mut self,
         word: &str,
-        name: Span,
+        name: Range<usize>,
         arguments: usize,
         first: Option<Shape<'a>>,
     ) -> ReadResult<(B::Value, Shape<'a>)> {
@@ -416,7 +414,14 @@ impl<'a, B: Build> Reader<'a, B> {
                 None => self.fail(self.pos, SnbtErrorKind::ExpectedStringUuid),
             },
             ("uuid", 1, _) => self.fail(self.pos, SnbtErrorKind::ExpectedStringUuid),
-            _ => self.fail(self.pos, SnbtErrorKind::NoSuchOperation { name, arguments }),
+            _ => self.fail(
+                self.pos,
+                SnbtErrorKind::NoSuchOperation {
+                    start: name.start,
+                    end: name.end,
+                    arguments,
+                },
+            ),
         }
     }
 }
@@ -443,7 +448,7 @@ fn low_surrogate_follows(rest: &str) -> bool {
     hex_digits(rest.as_str(), length).is_some_and(is_low_surrogate)
 }
 
-/// The four groups of 32 bits of a UUID in the canonical form (SNBT-DEV-002).
+/// The four groups of 32 bits of a UUID in the canonical form.
 fn canonical_uuid(text: StrText<'_>) -> Option<[i32; 4]> {
     const DASHES: [usize; 4] = [8, 13, 18, 23];
     let mut value: u128 = 0;

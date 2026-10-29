@@ -1,5 +1,5 @@
+use mcrs_command::Span;
 use mcrs_command::{LibraryError, Reader, StringValue, SyntaxError};
-use mcrs_text_span::Span;
 use std::convert::Infallible;
 
 type Result<T> = std::result::Result<T, SyntaxError<Infallible>>;
@@ -188,6 +188,26 @@ fn an_expected_symbol_is_skipped_or_fails_at_the_cursor() {
         let mut reader = Reader::at(text, start);
         assert_eq!(reader.expect('['), expected, "{text}");
         assert_eq!(reader.cursor(), cursor, "{text}");
+    }
+}
+
+#[test]
+fn whitespace_is_white_space_without_the_no_break_spaces_and_u0085() {
+    let skipped = [
+        "\t", "\r", " ", "\u{1680}", "\u{2000}", "\u{205f}", "\u{3000}", "\u{2029}",
+    ];
+    let kept = [
+        "\u{1c}", "\u{1f}", "\u{85}", "\u{a0}", "\u{180e}", "\u{2007}", "\u{200b}", "\u{202f}",
+    ];
+    for (text, skips) in skipped
+        .iter()
+        .map(|text| (*text, true))
+        .chain(kept.iter().map(|text| (*text, false)))
+    {
+        let mut reader = Reader::new(text);
+        reader.skip_whitespace();
+        let cursor = if skips { text.len() } else { 0 };
+        assert_eq!(reader.cursor(), cursor, "{text:?}");
     }
 }
 

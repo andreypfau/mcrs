@@ -1,6 +1,6 @@
 use core::fmt;
 
-use mcrs_text_span::Span;
+use crate::span::Span;
 
 use crate::reader::StringSpan;
 

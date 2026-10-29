@@ -1,4 +1,5 @@
 use crate::{Tree, Wire, context, greedy, source};
+use mcrs_command::Span;
 use mcrs_command::{ErrorKind, LibraryError};
 use mcrs_minecraft_chat::{
     ChatScreen, CommandInput, Highlight, Hint, History, InputStyle, Key, Request,
@@ -6,7 +7,6 @@ use mcrs_minecraft_chat::{
 use mcrs_minecraft_command_vanilla::ClientGraph;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::command::{CommandSuggestion, ParserProperties};
-use mcrs_text_span::Span;
 use std::borrow::Cow;
 
 fn usage_lines(input: &CommandInput) -> Vec<&str> {
