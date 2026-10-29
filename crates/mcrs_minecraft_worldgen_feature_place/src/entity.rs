@@ -120,7 +120,7 @@ use mcrs_minecraft_item::keys::Item;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemStack {
     pub id: Item,
-    #[serde(default = "crate::block_entity::one")]
+    #[serde(default = "mcrs_minecraft_block_entity::one")]
     pub count: i32,
 }
 

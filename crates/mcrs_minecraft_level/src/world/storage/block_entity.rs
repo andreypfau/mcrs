@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
 use crate::world::storage::section::SectionIndex;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 /// Back-link from a block entity to the section holding it; the section's
 /// despawn takes its block entities with it.

@@ -1,9 +1,9 @@
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::piece::FortressKind;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};

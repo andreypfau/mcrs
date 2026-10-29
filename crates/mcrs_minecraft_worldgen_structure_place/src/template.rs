@@ -1,4 +1,5 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
@@ -12,7 +13,6 @@ use mcrs_minecraft_worldgen_feature::proto::{
 };
 use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
 use mcrs_minecraft_worldgen_feature::template::data_markers;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, drowned};
 use mcrs_minecraft_worldgen_feature_place::template::{ChainKind, CompiledChain, compile_chain};
 use mcrs_minecraft_worldgen_structure::OceanTemperature;

@@ -4,6 +4,7 @@ use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::Holder;
@@ -28,7 +29,6 @@ use mcrs_minecraft_worldgen_feature::proto::{
     Feature, PlacedFeature, ProcessorRule, StructureProcessor, processor_list,
 };
 use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{
     ChainKind, Placement, SettingsRandom, compile_chain, mirror_state, place_template, rotate_state,
 };

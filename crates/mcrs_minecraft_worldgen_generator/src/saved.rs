@@ -6,11 +6,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{Registries, Registry};
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
 use mcrs_minecraft_dimension::Dimension;

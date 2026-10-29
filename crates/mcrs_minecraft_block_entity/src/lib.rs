@@ -6,13 +6,13 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use crate::template::{EMPTY_LABEL, Joint};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
 #[cfg(test)]
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_item::ItemStackWithSlot;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -22,12 +22,25 @@ use mcrs_minecraft_registries::{Named, dispatch};
 use mcrs_minecraft_value_provider::Weighted;
 use serde::{Deserialize, Serialize};
 
+/// The default of a jigsaw's name and target: labels of attachment points, not registry entries.
+pub const EMPTY_LABEL: ResourceLocation<&'static str> = rl!("minecraft:empty");
+
+const EMPTY_TEMPLATE_POOL: ResourceLocation<&'static str> = rl!("minecraft:empty");
+
+/// Whether a jigsaw may turn about its facing when it joins another.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Joint {
+    Rollable,
+    Aligned,
+}
+
 fn empty_id() -> String {
     EMPTY_LABEL.as_str().to_owned()
 }
 
 fn empty_pool() -> String {
-    crate::keys::template_pool::EMPTY.as_str().to_owned()
+    EMPTY_TEMPLATE_POOL.as_str().to_owned()
 }
 
 fn air_id() -> String {
@@ -347,7 +360,7 @@ pub enum GeneratedBlockEntity {
     EndGateway(EndGatewayData),
 }
 
-pub(crate) use mcrs_minecraft_nbt::nbt_flag;
+use mcrs_minecraft_nbt::nbt_flag;
 
 pub fn one() -> i32 {
     1

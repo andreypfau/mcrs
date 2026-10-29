@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_minecraft_block_entity"
+description = "Block entities in the typed shape the save, the chunk packet and the anvil reader share"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_value_provider.workspace = true
+serde.workspace = true

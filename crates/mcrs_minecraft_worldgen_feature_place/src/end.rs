@@ -7,7 +7,7 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 pub use mcrs_minecraft_worldgen_feature::proto::EndSpike;
 
-use crate::block_entity::{EndGatewayData, GeneratedBlockEntity};
+use mcrs_minecraft_block_entity::{EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_chunk::VoxelId;
 
 #[derive(Clone, Debug, PartialEq)]

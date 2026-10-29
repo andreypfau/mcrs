@@ -14,7 +14,7 @@ use mcrs_minecraft_simulation::{Kinds, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{BiomeVolume, BlockEntityVolumeMut, BlockVolumeMut, HeightVolume};
 
-use crate::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;

@@ -7,8 +7,8 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
-use crate::block_entity::GeneratedBlockEntity;
 use crate::holds;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 #[derive(Clone, Debug)]
 pub struct CompiledMonsterRoom {

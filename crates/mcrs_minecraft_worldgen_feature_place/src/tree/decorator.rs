@@ -12,10 +12,10 @@ use mcrs_minecraft_worldgen_feature::tree::TreeDecorator;
 
 use super::TreeTables;
 use super::provider::StateProvider;
-#[cfg(test)]
-use crate::block_entity::BEE_MIN_TICKS_IN_HIVE;
-use crate::block_entity::{BeeOccupant, GeneratedBlockEntity};
 use crate::tree::trunk::random_horizontal;
+#[cfg(test)]
+use mcrs_minecraft_block_entity::BEE_MIN_TICKS_IN_HIVE;
+use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
 use mcrs_minecraft_random::{shuffle, shuffled};
 
 /// The four sides a bee nest may sit on: the horizontals minus the one it would

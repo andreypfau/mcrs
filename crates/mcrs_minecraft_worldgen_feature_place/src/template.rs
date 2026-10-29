@@ -23,10 +23,10 @@ use mcrs_minecraft_worldgen_feature::proto::{
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, JigsawBlock, transform};
 
-use crate::block_entity::GeneratedBlockEntity;
 use crate::entity::GeneratedEntity;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 fn direction_named(name: &str) -> Option<Direction> {
     Direction::all().into_iter().find(|d| d.name() == name)
@@ -1347,7 +1347,7 @@ mod tests {
             pos: [0, 0, 0],
             front: Direction::North,
             top: Direction::Up,
-            joint: mcrs_minecraft_worldgen_feature::template::Joint::Rollable,
+            joint: mcrs_minecraft_block_entity::Joint::Rollable,
             name: rl!("minecraft:empty").to_arc(),
             pool: rl!("minecraft:empty").to_arc(),
             target: rl!("minecraft:empty").to_arc(),

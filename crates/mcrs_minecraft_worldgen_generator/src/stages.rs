@@ -7,6 +7,7 @@ use crate::stored_biomes::column_cell;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ColumnPos;
@@ -23,7 +24,6 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
     GenerationKinds, PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate, set_held,
 };
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;

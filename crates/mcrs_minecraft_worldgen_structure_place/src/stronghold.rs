@@ -1,8 +1,8 @@
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
 use mcrs_minecraft_worldgen_structure::piece::{SmallDoor, StrongholdKind};
 

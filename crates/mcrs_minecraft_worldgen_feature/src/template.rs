@@ -4,14 +4,15 @@ use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block_entity::{EMPTY_LABEL, Joint};
 use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
 use mcrs_minecraft_entity::villager::VillagerData;
 
@@ -147,13 +148,6 @@ struct EntityTag {
     rotation: [f32; 2],
     #[serde(flatten)]
     kind: EntityKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Joint {
-    Rollable,
-    Aligned,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -349,9 +343,6 @@ fn int_or_zero(nbt: &NbtCompound, key: &str) -> Result<i32, String> {
         Some(_) => return Err(format!("{key}: not a number")),
     })
 }
-
-// The default of a jigsaw's name and target: labels of attachment points, not registry entries.
-pub const EMPTY_LABEL: ResourceLocation<&'static str> = rl!("minecraft:empty");
 
 fn id_or(
     nbt: &NbtCompound,
@@ -693,7 +684,7 @@ pub enum Projection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::{BlockPos, rl};
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_worldgen_testing::templates;

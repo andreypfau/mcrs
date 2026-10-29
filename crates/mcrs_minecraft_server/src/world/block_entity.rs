@@ -1,6 +1,6 @@
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::borrow::Cow;
 
 /// The chunk packet's entry, carrying the same compound the save holds.

@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_vanilla_commands.workspace = true

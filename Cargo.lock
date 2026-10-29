@@ -3559,6 +3559,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_block_entity"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_value_provider",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_block_predicate"
 version = "0.5.8"
 dependencies = [
@@ -4016,12 +4030,12 @@ dependencies = [
  "bevy_time",
  "flume",
  "indexmap",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
- "mcrs_minecraft_worldgen_feature",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
@@ -4329,6 +4343,7 @@ dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chat",
  "mcrs_minecraft_chunk",
@@ -4463,6 +4478,7 @@ dependencies = [
  "mcrs_command",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_block",
  "mcrs_minecraft_command_coordinates",
@@ -4481,7 +4497,6 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "rand 0.10.0",
@@ -4686,6 +4701,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4716,6 +4732,7 @@ dependencies = [
  "bytes",
  "fixedbitset",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4755,6 +4772,7 @@ dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4798,6 +4816,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4822,6 +4841,7 @@ dependencies = [
  "bevy_math",
  "fixedbitset",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",

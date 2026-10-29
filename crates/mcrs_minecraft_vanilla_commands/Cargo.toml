@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_block_entity.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
@@ -33,7 +34,6 @@ mcrs_minecraft_level.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_structure.workspace = true
 bevy_app.workspace = true

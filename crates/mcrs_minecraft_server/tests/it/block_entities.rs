@@ -7,6 +7,7 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
+use mcrs_minecraft_block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_core::{SectionPos, VERSION};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
@@ -23,9 +24,6 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::packet_entry;
-use mcrs_minecraft_worldgen_feature_place::block_entity::{
-    BeeOccupant, EndGatewayData, GeneratedBlockEntity,
-};
 use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 
 fn section_pos() -> SectionPos {

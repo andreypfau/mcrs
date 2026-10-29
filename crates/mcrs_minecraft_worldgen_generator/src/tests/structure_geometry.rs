@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
@@ -15,7 +16,6 @@ use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{BoxVolume, Volume};
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, StructureKind};
 use mcrs_minecraft_worldgen_structure::piece::Start;

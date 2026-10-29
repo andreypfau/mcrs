@@ -397,7 +397,7 @@ pub(crate) mod fake {
         pub heights: HashMap<(i32, i32), i32>,
         pub writes: Vec<((i32, i32, i32), VoxelId)>,
         pub ticks: Vec<mcrs_minecraft_simulation::PendingTick<GenerationKinds>>,
-        pub block_entities: Vec<crate::block_entity::GeneratedBlockEntity>,
+        pub block_entities: Vec<mcrs_minecraft_block_entity::GeneratedBlockEntity>,
         pub world: WorldStates,
     }
 
@@ -486,7 +486,7 @@ pub(crate) mod fake {
     }
 
     impl mcrs_minecraft_volume::BlockEntityVolume for FakeVolume {
-        type BlockEntity = crate::block_entity::GeneratedBlockEntity;
+        type BlockEntity = mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
         fn block_entity(&self, at: BlockPos) -> Result<Option<&Self::BlockEntity>, Unavailable> {
             Ok(self

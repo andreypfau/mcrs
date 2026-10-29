@@ -16,7 +16,7 @@ use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
 use mcrs_minecraft_volume::{BlockEntityVolume, BlockEntityVolumeMut, Denied};
 
-use crate::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 use super::{GenerationKinds, StateCount, WorldGenVolume, WorldStates, set_held};
 

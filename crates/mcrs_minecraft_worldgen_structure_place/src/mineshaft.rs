@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use mcrs_minecraft_random::Random;
@@ -10,7 +11,6 @@ use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
 };
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, StateMask, WorldGenVolume, WorldStates};
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, chest_minecart};
 use mcrs_minecraft_worldgen_structure::MineshaftType;
 use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;

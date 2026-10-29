@@ -5,6 +5,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Id;
@@ -19,7 +20,6 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
 };
-use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures,
     OceanRuinConfig, PoolId, SetId, StructureId, StructureKind, TemplateId,

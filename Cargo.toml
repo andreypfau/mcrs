@@ -130,6 +130,7 @@ mcrs_minecraft_noise = { path = "crates/mcrs_minecraft_noise", default-features 
 mcrs_minecraft_worldgen_density = { path = "crates/mcrs_minecraft_worldgen_density", default-features = false }
 mcrs_minecraft_worldgen_builtin = { path = "crates/mcrs_minecraft_worldgen_builtin" }
 mcrs_minecraft_worldgen_surface = { path = "crates/mcrs_minecraft_worldgen_surface", default-features = false }
+mcrs_minecraft_block_entity = { path = "crates/mcrs_minecraft_block_entity" }
 mcrs_minecraft_worldgen_feature = { path = "crates/mcrs_minecraft_worldgen_feature", default-features = false }
 mcrs_minecraft_worldgen_feature_place = { path = "crates/mcrs_minecraft_worldgen_feature_place", default-features = false }
 mcrs_minecraft_worldgen_generator = { path = "crates/mcrs_minecraft_worldgen_generator" }
