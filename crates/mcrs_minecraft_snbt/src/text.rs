@@ -1,4 +1,4 @@
-pub(crate) use mcrs_command::is_whitespace;
+use mcrs_text_span::is_whitespace;
 
 pub(crate) const fn is_unquoted(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '+')
@@ -76,7 +76,7 @@ pub(crate) fn char_by_name(name: &str) -> Option<char> {
 /// The text of a string tag as the read found it: a word, or the inside of a quoted string with
 /// its escapes, which the read has already validated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StrText<'a> {
+pub(crate) enum StrText<'a> {
     Word(&'a str),
     Quoted(&'a str),
 }
@@ -88,11 +88,11 @@ impl<'a> StrText<'a> {
         }
     }
 
-    pub fn is_empty(self) -> bool {
+    pub(crate) fn is_empty(self) -> bool {
         self.raw().is_empty()
     }
 
-    pub fn chars(self) -> impl Iterator<Item = char> + 'a {
+    pub(crate) fn chars(self) -> impl Iterator<Item = char> + 'a {
         let (word, quoted) = match self {
             StrText::Word(text) => (text, ""),
             StrText::Quoted(text) => ("", text),

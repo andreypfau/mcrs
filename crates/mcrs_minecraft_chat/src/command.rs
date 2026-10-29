@@ -1,15 +1,15 @@
 use crate::ability::ChatAbilities;
-use crate::byte_offset;
 use mcrs_command::suggest::{recycle, starts_with_ignore_case};
 use mcrs_command::{
-    ArgumentSet, Node, NodeId, NodeKind, ParseResult, ParseScratch, Span, Suggestion,
-    SuggestionBuilder, SuggestionText, build_list,
+    ArgumentSet, Node, NodeId, NodeKind, ParseResult, ParseScratch, Suggestion, SuggestionBuilder,
+    SuggestionText, build_list,
 };
 use mcrs_minecraft_command::{
     ArgumentError, ClientGraph, CommandSyntaxError, Lookup, Source, text_matches,
 };
 use mcrs_minecraft_protocol::command::CommandSuggestion;
 use mcrs_minecraft_protocol::text::Text;
+use mcrs_text_span::{Span, byte_offset};
 use std::ops::Range;
 
 /// The most rows the suggestion list shows (CCMD-LIST-002).

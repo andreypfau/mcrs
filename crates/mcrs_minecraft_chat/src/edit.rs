@@ -1,6 +1,7 @@
 use mcrs_minecraft_protocol::text::is_allowed_chat_character;
 
-use crate::{MAX_INPUT, utf16_len, utf16_prefix};
+use crate::MAX_INPUT;
+use mcrs_text_span::{utf16_len, utf16_prefix};
 
 /// A one-line text field (CHAT-BOX-001, CHAT-BOX-002). Positions are byte offsets into the text.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

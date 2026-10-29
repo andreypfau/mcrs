@@ -1,6 +1,6 @@
 use crate::{OP, read};
 use glam::{BVec3, DVec3};
-use mcrs_command::{LibraryError, Span, SuggestionBuilder, SyntaxError, build_list};
+use mcrs_command::{LibraryError, SuggestionBuilder, SyntaxError, build_list};
 use mcrs_minecraft_command::argument::coordinates::{Coordinates, WorldCoordinate};
 use mcrs_minecraft_command::{
     ArgumentError, BlockPosArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument,
@@ -9,6 +9,7 @@ use mcrs_minecraft_command::{
 };
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
+use mcrs_text_span::Span;
 
 fn absolute(value: f64) -> WorldCoordinate {
     WorldCoordinate {

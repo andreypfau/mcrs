@@ -1,7 +1,7 @@
-use crate::error::Span;
 use crate::parse::{Entry, ParseResult, contexts};
 use crate::tree::{Graph, NodeId};
 use alloc::vec::Vec;
+use mcrs_text_span::Span;
 
 /// What one stage of a chain runs: the modifier of the redirect it follows, or the command of
 /// its last node.

@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 const UNTYPED_COPIES: [&str; 6] = [

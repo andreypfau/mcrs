@@ -1,4 +1,5 @@
-use mcrs_command::{LibraryError, Reader, Span, StringValue, SyntaxError};
+use mcrs_command::{LibraryError, Reader, StringValue, SyntaxError};
+use mcrs_text_span::Span;
 use std::convert::Infallible;
 
 type Result<T> = std::result::Result<T, SyntaxError<Infallible>>;

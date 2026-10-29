@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_wire.workspace = true
 serde = { workspace = true, features = ["derive"] }

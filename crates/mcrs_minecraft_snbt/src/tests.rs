@@ -1,19 +1,31 @@
+use std::borrow::ToOwned;
+use std::format;
 use std::io::Cursor;
+use std::string::String;
+use std::vec::Vec;
 
-use super::build::Validate;
-use super::read::Reader;
-use super::*;
-use crate::snbt_golden::GOLDEN;
-use crate::test::unhex;
+use mcrs_minecraft_nbt::tag::NbtTag;
+
+use crate::build::Validate;
+use crate::golden::GOLDEN;
+use crate::reader::Reader;
+use crate::*;
+
+fn unhex(hex: &str) -> Vec<u8> {
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+        .collect()
+}
 
 fn hex(tag: &NbtTag) -> String {
     let mut bytes = Vec::new();
-    crate::to_bytes_unnamed(tag, &mut bytes).unwrap();
+    mcrs_minecraft_nbt::to_bytes_unnamed(tag, &mut bytes).unwrap();
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn decode(bytes: &[u8]) -> NbtTag {
-    crate::from_bytes_unnamed(Cursor::new(bytes)).unwrap()
+    mcrs_minecraft_nbt::from_bytes_unnamed(Cursor::new(bytes)).unwrap()
 }
 
 fn no_compound_has_two_keys(tag: &NbtTag) -> bool {
@@ -71,6 +83,14 @@ fn formats_numbers_like_java() {
     }
     for case in &GOLDEN.floats {
         assert_eq!(java_float(f32::from_bits(case.bits)), case.text);
+    }
+}
+
+#[test]
+fn json_numbers_are_typed_like_json_ops() {
+    for case in &GOLDEN.json_typing {
+        let tag: NbtTag = serde_json::from_str(&case.json).unwrap();
+        assert_eq!(write(&tag), case.tag, "{}", case.json);
     }
 }
 
@@ -237,7 +257,7 @@ const ERRORS: &[(&str, usize, &str, &str)] = &[
     ("@", 0, "snbt.parser.expected_unquoted_string", ""),
 ];
 
-/// SNBT-ERR-004 and the other keys of SNBT-ERR-003: the reported key, its argument and its
+/// The reported key, its argument and its
 /// offset.
 #[test]
 fn a_failed_read_reports_the_first_record_at_the_furthest_position() {
@@ -356,7 +376,7 @@ fn the_read_starts_at_the_cursor_and_the_compound_reads_check_the_type() {
     );
 }
 
-/// SNBT-LIM-001: 512 levels read; the `{` or `[` of level 513 stops the read.
+/// 512 levels read; the `{` or `[` of level 513 stops the read.
 #[test]
 fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     let lists = |levels: usize| "[".repeat(levels) + &"]".repeat(levels);
@@ -397,7 +417,7 @@ fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     );
 }
 
-/// SNBT-LIM-002: a string longer than the binary limit of 65535 bytes still reads.
+/// A string longer than the binary limit of 65535 bytes still reads.
 #[test]
 fn a_string_has_no_length_limit() {
     let text = "a".repeat(70_000);
@@ -405,7 +425,7 @@ fn a_string_has_no_length_limit() {
     assert_eq!(read_tag(&input, 0), Ok((NbtTag::String(text), input.len())));
 }
 
-/// ARG-BLK-011: the match of an expected tag against an actual tag.
+/// The match of an expected tag against an actual tag.
 #[test]
 fn a_tag_matches_when_the_actual_tag_holds_it() {
     let cases = [

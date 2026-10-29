@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 
 use crate::deserializer::NbtReadHelper;
 use crate::serializer::WriteAdaptor;
@@ -249,17 +248,5 @@ impl<'de> Deserialize<'de> for NbtCompound {
 impl From<NbtCompound> for NbtTag {
     fn from(value: NbtCompound) -> Self {
         NbtTag::Compound(value)
-    }
-}
-
-impl Display for NbtCompound {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&crate::snbt::write_compound(self))
-    }
-}
-
-impl Display for NbtTag {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&crate::snbt::write(self))
     }
 }

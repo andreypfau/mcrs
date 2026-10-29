@@ -1183,7 +1183,7 @@ mod lenient_uuid {
     }
 
     fn from_string(v: &str) -> Result<Uuid, String> {
-        mcrs_minecraft_nbt::snbt::parse_lenient_uuid(v)
+        mcrs_minecraft_snbt::parse_lenient_uuid(v)
             .map(|(most, least)| Uuid::from_u64_pair(most as u64, least as u64))
             .ok_or_else(|| format!("Invalid UUID string: {v}"))
     }

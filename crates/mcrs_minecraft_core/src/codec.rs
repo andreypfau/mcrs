@@ -500,7 +500,7 @@ pub fn compound_or_snbt<'de, D: Deserializer<'de>>(d: D) -> Result<NbtCompound, 
         }
 
         fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<NbtCompound, E> {
-            mcrs_minecraft_nbt::snbt::parse_compound(text).map_err(E::custom)
+            mcrs_minecraft_snbt::parse_compound(text).map_err(E::custom)
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<NbtCompound, A::Error> {

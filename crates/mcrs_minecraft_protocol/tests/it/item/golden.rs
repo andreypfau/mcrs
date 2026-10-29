@@ -182,7 +182,7 @@ fn a_mob_effect_instance_matches_vanilla_with_show_icon_resolved() {
         assert_eq!(effect, explicit);
         let mut nbt = mcrs_minecraft_nbt::to_nbt_compound(&effect).unwrap();
         nbt.child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-        assert_eq!(nbt.to_string(), snbt);
+        assert_eq!(mcrs_minecraft_snbt::write_compound(&nbt), snbt);
         assert_eq!(hash_ops::hash(&effect).unwrap(), expected_hash);
     }
 }

@@ -3,10 +3,10 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use mcrs_minecraft_chat::LIST_ROWS;
 use mcrs_minecraft_chat::{
-    ChatScreen, Highlight, Hint, MAX_INPUT, SuggestionList, Tag, Tooltip as SuggestionTooltip,
-    fade, utf16_len,
+    ChatScreen, Highlight, Hint, MAX_INPUT, SuggestionList, Tag, Tooltip as SuggestionTooltip, fade,
 };
 use mcrs_minecraft_command::parse_error_line;
+use mcrs_text_span::utf16_len;
 
 use super::font::{Font, Hover, Span, draw_centered_text, draw_text, draw_tinted_text, span_at};
 use super::item_decorations::WHITE;

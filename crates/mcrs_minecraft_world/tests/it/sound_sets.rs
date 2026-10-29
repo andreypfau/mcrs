@@ -1,6 +1,6 @@
 use mcrs_minecraft_entity::variant::ChickenSoundVariant;
-use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::{json_files, vanilla_dir};

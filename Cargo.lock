@@ -3476,6 +3476,9 @@ dependencies = [
 [[package]]
 name = "mcrs_command"
 version = "0.5.8"
+dependencies = [
+ "mcrs_text_span",
+]
 
 [[package]]
 name = "mcrs_minecraft_anvil"
@@ -3580,6 +3583,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
+ "mcrs_text_span",
 ]
 
 [[package]]
@@ -3635,8 +3639,10 @@ dependencies = [
  "mcrs_minecraft_render_light_color",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
+ "mcrs_text_span",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3683,7 +3689,9 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_value_provider",
+ "mcrs_text_span",
  "uuid",
 ]
 
@@ -3695,6 +3703,7 @@ dependencies = [
  "bevy_math",
  "derive_more",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_wire",
  "serde",
  "serde_json",
@@ -3862,6 +3871,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_text",
  "mcrs_minecraft_value_provider",
@@ -3971,13 +3981,10 @@ dependencies = [
  "bytes",
  "cesu8",
  "flate2",
- "mcrs_command",
- "mcrs_minecraft_fixtures",
  "mcrs_minecraft_wire",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "unicode_names2",
 ]
 
 [[package]]
@@ -4078,6 +4085,7 @@ dependencies = [
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_registry_catalog",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
@@ -4263,6 +4271,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_snbt"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_nbt",
+ "mcrs_text_span",
+ "serde",
+ "serde_json",
+ "unicode_names2",
+]
+
+[[package]]
 name = "mcrs_minecraft_sound"
 version = "0.5.8"
 dependencies = [
@@ -4279,6 +4299,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_wire",
  "serde",
  "serde_json",
@@ -4309,6 +4330,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_snbt",
  "serde",
  "serde_json",
 ]
@@ -4374,6 +4396,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_registry_catalog",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_text",
  "mcrs_minecraft_value_provider",
@@ -4691,6 +4714,10 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "mcrs_text_span"
+version = "0.5.8"
 
 [[package]]
 name = "md-5"

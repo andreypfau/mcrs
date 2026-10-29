@@ -66,7 +66,7 @@ impl Bound for f64 {
     }
 
     fn java_string(self) -> String {
-        mcrs_minecraft_nbt::snbt::java_double(self)
+        mcrs_minecraft_snbt::java_double(self)
     }
 }
 

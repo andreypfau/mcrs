@@ -27,7 +27,7 @@ macro_rules! checked_float {
             if $value.total_cmp(&$min).$op() && $value.total_cmp(&$max).is_le() {
                 Ok($value)
             } else {
-                let $value = ::mcrs_minecraft_nbt::snbt::java_float($value);
+                let $value = ::mcrs_minecraft_snbt::java_float($value);
                 Err(<D::Error as ::serde::de::Error>::custom(format_args!($message)))
             }
         }

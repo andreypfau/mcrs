@@ -1,6 +1,6 @@
 use crate::{GUEST, OP, read};
 use glam::DVec3;
-use mcrs_command::{LibraryError, Span, StringSpan, SuggestionBuilder, SyntaxError, build_list};
+use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SyntaxError, build_list};
 use mcrs_minecraft_command::argument::entity::Target;
 use mcrs_minecraft_command::{
     ArgumentError, Candidate, CommandSyntaxError, EntityArgument, Source, argument_text,
@@ -8,6 +8,7 @@ use mcrs_minecraft_command::{
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_text_span::Span;
 use uuid::Uuid;
 
 fn parsed(argument: &EntityArgument, input: &str) -> Result<(), CommandSyntaxError> {
@@ -68,7 +69,7 @@ fn options_follow_the_grammar_of_the_brackets() {
     use ArgumentError as E;
     let nbt = |kind, position| {
         invalid(
-            E::Nbt(mcrs_minecraft_nbt::snbt::SnbtError { kind, position }),
+            E::Nbt(mcrs_minecraft_snbt::SnbtError { kind, position }),
             position,
         )
     };
@@ -106,7 +107,7 @@ fn options_follow_the_grammar_of_the_brackets() {
         ("@e[type=foo]", invalid(E::TypeInvalid(Span::new(8, 11)), 8)),
         (
             "@e[nbt=5]",
-            nbt(mcrs_minecraft_nbt::snbt::SnbtErrorKind::ExpectedCompound, 8),
+            nbt(mcrs_minecraft_snbt::SnbtErrorKind::ExpectedCompound, 8),
         ),
         ("@e[limit=0]", invalid(E::LimitTooSmall, 9)),
         ("@e[distance=..]", invalid(E::RangeEmpty, 12)),

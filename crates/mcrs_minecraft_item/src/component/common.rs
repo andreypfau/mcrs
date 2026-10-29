@@ -469,14 +469,14 @@ pub struct NbtPredicate(pub NbtCompound);
 /// its text is that comparison.
 impl PartialEq for NbtPredicate {
     fn eq(&self, other: &Self) -> bool {
-        mcrs_minecraft_nbt::snbt::write_compound(&self.0)
-            == mcrs_minecraft_nbt::snbt::write_compound(&other.0)
+        mcrs_minecraft_snbt::write_compound(&self.0)
+            == mcrs_minecraft_snbt::write_compound(&other.0)
     }
 }
 
 impl Serialize for NbtPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&mcrs_minecraft_nbt::snbt::write_compound(&self.0))
+        s.serialize_str(&mcrs_minecraft_snbt::write_compound(&self.0))
     }
 }
 

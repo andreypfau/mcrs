@@ -1,22 +1,8 @@
-use crate::error::{LibraryError, Span, StringSpan, SyntaxError};
+use mcrs_text_span::{Span, is_whitespace};
+
+use crate::error::{LibraryError, SyntaxError};
 
 pub const SEPARATOR: char = ' ';
-
-/// Whitespace as the command reader skips it.
-pub const fn is_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\u{9}'..='\u{d}'
-            | '\u{1c}'..='\u{20}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{2006}'
-            | '\u{2008}'..='\u{200a}'
-            | '\u{205f}'
-            | '\u{3000}'
-            | '\u{2028}'
-            | '\u{2029}'
-    )
-}
 
 const fn is_number_char(c: char) -> bool {
     matches!(c, '0'..='9' | '.' | '-')
@@ -247,6 +233,14 @@ impl<'a> Reader<'a> {
             ))
         }
     }
+}
+
+/// A string the reader read: the text between the quotes when `quoted`, with its escapes
+/// still in place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StringSpan {
+    pub span: Span,
+    pub quoted: bool,
 }
 
 /// The value of a string the reader read, borrowed from the command line.

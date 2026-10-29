@@ -1,13 +1,14 @@
 use crate::permission::PermissionCheck;
 use crate::set::{UnknownParser, VanillaArgument};
 use crate::source::{Lookup, Source};
-use mcrs_command::{Graph, NodeKind, SuggestionList, utf16_position};
+use mcrs_command::{Graph, NodeKind, SuggestionList};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, CommandSuggestion};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundCommandSuggestions, ClientboundCommands,
 };
 use mcrs_minecraft_protocol::text::Text;
+use mcrs_text_span::utf16_position;
 use std::borrow::Cow;
 
 pub type VanillaGraph<H> = Graph<VanillaArgument, PermissionCheck, H>;

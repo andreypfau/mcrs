@@ -51,7 +51,7 @@ accepted language and the order of the errors. It is not a design for a parser.
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents".
 
-One artefact applies: `crates/mcrs_minecraft_nbt/src/fixtures/snbt.json`. The game wrote it with
+One artefact applies: `crates/mcrs_minecraft_snbt/src/fixtures/snbt.json`. The game wrote it with
 its own read, its compact form and its number text. It lists texts that the read accepts, with
 the compact form of each result, and texts that the read rejects. It has no error keys and no
 positions. A rule that cites it has the label `source_suggested_black_box_confirmed` for the
@@ -148,7 +148,7 @@ argument ends after `1`, and `x` is not a separator.
 | `{a:1 000}` | an error: `1` ends the value, and `0` is not `,` or `}` |
 
 Provenance: `source_suggested_black_box_confirmed`
-(`crates/mcrs_minecraft_nbt/src/fixtures/snbt.json`, the cases `{a:1 b}`, `{a:1 .5}` and
+(`crates/mcrs_minecraft_snbt/src/fixtures/snbt.json`, the cases `{a:1 b}`, `{a:1 .5}` and
 `[B; 1 , 2 ]`). Kind: client agreement. Confidence: medium for the string case, high for the
 other cases. Experiment: run `data modify storage t:s v set value "a\ nb"`. Run
 `data get storage t:s v`. The string has a line feed, shown as `\n`.
@@ -1196,7 +1196,7 @@ trailing data".
 
 ## 11. Differences of the current implementation
 
-`crates/mcrs_minecraft_nbt/src/snbt.rs` differs from this document in these points:
+`crates/mcrs_minecraft_snbt` differs from this document in these points:
 
 - **The text form.** It has no text form (SNBT-PRINT-004 to SNBT-PRINT-006).
 - **Suggestions.** It makes no suggestions (SNBT-SUG-001). The read keeps only the reported

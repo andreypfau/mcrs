@@ -29,7 +29,7 @@ crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_full.nbt linguist-generat
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_terrain.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_retrogen.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_retrogen_minimal.nbt linguist-generated
-crates/mcrs_minecraft_nbt/src/fixtures/snbt.json linguist-generated
+crates/mcrs_minecraft_snbt/src/fixtures/snbt.json linguist-generated
 crates/mcrs_minecraft_item/src/fixtures/hash_ops.json linguist-generated
 crates/mcrs_minecraft_protocol/tests/fixtures/text/vanilla.json linguist-generated
 crates/mcrs_minecraft_protocol/tests/fixtures/text/probe.json linguist-generated

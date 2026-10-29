@@ -1,7 +1,11 @@
-use super::error::IntegerType;
-use super::text::StrText;
-use crate::compound::NbtCompound;
-use crate::tag::NbtTag;
+use alloc::string::String;
+use alloc::vec::Vec;
+
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
+
+use crate::error::IntegerType;
+use crate::text::StrText;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Scalar {

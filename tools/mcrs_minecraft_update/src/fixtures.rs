@@ -236,7 +236,7 @@ mod tests {
                 ("golden", "snbt".to_owned()),
                 (
                     "goldenIn",
-                    "/repo/crates/mcrs_minecraft_nbt/src/fixtures/snbt.json".to_owned()
+                    "/repo/crates/mcrs_minecraft_snbt/src/fixtures/snbt.json".to_owned()
                 ),
                 ("goldenOut", "/tmp/out".to_owned()),
             ]

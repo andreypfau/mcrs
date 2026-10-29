@@ -1,6 +1,6 @@
-use crate::error::{LibraryError, StringSpan, SyntaxError};
+use crate::error::{LibraryError, SyntaxError};
 use crate::parse::ContextView;
-use crate::reader::{Reader, StringValue};
+use crate::reader::{Reader, StringSpan, StringValue};
 use crate::suggest::{SuggestionBuilder, starts_with_ignore_case};
 use core::convert::Infallible;
 

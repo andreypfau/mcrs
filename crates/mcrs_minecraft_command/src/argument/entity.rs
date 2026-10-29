@@ -7,15 +7,16 @@ use crate::source::{Lookup, Source};
 use glam::DVec3;
 use mcrs_command::suggest::eq_ignore_case;
 use mcrs_command::{
-    Argument, LibraryError, Reader, Span, StringSpan, StringValue, SuggestionBuilder,
-    SuggestionText, SyntaxError,
+    Argument, LibraryError, Reader, StringSpan, StringValue, SuggestionBuilder, SuggestionText,
+    SyntaxError,
 };
 use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_entity::keys::{ENTITY_TYPE, EntityType};
 use mcrs_minecraft_loot::keys::PREDICATE;
-use mcrs_minecraft_nbt::snbt::check_compound;
 use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_snbt::check_compound;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
+use mcrs_text_span::Span;
 use uuid::Uuid;
 
 const MAX_NAME_UNITS: usize = 16;

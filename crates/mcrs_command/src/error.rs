@@ -1,35 +1,6 @@
-/// A range of bytes of the command line, `start ≤ end`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
+use mcrs_text_span::Span;
 
-impl Span {
-    pub const fn new(start: usize, end: usize) -> Self {
-        Self { start, end }
-    }
-
-    pub const fn is_empty(self) -> bool {
-        self.start == self.end
-    }
-
-    pub(crate) const fn contains(self, position: usize) -> bool {
-        self.start <= position && position <= self.end
-    }
-
-    pub fn text(self, input: &str) -> &str {
-        input.get(self.start..self.end).unwrap_or_default()
-    }
-}
-
-/// A string the reader read: the text between the quotes when `quoted`, with its escapes
-/// still in place.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct StringSpan {
-    pub span: Span,
-    pub quoted: bool,
-}
+use crate::reader::StringSpan;
 
 /// The error kinds of the command library. A kind that names text from the command line holds
 /// its span, never a copy.
@@ -99,11 +70,4 @@ impl<E> SyntaxError<E> {
             position: self.position,
         }
     }
-}
-
-/// The position counted in UTF-16 code units, the unit of every position on the wire.
-pub fn utf16_position(input: &str, position: usize) -> usize {
-    input
-        .get(..input.floor_char_boundary(position))
-        .map_or(0, |start| start.encode_utf16().count())
 }

@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_text_span"
+description = "Byte spans of a text, their UTF-16 positions and the whitespace of the Brigadier reader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true

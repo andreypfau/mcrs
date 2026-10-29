@@ -1,7 +1,9 @@
 // Values printed by the game's own functions: TagParser + Tag.toString +
 // NbtIo.writeAnyTag, JsonOps.convertTo(NbtOps) and Double/Float.toString.
 
+use std::string::String;
 use std::sync::LazyLock;
+use std::vec::Vec;
 
 use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;

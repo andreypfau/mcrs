@@ -10,3 +10,6 @@ doctest = false
 
 [lints]
 workspace = true
+
+[dependencies]
+mcrs_text_span.workspace = true

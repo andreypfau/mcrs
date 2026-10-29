@@ -1,9 +1,10 @@
 use crate::identifier::Identifier;
-use mcrs_command::{ErrorKind, LibraryError, Span, StringSpan, StringValue, SyntaxError};
+use mcrs_command::{ErrorKind, LibraryError, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_nbt::snbt::SnbtError;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text, TranslateArg};
+use mcrs_minecraft_snbt::SnbtError;
+use mcrs_text_span::Span;
 
 /// The syntax errors of the vanilla argument types. Text from the command line is a span.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -342,7 +343,7 @@ fn context_text(input: &str, position: usize) -> String {
 /// `/`, and so does the position.
 pub fn parse_error_line(input: &str, error: &CommandSyntaxError) -> Text {
     let message = error_message(input, error);
-    let position = mcrs_command::utf16_position(input, error.position);
+    let position = mcrs_text_span::utf16_position(input, error.position);
     let mut context = context_text(input, error.position);
     context.push_str("<--[HERE]");
     Text::translate(

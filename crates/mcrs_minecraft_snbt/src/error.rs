@@ -1,17 +1,6 @@
 use core::fmt;
 
-/// A range of byte offsets in the text that was read.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl Span {
-    pub fn text(self, input: &str) -> &str {
-        input.get(self.start..self.end).unwrap_or_default()
-    }
-}
+use mcrs_text_span::Span;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntegerType {

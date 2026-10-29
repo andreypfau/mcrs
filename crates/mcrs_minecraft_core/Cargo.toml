@@ -18,6 +18,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["from", "deref"] }
 

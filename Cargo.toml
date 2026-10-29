@@ -75,6 +75,7 @@ mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
+mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
@@ -82,6 +83,7 @@ mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = 
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
+mcrs_text_span = { path = "crates/mcrs_text_span" }
 mcrs_command = { path = "crates/mcrs_command" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }
 mcrs_minecraft_chat = { path = "crates/mcrs_minecraft_chat" }
@@ -222,6 +224,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_nbt"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_snbt"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_protocol"]

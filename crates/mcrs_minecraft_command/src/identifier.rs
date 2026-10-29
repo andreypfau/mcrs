@@ -1,7 +1,8 @@
 use crate::error::ArgumentError;
 use mcrs_command::suggest::starts_with_ignore_case;
-use mcrs_command::{Reader, Span, SuggestionBuilder, SuggestionText, SyntaxError};
+use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
 use mcrs_minecraft_core::resource_location::parse_parts;
+use mcrs_text_span::Span;
 
 /// An identifier borrowed from the command line; a missing namespace is `minecraft`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

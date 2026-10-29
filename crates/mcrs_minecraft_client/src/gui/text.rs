@@ -1,7 +1,7 @@
-use mcrs_minecraft_nbt::snbt::{java_double, java_float};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
+use mcrs_minecraft_snbt::{java_double, java_float};
 
 use super::font::{Font, Hover, Span};
 use super::language::Language;

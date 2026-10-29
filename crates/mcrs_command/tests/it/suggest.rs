@@ -1,7 +1,6 @@
 use crate::{Builder, OP, OPEN, TestGraph};
-use mcrs_command::{
-    BoolArgument, NodeId, ParseScratch, Span, Suggestion, SuggestionText, build_list,
-};
+use mcrs_command::{BoolArgument, NodeId, ParseScratch, Suggestion, SuggestionText, build_list};
+use mcrs_text_span::Span;
 
 fn suggestions(graph: &TestGraph, input: &str, level: u8) -> (Span, Vec<String>) {
     let mut scratch = ParseScratch::default();

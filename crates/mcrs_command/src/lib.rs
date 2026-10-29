@@ -15,10 +15,10 @@ pub use argument::{
     Argument, ArgumentSet, BoolArgument, DoubleArgument, FloatArgument, IntegerArgument,
     LongArgument, StringArgument,
 };
-pub use error::{ErrorKind, LibraryError, Span, StringSpan, SyntaxError, utf16_position};
+pub use error::{ErrorKind, LibraryError, SyntaxError};
 pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execute};
 pub use parse::{ContextView, ParseResult, ParseScratch};
-pub use reader::{Reader, StringValue, is_whitespace};
+pub use reader::{Reader, StringSpan, StringValue};
 pub use suggest::{
     Suggestion, SuggestionBuilder, SuggestionList, SuggestionText, build_list, recycle,
 };

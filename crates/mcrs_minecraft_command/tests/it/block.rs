@@ -1,5 +1,5 @@
 use mcrs_command::{
-    Argument, LibraryError, Reader, Span, Suggestion, SuggestionBuilder, SyntaxError, build_list,
+    Argument, LibraryError, Reader, Suggestion, SuggestionBuilder, SyntaxError, build_list,
 };
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
@@ -9,6 +9,7 @@ use mcrs_minecraft_command::{
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_text_span::Span;
 use std::sync::LazyLock;
 
 /// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block
@@ -397,7 +398,7 @@ fn the_data_compound_matches_the_saved_data_of_the_block_entity() {
     ];
     for (input, saved, passes) in cases {
         let predicate = read(input).0.unwrap();
-        let saved = || saved.map(|text| mcrs_minecraft_nbt::snbt::parse_compound(text).unwrap());
+        let saved = || saved.map(|text| mcrs_minecraft_snbt::parse_compound(text).unwrap());
         assert_eq!(predicate.test_data(saved), passes, "{input}");
     }
 }
