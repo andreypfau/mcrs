@@ -13,6 +13,7 @@ use mcrs_minecraft_protocol::{GameMode, LookAnchor};
 /// sent the line.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceState {
+    /// The permission level of the source.
     pub level: CommandLevel,
     /// The host anchor of the player the source holds, which names the player in every
     /// dimension, so the source keeps it when the player changes dimension (DIM-CHG-001).
@@ -20,13 +21,19 @@ pub struct SourceState {
     /// The label of the source dimension. The source entity can be in another one
     /// (ARG-ENT-021).
     pub dimension: Entity,
+    /// The position of the source, at its feet.
     pub position: DVec3,
+    /// The rotation of the source about the vertical axis, in degrees.
     pub yaw: f32,
+    /// The rotation of the source up or down, in degrees.
     pub pitch: f32,
+    /// The part of the source that relative and local coordinates start from.
     pub anchor: LookAnchor,
 }
 
 impl SourceState {
+    /// The source of the player with the host anchor `anchor`, at its transform in the
+    /// dimension labelled `dimension`, at its feet.
     pub fn of_player(
         anchor: Entity,
         dimension: Entity,
@@ -45,6 +52,7 @@ impl SourceState {
     }
 }
 
+/// The command level of a player with `op_level`.
 pub fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
     CommandLevel::from(op_level.clamped())
 }

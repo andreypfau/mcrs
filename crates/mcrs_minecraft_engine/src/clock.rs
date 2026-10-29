@@ -11,7 +11,9 @@ use mcrs_minecraft_protocol::{VarInt, VarLong};
 /// A change to a world clock. The host owns the clocks and applies it.
 #[derive(Event, Clone, Copy, Debug, PartialEq)]
 pub struct EditClock {
+    /// The clock to change.
     pub clock: Id<WorldClock>,
+    /// The change.
     pub edit: ClockEdit,
 }
 

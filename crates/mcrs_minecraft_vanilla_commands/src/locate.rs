@@ -4,7 +4,7 @@ use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_biome::keys::BIOME;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck, ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
+    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::STRUCTURE;
@@ -12,7 +12,7 @@ use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
-use mcrs_minecraft_worldgen_generator::structures::nearest_biome::nearest_biome;
+use mcrs_minecraft_worldgen_generator::structures::nearest_biome;
 use mcrs_minecraft_worldgen_structure::frozen::StructureId;
 
 #[derive(Clone, Copy)]
@@ -30,13 +30,15 @@ pub(crate) enum Branch {
 }
 
 /// CMD-LOC-001.
-pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateCommand, BuildError> {
-    let locate = r
+pub(crate) fn build(
+    registrar: &mut CommandRegistrar<'_, Branch>,
+) -> Result<LocateCommand, BuildError> {
+    let locate = registrar
         .literal(NodeId::ROOT, "locate")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
         .id()?;
-    let structure = r.literal(locate, "structure").id()?;
-    let structure = r
+    let structure = registrar.literal(locate, "structure").id()?;
+    let structure = registrar
         .arg(
             structure,
             "structure",
@@ -47,8 +49,8 @@ pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateComman
         )
         .runs(Branch::Structure)
         .id()?;
-    let biome = r.literal(locate, "biome").id()?;
-    let biome = r
+    let biome = registrar.literal(locate, "biome").id()?;
+    let biome = registrar
         .arg(
             biome,
             "biome",
@@ -59,8 +61,8 @@ pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateComman
         )
         .runs(Branch::Biome)
         .id()?;
-    let poi = r.literal(locate, "poi").id()?;
-    let poi = r
+    let poi = registrar.literal(locate, "poi").id()?;
+    let poi = registrar
         .arg(
             poi,
             "poi",
@@ -78,6 +80,13 @@ pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateComman
     })
 }
 
+/// Which axes the distance to a found position counts, and so whether its y is shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Distance {
+    Horizontal,
+    Spatial,
+}
+
 /// CMD-LOC-005: the message, and the distance that is the result of the command.
 fn found(
     key: &'static str,
@@ -85,19 +94,22 @@ fn found(
     entry: &str,
     at: IVec3,
     origin: IVec3,
-    with_y: bool,
+    distance: Distance,
 ) -> (Text, i32) {
     let name = match value {
         ResourceOrTag::Entry(_) => value.to_string(),
         ResourceOrTag::Tag(_) => format!("{value} ({entry})"),
     };
-    let d = (at - origin).as_i64vec3();
-    let squared = d.x * d.x + d.z * d.z + if with_y { d.y * d.y } else { 0 };
-    let distance = i32::try_from(squared.isqrt()).unwrap_or(i32::MAX);
-    let y = if with_y {
-        at.y.to_string()
-    } else {
-        "~".to_owned()
+    let offset = (at - origin).as_i64vec3();
+    let vertical = match distance {
+        Distance::Horizontal => 0,
+        Distance::Spatial => offset.y * offset.y,
+    };
+    let squared = offset.x * offset.x + offset.z * offset.z + vertical;
+    let length = i32::try_from(squared.isqrt()).unwrap_or(i32::MAX);
+    let y = match distance {
+        Distance::Horizontal => "~".to_owned(),
+        Distance::Spatial => at.y.to_string(),
     };
     let coordinates = Text::translate(
         "chat.square_brackets",
@@ -118,10 +130,10 @@ fn found(
         vec![
             name.into_text(),
             coordinates,
-            distance.to_string().into_text(),
+            length.to_string().into_text(),
         ],
     );
-    (message, distance)
+    (message, length)
 }
 
 fn not_found(key: &'static str, value: ResourceOrTag<'_>) -> CommandFailure {
@@ -162,7 +174,7 @@ fn structure(
         &entry,
         at,
         origin,
-        false,
+        Distance::Horizontal,
     ))
 }
 
@@ -193,7 +205,7 @@ pub(crate) fn run(
                 .ok_or_else(not_found)?;
             let config = dimension.iter().next().ok_or_else(not_found)?;
             let height = i32::try_from(config.height).unwrap_or(i32::MAX);
-            let (at, biome) = nearest_biome(
+            let (at, biome) = nearest_biome::nearest_biome(
                 index.noise_biomes(),
                 wanted.as_slice(),
                 origin,
@@ -211,7 +223,7 @@ pub(crate) fn run(
                 &entry,
                 at,
                 origin,
-                true,
+                Distance::Spatial,
             )
         }
         // chisle: the server stores no points of interest yet, so the search finds none; a
@@ -221,6 +233,6 @@ pub(crate) fn run(
             return Err(not_found("commands.locate.poi.not_found", value));
         }
     };
-    feedback.success(&call, message, false);
+    feedback.success(&call, message, Feedback::Source);
     Ok(distance)
 }

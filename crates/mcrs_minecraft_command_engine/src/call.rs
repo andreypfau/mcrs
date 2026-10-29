@@ -6,7 +6,9 @@ use std::ops::Deref;
 /// the command's builder returned.
 #[derive(Clone)]
 pub struct Call<B, C> {
+    /// The branch the executable node of the call names.
     pub branch: B,
+    /// The handles that the builder of the command returned.
     pub command: C,
     invocation: Invocation,
 }

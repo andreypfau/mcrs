@@ -10,6 +10,16 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 
+/// Who sees the success message of a command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Feedback {
+    /// Only the player who sent the line.
+    Source,
+    /// The player who sent the line, and every other operator through an
+    /// [`OperatorBroadcast`].
+    SourceAndOperators,
+}
+
 /// What a handler sends and changes. Its messages go out after its effects apply, so a player
 /// that a command moves hears of the move after the move (CMD-TP-014).
 #[derive(SystemParam)]
@@ -29,11 +39,11 @@ impl CommandOutput<'_> {
         self.send(system_message(player, message));
     }
 
-    /// A success message; with `broadcast`, every other operator sees it too.
-    pub fn success(&mut self, invocation: &Invocation, message: Text, broadcast: bool) {
+    /// A success message, to the players that `feedback` names.
+    pub fn success(&mut self, invocation: &Invocation, message: Text, feedback: Feedback) {
         // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
-        if !broadcast {
+        if feedback == Feedback::Source {
             self.send(system_message(invocation.output, message));
             return;
         }

@@ -1,7 +1,7 @@
 use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
-use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
+use crate::world::entity::player::dimension_change::CarryOnDimensionChangeExt;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::{EntityBundle, EntityUuid};

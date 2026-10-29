@@ -17,7 +17,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
 
-use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
+use crate::world::entity::player::dimension_change::CarryOnDimensionChangeExt;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};

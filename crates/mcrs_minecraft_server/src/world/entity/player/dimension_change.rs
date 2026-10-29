@@ -11,15 +11,16 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
-use mcrs_minecraft_command_engine::{CommandTreePackets, in_dimension_order};
+use mcrs_minecraft_command_engine::{CommandTreePackets, DimensionWorld, in_dimension_order};
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, OutboundPlayerReleased};
-use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
+use mcrs_minecraft_engine::bus::{
+    self, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
+};
 use mcrs_minecraft_engine::channel_types::FromDim;
-use mcrs_minecraft_engine::dim::{deliver, pump_dim, receive_from_dim};
+use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::teleport::TeleportState;
@@ -41,17 +42,19 @@ type Carry = fn(&mut EntityWorldMut<'_>, &mut EntityWorldMut<'_>);
 /// The components of a player that are its own and go with it to another dimension
 /// (DIM-CHG-001), each moved from the entity that leaves to the entity that arrives. A plugin of
 /// a dimension world registers the components it owns with
-/// [`CarryOnDimensionChange::carry_on_dimension_change`]; a change reads the list of the world
+/// [`CarryOnDimensionChangeExt::carry_on_dimension_change`]; a change reads the list of the world
 /// that the player leaves. A component not in the list stays behind and is despawned.
 #[derive(Resource, Default)]
 pub struct CarriedComponents(Vec<Carry>);
 
-pub trait CarryOnDimensionChange {
+/// Registers the components of a player that a plugin of a dimension world owns, so that they go
+/// with the player when it changes dimension.
+pub trait CarryOnDimensionChangeExt {
     /// Moves `T` of a player to its entity in the new world when the player changes dimension.
     fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self;
 }
 
-impl CarryOnDimensionChange for App {
+impl CarryOnDimensionChangeExt for App {
     fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
         self.world_mut()
             .get_resource_or_init::<CarriedComponents>()
@@ -127,19 +130,7 @@ pub fn change_dimension(
     if !placed_in_from {
         return Err(DimensionChangeError::NotPlaced);
     }
-    hand_over_outbound(host, from);
-    // The packets already stamped for the player leave before its epoch changes, or the bridge
-    // drops them as packets of the dimension it left.
-    let _ = host.try_run_schedule(OutboundFlush);
-    from.run_system_cached_with(
-        crate::world::aoi::drain_player_despawn::leave_dimension,
-        player,
-    )
-    .map_err(|_| DimensionChangeError::NotLeft)?;
-    let teleport_id = from
-        .get_mut::<TeleportState>(player)
-        .ok_or(DimensionChangeError::NoArrivalState)?
-        .sent(arrival.transform);
+    let teleport_id = leave(host, from, player, &arrival)?;
     let arrived = to
         .spawn((
             EntityBundle {
@@ -155,16 +146,7 @@ pub fn change_dimension(
             ColumnView::default(),
         ))
         .id();
-    from.try_resource_scope(|from, carried: Mut<CarriedComponents>| {
-        let (Ok(mut leaving), Ok(mut arriving)) =
-            (from.get_entity_mut(player), to.get_entity_mut(arrived))
-        else {
-            return;
-        };
-        for carry in &carried.0 {
-            carry(&mut leaving, &mut arriving);
-        }
-    });
+    carry_components(from, to, player, arrived);
     from.despawn(player);
     if let Some(mut index) = from.get_resource_mut::<DimPlayerIndex>() {
         index.0.remove(&owner.0);
@@ -185,29 +167,66 @@ pub fn change_dimension(
     Ok(arrived)
 }
 
+/// Takes `player` out of `from`: hands over what `from` produced, takes the player from the
+/// view of its observers and claims the teleport id of its arrival.
+fn leave(
+    host: &mut World,
+    from: &mut World,
+    player: Entity,
+    arrival: &Arrival,
+) -> Result<i32, DimensionChangeError> {
+    hand_over_outbound(host, from);
+    // The packets already stamped for the player leave before its epoch changes, or the bridge
+    // drops them as packets of the dimension it left.
+    let _ = host.try_run_schedule(OutboundFlush);
+    from.run_system_cached_with(
+        crate::world::aoi::drain_player_despawn::leave_dimension,
+        player,
+    )
+    .map_err(|_| DimensionChangeError::NotLeft)?;
+    Ok(from
+        .get_mut::<TeleportState>(player)
+        .ok_or(DimensionChangeError::NoArrivalState)?
+        .sent(arrival.transform))
+}
+
+/// Moves the components of [`CarriedComponents`] of `from` from `leaving` to `arrived` in `to`.
+fn carry_components(from: &mut World, to: &mut World, leaving: Entity, arrived: Entity) {
+    from.try_resource_scope(|from, carried: Mut<CarriedComponents>| {
+        let (Ok(mut leaving), Ok(mut arriving)) =
+            (from.get_entity_mut(leaving), to.get_entity_mut(arrived))
+        else {
+            return;
+        };
+        for carry in &carried.0 {
+            carry(&mut leaving, &mut arriving);
+        }
+    });
+}
+
 /// Stamps everything the old dimension produced and the host did not take yet, in the order it
 /// was written. Stamped later, after the epoch changes, the player would get those packets of
 /// the dimension it left after its respawn.
 fn hand_over_outbound(host: &mut World, from: &mut World) {
-    let Some(dim) = from.get_resource::<DimensionLabel>().map(|label| label.0) else {
+    let Some(label) = from.get_resource::<DimensionLabel>().map(|label| label.0) else {
         return;
     };
-    pump_dim(host, dim);
+    dim::pump_dim(host, label);
     if let Some(mut backlog) = from.get_resource_mut::<FromDimBacklog>() {
         for message in backlog.0.drain(..) {
-            receive_from_dim(host, dim, message);
+            dim::receive_from_dim(host, label, message);
         }
     }
     if let Some(mut packets) = from.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
         for packet in packets.drain() {
-            deliver(host, packet);
+            dim::deliver(host, packet);
         }
     }
     if let Some(mut released) = from.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
         for released in released.drain() {
-            receive_from_dim(
+            dim::receive_from_dim(
                 host,
-                dim,
+                label,
                 FromDim::Released {
                     session: released.session,
                 },
@@ -263,9 +282,9 @@ fn send_arrival(
     position: ClientboundPlayerPosition,
     tree: Option<&CommandTreePackets>,
 ) {
-    deliver(
+    dim::deliver(
         host,
-        to_player(
+        bus::to(
             anchor,
             PacketPayload::Respawn(ClientboundRespawn {
                 player_spawn_info: PlayerSpawnInfo::new(
@@ -284,7 +303,7 @@ fn send_arrival(
         tree,
         position,
         game_mode::abilities(state.mode, state.flying),
-        |packet| deliver(host, packet),
+        |packet| dim::deliver(host, packet),
     );
 }
 
@@ -317,22 +336,28 @@ pub fn apply_dimension_change_requests(app: &mut App) {
         &mut worlds,
     );
     for origin in 0..worlds.len() {
-        let Some(requests) = worlds.get_mut(origin).and_then(|(_, world)| {
-            let mut requests = world.get_resource_mut::<Messages<ChangeDimensionRequest>>()?;
-            Some(requests.drain().collect::<Vec<_>>())
-        }) else {
+        let Some(requests) = worlds
+            .get_mut(origin)
+            .and_then(|DimensionWorld { world, .. }| {
+                let mut requests = world.get_resource_mut::<Messages<ChangeDimensionRequest>>()?;
+                Some(requests.drain().collect::<Vec<_>>())
+            })
+        else {
             continue;
         };
         for request in requests {
-            let Some(destination) = worlds.iter().position(|(key, _)| *key == request.to) else {
+            let Some(destination) = worlds.iter().position(|found| found.read == request.to) else {
                 tracing::error!(to = %request.to, "a dimension change names no running dimension");
                 continue;
             };
-            let Ok([(_, from), (_, to)]) = worlds.get_disjoint_mut([origin, destination]) else {
+            let Ok([origin_world, destination_world]) =
+                worlds.get_disjoint_mut([origin, destination])
+            else {
                 tracing::error!(to = %request.to, "a dimension change names its own dimension");
                 continue;
             };
             let arrival = Arrival::absolute(request.transform);
+            let (from, to) = (&mut *origin_world.world, &mut *destination_world.world);
             if let Err(error) = change_dimension(host, from, to, request.player, arrival) {
                 tracing::error!(player = ?request.player, "a player did not change dimension: {error}");
             }

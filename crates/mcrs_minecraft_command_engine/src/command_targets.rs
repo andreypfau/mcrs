@@ -4,7 +4,7 @@ use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_command::Identifier;
 
-/// The dimensions in the dimension order (ARG-ENT-019) and the online players of all of them in
+/// The dimensions in the dimension order and the online players of all of them in
 /// the order of the player list. The host collects it at the start of a pass, and the
 /// [`Worlds`](crate::Worlds) operations that change a player update its entry; a
 /// handler reads it in the world it runs in.
@@ -16,14 +16,17 @@ pub struct CommandTargets {
 }
 
 impl CommandTargets {
+    /// The dimensions that run, in the dimension order.
     pub fn dimensions(&self) -> &[DimensionEntry] {
         &self.dimensions
     }
 
+    /// The online players of every dimension, in the order of the player list.
     pub fn players(&self) -> &[PlayerEntry] {
         &self.players
     }
 
+    /// The index in the dimension order of the dimension labelled `label`.
     pub fn dimension_of(&self, label: Entity) -> Option<usize> {
         self.dimensions
             .iter()
@@ -35,12 +38,14 @@ impl CommandTargets {
         self.dimensions.get(index).map(|entry| entry.label)
     }
 
+    /// The running dimension with the identifier `id`.
     pub fn dimension_named(&self, id: Identifier<'_>) -> Option<&DimensionEntry> {
         self.dimensions
             .iter()
             .find(|entry| entry.key.namespace() == id.namespace && entry.key.path() == id.path)
     }
 
+    /// The online player with the host anchor `anchor`.
     pub fn player(&self, anchor: Entity) -> Option<&PlayerEntry> {
         self.players.get(*self.by_anchor.get(&anchor)?)
     }

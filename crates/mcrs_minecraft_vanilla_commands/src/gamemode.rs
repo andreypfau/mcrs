@@ -3,7 +3,8 @@ use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
 use mcrs_minecraft_command_engine::{
-    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
+    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
+    Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_protocol::GameMode;
@@ -13,7 +14,9 @@ use mcrs_minecraft_protocol::text::{IntoText, Text};
 /// any dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SetGameMode {
+    /// The host anchor of the player.
     pub player: Entity,
+    /// The game mode the player gets.
     pub mode: GameMode,
 }
 
@@ -24,16 +27,18 @@ pub(crate) struct GameModeCommand {
 }
 
 /// CMD-GM-001.
-pub(crate) fn build(r: &mut CommandRegistrar<'_, ()>) -> Result<GameModeCommand, BuildError> {
-    let gamemode = r
+pub(crate) fn build(
+    registrar: &mut CommandRegistrar<'_, ()>,
+) -> Result<GameModeCommand, BuildError> {
+    let gamemode = registrar
         .literal(NodeId::ROOT, "gamemode")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
         .id()?;
-    let mode = r
+    let mode = registrar
         .arg(gamemode, "gamemode", GameModeArgument)
         .runs(())
         .id()?;
-    let target = r
+    let target = registrar
         .arg(mode, "target", EntityArgument::PLAYERS)
         .runs(())
         .id()?;
@@ -80,7 +85,7 @@ pub(crate) fn run(
                 output.success(
                     &call,
                     Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),
-                    true,
+                    Feedback::SourceAndOperators,
                 );
             } else {
                 output.tell(
@@ -93,7 +98,7 @@ pub(crate) fn run(
                         "commands.gamemode.success.other",
                         vec![target.name.clone().into_text(), mode_text(mode)],
                     ),
-                    true,
+                    Feedback::SourceAndOperators,
                 );
             }
         }

@@ -1,6 +1,6 @@
 use crate::{execute, gamemode, locate, teleport, time};
 use bevy_app::{App, Plugin};
-use mcrs_minecraft_command_engine::AppCommands;
+use mcrs_minecraft_command_engine::AppCommandsExt;
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
 /// `time`, and their effects: [`TeleportPlayer`](crate::TeleportPlayer),

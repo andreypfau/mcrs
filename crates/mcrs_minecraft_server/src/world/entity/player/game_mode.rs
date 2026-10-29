@@ -1,4 +1,4 @@
-use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
+use crate::world::entity::player::dimension_change::CarryOnDimensionChangeExt;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_command::CommandLevel;

@@ -4,7 +4,7 @@ use bevy_ecs::prelude::DetectChangesMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_engine::dim::deliver;
+use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError, DimensionChanger};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::GameMode;
@@ -12,14 +12,19 @@ use mcrs_minecraft_protocol::GameMode;
 /// Why an operation of [`Worlds`] changed no player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PlayerChangeError {
+    /// No online player has the host anchor.
     #[error("no online player has this host anchor")]
     NotOnline,
+    /// The world of the player does not hold its entity.
     #[error("the world of the player does not hold its entity")]
     NotInWorld,
+    /// No dimension runs at the index, or the destination is the dimension of the player.
     #[error("no dimension runs at this index")]
     NoDimension,
+    /// The world the player leaves has no [`DimensionChanger`].
     #[error("the world of the player has no dimension changer")]
     NoDimensionChanger,
+    /// The [`DimensionChanger`] did not move the player.
     #[error("the player did not change dimension: {0}")]
     DimensionChange(DimensionChangeError),
 }
@@ -56,7 +61,7 @@ impl Worlds<'_, '_> {
 
     /// Sends `packet` after everything the dimensions handed over before it.
     pub fn deliver(&mut self, packet: OutboundPlayerPacket) {
-        deliver(self.host, packet);
+        dim::deliver(self.host, packet);
     }
 
     /// Sets the transform of the player with the host anchor `player` in the world that holds

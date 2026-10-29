@@ -3,9 +3,13 @@ use mcrs_minecraft_level::entity::physics::Transform;
 
 /// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;
+/// [`MAX_XZ_BLOCKS`] as a coordinate.
 pub const MAX_XZ: f64 = MAX_XZ_BLOCKS as f64;
+/// The vertical bound of a position a player can reach.
 pub const MAX_Y: f64 = 20_000_000.0;
 
+/// The server-side state of the teleports of a player: the ids it sent and the client did not
+/// confirm yet, and the transform the client last knew.
 #[derive(Component, Debug, Default)]
 pub struct TeleportState {
     /// Counts up as teleports are made.
@@ -18,10 +22,12 @@ pub struct TeleportState {
 }
 
 impl TeleportState {
+    /// The id the next teleport gets.
     pub fn teleport_id_counter(&self) -> u32 {
         self.teleport_id_counter
     }
 
+    /// The teleports the client did not confirm yet.
     pub fn pending_teleports(&self) -> u32 {
         self.pending_teleports
     }
@@ -44,6 +50,7 @@ impl TeleportState {
         self.next_teleport_id()
     }
 
+    /// The transform the client last sent or received.
     pub fn synced_transform(&self) -> Transform {
         self.synced_transform
     }

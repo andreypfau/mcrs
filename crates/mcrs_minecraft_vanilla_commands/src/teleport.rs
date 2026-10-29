@@ -2,38 +2,39 @@ use crate::select::{FoundPlayers, select, targets_or_self};
 use bevy_ecs::prelude::*;
 use bevy_math::{BVec3, DVec3};
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::anchored;
 use mcrs_minecraft_command::{CommandLevel, EntityAnchorArgument, PermissionCheck};
 use mcrs_minecraft_command_coordinates::{
-    DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument, relative_move,
-    rotation_toward,
+    DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument,
 };
 use mcrs_minecraft_command_engine::{
     Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
-    EffectQueue, Invocation, PlayerEntry, Worlds,
+    EffectQueue, Feedback, Invocation, PlayerEntry, Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
-use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
+use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_engine::dimension_change::Arrival;
-use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::network_id;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_protocol::LookAnchor;
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_minecraft_protocol::{Look, VarInt};
+use mcrs_minecraft_protocol::{Look, LookAnchor, VarInt};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Teleport {
     /// The label of the destination dimension.
     pub dimension: Entity,
+    /// The destination, with each relative axis already resolved against the source.
     pub position: DVec3,
     /// `None` keeps the rotation of the victim.
     pub rotation: Option<Look>,
+    /// The axes of the position that the client receives as a change.
     pub relative_position: BVec3,
+    /// The angles of the rotation that the client receives as a change.
     pub relative_rotation: RelativeRotation,
+    /// What the victim turns to after the move.
     pub facing: Option<Facing>,
     /// The anchor of the source, from which the victim looks at its facing target.
     pub anchor: LookAnchor,
@@ -42,10 +43,13 @@ pub struct Teleport {
 /// What a victim turns to after its move (CMD-TP-011).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Facing {
+    /// A fixed position.
     Position(DVec3),
     /// The player with this host anchor, at its feet or its eyes, read after each move.
     Player {
+        /// The host anchor of the player.
         anchor: Entity,
+        /// The part of the player to face.
         at: LookAnchor,
     },
 }
@@ -53,7 +57,9 @@ pub enum Facing {
 /// The command effect that moves the player with the host anchor `player`, in any dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TeleportPlayer {
+    /// The host anchor of the victim.
     pub player: Entity,
+    /// Where the victim goes.
     pub to: Teleport,
 }
 
@@ -82,47 +88,52 @@ pub(crate) enum Branch {
 }
 
 /// CMD-TP-001.
-pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<TeleportCommand, BuildError> {
-    let teleport = r
+pub(crate) fn build(
+    registrar: &mut CommandRegistrar<'_, Branch>,
+) -> Result<TeleportCommand, BuildError> {
+    let teleport = registrar
         .literal(NodeId::ROOT, "teleport")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
         .id()?;
-    let location = r
+    let location = registrar
         .arg(teleport, "location", Vec3Argument)
         .runs(Branch::ToLocation)
         .id()?;
-    let destination = r
+    let destination = registrar
         .arg(teleport, "destination", EntityArgument::ONE_ENTITY)
         .runs(Branch::ToEntity)
         .id()?;
-    let targets = r.arg(teleport, "targets", EntityArgument::ENTITIES).id()?;
-    let target_location = r
+    let targets = registrar
+        .arg(teleport, "targets", EntityArgument::ENTITIES)
+        .id()?;
+    let target_location = registrar
         .arg(targets, "location", Vec3Argument)
         .runs(Branch::TargetsToLocation)
         .id()?;
-    let rotation = r
+    let rotation = registrar
         .arg(target_location, "rotation", RotationArgument)
         .runs(Branch::TargetsToLocationRotated)
         .id()?;
-    let facing = r.literal(target_location, "facing").id()?;
-    let entity = r.literal(facing, "entity").id()?;
-    let facing_entity = r
+    let facing = registrar.literal(target_location, "facing").id()?;
+    let entity = registrar.literal(facing, "entity").id()?;
+    let facing_entity = registrar
         .arg(entity, "facingEntity", EntityArgument::ONE_ENTITY)
         .runs(Branch::TargetsFacingEntity)
         .id()?;
-    let facing_anchor = r
+    let facing_anchor = registrar
         .arg(facing_entity, "facingAnchor", EntityAnchorArgument)
         .runs(Branch::TargetsFacingEntity)
         .id()?;
-    let facing_location = r
+    let facing_location = registrar
         .arg(facing, "facingLocation", Vec3Argument)
         .runs(Branch::TargetsFacingLocation)
         .id()?;
-    let target_destination = r
+    let target_destination = registrar
         .arg(targets, "destination", EntityArgument::ONE_ENTITY)
         .runs(Branch::TargetsToEntity)
         .id()?;
-    r.literal(NodeId::ROOT, "tp")
+    registrar
+        .literal(NodeId::ROOT, "tp")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
         .redirect(teleport)
         .id()?;
@@ -309,39 +320,44 @@ pub(crate) fn run(
             );
         }
         let moved = victims.len();
-        let single = moved == 1;
-        let subject = if single {
-            first.name.clone().into_text()
-        } else {
-            moved.to_string().into_text()
-        };
-        let position = destination.to.position;
-        let message = match destination.to_entity {
-            Some(entity) => Text::translate(
-                if single {
-                    "commands.teleport.success.entity.single"
-                } else {
-                    "commands.teleport.success.entity.multiple"
-                },
-                vec![subject, entity],
-            ),
-            None => Text::translate(
-                if single {
-                    "commands.teleport.success.location.single"
-                } else {
-                    "commands.teleport.success.location.multiple"
-                },
-                vec![
-                    subject,
-                    coordinate(position.x),
-                    coordinate(position.y),
-                    coordinate(position.z),
-                ],
-            ),
-        };
-        output.success(&call, message, true);
+        let message = success_message(first, moved, destination);
+        output.success(&call, message, Feedback::SourceAndOperators);
         Ok(i32::try_from(moved).unwrap_or(i32::MAX))
     })
+}
+
+/// The message of a teleport of `moved` victims, the first of which is `first`.
+fn success_message(first: &PlayerEntry, moved: usize, destination: Destination) -> Text {
+    let single = moved == 1;
+    let subject = if single {
+        first.name.clone().into_text()
+    } else {
+        moved.to_string().into_text()
+    };
+    let position = destination.to.position;
+    match destination.to_entity {
+        Some(entity) => Text::translate(
+            if single {
+                "commands.teleport.success.entity.single"
+            } else {
+                "commands.teleport.success.entity.multiple"
+            },
+            vec![subject, entity],
+        ),
+        None => Text::translate(
+            if single {
+                "commands.teleport.success.location.single"
+            } else {
+                "commands.teleport.success.location.multiple"
+            },
+            vec![
+                subject,
+                coordinate(position.x),
+                coordinate(position.y),
+                coordinate(position.z),
+            ],
+        ),
+    }
 }
 
 /// The position a victim turns to, and the entity of `player_look_at` (CMD-TP-011,
@@ -362,9 +378,9 @@ fn facing(
                 worlds.targets().player(anchor)?.transform.translation
             };
             Some((
-                anchored(part, position, PLAYER_EYE_HEIGHT),
+                mcrs_minecraft_command::anchored(part, position, PLAYER_EYE_HEIGHT),
                 Some(LookAtEntity {
-                    id: VarInt(player_network_id(anchor)),
+                    id: VarInt(network_id::player_network_id(anchor)),
                     anchor: part,
                 }),
             ))
@@ -398,7 +414,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
     } else {
         DimensionChange::Changes
     };
-    let step = relative_move(
+    let step = mcrs_minecraft_command_coordinates::relative_move(
         from,
         destination_pose,
         to.relative_position,
@@ -413,8 +429,8 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         .facing
         .and_then(|target| facing(worlds, player, to.position, target));
     if let Some((target, _)) = facing {
-        let eyes = anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
-        let look = rotation_toward(eyes, target);
+        let eyes = mcrs_minecraft_command::anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
+        let look = mcrs_minecraft_command_coordinates::rotation_toward(eyes, target);
         transform.rotation = Rotation::new(look.yaw, look.pitch);
     }
     let arrival = Arrival {
@@ -437,7 +453,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
             .map(|mut state| state.sent(transform));
         if let Some(teleport_id) = teleport_id {
             let position = arrival.position_packet(teleport_id);
-            worlds.deliver(to_player(player, PacketPayload::PlayerPosition(position)).critical());
+            worlds.deliver(bus::to(player, PacketPayload::PlayerPosition(position)).critical());
         }
     } else if let Err(error) = worlds.change_dimension(player, destination, arrival) {
         tracing::error!(?player, "a teleport did not move its victim: {error}");
@@ -449,6 +465,6 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
             target,
             entity,
         };
-        worlds.deliver(to_player(player, PacketPayload::PlayerLookAt(look_at)).critical());
+        worlds.deliver(bus::to(player, PacketPayload::PlayerLookAt(look_at)).critical());
     }
 }

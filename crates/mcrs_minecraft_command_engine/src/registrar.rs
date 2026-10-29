@@ -21,6 +21,7 @@ pub struct CommandRegistrar<'a, B> {
 }
 
 impl<'a, B: Copy + PartialEq> CommandRegistrar<'a, B> {
+    /// A literal node named `name` under `parent`.
     pub fn literal<'r>(
         &'r mut self,
         parent: impl Into<NodeId>,
@@ -29,6 +30,7 @@ impl<'a, B: Copy + PartialEq> CommandRegistrar<'a, B> {
         NodeRef::new(self, parent.into(), name, None)
     }
 
+    /// An argument node named `name` under `parent`, which parses `argument`.
     pub fn arg<'r, T: Into<VanillaArgument>>(
         &'r mut self,
         parent: impl Into<NodeId>,
@@ -50,6 +52,13 @@ impl<'a, B: Copy + PartialEq> CommandRegistrar<'a, B> {
     }
 }
 
+/// The modifier of a redirect: the branch that maps a source, and how many sources it gives.
+#[derive(Clone, Copy)]
+struct Modifier<B> {
+    branch: B,
+    mode: ForkMode,
+}
+
 /// A node that [`NodeRef::id`] adds to the tree.
 #[must_use]
 pub struct NodeRef<'r, 'a, B, K> {
@@ -60,7 +69,7 @@ pub struct NodeRef<'r, 'a, B, K> {
     check: PermissionCheck,
     branch: Option<B>,
     redirect: Option<NodeId>,
-    modifier: Option<(B, ForkMode)>,
+    modifier: Option<Modifier<B>>,
     handle: PhantomData<fn() -> K>,
 }
 
@@ -84,16 +93,19 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
         }
     }
 
+    /// The permission a source needs to see and use the node.
     pub fn requires(mut self, check: PermissionCheck) -> Self {
         self.check = check;
         self
     }
 
+    /// Makes the node executable: it runs `branch` of the command.
     pub fn runs(mut self, branch: B) -> Self {
         self.branch = Some(branch);
         self
     }
 
+    /// Continues the parse at `target` with the same source.
     pub fn redirect(mut self, target: impl Into<NodeId>) -> Self {
         self.redirect = Some(target.into());
         self
@@ -102,17 +114,24 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
     /// A redirect whose modifier maps each source to one source, or fails.
     pub fn modify(mut self, target: impl Into<NodeId>, branch: B) -> Self {
         self.redirect = Some(target.into());
-        self.modifier = Some((branch, ForkMode::Single));
+        self.modifier = Some(Modifier {
+            branch,
+            mode: ForkMode::Single,
+        });
         self
     }
 
     /// A redirect whose modifier maps each source to any number of sources.
     pub fn fork(mut self, target: impl Into<NodeId>, branch: B) -> Self {
         self.redirect = Some(target.into());
-        self.modifier = Some((branch, ForkMode::Fork));
+        self.modifier = Some(Modifier {
+            branch,
+            mode: ForkMode::Fork,
+        });
         self
     }
 
+    /// Adds the node to the tree and gives its handle.
     pub fn id(self) -> Result<K, BuildError> {
         let registrar = self.registrar;
         let builder = &mut *registrar.builder;
@@ -132,7 +151,7 @@ impl<'r, 'a, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a, B, K> {
         if let Some(target) = self.redirect {
             registrar.builder.redirect(node, target)?;
         }
-        if let Some((branch, mode)) = self.modifier {
+        if let Some(Modifier { branch, mode }) = self.modifier {
             let handler = Handler {
                 key: registrar.key,
                 branch: registrar.branch(branch),

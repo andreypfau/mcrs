@@ -12,17 +12,24 @@ use mcrs_command::BuildError;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
+/// Why a command, or one of its nodes, is not in the command tree.
 #[derive(Debug, thiserror::Error)]
 pub enum RegistrationError {
+    /// A node of the command conflicts with the tree; nothing of the command is added.
     #[error("the command tree does not take the command: {0}")]
     Tree(#[from] BuildError),
+    /// The app has no tree to add to: [`CommandPlugin`](crate::CommandPlugin) is not added, or
+    /// the app already finished.
     #[error("commands are added after CommandPlugin and before the app finishes")]
     NoTree,
+    /// The tree holds as many commands as a handler key can count.
     #[error("the command tree holds as many handlers as a handler key can count")]
     TooManyCommands,
 }
 
-pub trait AppCommands {
+/// Adds commands and command effects to an [`App`] that has the
+/// [`CommandPlugin`](crate::CommandPlugin).
+pub trait AppCommandsExt {
     /// Registers a command: `build` adds its nodes and returns the handles its handler reads,
     /// and every dimension world runs `handler` when one of its branches runs. Nothing is
     /// registered when `build` returns an error.
@@ -63,11 +70,20 @@ pub trait AppCommands {
     ) -> &mut Self;
 }
 
-/// Adds the nodes of one command to the tree, or nothing when `build` returns an error.
+/// The nodes of one command in the tree: the handles its builder returned, its key and its
+/// branches.
+struct Registration<B, C> {
+    handles: C,
+    key: HandlerKey,
+    table: BranchTable<B>,
+}
+
+/// Adds the nodes of one command to the tree, or nothing when `build` returns an error. `None`
+/// when the command has no executable node.
 fn register<B, C>(
     app: &mut App,
     build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
-) -> Result<Option<(C, HandlerKey, BranchTable<B>)>, RegistrationError>
+) -> Result<Option<Registration<B, C>>, RegistrationError>
 where
     B: Copy + PartialEq,
 {
@@ -103,10 +119,14 @@ where
         first,
         rest: rest.to_vec(),
     };
-    Ok(Some((handles, key, table)))
+    Ok(Some(Registration {
+        handles,
+        key,
+        table,
+    }))
 }
 
-impl AppCommands for App {
+impl AppCommandsExt for App {
     fn add_command<B, C, S, M>(
         &mut self,
         build: impl FnOnce(&mut CommandRegistrar<'_, B>) -> Result<C, BuildError>,
@@ -118,7 +138,12 @@ impl AppCommands for App {
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
         M: 'static,
     {
-        let Some((handles, key, table)) = register(self, build)? else {
+        let Some(Registration {
+            handles,
+            key,
+            table,
+        }) = register(self, build)?
+        else {
             return Ok(self);
         };
         Ok(self.add_dimension_plugin(HandlerPlugin {
@@ -144,7 +169,12 @@ impl AppCommands for App {
         D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
         N: 'static,
     {
-        let Some((handles, key, table)) = register(self, build)? else {
+        let Some(Registration {
+            handles,
+            key,
+            table,
+        }) = register(self, build)?
+        else {
             return Ok(self);
         };
         self.add_dimension_plugin(HandlerPlugin {

@@ -6,8 +6,8 @@ use bevy_ecs::prelude::{Local, ResMut};
 use bevy_ecs::system::InRef;
 use mcrs_command::{ParseScratch, Suggestion, SuggestionList};
 use mcrs_minecraft_command::CommandLevel;
-use mcrs_minecraft_command_vanilla::{ArgumentError, suggestion_reply};
-use mcrs_minecraft_engine::bus::{PacketPayload, to};
+use mcrs_minecraft_command_vanilla::ArgumentError;
+use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_protocol::GameMode;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
@@ -47,9 +47,9 @@ pub(crate) fn answer_suggestion(
     let mut suggestions = mcrs_command::recycle(std::mem::take(&mut scratch.suggestions));
     graph.suggest(&parse, &source, &mut suggestions);
     let list = SuggestionList::build(text, &mut suggestions);
-    outbox.packets.push(to(
-        *player,
-        PacketPayload::CommandSuggestions(suggestion_reply(*id, text, &list)),
-    ));
+    let reply = mcrs_minecraft_command_vanilla::suggestion_reply(*id, text, &list);
+    outbox
+        .packets
+        .push(bus::to(*player, PacketPayload::CommandSuggestions(reply)));
     scratch.suggestions = mcrs_command::recycle(suggestions);
 }

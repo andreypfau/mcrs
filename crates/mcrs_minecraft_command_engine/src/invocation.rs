@@ -5,7 +5,9 @@ use bevy_ecs::entity::Entity;
 /// the source, and the stage whose nodes the handler reads.
 #[derive(Clone, Debug)]
 pub struct Invocation {
+    /// The host anchor of the player who sent the line and receives its messages.
     pub output: Entity,
+    /// The source this run of the stage is for.
     pub source: SourceState,
     pub(crate) stage: usize,
     pub(crate) branch: u16,

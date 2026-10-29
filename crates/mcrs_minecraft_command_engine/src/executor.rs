@@ -20,8 +20,8 @@ use bevy_ecs::prelude::In;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
-use mcrs_command::{End, Executor, Failure, SourceLists, Stage, execute};
-use mcrs_minecraft_engine::dim::deliver;
+use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
+use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
@@ -70,7 +70,7 @@ impl PassExecutor<'_, '_> {
         queued: QueuedLine,
         stages: &mut Vec<Stage<Handler>>,
         lists: &mut SourceLists<SourceState>,
-        limits: mcrs_command::Limits,
+        limits: Limits,
     ) {
         let Some(player) = self.targets.player(queued.player) else {
             return;
@@ -80,20 +80,18 @@ impl PassExecutor<'_, '_> {
             queued,
             chain: std::mem::take(&mut self.running.chain),
         };
-        let parsed = self
-            .in_world(index, |world| {
-                world.run_system_cached_with(parse_line, &mut input)
-            })
-            .and_then(|parsed| {
-                parsed
-                    .inspect_err(|error| tracing::error!("a command line did not parse: {error}"))
-                    .ok()
-            })
-            .flatten();
+        let parsed = self.in_world(index, |world| {
+            world.run_system_cached_with(parse_line, &mut input)
+        });
         let LineToParse { queued, chain } = input;
         self.running.chain = chain;
-        let Some(source) = parsed else {
-            return;
+        let source = match parsed {
+            Some(Ok(Some(source))) => source,
+            Some(Err(error)) => {
+                tracing::error!("a command line did not parse: {error}");
+                return;
+            }
+            Some(Ok(None)) | None => return,
         };
         let mut event = CommandEvent {
             player: entity,
@@ -112,7 +110,7 @@ impl PassExecutor<'_, '_> {
         self.running.line = line;
         stages.clear();
         stages.extend_from_slice(self.running.chain.stages());
-        let end = execute(stages, source, limits, self, lists);
+        let end = mcrs_command::execute(stages, source, limits, self, lists);
         if end == End::SequenceLimit {
             tracing::info!(
                 "a command stopped at the limit of {} stages and runs",
@@ -187,7 +185,7 @@ impl PassExecutor<'_, '_> {
         }
         self.outbox.effects = effects;
         for packet in self.outbox.packets.drain(..) {
-            deliver(self.host, packet);
+            dim::deliver(self.host, packet);
         }
         for broadcast in self.outbox.broadcasts.drain(..) {
             self.host.trigger(broadcast);
@@ -251,6 +249,6 @@ impl Executor<SourceState, Handler> for PassExecutor<'_, '_> {
             }
         };
         let message: Text = failure.text();
-        deliver(self.host, system_message(self.output, message));
+        dim::deliver(self.host, system_message(self.output, message));
     }
 }

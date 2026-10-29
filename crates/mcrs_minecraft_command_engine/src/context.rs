@@ -8,7 +8,7 @@ use bevy_ecs::prelude::{Query, Res};
 use bevy_ecs::system::SystemParam;
 use mcrs_command::{Argument, ArgumentHandle, Contains};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_command::{Source, error_message};
+use mcrs_minecraft_command::Source;
 use mcrs_minecraft_command_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::world::dimension::DimensionTypeId;
@@ -62,6 +62,7 @@ impl<'w, 's> CommandContext<'w, 's> {
         self.blocks.as_deref()
     }
 
+    /// The command line that runs, without its leading slash.
     pub fn line(&self) -> &str {
         &self.running.line
     }
@@ -100,7 +101,7 @@ impl<'w, 's> CommandContext<'w, 's> {
         match graph.value(line, span, arg, &source) {
             None => Err(CommandFailure::failed()),
             Some(Ok(value)) => Ok(Some(value)),
-            Some(Err(error)) => Err(CommandFailure(error_message(
+            Some(Err(error)) => Err(CommandFailure(mcrs_minecraft_command::error_message(
                 line,
                 &error.map_into::<ArgumentError>(),
             ))),

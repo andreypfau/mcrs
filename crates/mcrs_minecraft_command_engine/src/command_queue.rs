@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
-use mcrs_minecraft_protocol::text::{Text, is_allowed_chat_character};
+use mcrs_minecraft_protocol::text::{self, Text};
 
 /// The command lines and the suggestion requests that the host received since the last pass.
 #[derive(Resource, Default)]
@@ -51,7 +51,7 @@ pub(crate) fn queue_command_line(
         return;
     };
     let line = packet.command.0;
-    if line.chars().all(is_allowed_chat_character) {
+    if line.chars().all(text::is_allowed_chat_character) {
         if let Some(&HostAnchorRef(player)) = anchor {
             queue.lines.push(QueuedLine {
                 player,
