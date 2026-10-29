@@ -3628,6 +3628,7 @@ dependencies = [
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_engine",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
@@ -3717,6 +3718,35 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_protocol",
  "mcrs_text_span",
+]
+
+[[package]]
+name = "mcrs_minecraft_command_engine"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_math",
+ "bytes",
+ "mcrs_command",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_entity",
+ "mcrs_minecraft_command_registry",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_vanilla",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registries",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -3852,11 +3882,13 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bytes",
+ "derive_more",
  "flume",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_level",
  "mcrs_minecraft_network",
@@ -3866,6 +3898,7 @@ dependencies = [
  "mcrs_minecraft_world",
  "rustc-hash 2.1.1",
  "smallvec",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -3988,6 +4021,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
+ "mcrs_minecraft_worldgen_feature",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
@@ -4300,11 +4334,8 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_command",
- "mcrs_minecraft_command_block",
  "mcrs_minecraft_command_coordinates",
- "mcrs_minecraft_command_entity",
- "mcrs_minecraft_command_registry",
- "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_engine",
  "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
@@ -4316,7 +4347,6 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
- "mcrs_minecraft_keys",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
@@ -4324,6 +4354,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_simulation",
+ "mcrs_minecraft_vanilla_commands",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
@@ -4420,6 +4451,41 @@ dependencies = [
  "mcrs_minecraft_snbt",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_commands"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_command",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_command_block",
+ "mcrs_minecraft_command_coordinates",
+ "mcrs_minecraft_command_engine",
+ "mcrs_minecraft_command_entity",
+ "mcrs_minecraft_command_registry",
+ "mcrs_minecraft_command_time",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_generator",
+ "mcrs_minecraft_worldgen_structure",
+ "rand 0.10.0",
+ "tracing",
 ]
 
 [[package]]

@@ -1,0 +1,37 @@
+[package]
+name = "mcrs_minecraft_command_engine"
+description = "The command tree, the registration of commands and the pass that runs the command lines of the players across the dimension worlds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_block.workspace = true
+mcrs_minecraft_command_entity.workspace = true
+mcrs_minecraft_command_registry.workspace = true
+mcrs_minecraft_command_time.workspace = true
+mcrs_minecraft_command_vanilla.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

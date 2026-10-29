@@ -43,12 +43,13 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks};
 
 use crate::world::aoi::ColumnHeld;
-use crate::world::block_entity::{BlockEntity, packet_entry};
-use crate::world::entity::player::HostAnchor;
+use crate::world::block_entity::packet_entry;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::heightmap::client_heightmaps;
+use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
+use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::{trace, warn};
 

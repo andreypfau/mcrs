@@ -1,10 +1,10 @@
-use crate::command::vanilla::{FoundPlayers, targets_or_self};
-use crate::command::{
-    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
-};
+use crate::select::{FoundPlayers, targets_or_self};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
+use mcrs_minecraft_command_engine::{
+    Call, CommandContext, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Worlds,
+};
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
@@ -18,13 +18,13 @@ pub struct SetGameMode {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct GameModeCommand {
+pub(crate) struct GameModeCommand {
     mode: ArgumentHandle<GameModeArgument>,
     target: ArgumentHandle<EntityArgument>,
 }
 
 /// CMD-GM-001.
-pub(super) fn build(r: &mut CommandRegistrar<'_, ()>) -> Result<GameModeCommand, BuildError> {
+pub(crate) fn build(r: &mut CommandRegistrar<'_, ()>) -> Result<GameModeCommand, BuildError> {
     let gamemode = r
         .literal(NodeId::ROOT, "gamemode")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
@@ -46,7 +46,7 @@ fn mode_text(mode: GameMode) -> Text {
 
 /// CMD-GM-002 to CMD-GM-005, CMD-GM-009: each target that does not have the mode gets it, in
 /// any dimension, and its messages follow.
-pub(super) fn run(
+pub(crate) fn run(
     In(call): In<Call<(), GameModeCommand>>,
     context: CommandContext,
     mut output: CommandOutput,

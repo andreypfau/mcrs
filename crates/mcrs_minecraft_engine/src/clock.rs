@@ -1,7 +1,7 @@
+use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use mcrs_minecraft_environment::world_clock::{
     AdvanceTime, ClockEdit, ClockState, WorldClock, WorldClocks,
 };
@@ -76,7 +76,7 @@ fn apply_clock_edit(
 }
 
 /// Copies the host's game time into a dimension.
-pub(crate) fn extract_game_time(main_world: &World, sub_world: &mut World) {
+pub fn extract_game_time(main_world: &World, sub_world: &mut World) {
     if let (Some(&time), Some(mut current)) = (
         main_world.get_resource::<GameTime>(),
         sub_world.get_resource_mut::<GameTime>(),

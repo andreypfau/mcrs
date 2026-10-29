@@ -12,6 +12,7 @@ use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
+use mcrs_minecraft_level::world::storage::block_entity::{BlockEntity, spawn_block_entities};
 use mcrs_minecraft_level::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
 };
@@ -21,7 +22,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
-use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
+use mcrs_minecraft_server::world::block_entity::packet_entry;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{
     BeeOccupant, EndGatewayData, GeneratedBlockEntity,
 };

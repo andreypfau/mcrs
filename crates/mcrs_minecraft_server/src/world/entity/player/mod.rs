@@ -1,5 +1,4 @@
 use crate::ops::{DefaultOpLevel, OpList};
-use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
 use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
@@ -17,12 +16,15 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey};
+use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket,
     OutboundPlayerReleased, PacketPayload, PlayerInfoEntry,
 };
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::dimension_change::DimensionChanger;
+use mcrs_minecraft_engine::session::{GameProfile, HostAnchor};
+use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -47,10 +49,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerAbilities;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
-use movement::TeleportState;
 use tracing::{debug, info};
 
-pub mod ability;
 mod chat;
 pub mod column_view;
 pub mod dimension_change;
@@ -68,13 +68,6 @@ impl Default for DefaultGameMode {
     }
 }
 
-/// Carries the host-anchor entity on the in-dim player entity. Inserted by
-/// the per-dim spawn consumer so that subsequent per-dim systems can build
-/// `PacketTarget::SinglePlayer(host_anchor)` without querying the host's
-/// sessions or `ServerSideConnection`.
-#[derive(bevy_ecs::component::Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HostAnchor(pub Entity);
-
 /// Plugin for per-dimension worlds. Registers only the bus-driven and
 /// simulation systems that are safe to run inside a DimWorld — no
 /// `ServerSideConnection` or other host-only resource is accessed.
@@ -83,6 +76,7 @@ pub struct DimPlayerPlugin;
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.init_resource::<DefaultGameMode>();
+        app.insert_resource(DimensionChanger(dimension_change::change_dimension));
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(ChatPlugin);
@@ -164,7 +158,7 @@ fn consume_inbound_player_spawn(
     default_game_mode: Res<DefaultGameMode>,
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
-    tree: Option<Res<crate::command::CommandTreePackets>>,
+    tree: Option<Res<mcrs_minecraft_command_engine::CommandTreePackets>>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -204,7 +198,7 @@ fn consume_inbound_player_spawn(
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
-        let wire_id = crate::world::entity::player_network_id(host);
+        let wire_id = mcrs_minecraft_engine::network_id::player_network_id(host);
         let spawn_pos = spawn.snapshot.position;
 
         let dimensions = spawn.dimensions.to_vec();
@@ -298,7 +292,7 @@ fn consume_inbound_player_spawn(
 /// in; this tells it every later change, with the tree of its new level.
 pub(crate) fn send_op_level(
     players: Query<(Ref<PlayerOpLevel>, &HostAnchor), Changed<PlayerOpLevel>>,
-    tree: Option<Res<crate::command::CommandTreePackets>>,
+    tree: Option<Res<mcrs_minecraft_command_engine::CommandTreePackets>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (op_level, &HostAnchor(host)) in &players {
@@ -314,14 +308,14 @@ pub(crate) fn send_op_level(
 pub(crate) fn level_packets(
     host: Entity,
     op_level: PlayerOpLevel,
-    tree: Option<&crate::command::CommandTreePackets>,
+    tree: Option<&mcrs_minecraft_command_engine::CommandTreePackets>,
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
     push(
         to(
             host,
             PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
-                entity_id: crate::world::entity::player_network_id(host),
+                entity_id: mcrs_minecraft_engine::network_id::player_network_id(host),
                 entity_status: op_level.entity_status(),
             }),
         )
@@ -341,7 +335,7 @@ pub(crate) fn level_packets(
 pub(crate) fn enter_level_packets(
     host: Entity,
     op_level: PlayerOpLevel,
-    tree: Option<&crate::command::CommandTreePackets>,
+    tree: Option<&mcrs_minecraft_command_engine::CommandTreePackets>,
     position: ClientboundPlayerPosition,
     abilities: ClientboundPlayerAbilities,
     mut push: impl FnMut(OutboundPlayerPacket),
@@ -414,7 +408,7 @@ fn network_add(
     packet_writer.write(to(
         host_anchor,
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-            id: VarInt(crate::world::entity::player_network_id(anchor)),
+            id: VarInt(mcrs_minecraft_engine::network_id::player_network_id(anchor)),
             uuid: profile.id,
             kind: mcrs_minecraft_entity::keys::EntityType::Player,
             pos: transform.translation,

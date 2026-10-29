@@ -1,11 +1,11 @@
-use crate::command::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
-};
 use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_biome::keys::BIOME;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck, ResourceOrTag, ResourceOrTagArgument};
+use mcrs_minecraft_command_engine::{
+    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
+};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::STRUCTURE;
 use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;
@@ -16,21 +16,21 @@ use mcrs_minecraft_worldgen_generator::structures::nearest_biome::nearest_biome;
 use mcrs_minecraft_worldgen_structure::frozen::StructureId;
 
 #[derive(Clone, Copy)]
-pub(super) struct LocateCommand {
+pub(crate) struct LocateCommand {
     structure: ArgumentHandle<ResourceOrTagArgument>,
     biome: ArgumentHandle<ResourceOrTagArgument>,
     poi: ArgumentHandle<ResourceOrTagArgument>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Branch {
+pub(crate) enum Branch {
     Structure,
     Biome,
     Poi,
 }
 
 /// CMD-LOC-001.
-pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateCommand, BuildError> {
+pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<LocateCommand, BuildError> {
     let locate = r
         .literal(NodeId::ROOT, "locate")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
@@ -166,7 +166,7 @@ fn structure(
     ))
 }
 
-pub(super) fn run(
+pub(crate) fn run(
     In(call): In<Call<Branch, LocateCommand>>,
     context: CommandContext,
     fill: Option<Res<FillContext>>,

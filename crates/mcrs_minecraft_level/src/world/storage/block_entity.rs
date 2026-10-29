@@ -4,6 +4,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
 use crate::world::storage::section::SectionIndex;
+use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 
 /// Back-link from a block entity to the section holding it; the section's
 /// despawn takes its block entities with it.
@@ -18,6 +19,29 @@ pub struct SectionBlockEntities(Vec<Entity>);
 /// The block a block entity belongs to, and what resolves its section.
 #[derive(Component, Clone, Copy, Debug, Deref)]
 pub struct BlockEntityPos(pub BlockPos);
+
+/// A block entity's kind and state, in the one typed shape the save, the chunk
+/// packet and the anvil reader share; the position is read off the entity's
+/// [`BlockEntityPos`] and duplicated here only because the shape carries it.
+#[derive(Component, Clone, Debug, PartialEq)]
+pub struct BlockEntity(pub GeneratedBlockEntity);
+
+/// One entity per entry, under the dimension whose sections the reconcile step
+/// resolves them against.
+pub fn spawn_block_entities(
+    commands: &mut Commands,
+    dim: InDimension,
+    entries: Vec<GeneratedBlockEntity>,
+) {
+    for entry in entries {
+        let pos = entry.position();
+        commands.spawn((
+            BlockEntityPos(BlockPos::new(pos.x, pos.y, pos.z)),
+            dim,
+            BlockEntity(entry),
+        ));
+    }
+}
 
 /// A block entity whose section is not loaded has nowhere to live and leaves
 /// again: the section is what owns it, and a section that arrives later brings

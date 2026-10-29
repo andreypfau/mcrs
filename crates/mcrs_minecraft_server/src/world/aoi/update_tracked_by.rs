@@ -23,10 +23,10 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
-use crate::world::entity::network_id;
-use crate::world::entity::player::HostAnchor;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_engine::network_id::network_id;
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::session::HostAnchor;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
 /// blocks; matches vanilla's mob/player track radius before

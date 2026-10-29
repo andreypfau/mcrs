@@ -1,0 +1,43 @@
+[package]
+name = "mcrs_minecraft_vanilla_commands"
+description = "The vanilla commands execute, gamemode, teleport, locate and time, and the command effects they write"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_block.workspace = true
+mcrs_minecraft_command_coordinates.workspace = true
+mcrs_minecraft_command_engine.workspace = true
+mcrs_minecraft_command_entity.workspace = true
+mcrs_minecraft_command_registry.workspace = true
+mcrs_minecraft_command_time.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_structure.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+rand.workspace = true
+tracing.workspace = true

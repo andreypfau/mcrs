@@ -20,9 +20,9 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntiti
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
-use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_engine::session::HostAnchor;
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:
@@ -96,7 +96,9 @@ fn evict(
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     let left_view = ClientboundRemoveEntities {
-        entity_ids: vec![VarInt(crate::world::entity::player_network_id(host_anchor))],
+        entity_ids: vec![VarInt(
+            mcrs_minecraft_engine::network_id::player_network_id(host_anchor),
+        )],
     };
 
     // The former observers are found through their TrackedBy, so they hear of the leave before

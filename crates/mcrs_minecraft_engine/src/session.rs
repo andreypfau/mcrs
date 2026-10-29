@@ -40,6 +40,11 @@ impl SessionBundle {
 #[relationship(relationship_target = SessionConnection)]
 pub struct HostAnchorRef(pub Entity);
 
+/// On a player entity of a dimension world: the host anchor that names the player in every
+/// dimension, so a dimension system can address its packets without the host's sessions.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HostAnchor(pub Entity);
+
 #[derive(Component, Debug)]
 #[relationship_target(relationship = HostAnchorRef)]
 pub struct SessionConnection(Entity);

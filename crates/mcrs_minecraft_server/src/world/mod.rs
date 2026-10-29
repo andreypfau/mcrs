@@ -10,7 +10,6 @@ pub mod aoi;
 pub mod block_entity;
 pub mod block_update;
 pub mod chunk;
-pub mod clock;
 pub mod entity;
 pub mod generate;
 #[cfg(test)]
@@ -27,7 +26,7 @@ impl Plugin for WorldPlugin {
         // default is for harnesses that compose `WorldPlugin` on its own.
         app.init_resource::<crate::world_options::WorldSeed>();
         app.add_plugins(mcrs_minecraft_engine::EnginePlugin);
-        app.add_plugins(clock::WorldClockHostPlugin);
+        app.add_plugins(mcrs_minecraft_engine::clock::WorldClockHostPlugin);
         app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns);
     }
 }

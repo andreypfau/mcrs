@@ -672,9 +672,9 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 /// every nest the column grew.
 #[test]
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::world::block_entity::BlockEntity;
     use crate::world::chunk::{ColumnKey, PendingColumn};
     use mcrs_minecraft_level::world::dimension::InDimension;
+    use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
     use mcrs_minecraft_worldgen_feature_place::block_entity::{BeeOccupant, GeneratedBlockEntity};
 
     let mut app = App::new();

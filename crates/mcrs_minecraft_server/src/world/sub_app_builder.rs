@@ -530,7 +530,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
     sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
-    sub_app.init_resource::<crate::world::clock::GameTime>();
+    sub_app.init_resource::<mcrs_minecraft_engine::clock::GameTime>();
     sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
@@ -551,7 +551,7 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
-        crate::world::clock::extract_game_time(main_world, sub_world);
+        mcrs_minecraft_engine::clock::extract_game_time(main_world, sub_world);
         mcrs_minecraft_world::registry_snapshot::extract_registries(main_world, sub_world);
         if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
             sub_world.insert_resource(ops.clone());

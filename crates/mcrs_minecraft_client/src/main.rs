@@ -385,8 +385,7 @@ fn host_integrated_server(
                 std::iter::once(OpListEntry {
                     uuid: host.id,
                     name: host.name.clone(),
-                    level:
-                        mcrs_minecraft_server::world::entity::player::ability::PlayerOpLevel::MAX,
+                    level: mcrs_minecraft_engine::ability::PlayerOpLevel::MAX,
                     bypasses_player_limit: true,
                 })
                 .chain(OpList::read_entries(Path::new(OPS_FILE)).unwrap_or_else(

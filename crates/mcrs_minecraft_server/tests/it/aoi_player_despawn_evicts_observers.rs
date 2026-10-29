@@ -14,6 +14,7 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
+use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -24,7 +25,6 @@ use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSl
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_server::world::aoi::{PlayerTrackerPlugin, TrackedBy};
-use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 
 /// Ad-hoc sub-app label for this test.
@@ -221,7 +221,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.update();
 
     // Drain packets from the sub-world (needs &mut World).
-    let expected_wire_id = mcrs_minecraft_server::world::entity::player_network_id(host_anchor_t);
+    let expected_wire_id = mcrs_minecraft_engine::network_id::player_network_id(host_anchor_t);
     let pkts: Vec<OutboundPlayerPacket> = {
         let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
         sub.world_mut()

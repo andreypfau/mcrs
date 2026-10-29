@@ -1,45 +1,7 @@
-use bevy_ecs::prelude::{Commands, Component};
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::borrow::Cow;
-
-/// A block entity's kind and state, in the one typed shape the save, the chunk
-/// packet and the anvil reader share; the position is read off the entity's
-/// [`BlockEntityPos`] and duplicated here only because the shape carries it.
-#[derive(Component, Clone, Debug, PartialEq)]
-pub struct BlockEntity(pub GeneratedBlockEntity);
-
-/// One entity per entry, under the dimension whose sections the reconcile step
-/// resolves them against.
-pub fn spawn_block_entities(
-    commands: &mut Commands,
-    dim: InDimension,
-    entries: Vec<GeneratedBlockEntity>,
-) {
-    for entry in entries {
-        let pos = entry.position();
-        commands.spawn((
-            BlockEntityPos(BlockPos::new(pos.x, pos.y, pos.z)),
-            dim,
-            BlockEntity(entry),
-        ));
-    }
-}
-
-/// The saved data of a block entity (ARG-BLK-012): the compound the save writes, which holds
-/// `id`, `x`, `y` and `z`, with an empty `components` when it has none.
-pub fn saved_data(entry: &GeneratedBlockEntity) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
-    let mut compound = to_nbt_compound(entry)?;
-    if compound.get("components").is_none() {
-        compound.put_component("components", NbtCompound::new());
-    }
-    Ok(compound)
-}
 
 /// The chunk packet's entry, carrying the same compound the save holds.
 pub fn packet_entry(

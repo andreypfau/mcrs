@@ -1,4 +1,3 @@
-use crate::world::block_entity::spawn_block_entities;
 use crate::world::entity::player::column_view::ColumnView;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -21,6 +20,7 @@ use mcrs_minecraft_level::world::lifecycle::stage::{
 use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
+use mcrs_minecraft_level::world::storage::block_entity::spawn_block_entities;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;

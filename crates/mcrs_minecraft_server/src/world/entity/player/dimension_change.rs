@@ -1,10 +1,6 @@
-use crate::command::CommandTreePackets;
-use crate::command::in_dimension_order;
 use crate::world::aoi::components::TrackedBy;
-use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::column_view::ColumnView;
-use crate::world::entity::player::movement::TeleportState;
-use crate::world::entity::player::{HostAnchor, enter_level_packets, game_mode};
+use crate::world::entity::player::{enter_level_packets, game_mode};
 use crate::world::entity::{EntityBundle, EntityUuid};
 use crate::world::sub_app_builder::FromDimBacklog;
 use bevy_app::{App, SubApp};
@@ -15,24 +11,27 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
-use bevy_math::DVec3;
+use mcrs_minecraft_command_engine::{CommandTreePackets, in_dimension_order};
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
+use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, OutboundPlayerReleased};
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
 use mcrs_minecraft_engine::channel_types::FromDim;
 use mcrs_minecraft_engine::dim::{deliver, pump_dim, receive_from_dim};
-use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
+use mcrs_minecraft_engine::session::HostAnchor;
+use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
+use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition, ClientboundRespawn,
 };
-use mcrs_minecraft_protocol::{GameMode, Look, PositionFlags, VarInt};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data (DIM-CHG-004).
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
@@ -88,55 +87,6 @@ fn carry<T: Component<Mutability = Mutable>>(
             moved.set_changed();
         }
     }
-}
-
-/// Where a player arrives: its transform, and what `player_position` tells the client, whose
-/// relative axes carry the change and not the value.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Arrival {
-    pub transform: Transform,
-    pub position: DVec3,
-    pub look: Look,
-    pub flags: PositionFlags,
-}
-
-impl Arrival {
-    /// An arrival that tells the client the absolute position and rotation of `transform`.
-    pub fn absolute(transform: Transform) -> Self {
-        Self {
-            transform,
-            position: transform.translation,
-            look: Look {
-                yaw: transform.rotation.yaw(),
-                pitch: transform.rotation.pitch(),
-            },
-            flags: PositionFlags::default(),
-        }
-    }
-
-    pub(crate) fn position_packet(&self, teleport_id: i32) -> ClientboundPlayerPosition {
-        ClientboundPlayerPosition {
-            teleport_id: VarInt(teleport_id),
-            position: self.position,
-            velocity: DVec3::ZERO,
-            look: self.look,
-            flags: self.flags,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum DimensionChangeError {
-    #[error("the new world holds no dimension")]
-    NoDimension,
-    #[error("the old world holds no such player")]
-    NoPlayer,
-    #[error("the player did not leave its dimension")]
-    NotLeft,
-    #[error("the session of the player is no longer placed in the old dimension")]
-    NotPlaced,
-    #[error("the player lacks the state its arrival sends")]
-    NoArrivalState,
 }
 
 /// Moves `player`, an entity of `from`, into the dimension of `to` as the same player, places its

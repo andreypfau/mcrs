@@ -1,55 +1,7 @@
-mod execute;
-mod gamemode;
-mod locate;
-mod teleport;
-mod time;
-
-pub use gamemode::SetGameMode;
-pub use teleport::{Facing, Teleport, TeleportPlayer};
-
-use crate::command::{AppCommands, CommandContext, CommandFailure, Invocation, PlayerEntry};
-use bevy_app::{App, Plugin};
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::ErrorText;
+use mcrs_minecraft_command_engine::{CommandContext, CommandFailure, Invocation, PlayerEntry};
 use mcrs_minecraft_command_entity::EntityArgument;
-
-/// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
-/// `time`, and their effects: [`TeleportPlayer`], [`SetGameMode`] and
-/// [`EditClock`](crate::world::clock::EditClock).
-pub struct VanillaCommandsPlugin;
-
-impl Plugin for VanillaCommandsPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_command_effect(teleport::apply)
-            .add_command_effect(gamemode::apply)
-            .add_command_effect(time::apply);
-        let added = [
-            (
-                "execute",
-                app.add_modifying_command(execute::build, execute::run, execute::modify)
-                    .map(drop),
-            ),
-            (
-                "gamemode",
-                app.add_command(gamemode::build, gamemode::run).map(drop),
-            ),
-            (
-                "teleport",
-                app.add_command(teleport::build, teleport::run).map(drop),
-            ),
-            (
-                "locate",
-                app.add_command(locate::build, locate::run).map(drop),
-            ),
-            ("time", app.add_command(time::build, time::run).map(drop)),
-        ];
-        for (name, result) in added {
-            if let Err(error) = result {
-                tracing::error!("{name}: {error}");
-            }
-        }
-    }
-}
 
 /// The players a selector found, which a handler keeps between its runs so that a search
 /// allocates only when it finds more players than every search before it.

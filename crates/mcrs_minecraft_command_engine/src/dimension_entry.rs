@@ -1,0 +1,12 @@
+use bevy_ecs::entity::Entity;
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension;
+
+/// A dimension that runs, as a command sees it.
+#[derive(Clone, Debug)]
+pub struct DimensionEntry {
+    /// The host entity that labels the sub-app of the dimension.
+    pub label: Entity,
+    pub key: ResourceKey<Dimension>,
+    pub coordinate_scale: f64,
+}

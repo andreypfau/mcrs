@@ -4,7 +4,6 @@ extern crate core;
 
 pub mod block_light_table;
 mod client_info;
-pub mod command;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
@@ -130,8 +129,8 @@ impl PluginGroup for MinecraftServerPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(self.core)
-            .add(crate::command::CommandPlugin)
-            .add(crate::command::vanilla::VanillaCommandsPlugin)
+            .add(mcrs_minecraft_command_engine::CommandPlugin)
+            .add(mcrs_minecraft_vanilla_commands::VanillaCommandsPlugin)
             .add(self.worlds)
             .add(WorldGenPlugin)
             .add(LightingPlugin)
@@ -259,8 +258,9 @@ impl Plugin for DimensionWorldsPlugin {
             app.insert_resource(crate::world_options::PluginDimensions(dimensions.clone()));
         }
         app.insert_resource(self.ops.clone());
+        app.add_observer(ops::broadcast_to_operators);
         app.insert_resource(ops::DefaultOpLevel(
-            crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
+            mcrs_minecraft_engine::ability::PlayerOpLevel(self.default_op_level),
         ));
         app.insert_resource(crate::world::entity::player::DefaultGameMode(
             self.default_game_mode,

@@ -8,6 +8,7 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -21,7 +22,6 @@ use mcrs_minecraft_light::prelude::{
 };
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
-use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::light::emit_light_updates;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;

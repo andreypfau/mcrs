@@ -1,14 +1,14 @@
-use crate::world::entity::player::HostAnchor;
-use crate::world::entity::player::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::dimension_change::CarryOnDimensionChange;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_command::CommandLevel;
+use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerInfoEntry, to_target,
 };
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundGameEvent, ClientboundPlayerAbilities,
@@ -39,7 +39,7 @@ fn handle_change_game_mode(
     let Ok((op_level, mut current_mode)) = players.get_mut(event.entity) else {
         return;
     };
-    if crate::command::level_of(*op_level) < CommandLevel::Gamemasters {
+    if mcrs_minecraft_command_engine::level_of(*op_level) < CommandLevel::Gamemasters {
         tracing::warn!(
             "player {:?} tried to change game mode to {:?} without permission",
             event.entity,

@@ -1,12 +1,4 @@
-use crate::command::Invocation;
-use crate::command::vanilla::{FoundPlayers, select, targets_or_self};
-use crate::command::{
-    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
-    EffectQueue, PlayerEntry, Worlds,
-};
-use crate::world::entity::player::dimension_change::Arrival;
-use crate::world::entity::player::movement::{MAX_XZ, MAX_Y, TeleportState};
-use crate::world::entity::player_network_id;
+use crate::select::{FoundPlayers, select, targets_or_self};
 use bevy_ecs::prelude::*;
 use bevy_math::{BVec3, DVec3};
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
@@ -16,8 +8,15 @@ use mcrs_minecraft_command_coordinates::{
     DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument, relative_move,
     rotation_toward,
 };
+use mcrs_minecraft_command_engine::{
+    Call, CommandContext, CommandFailure, CommandOutput, CommandRegistrar, CommandResult,
+    EffectQueue, Invocation, PlayerEntry, Worlds,
+};
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_engine::bus::{PacketPayload, to as to_player};
+use mcrs_minecraft_engine::dimension_change::Arrival;
+use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_protocol::LookAnchor;
@@ -59,7 +58,7 @@ pub struct TeleportPlayer {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct TeleportCommand {
+pub(crate) struct TeleportCommand {
     location: ArgumentHandle<Vec3Argument>,
     destination: ArgumentHandle<EntityArgument>,
     targets: ArgumentHandle<EntityArgument>,
@@ -72,7 +71,7 @@ pub(super) struct TeleportCommand {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Branch {
+pub(crate) enum Branch {
     ToLocation,
     ToEntity,
     TargetsToLocation,
@@ -83,7 +82,7 @@ pub(super) enum Branch {
 }
 
 /// CMD-TP-001.
-pub(super) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<TeleportCommand, BuildError> {
+pub(crate) fn build(r: &mut CommandRegistrar<'_, Branch>) -> Result<TeleportCommand, BuildError> {
     let teleport = r
         .literal(NodeId::ROOT, "teleport")
         .requires(PermissionCheck::Require(CommandLevel::Gamemasters))
@@ -273,7 +272,7 @@ fn coordinate(value: f64) -> Text {
 /// the order of the selector, each in the world that holds it, and the message follows the
 /// last move. A victim the search found is still where the search found it when its move
 /// applies, so each victim moves and counts.
-pub(super) fn run(
+pub(crate) fn run(
     In(call): In<Call<Branch, TeleportCommand>>,
     context: CommandContext,
     mut output: CommandOutput,

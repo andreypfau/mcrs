@@ -1,27 +1,14 @@
-use crate::command::{SourceState, Worlds};
+use crate::worlds::Worlds;
 use bevy_app::{App, Plugin};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::event::Event;
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_protocol::text::Text;
 use std::collections::VecDeque;
-
-/// A command reported success with a message for the operators (CMDP-EXEC-004). The host,
-/// which knows every online player and the operators, delivers it to each operator but `source`.
-#[derive(Event, Clone, Debug)]
-pub struct OperatorBroadcast {
-    /// The host anchor of the player that ran the command.
-    pub source: Entity,
-    pub message: Text,
-}
 
 /// Applies the oldest effect of one type that a handler wrote in the world at the index.
 pub(crate) type ApplyNext = fn(&mut Worlds<'_, '_>, usize);
 
 /// The effects of type `E` that a handler of this world wrote and the host did not apply yet,
 /// in the order of writing, and the function that applies one. A handler writes one with
-/// [`CommandOutput::effect`](crate::command::CommandOutput::effect).
+/// [`CommandOutput::effect`](crate::CommandOutput::effect).
 #[derive(Resource)]
 pub struct EffectQueue<E: Send + Sync + 'static> {
     pub(crate) values: VecDeque<E>,
@@ -61,14 +48,4 @@ impl<E: Send + Sync + 'static> Plugin for EffectPlugin<E> {
     fn is_unique(&self) -> bool {
         false
     }
-}
-
-/// What one run of a handler leaves for the host: its effects in the order of writing, then its
-/// messages. The host lends it to the world the handler runs in and empties it after the run.
-#[derive(Resource, Debug, Default)]
-pub(crate) struct CommandOutbox {
-    pub(crate) effects: Vec<ApplyNext>,
-    pub(crate) packets: Vec<OutboundPlayerPacket>,
-    pub(crate) broadcasts: Vec<OperatorBroadcast>,
-    pub(crate) forked: Vec<SourceState>,
 }
