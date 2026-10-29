@@ -1,8 +1,10 @@
+use crate::MAX_INPUT;
 use crate::command_input::{CommandInput, Context, Request};
 use crate::edit_box::{Anchor, EditBox, Step};
 use crate::history::{History, Recall};
 use crate::normalize::normalize;
 use mcrs_minecraft_command_vanilla::VanillaLookup;
+use mcrs_minecraft_wire::utf16_len;
 
 /// A key of the chat screen, after the platform mapped Cmd or Ctrl.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -317,6 +319,9 @@ impl ChatScreen {
                 send: None,
                 history_changed: false,
             });
+        }
+        if !self.sent.starts_with('/') && utf16_len(&self.sent) > MAX_INPUT {
+            return Outcome::Handled;
         }
         let history_changed = history.add(&self.sent);
         let send = match self.sent.strip_prefix('/') {

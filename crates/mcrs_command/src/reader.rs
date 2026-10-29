@@ -306,9 +306,9 @@ impl<'a> StringValue<'a> {
         self.raw.is_empty()
     }
 
-    /// The length of the value in UTF-16 code units.
-    pub fn len_utf16(&self) -> usize {
-        self.chars().map(char::len_utf16).sum()
+    /// The length of the value in UTF-8 bytes, escapes removed.
+    pub fn len(&self) -> usize {
+        self.chars().map(char::len_utf8).sum()
     }
 }
 

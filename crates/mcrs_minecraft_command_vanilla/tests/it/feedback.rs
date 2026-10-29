@@ -6,7 +6,7 @@ use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_text_span::Span;
 
 #[test]
-fn an_error_shows_the_ten_code_units_before_it() {
+fn an_error_shows_the_ten_characters_before_it() {
     let input = "gamemode creativ";
     let error = SyntaxError::argument(
         ArgumentError::Keyword(KeywordError::GameModeInvalid(Span::new(9, 16))),
@@ -22,8 +22,13 @@ fn an_error_shows_the_ten_code_units_before_it() {
         ("gamemode creativ", 16, "...de creativ", None),
         ("gamemode creativ", 9, "gamemode ", Some("creativ")),
         ("0123456789", 10, "0123456789", None),
-        ("a\u{1f600}bcdefghij", 14, "...bcdefghij", None),
-        ("a\u{1f600}bcdefghij x", 14, "...bcdefghij", Some(" x")),
+        ("a\u{1f600}bcdefghij", 14, "...\u{1f600}bcdefghij", None),
+        (
+            "a\u{1f600}bcdefghij x",
+            14,
+            "...\u{1f600}bcdefghij",
+            Some(" x"),
+        ),
     ];
     for (input, position, before, rest) in cases {
         let error = SyntaxError::argument(

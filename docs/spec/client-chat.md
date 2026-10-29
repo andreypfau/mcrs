@@ -280,11 +280,11 @@ and press Enter. Capture the `chat` packet. Its text is `a b`.
   1. If the input is blocked (CHAT-OPT-002), do nothing. The screen stays open.
   2. Normalize the input (CHAT-SEND-001). If the result is empty, send nothing and go to
      step 7.
-  3. Add the result to the history (CHAT-HIST-001).
-  4. If the result starts with `/`, the command line is the result without the first `/`.
+  3. If the result does not start with `/` and has more than 256 code units, do nothing. The
+     screen stays open (CHAT-DEV-002).
+  4. Add the result to the history (CHAT-HIST-001).
+  5. If the result starts with `/`, the command line is the result without the first `/`.
      Send it as CHAT-SEND-004 states.
-  5. Otherwise, if the result has more than 256 code units, send nothing. The screen stays
-     open (CHAT-DEV-002).
   6. Otherwise send the result in a `chat` packet (CHAT-SEND-003).
   7. Close the chat screen.
 - **Postconditions:**
@@ -313,7 +313,7 @@ server, send `hi`. Decode the packet. The signature flag is false.
 
 ### CHAT-SEND-004: Choice of the command packet
 
-- **Inputs:** the command line `L` of CHAT-SEND-002, step 4.
+- **Inputs:** the command line `L` of CHAT-SEND-002, step 5.
 - **Behavior:**
   1. Parse `L` against the client tree with the client source, from position 0
      (`client-commands.md`, CCMD-TREE-001).
@@ -781,7 +781,7 @@ first.
 
 ### CHAT-DEV-002: The input box counts characters
 
-- **Rule:** CHAT-BOX-001 and CHAT-SEND-002, step 5.
+- **Rule:** CHAT-BOX-001 and CHAT-SEND-002, step 3.
 - **Reference:** the input box holds at most 256 code units. A cut at the limit does not split a
   surrogate pair. The caret and the edit keys move by code units, and skip the second code unit
   of a pair.

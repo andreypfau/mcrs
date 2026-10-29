@@ -1,7 +1,7 @@
 use mcrs_minecraft_protocol::text::is_allowed_chat_character;
 
 use crate::MAX_INPUT;
-use mcrs_text_span::{Span, utf16_len, utf16_prefix};
+use mcrs_text_span::Span;
 
 /// How far a caret move or a removal goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -80,7 +80,7 @@ impl EditBox {
     /// Replaces the text and puts the caret at its end.
     pub fn set(&mut self, text: &str) {
         self.text.clear();
-        self.text.push_str(utf16_prefix(text, MAX_INPUT));
+        self.text.extend(text.chars().take(MAX_INPUT));
         self.caret = self.text.len();
         self.anchor = self.caret;
     }
@@ -94,21 +94,17 @@ impl EditBox {
         }
     }
 
-    /// Types or pastes `typed` over the selection; rejected code units go and the rest is cut
+    /// Types or pastes `typed` over the selection; rejected characters go and the rest is cut
     /// at the limit. Returns whether the text changed.
     pub fn insert(&mut self, typed: &str) -> bool {
         let Span { start, end } = self.selection();
-        let kept = utf16_len(&self.text) - utf16_len(self.selected());
+        let kept = self.text.chars().count() - self.selected().chars().count();
         let room = MAX_INPUT.saturating_sub(kept);
-        let mut added = String::new();
-        let mut units = 0;
-        for c in typed.chars().filter(|&c| is_allowed_chat_character(c)) {
-            units += c.len_utf16();
-            if units > room {
-                break;
-            }
-            added.push(c);
-        }
+        let added: String = typed
+            .chars()
+            .filter(|&c| is_allowed_chat_character(c))
+            .take(room)
+            .collect();
         if added.is_empty() && start == end {
             return false;
         }

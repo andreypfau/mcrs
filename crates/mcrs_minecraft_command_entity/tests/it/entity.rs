@@ -50,6 +50,7 @@ fn uuid_text_has_five_hexadecimal_groups() {
         "fffffffff-0-0-0-0",
         "00000000-0000-0000-0000-0000000000000",
         "abcdefghijklmnopq",
+        "\"\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\"",
     ] {
         let (value, cursor) = read(&EntityArgument::ENTITIES, input, &OP);
         assert_eq!(

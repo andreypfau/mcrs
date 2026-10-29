@@ -18,4 +18,5 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_wire.workspace = true
 glam.workspace = true

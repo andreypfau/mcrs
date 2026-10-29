@@ -27,5 +27,5 @@ pub use screen::{
 };
 pub use suggestion_menu::{LIST_ROWS, SuggestionMenu};
 
-/// The most code units the input box and a chat message hold (CHAT-BOX-001, CHAT-SEND-001).
+/// The most characters the input box and a chat message hold (CHAT-BOX-001, CHAT-SEND-001).
 pub const MAX_INPUT: usize = 256;

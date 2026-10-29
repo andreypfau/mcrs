@@ -21,6 +21,7 @@ mod error;
 mod impls;
 mod nested;
 mod raw;
+mod utf16;
 mod var_int;
 mod var_long;
 
@@ -31,6 +32,7 @@ pub use error::{Context, Error, ErrorKind, Result};
 pub use mcrs_minecraft_wire_macros::{Decode, Encode};
 pub use nested::{MAX_NESTING, nested};
 pub use raw::RawBytes;
+pub use utf16::{utf16_byte_offset, utf16_len, utf16_position};
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 

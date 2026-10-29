@@ -17,6 +17,7 @@ mcrs_text_span.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_wire.workspace = true
 
 [dev-dependencies]
 mcrs_minecraft_core.workspace = true

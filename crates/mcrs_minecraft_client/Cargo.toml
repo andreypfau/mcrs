@@ -58,7 +58,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_command.workspace = true
-mcrs_text_span.workspace = true
 mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_block.workspace = true

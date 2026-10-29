@@ -210,27 +210,27 @@ pub fn error_message<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text 
 
 const CONTEXT_AMOUNT: usize = 10;
 
-/// The context text of an error (CMD-ERR-003): up to ten code units before the position, after
+/// The text before the byte offset `position`, cut back to a character boundary.
+fn before(input: &str, position: usize) -> &str {
+    input
+        .get(..input.floor_char_boundary(position))
+        .unwrap_or_default()
+}
+
+/// The context text of an error (CMD-ERR-003): up to ten characters before the position, after
 /// an ellipsis when more come before them.
 fn context_text(input: &str, position: usize) -> String {
-    let position = position.min(input.len());
-    let units: Vec<u16> = input
-        .get(..position)
-        .unwrap_or_default()
-        .encode_utf16()
-        .collect();
-    let mut from = units.len().saturating_sub(CONTEXT_AMOUNT);
-    if units
-        .get(from)
-        .is_some_and(|&unit| (0xdc00..0xe000).contains(&unit))
-    {
-        from += 1;
-    }
-    let before = String::from_utf16_lossy(units.get(from..).unwrap_or_default());
-    if units.len() > CONTEXT_AMOUNT {
-        format!("...{before}")
+    let before = before(input, position);
+    let count = before.chars().count();
+    let from = before
+        .char_indices()
+        .nth(count.saturating_sub(CONTEXT_AMOUNT))
+        .map_or(before.len(), |(offset, _)| offset);
+    let shown = before.get(from..).unwrap_or_default();
+    if count > CONTEXT_AMOUNT {
+        format!("...{shown}")
     } else {
-        before
+        shown.to_owned()
     }
 }
 
@@ -238,7 +238,7 @@ fn context_text(input: &str, position: usize) -> String {
 /// `/`, and so does the position.
 pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
     let message = error_message(input, error);
-    let position = mcrs_text_span::utf16_position(input, error.position);
+    let position = before(input, error.position).chars().count();
     let mut context = context_text(input, error.position);
     context.push_str("<--[HERE]");
     Text::translate(
@@ -251,7 +251,7 @@ pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Te
     )
 }
 
-/// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten code units before the
+/// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten characters before the
 /// position, then the rest of the line in red and underlined, then `command.context.here`.
 fn error_context(input: &str, position: usize) -> Text {
     let position = position.min(input.len());

@@ -3601,6 +3601,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_wire",
  "mcrs_text_span",
 ]
 
@@ -3665,7 +3666,6 @@ dependencies = [
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
- "mcrs_text_span",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3705,6 +3705,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_wire",
  "mcrs_text_span",
 ]
 

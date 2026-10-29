@@ -1,5 +1,5 @@
 use crate::MAX_INPUT;
-use mcrs_text_span::{is_whitespace, utf16_prefix};
+use mcrs_text_span::is_whitespace;
 
 /// The text a send carries (CHAT-SEND-001), written into `out`.
 pub fn normalize(input: &str, out: &mut String) {
@@ -21,6 +21,7 @@ pub fn normalize(input: &str, out: &mut String) {
     out.truncate(end);
     let start = out.len() - out.trim_start_matches(' ').len();
     out.drain(..start);
-    let kept = utf16_prefix(out, MAX_INPUT).len();
-    out.truncate(kept);
+    if let Some((kept, _)) = out.char_indices().nth(MAX_INPUT) {
+        out.truncate(kept);
+    }
 }

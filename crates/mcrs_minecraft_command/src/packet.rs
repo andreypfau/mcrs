@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundCommandSuggestions, ClientboundCommands,
 };
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_text_span::utf16_position;
+use mcrs_minecraft_wire::utf16_position;
 use std::borrow::Cow;
 
 /// An argument type as the `commands` packet describes it to the client.
@@ -90,8 +90,8 @@ pub fn player_tree<A: WireArgument, H, L>(
     })
 }
 
-/// The reply to a `command_suggestion` request (CMDP-SUG-002). Positions count UTF-16 code
-/// units of `text`, whose suggestions `list` holds.
+/// The reply to a `command_suggestion` request (CMDP-SUG-002) for `text`, whose suggestions
+/// `list` holds. The range of the reply counts UTF-16 code units.
 pub fn suggestion_reply(
     id: VarInt,
     text: &str,

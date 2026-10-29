@@ -8,7 +8,7 @@ use mcrs_minecraft_chat::{
 fn normalization_trims_and_collapses_whitespace() {
     let long = "a".repeat(300);
     let accented = "\u{e9}".repeat(300);
-    let emoji = "\u{1f600}".repeat(200);
+    let emoji = "\u{1f600}".repeat(300);
     for (input, sent) in [
         ("  a   b  ", "a b".to_owned()),
         ("a\tb\u{3000}c", "a b c".to_owned()),
@@ -17,7 +17,7 @@ fn normalization_trims_and_collapses_whitespace() {
         ("\u{1}a\u{1f}", "a".to_owned()),
         (long.as_str(), "a".repeat(256)),
         (accented.as_str(), "\u{e9}".repeat(256)),
-        (emoji.as_str(), "\u{1f600}".repeat(128)),
+        (emoji.as_str(), "\u{1f600}".repeat(256)),
     ] {
         let mut out = String::new();
         normalize(input, &mut out);
@@ -26,17 +26,13 @@ fn normalization_trims_and_collapses_whitespace() {
 }
 
 #[test]
-fn the_input_box_rejects_section_signs_and_control_codes_and_holds_256_units() {
+fn the_input_box_rejects_section_signs_and_control_codes_and_holds_256_characters() {
     let mut edit = EditBox::default();
     edit.insert("a\u{a7}b\u{7f}c\nd");
     assert_eq!(edit.text(), "abcd");
     edit.set("");
-    edit.insert(&"\u{1f600}".repeat(200));
-    assert_eq!(
-        edit.text().chars().count(),
-        128,
-        "a surrogate pair is never split"
-    );
+    edit.insert(&"\u{1f600}".repeat(300));
+    assert_eq!(edit.text().chars().count(), 256);
 }
 
 #[test]
@@ -127,6 +123,21 @@ fn enter_sends_the_normalized_input_and_picks_the_packet() {
         };
         assert_eq!(sent, send, "{typed:?}");
     }
+
+    let over_the_packet = "\u{1f600}".repeat(200);
+    let recalled = history.len();
+    screen.open("", InputStyle::Plain, &cx);
+    screen.type_text(&over_the_packet, &cx);
+    assert_eq!(
+        screen.key(Key::Enter, &mut history, &cx),
+        Outcome::Handled,
+        "a chat message over 256 UTF-16 code units stays in the box"
+    );
+    assert_eq!(
+        history.len(),
+        recalled,
+        "the refused message is not in the history"
+    );
 }
 
 #[test]

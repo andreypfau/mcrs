@@ -322,7 +322,7 @@ fn input_box(
     let caret_x = 4 + font.str_width(input.get(skip..caret).unwrap_or_default());
     let at_end = caret == input.len();
     if at_end
-        && mcrs_text_span::utf16_len(input) < MAX_INPUT
+        && input.chars().count() < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
         font::draw_str(font, IVec2::new(caret_x - 1, y), ghost, GHOST, false, out);
