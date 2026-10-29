@@ -25,6 +25,7 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::dimension_change::DimensionChanger;
 use mcrs_minecraft_engine::session::{GameProfile, HostAnchor};
 use mcrs_minecraft_engine::teleport::TeleportState;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -36,7 +37,6 @@ use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimen
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::GameEventKind;
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::VarInt;

@@ -4,8 +4,8 @@ use mcrs_minecraft_command::{
     CommandLevel, GameModeArgument, PermissionCheck, player_tree, suggestion_reply,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_command_tree::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_command_vanilla::{VanillaArgument, VanillaGraph};
-use mcrs_minecraft_protocol::command::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 

@@ -35,9 +35,9 @@ use std::time::Duration;
 pub use login::NetworkCompressionThreshold;
 #[cfg(feature = "client-jar")]
 pub use mcrs_minecraft_client_jar::ClientJar;
+pub use mcrs_minecraft_game_mode::GameMode;
 pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
-pub use mcrs_minecraft_protocol::GameMode;
 
 /// Where the server reads the game's data pack.
 #[derive(Clone, Debug, PartialEq, Eq)]

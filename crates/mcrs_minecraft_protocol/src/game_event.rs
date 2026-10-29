@@ -1,4 +1,5 @@
-use crate::{Decode, Encode, GameMode, Result};
+use crate::{Decode, Encode, Result};
+use mcrs_minecraft_game_mode::GameMode;
 use std::io::Write;
 
 #[derive(Debug, Clone, Copy)]

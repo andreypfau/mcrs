@@ -2,7 +2,7 @@ use mcrs_command::Span;
 use mcrs_command::StringValue;
 use mcrs_minecraft_command::Identifier;
 use mcrs_minecraft_entity::keys::EntityType;
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 
 /// An option that holds one of several values, as the search tests it.
 #[derive(Clone, Copy, Debug)]

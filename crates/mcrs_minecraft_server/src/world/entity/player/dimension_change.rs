@@ -4,8 +4,7 @@ use crate::world::entity::player::{enter_level_packets, game_mode};
 use crate::world::entity::{EntityBundle, EntityUuid};
 use crate::world::sub_app_builder::FromDimBacklog;
 use bevy_app::{App, SubApp};
-use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, MAX_CHANGE_AGE, Tick};
-use bevy_ecs::component::{Component, Mutable};
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
@@ -24,38 +23,38 @@ use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::teleport::TeleportState;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_level::world::sub_app::DimensionLabel;
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition, ClientboundRespawn,
 };
 
-/// Both bits of the data to keep: the attribute modifiers and the entity data (DIM-CHG-004).
+/// Both bits of the data to keep: the attribute modifiers and the entity data.
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
 
 type Carry = fn(&mut EntityWorldMut<'_>, &mut EntityWorldMut<'_>);
 
-/// The components of a player that are its own and go with it to another dimension
-/// (DIM-CHG-001), each moved from the entity that leaves to the entity that arrives. A plugin of
+/// The components of a player that are its own and go with it to another dimension, each moved from
+/// the entity that leaves to the entity that arrives. A plugin of
 /// a dimension world registers the components it owns with
 /// [`CarryOnDimensionChangeExt::carry_on_dimension_change`]; a change reads the list of the world
 /// that the player leaves. A component not in the list stays behind and is despawned.
 #[derive(Resource, Default)]
-pub struct CarriedComponents(Vec<Carry>);
+pub(crate) struct CarriedComponents(Vec<Carry>);
 
 /// Registers the components of a player that a plugin of a dimension world owns, so that they go
 /// with the player when it changes dimension.
 pub trait CarryOnDimensionChangeExt {
     /// Moves `T` of a player to its entity in the new world when the player changes dimension.
-    fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self;
+    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self;
 }
 
 impl CarryOnDimensionChangeExt for App {
-    fn carry_on_dimension_change<T: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
+    fn carry_on_dimension_change<T: Component>(&mut self) -> &mut Self {
         self.world_mut()
             .get_resource_or_init::<CarriedComponents>()
             .0
@@ -64,38 +63,16 @@ impl CarryOnDimensionChangeExt for App {
     }
 }
 
-/// The moved value is not new to the systems of the new world, and it counts as changed only
-/// when a change in the old world was not yet seen there, such as a game mode a command set
-/// before the same pass moved the player.
-fn carry<T: Component<Mutability = Mutable>>(
-    from: &mut EntityWorldMut<'_>,
-    to: &mut EntityWorldMut<'_>,
-) {
-    let Some(unseen_change) = from.get_ref::<T>().map(|value| value.is_changed()) else {
-        return;
-    };
-    let Some(value) = from.take::<T>() else {
-        return;
-    };
-    let long_ago = Tick::new(
-        to.world()
-            .read_change_tick()
-            .get()
-            .wrapping_sub(MAX_CHANGE_AGE),
-    );
-    to.insert(value);
-    if let Some(mut moved) = to.get_mut::<T>() {
-        moved.set_last_added(long_ago);
-        if unseen_change {
-            moved.set_changed();
-        }
+fn carry<T: Component>(from: &mut EntityWorldMut<'_>, to: &mut EntityWorldMut<'_>) {
+    if let Some(value) = from.take::<T>() {
+        to.insert(value);
     }
 }
 
 /// Moves `player`, an entity of `from`, into the dimension of `to` as the same player, places its
-/// session there and sends it the packets of DIM-CHG-003. Gives its entity in `to`. Observers in
-/// `from` lose sight of it; its view in `to` starts empty and fills as on a join (DIM-CHG-006,
-/// DIM-CHG-007). The host calls this between two ticks, with every world in reach.
+/// session there and sends it the packets of a respawn. Gives its entity in `to`. Observers in
+/// `from` lose sight of it; its view in `to` starts empty and fills as on a join.
+/// The host calls this between two ticks, with every world in reach.
 pub fn change_dimension(
     host: &mut World,
     from: &mut World,
@@ -103,9 +80,10 @@ pub fn change_dimension(
     player: Entity,
     arrival: Arrival,
 ) -> Result<Entity, DimensionChangeError> {
-    let dimension = to
-        .query_filtered::<Entity, With<Dimension>>()
+    let (dimension, key, dimension_type) = to
+        .query_filtered::<(Entity, &ResourceKey<DimensionKey>, &DimensionTypeId), With<Dimension>>()
         .single(to)
+        .map(|(dimension, key, dimension_type)| (dimension, key.clone(), dimension_type.0))
         .map_err(|_| DimensionChangeError::NoDimension)?;
     let label = to
         .get_resource::<DimensionLabel>()
@@ -122,7 +100,7 @@ pub fn change_dimension(
     ) else {
         return Err(DimensionChangeError::NoPlayer);
     };
-    let state = ArrivalState::read(to, dimension, leaving)?;
+    let state = ArrivalState::read(key, dimension_type, leaving)?;
     let placed_in_from = from.get_resource::<DimensionLabel>().is_some_and(|from| {
         host.get::<SessionPlacement>(anchor.0)
             .is_some_and(|placement| placement.place().dim() == Some(from.0))
@@ -178,7 +156,9 @@ fn leave(
     hand_over_outbound(host, from);
     // The packets already stamped for the player leave before its epoch changes, or the bridge
     // drops them as packets of the dimension it left.
-    let _ = host.try_run_schedule(OutboundFlush);
+    if let Err(error) = host.try_run_schedule(OutboundFlush) {
+        tracing::warn!("the packets of a player leaving were not flushed: {error}");
+    }
     from.run_system_cached_with(
         crate::world::aoi::drain_player_despawn::leave_dimension,
         player,
@@ -239,7 +219,7 @@ fn hand_over_outbound(host: &mut World, from: &mut World) {
 /// leaves the client in the old dimension.
 struct ArrivalState {
     mode: GameMode,
-    flying: bool,
+    flying: PlayerFlying,
     op_level: PlayerOpLevel,
     key: ResourceKey<DimensionKey>,
     dimension_type: Id<DimensionType>,
@@ -247,16 +227,10 @@ struct ArrivalState {
 
 impl ArrivalState {
     fn read(
-        to: &World,
-        dimension: Entity,
+        key: ResourceKey<DimensionKey>,
+        dimension_type: Id<DimensionType>,
         leaving: EntityRef<'_>,
     ) -> Result<Self, DimensionChangeError> {
-        let (Some(key), Some(dimension_type)) = (
-            to.get::<ResourceKey<DimensionKey>>(dimension),
-            to.get::<DimensionTypeId>(dimension),
-        ) else {
-            return Err(DimensionChangeError::NoDimension);
-        };
         let (Some(mode), Some(flying), Some(&op_level), true) = (
             leaving.get::<PlayerGameMode>(),
             leaving.get::<PlayerFlying>(),
@@ -267,10 +241,10 @@ impl ArrivalState {
         };
         Ok(Self {
             mode: mode.0,
-            flying: flying.0,
+            flying: *flying,
             op_level,
-            key: key.clone(),
-            dimension_type: dimension_type.0,
+            key,
+            dimension_type,
         })
     }
 }
@@ -335,17 +309,17 @@ pub fn apply_dimension_change_requests(app: &mut App) {
         |key| key,
         &mut worlds,
     );
+    let mut requests = Vec::new();
     for origin in 0..worlds.len() {
-        let Some(requests) = worlds
-            .get_mut(origin)
-            .and_then(|DimensionWorld { world, .. }| {
-                let mut requests = world.get_resource_mut::<Messages<ChangeDimensionRequest>>()?;
-                Some(requests.drain().collect::<Vec<_>>())
-            })
-        else {
+        requests.clear();
+        let Some(DimensionWorld { world, .. }) = worlds.get_mut(origin) else {
             continue;
         };
-        for request in requests {
+        let Some(mut written) = world.get_resource_mut::<Messages<ChangeDimensionRequest>>() else {
+            continue;
+        };
+        requests.extend(written.drain());
+        for request in requests.drain(..) {
             let Some(destination) = worlds.iter().position(|found| found.read == request.to) else {
                 tracing::error!(to = %request.to, "a dimension change names no running dimension");
                 continue;

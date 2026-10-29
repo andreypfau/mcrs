@@ -1,8 +1,8 @@
 use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};

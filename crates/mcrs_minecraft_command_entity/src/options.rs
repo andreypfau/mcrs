@@ -9,7 +9,7 @@ use crate::selector::{Next, SelectorResult, State, error, rewind};
 use crate::type_option::read_type;
 use mcrs_command::{Reader, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_command::{SpannedIdentifier, read_identifier};
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_snbt::check_compound;
 
 fn read_value<'a>(

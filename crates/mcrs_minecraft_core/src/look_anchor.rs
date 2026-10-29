@@ -1,4 +1,4 @@
-use crate::{Decode, Encode};
+use mcrs_minecraft_wire::{Decode, Encode};
 
 /// The part of an entity that a look or a position is taken from.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Encode, Decode)]

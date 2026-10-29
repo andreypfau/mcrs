@@ -12,6 +12,7 @@ use mcrs_minecraft_command_engine::{
     Invocation, PlayerEntry, Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_engine::dimension_change::Arrival;
 use mcrs_minecraft_engine::network_id;
@@ -20,7 +21,7 @@ use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_protocol::text::{IntoText, Text};
-use mcrs_minecraft_protocol::{Look, LookAnchor, VarInt};
+use mcrs_minecraft_protocol::{Look, VarInt};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]

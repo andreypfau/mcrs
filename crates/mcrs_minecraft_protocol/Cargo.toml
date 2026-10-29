@@ -12,6 +12,8 @@ workspace = true
 bevy = ["dep:bevy_ecs"]
 
 [dependencies]
+mcrs_minecraft_command_tree.workspace = true
+mcrs_minecraft_game_mode.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_dimension.workspace = true

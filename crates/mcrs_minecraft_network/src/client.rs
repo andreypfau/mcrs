@@ -707,9 +707,9 @@ mod tests {
     use mcrs_minecraft_dimension::{Dimension, DimensionType};
     use mcrs_minecraft_entity::keys::CAT_VARIANT;
     use mcrs_minecraft_entity::variant::CatVariant;
+    use mcrs_minecraft_game_mode::GameMode;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_protocol::Decode;
-    use mcrs_minecraft_protocol::GameMode;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
     use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_event::GameEventKind;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -129,9 +129,9 @@ fn on_entity_event(
 mod tests {
     use super::*;
     use mcrs_minecraft_core::Id;
+    use mcrs_minecraft_game_mode::OptGameMode;
     use mcrs_minecraft_network::ConnectionState;
     use mcrs_minecraft_network::metrics::PacketDispatcher;
-    use mcrs_minecraft_protocol::game_mode::OptGameMode;
     use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 
     const PLAYER_ID: i32 = 7;

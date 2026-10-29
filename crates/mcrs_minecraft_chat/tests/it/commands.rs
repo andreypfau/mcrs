@@ -4,9 +4,10 @@ use mcrs_command::{ErrorKind, LibraryError};
 use mcrs_minecraft_chat::{
     ChatScreen, CommandInput, Highlight, Hint, History, InputStyle, Key, Request,
 };
+use mcrs_minecraft_command_tree::ParserProperties;
 use mcrs_minecraft_command_vanilla::ClientGraph;
 use mcrs_minecraft_keys::command_argument_type as parser;
-use mcrs_minecraft_protocol::command::{CommandSuggestion, ParserProperties};
+use mcrs_minecraft_protocol::CommandSuggestion;
 use std::borrow::Cow;
 
 fn usage_lines(input: &CommandInput) -> Vec<&str> {
@@ -117,7 +118,7 @@ fn arguments_of_the_last_context_take_the_colour_cycle_and_trailing_text_is_red(
         Wire::Argument(
             "count",
             parser::BRIGADIER_INTEGER,
-            ParserProperties::Integer(mcrs_minecraft_protocol::command::NumberRange {
+            ParserProperties::Integer(mcrs_minecraft_command_tree::NumberRange {
                 min: None,
                 max: None,
             }),

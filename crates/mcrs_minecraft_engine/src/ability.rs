@@ -2,7 +2,7 @@
 
 use bevy_ecs::prelude::Component;
 use derive_more::{Deref, DerefMut};
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 
 /// The game mode of a player.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]
@@ -14,12 +14,12 @@ impl Default for PlayerGameMode {
     }
 }
 
-/// Whether the player flies, as its client reports it and its game mode allows (CMD-GM-007).
+/// Whether the player flies, as its client reports it and its game mode allows.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
 pub struct PlayerFlying(pub bool);
 
 /// The operator permission level of a player, from 0 for a player who is no operator.
-#[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Default)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
 pub struct PlayerOpLevel(pub u8);
 
 impl PlayerOpLevel {

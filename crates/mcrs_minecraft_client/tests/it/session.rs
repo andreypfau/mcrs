@@ -15,13 +15,14 @@ use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event;
 use mcrs_minecraft_network::{ConnectionState, Instant};
+use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
-use mcrs_minecraft_protocol::{Encode, GameMode};
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
 
 use crate::boot::{boot, receive_registries, received_id};

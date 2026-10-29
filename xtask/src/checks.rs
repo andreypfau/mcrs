@@ -29,7 +29,7 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
 
-const NO_BEVY_PACKAGES: [&str; 60] = [
+const NO_BEVY_PACKAGES: [&str; 62] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -46,6 +46,7 @@ const NO_BEVY_PACKAGES: [&str; 60] = [
     "mcrs_minecraft_command_entity",
     "mcrs_minecraft_command_registry",
     "mcrs_minecraft_command_time",
+    "mcrs_minecraft_command_tree",
     "mcrs_minecraft_command_vanilla",
     "mcrs_minecraft_core",
     "mcrs_minecraft_dimension",
@@ -54,6 +55,7 @@ const NO_BEVY_PACKAGES: [&str; 60] = [
     "mcrs_minecraft_entity",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",
+    "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
     "mcrs_minecraft_item",

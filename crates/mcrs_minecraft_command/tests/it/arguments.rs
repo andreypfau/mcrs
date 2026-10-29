@@ -5,7 +5,7 @@ use mcrs_minecraft_command::{
     EntityAnchorArgument, GameModeArgument, HeightmapArgument, Identifier, KeywordError,
     ResourceError, ResourceLocationArgument,
 };
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 
 #[test]
 fn identifiers_default_their_namespace() {

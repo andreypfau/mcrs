@@ -16,10 +16,10 @@ use mcrs_minecraft_command_coordinates::{
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_command_time::{TimeArgument, TimeMarkerArgument, TimelineArgument};
+use mcrs_minecraft_command_tree::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::command::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 
 /// The argument types of the vanilla commands.
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -9,14 +9,20 @@ use mcrs_minecraft_engine::bus::{
 };
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchor;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_protocol::GameEventKind;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundGameEvent, ClientboundPlayerAbilities,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChangeGameMode, ServerboundPlayerAbilities,
 };
-use mcrs_minecraft_protocol::{GameEventKind, GameMode};
+
+/// The game mode that the player list shows for a player, which the login and a dimension
+/// change leave as it was told.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ListedGameMode(pub GameMode);
 
 pub struct GameModePlugin;
 
@@ -25,7 +31,8 @@ impl Plugin for GameModePlugin {
         app.add_observer(handle_change_game_mode)
             .add_observer(handle_player_abilities)
             .carry_on_dimension_change::<PlayerGameMode>()
-            .carry_on_dimension_change::<PlayerFlying>();
+            .carry_on_dimension_change::<PlayerFlying>()
+            .carry_on_dimension_change::<ListedGameMode>();
     }
 }
 
@@ -58,7 +65,9 @@ fn handle_player_abilities(
         return;
     };
     if let Ok((mode, mut flying)) = players.get_mut(event.entity) {
-        flying.set_if_neq(PlayerFlying(pkt.flying && abilities(mode.0, true).may_fly));
+        flying.set_if_neq(PlayerFlying(
+            pkt.flying && abilities(mode.0, PlayerFlying(true)).may_fly,
+        ));
     }
 }
 
@@ -67,11 +76,11 @@ fn handle_player_abilities(
 const FLYING_SPEED: f32 = 0.05;
 const WALKING_SPEED: f32 = 0.1;
 
-/// The abilities of a player in `mode` that flew as `flying` before (CMD-GM-007).
-pub(crate) fn abilities(mode: GameMode, flying: bool) -> ClientboundPlayerAbilities {
+/// The abilities of a player in `mode` that flew as `flying` before.
+pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlayerAbilities {
     let (invulnerable, flying, may_fly, instant_build) = match mode {
         GameMode::Survival | GameMode::Adventure => (false, false, false, false),
-        GameMode::Creative => (true, flying, true, true),
+        GameMode::Creative => (true, flying.0, true, true),
         GameMode::Spectator => (true, true, true, false),
     };
     ClientboundPlayerAbilities {
@@ -85,14 +94,15 @@ pub(crate) fn abilities(mode: GameMode, flying: bool) -> ClientboundPlayerAbilit
 }
 
 /// Gives a player the abilities of its new game mode and tells it both, and tells every player
-/// of the server the new entry of its list (CMD-GM-003). A player that spawns learns its mode
-/// from the login instead.
+/// of the server the new entry of its list. A mode that the login or a dimension
+/// change already told is not sent again.
 // chisle: a player that flies near the ground keeps its flight on a change to creative, since
 // the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
     mut players: Query<
         (
-            Ref<PlayerGameMode>,
+            &PlayerGameMode,
+            &mut ListedGameMode,
             &mut PlayerFlying,
             &GameProfile,
             &HostAnchor,
@@ -102,11 +112,12 @@ pub(crate) fn send_game_mode(
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let mut entries = Vec::new();
-    for (mode, mut flying, profile, &HostAnchor(host)) in &mut players {
-        if mode.is_added() {
+    for (mode, mut listed, mut flying, profile, &HostAnchor(host)) in &mut players {
+        if listed.0 == mode.0 {
             continue;
         }
-        let abilities = abilities(mode.0, flying.0);
+        listed.0 = mode.0;
+        let abilities = abilities(mode.0, *flying);
         flying.set_if_neq(PlayerFlying(abilities.flying));
         writer.write(
             to(

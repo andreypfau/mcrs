@@ -2,10 +2,8 @@ use core::fmt;
 use core::str::FromStr;
 use std::io::Write;
 
-use crate::wire::bail;
 use derive_more::{From, Into};
-
-use crate::{Decode, Encode, Result, VarInt};
+use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, bail};
 
 #[derive(
     Copy, Clone, PartialEq, Eq, Debug, Default, Encode, Decode, serde::Serialize, serde::Deserialize,
@@ -46,8 +44,8 @@ impl GameMode {
     }
 
     #[inline]
-    pub fn is_block_placing_restricted(&self) -> bool {
-        self == &GameMode::Adventure || self == &GameMode::Spectator
+    pub const fn is_block_placing_restricted(self) -> bool {
+        matches!(self, GameMode::Adventure | GameMode::Spectator)
     }
 }
 
@@ -93,14 +91,17 @@ impl Encode for OptGameMode {
 
 impl Decode<'_> for OptGameMode {
     fn decode(r: &mut &'_ [u8]) -> Result<Self> {
-        Ok(Self(match VarInt::decode(r)?.0 {
-            0 => None,
-            1 => Some(GameMode::Survival),
-            2 => Some(GameMode::Creative),
-            3 => Some(GameMode::Adventure),
-            4 => Some(GameMode::Spectator),
-            other => bail!("invalid optional game mode of {other}"),
-        }))
+        let id = VarInt::decode(r)?.0;
+        if id == 0 {
+            return Ok(Self(None));
+        }
+        let mode = usize::try_from(id.wrapping_sub(1))
+            .ok()
+            .and_then(|index| GameMode::ALL.get(index));
+        match mode {
+            Some(&mode) => Ok(Self(Some(mode))),
+            None => bail!("invalid optional game mode of {id}"),
+        }
     }
 }
 

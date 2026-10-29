@@ -7,7 +7,7 @@ use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
 use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityBounds};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// The players a selector found, which a handler keeps between its runs so that a search

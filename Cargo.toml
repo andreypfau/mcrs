@@ -95,6 +95,8 @@ mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla
 mcrs_minecraft_vanilla_commands = { path = "crates/mcrs_minecraft_vanilla_commands" }
 mcrs_minecraft_chat = { path = "crates/mcrs_minecraft_chat" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
+mcrs_minecraft_game_mode = { path = "crates/mcrs_minecraft_game_mode" }
+mcrs_minecraft_command_tree = { path = "crates/mcrs_minecraft_command_tree" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }
 mcrs_minecraft_registry_catalog = { path = "crates/mcrs_minecraft_registry_catalog" }

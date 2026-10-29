@@ -3,10 +3,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, With};
 use bevy_math::DVec3;
 use mcrs_minecraft_command::CommandLevel;
+use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_protocol::{GameMode, LookAnchor};
 
 /// One source of a command: who runs it, in which dimension, where, facing where, with which
 /// permissions. A stage of `execute` maps it to other sources; the output stays the player who
@@ -16,10 +17,9 @@ pub struct SourceState {
     /// The permission level of the source.
     pub level: CommandLevel,
     /// The host anchor of the player the source holds, which names the player in every
-    /// dimension, so the source keeps it when the player changes dimension (DIM-CHG-001).
+    /// dimension, so the source keeps it when the player changes dimension.
     pub entity: Option<Entity>,
-    /// The label of the source dimension. The source entity can be in another one
-    /// (ARG-ENT-021).
+    /// The label of the source dimension. The source entity can be in another one.
     pub dimension: Entity,
     /// The position of the source, at its feet.
     pub position: DVec3,

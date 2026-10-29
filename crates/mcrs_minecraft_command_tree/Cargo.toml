@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_command_tree"
+description = "The nodes of the command tree that the commands packet carries"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_wire.workspace = true

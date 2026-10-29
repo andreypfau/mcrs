@@ -1381,7 +1381,7 @@ mod tests {
         use mcrs_minecraft_core::ResourceKey;
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
-        use mcrs_minecraft_protocol::GameMode;
+        use mcrs_minecraft_game_mode::GameMode;
 
         let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionTypeFile>().unwrap();

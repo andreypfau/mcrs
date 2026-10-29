@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// A player of any dimension, as a command finds it.
@@ -21,6 +21,6 @@ pub struct PlayerEntry {
     /// The game mode of the player, as the effects of the pass so far left it.
     pub mode: GameMode,
     /// The session id: sessions count up as players join, so it orders the player list, and a
-    /// change of dimension keeps it (DIM-CHG-001).
+    /// change of dimension keeps it.
     pub(crate) list_order: u64,
 }

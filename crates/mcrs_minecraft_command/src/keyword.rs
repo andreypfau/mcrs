@@ -1,8 +1,9 @@
 use crate::error::KeywordError;
 use crate::identifier::text_matches;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
+use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_protocol::{GameMode, LookAnchor};
+use mcrs_minecraft_game_mode::GameMode;
 
 /// `minecraft:gamemode` (ARG-KW-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

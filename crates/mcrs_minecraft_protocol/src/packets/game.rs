@@ -1,10 +1,10 @@
 pub mod clientbound {
     use crate::ByteAngle;
+    use crate::CommandSuggestion;
     use crate::advancement::{AdvancementProgress, PositionedAdvancement};
     use crate::block::BlockStateNumber;
     use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
     use crate::chunk::ChunkBlockUpdateEntry;
-    use crate::command::{CommandNode, CommandSuggestion};
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
     use crate::entity::{EquipmentSlot, Metadata};
@@ -14,11 +14,11 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
-    use crate::{
-        Bounded, ColumnPos, Look, LookAnchor, LpVec3, PositionFlags, Result, VarInt, VarLong,
-    };
+    use crate::{Bounded, ColumnPos, Look, LpVec3, PositionFlags, Result, VarInt, VarLong};
     use glam::DVec3;
+    use mcrs_minecraft_command_tree::CommandNode;
     use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::LookAnchor;
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
@@ -800,12 +800,12 @@ pub mod serverbound {
     use crate::pos::MoveFlags;
     use crate::recipe::RecipeBookType;
     use crate::{
-        Bounded, Decode, Difficulty, Direction, Encode, GameMode, Hand, Look, LpVec3, Position,
-        VarInt,
+        Bounded, Decode, Difficulty, Direction, Encode, Hand, Look, LpVec3, Position, VarInt,
     };
     use bitfield_struct::bitfield;
     use derive_more::From;
     use mcrs_minecraft_core::{BlockPos, ResourceLocation};
+    use mcrs_minecraft_game_mode::GameMode;
     use uuid::Uuid;
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]

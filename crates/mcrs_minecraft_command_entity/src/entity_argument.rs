@@ -7,7 +7,7 @@ use mcrs_minecraft_command::{
     Lookup, Source, prefixed_identifier_matches, suggest_prefixed, text_matches,
 };
 use mcrs_minecraft_entity::keys::{ENTITY_TYPE, EntityType};
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 
 /// `minecraft:entity` (ARG-ENT, section 0.3 for the four forms).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

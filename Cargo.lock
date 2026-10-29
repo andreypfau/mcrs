@@ -3594,6 +3594,7 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_block",
  "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
@@ -3643,6 +3644,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_level",
@@ -3697,7 +3699,9 @@ version = "0.5.8"
 dependencies = [
  "glam",
  "mcrs_command",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
@@ -3743,6 +3747,7 @@ dependencies = [
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_level",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
@@ -3760,6 +3765,7 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
@@ -3791,6 +3797,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_command_tree"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_wire",
+]
+
+[[package]]
 name = "mcrs_minecraft_command_vanilla"
 version = "0.5.8"
 dependencies = [
@@ -3801,6 +3816,7 @@ dependencies = [
  "mcrs_minecraft_command_coordinates",
  "mcrs_minecraft_command_entity",
  "mcrs_minecraft_command_time",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
@@ -3889,6 +3905,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_level",
  "mcrs_minecraft_network",
@@ -3947,6 +3964,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_game_mode"
+version = "0.5.8"
+dependencies = [
+ "derive_more",
+ "mcrs_minecraft_wire",
+ "serde",
 ]
 
 [[package]]
@@ -4115,6 +4141,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
@@ -4189,10 +4216,12 @@ dependencies = [
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
@@ -4337,6 +4366,7 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_coordinates",
  "mcrs_minecraft_command_engine",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
@@ -4346,6 +4376,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
  "mcrs_minecraft_level",
@@ -4475,6 +4506,7 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",

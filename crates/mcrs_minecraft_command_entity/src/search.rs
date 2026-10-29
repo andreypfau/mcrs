@@ -8,8 +8,8 @@ use mcrs_command::{Reader, eq_ignore_case};
 use mcrs_minecraft_command::{Lookup, ResourceError, Source};
 use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_entity::keys::{ENTITY_TYPE, EntityType};
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_loot::keys::PREDICATE;
-use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use uuid::Uuid;
 

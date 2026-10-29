@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_engine.workspace = true
@@ -74,6 +75,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command_coordinates.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true

@@ -8,7 +8,7 @@ use bevy_ecs::system::InRef;
 use mcrs_command::{ParseScratch, Suggestion, SuggestionList};
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
 /// up to the packet's own limit (CMDP-SUG-001).

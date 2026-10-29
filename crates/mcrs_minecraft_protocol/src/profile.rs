@@ -1,6 +1,7 @@
 use crate::text::Text;
-use crate::{Bounded, Decode, Encode, GameMode};
+use crate::{Bounded, Decode, Encode};
 use bitfield_struct::bitfield;
+use mcrs_minecraft_game_mode::GameMode;
 pub use mcrs_minecraft_profile::Property;
 use std::borrow::Cow;
 use uuid::Uuid;

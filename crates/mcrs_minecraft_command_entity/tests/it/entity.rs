@@ -5,7 +5,7 @@ use mcrs_command::{LibraryError, StringSpan, SuggestionBuilder, SuggestionList, 
 use mcrs_minecraft_command::{ErrorText, Source};
 use mcrs_minecraft_command_entity::{Candidate, EntityArgument, EntityBounds, EntityError, Target};
 use mcrs_minecraft_entity::keys::EntityType;
-use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use uuid::Uuid;
 

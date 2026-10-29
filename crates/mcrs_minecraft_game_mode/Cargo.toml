@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_game_mode"
+description = "The game modes of a player, their names and their wire forms"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+derive_more = { workspace = true, features = ["from", "into"] }
+mcrs_minecraft_wire.workspace = true
+serde = { workspace = true, features = ["derive"] }
