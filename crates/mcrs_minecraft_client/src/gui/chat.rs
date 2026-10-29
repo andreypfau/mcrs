@@ -254,38 +254,30 @@ fn hover_lines(
     }
 }
 
-/// The input with the colours of CCMD-HL-001, or one colour for chat text and a draft.
-fn input_spans(screen: &ChatScreen) -> Vec<Span> {
+/// Calls `run` for each coloured part of the input (CCMD-HL-001), or once for chat text and a draft.
+fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
     let input = screen.input();
     if screen.is_draft() {
-        return vec![Span::new(input, GRAY)];
+        return run(input, GRAY);
     }
     if !screen.commands.is_command() || screen.commands.input() != input {
-        return vec![Span::new(input, INPUT_TEXT)];
+        return run(input, INPUT_TEXT);
     }
-    let mut spans = Vec::new();
     let mut at = 0;
     for &(span, highlight) in screen.commands.highlights() {
         if span.start > at {
-            spans.push(Span::new(
-                input.get(at..span.start).unwrap_or_default(),
-                GRAY,
-            ));
+            run(input.get(at..span.start).unwrap_or_default(), GRAY);
         }
         let colour = match highlight {
             Highlight::Argument(index) => ARGUMENT_COLOURS[usize::from(index) % 5],
             Highlight::Trailing => RED,
         };
-        spans.push(Span::new(
-            input.get(span.start..span.end).unwrap_or_default(),
-            colour,
-        ));
+        run(input.get(span.start..span.end).unwrap_or_default(), colour);
         at = span.end.max(at);
     }
     if at < input.len() {
-        spans.push(Span::new(input.get(at..).unwrap_or_default(), GRAY));
+        run(input.get(at..).unwrap_or_default(), GRAY);
     }
-    spans
 }
 
 /// The input box with its caret and ghost text (CHAT-BOX-001, CCMD-LIST-003).
@@ -313,40 +305,31 @@ fn input_box(
         skip += ch.len_utf8();
     }
     let y = size.height - 12;
-    let spans: Vec<Span> = input_spans(screen)
-        .into_iter()
-        .scan(0usize, |at, span| {
-            let start = *at;
-            *at += span.text.len();
-            let cut = skip.saturating_sub(start).min(span.text.len());
-            Some(Span {
-                text: span.text.get(cut..).unwrap_or_default().to_owned(),
-                ..span
-            })
-        })
-        .collect();
-    font::draw_text(font, IVec2::new(4, y), &spans, out);
+    let mut x = 4;
+    let mut start = 0;
+    for_each_input_run(screen, |text, color| {
+        let cut = skip.saturating_sub(start).min(text.len());
+        start += text.len();
+        x = font::draw_str(
+            font,
+            IVec2::new(x, y),
+            text.get(cut..).unwrap_or_default(),
+            color,
+            false,
+            out,
+        );
+    });
     let caret_x = 4 + font.str_width(input.get(skip..caret).unwrap_or_default());
     let at_end = caret == input.len();
     if at_end
         && mcrs_text_span::utf16_len(input) < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
-        font::draw_text(
-            font,
-            IVec2::new(caret_x - 1, y),
-            &[Span::new(ghost, GHOST)],
-            out,
-        );
+        font::draw_str(font, IVec2::new(caret_x - 1, y), ghost, GHOST, false, out);
     }
     if caret_on {
         if at_end {
-            font::draw_text(
-                font,
-                IVec2::new(caret_x, y),
-                &[Span::new("_", INPUT_TEXT)],
-                out,
-            );
+            font::draw_str(font, IVec2::new(caret_x, y), "_", INPUT_TEXT, false, out);
         } else {
             out.push(GuiQuad::Fill {
                 rect: IRect::new(caret_x, y - 1, caret_x + 1, y + 10),
@@ -379,7 +362,7 @@ pub fn draw(
         at: mouse,
         language: &language,
         tooltip: &mut scene.tooltip,
-        icon: atlas.0.region(MODIFIED_ICON).size(),
+        icon: atlas.0.chat_modified.size(),
     });
     let hovered = chat_lines(size, &chat, &lines.0, pointer, &mut scene.quads, font);
     if let Some((text, alpha)) = chat.overlay.shown(0.0) {

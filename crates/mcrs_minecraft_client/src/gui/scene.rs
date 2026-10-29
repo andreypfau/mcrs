@@ -150,6 +150,8 @@ pub struct GuiAtlasData {
     pub glint: (u32, u32, Vec<u8>),
     pub tooltip: TooltipSprites,
     pub missing: GuiSprite,
+    pub ascii_origin: IVec2,
+    pub chat_modified: IRect,
 }
 
 #[derive(Resource, Clone, ExtractResource)]
@@ -230,6 +232,11 @@ impl GuiAtlasData {
             regions.get(MISSING).copied().unwrap_or_default(),
             Scaling::Stretch,
         );
+        let ascii_origin = regions.get("font/ascii").copied().unwrap_or_default().min;
+        let chat_modified = regions
+            .get("icon/chat_modified")
+            .copied()
+            .unwrap_or_default();
         Ok(Self {
             width: ATLAS_WIDTH,
             height: atlas_height,
@@ -239,6 +246,8 @@ impl GuiAtlasData {
             glint: glint.expect("the glint is listed"),
             tooltip,
             missing,
+            ascii_origin,
+            chat_modified,
         })
     }
 
@@ -263,7 +272,7 @@ impl GuiAtlasData {
 }
 
 /// The scaling of the background and the outline sprites of a tooltip. A sprite the pack lacks,
-/// or one with an error, is left out, so it draws the missing sprite (GSPR-META-002).
+/// or one with an error, is left out, so it draws the missing sprite.
 fn load_tooltip_sprites(
     pack: &Pack,
     images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
@@ -518,6 +527,7 @@ fn push_flat_quad(
             region,
             color,
         } => {
+            // chisle: a sprite quad names its region and the string lookup runs per quad per frame; a resolved rect on `GuiQuad::Sprite` lifts it.
             push_quad(
                 vertices,
                 rect,
@@ -553,7 +563,7 @@ fn push_flat_quad(
             let Some(glyph) = atlas.font.glyph(glyph) else {
                 return;
             };
-            let ascii = atlas.region("font/ascii").min + glyph.cell;
+            let ascii = atlas.ascii_origin + glyph.cell;
             let cell = atlas.font.cell_size;
             let pixel = IRect::from_corners(ascii, ascii + cell);
             let rect = IRect::from_corners(origin, origin + cell);

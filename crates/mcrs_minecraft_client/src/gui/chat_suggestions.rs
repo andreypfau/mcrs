@@ -111,20 +111,14 @@ pub(super) fn hint_lines(
     out: &mut Vec<GuiQuad>,
 ) {
     let commands = &screen.commands;
-    let lines: Vec<Vec<Span>> = commands
-        .hints()
-        .iter()
-        .map(|hint| match hint {
-            Hint::Error(error) => text::text_spans(
-                &mcrs_minecraft_command::parse_error_line(commands.input(), error),
-                language,
-                ERROR_LINE,
-            ),
-            Hint::Usage(range) => vec![Span::new(commands.usage_text(range.clone()), GRAY)],
-            Hint::Restriction(key) => vec![Span::new(language.get(key), RED)],
-        })
-        .collect();
-    let Some(width) = lines.iter().map(|line| font.width(line)).max() else {
+    let hints = commands.hints();
+    let width = |hint: &Hint| match hint {
+        // chisle: an error line builds its spans, with a String each, on every frame it shows; caching them per input lifts it.
+        Hint::Error(_) => font.width(&error_spans(commands.input(), hint, language)),
+        Hint::Usage(range) => font.str_width(commands.usage_text(range.clone())),
+        Hint::Restriction(key) => font.str_width(language.get(key)),
+    };
+    let Some(width) = hints.iter().map(width).max() else {
         return;
     };
     let x = if !commands.is_command() {
@@ -138,14 +132,48 @@ pub(super) fn hint_lines(
             width,
         )
     };
-    for (index, line) in lines.iter().enumerate() {
+    for (index, hint) in hints.iter().enumerate() {
         let top = size.height - 27 - ROW * index as i32;
         out.push(GuiQuad::Fill {
             rect: IRect::new(x - 1, top, x + width + 1, top + ROW),
             color: ROW_FILL,
         });
-        font::draw_text(font, IVec2::new(x, top + 2), line, out);
+        let at = IVec2::new(x, top + 2);
+        match hint {
+            Hint::Error(_) => {
+                font::draw_text(
+                    font,
+                    at,
+                    &error_spans(commands.input(), hint, language),
+                    out,
+                );
+            }
+            Hint::Usage(range) => {
+                font::draw_str(
+                    font,
+                    at,
+                    commands.usage_text(range.clone()),
+                    GRAY,
+                    false,
+                    out,
+                );
+            }
+            Hint::Restriction(key) => {
+                font::draw_str(font, at, language.get(key), RED, false, out);
+            }
+        }
     }
+}
+
+fn error_spans(input: &str, hint: &Hint, language: &Language) -> Vec<Span> {
+    let Hint::Error(error) = hint else {
+        return Vec::new();
+    };
+    text::text_spans(
+        &mcrs_minecraft_command::parse_error_line(input, error),
+        language,
+        ERROR_LINE,
+    )
 }
 
 #[cfg(test)]

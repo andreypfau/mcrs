@@ -35,6 +35,7 @@ fn number(tag: &NbtTag) -> String {
     }
 }
 
+// chisle: every span clones its hover event into a Box; spans borrowing the hover from the Text lift it.
 fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     let text = text.into();
     if !text.is_empty() {
@@ -117,10 +118,9 @@ pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
 /// How [`wrap`] starts a row after a break.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Wrap {
-    /// Each row after the first starts with one unstyled space (CHAT-LOG-001).
+    /// Each row after the first starts with one unstyled space.
     ChatLog,
-    /// A space at the wrap point is dropped, and an empty text gives no row
-    /// (`client-tooltip.md`, section 0.3).
+    /// A space at the wrap point is dropped, and an empty text gives no row.
     Tooltip,
 }
 

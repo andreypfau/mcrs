@@ -185,27 +185,47 @@ pub fn draw_tinted_text(
 ) {
     let mut x = origin.x;
     for span in spans {
-        let color = tint(span.color);
-        for ch in span.text.chars() {
-            if font.glyph(ch).is_some() && !font.spaces.contains_key(&ch) {
-                let strikes = if span.bold { 2 } else { 1 };
-                for (offset, color) in [(1, shadow_color(color)), (0, color)] {
-                    for strike in 0..strikes {
-                        out.push(GuiQuad::Glyph {
-                            origin: IVec2::new(x + offset + strike, origin.y + offset),
-                            glyph: ch,
-                            color,
-                        });
-                    }
-                }
-            }
-            x += font.advance(ch, span.bold);
-        }
+        x = draw_str(
+            font,
+            IVec2::new(x, origin.y),
+            &span.text,
+            tint(span.color),
+            span.bold,
+            out,
+        );
     }
 }
 
-/// The span of the glyph whose hover area holds `point`, for text drawn at `origin`
-/// (TIP-HOVER-002). With this font every glyph covers its advance and 9 units down.
+/// Draws one run as [`draw_text`] does a span and returns the x where the next run starts.
+pub fn draw_str(
+    font: &Font,
+    origin: IVec2,
+    text: &str,
+    color: u32,
+    bold: bool,
+    out: &mut Vec<GuiQuad>,
+) -> i32 {
+    let mut x = origin.x;
+    for ch in text.chars() {
+        if font.glyph(ch).is_some() && !font.spaces.contains_key(&ch) {
+            let strikes = if bold { 2 } else { 1 };
+            for (offset, color) in [(1, shadow_color(color)), (0, color)] {
+                for strike in 0..strikes {
+                    out.push(GuiQuad::Glyph {
+                        origin: IVec2::new(x + offset + strike, origin.y + offset),
+                        glyph: ch,
+                        color,
+                    });
+                }
+            }
+        }
+        x += font.advance(ch, bold);
+    }
+    x
+}
+
+/// The span of the glyph whose hover area holds `point`, for text drawn at `origin`. With this font
+/// every glyph covers its advance and 9 units down.
 pub fn span_at<'s>(
     font: &Font,
     origin: IVec2,
