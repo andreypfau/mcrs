@@ -20,7 +20,7 @@ use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::Look;
-use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_text::{IntoText, Text};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Test {

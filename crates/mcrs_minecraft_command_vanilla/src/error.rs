@@ -5,7 +5,7 @@ use mcrs_minecraft_command_block::BlockError;
 use mcrs_minecraft_command_coordinates::CoordinatesError;
 use mcrs_minecraft_command_entity::EntityError;
 use mcrs_minecraft_command_time::TimeError;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_text::Text;
 
 /// The syntax errors of the vanilla argument types. An error of an identifier or of a resource
 /// is [`ArgumentError::Resource`] whichever argument read it.

@@ -4,8 +4,8 @@ use mcrs_command::StringSpan;
 use mcrs_minecraft_command::{
     ErrorText, ResourceError, identifier_string, identifier_text, snbt_text, string_text,
 };
-use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_snbt::SnbtError;
+use mcrs_minecraft_text::{IntoText, Text};
 
 /// The errors of a block predicate.
 #[derive(Clone, Copy, Debug, PartialEq)]

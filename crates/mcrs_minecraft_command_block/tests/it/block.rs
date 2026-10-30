@@ -11,7 +11,7 @@ use mcrs_minecraft_command_block::{
     BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
 use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
-use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_text::{IntoText, Text};
 use std::sync::LazyLock;
 
 /// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block

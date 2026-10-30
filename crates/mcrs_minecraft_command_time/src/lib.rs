@@ -1,7 +1,6 @@
 //! The tick count, time marker and timeline arguments.
 
-// std: mcrs_minecraft_environment and mcrs_minecraft_protocol, which hold the timeline registry
-// and the text of every argument, need it.
+// std: mcrs_minecraft_text, which holds the text of every argument, needs it.
 mod error;
 mod time;
 mod time_lookup;

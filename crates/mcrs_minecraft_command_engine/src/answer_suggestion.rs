@@ -9,9 +9,13 @@ use mcrs_command::{ParseScratch, Suggestion, SuggestionList};
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_protocol::CommandSuggestion;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommandSuggestions;
+use mcrs_minecraft_wire::utf16_len;
+use std::borrow::Cow;
 
 /// The text any player may ask suggestions for; a player who can edit command blocks may send
-/// up to the packet's own limit (CMDP-SUG-001).
+/// up to the packet's own limit.
 const CHAT_SUGGESTION_UNITS: usize = 256;
 
 pub(crate) struct SuggestionScratch<E> {
@@ -43,7 +47,7 @@ pub(crate) fn answer_suggestion<S: CommandSet>(
     };
     let edits_command_blocks =
         mode == GameMode::Creative && state.level >= CommandLevel::Gamemasters;
-    if !edits_command_blocks && text.encode_utf16().count() > CHAT_SUGGESTION_UNITS {
+    if !edits_command_blocks && utf16_len(text) > CHAT_SUGGESTION_UNITS {
         return;
     }
     let (Some(graph), Ok(source)) = (context.tree.graph(), context.source_of(&state)) else {
@@ -55,9 +59,24 @@ pub(crate) fn answer_suggestion<S: CommandSet>(
     let mut suggestions = mcrs_command::recycle(std::mem::take(&mut scratch.suggestions));
     graph.suggest(&parse, &source, &mut suggestions);
     let list = SuggestionList::build(text, &mut suggestions);
-    let reply = mcrs_minecraft_command::suggestion_reply(*id, text, &list);
+    let reply = mcrs_minecraft_command::suggestion_reply(text, &list);
+    let packet = ClientboundCommandSuggestions {
+        id: *id,
+        start: reply.start,
+        length: reply.length,
+        suggestions: reply
+            .entries
+            .into_iter()
+            .map(|entry| CommandSuggestion {
+                text: Cow::Owned(entry.text),
+                tooltip: entry
+                    .tooltip
+                    .and_then(|tooltip| mcrs_minecraft_protocol::text::named(&tooltip).ok()),
+            })
+            .collect(),
+    };
     outbox
         .packets
-        .push(bus::to(*player, PacketPayload::CommandSuggestions(reply)));
+        .push(bus::to(*player, PacketPayload::CommandSuggestions(packet)));
     scratch.suggestions = mcrs_command::recycle(suggestions);
 }

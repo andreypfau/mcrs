@@ -3703,8 +3703,8 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
 ]
 
@@ -3717,8 +3717,8 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]
@@ -3730,6 +3730,7 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]
@@ -3752,6 +3753,7 @@ dependencies = [
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_text",
  "thiserror 2.0.18",
  "tracing",
 ]
@@ -3767,8 +3769,8 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_loot",
- "mcrs_minecraft_protocol",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_value_provider",
  "uuid",
 ]
@@ -3792,8 +3794,8 @@ version = "0.5.8"
 dependencies = [
  "mcrs_command",
  "mcrs_minecraft_command",
- "mcrs_minecraft_environment",
- "mcrs_minecraft_protocol",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]
@@ -3820,6 +3822,8 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_text",
+ "mcrs_minecraft_wire",
 ]
 
 [[package]]
@@ -4514,6 +4518,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "rand 0.10.0",

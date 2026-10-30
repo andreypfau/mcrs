@@ -1,7 +1,7 @@
 //! The vanilla argument set, its errors, its parsers on the wire and the client tree.
 
-// std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the identifiers and the
-// command packets, need it.
+// std: mcrs_minecraft_core and mcrs_minecraft_text, which hold the identifiers and the text,
+// need it.
 mod client;
 mod error;
 mod packet;

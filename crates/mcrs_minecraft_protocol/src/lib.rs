@@ -36,6 +36,7 @@ pub mod item;
 pub mod light_codec;
 mod lp_vec3;
 pub mod packets;
+mod plain_text;
 mod pos;
 pub mod profile;
 mod raw;
@@ -51,6 +52,8 @@ pub mod text {
     pub use mcrs_minecraft_text::*;
 
     pub type Text = mcrs_minecraft_item::Text<mcrs_minecraft_registries::Named>;
+
+    pub use crate::plain_text::{PlainTextError, named};
 }
 
 use std::io::Write;

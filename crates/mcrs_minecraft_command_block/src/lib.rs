@@ -1,6 +1,6 @@
 //! The `minecraft:block_predicate` argument and the block lookup it reads.
 
-// std: mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the identifiers and the text
+// std: mcrs_minecraft_core and mcrs_minecraft_text, which hold the identifiers and the text
 // of every argument, need it.
 mod block_lookup;
 mod block_predicate;

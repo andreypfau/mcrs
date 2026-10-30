@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_text.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
@@ -19,7 +20,6 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 glam.workspace = true
 uuid.workspace = true

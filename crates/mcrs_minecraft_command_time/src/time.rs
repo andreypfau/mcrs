@@ -5,7 +5,6 @@ use mcrs_minecraft_command::{
     Identifier, Lookup, ResourceArgument, ResourceError, ResourceLocationArgument, Source,
     identifier_matches, text_matches,
 };
-use mcrs_minecraft_environment::keys::TIMELINE;
 
 const TICKS_PER_DAY: f32 = 24_000.0;
 const TICKS_PER_SECOND: f32 = 20.0;
@@ -144,7 +143,7 @@ pub struct TimelineArgument {
 
 impl TimelineArgument {
     pub const RESOURCE: ResourceArgument = ResourceArgument {
-        registry: TIMELINE.location(),
+        registry: mcrs_minecraft_core::rl!("minecraft:timeline"),
     };
 
     /// Suggests the timelines of the selected clock.

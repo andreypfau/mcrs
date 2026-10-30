@@ -23,7 +23,7 @@ use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
 use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_text::{IntoText, Text};
 
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
 /// dimension of its source, with the graph, the line, the targets and the outbox lent to that
@@ -74,6 +74,7 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
         limits: Limits,
     ) {
         let Some(player) = self.targets.player(queued.player) else {
+            self.running.line = queued.line;
             return;
         };
         let (index, entity) = (player.dimension, player.entity);
@@ -90,9 +91,13 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
             Some(Ok(Some(source))) => source,
             Some(Err(error)) => {
                 tracing::error!("a command line did not parse: {error}");
+                self.running.line = queued.line;
                 return;
             }
-            Some(Ok(None)) | None => return,
+            Some(Ok(None)) | None => {
+                self.running.line = queued.line;
+                return;
+            }
         };
         let mut event = CommandEvent {
             player: entity,
@@ -105,6 +110,7 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
             .is_none()
             || event.cancelled
         {
+            self.running.line = event.line;
             return;
         }
         let CommandEvent { source, line, .. } = event;
@@ -205,9 +211,9 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         out: &mut Vec<SourceState>,
     ) -> Result<(), CommandFailure> {
         let invocation = self.invocation(stage, modifier, source);
-        let key = modifier.key;
+        let (key, branch) = (modifier.key, modifier.branch);
         let modified: Option<ModifyResult> = self.call(invocation, |world| {
-            world.get_resource::<ModifierHandlers>()?.get(key)
+            world.get_resource::<ModifierHandlers>()?.get(key, branch)
         });
         let forked = &mut self.outbox.forked;
         let result = match modified.unwrap_or_else(|| Err(CommandFailure::failed())) {
@@ -233,10 +239,10 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         source: &SourceState,
     ) -> Result<i32, CommandFailure> {
         let invocation = self.invocation(stage, command, source);
-        let key = command.key;
+        let (key, branch) = (command.key, command.branch);
         let result: CommandResult = self
             .call(invocation, |world| {
-                world.get_resource::<CommandHandlers>()?.get(key)
+                world.get_resource::<CommandHandlers>()?.get(key, branch)
             })
             .ok_or_else(CommandFailure::failed)?;
         result
@@ -250,6 +256,8 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
             }
         };
         let message: Text = failure.text();
-        dim::deliver(self.host, system_message(self.output, message));
+        if let Some(packet) = system_message(self.output, &message) {
+            dim::deliver(self.host, packet);
+        }
     }
 }

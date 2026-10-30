@@ -8,7 +8,7 @@ use crate::system_message::system_message;
 use bevy_ecs::prelude::{Entity, Res, ResMut};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
+use mcrs_minecraft_text::{Color, IntoText, Text};
 
 /// Who sees the success message of a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,7 +21,7 @@ pub enum Feedback {
 }
 
 /// What a handler sends and changes. Its messages go out after its effects apply, so a player
-/// that a command moves hears of the move after the move (CMD-TP-014).
+/// that a command moves hears of the move after the move.
 #[derive(SystemParam)]
 pub struct CommandOutput<'w> {
     outbox: ResMut<'w, CommandOutbox>,
@@ -36,7 +36,7 @@ impl CommandOutput<'_> {
 
     /// A system message to the player with the host anchor `player`, in any dimension.
     pub fn tell(&mut self, player: Entity, message: Text) {
-        self.send(system_message(player, message));
+        self.outbox.packets.extend(system_message(player, &message));
     }
 
     /// A success message, to the players that `feedback` names.
@@ -44,10 +44,14 @@ impl CommandOutput<'_> {
         // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
         if feedback == Feedback::Source {
-            self.send(system_message(invocation.output, message));
+            self.outbox
+                .packets
+                .extend(system_message(invocation.output, &message));
             return;
         }
-        self.send(system_message(invocation.output, message.clone()));
+        self.outbox
+            .packets
+            .extend(system_message(invocation.output, &message));
         let Some(source) = invocation
             .source
             .entity

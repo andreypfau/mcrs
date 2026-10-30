@@ -3,13 +3,8 @@ use crate::source::Source;
 use mcrs_command::{Graph, NodeId, NodeKind, SuggestionList};
 use mcrs_minecraft_command_tree::{ArgumentParser, CommandNode, CommandNodeKind};
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_protocol::CommandSuggestion;
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundCommandSuggestions, ClientboundCommands,
-};
-use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_wire::utf16_position;
+use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::{VarInt, utf16_position};
 use std::borrow::Cow;
 
 /// An argument type as the `commands` packet describes it to the client.
@@ -17,27 +12,49 @@ pub trait WireArgument {
     /// Why an argument has no parser on the wire.
     type WireError: core::error::Error + Send + Sync + 'static;
 
-    /// The parser id and the properties of the `commands` packet (CMDP-ARG-001).
+    /// The parser id and the properties of the `commands` packet.
     fn wire(&self) -> Result<ArgumentParser<'static>, Self::WireError>;
 
-    /// The suggestion type of the `commands` packet (CMDP-ARG-002), when the client asks the
+    /// The suggestion type of the `commands` packet, when the client asks the
     /// server for the suggestions of the argument.
     fn suggestion_type(&self) -> Option<StaticResourceLocation>;
 }
 
-/// The most suggestions one reply carries (CMDP-SUG-002).
+/// The most suggestions one reply carries.
 const MAX_SUGGESTIONS: usize = 1000;
 
 fn number(index: usize) -> VarInt {
     VarInt(i32::try_from(index).unwrap_or(i32::MAX))
 }
 
-/// The tree the source can see, numbered in the order of the full tree (CMDP-TREE-001,
-/// CMDP-TREE-003, CMDP-TREE-004).
-pub fn player_tree<A: WireArgument, H, L>(
-    graph: &Graph<A, PermissionCheck, H>,
+/// The nodes of a `commands` packet and the index of its root.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlayerTree<'a> {
+    pub nodes: Vec<CommandNode<'a>>,
+    pub root: VarInt,
+}
+
+/// One suggestion of a reply, with its tooltip.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SuggestionEntry {
+    pub text: String,
+    pub tooltip: Option<Text>,
+}
+
+/// The range and the entries of a `command_suggestions` packet. The range counts UTF-16 code
+/// units.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SuggestionReply {
+    pub start: VarInt,
+    pub length: VarInt,
+    pub entries: Vec<SuggestionEntry>,
+}
+
+/// The tree the source can see, numbered in the order of the full tree.
+pub fn player_tree<'a, A: WireArgument, H, L>(
+    graph: &'a Graph<A, PermissionCheck, H>,
     source: &Source<'_, L>,
-) -> Result<ClientboundCommands<'static>, A::WireError> {
+) -> Result<PlayerTree<'a>, A::WireError> {
     let mut numbers: Vec<Option<usize>> = vec![None; graph.node_count()];
     let mut count = 0;
     for (id, node) in graph.nodes() {
@@ -61,9 +78,9 @@ pub fn player_tree<A: WireArgument, H, L>(
         }
         let kind = match node.kind() {
             NodeKind::Root => CommandNodeKind::Root,
-            NodeKind::Literal(name) => CommandNodeKind::Literal(Cow::Owned(name.to_string())),
+            NodeKind::Literal(name) => CommandNodeKind::Literal(Cow::Borrowed(name)),
             NodeKind::Argument { name, argument } => CommandNodeKind::Argument {
-                name: Cow::Owned(name.to_string()),
+                name: Cow::Borrowed(name),
                 parser: argument.wire()?,
                 suggestions: argument.suggestion_type().map(Into::into),
             },
@@ -83,30 +100,28 @@ pub fn player_tree<A: WireArgument, H, L>(
             restricted: node.requirement().is_restricted(),
         });
     }
-    Ok(ClientboundCommands {
+    Ok(PlayerTree {
         nodes,
         root: VarInt(0),
     })
 }
 
-/// The reply to a `command_suggestion` request (CMDP-SUG-002) for `text`, whose suggestions
-/// `list` holds. The range of the reply counts UTF-16 code units.
+/// The reply to a `command_suggestion` request for `text`, whose suggestions
+/// `list` holds.
 pub fn suggestion_reply(
-    id: VarInt,
     text: &str,
     list: &SuggestionList<'_, '_, &'static str>,
-) -> ClientboundCommandSuggestions<'static> {
+) -> SuggestionReply {
     let start = utf16_position(text, list.span.start);
     let end = utf16_position(text, list.span.end);
-    ClientboundCommandSuggestions {
-        id,
+    SuggestionReply {
         start: number(start),
         length: number(end - start),
-        suggestions: list
+        entries: list
             .iter()
             .take(MAX_SUGGESTIONS)
-            .map(|(suggestion, tooltip)| CommandSuggestion {
-                text: Cow::Owned(suggestion.chars().collect()),
+            .map(|(suggestion, tooltip)| SuggestionEntry {
+                text: suggestion.chars().collect(),
                 tooltip: tooltip.map(|&key| Text::translate(key, vec![])),
             })
             .collect(),

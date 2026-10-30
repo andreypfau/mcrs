@@ -14,7 +14,7 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::text::IntoText;
+use mcrs_minecraft_text::IntoText;
 
 /// Everything a stage of `execute` reads: the players of every dimension through the context,
 /// and the blocks of the source dimension, the world the stage runs in.

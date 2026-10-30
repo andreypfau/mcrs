@@ -4,8 +4,8 @@ use mcrs_command::Span;
 use mcrs_command::{ErrorKind, LibraryError, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::text::{Color, IntoText, Text, TranslateArg};
 use mcrs_minecraft_snbt::SnbtError;
+use mcrs_minecraft_text::{Color, IntoText, Text, TranslateArg};
 
 /// The errors of an identifier and of the arguments that read a registry entry or a tag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

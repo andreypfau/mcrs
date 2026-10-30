@@ -1,6 +1,6 @@
 use core::fmt;
 use mcrs_minecraft_command::ErrorText;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_text::Text;
 
 /// The errors of the coordinate, rotation and swizzle arguments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

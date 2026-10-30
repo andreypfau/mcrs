@@ -53,7 +53,11 @@ pub(crate) fn on_commands(
     let Some(packet) = event.packet() else {
         return;
     };
-    match mcrs_minecraft_command_vanilla::client_tree(&packet, &STATIC_REGISTRIES) {
+    match mcrs_minecraft_command_vanilla::client_tree(
+        &packet.nodes,
+        packet.root,
+        &STATIC_REGISTRIES,
+    ) {
         Ok(graph) => tree.0 = graph,
         Err(error) => client::close_connection_later(
             &mut commands,

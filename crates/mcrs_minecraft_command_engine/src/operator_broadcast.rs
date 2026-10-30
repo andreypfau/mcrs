@@ -1,8 +1,8 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::Event;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_text::Text;
 
-/// A command reported success with a message for the operators (CMDP-EXEC-004), triggered on
+/// A command reported success with a message for the operators, triggered on
 /// the host world. The embedder must observe it there and deliver `message` to each operator but
 /// `source`; the engine knows no operator list, so without that observer no other operator sees
 /// the message. The source still receives its own success message.

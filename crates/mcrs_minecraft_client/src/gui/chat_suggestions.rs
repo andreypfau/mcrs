@@ -169,11 +169,12 @@ fn error_spans(input: &str, hint: &Hint, language: &Language) -> Vec<Span> {
     let Hint::Error(error) = hint else {
         return Vec::new();
     };
-    text::text_spans(
-        &mcrs_minecraft_command::parse_error_line(input, error),
-        language,
-        ERROR_LINE,
-    )
+    let Ok(line) = mcrs_minecraft_protocol::text::named(&mcrs_minecraft_command::parse_error_line(
+        input, error,
+    )) else {
+        return Vec::new();
+    };
+    text::text_spans(&line, language, ERROR_LINE)
 }
 
 #[cfg(test)]

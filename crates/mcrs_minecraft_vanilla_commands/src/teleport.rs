@@ -20,8 +20,8 @@ use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
-use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::{Look, VarInt};
+use mcrs_minecraft_text::{IntoText, Text};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
 #[derive(Clone, Copy, Debug, PartialEq)]

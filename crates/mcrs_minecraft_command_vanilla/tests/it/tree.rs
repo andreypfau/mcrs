@@ -1,7 +1,7 @@
 use crate::{GUEST, OP};
 use mcrs_command::{GraphBuilder, NodeId, ParseScratch, SuggestionList};
 use mcrs_minecraft_command::{
-    CommandLevel, GameModeArgument, PermissionCheck, player_tree, suggestion_reply,
+    CommandLevel, GameModeArgument, PermissionCheck, PlayerTree, player_tree, suggestion_reply,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_command_tree::{CommandNode, CommandNodeKind, ParserProperties};
@@ -27,6 +27,13 @@ fn graph() -> VanillaGraph<u32> {
     let help = b.literal(NodeId::ROOT, "help", open).unwrap();
     b.executes(help, 1).unwrap();
     b.freeze().unwrap()
+}
+
+fn wire(tree: PlayerTree) -> ClientboundCommands<'static> {
+    ClientboundCommands {
+        nodes: tree.nodes,
+        root: tree.root,
+    }
 }
 
 fn assert_round_trip(packet: &ClientboundCommands<'_>) {
@@ -75,13 +82,13 @@ fn parser<'p>(node: &'p CommandNode<'_>) -> (VarInt, &'p ParserProperties<'p>) {
 #[test]
 fn a_player_sees_only_the_nodes_it_can_use() {
     let graph = graph();
-    let guest = player_tree(&graph, &GUEST).unwrap();
+    let guest = wire(player_tree(&graph, &GUEST).unwrap());
     let root = guest.nodes.get(guest.root.0 as usize).unwrap();
     assert_eq!(child_names(&guest, root), ["help"]);
     assert_eq!(guest.nodes.len(), 2);
     assert!(!child(&guest, root, "help").restricted);
 
-    let op = player_tree(&graph, &OP).unwrap();
+    let op = wire(player_tree(&graph, &OP).unwrap());
     assert_round_trip(&op);
     let root = op.nodes.get(op.root.0 as usize).unwrap();
     assert_eq!(child_names(&op, root), ["gamemode", "tp", "help"]);
@@ -113,9 +120,9 @@ fn reply(graph: &VanillaGraph<u32>, text: &str) -> (VarInt, VarInt, Vec<String>)
     let mut out = Vec::new();
     graph.suggest(&parse, &OP, &mut out);
     let list = SuggestionList::build(text, &mut out);
-    let reply = suggestion_reply(VarInt(7), text, &list);
+    let reply = suggestion_reply(text, &list);
     let texts = reply
-        .suggestions
+        .entries
         .iter()
         .map(|suggestion| suggestion.text.to_string())
         .collect();
@@ -182,7 +189,7 @@ fn the_client_tree_shares_a_node_two_parents_name_and_rejects_a_child_cycle() {
         literal("b", &[3]),
         literal("run", &[]),
     ]);
-    let graph = client_tree(&shared, &[]).unwrap();
+    let graph = client_tree(&shared.nodes, shared.root, &[]).unwrap();
     let mut scratch = ParseScratch::default();
     for line in ["a run", "b run"] {
         let parse = graph.parse(line, 0, &OP, &mut scratch);
@@ -194,7 +201,7 @@ fn the_client_tree_shares_a_node_two_parents_name_and_rejects_a_child_cycle() {
         literal("c", &[1]),
     ]);
     assert_eq!(
-        client_tree(&cycle, &[]).err(),
+        client_tree(&cycle.nodes, cycle.root, &[]).err(),
         Some(TreeError::ChildCycle(1))
     );
 }

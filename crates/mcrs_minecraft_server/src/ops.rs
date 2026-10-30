@@ -113,9 +113,12 @@ pub fn broadcast_to_operators(
     if operators.is_empty() {
         return;
     }
+    let Ok(message) = mcrs_minecraft_protocol::text::named(&broadcast.message) else {
+        return;
+    };
     writer.write(to_target(
         PacketTarget::PlayerSet(operators),
-        system_chat(broadcast.message.clone()),
+        system_chat(message),
     ));
 }
 

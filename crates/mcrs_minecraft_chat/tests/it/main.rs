@@ -166,7 +166,7 @@ impl Tree {
             nodes: self.0,
             root: VarInt(0),
         };
-        client_tree(&packet, &[]).unwrap()
+        client_tree(&packet.nodes, packet.root, &[]).unwrap()
     }
 }
 

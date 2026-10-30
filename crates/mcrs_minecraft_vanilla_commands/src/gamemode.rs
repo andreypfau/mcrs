@@ -8,7 +8,7 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::text::{IntoText, Text};
+use mcrs_minecraft_text::{IntoText, Text};
 
 /// The command effect that sets the game mode of the player with the host anchor `player`, in
 /// any dimension.

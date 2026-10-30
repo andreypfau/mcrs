@@ -33,7 +33,7 @@ pub(crate) fn parse_line<S: CommandSet>(
     let parse = graph.parse(line, 0, &source, &mut scratch);
     if let Err(error) = parse.check(graph) {
         for message in mcrs_minecraft_command::error_feedback(line, &error) {
-            outbox.packets.push(system_message(*player, message));
+            outbox.packets.extend(system_message(*player, &message));
         }
         return None;
     }

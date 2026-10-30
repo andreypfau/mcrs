@@ -36,6 +36,7 @@ mcrs_minecraft_level.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_text.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_structure.workspace = true
 bevy_app.workspace = true

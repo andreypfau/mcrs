@@ -2,8 +2,8 @@ use crate::client_info::ClientInfo;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_command_engine::{system_chat, system_message};
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketTarget, to_target};
+use mcrs_minecraft_command_engine::system_chat;
+use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_network::event::Received;
@@ -43,9 +43,9 @@ fn handle_chat(
     }
 
     if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
-        packet_writer.write(system_message(
+        packet_writer.write(bus::to(
             host_anchor.0,
-            Text::translate("chat.disabled.options", vec![]).color(Color::RED),
+            system_chat(Text::translate("chat.disabled.options", vec![]).color(Color::RED)),
         ));
         return;
     }
