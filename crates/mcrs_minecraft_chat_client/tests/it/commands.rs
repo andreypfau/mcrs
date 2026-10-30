@@ -1,8 +1,8 @@
 use crate::{Tree, Wire, context, greedy, source};
 use mcrs_command::Span;
 use mcrs_command::{ErrorKind, LibraryError};
-use mcrs_minecraft_chat::{
-    ChatScreen, CommandInput, Highlight, Hint, History, InputStyle, Key, Request,
+use mcrs_minecraft_chat_client::{
+    ChatScreen, CommandInput, Highlight, Hint, History, InputStyle, Key, Request, TabDirection,
 };
 use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_tree::ParserProperties;
@@ -21,7 +21,6 @@ fn usage_lines(input: &CommandInput) -> Vec<&str> {
         .collect()
 }
 
-/// `tp` as CCMD-HINT-003 shows it.
 fn tp() -> ClientGraph {
     let mut t = Tree::new();
     let tp = t.add(0, Wire::Literal("tp"), false);
@@ -156,7 +155,7 @@ fn arguments_of_the_last_context_take_the_colour_cycle_and_trailing_text_is_red(
 
 fn reply(
     input: &mut CommandInput,
-    cx: &mcrs_minecraft_chat::Context<'_, crate::Players>,
+    cx: &mcrs_minecraft_chat_client::Context<'_, crate::Players>,
     id: i32,
     texts: &[&'static str],
 ) -> bool {
@@ -262,9 +261,21 @@ fn tab_inserts_each_entry_in_turn_and_shows_its_rest_as_ghost_text() {
         .map(str::to_owned)
         .collect();
     assert_eq!(entries, ["spectator", "survival"]);
-    screen.key(Key::Tab { back: false }, &mut history, &cx);
+    screen.key(
+        Key::Tab {
+            direction: TabDirection::Forward,
+        },
+        &mut history,
+        &cx,
+    );
     assert_eq!(screen.input(), "/gamemode spectator");
-    screen.key(Key::Tab { back: false }, &mut history, &cx);
+    screen.key(
+        Key::Tab {
+            direction: TabDirection::Forward,
+        },
+        &mut history,
+        &cx,
+    );
     assert_eq!(screen.input(), "/gamemode survival");
     assert_eq!(
         screen.commands.hints(),
@@ -283,7 +294,13 @@ fn chat_text_suggests_player_names_only_after_tab() {
     screen.open("", InputStyle::Plain, &cx);
     screen.type_text("hi al", &cx);
     assert!(screen.commands.list().is_none());
-    screen.key(Key::Tab { back: false }, &mut history, &cx);
+    screen.key(
+        Key::Tab {
+            direction: TabDirection::Forward,
+        },
+        &mut history,
+        &cx,
+    );
     assert_eq!(
         screen
             .commands
@@ -294,6 +311,12 @@ fn chat_text_suggests_player_names_only_after_tab() {
             .collect::<Vec<_>>(),
         ["Alex"]
     );
-    screen.key(Key::Tab { back: false }, &mut history, &cx);
+    screen.key(
+        Key::Tab {
+            direction: TabDirection::Forward,
+        },
+        &mut history,
+        &cx,
+    );
     assert_eq!(screen.input(), "hi Alex");
 }

@@ -3,7 +3,6 @@
 extern crate core;
 
 pub mod block_light_table;
-mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
@@ -15,7 +14,6 @@ pub mod world;
 pub mod world_options;
 
 pub use crate::block_light_table::LightingPlugin;
-use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
@@ -326,7 +324,9 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
-        app.add_plugins(ClientInfoPlugin);
+        if !app.is_plugin_added::<mcrs_minecraft_engine::client_info::ClientInfoPlugin>() {
+            app.add_plugins(mcrs_minecraft_engine::client_info::ClientInfoPlugin);
+        }
         app.add_plugins(StatusPlugin);
     }
 }

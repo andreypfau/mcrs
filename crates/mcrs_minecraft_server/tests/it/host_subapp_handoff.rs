@@ -329,7 +329,7 @@ fn no_duplicate_spawn_on_reread() {
                     username: "cursor_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: Vec2::ZERO,
-                    view_distance: 12,
+                    client_info: Some(crate::support::client_info_with_view_distance(12)),
                 },
                 dimensions: Vec::new().into(),
             }))
@@ -535,7 +535,7 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
                 username: "second_tick".into(),
                 position: DVec3::new(0.0, 64.0, 0.0),
                 rotation: Vec2::ZERO,
-                view_distance: 12,
+                client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions: Vec::new().into(),
         }))

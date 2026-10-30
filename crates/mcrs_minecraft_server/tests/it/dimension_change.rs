@@ -2,18 +2,22 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_engine::ability::PlayerFlying;
+use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::game_event::GameEventKind;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::setting::ChatMode;
+use mcrs_minecraft_protocol::text::TextContent;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::entity::player::dimension_change;
 
+use crate::chat::{client_information, line};
 use crate::host_app::{self, PlayServer};
 
 fn player_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Option<(Entity, Transform)> {
@@ -311,5 +315,93 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
             .iter()
             .any(|packet| matches!(packet.data, PacketPayload::PlayerInfoUpdate { .. })),
         "the tab list does not change"
+    );
+}
+
+fn request_the_end(server: &mut PlayServer, overworld: Entity, anchor: Entity) {
+    let (player, transform) = player_in(server, overworld, anchor).unwrap();
+    server
+        .world_in(overworld)
+        .resource_mut::<Messages<ChangeDimensionRequest>>()
+        .write(ChangeDimensionRequest {
+            player,
+            to: the_end(),
+            transform,
+        });
+}
+
+fn count(packets: &[PacketPayload], wanted: impl Fn(&PacketPayload) -> bool) -> usize {
+    packets.iter().filter(|packet| wanted(packet)).count()
+}
+
+#[test]
+fn the_game_mode_is_told_once_on_login_and_once_on_a_dimension_change() {
+    let (mut server, anchor, overworld, _, joined) = walker_and_its_join();
+    let (player, _) = player_in(&mut server, overworld, anchor).unwrap();
+    let mode = server
+        .world_in(overworld)
+        .get::<PlayerGameMode>(player)
+        .unwrap()
+        .0;
+    assert_ne!(mode, GameMode::default(), "a mode other than the default");
+    request_the_end(&mut server, overworld, anchor);
+    let changed = server.ticks(anchor, 3);
+
+    let login_mode = joined.iter().find_map(|packet| match packet {
+        PacketPayload::PlayerLogin(login) => Some(login.player_spawn_info.game_mode),
+        _ => None,
+    });
+    let respawn_mode = changed.iter().find_map(|packet| match packet {
+        PacketPayload::Respawn(respawn) => Some(respawn.player_spawn_info.game_mode),
+        _ => None,
+    });
+    assert_eq!(login_mode, Some(mode));
+    assert_eq!(respawn_mode, Some(mode));
+
+    let is_abilities = |packet: &PacketPayload| matches!(packet, PacketPayload::PlayerAbilities(_));
+    let is_list_entry =
+        |packet: &PacketPayload| matches!(packet, PacketPayload::PlayerInfoUpdate { .. });
+    let is_mode_event = |packet: &PacketPayload| {
+        matches!(
+            packet,
+            PacketPayload::GameEvent(event)
+                if matches!(event.game_event, GameEventKind::ChangeGameMode(_))
+        )
+    };
+    for (when, packets, list_entries) in [("login", &joined, 1), ("change", &changed, 0)] {
+        assert_eq!(count(packets, is_abilities), 1, "{when}: {packets:?}");
+        assert_eq!(count(packets, is_list_entry), list_entries, "{when}");
+        assert_eq!(count(packets, is_mode_event), 0, "{when}");
+    }
+}
+
+#[test]
+fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
+    let (mut server, anchor, overworld, _, _) = walker_and_its_join();
+    server.queue(anchor, &client_information(ChatMode::Hidden));
+    server.ticks_all(2);
+    request_the_end(&mut server, overworld, anchor);
+    server.ticks_all(3);
+
+    server.queue(anchor, &line("hello"));
+    let sent = server.ticks_all(2);
+
+    let told: Vec<&str> = sent
+        .iter()
+        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
+        .filter_map(|packet| match &packet.data {
+            PacketPayload::SystemChat(chat) => match &chat.content.content {
+                TextContent::Translate { translate, .. } => Some(&**translate),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told, ["chat.disabled.options"]);
+    assert!(
+        !sent
+            .iter()
+            .any(|packet| matches!(packet.target, PacketTarget::AllPlayers)),
+        "a hidden chat broadcasts nothing"
     );
 }

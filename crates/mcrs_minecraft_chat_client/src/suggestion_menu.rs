@@ -1,9 +1,9 @@
 use crate::entries::Entries;
 
-/// The most rows the suggestion list shows (CCMD-LIST-002).
+/// The most rows the suggestion list shows.
 pub const LIST_ROWS: usize = 10;
 
-/// The suggestion list while it shows (CCMD-LIST-001 to CCMD-LIST-006).
+/// The suggestion list while it shows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SuggestionMenu {
     entries: Entries,
@@ -11,7 +11,6 @@ pub struct SuggestionMenu {
     result: String,
     selected: usize,
     offset: usize,
-    /// The flag "cycle" of CCMD-LIST-004.
     pub(crate) cycle: bool,
 }
 
@@ -44,12 +43,12 @@ impl SuggestionMenu {
         self.offset
     }
 
-    /// The input with the range replaced by the selected suggestion (CCMD-LIST-003, step 3).
+    /// The input with the range replaced by the selected suggestion.
     pub(crate) fn result(&self) -> &str {
         &self.result
     }
 
-    /// The caret after an insert of the selected suggestion (CCMD-LIST-005, step 2).
+    /// The caret after an insert of the selected suggestion.
     pub(crate) fn result_caret(&self) -> usize {
         self.entries.range().start + self.entries.text(self.selected).map_or(0, str::len)
     }
@@ -61,8 +60,7 @@ impl SuggestionMenu {
             .filter(|rest| !rest.is_empty())
     }
 
-    /// Selects entry `index` modulo the count, and scrolls it into the rows (CCMD-LIST-003,
-    /// CCMD-LIST-006).
+    /// Selects entry `index` modulo the count, and scrolls it into the rows.
     pub fn select(&mut self, index: isize) {
         let count = self.entries.len();
         let Some(selected) = isize::try_from(count)

@@ -1,103 +1,20 @@
-use crate::MAX_INPUT;
+use crate::closed::Closed;
 use crate::command_input::{CommandInput, Context, Request};
-use crate::edit_box::{Anchor, EditBox, Step};
+use crate::edit_box::{Anchor, EditBox};
 use crate::history::{History, Recall};
-use crate::normalize::normalize;
+use crate::history_change::HistoryChange;
+use crate::input_style::InputStyle;
+use crate::key::Key;
+use crate::outcome::Outcome;
+use crate::outgoing::Outgoing;
+use crate::signing::Signing;
+use crate::tab_direction::TabDirection;
+use mcrs_minecraft_chat::{MAX_INPUT, normalize};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
 use mcrs_minecraft_wire::utf16_len;
 
-/// A key of the chat screen, after the platform mapped Cmd or Ctrl.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Key {
-    Up,
-    Down,
-    Tab { back: bool },
-    Escape,
-    Enter,
-    Backspace { step: Step },
-    Delete { step: Step },
-    Left { step: Step, anchor: Anchor },
-    Right { step: Step, anchor: Anchor },
-    Home { anchor: Anchor },
-    End { anchor: Anchor },
-    PageUp,
-    PageDown,
-    SelectAll,
-    Copy,
-    Cut,
-}
-
-/// What a send carries (CHAT-SEND-002 to CHAT-SEND-004).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Outgoing {
-    Chat(String),
-    /// The command line without its `/`; `signed` picks `chat_command_signed`.
-    Command {
-        line: String,
-        signed: bool,
-    },
-}
-
-/// Why the chat screen closed (CHAT-OPEN-002).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Closed {
-    Escape,
-    /// Enter closed the screen, with what to send, if anything. `history_changed` asks the
-    /// caller to write the command history again.
-    Sent {
-        send: Option<Outgoing>,
-        history_changed: bool,
-    },
-}
-
-/// What the chat screen did with an input event.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Outcome {
-    /// The screen did nothing; the caller may give the event to someone else.
-    Ignored,
-    /// The screen used the event.
-    Handled,
-    /// The screen closed.
-    Closed(Closed),
-    /// Page Up (`1`) or Page Down (`-1`) scrolls the chat log by `perPage − 1` lines.
-    Page(isize),
-    /// The caller puts this text on the clipboard.
-    Copy(String),
-}
-
-/// What Escape does with an unsent input.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum UnsentDraft {
-    #[default]
-    Discard,
-    Save,
-}
-
-/// How the initial text of the screen shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum InputStyle {
-    #[default]
-    Plain,
-    /// The draft style, until the first change.
-    Draft,
-}
-
-/// The input the client keeps after the screen closed, if any (CHAT-OPEN-002).
-#[must_use]
-pub fn keeps_draft(input: &str, closed: Option<&Closed>, unsent: UnsentDraft) -> bool {
-    if input.trim().is_empty() {
-        return false;
-    }
-    match closed {
-        Some(Closed::Sent { .. }) => false,
-        Some(Closed::Escape) => unsent == UnsentDraft::Save,
-        None => true,
-    }
-}
-
 /// The chat screen while it is open: the input box, the history position, the draft style and
-/// the command state (CHAT-OPEN-001 to CHAT-KEY-001).
+/// the command state.
 #[derive(Debug, Default)]
 pub struct ChatScreen {
     edit: EditBox,
@@ -109,8 +26,8 @@ pub struct ChatScreen {
 }
 
 impl ChatScreen {
-    /// Opens on `initial` in `style` (CHAT-OPEN-001). The suggestion list does not show until
-    /// the player types or presses Tab (CCMD-LIST-001).
+    /// Opens on `initial` in `style`. The suggestion list does not show until
+    /// the player types or presses Tab.
     pub fn open<L: VanillaLookup>(
         &mut self,
         initial: &str,
@@ -125,7 +42,7 @@ impl ChatScreen {
         self.refresh(cx);
     }
 
-    /// The server request the last call made, to send now (CCMD-REQ-001).
+    /// The server request the last call made, to send now.
     pub fn take_request(&mut self) -> Option<Request> {
         self.request.take()
     }
@@ -167,7 +84,7 @@ impl ChatScreen {
         self.edited(|edit| edit.insert(text), cx)
     }
 
-    /// Inserts the selected suggestion of the list in place (CCMD-LIST-005).
+    /// Inserts the selected suggestion of the list in place.
     pub fn insert_suggestion<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) -> Outcome {
         let Some(list) = self.commands.list() else {
             return Outcome::Ignored;
@@ -202,9 +119,12 @@ impl ChatScreen {
                 list.step(1);
                 list.cycle = false;
             }
-            Key::Tab { back } => {
+            Key::Tab { direction } => {
                 if list.cycle {
-                    list.step(if back { -1 } else { 1 });
+                    list.step(match direction {
+                        TabDirection::Forward => 1,
+                        TabDirection::Backward => -1,
+                    });
                 }
                 return Some(self.insert_suggestion(cx));
             }
@@ -214,7 +134,6 @@ impl ChatScreen {
         Some(Outcome::Handled)
     }
 
-    /// Handles one key in the order of CHAT-KEY-001.
     pub fn key<L: VanillaLookup>(
         &mut self,
         key: Key,
@@ -274,13 +193,13 @@ impl ChatScreen {
         }
     }
 
-    /// A move of the caret does not parse again (CCMD-PARSE-001, postconditions).
+    /// A move of the caret does not parse again.
     fn moved(&mut self, edit: impl FnOnce(&mut EditBox)) -> Outcome {
         edit(&mut self.edit);
         Outcome::Handled
     }
 
-    /// Up and Down with no list (CHAT-HIST-002).
+    /// Up and Down with no list.
     fn recall<L: VanillaLookup>(
         &mut self,
         delta: isize,
@@ -297,7 +216,7 @@ impl ChatScreen {
         Outcome::Handled
     }
 
-    /// The input is blocked: Enter does nothing (CHAT-OPT-002).
+    /// The input is blocked: Enter does nothing.
     fn blocked<L: VanillaLookup>(&self, cx: &Context<'_, L>) -> bool {
         let input = self.edit.text();
         if input.starts_with('/') {
@@ -308,7 +227,7 @@ impl ChatScreen {
         }
     }
 
-    /// Enter (CHAT-SEND-002).
+    /// Enter.
     fn enter<L: VanillaLookup>(&mut self, history: &mut History, cx: &Context<'_, L>) -> Outcome {
         if self.blocked(cx) {
             return Outcome::Handled;
@@ -317,23 +236,31 @@ impl ChatScreen {
         if self.sent.is_empty() {
             return Outcome::Closed(Closed::Sent {
                 send: None,
-                history_changed: false,
+                history: HistoryChange::Unchanged,
             });
         }
         if !self.sent.starts_with('/') && utf16_len(&self.sent) > MAX_INPUT {
             return Outcome::Handled;
         }
-        let history_changed = history.add(&self.sent);
+        let history = if history.add(&self.sent) {
+            HistoryChange::Changed
+        } else {
+            HistoryChange::Unchanged
+        };
         let send = match self.sent.strip_prefix('/') {
             Some(line) => Outgoing::Command {
                 line: line.to_owned(),
-                signed: self.commands.line_has_message(line, cx),
+                signing: if self.commands.line_has_message(line, cx) {
+                    Signing::Signed
+                } else {
+                    Signing::Unsigned
+                },
             },
             None => Outgoing::Chat(self.sent.clone()),
         };
         Outcome::Closed(Closed::Sent {
             send: Some(send),
-            history_changed,
+            history,
         })
     }
 }

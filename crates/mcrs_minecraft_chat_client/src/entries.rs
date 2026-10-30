@@ -107,7 +107,7 @@ impl Entries {
     }
 
     /// Puts each suggestion that starts with the last word first, keeping the order within
-    /// each group (CCMD-SUG-003).
+    /// each group.
     pub(crate) fn order_by_last_word(&mut self, input: &str, caret: usize) {
         let before = input.get(..caret).unwrap_or_default();
         let word_start = before.rfind(is_separator).map_or(0, |index| index + 1);

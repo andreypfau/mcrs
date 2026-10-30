@@ -60,6 +60,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_chat.workspace = true
+mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_argument_block.workspace = true
 mcrs_minecraft_command_registry.workspace = true

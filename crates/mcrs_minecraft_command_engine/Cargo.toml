@@ -25,6 +25,7 @@ mcrs_minecraft_level.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_wire.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true

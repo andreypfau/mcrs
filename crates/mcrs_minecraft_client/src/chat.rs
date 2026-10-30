@@ -11,8 +11,8 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::BlockProperty;
-use mcrs_minecraft_chat::{
-    ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Tag,
+use mcrs_minecraft_chat_client::{
+    ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Signing, Tag,
 };
 use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
 use mcrs_minecraft_command_argument::TimeLookup;
@@ -27,6 +27,7 @@ use mcrs_minecraft_network::client::{
 use mcrs_minecraft_protocol::entity::player::MessageSignature;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChat, ServerboundChatCommand, ServerboundChatCommandSigned,
+    ServerboundCommandSuggestion,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -38,13 +39,23 @@ use crate::chat_packets;
 use crate::game_mode::PermissionLevel;
 use crate::player::Player;
 
-/// A message for the chat log (CHAT-RECV-001 to CHAT-RECV-003). Debug feedback is one too.
+/// A line the player sent from the chat screen, for the plugin to put on the connection.
+#[derive(Message, Clone, Debug)]
+pub struct SendChat(pub Outgoing);
+
+/// A message for the chat log. Debug feedback is one too.
 #[derive(Message, Clone, Debug)]
 pub struct ChatMessage {
     pub text: Text,
     pub tag: Option<Tag>,
-    /// The source is a player, so it needs "receive player messages" (CHAT-OPT-002).
-    pub from_player: bool,
+    pub origin: MessageOrigin,
+}
+
+/// Which "receive messages" ability a message needs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MessageOrigin {
+    System,
+    Player,
 }
 
 impl ChatMessage {
@@ -53,12 +64,12 @@ impl ChatMessage {
         Self {
             text,
             tag: None,
-            from_player: false,
+            origin: MessageOrigin::System,
         }
     }
 }
 
-/// The client tree of the last `commands` packet (CCMD-TREE-001).
+/// The client tree of the last `commands` packet.
 #[derive(Resource, Default)]
 pub struct CommandTree(pub ClientGraph);
 
@@ -73,7 +84,7 @@ pub struct OnlinePlayer {
 #[derive(Resource, Default, Debug)]
 pub struct OnlinePlayers(pub Vec<OnlinePlayer>);
 
-/// The options of CHAT-OPT-001 that the client reads; the client has no options screen.
+/// The chat options that the client reads; the client has no options screen.
 #[derive(Clone, Copy, Debug)]
 pub struct ChatOptions {
     pub auto_suggest: bool,
@@ -111,7 +122,7 @@ pub struct Chat {
 #[derive(Resource, Default)]
 pub struct ChatInput(pub ChatScreen);
 
-/// What the client knows that a command argument reads (CCMD-TREE-001, CCMD-SUG-002).
+/// What the client knows that a command argument reads.
 pub struct ClientLookup<'a> {
     registries: RegistryLookup<'a>,
     players: &'a OnlinePlayers,
@@ -220,12 +231,12 @@ impl CommandWorld<'_, '_> {
 }
 
 /// The chat of the client, with the command history kept in `command_history`.
-pub struct ChatPlugin {
-    /// Where the command history lives, if anywhere (CHAT-HIST-001).
+pub struct ClientChatPlugin {
+    /// Where the command history lives, if anywhere.
     pub command_history: Option<PathBuf>,
 }
 
-impl Plugin for ChatPlugin {
+impl Plugin for ClientChatPlugin {
     fn build(&self, app: &mut App) {
         let mut chat = Chat::default();
         if let Some(path) = &self.command_history {
@@ -239,6 +250,7 @@ impl Plugin for ChatPlugin {
             .init_resource::<OnlinePlayers>()
             .init_resource::<ChatInput>()
             .add_message::<ChatMessage>()
+            .add_message::<SendChat>()
             .add_systems(FixedUpdate, advance_tick)
             .add_systems(
                 Update,
@@ -246,7 +258,7 @@ impl Plugin for ChatPlugin {
             )
             .add_systems(
                 Update,
-                log_messages
+                (log_messages, send_chat, request_suggestions)
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             )
@@ -271,10 +283,9 @@ fn advance_tick(mut chat: ResMut<Chat>) {
 pub(crate) fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<Chat>) {
     let chat = &mut *chat;
     for message in messages.read() {
-        let allowed = if message.from_player {
-            chat.abilities.receive_player_messages
-        } else {
-            chat.abilities.receive_system_messages
+        let allowed = match message.origin {
+            MessageOrigin::Player => chat.abilities.receive_player_messages,
+            MessageOrigin::System => chat.abilities.receive_system_messages,
         };
         if allowed {
             chat.log.push(message.text.clone(), chat.tick, message.tag);
@@ -315,14 +326,40 @@ fn salt() -> u64 {
     RandomState::new().build_hasher().finish()
 }
 
-/// An unsigned session acknowledges nothing (CHAT-SEND-005).
+/// An unsigned session acknowledges nothing.
 const NOTHING_SEEN: MessageSignature = MessageSignature {
     offset: VarInt(0),
     acknowledged: [0; 3],
     checksum: 1,
 };
 
-pub(crate) fn send(connection: &mut ClientConnection, send: &Outgoing) {
+fn send_chat(mut sent: MessageReader<SendChat>, connection: Option<Single<&mut ClientConnection>>) {
+    let Some(mut connection) = connection else {
+        sent.clear();
+        return;
+    };
+    for SendChat(outgoing) in sent.read() {
+        send(&mut connection, outgoing);
+    }
+}
+
+fn request_suggestions(
+    mut input: ResMut<ChatInput>,
+    connection: Option<Single<&mut ClientConnection>>,
+) {
+    let screen = input.bypass_change_detection();
+    let Some(request) = screen.0.take_request() else {
+        return;
+    };
+    if let Some(mut connection) = connection {
+        connection.write_packet(&ServerboundCommandSuggestion {
+            id: VarInt(request.id),
+            text: Bounded(screen.0.input().get(..request.end).unwrap_or_default()),
+        });
+    }
+}
+
+fn send(connection: &mut ClientConnection, send: &Outgoing) {
     match send {
         Outgoing::Chat(message) => connection.write_packet(&ServerboundChat {
             message: Bounded(message),
@@ -333,11 +370,14 @@ pub(crate) fn send(connection: &mut ClientConnection, send: &Outgoing) {
         }),
         Outgoing::Command {
             line,
-            signed: false,
+            signing: Signing::Unsigned,
         } => connection.write_packet(&ServerboundChatCommand {
             command: Bounded(line),
         }),
-        Outgoing::Command { line, signed: true } => {
+        Outgoing::Command {
+            line,
+            signing: Signing::Signed,
+        } => {
             connection.write_packet(&ServerboundChatCommandSigned {
                 command: Bounded(line),
                 timestamp: now_millis(),

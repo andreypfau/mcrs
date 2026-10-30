@@ -1,4 +1,4 @@
-use mcrs_minecraft_chat::{ChatLines, ChatLog, Overlay, Tag, fade};
+use mcrs_minecraft_chat_client::{ChatLines, ChatLog, Overlay, Tag, fade};
 
 fn one_line(message: &u32, _: Option<Tag>, rows: &mut Vec<u32>) {
     rows.push(*message);

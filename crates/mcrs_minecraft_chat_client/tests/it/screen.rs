@@ -1,7 +1,8 @@
 use crate::{Tree, context, source};
-use mcrs_minecraft_chat::{
-    ChatScreen, Closed, EditBox, History, InputStyle, Key, Outcome, Outgoing, Step, UnsentDraft,
-    keeps_draft, normalize,
+use mcrs_minecraft_chat::normalize;
+use mcrs_minecraft_chat_client::{
+    ChatScreen, Closed, EditBox, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
+    Signing, Step, UnsentDraft, keeps_draft,
 };
 
 #[test]
@@ -103,48 +104,59 @@ fn enter_sends_the_normalized_input_and_picks_the_packet() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    for (typed, send) in [
-        ("  hi  there ", Some(Outgoing::Chat("hi there".into()))),
-        (
-            "/",
-            Some(Outgoing::Command {
-                line: String::new(),
-                signed: false,
-            }),
-        ),
-        ("   ", None),
-    ] {
-        screen.open("", InputStyle::Plain, &cx);
-        screen.type_text(typed, &cx);
-        let Outcome::Closed(Closed::Sent { send: sent, .. }) =
-            screen.key(Key::Enter, &mut history, &cx)
-        else {
-            panic!("{typed:?}");
-        };
-        assert_eq!(sent, send, "{typed:?}");
+    enum Expect {
+        Sent(Option<Outgoing>),
+        Refused,
     }
-
-    let over_the_packet = "\u{1f600}".repeat(200);
-    let recalled = history.len();
-    screen.open("", InputStyle::Plain, &cx);
-    screen.type_text(&over_the_packet, &cx);
-    assert_eq!(
-        screen.key(Key::Enter, &mut history, &cx),
-        Outcome::Handled,
-        "a chat message over 256 UTF-16 code units stays in the box"
-    );
-    assert_eq!(
-        history.len(),
-        recalled,
-        "the refused message is not in the history"
-    );
+    use Expect::*;
+    let emoji = "\u{1f600}";
+    let sent_unsigned = |line: String| Outgoing::Command {
+        line,
+        signing: Signing::Unsigned,
+    };
+    let rows = [
+        (
+            "  hi  there ".to_owned(),
+            Sent(Some(Outgoing::Chat("hi there".into()))),
+        ),
+        ("/".to_owned(), Sent(Some(sent_unsigned(String::new())))),
+        ("   ".to_owned(), Sent(None)),
+        (
+            emoji.repeat(128),
+            Sent(Some(Outgoing::Chat(emoji.repeat(128)))),
+        ),
+        (emoji.repeat(129), Refused),
+        (emoji.repeat(200), Refused),
+        (
+            format!("/{}", emoji.repeat(300)),
+            Sent(Some(sent_unsigned(emoji.repeat(255)))),
+        ),
+    ];
+    for (typed, expected) in rows {
+        let recalled = history.len();
+        screen.open("", InputStyle::Plain, &cx);
+        screen.type_text(&typed, &cx);
+        let outcome = screen.key(Key::Enter, &mut history, &cx);
+        match expected {
+            Sent(send) => {
+                let Outcome::Closed(Closed::Sent { send: sent, .. }) = outcome else {
+                    panic!("{typed:?}");
+                };
+                assert_eq!(sent, send, "{typed:?}");
+            }
+            Refused => {
+                assert_eq!(outcome, Outcome::Handled, "{typed:?}");
+                assert_eq!(history.len(), recalled, "{typed:?}: history unchanged");
+            }
+        }
+    }
 }
 
 #[test]
 fn a_draft_is_kept_only_when_the_screen_closed_without_a_send() {
     let sent = Closed::Sent {
         send: None,
-        history_changed: false,
+        history: HistoryChange::Unchanged,
     };
     for (input, closed, save, kept) in [
         ("abc", Some(&Closed::Escape), UnsentDraft::Discard, false),

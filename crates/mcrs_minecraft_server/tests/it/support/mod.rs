@@ -7,7 +7,9 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::item::test_corpus;
@@ -83,5 +85,13 @@ pub fn update_until_playing(app: &mut App) {
     while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
         assert!(Instant::now() < deadline, "never reached Playing");
         app.update();
+    }
+}
+
+pub fn client_info_with_view_distance(view_distance: u8) -> ClientInfo {
+    ClientInfo {
+        locale: "en_us".to_owned(),
+        view_distance,
+        chat_mode: ChatMode::Enabled,
     }
 }

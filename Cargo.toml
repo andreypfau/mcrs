@@ -84,6 +84,7 @@ mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
 mcrs_command = { path = "crates/mcrs_command" }
+mcrs_test_alloc = { path = "crates/mcrs_test_alloc" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }
 mcrs_minecraft_command_argument = { path = "crates/mcrs_minecraft_command_argument" }
 mcrs_minecraft_command_argument_block = { path = "crates/mcrs_minecraft_command_argument_block" }
@@ -93,6 +94,8 @@ mcrs_minecraft_command_engine = { path = "crates/mcrs_minecraft_command_engine" 
 mcrs_minecraft_command_registry = { path = "crates/mcrs_minecraft_command_registry" }
 mcrs_minecraft_command_tree = { path = "crates/mcrs_minecraft_command_tree" }
 mcrs_minecraft_chat = { path = "crates/mcrs_minecraft_chat" }
+mcrs_minecraft_chat_server = { path = "crates/mcrs_minecraft_chat_server" }
+mcrs_minecraft_chat_client = { path = "crates/mcrs_minecraft_chat_client" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
 mcrs_minecraft_game_mode = { path = "crates/mcrs_minecraft_game_mode" }
 mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla" }

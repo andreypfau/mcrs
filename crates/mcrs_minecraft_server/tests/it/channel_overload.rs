@@ -201,7 +201,7 @@ fn transfer_snapshot() -> mcrs_minecraft_engine::bus::PlayerTransferSnapshot {
         username: "test".into(),
         position: bevy_math::DVec3::ZERO,
         rotation: bevy_math::Vec2::ZERO,
-        view_distance: 12,
+        client_info: Some(crate::support::client_info_with_view_distance(12)),
     }
 }
 

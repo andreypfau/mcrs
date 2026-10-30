@@ -21,8 +21,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 
 /// The game mode that the player list shows for a player, which the login and a dimension
 /// change leave as it was told.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ListedGameMode(pub GameMode);
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ListedGameMode(pub GameMode);
 
 pub struct GameModePlugin;
 

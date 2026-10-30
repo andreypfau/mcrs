@@ -116,7 +116,7 @@ fn play_login_targets_host_anchor() {
                     username: "target_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
-                    view_distance: 12,
+                    client_info: Some(crate::support::client_info_with_view_distance(12)),
                 },
                 dimensions: Vec::new().into(),
             }))

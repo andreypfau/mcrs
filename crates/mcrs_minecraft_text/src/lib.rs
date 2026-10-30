@@ -939,14 +939,12 @@ fn positive_int<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     Ok(value)
 }
 
-/// A character a player may send in chat or in a command line.
-pub const fn is_allowed_chat_character(c: char) -> bool {
-    !matches!(c, '\0'..='\u{1f}' | '\u{7f}' | '§')
-}
-
 fn chat_string<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     let value = String::deserialize(d)?;
-    if let Some(c) = value.chars().find(|&c| !is_allowed_chat_character(c)) {
+    if let Some(c) = value
+        .chars()
+        .find(|&c| !mcrs_command::is_allowed_chat_character(c))
+    {
         return Err(de::Error::custom(format_args!(
             "Disallowed chat character: '{c}'"
         )));

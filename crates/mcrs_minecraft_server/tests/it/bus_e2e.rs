@@ -238,7 +238,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                     username: "readiness_player".into(),
                     position: bevy_math::DVec3::ZERO,
                     rotation: bevy_math::Vec2::ZERO,
-                    view_distance: 12,
+                    client_info: Some(crate::support::client_info_with_view_distance(12)),
                 },
                 dimensions: Vec::new().into(),
             }));

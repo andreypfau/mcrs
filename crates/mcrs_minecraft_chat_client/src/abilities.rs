@@ -8,7 +8,7 @@ pub enum ChatAccess {
     Forbidden,
 }
 
-/// What the player can send and receive (CHAT-OPT-002).
+/// What the player can send and receive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChatAbilities {
     pub send_messages: bool,

@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_chat_server"
+description = "The chat handling of the server as a plugin that a user can replace"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_command_engine.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+tracing.workspace = true

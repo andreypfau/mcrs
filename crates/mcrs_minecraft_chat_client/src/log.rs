@@ -4,7 +4,7 @@ const MAX_MESSAGES: usize = 100;
 const MAX_LINES: usize = 100;
 const LIFETIME: f64 = 200.0;
 
-/// A mark on a message (CHAT-LOG-005).
+/// A mark on a message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tag {
     SystemSinglePlayer,
@@ -35,7 +35,7 @@ impl Tag {
         }
     }
 
-    /// A tag with an icon makes the wrap width 15 GUI units smaller (CHAT-LOG-001).
+    /// A tag with an icon makes the wrap width 15 GUI units smaller.
     pub fn has_icon(self) -> bool {
         self == Tag::Modified
     }
@@ -56,11 +56,11 @@ pub struct Line<L> {
     pub content: L,
     pub tick: u64,
     pub tag: Option<Tag>,
-    /// Whether this row is the bottom row of its message (CHAT-LOG-005).
+    /// Whether this row is the bottom row of its message.
     pub last: bool,
 }
 
-/// The kept messages, newest first (CHAT-LOG-001).
+/// The kept messages, newest first.
 #[derive(Clone, Debug)]
 pub struct ChatLog<M> {
     messages: VecDeque<Logged<M>>,
@@ -81,7 +81,7 @@ impl<M> Default for ChatLog<M> {
 }
 
 impl<M> ChatLog<M> {
-    /// Adds a message that passed the visibility filter (CHAT-LOG-001).
+    /// Adds a message that passed the visibility filter.
     pub fn push(&mut self, message: M, tick: u64, tag: Option<Tag>) {
         self.messages.push_front(Logged { message, tick, tag });
         self.messages.truncate(MAX_MESSAGES);
@@ -95,7 +95,7 @@ impl<M> ChatLog<M> {
 }
 
 /// The lines of the kept messages, newest first, and the scroll of the open chat
-/// (CHAT-LOG-001, CHAT-LOG-004): the projection of a [`ChatLog`] for one wrap. `wrap` writes
+///: the projection of a [`ChatLog`] for one wrap. `wrap` writes
 /// the rows of one message with its tag, top row first.
 #[derive(Clone, Debug)]
 pub struct ChatLines<L> {
@@ -120,12 +120,18 @@ impl<L> Default for ChatLines<L> {
     }
 }
 
-/// The alpha of a line of the closed chat `age` ticks after its message arrived
-/// (CHAT-LOG-003).
+/// The alpha of a line of the closed chat `age` ticks after its message arrived.
 #[must_use]
 pub fn fade(age: u64) -> f32 {
     let t = (10.0 * (1.0 - age as f64 / LIFETIME)).clamp(0.0, 1.0);
     (t * t) as f32
+}
+
+/// Whether the chat is open while a line is added, so that a scrolled view holds its place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum View {
+    Open,
+    Closed,
 }
 
 impl<L> ChatLines<L> {
@@ -145,14 +151,14 @@ impl<L> ChatLines<L> {
     fn add<M>(
         &mut self,
         logged: &Logged<M>,
-        scrolls: bool,
+        view: View,
         wrap: &mut impl FnMut(&M, Option<Tag>, &mut Vec<L>),
     ) {
         self.rows.clear();
         wrap(&logged.message, logged.tag, &mut self.rows);
         let rows = self.rows.len();
         for (row, content) in self.rows.drain(..).enumerate() {
-            if scrolls && self.scroll > 0 {
+            if view == View::Open && self.scroll > 0 {
                 self.scroll = self.scroll.saturating_add(1);
                 self.new_since_scroll = true;
             }
@@ -183,15 +189,19 @@ impl<L> ChatLines<L> {
         let new = usize::try_from(log.pushed.saturating_sub(self.seen)).unwrap_or(usize::MAX);
         self.seen = log.pushed;
         for logged in log.messages.iter().take(new).rev() {
-            self.add(logged, open.is_some(), &mut wrap);
+            let view = if open.is_some() {
+                View::Open
+            } else {
+                View::Closed
+            };
+            self.add(logged, view, &mut wrap);
         }
         if let Some(per_page) = open {
             self.scroll_by(0, per_page);
         }
     }
 
-    /// Wraps every kept message again, after a change of the width, the scale or the spacing
-    /// (CHAT-LOG-001).
+    /// Wraps every kept message again, after a change of the width, the scale or the spacing.
     pub fn rebuild<M>(
         &mut self,
         log: &ChatLog<M>,
@@ -202,11 +212,11 @@ impl<L> ChatLines<L> {
         self.seen = log.pushed;
         self.cleared = log.cleared;
         for logged in log.messages.iter().rev() {
-            self.add(logged, false, &mut wrap);
+            self.add(logged, View::Closed, &mut wrap);
         }
     }
 
-    /// Scrolls the open chat by `lines`, upwards positive (CHAT-LOG-004).
+    /// Scrolls the open chat by `lines`, upwards positive.
     pub fn scroll_by(&mut self, lines: isize, per_page: usize) {
         let max = self.lines.len().saturating_sub(per_page);
         let scroll = self.scroll.saturating_add_signed(lines).min(max);

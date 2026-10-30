@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
-use mcrs_minecraft_protocol::text::{self, Text};
+use mcrs_minecraft_protocol::text::Text;
 
 /// The command lines and the suggestion requests that the host received since the last pass.
 #[derive(Resource, Default)]
@@ -38,7 +38,7 @@ pub(crate) struct QueuedSuggestion {
 }
 
 /// Queues a command line for the next pass. The host disconnects a player whose command line holds a
-/// code unit no player can type (CMDP-EXEC-002), and drops the line.
+/// code unit no player can type, and drops the line.
 pub(crate) fn queue_command_line(
     event: On<Received<ServerboundChatCommand<'static>>>,
     mut connections: Query<(Option<&HostAnchorRef>, Option<&mut ServerSideConnection>)>,
@@ -52,7 +52,7 @@ pub(crate) fn queue_command_line(
         return;
     };
     let line = packet.command.0;
-    if line.chars().all(text::is_allowed_chat_character) {
+    if line.chars().all(mcrs_command::is_allowed_chat_character) {
         if let Some(&HostAnchorRef(player)) = anchor {
             let mut owned = queue.spare.pop().unwrap_or_default();
             owned.clear();
@@ -77,7 +77,7 @@ pub(crate) fn queue_command_line(
     }
 }
 
-/// Keeps the latest suggestion request of each player for the next pass (CMDP-SUG-003). A newer
+/// Keeps the latest suggestion request of each player for the next pass. A newer
 /// request replaces an older one, and the replaced one gets no reply.
 pub(crate) fn queue_suggestion_request(
     event: On<Received<ServerboundCommandSuggestion<'static>>>,

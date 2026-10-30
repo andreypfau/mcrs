@@ -1,7 +1,5 @@
-use mcrs_minecraft_protocol::text::is_allowed_chat_character;
-
-use crate::MAX_INPUT;
-use mcrs_command::Span;
+use mcrs_command::{Span, is_allowed_chat_character};
+use mcrs_minecraft_chat::MAX_INPUT;
 
 /// How far a caret move or a removal goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -23,7 +21,7 @@ pub enum Anchor {
     Keep,
 }
 
-/// A one-line text field (CHAT-BOX-001, CHAT-BOX-002). Positions are byte offsets into the text.
+/// A one-line text field. Positions are byte offsets into the text.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EditBox {
     text: String,

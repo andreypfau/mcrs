@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_chat"
-description = "The client chat screen without rendering: the input box, the history, client-side command suggestions, hint lines and the chat log"
+description = "The chat rules that the client and the server share: the characters a message may hold, its length limit and its normal form"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,15 +13,3 @@ workspace = true
 
 [dependencies]
 mcrs_command.workspace = true
-mcrs_minecraft_command.workspace = true
-mcrs_minecraft_command_argument_vanilla.workspace = true
-mcrs_minecraft_protocol.workspace = true
-mcrs_minecraft_wire.workspace = true
-
-[dev-dependencies]
-mcrs_minecraft_command_tree.workspace = true
-mcrs_minecraft_core.workspace = true
-mcrs_minecraft_keys.workspace = true
-mcrs_minecraft_block.workspace = true
-mcrs_minecraft_command_argument_block.workspace = true
-mcrs_minecraft_command_argument.workspace = true

@@ -3,8 +3,7 @@ use std::collections::VecDeque;
 const MAX_HISTORY: usize = 100;
 const MAX_COMMANDS: usize = 50;
 
-/// The sent inputs Up and Down recall, and the command history the client keeps on disk
-/// (CHAT-HIST-001).
+/// The sent inputs Up and Down recall, and the command history the client keeps on disk.
 #[derive(Clone, Debug, Default)]
 pub struct History {
     entries: VecDeque<String>,
@@ -69,7 +68,7 @@ impl History {
     }
 }
 
-/// The position of Up and Down in the history while the chat screen is open (CHAT-HIST-002).
+/// The position of Up and Down in the history while the chat screen is open.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Recall {
     position: Option<usize>,

@@ -3,7 +3,10 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_chat::{ChatScreen, Highlight, MAX_INPUT, Tag, Tooltip as SuggestionTooltip};
+use mcrs_minecraft_chat::MAX_INPUT;
+use mcrs_minecraft_chat_client::{
+    ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
+};
 
 use super::chat_suggestions;
 use super::font::{self, Font, Hover, Span};
@@ -27,7 +30,7 @@ const INPUT_TEXT: u32 = 0xFFE0_E0E0;
 pub(super) const GRAY: u32 = 0xFFAA_AAAA;
 pub(super) const RED: u32 = 0xFFFF_5555;
 const GHOST: u32 = 0xFF80_8080;
-const ARGUMENT_COLOURS: [u32; 5] = [
+const ARGUMENT_PALETTE: [u32; ARGUMENT_COLOURS as usize] = [
     0xFF55_FFFF,
     0xFFFF_FF55,
     0xFF55_FF55,
@@ -45,7 +48,7 @@ pub enum ChatFocus {
     Unfocused,
 }
 
-/// The lines of the chat view: 20 open, 10 closed (CHAT-LOG-004).
+/// The lines of the chat view: 20 open, 10 closed.
 pub fn per_page(focus: ChatFocus) -> usize {
     let height = match focus {
         ChatFocus::Focused => FOCUSED_HEIGHT,
@@ -67,10 +70,6 @@ fn with_alpha(color: u32, alpha: f32) -> u32 {
     ((base * alpha) as u32) << 24 | (color & 0x00FF_FFFF)
 }
 
-fn holds(rect: IRect, point: IVec2) -> bool {
-    rect.min.x <= point.x && point.x < rect.max.x && rect.min.y <= point.y && point.y < rect.max.y
-}
-
 /// The mouse over the open chat, and where the log makes its tooltip requests.
 pub(crate) struct Pointer<'a> {
     pub at: IVec2,
@@ -83,7 +82,7 @@ impl Pointer<'_> {
     fn tag_tooltip(&mut self, tag: Tag, font: &Font) {
         let language = self.language;
         self.tooltip.request(self.at, |rows| {
-            // chisle: a `Modified` tooltip ends with the original text in gray (CHAT-LOG-005),
+            // chisle: a `Modified` tooltip ends with the original text in gray,
             // which the log does not keep; no message is tagged `Modified` yet.
             let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
             text::wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
@@ -91,13 +90,13 @@ impl Pointer<'_> {
     }
 }
 
-/// The lines of the chat log (CHAT-LOG-002 to CHAT-LOG-005) at the default options. With a
+/// The lines of the chat log at the default options. With a
 /// pointer, the chat is open: the tag bars and icons make their tooltip requests, and the
-/// result is the hovered text style (CHAT-LOG-007).
+/// result is the hovered text style.
 pub(crate) fn chat_lines<'c>(
     size: GuiSize,
     chat: &Chat,
-    lines: &'c mcrs_minecraft_chat::ChatLines<Vec<Span>>,
+    lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     mut pointer: Option<Pointer<'_>>,
     out: &mut Vec<GuiQuad>,
     font: &Font,
@@ -121,7 +120,7 @@ pub(crate) fn chat_lines<'c>(
         let alpha = if open {
             1.0
         } else {
-            mcrs_minecraft_chat::fade(chat.tick.saturating_sub(line.tick))
+            mcrs_minecraft_chat_client::fade(chat.tick.saturating_sub(line.tick))
         };
         if alpha <= 1e-5 {
             continue;
@@ -150,13 +149,13 @@ pub(crate) fn chat_lines<'c>(
         let Some(pointer) = pointer.as_mut() else {
             continue;
         };
-        if holds(bar, pointer.at) {
+        if bar.contains(pointer.at) {
             pointer.tag_tooltip(tag, font);
         }
         if tag.has_icon() && line.last {
             let left = origin.x + font.width(&line.content) + 4;
             let icon = IRect::new(left, origin.y - 1, left + pointer.icon.x, origin.y + 9);
-            let over = holds(icon, pointer.at);
+            let over = icon.contains(pointer.at);
             if over {
                 pointer.tag_tooltip(tag, font);
             }
@@ -171,9 +170,9 @@ pub(crate) fn chat_lines<'c>(
     hovered
 }
 
-/// The hover event under `at` and the number of the message that holds it (CHAT-LOG-007).
+/// The hover event under `at` and the number of the message that holds it.
 fn hovered_text<'c>(
-    lines: &'c mcrs_minecraft_chat::ChatLines<Vec<Span>>,
+    lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     page: usize,
     text_origin: impl Fn(usize) -> IVec2,
     at: IVec2,
@@ -194,7 +193,7 @@ fn hovered_text<'c>(
 
 /// The scroll bar of the open chat when the log holds more lines than it shows.
 fn scroll_bar(
-    lines: &mcrs_minecraft_chat::ChatLines<Vec<Span>>,
+    lines: &mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     shown: usize,
     bottom: i32,
     out: &mut Vec<GuiQuad>,
@@ -222,7 +221,7 @@ fn scroll_bar(
     }
 }
 
-/// The lines a hover event shows (TIP-HOVER-001).
+/// The lines a hover event shows.
 fn hover_lines(
     hover: &Hover,
     gui_width: i32,
@@ -254,7 +253,7 @@ fn hover_lines(
     }
 }
 
-/// Calls `run` for each coloured part of the input (CCMD-HL-001), or once for chat text and a draft.
+/// Calls `run` for each coloured part of the input, or once for chat text and a draft.
 fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
     let input = screen.input();
     if screen.is_draft() {
@@ -269,7 +268,10 @@ fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
             run(input.get(at..span.start).unwrap_or_default(), GRAY);
         }
         let colour = match highlight {
-            Highlight::Argument(index) => ARGUMENT_COLOURS[usize::from(index) % 5],
+            Highlight::Argument(index) => ARGUMENT_PALETTE
+                .get(usize::from(index))
+                .copied()
+                .unwrap_or(GRAY),
             Highlight::Trailing => RED,
         };
         run(input.get(span.start..span.end).unwrap_or_default(), colour);
@@ -280,7 +282,7 @@ fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
     }
 }
 
-/// The input box with its caret and ghost text (CHAT-BOX-001, CCMD-LIST-003).
+/// The input box with its caret and ghost text.
 fn input_box(
     size: GuiSize,
     font: &Font,
@@ -462,7 +464,7 @@ mod tests {
         fn the_newest_line_sits_forty_units_above_the_bottom_and_is_gone_after_ten_seconds() {
             let mut chat = Chat::default();
             let font = corpus_font();
-            let mut lines = mcrs_minecraft_chat::ChatLines::default();
+            let mut lines = mcrs_minecraft_chat_client::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
             lines.sync(&chat.log, None, |text, _, rows| {
                 rows.push(text::text_spans(text, Language::corpus(), 0xFFFF_FFFF));

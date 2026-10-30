@@ -10,7 +10,7 @@ mod log;
 mod screen;
 
 use mcrs_minecraft_block::definition::schema::BlockProperty;
-use mcrs_minecraft_chat::{ChatAbilities, Context};
+use mcrs_minecraft_chat_client::{ChatAbilities, Context};
 use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
 use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_argument_block::BlockLookup;

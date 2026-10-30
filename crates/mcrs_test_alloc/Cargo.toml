@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_test_alloc"
+description = "A global allocator that counts the allocations of the calling thread, for tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true

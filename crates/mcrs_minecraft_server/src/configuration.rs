@@ -1,5 +1,4 @@
 use crate::WorldSave;
-use crate::client_info::ClientInfo;
 use crate::login::{SessionsById, disconnect, duplicate_login_reason};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
@@ -16,6 +15,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::send_control_or_teardown;
 use mcrs_minecraft_engine::session::GameProfile;
@@ -247,9 +247,6 @@ fn on_game_configuration_ack(
     *state = ConnectionState::Configuration;
 }
 
-/// What vanilla's player asks for until its client information arrives.
-const VIEW_DISTANCE_FALLBACK: u8 = 2;
-
 /// Runs each Update tick. For every connection in the game state whose session
 /// is still unplaced, picks the live `DimSubAppHandle` label entity of the
 /// dimension the player was saved in, or the first dimension of the list when
@@ -314,9 +311,7 @@ pub fn emit_initial_player_spawn(
             rotation: saved
                 .as_ref()
                 .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),
-            view_distance: info
-                .map(|info| info.view_distance)
-                .unwrap_or(VIEW_DISTANCE_FALLBACK),
+            client_info: info.cloned(),
         };
         let dimensions = Arc::clone(dimension_list.keys());
         placement.set(Place::Joining(dim_label));

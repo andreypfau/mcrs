@@ -7,14 +7,12 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_chat::{
-    Anchor, ChatScreen, Closed, Context, History, InputStyle, Key, Outcome, Step, Tag, UnsentDraft,
+use mcrs_minecraft_chat_client::{
+    Anchor, ChatScreen, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome, Step,
+    TabDirection, Tag, UnsentDraft,
 };
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_network::client::ClientConnection;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundCommandSuggestion;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 
 use super::chat::{self as chat_view, ChatFocus};
 use super::chat_suggestions;
@@ -23,13 +21,13 @@ use super::item_decorations::WHITE;
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiScene};
 use super::text::{self, Wrap};
-use crate::chat::{self, Chat, ChatInput, ClientLookup, CommandWorld};
+use crate::chat::{self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat};
 use crate::chat_history::CommandHistoryFile;
 use crate::screen::{self, Screen};
 
 /// The lines of the chat log as the GUI wraps them, and the scroll of the open chat.
 #[derive(Resource, Default)]
-pub struct ChatLines(pub mcrs_minecraft_chat::ChatLines<Vec<Span>>);
+pub struct ChatLines(pub mcrs_minecraft_chat_client::ChatLines<Vec<Span>>);
 
 /// The chat screen: its keys, its mouse and the lines of the log it shows.
 pub struct ChatScreenPlugin;
@@ -43,7 +41,7 @@ impl Plugin for ChatScreenPlugin {
 }
 
 /// Wraps the messages of the log into lines: the new ones as they arrive, and every kept
-/// message again when the font or the language changes (CHAT-LOG-001).
+/// message again when the font or the language changes.
 fn project_lines(
     chat: Res<Chat>,
     screen: Res<Screen>,
@@ -101,7 +99,13 @@ fn screen_key(code: KeyCode, Modifiers { control, shift }: Modifiers) -> Option<
     Some(match code {
         KeyCode::ArrowUp => Key::Up,
         KeyCode::ArrowDown => Key::Down,
-        KeyCode::Tab => Key::Tab { back: shift },
+        KeyCode::Tab => Key::Tab {
+            direction: if shift {
+                TabDirection::Backward
+            } else {
+                TabDirection::Forward
+            },
+        },
         KeyCode::Escape => Key::Escape,
         KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
         KeyCode::Backspace => Key::Backspace { step },
@@ -140,7 +144,7 @@ struct ChatState<'w> {
     lines: ResMut<'w, ChatLines>,
 }
 
-/// The initial input of a key that opens the chat screen, and its style (CHAT-OPEN-001).
+/// The initial input of a key that opens the chat screen, and its style.
 fn opening(
     keys: &ButtonInput<KeyCode>,
     screen: Screen,
@@ -171,14 +175,14 @@ fn opening(
     })
 }
 
-/// Opens the chat screen on its keys (CHAT-OPEN-001), and while it is open gives it every key,
-/// so no game key fires under it (CHAT-KEY-001).
+/// Opens the chat screen on its keys, and while it is open gives it every key,
+/// so no game key fires under it.
 fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,
     world: CommandWorld,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-    mut connection: Option<Single<&mut ClientConnection>>,
+    mut sends: MessageWriter<SendChat>,
 ) {
     let chat = &mut *state.chat;
     let opened = if *state.screen == Screen::Chat {
@@ -199,10 +203,6 @@ fn chat_keys(
     );
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, &cx);
-        flush_request(
-            &mut state.input.0,
-            connection.as_deref_mut().map(|c| &mut **c),
-        );
         *state.screen = Screen::Chat;
         screen::grab(&mut cursor, false);
         keys.keyboard.clear();
@@ -211,14 +211,7 @@ fn chat_keys(
     }
     let modifiers = modifiers(&keys.keys);
     let screen = &mut state.input.0;
-    let typed = type_keys(
-        &mut keys,
-        modifiers,
-        screen,
-        &mut chat.history,
-        &cx,
-        &mut connection,
-    );
+    let typed = type_keys(&mut keys, modifiers, screen, &mut chat.history, &cx);
     let moved = *keys.last_cursor != keys.scene.cursor;
     *keys.last_cursor = keys.scene.cursor;
     if let Some(atlas) = keys.atlas.as_deref() {
@@ -231,7 +224,6 @@ fn chat_keys(
             &atlas.0.font,
             &cx,
         );
-        flush_request(screen, connection.as_deref_mut().map(|c| &mut **c));
     }
     if typed.page != 0 {
         let page = chat_view::per_page(ChatFocus::Focused);
@@ -240,11 +232,7 @@ fn chat_keys(
     }
     keys.keys.reset_all();
     if let Some(closed) = typed.closed {
-        close(
-            &mut state,
-            closed,
-            connection.as_deref_mut().map(|c| &mut **c),
-        );
+        close(&mut state, closed, &mut sends);
         screen::grab(&mut cursor, true);
     }
 }
@@ -261,7 +249,6 @@ fn type_keys(
     screen: &mut ChatScreen,
     history: &mut History,
     cx: &Context<'_, ClientLookup<'_>>,
-    connection: &mut Option<Single<&mut ClientConnection>>,
 ) -> Typed {
     let control = modifiers.control;
     let mut typed = Typed {
@@ -296,35 +283,23 @@ fn type_keys(
             }
             _ => {}
         }
-        flush_request(screen, connection.as_deref_mut().map(|c| &mut **c));
     }
     typed
 }
 
-fn flush_request(screen: &mut ChatScreen, connection: Option<&mut ClientConnection>) {
-    if let Some(request) = screen.take_request()
-        && let Some(connection) = connection
-    {
-        connection.write_packet(&ServerboundCommandSuggestion {
-            id: VarInt(request.id),
-            text: Bounded(screen.input().get(..request.end).unwrap_or_default()),
-        });
-    }
-}
-
-/// Sends what Enter sent, keeps the draft and leaves the screen (CHAT-OPEN-002).
-fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientConnection>) {
+/// Sends what Enter sent, keeps the draft and leaves the screen.
+fn close(state: &mut ChatState, closed: Closed, sends: &mut MessageWriter<SendChat>) {
     let chat = &mut *state.chat;
     let screen = &state.input.0;
     if let Closed::Sent {
         send: Some(sent),
-        history_changed,
+        history,
     } = &closed
     {
-        if let Some(connection) = connection {
-            chat::send(connection, sent);
-        }
-        if *history_changed && let Some(file) = &mut state.history_file {
+        sends.write(SendChat(sent.clone()));
+        if *history == HistoryChange::Changed
+            && let Some(file) = &mut state.history_file
+        {
             file.save(chat.history.command_file());
         }
     }
@@ -333,18 +308,18 @@ fn close(state: &mut ChatState, closed: Closed, connection: Option<&mut ClientCo
     } else {
         UnsentDraft::Discard
     };
-    chat.draft = mcrs_minecraft_chat::keeps_draft(screen.input(), Some(&closed), unsent)
+    chat.draft = mcrs_minecraft_chat_client::keeps_draft(screen.input(), Some(&closed), unsent)
         .then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
     *state.screen = Screen::None;
 }
 
-/// The wheel and the left button over the open chat (CHAT-KEY-001, CCMD-LIST-007).
+/// The wheel and the left button over the open chat.
 fn mouse(
     keys: &ChatKeys,
     moved: bool,
     screen: &mut ChatScreen,
-    log: &mut mcrs_minecraft_chat::ChatLines<Vec<Span>>,
+    log: &mut mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     shift: bool,
     font: &Font,
     cx: &Context<'_, ClientLookup<'_>>,

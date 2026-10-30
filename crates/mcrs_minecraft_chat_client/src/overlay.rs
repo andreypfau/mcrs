@@ -1,7 +1,7 @@
 const TICKS: u32 = 60;
 const FADE: f32 = 20.0;
 
-/// The text above the hotbar (CHAT-RECV-005).
+/// The text above the hotbar.
 #[derive(Clone, Debug)]
 pub struct Overlay<M> {
     message: Option<M>,

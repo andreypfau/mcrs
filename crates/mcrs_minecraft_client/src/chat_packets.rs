@@ -2,7 +2,7 @@
 //! command tree, the suggestions and the player list.
 
 use bevy::prelude::*;
-use mcrs_minecraft_chat::Tag;
+use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_network::client;
@@ -18,7 +18,8 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_world::chat_type::{ChatParameter, ChatType};
 
 use crate::chat::{
-    self, Chat, ChatInput, ChatMessage, CommandTree, CommandWorld, OnlinePlayer, OnlinePlayers,
+    self, Chat, ChatInput, ChatMessage, CommandTree, CommandWorld, MessageOrigin, OnlinePlayer,
+    OnlinePlayers,
 };
 
 /// The registries whose identifiers the client can name, so their arguments parse on the
@@ -107,7 +108,7 @@ pub(crate) fn on_system_chat(
         messages.write(ChatMessage {
             text: packet.content,
             tag: Some(Tag::SystemSinglePlayer),
-            from_player: false,
+            origin: MessageOrigin::System,
         });
     }
 }
@@ -121,7 +122,7 @@ pub(crate) fn on_action_bar(
     }
 }
 
-/// The `chat` decoration of a chat type around a content (CHAT-RECV-004).
+/// The `chat` decoration of a chat type around a content.
 fn decorate(
     registries: Option<&Registries>,
     chat_type: u32,
@@ -194,7 +195,7 @@ pub(crate) fn on_player_chat(
                     .italic(),
             ),
             tag: Some(Tag::Error),
-            from_player: true,
+            origin: MessageOrigin::Player,
         });
         return;
     }
@@ -207,11 +208,11 @@ pub(crate) fn on_player_chat(
     messages.write(ChatMessage {
         text: decorate(content),
         tag: packet.signature.is_none().then_some(Tag::NotSecure),
-        from_player: true,
+        origin: MessageOrigin::Player,
     });
 }
 
-/// The body with each hidden code unit as a dark grey `#` (CHAT-RECV-002, step 6).
+/// The body with each hidden code unit as a dark grey `#`.
 fn filtered(body: &str, mask: &FilterMask) -> Text {
     let mut text = Text::text("");
     let mut run = String::new();
@@ -273,7 +274,7 @@ pub(crate) fn on_disguised_chat(
             packet.message,
         ),
         tag: Some(Tag::System),
-        from_player: true,
+        origin: MessageOrigin::Player,
     });
 }
 
