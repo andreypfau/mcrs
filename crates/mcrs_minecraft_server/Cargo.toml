@@ -77,7 +77,6 @@ bevy_asset = { workspace = true, features = ["multi_threaded"] }
 [dev-dependencies]
 mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
-mcrs_minecraft_command_coordinates.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }

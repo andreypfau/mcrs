@@ -1,17 +1,18 @@
+use crate::relative_move::{DimensionChange, Pose, RelativeRotation, relative_move};
 use crate::select::{FoundPlayers, select, targets_or_self};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::{BVec3, DVec3};
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::{CommandLevel, EntityAnchorArgument, PermissionCheck};
-use mcrs_minecraft_command_coordinates::{
-    DimensionChange, Pose, RelativeRotation, RotationArgument, Vec3Argument,
-};
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
+use mcrs_minecraft_command_argument::EntityAnchorArgument;
+use mcrs_minecraft_command_argument::{RotationArgument, Vec3Argument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
     Invocation, PlayerEntry, Worlds,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_engine::dimension_change::Arrival;
@@ -19,8 +20,8 @@ use mcrs_minecraft_engine::network_id;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
-use mcrs_minecraft_protocol::{Look, VarInt};
 use mcrs_minecraft_text::{IntoText, Text};
 
 /// Where a teleport sends one victim (CMD-TP-004, CMD-TP-005).
@@ -416,7 +417,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
     } else {
         DimensionChange::Changes
     };
-    let step = mcrs_minecraft_command_coordinates::relative_move(
+    let step = relative_move(
         from,
         destination_pose,
         to.relative_position,
@@ -432,7 +433,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         .and_then(|target| facing(worlds, player, to.position, target));
     if let Some((target, _)) = facing {
         let eyes = mcrs_minecraft_command::anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
-        let look = mcrs_minecraft_command_coordinates::rotation_toward(eyes, target);
+        let look = mcrs_minecraft_command_argument::rotation_toward(eyes, target);
         transform.rotation = Rotation::new(look.yaw, look.pitch);
     }
     let arrival = Arrival {

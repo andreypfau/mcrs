@@ -15,9 +15,9 @@ use mcrs_minecraft_chat::{
     ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Tag,
 };
 use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
+use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_block::BlockLookup;
 use mcrs_minecraft_command_registry::RegistryLookup;
-use mcrs_minecraft_command_time::TimeLookup;
 use mcrs_minecraft_command_vanilla::ClientGraph;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_dimension::Dimension;

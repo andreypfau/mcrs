@@ -15,6 +15,7 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_core::Id;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_protocol::ColumnPos;
@@ -32,7 +33,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundConfigurationAcknowledged, ServerboundKeepAlive as ServerboundGameKeepAlive,
 };
 use mcrs_minecraft_protocol::packets::table::Row;
-use mcrs_minecraft_protocol::{Encode, Look, Packet, WritePacket, uuid::Uuid};
+use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, uuid::Uuid};
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, ReceivedTags};
 use md5::{Digest, Md5};
 use std::net::SocketAddr;

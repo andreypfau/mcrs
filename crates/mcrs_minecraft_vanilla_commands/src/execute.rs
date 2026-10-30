@@ -5,21 +5,20 @@ use crate::set::VanillaCommands;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::{
-    CommandLevel, DimensionArgument, EntityAnchorArgument, HeightmapArgument, PermissionCheck,
-};
-use mcrs_minecraft_command_block::BlockPredicateArgument;
-use mcrs_minecraft_command_coordinates::{
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
+use mcrs_minecraft_command_argument::{
     BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
 };
+use mcrs_minecraft_command_argument::{DimensionArgument, EntityAnchorArgument, HeightmapArgument};
+use mcrs_minecraft_command_block::BlockPredicateArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback, Modified,
     ModifyResult, SourceState,
 };
 use mcrs_minecraft_command_entity::EntityArgument;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
-use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_text::{IntoText, Text};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -315,7 +314,7 @@ pub(crate) fn modify(
         }),
         Branch::PositionedOver => {
             let heightmap = context.arg(&call, command.positioned.heightmap)?;
-            let [x, _, z] = mcrs_minecraft_command_coordinates::block_floor(state.position);
+            let [x, _, z] = mcrs_minecraft_command_argument::block_floor(state.position);
             if !view.dimension.loaded(x, z) {
                 return Err(unloaded());
             }
@@ -343,7 +342,7 @@ pub(crate) fn modify(
                 .arg(&call, command.facing.position)?
                 .position(&source);
             let from = anchor_point(state.anchor, state.position);
-            let Look { yaw, pitch } = mcrs_minecraft_command_coordinates::rotation_toward(from, to);
+            let Look { yaw, pitch } = mcrs_minecraft_command_argument::rotation_toward(from, to);
             one(SourceState {
                 yaw,
                 pitch,
@@ -353,7 +352,7 @@ pub(crate) fn modify(
         Branch::Align => {
             let axes = context.arg(&call, command.align)?;
             one(SourceState {
-                position: mcrs_minecraft_command_coordinates::align(axes, state.position),
+                position: mcrs_minecraft_command_argument::align(axes, state.position),
                 ..state
             })
         }
@@ -437,7 +436,7 @@ fn fork_each(
                     let to = anchor_point(anchor, target.transform.translation);
                     let from = anchor_point(state.anchor, state.position);
                     let Look { yaw, pitch } =
-                        mcrs_minecraft_command_coordinates::rotation_toward(from, to);
+                        mcrs_minecraft_command_argument::rotation_toward(from, to);
                     SourceState {
                         yaw,
                         pitch,

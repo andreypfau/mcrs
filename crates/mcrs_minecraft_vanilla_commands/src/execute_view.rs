@@ -7,7 +7,7 @@ use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_command::{DimensionArgument, ResourceOrTag};
+use mcrs_minecraft_command_argument::{DimensionArgument, ResourceOrTag};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, PlayerEntry,
     SourceState,
@@ -71,12 +71,12 @@ impl ExecuteView<'_, '_> {
             }
             Test::Loaded => {
                 let position = context.arg(call, args.loaded)?.position(&source);
-                let [x, _, z] = mcrs_minecraft_command_coordinates::block_floor(position);
+                let [x, _, z] = mcrs_minecraft_command_argument::block_floor(position);
                 Ok(Outcome::Boolean(self.dimension.loaded(x, z)))
             }
             Test::Block => {
                 let position = context.arg(call, args.block_pos)?.position(&source);
-                let pos = mcrs_minecraft_command_coordinates::block_floor(position);
+                let pos = mcrs_minecraft_command_argument::block_floor(position);
                 self.dimension.readable(pos)?;
                 let predicate = context.arg(call, args.block)?;
                 let state = self.dimension.block_state(pos).ok_or_else(unloaded)?;

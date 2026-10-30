@@ -1,9 +1,10 @@
 use crate::{OP, read};
 use mcrs_command::Span;
 use mcrs_command::SyntaxError;
-use mcrs_minecraft_command::{
-    EntityAnchorArgument, GameModeArgument, HeightmapArgument, Identifier, KeywordError,
-    ResourceError, ResourceLocationArgument,
+use mcrs_minecraft_command::{Identifier, ResourceError};
+use mcrs_minecraft_command_argument::{
+    EntityAnchorArgument, GameModeArgument, HeightmapArgument, KeywordError,
+    ResourceLocationArgument,
 };
 use mcrs_minecraft_game_mode::GameMode;
 

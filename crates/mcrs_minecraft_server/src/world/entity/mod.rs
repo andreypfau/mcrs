@@ -16,7 +16,6 @@ use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
@@ -123,10 +122,7 @@ pub fn entity_pos_sync(
         PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
             entity_id: VarInt(entity_id),
             position: PositionPath::Linear(transform.translation),
-            look: Look {
-                yaw: transform.rotation.yaw(),
-                pitch: transform.rotation.pitch(),
-            },
+            look: transform.rotation.into(),
             on_ground: true,
         }),
     ));

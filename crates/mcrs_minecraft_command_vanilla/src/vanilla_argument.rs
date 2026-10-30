@@ -6,16 +6,17 @@ use mcrs_command::{
     IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder, SyntaxError,
 };
 use mcrs_minecraft_block::keys::BLOCK;
-use mcrs_minecraft_command::{
-    DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
-    ResourceLocationArgument, ResourceOrTagArgument, Source, WireArgument,
-};
-use mcrs_minecraft_command_block::BlockPredicateArgument;
-use mcrs_minecraft_command_coordinates::{
+use mcrs_minecraft_command::{Source, WireArgument};
+use mcrs_minecraft_command_argument::{
     BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
 };
+use mcrs_minecraft_command_argument::{
+    DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
+    ResourceLocationArgument, ResourceOrTagArgument,
+};
+use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, TimelineArgument};
+use mcrs_minecraft_command_block::BlockPredicateArgument;
 use mcrs_minecraft_command_entity::EntityArgument;
-use mcrs_minecraft_command_time::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use mcrs_minecraft_command_tree::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;

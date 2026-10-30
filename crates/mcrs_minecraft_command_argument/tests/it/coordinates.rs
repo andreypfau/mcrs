@@ -2,11 +2,11 @@ use crate::{OP, read};
 use glam::{BVec3, DVec3};
 use mcrs_command::Span;
 use mcrs_command::{LibraryError, SuggestionBuilder, SuggestionList, SyntaxError};
-use mcrs_minecraft_command_coordinates::{
+use mcrs_minecraft_command_argument::{
     BlockPosArgument, Coordinates, CoordinatesError, RotationArgument, SwizzleArgument,
     Vec3Argument, WorldCoordinate, align, block_floor, rotation_toward,
 };
-use mcrs_minecraft_protocol::Look;
+use mcrs_minecraft_core::Look;
 
 fn absolute(value: f64) -> WorldCoordinate {
     WorldCoordinate {

@@ -24,4 +24,4 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_command_block.workspace = true
-mcrs_minecraft_command_time.workspace = true
+mcrs_minecraft_command_argument.workspace = true

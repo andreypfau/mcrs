@@ -5,7 +5,8 @@ use mcrs_command::{
 };
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
-use mcrs_minecraft_command::{Identifier, ResourceOrTag, ResourceOrTagArgument, Source};
+use mcrs_minecraft_command::{Identifier, Source};
+use mcrs_minecraft_command_argument::{ResourceOrTag, ResourceOrTagArgument};
 
 const DIGITS: &str = "0123456789";
 

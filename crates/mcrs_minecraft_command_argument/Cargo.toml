@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_minecraft_command_coordinates"
-description = "The coordinate, rotation and swizzle arguments and the relative move of a teleport"
+name = "mcrs_minecraft_command_argument"
+description = "The resource, keyword, coordinate, rotation, swizzle and time arguments"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,11 +12,12 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_text.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_text.workspace = true
 glam.workspace = true
 
 [dev-dependencies]
+mcrs_test_alloc.workspace = true

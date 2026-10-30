@@ -1,7 +1,8 @@
 use mcrs_command::Span;
 use mcrs_command::SyntaxError;
-use mcrs_minecraft_command::{KeywordError, error_feedback};
-use mcrs_minecraft_command_coordinates::CoordinatesError;
+use mcrs_minecraft_command::error_feedback;
+use mcrs_minecraft_command_argument::CoordinatesError;
+use mcrs_minecraft_command_argument::KeywordError;
 use mcrs_minecraft_command_vanilla::ArgumentError;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 

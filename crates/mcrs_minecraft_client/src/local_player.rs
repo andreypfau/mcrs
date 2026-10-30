@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot,
 };
-use mcrs_minecraft_protocol::{Look, MoveFlags, VarInt, WritePacket};
+use mcrs_minecraft_protocol::{MoveFlags, VarInt, WritePacket};
 
 #[cfg(feature = "dev")]
 use crate::dev::flight::ScriptedFlight;
@@ -151,10 +151,7 @@ fn send_movement(
     };
 
     let position = transform.translation.into();
-    let look = Look {
-        yaw: transform.rotation.yaw(),
-        pitch: transform.rotation.pitch(),
-    };
+    let look = transform.rotation.into();
     match packet {
         MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
             position,

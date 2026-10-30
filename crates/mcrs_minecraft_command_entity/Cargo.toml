@@ -16,6 +16,7 @@ mcrs_minecraft_text.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_argument.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_loot.workspace = true

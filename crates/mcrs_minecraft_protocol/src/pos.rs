@@ -39,39 +39,6 @@ impl Decode<'_> for Position {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Default, Debug)]
-pub struct Look {
-    /// The yaw angle in degrees, where:
-    /// - `-90` is looking east (towards positive x).
-    /// - `0` is looking south (towards positive z).
-    /// - `90` is looking west (towards negative x).
-    /// - `180` is looking north (towards negative z).
-    ///
-    /// Values -180 to 180 are also valid.
-    pub yaw: f32,
-    /// The pitch angle in degrees, where:
-    /// - `-90` is looking straight up.
-    /// - `0` is looking straight ahead.
-    /// - `90` is looking straight down.
-    pub pitch: f32,
-}
-
-impl Encode for Look {
-    fn encode(&self, mut w: impl std::io::Write) -> Result<()> {
-        self.yaw.encode(&mut w)?;
-        self.pitch.encode(&mut w)?;
-        Ok(())
-    }
-}
-
-impl Decode<'_> for Look {
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        let yaw = f32::decode(r)?;
-        let pitch = f32::decode(r)?;
-        Ok(Look { yaw, pitch })
-    }
-}
-
 #[bitfield(u8)]
 pub struct MoveFlags {
     pub on_ground: bool,

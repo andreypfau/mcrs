@@ -75,7 +75,6 @@ pub use mcrs_minecraft_item::component::GlobalPos;
 pub use mcrs_minecraft_wire::{
     Bounded, Context, Decode, Encode, Error, ErrorKind, RawBytes, Result, VarInt, VarLong,
 };
-pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;
 pub use raw::EncodedBody;

@@ -3,11 +3,12 @@
 //! hand-written codecs that the derive cannot express.
 
 use glam::DVec3;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
     DeltaStep, PositionPath, PositionStep, VecDelta,
 };
-use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, Look, VarInt};
+use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, VarInt};
 
 fn round_trip<'a, P: Encode + Decode<'a> + std::fmt::Debug>(packet: &P, buf: &'a mut Vec<u8>) -> P {
     packet.encode(&mut *buf).expect("encode");

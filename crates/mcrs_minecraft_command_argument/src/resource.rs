@@ -1,14 +1,11 @@
-use crate::error::ResourceError;
-use crate::identifier::{
-    Identifier, SpannedIdentifier, identifier_matches, prefixed_identifier_matches,
-    read_identifier, suggest_prefixed,
-};
-use crate::source::{Lookup, Source};
 use core::fmt;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
+use mcrs_minecraft_command::{
+    Identifier, Lookup, ResourceError, Source, SpannedIdentifier, identifier_matches,
+    prefixed_identifier_matches, read_identifier, suggest_prefixed,
+};
 use mcrs_minecraft_core::StaticResourceLocation;
 
-/// `minecraft:resource_location` (ARG-RES-003).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceLocationArgument;
 
@@ -25,7 +22,7 @@ impl<S> Argument<S> for ResourceLocationArgument {
     }
 }
 
-/// `minecraft:dimension` (ARG-RES-004). Whether the dimension exists is the command's test.
+/// `minecraft:dimension`. Whether the dimension exists is the command's test.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DimensionArgument;
 
@@ -70,8 +67,8 @@ impl fmt::Display for ResourceOrTag<'_> {
     }
 }
 
-/// `minecraft:resource_or_tag` (ARG-RES-006) when `must_exist`, else
-/// `minecraft:resource_or_tag_key` (ARG-RES-005), whose read does not test that the entry or
+/// `minecraft:resource_or_tag` when `must_exist`, else
+/// `minecraft:resource_or_tag_key`, whose read does not test that the entry or
 /// the tag exists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceOrTagArgument {
@@ -86,15 +83,8 @@ impl ResourceOrTagArgument {
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
     ) {
-        let remaining = builder.remaining();
         let tags = source.lookup.tags(self.registry).map(|tag| (tag, None));
-        suggest_prefixed(
-            builder,
-            &["#"],
-            tags,
-            remaining,
-            prefixed_identifier_matches,
-        );
+        suggest_prefixed(builder, &["#"], tags, prefixed_identifier_matches);
         builder.suggest_matching(source.lookup.entries(self.registry), identifier_matches);
     }
 }
@@ -140,7 +130,7 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
     }
 }
 
-/// `minecraft:resource` (CMD-TIME-004): an entry of the registry, which must exist.
+/// `minecraft:resource`: an entry of the registry, which must exist.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceArgument {
     pub registry: StaticResourceLocation,

@@ -1,6 +1,6 @@
 use crate::{OP, read};
 use mcrs_command::{LibraryError, SyntaxError};
-use mcrs_minecraft_command_time::{TimeArgument, TimeError};
+use mcrs_minecraft_command_argument::{TimeArgument, TimeError};
 
 #[test]
 fn time_reads_a_tick_count_in_its_unit() {

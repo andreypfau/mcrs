@@ -19,11 +19,10 @@ mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_block.workspace = true
-mcrs_minecraft_command_coordinates.workspace = true
+mcrs_minecraft_command_argument.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_entity.workspace = true
 mcrs_minecraft_command_registry.workspace = true
-mcrs_minecraft_command_time.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true

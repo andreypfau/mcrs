@@ -14,10 +14,11 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
-    use crate::{Bounded, ColumnPos, Look, LpVec3, PositionFlags, Result, VarInt, VarLong};
+    use crate::{Bounded, ColumnPos, LpVec3, PositionFlags, Result, VarInt, VarLong};
     use glam::DVec3;
     use mcrs_minecraft_command_tree::CommandNode;
     use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::Look;
     use mcrs_minecraft_core::LookAnchor;
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
@@ -799,12 +800,10 @@ pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::pos::MoveFlags;
     use crate::recipe::RecipeBookType;
-    use crate::{
-        Bounded, Decode, Difficulty, Direction, Encode, Hand, Look, LpVec3, Position, VarInt,
-    };
+    use crate::{Bounded, Decode, Difficulty, Direction, Encode, Hand, LpVec3, Position, VarInt};
     use bitfield_struct::bitfield;
     use derive_more::From;
-    use mcrs_minecraft_core::{BlockPos, ResourceLocation};
+    use mcrs_minecraft_core::{BlockPos, Look, ResourceLocation};
     use mcrs_minecraft_game_mode::GameMode;
     use uuid::Uuid;
 

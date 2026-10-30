@@ -3,7 +3,7 @@ use crate::error::EntityError;
 use crate::option_key::Key;
 use crate::selector::{SORTS, SelectorResult, State, rewind};
 use mcrs_command::Reader;
-use mcrs_minecraft_command::by_name;
+use mcrs_minecraft_command_argument::by_name;
 
 pub(crate) fn read_scalar(
     reader: &mut Reader<'_>,

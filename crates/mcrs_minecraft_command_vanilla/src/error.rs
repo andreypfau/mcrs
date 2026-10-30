@@ -1,10 +1,11 @@
 use core::fmt;
 use mcrs_command::SyntaxError;
-use mcrs_minecraft_command::{ErrorText, KeywordError, ResourceError};
+use mcrs_minecraft_command::{ErrorText, ResourceError};
+use mcrs_minecraft_command_argument::CoordinatesError;
+use mcrs_minecraft_command_argument::KeywordError;
+use mcrs_minecraft_command_argument::TimeError;
 use mcrs_minecraft_command_block::BlockError;
-use mcrs_minecraft_command_coordinates::CoordinatesError;
 use mcrs_minecraft_command_entity::EntityError;
-use mcrs_minecraft_command_time::TimeError;
 use mcrs_minecraft_text::Text;
 
 /// The syntax errors of the vanilla argument types. An error of an identifier or of a resource

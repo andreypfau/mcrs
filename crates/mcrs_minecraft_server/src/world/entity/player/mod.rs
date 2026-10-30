@@ -15,6 +15,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::to;
@@ -37,7 +38,6 @@ use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimen
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::GameEventKind;
-use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;

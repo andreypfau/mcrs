@@ -37,30 +37,6 @@ impl fmt::Display for ResourceError {
 
 impl core::error::Error for ResourceError {}
 
-/// The errors of the arguments that read one word of a fixed set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum KeywordError {
-    /// The word at the span names no game mode.
-    GameModeInvalid(Span),
-    /// The word at the span names no entity anchor.
-    AnchorInvalid(Span),
-    /// The word at the span names no value of the set.
-    EnumInvalid(Span),
-}
-
-impl fmt::Display for KeywordError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            KeywordError::GameModeInvalid(_) => "unknown game mode",
-            KeywordError::AnchorInvalid(_) => "unknown entity anchor",
-            KeywordError::EnumInvalid(_) => "unknown value",
-        })
-    }
-}
-
-impl core::error::Error for KeywordError {}
-
 /// The translated text of an argument error. Text from the command line is a span of `input`.
 pub trait ErrorText {
     fn text(&self, input: &str) -> Text;
@@ -175,22 +151,6 @@ impl ErrorText for ResourceError {
     }
 }
 
-impl ErrorText for KeywordError {
-    fn text(&self, input: &str) -> Text {
-        match *self {
-            KeywordError::GameModeInvalid(word) => {
-                Text::translate("argument.gamemode.invalid", vec![span_text(input, word)])
-            }
-            KeywordError::AnchorInvalid(word) => {
-                Text::translate("argument.anchor.invalid", vec![span_text(input, word)])
-            }
-            KeywordError::EnumInvalid(word) => {
-                Text::translate("argument.enum.invalid", vec![span_text(input, word)])
-            }
-        }
-    }
-}
-
 pub fn snbt_text(input: &str, error: SnbtError) -> Text {
     let mut with = Vec::new();
     let mut argument = String::new();
@@ -217,7 +177,7 @@ fn before(input: &str, position: usize) -> &str {
         .unwrap_or_default()
 }
 
-/// The context text of an error (CMD-ERR-003): up to ten characters before the position, after
+/// The context text of an error: up to ten characters before the position, after
 /// an ellipsis when more come before them.
 fn context_text(input: &str, position: usize) -> String {
     let before = before(input, position);
@@ -234,7 +194,7 @@ fn context_text(input: &str, position: usize) -> String {
     }
 }
 
-/// The error line the chat screen shows over a command input (CCMD-HINT-002). `input` holds the
+/// The error line the chat screen shows over a command input. `input` holds the
 /// `/`, and so does the position.
 pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
     let message = error_message(input, error);
@@ -251,7 +211,7 @@ pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Te
     )
 }
 
-/// The context line of an error (CMD-ERR-003, CMDP-EXEC-003): up to ten characters before the
+/// The context line of an error: up to ten characters before the
 /// position, then the rest of the line in red and underlined, then `command.context.here`.
 fn error_context(input: &str, position: usize) -> Text {
     let position = position.min(input.len());

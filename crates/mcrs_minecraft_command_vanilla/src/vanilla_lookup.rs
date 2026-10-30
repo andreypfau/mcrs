@@ -1,6 +1,6 @@
 use mcrs_minecraft_command::Lookup;
+use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_block::BlockLookup;
-use mcrs_minecraft_command_time::TimeLookup;
 
 /// What every vanilla argument reads from the world of the source.
 pub trait VanillaLookup: Lookup + BlockLookup + TimeLookup {}

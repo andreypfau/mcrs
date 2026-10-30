@@ -29,7 +29,7 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 1] = ["mcrs_command"];
 
-const NO_BEVY_PACKAGES: [&str; 62] = [
+const NO_BEVY_PACKAGES: [&str; 61] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -41,11 +41,10 @@ const NO_BEVY_PACKAGES: [&str; 62] = [
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_command",
+    "mcrs_minecraft_command_argument",
     "mcrs_minecraft_command_block",
-    "mcrs_minecraft_command_coordinates",
     "mcrs_minecraft_command_entity",
     "mcrs_minecraft_command_registry",
-    "mcrs_minecraft_command_time",
     "mcrs_minecraft_command_tree",
     "mcrs_minecraft_command_vanilla",
     "mcrs_minecraft_core",

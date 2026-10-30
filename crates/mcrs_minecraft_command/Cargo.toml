@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command"
-description = "The command source, permissions, identifiers, the resource and keyword arguments the error text the vanilla argument families share, and the command packets of a player"
+description = "The command source, permissions, identifiers, and the error text the vanilla argument families share, and the command packets of a player"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_command_tree.workspace = true
-mcrs_minecraft_game_mode.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true

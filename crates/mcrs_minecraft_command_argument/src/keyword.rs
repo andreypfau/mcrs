@@ -1,11 +1,10 @@
-use crate::error::KeywordError;
-use crate::identifier::text_matches;
+use crate::keyword_error::KeywordError;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
+use mcrs_minecraft_command::text_matches;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::heightmap::HeightmapName;
 use mcrs_minecraft_game_mode::GameMode;
 
-/// `minecraft:gamemode` (ARG-KW-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GameModeArgument;
 
@@ -42,7 +41,6 @@ pub fn by_name<T: Copy>(table: &[(&str, T)], text: &str) -> Option<T> {
 
 const ANCHORS: [(&str, LookAnchor); 2] = [("feet", LookAnchor::Feet), ("eyes", LookAnchor::Eyes)];
 
-/// `minecraft:entity_anchor` (ARG-KW-002).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EntityAnchorArgument;
 
@@ -86,7 +84,6 @@ const HEIGHTMAPS: [(&str, HeightmapName); 4] = [
     ),
 ];
 
-/// `minecraft:heightmap` (ARG-KW-003).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HeightmapArgument;
 

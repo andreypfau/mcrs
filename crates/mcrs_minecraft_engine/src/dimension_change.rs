@@ -4,9 +4,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
-use mcrs_minecraft_protocol::{Look, PositionFlags, VarInt};
+use mcrs_minecraft_protocol::{PositionFlags, VarInt};
 
 /// Where a player arrives: its transform, and what `player_position` tells the client, whose
 /// relative axes carry the change and not the value.
@@ -28,10 +29,7 @@ impl Arrival {
         Self {
             transform,
             position: transform.translation,
-            look: Look {
-                yaw: transform.rotation.yaw(),
-                pitch: transform.rotation.pitch(),
-            },
+            look: transform.rotation.into(),
             flags: PositionFlags::default(),
         }
     }

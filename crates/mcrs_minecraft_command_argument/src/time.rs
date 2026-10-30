@@ -1,15 +1,15 @@
-use crate::error::TimeError;
+use crate::resource::{ResourceArgument, ResourceLocationArgument};
+use crate::time_error::TimeError;
 use crate::time_lookup::TimeLookup;
 use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_command::{
-    Identifier, Lookup, ResourceArgument, ResourceError, ResourceLocationArgument, Source,
-    identifier_matches, text_matches,
+    Identifier, Lookup, ResourceError, Source, identifier_matches, text_matches,
 };
 
 const TICKS_PER_DAY: f32 = 24_000.0;
 const TICKS_PER_SECOND: f32 = 20.0;
 
-/// `minecraft:time` (CMD-TIME-003): a tick count with an optional unit `d`, `s` or `t`.
+/// `minecraft:time`: a tick count with an optional unit `d`, `s` or `t`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimeArgument {
     pub min: i32,
@@ -95,7 +95,7 @@ impl<'i> SelectedClock<'i> {
 }
 
 /// A time marker of the selected clock: read as `minecraft:resource_location`, suggested by
-/// the server (CMD-TIME-011).
+/// the server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimeMarkerArgument {
     /// The node of `<clock>` the branch reads, or `None` for the default clock.
@@ -134,7 +134,7 @@ impl<S> Argument<S> for TimeMarkerArgument {
 }
 
 /// A timeline: read as `minecraft:resource` of the timeline registry, and suggested by the
-/// server from the timelines of the selected clock (CMD-TIME-016).
+/// server from the timelines of the selected clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimelineArgument {
     /// The node of `<clock>` the branch reads, or `None` for the default clock.

@@ -2,7 +2,8 @@ use crate::select::{FoundPlayers, targets_or_self};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_command::{CommandLevel, GameModeArgument, PermissionCheck};
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
+use mcrs_minecraft_command_argument::GameModeArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback, Worlds,
 };

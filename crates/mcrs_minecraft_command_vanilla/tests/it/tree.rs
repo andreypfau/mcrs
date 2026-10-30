@@ -1,8 +1,9 @@
 use crate::{GUEST, OP};
 use mcrs_command::{GraphBuilder, NodeId, ParseScratch, SuggestionList};
 use mcrs_minecraft_command::{
-    CommandLevel, GameModeArgument, PermissionCheck, PlayerTree, player_tree, suggestion_reply,
+    CommandLevel, PermissionCheck, PlayerTree, player_tree, suggestion_reply,
 };
+use mcrs_minecraft_command_argument::GameModeArgument;
 use mcrs_minecraft_command_entity::EntityArgument;
 use mcrs_minecraft_command_tree::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_command_vanilla::{VanillaArgument, VanillaGraph};

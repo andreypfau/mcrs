@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::sync::{LazyLock, OnceLock};
 
 use glam::DVec3;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::{Bounded, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -16,7 +17,7 @@ use mcrs_minecraft_protocol::packets::common::serverbound::{
 use mcrs_minecraft_protocol::packets::cookie::serverbound::CookieResponse;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::resource_pack::Status;
-use mcrs_minecraft_protocol::{Decode, Encode, Hand, Look, LpVec3, Position, VarInt};
+use mcrs_minecraft_protocol::{Decode, Encode, Hand, LpVec3, Position, VarInt};
 use uuid::Uuid;
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("serverbound_game_packets").text());

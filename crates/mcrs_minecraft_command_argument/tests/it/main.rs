@@ -1,4 +1,7 @@
-mod arguments;
+mod alloc_free;
+mod coordinates;
+mod keyword;
+mod time;
 
 use mcrs_command::{Argument, Reader, SyntaxError};
 use mcrs_minecraft_command::{CommandLevel, NoLookup, Source};

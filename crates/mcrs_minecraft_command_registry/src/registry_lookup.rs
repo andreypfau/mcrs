@@ -1,6 +1,7 @@
 use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateFlags};
-use mcrs_minecraft_command::{Identifier, ResourceOrTag};
+use mcrs_minecraft_command::Identifier;
+use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_core::{Id, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -66,7 +67,7 @@ impl<'a> RegistryLookup<'a> {
     ) -> Option<&'a [u16]> {
         self.registries?
             .tags_of(&registry)?
-            .find(|(name, _)| tag.eq_str(name.as_str()))
+            .find(|(name, _)| tag == name.as_str())
             .map(|(_, members)| members)
     }
 
@@ -106,7 +107,7 @@ impl<'a> RegistryLookup<'a> {
         let index = self
             .names(registry)
             .iter()
-            .position(|entry| name.eq_str(entry.as_str()))?;
+            .position(|entry| name == entry.as_str())?;
         u16::try_from(index).ok()
     }
 
@@ -117,7 +118,7 @@ impl<'a> RegistryLookup<'a> {
         self.blocks?
             .blocks()
             .iter()
-            .find(|entry| block.eq_str(entry.identifier.as_str()))
+            .find(|entry| block == entry.identifier.as_str())
     }
 
     /// The properties of `block` in their order.
@@ -171,7 +172,7 @@ impl<'a> RegistryLookup<'a> {
                 .registries?
                 .registry::<WorldClock>()?
                 .iter()
-                .find(|(_, entry, _)| name.eq_str(entry.as_str()))
+                .find(|(_, entry, _)| name == entry.as_str())
                 .map(|(id, _, _)| id),
         }
     }
@@ -199,7 +200,7 @@ impl<'a> RegistryLookup<'a> {
         self.registries?
             .registry::<Timeline>()?
             .iter()
-            .find(|(_, entry, _)| name.eq_str(entry.as_str()))
+            .find(|(_, entry, _)| name == entry.as_str())
             .map(|(_, name, timeline)| (name, timeline))
     }
 

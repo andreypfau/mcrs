@@ -4,9 +4,8 @@ use mcrs_command::{
 };
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
-use mcrs_minecraft_command::{
-    CommandLevel, Identifier, Lookup, ResourceOrTag, Source, error_message,
-};
+use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source, error_message};
+use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_command_block::{
     BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
