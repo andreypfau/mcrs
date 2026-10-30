@@ -11,11 +11,19 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["locate"]
+locate = [
+    "dep:mcrs_minecraft_biome",
+    "dep:mcrs_minecraft_worldgen_generator",
+    "dep:mcrs_minecraft_worldgen_structure",
+]
+
 [dependencies]
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_command.workspace = true
-mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_biome = { workspace = true, optional = true }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_argument_block.workspace = true
@@ -36,8 +44,8 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_text.workspace = true
-mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"], optional = true }
+mcrs_minecraft_worldgen_structure = { workspace = true, optional = true }
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true

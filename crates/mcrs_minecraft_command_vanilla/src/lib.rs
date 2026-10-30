@@ -1,12 +1,12 @@
 //! The vanilla commands `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
 //! `time`, and the command effects they write.
 
-// std: bevy_ecs, mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the worlds, the
-// identifiers and the command packets, need it.
+// std: bevy_ecs needs it.
 mod dimension_view;
 mod execute;
 mod execute_view;
 mod gamemode;
+#[cfg(feature = "locate")]
 mod locate;
 mod plugin;
 mod relative_move;
