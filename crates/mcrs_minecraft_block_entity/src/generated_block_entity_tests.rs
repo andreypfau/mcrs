@@ -6,12 +6,19 @@ use mcrs_minecraft_core::{BlockPos, rl};
 use mcrs_minecraft_item::{ComponentPatch, ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_nbt::to_nbt_compound;
+use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 
 use crate::generated_block_entity::fresh_listener;
 use crate::*;
 
 const POS: BlockPos = BlockPos::new(1, -2, 3);
+
+fn looted(loot: &str) -> ContainerData {
+    ContainerData {
+        items: Vec::new(),
+        ..container(Some(loot))
+    }
+}
 
 fn container(loot: Option<&str>) -> ContainerData {
     ContainerData {
@@ -81,10 +88,8 @@ fn one_of_each() -> Vec<GeneratedBlockEntity> {
             z: 3,
             bees: vec![BeeOccupant::bee(5)],
         },
-        Chest(container(Some(
-            "minecraft:chests/village/village_toolsmith",
-        ))),
-        TrappedChest(container(Some("minecraft:chests/woodland_mansion"))),
+        Chest(looted("minecraft:chests/village/village_toolsmith")),
+        TrappedChest(looted("minecraft:chests/woodland_mansion")),
         EnderChest {
             x: 1,
             y: -2,
@@ -93,17 +98,10 @@ fn one_of_each() -> Vec<GeneratedBlockEntity> {
         },
         Barrel(container(None)),
         Dispenser(container(None)),
-        Hopper {
-            x: 1,
-            y: -2,
-            z: 3,
-            loot_table: None,
-            loot_table_seed: 0,
-            items: Vec::new(),
-            custom_name: None,
-            components: None,
-            transfer_cooldown: -1,
-        },
+        Hopper(HopperData {
+            container: container(None),
+            transfer_cooldown: 8,
+        }),
         Furnace(furnace()),
         BlastFurnace(furnace()),
         Smoker(furnace()),
@@ -369,8 +367,99 @@ fn a_template_chest_takes_the_placement_seed_only_beside_a_table() {
         .unwrap();
     let compound = to_nbt_compound(&unseeded).unwrap();
     assert!(compound.get("LootTableSeed").is_none());
-    assert!(compound.get("Items").is_none());
+    assert_eq!(compound.get("Items"), Some(&NbtTag::List(Vec::new())));
     assert_eq!(compound.get_int("x"), Some(1));
+}
+
+#[test]
+fn items_are_saved_even_when_empty_unless_a_loot_table_stands_for_them() {
+    let table = Some("minecraft:chests/simple_dungeon");
+    let empty = |loot: Option<&str>| ContainerData {
+        items: Vec::new(),
+        ..container(loot)
+    };
+    let hopper = |data: ContainerData| {
+        GeneratedBlockEntity::Hopper(HopperData {
+            container: data,
+            transfer_cooldown: -1,
+        })
+    };
+    let campfire = GeneratedBlockEntity::Campfire {
+        x: 1,
+        y: -2,
+        z: 3,
+        items: Vec::new(),
+        cooking_times: [0; 4],
+        cooking_total_times: [0; 4],
+        components: None,
+    };
+    let cases = [
+        ("chest", GeneratedBlockEntity::Chest(empty(None)), true),
+        (
+            "chest with table",
+            GeneratedBlockEntity::Chest(empty(table)),
+            false,
+        ),
+        ("barrel", GeneratedBlockEntity::Barrel(empty(None)), true),
+        ("hopper", hopper(empty(None)), true),
+        ("hopper with table", hopper(empty(table)), false),
+        (
+            "hopper with table and items",
+            hopper(container(table)),
+            false,
+        ),
+        ("campfire", campfire, true),
+        ("furnace", GeneratedBlockEntity::Furnace(furnace()), true),
+        (
+            "chest with items",
+            GeneratedBlockEntity::Chest(container(table)),
+            false,
+        ),
+    ];
+    for (name, entity, has_items) in cases {
+        let saved = to_nbt_compound(&entity).unwrap();
+        assert_eq!(saved.get("Items").is_some(), has_items, "{name}");
+    }
+    for (loot, has_seed) in [(None, false), (table, true)] {
+        let seeded = ContainerData {
+            loot_table_seed: 5,
+            ..container(loot)
+        };
+        let saved = to_nbt_compound(&GeneratedBlockEntity::Chest(seeded)).unwrap();
+        assert_eq!(saved.get("LootTableSeed").is_some(), has_seed, "{loot:?}");
+    }
+}
+
+#[test]
+fn hopper_keeps_array_tags_through_a_nbt_round_trip() {
+    let mut components = NbtCompound::new();
+    components.put("ints", NbtTag::IntArray(vec![1, 2]));
+    components.put("longs", NbtTag::LongArray(vec![3]));
+    components.put("bytes", NbtTag::ByteArray(vec![4u8].into()));
+    let hopper = HopperData {
+        container: ContainerData {
+            components: Some(components),
+            ..container(None)
+        },
+        transfer_cooldown: 3,
+    };
+    let saved = NbtTag::Compound(to_nbt_compound(&hopper).unwrap());
+    let loaded: HopperData = from_tag(saved).unwrap();
+    let loaded_components = loaded.container.components.as_ref().unwrap();
+    assert!(
+        matches!(loaded_components.get("ints"), Some(NbtTag::IntArray(_))),
+        "{:?}",
+        loaded_components.get("ints")
+    );
+    assert!(matches!(
+        loaded_components.get("longs"),
+        Some(NbtTag::LongArray(_))
+    ));
+    assert!(matches!(
+        loaded_components.get("bytes"),
+        Some(NbtTag::ByteArray(_))
+    ));
+    assert_eq!(loaded, hopper);
 }
 
 #[test]
@@ -492,13 +581,10 @@ fn defaults_fill_what_a_template_omits() {
         saved.get("shared_data"),
         Some(&NbtTag::Compound(NbtCompound::new()))
     );
-    let GeneratedBlockEntity::Hopper {
-        transfer_cooldown, ..
-    } = load("minecraft:hopper")
-    else {
+    let GeneratedBlockEntity::Hopper(hopper) = load("minecraft:hopper") else {
         panic!("a hopper");
     };
-    assert_eq!(transfer_cooldown, -1);
+    assert_eq!(hopper.transfer_cooldown, -1);
     let GeneratedBlockEntity::MobSpawner {
         delay,
         max_spawn_delay,

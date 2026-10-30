@@ -15,7 +15,7 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_engine.workspace = true
-mcrs_minecraft_vanilla_commands.workspace = true
+mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
@@ -77,7 +77,7 @@ bevy_asset = { workspace = true, features = ["multi_threaded"] }
 [dev-dependencies]
 mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
-mcrs_minecraft_command_vanilla.workspace = true
+mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true

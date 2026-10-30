@@ -1,0 +1,30 @@
+[package]
+name = "mcrs_minecraft_command_argument_vanilla"
+description = "The vanilla argument set, its errors, its parsers on the wire and the client command tree"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_wire.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_command_tree.workspace = true
+mcrs_command.workspace = true
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_argument_block.workspace = true
+mcrs_minecraft_command_argument.workspace = true
+mcrs_minecraft_command_argument_entity.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_keys.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true

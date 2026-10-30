@@ -13,11 +13,11 @@ use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat::{ChatAbilities, Context};
 use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
 use mcrs_minecraft_command_argument::TimeLookup;
-use mcrs_minecraft_command_block::BlockLookup;
+use mcrs_minecraft_command_argument_block::BlockLookup;
+use mcrs_minecraft_command_argument_vanilla::{ClientGraph, client_tree};
 use mcrs_minecraft_command_tree::{
     ArgumentParser, CommandNode, CommandNodeKind, ParserProperties, StringMode,
 };
-use mcrs_minecraft_command_vanilla::{ClientGraph, client_tree};
 use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;

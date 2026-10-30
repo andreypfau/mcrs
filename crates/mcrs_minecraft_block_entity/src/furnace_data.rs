@@ -26,7 +26,7 @@ pub struct FurnaceData {
     pub lit_total_time: i32,
     #[serde(default = "one_f32")]
     pub speed_multiplier: f32,
-    #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "Items", default)]
     pub items: Vec<ItemStackWithSlot<Named>>,
     #[serde(
         rename = "RecipesUsed",

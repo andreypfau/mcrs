@@ -1,7 +1,7 @@
 //! The client chat screen without rendering: the input box, the history, the client parse and
 //! suggestions of commands, the hint lines and the chat log.
 
-// std: mcrs_minecraft_command_vanilla and mcrs_minecraft_protocol, which hold the argument types
+// std: mcrs_minecraft_command_argument_vanilla and mcrs_minecraft_protocol, which hold the argument types
 // and the text components, need it.
 mod abilities;
 mod command_input;

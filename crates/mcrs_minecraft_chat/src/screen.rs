@@ -3,7 +3,7 @@ use crate::command_input::{CommandInput, Context, Request};
 use crate::edit_box::{Anchor, EditBox, Step};
 use crate::history::{History, Recall};
 use crate::normalize::normalize;
-use mcrs_minecraft_command_vanilla::VanillaLookup;
+use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
 use mcrs_minecraft_wire::utf16_len;
 
 /// A key of the chat screen, after the platform mapped Cmd or Ctrl.

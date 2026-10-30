@@ -1,6 +1,7 @@
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::*;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::mth::wrap_degrees;
 
 /// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]` and yaw is
@@ -40,6 +41,15 @@ impl Rotation {
     #[must_use]
     pub fn turn(self, yaw: f32, pitch: f32) -> Self {
         Self::new(self.yaw + yaw, self.pitch + pitch)
+    }
+}
+
+impl From<Rotation> for Look {
+    fn from(rotation: Rotation) -> Self {
+        Self {
+            yaw: rotation.yaw,
+            pitch: rotation.pitch,
+        }
     }
 }
 

@@ -1,15 +1,22 @@
-//! The vanilla argument set, its errors, its parsers on the wire and the client tree.
+//! The vanilla commands `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
+//! `time`, and the command effects they write.
 
-// std: mcrs_minecraft_core and mcrs_minecraft_text, which hold the identifiers and the text,
-// need it.
-mod client;
-mod error;
-mod packet;
-mod vanilla_argument;
-mod vanilla_lookup;
+// std: bevy_ecs, mcrs_minecraft_core and mcrs_minecraft_protocol, which hold the worlds, the
+// identifiers and the command packets, need it.
+mod dimension_view;
+mod execute;
+mod execute_view;
+mod gamemode;
+mod locate;
+mod plugin;
+mod relative_move;
+mod select;
+mod set;
+mod teleport;
+mod time;
 
-pub use client::{ClientArgument, ClientGraph, SuggestionType, TreeError, client_tree};
-pub use error::{ArgumentError, CommandSyntaxError};
-pub use packet::VanillaGraph;
-pub use vanilla_argument::{UnknownParser, VanillaArgument};
-pub use vanilla_lookup::VanillaLookup;
+pub use gamemode::SetGameMode;
+pub use plugin::VanillaCommandsPlugin;
+pub use relative_move::{DimensionChange, Pose, RelativeMove, RelativeRotation, relative_move};
+pub use set::{VanillaCommands, VanillaContext, VanillaWorld};
+pub use teleport::{Facing, Teleport, TeleportPlayer};

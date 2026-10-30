@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, With};
 use bevy_math::DVec3;
 use mcrs_minecraft_command::CommandLevel;
-use mcrs_minecraft_core::LookAnchor;
+use mcrs_minecraft_core::{Look, LookAnchor};
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -40,14 +40,25 @@ impl SourceState {
         level: CommandLevel,
         transform: &Transform,
     ) -> Self {
+        let Look { yaw, pitch } = transform.rotation.into();
         Self {
             level,
             entity: Some(anchor),
             dimension,
             position: transform.translation,
-            yaw: transform.rotation.yaw(),
-            pitch: transform.rotation.pitch(),
+            yaw,
+            pitch,
             anchor: LookAnchor::Feet,
+        }
+    }
+
+    /// The source looking along `look`.
+    #[must_use]
+    pub fn with_look(&self, look: Look) -> Self {
+        Self {
+            yaw: look.yaw,
+            pitch: look.pitch,
+            ..*self
         }
     }
 }

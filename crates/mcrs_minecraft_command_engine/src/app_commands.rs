@@ -1,11 +1,11 @@
-use crate::call::{BranchTable, Call, to_call};
+use crate::call::{Call, to_call};
 use crate::command_failure::CommandResult;
 use crate::command_set::CommandSet;
 use crate::command_tree::CommandTreeBuilder;
 use crate::effect_queue::EffectPlugin;
-use crate::handlers::{HandlerKey, HandlerSlot, Handlers};
+use crate::handlers::{HandlerKey, Handlers};
 use crate::modified::ModifyResult;
-use crate::registrar::CommandRegistrar;
+use crate::registrar::{BranchUse, CommandRegistrar};
 use crate::worlds::Worlds;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
@@ -29,6 +29,9 @@ pub enum RegistrationError {
     /// A command has more branches than a branch index can count.
     #[error("the command has more branches than a branch index can count")]
     TooManyBranches,
+    /// A branch redirects through a modifier, and the command registers no modifier handler.
+    #[error("a branch of the command has a modifier and the command has no modifier handler")]
+    UnhandledModifier,
 }
 
 /// Adds commands and command effects to an [`App`] that has the
@@ -81,13 +84,21 @@ pub trait AppCommandsExt {
 struct Registration<B, C> {
     handles: C,
     key: HandlerKey,
-    table: BranchTable<B>,
+    branches: Vec<BranchUse<B>>,
 }
 
-/// Adds the nodes of one command to the tree, or nothing when `build` returns an error. `None`
-/// when the command has no executable node.
+/// Whether a command registers a handler for its modifiers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Modifiers {
+    Unhandled,
+    Handled,
+}
+
+/// Adds the nodes of one command to the tree, or nothing when `build` returns an error or a
+/// branch has a modifier that nothing handles. `None` when the command has no executable node.
 fn register<A, B, C>(
     app: &mut App,
+    modifiers: Modifiers,
     build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
 ) -> Result<Option<Registration<B, C>>, RegistrationError>
 where
@@ -116,6 +127,12 @@ where
         tree.builder = before;
         return Err(RegistrationError::TooManyBranches);
     }
+    if modifiers == Modifiers::Unhandled
+        && registrar.branches.iter().any(|used| used.tables.modifies())
+    {
+        tree.builder = before;
+        return Err(RegistrationError::UnhandledModifier);
+    }
     let handles = match built {
         Ok(handles) => handles,
         Err(error) => {
@@ -125,17 +142,13 @@ where
     };
     let branches = registrar.branches;
     tree.next = next;
-    let Some((&first, rest)) = branches.split_first() else {
+    if branches.is_empty() {
         return Ok(None);
-    };
-    let table = BranchTable {
-        first,
-        rest: rest.to_vec(),
-    };
+    }
     Ok(Some(Registration {
         handles,
         key,
-        table,
+        branches,
     }))
 }
 
@@ -155,15 +168,18 @@ impl AppCommandsExt for App {
         let Some(Registration {
             handles,
             key,
-            table,
-        }) = register(self, build)?
+            branches,
+        }) = register(self, Modifiers::Unhandled, build)?
         else {
             return Ok(self);
         };
         Ok(self.add_dimension_plugin(HandlerPlugin {
             handles,
             key,
-            table,
+            branches: branches
+                .iter()
+                .map(|used| used.tables.runs().then_some(used.branch))
+                .collect(),
             system: handler,
             marker: PhantomData::<fn() -> (M, CommandResult)>,
         }))
@@ -187,22 +203,28 @@ impl AppCommandsExt for App {
         let Some(Registration {
             handles,
             key,
-            table,
-        }) = register(self, build)?
+            branches,
+        }) = register(self, Modifiers::Handled, build)?
         else {
             return Ok(self);
         };
         self.add_dimension_plugin(HandlerPlugin {
             handles,
             key,
-            table: table.clone(),
+            branches: branches
+                .iter()
+                .map(|used| used.tables.runs().then_some(used.branch))
+                .collect(),
             system: handler,
             marker: PhantomData::<fn() -> (M, CommandResult)>,
         });
         Ok(self.add_dimension_plugin(HandlerPlugin {
             handles,
             key,
-            table,
+            branches: branches
+                .iter()
+                .map(|used| used.tables.modifies().then_some(used.branch))
+                .collect(),
             system: modify,
             marker: PhantomData::<fn() -> (N, ModifyResult)>,
         }))
@@ -221,7 +243,7 @@ impl AppCommandsExt for App {
 struct HandlerPlugin<B, C, S, M> {
     handles: C,
     key: HandlerKey,
-    table: BranchTable<B>,
+    branches: Vec<Option<B>>,
     system: S,
     marker: PhantomData<fn() -> M>,
 }
@@ -231,7 +253,7 @@ impl<B: Clone, C: Clone, S: Clone, M> Clone for HandlerPlugin<B, C, S, M> {
         Self {
             handles: self.handles.clone(),
             key: self.key,
-            table: self.table.clone(),
+            branches: self.branches.clone(),
             system: self.system.clone(),
             marker: PhantomData,
         }
@@ -247,20 +269,19 @@ where
     O: Send + Sync + 'static,
 {
     fn build(&self, app: &mut App) {
-        let id = app
-            .world_mut()
-            .register_system(to_call(self.table.clone(), self.handles).pipe(self.system.clone()));
-        let mut handlers = app.world_mut().get_resource_or_init::<Handlers<O>>();
-        let index = usize::from(self.key.0);
-        if handlers.0.len() <= index {
-            handlers.0.resize_with(index + 1, || None);
-        }
-        if let Some(slot) = handlers.0.get_mut(index) {
-            *slot = Some(HandlerSlot {
-                system: id,
-                branches: self.table.len(),
-            });
-        }
+        let ids: Vec<_> = self
+            .branches
+            .iter()
+            .map(|branch| {
+                branch.map(|branch| {
+                    app.world_mut()
+                        .register_system(to_call(branch, self.handles).pipe(self.system.clone()))
+                })
+            })
+            .collect();
+        app.world_mut()
+            .get_resource_or_init::<Handlers<O>>()
+            .insert(self.key, ids);
     }
 
     fn is_unique(&self) -> bool {

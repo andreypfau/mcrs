@@ -10,5 +10,4 @@ pub struct Invocation {
     /// The source this run of the stage is for.
     pub source: SourceState,
     pub(crate) stage: usize,
-    pub(crate) branch: u16,
 }

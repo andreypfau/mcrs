@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
-mcrs_minecraft_command_vanilla.workspace = true
+mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_wire.workspace = true
 
@@ -23,5 +23,5 @@ mcrs_minecraft_command_tree.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_block.workspace = true
-mcrs_minecraft_command_block.workspace = true
+mcrs_minecraft_command_argument_block.workspace = true
 mcrs_minecraft_command_argument.workspace = true

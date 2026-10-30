@@ -23,7 +23,7 @@ use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
 use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_text::{IntoText, Text};
+use mcrs_minecraft_text::Text;
 
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
 /// dimension of its source, with the graph, the line, the targets and the outbox lent to that
@@ -73,9 +73,30 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
         lists: &mut SourceLists<SourceState>,
         limits: Limits,
     ) {
+        let (source, line) = match self.begin(queued) {
+            Ok(begun) => begun,
+            Err(line) => {
+                self.running.line = line;
+                return;
+            }
+        };
+        self.running.line = line;
+        stages.clear();
+        stages.extend_from_slice(self.running.chain.stages());
+        let end = mcrs_command::execute(stages, source, limits, self, lists);
+        if end == End::SequenceLimit {
+            tracing::info!(
+                "a command stopped at the limit of {} stages and runs",
+                limits.sequence.max(1)
+            );
+        }
+    }
+
+    /// Parses the line and offers it to the observers. The line comes back as the error when the
+    /// command must not run, so the caller can reuse its buffer.
+    fn begin(&mut self, queued: QueuedLine) -> Result<(SourceState, String), String> {
         let Some(player) = self.targets.player(queued.player) else {
-            self.running.line = queued.line;
-            return;
+            return Err(queued.line);
         };
         let (index, entity) = (player.dimension, player.entity);
         let mut input = LineToParse {
@@ -91,13 +112,9 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
             Some(Ok(Some(source))) => source,
             Some(Err(error)) => {
                 tracing::error!("a command line did not parse: {error}");
-                self.running.line = queued.line;
-                return;
+                return Err(queued.line);
             }
-            Some(Ok(None)) | None => {
-                self.running.line = queued.line;
-                return;
-            }
+            Some(Ok(None)) | None => return Err(queued.line),
         };
         let mut event = CommandEvent {
             player: entity,
@@ -110,20 +127,9 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
             .is_none()
             || event.cancelled
         {
-            self.running.line = event.line;
-            return;
+            return Err(event.line);
         }
-        let CommandEvent { source, line, .. } = event;
-        self.running.line = line;
-        stages.clear();
-        stages.extend_from_slice(self.running.chain.stages());
-        let end = mcrs_command::execute(stages, source, limits, self, lists);
-        if end == End::SequenceLimit {
-            tracing::info!(
-                "a command stopped at the limit of {} stages and runs",
-                limits.sequence.max(1)
-            );
-        }
+        Ok((event.source, event.line))
     }
 
     pub(crate) fn answer(&mut self, queued: &QueuedSuggestion) {
@@ -142,12 +148,11 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
         }
     }
 
-    fn invocation(&self, stage: usize, handler: &Handler, source: &SourceState) -> Invocation {
+    fn invocation(&self, stage: usize, source: &SourceState) -> Invocation {
         Invocation {
             output: self.output,
             source: source.clone(),
             stage,
-            branch: handler.branch,
         }
     }
 
@@ -210,7 +215,7 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         source: &SourceState,
         out: &mut Vec<SourceState>,
     ) -> Result<(), CommandFailure> {
-        let invocation = self.invocation(stage, modifier, source);
+        let invocation = self.invocation(stage, source);
         let (key, branch) = (modifier.key, modifier.branch);
         let modified: Option<ModifyResult> = self.call(invocation, |world| {
             world.get_resource::<ModifierHandlers>()?.get(key, branch)
@@ -238,7 +243,7 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         command: &Handler,
         source: &SourceState,
     ) -> Result<i32, CommandFailure> {
-        let invocation = self.invocation(stage, command, source);
+        let invocation = self.invocation(stage, source);
         let (key, branch) = (command.key, command.branch);
         let result: CommandResult = self
             .call(invocation, |world| {
@@ -252,7 +257,7 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         let failure = match failure {
             Failure::Command(failure) => failure,
             Failure::ForkLimit(limit) => {
-                CommandFailure::translate("command.forkLimit", vec![limit.to_string().into_text()])
+                CommandFailure::translate("command.forkLimit", vec![limit.to_string().into()])
             }
         };
         let message: Text = failure.text();

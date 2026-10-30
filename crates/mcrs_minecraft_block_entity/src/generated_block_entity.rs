@@ -12,8 +12,8 @@ use mcrs_minecraft_registries::{Named, dispatch};
 use mcrs_minecraft_value_provider::Weighted;
 
 use crate::{
-    BannerLayer, BeeOccupant, ContainerData, EMPTY_LABEL, EndGatewayData, FurnaceData, Joint,
-    SavedItem, SignText, SpawnData, Text, Uuid, VaultConfig,
+    BannerLayer, BeeOccupant, ContainerData, EMPTY_LABEL, EndGatewayData, FurnaceData, HopperData,
+    Joint, SavedItem, SignText, SpawnData, Text, Uuid, VaultConfig,
 };
 
 const EMPTY_TEMPLATE_POOL: ResourceLocation<&'static str> = rl!("minecraft:empty");
@@ -54,27 +54,7 @@ pub enum GeneratedBlockEntity {
     },
     Barrel(ContainerData),
     Dispenser(ContainerData),
-    Hopper {
-        x: i32,
-        y: i32,
-        z: i32,
-        #[serde(rename = "LootTable", default, skip_serializing_if = "Option::is_none")]
-        loot_table: Option<String>,
-        #[serde(rename = "LootTableSeed", default, skip_serializing_if = "is_default")]
-        loot_table_seed: i64,
-        #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-        items: Vec<ItemStackWithSlot<Named>>,
-        #[serde(
-            rename = "CustomName",
-            default,
-            skip_serializing_if = "Option::is_none"
-        )]
-        custom_name: Option<Text>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        components: Option<NbtCompound>,
-        #[serde(rename = "TransferCooldown", default = "minus_one")]
-        transfer_cooldown: i32,
-    },
+    Hopper(HopperData),
     Furnace(FurnaceData),
     BlastFurnace(FurnaceData),
     Smoker(FurnaceData),
@@ -86,7 +66,7 @@ pub enum GeneratedBlockEntity {
         brew_time: i32,
         #[serde(default = "brew_time_total")]
         total_brew_time: i32,
-        #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(rename = "Items", default)]
         items: Vec<ItemStackWithSlot<Named>>,
         #[serde(rename = "Fuel", default)]
         fuel: i32,
@@ -107,7 +87,7 @@ pub enum GeneratedBlockEntity {
         x: i32,
         y: i32,
         z: i32,
-        #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(rename = "Items", default)]
         items: Vec<ItemStackWithSlot<Named>>,
         #[serde(rename = "CookingTimes", default, serialize_with = "nbt_int_array")]
         cooking_times: [i32; 4],
@@ -349,10 +329,6 @@ fn one_f32() -> f32 {
     1.0
 }
 
-fn minus_one() -> i32 {
-    -1
-}
-
 fn brew_time_total() -> i32 {
     400
 }
@@ -422,7 +398,6 @@ impl GeneratedBlockEntity {
     pub fn position(&self) -> BlockPos {
         match self {
             GeneratedBlockEntity::Beehive { x, y, z, .. }
-            | GeneratedBlockEntity::Hopper { x, y, z, .. }
             | GeneratedBlockEntity::BrewingStand { x, y, z, .. }
             | GeneratedBlockEntity::Campfire { x, y, z, .. }
             | GeneratedBlockEntity::Comparator { x, y, z, .. }
@@ -445,6 +420,9 @@ impl GeneratedBlockEntity {
             | GeneratedBlockEntity::TrappedChest(c)
             | GeneratedBlockEntity::Barrel(c)
             | GeneratedBlockEntity::Dispenser(c) => BlockPos::new(c.x, c.y, c.z),
+            GeneratedBlockEntity::Hopper(h) => {
+                BlockPos::new(h.container.x, h.container.y, h.container.z)
+            }
             GeneratedBlockEntity::Furnace(f)
             | GeneratedBlockEntity::BlastFurnace(f)
             | GeneratedBlockEntity::Smoker(f) => BlockPos::new(f.x, f.y, f.z),

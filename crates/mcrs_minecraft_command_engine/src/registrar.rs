@@ -13,11 +13,53 @@ pub struct Handler {
 
 pub(crate) type Builder<S> = GraphBuilder<<S as CommandSet>::Argument, PermissionCheck, Handler>;
 
+/// The handler tables the nodes of one branch use.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TablesUsed {
+    Run,
+    Modify,
+    Both,
+}
+
+impl TablesUsed {
+    pub(crate) fn runs(self) -> bool {
+        matches!(self, Self::Run | Self::Both)
+    }
+
+    pub(crate) fn modifies(self) -> bool {
+        matches!(self, Self::Modify | Self::Both)
+    }
+
+    fn with(self, table: Table) -> Self {
+        if self == Self::from(table) {
+            self
+        } else {
+            Self::Both
+        }
+    }
+}
+
+impl From<Table> for TablesUsed {
+    fn from(table: Table) -> Self {
+        match table {
+            Table::Run => Self::Run,
+            Table::Modify => Self::Modify,
+        }
+    }
+}
+
+/// A branch of a command and which of the two handler tables its nodes use.
+#[derive(Clone, Copy)]
+pub(crate) struct BranchUse<B> {
+    pub(crate) branch: B,
+    pub(crate) tables: TablesUsed,
+}
+
 /// Registers the nodes of one command of the set `S` whose branches are the values of `B`.
 pub struct CommandRegistrar<'a, S: CommandSet, B> {
     pub(crate) builder: &'a mut Builder<S>,
     pub(crate) key: HandlerKey,
-    pub(crate) branches: Vec<B>,
+    pub(crate) branches: Vec<BranchUse<B>>,
     pub(crate) overflowed: bool,
 }
 
@@ -41,18 +83,39 @@ impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
         NodeRef::new(self, parent.into(), name, Some(argument.into()))
     }
 
-    fn branch(&mut self, branch: B) -> Option<u16> {
-        let index = match self.branches.iter().position(|known| *known == branch) {
+    fn handler(&mut self, branch: B, table: Table) -> Option<Handler> {
+        let index = match self
+            .branches
+            .iter()
+            .position(|known| known.branch == branch)
+        {
             Some(index) => index,
             None => {
-                self.branches.push(branch);
+                self.branches.push(BranchUse {
+                    branch,
+                    tables: table.into(),
+                });
                 self.branches.len() - 1
             }
         };
-        let index = u16::try_from(index).ok();
-        self.overflowed |= index.is_none();
-        index
+        let Ok(slot) = u16::try_from(index) else {
+            self.overflowed = true;
+            return None;
+        };
+        let used = self.branches.get_mut(index)?;
+        used.tables = used.tables.with(table);
+        Some(Handler {
+            key: self.key,
+            branch: slot,
+        })
     }
+}
+
+/// One of the two handler tables of a command.
+#[derive(Clone, Copy)]
+enum Table {
+    Run,
+    Modify,
 }
 
 /// The modifier of a redirect: the branch that maps a source, and how many sources it gives.
@@ -145,20 +208,18 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
             None => builder.literal(self.parent, self.name, self.check),
         }?;
         if let Some(branch) = self.branch {
-            let handler = Handler {
-                key: registrar.key,
-                branch: registrar.branch(branch).ok_or(BuildError::TooManyNodes)?,
-            };
+            let handler = registrar
+                .handler(branch, Table::Run)
+                .ok_or(BuildError::TooManyNodes)?;
             registrar.builder.executes(node, handler)?;
         }
         if let Some(target) = self.redirect {
             registrar.builder.redirect(node, target)?;
         }
         if let Some(Modifier { branch, mode }) = self.modifier {
-            let handler = Handler {
-                key: registrar.key,
-                branch: registrar.branch(branch).ok_or(BuildError::TooManyNodes)?,
-            };
+            let handler = registrar
+                .handler(branch, Table::Modify)
+                .ok_or(BuildError::TooManyNodes)?;
             registrar.builder.modifies(node, handler, mode)?;
         }
         Ok(K::from(node))

@@ -14,6 +14,7 @@ mod furnace_data;
 mod generated_block_entity;
 #[cfg(test)]
 mod generated_block_entity_tests;
+mod hopper_data;
 mod jigsaw;
 mod saved_item;
 mod sign_text;
@@ -28,6 +29,7 @@ pub use container_data::ContainerData;
 pub use end_gateway_data::EndGatewayData;
 pub use furnace_data::FurnaceData;
 pub use generated_block_entity::GeneratedBlockEntity;
+pub use hopper_data::HopperData;
 pub use jigsaw::{EMPTY_LABEL, Joint};
 pub use saved_item::{SavedItem, one};
 pub use sign_text::SignText;

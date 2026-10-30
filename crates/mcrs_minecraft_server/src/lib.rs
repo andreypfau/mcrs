@@ -130,9 +130,9 @@ impl PluginGroup for MinecraftServerPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(self.core)
             .add(mcrs_minecraft_command_engine::CommandPlugin::<
-                mcrs_minecraft_vanilla_commands::VanillaCommands,
+                mcrs_minecraft_command_vanilla::VanillaCommands,
             >::new())
-            .add(mcrs_minecraft_vanilla_commands::VanillaCommandsPlugin)
+            .add(mcrs_minecraft_command_vanilla::VanillaCommandsPlugin)
             .add(self.worlds)
             .add(WorldGenPlugin)
             .add(LightingPlugin)

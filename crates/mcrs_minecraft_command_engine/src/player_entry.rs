@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 pub struct PlayerEntry {
     /// The host anchor: the identity of the player in every dimension.
     pub anchor: Entity,
-    /// The position of its dimension in [`CommandTargets::dimensions`].
+    /// The position of its dimension in [`CommandTargets::dimensions`](crate::CommandTargets::dimensions)(crate::CommandTargets::dimensions).
     pub dimension: usize,
     /// The entity of the player in the world of its dimension.
     pub entity: Entity,

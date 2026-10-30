@@ -53,7 +53,7 @@ pub(crate) fn on_commands(
     let Some(packet) = event.packet() else {
         return;
     };
-    match mcrs_minecraft_command_vanilla::client_tree(
+    match mcrs_minecraft_command_argument_vanilla::client_tree(
         &packet.nodes,
         packet.root,
         &STATIC_REGISTRIES,

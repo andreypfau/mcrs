@@ -26,7 +26,7 @@ pub fn run_server_loop(app: App) -> AppExit {
 pub fn between_ticks(app: &mut App) {
     pump_channels(app);
     mcrs_minecraft_command_engine::run_pending_commands::<
-        mcrs_minecraft_vanilla_commands::VanillaCommands,
+        mcrs_minecraft_command_vanilla::VanillaCommands,
     >(app);
     crate::world::entity::player::dimension_change::apply_dimension_change_requests(app);
     drain_dim_spawn_queue(app);
