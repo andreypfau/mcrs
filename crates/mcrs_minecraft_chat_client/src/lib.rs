@@ -4,6 +4,7 @@
 // std: mcrs_minecraft_protocol needs it.
 mod abilities;
 mod chat_screen;
+mod click_mode;
 mod closed;
 mod command_input;
 mod edit_box;
@@ -17,12 +18,14 @@ mod outcome;
 mod outgoing;
 mod overlay;
 mod signing;
+mod style_click;
 mod suggestion_menu;
 mod tab_direction;
 mod unsent_draft;
 
 pub use abilities::{ChatAbilities, ChatAccess};
 pub use chat_screen::ChatScreen;
+pub use click_mode::ClickMode;
 pub use closed::Closed;
 pub use command_input::{ARGUMENT_COLOURS, CommandInput, Context, Highlight, Hint, Request};
 pub use edit_box::{Anchor, EditBox, Step};
@@ -36,6 +39,7 @@ pub use outcome::Outcome;
 pub use outgoing::Outgoing;
 pub use overlay::Overlay;
 pub use signing::Signing;
+pub use style_click::StyleClick;
 pub use suggestion_menu::{LIST_ROWS, SuggestionMenu};
 pub use tab_direction::TabDirection;
 pub use unsent_draft::{UnsentDraft, keeps_draft};

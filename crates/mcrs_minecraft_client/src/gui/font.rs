@@ -137,6 +137,11 @@ fn normalized(id: &str) -> String {
     format!("{namespace}:{path}")
 }
 
+/// The click event of a span.
+pub type ClickEvent = mcrs_minecraft_protocol::text::ClickEvent<
+    mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
+>;
+
 /// The hover event of a span.
 pub type Hover = mcrs_minecraft_protocol::text::HoverEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
@@ -148,6 +153,8 @@ pub struct Span {
     pub color: u32,
     pub bold: bool,
     pub hover: Option<Box<Hover>>,
+    pub click: Option<Box<ClickEvent>>,
+    pub insertion: Option<Box<str>>,
 }
 
 impl Span {
@@ -157,6 +164,8 @@ impl Span {
             color,
             bold: false,
             hover: None,
+            click: None,
+            insertion: None,
         }
     }
 

@@ -1,9 +1,10 @@
 use crate::{Tree, context, source};
 use mcrs_minecraft_chat::normalize;
 use mcrs_minecraft_chat_client::{
-    ChatScreen, Closed, EditBox, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
-    Signing, Step, UnsentDraft, keeps_draft,
+    Anchor, ChatScreen, ClickMode, Closed, EditBox, History, HistoryChange, InputStyle, Key,
+    Outcome, Outgoing, Signing, Step, StyleClick, UnsentDraft, keeps_draft,
 };
+use mcrs_minecraft_protocol::text::ClickEvent;
 
 #[test]
 fn normalization_trims_and_collapses_whitespace() {
@@ -184,4 +185,70 @@ fn backspace_on_a_draft_clears_it() {
     screen.key(Key::Backspace { step: Step::Char }, &mut history, &cx);
     assert_eq!(screen.input(), "");
     assert!(!screen.is_draft());
+}
+
+#[test]
+fn a_click_on_a_styled_line_inserts_or_suggests_by_modifier() {
+    let suggest: ClickEvent = ClickEvent::SuggestCommand {
+        command: "/help".into(),
+    };
+    let open_url: ClickEvent = ClickEvent::OpenUrl {
+        url: "https://example.org".into(),
+    };
+    let both = StyleClick {
+        insertion: Some("ins"),
+        event: Some(&suggest),
+    };
+    let insertion_only = StyleClick {
+        insertion: Some("ins"),
+        event: None,
+    };
+    let suggest_only = StyleClick {
+        insertion: None,
+        event: Some(&suggest),
+    };
+    let other_event = StyleClick {
+        insertion: Some("ins"),
+        event: Some(&open_url),
+    };
+    for (style, mode, input, outcome) in [
+        (both, ClickMode::Shift, "abins", Outcome::Handled),
+        (both, ClickMode::Plain, "/help", Outcome::Handled),
+        (insertion_only, ClickMode::Shift, "abins", Outcome::Handled),
+        (insertion_only, ClickMode::Plain, "ab", Outcome::Ignored),
+        (suggest_only, ClickMode::Shift, "ab", Outcome::Ignored),
+        (suggest_only, ClickMode::Plain, "/help", Outcome::Handled),
+        (other_event, ClickMode::Plain, "ab", Outcome::Ignored),
+        (
+            StyleClick::default(),
+            ClickMode::Shift,
+            "ab",
+            Outcome::Ignored,
+        ),
+        (
+            StyleClick::default(),
+            ClickMode::Plain,
+            "ab",
+            Outcome::Ignored,
+        ),
+    ] {
+        let tree = Tree::new().build();
+        let source = source();
+        let cx = context(&tree, &source);
+        let mut screen = ChatScreen::default();
+        screen.open("ab", InputStyle::Plain, &cx);
+        screen.key(
+            Key::End {
+                anchor: Anchor::Move,
+            },
+            &mut History::default(),
+            &cx,
+        );
+        assert_eq!(
+            screen.click_style(style, mode, &cx),
+            outcome,
+            "{style:?} {mode:?}"
+        );
+        assert_eq!(screen.input(), input, "{style:?} {mode:?}");
+    }
 }

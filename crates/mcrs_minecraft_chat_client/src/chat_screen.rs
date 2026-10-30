@@ -1,3 +1,4 @@
+use crate::click_mode::ClickMode;
 use crate::closed::Closed;
 use crate::command_input::{CommandInput, Context, Request};
 use crate::edit_box::{Anchor, EditBox};
@@ -8,9 +9,11 @@ use crate::key::Key;
 use crate::outcome::Outcome;
 use crate::outgoing::Outgoing;
 use crate::signing::Signing;
+use crate::style_click::StyleClick;
 use crate::tab_direction::TabDirection;
 use mcrs_minecraft_chat::{MAX_INPUT, normalize};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
+use mcrs_minecraft_protocol::text::{ClickEvent, TextTypes};
 use mcrs_minecraft_wire::utf16_len;
 
 /// The chat screen while it is open: the input box, the history position, the draft style and
@@ -82,6 +85,25 @@ impl ChatScreen {
     /// Typed or pasted text.
     pub fn type_text<L: VanillaLookup>(&mut self, text: &str, cx: &Context<'_, L>) -> Outcome {
         self.edited(|edit| edit.insert(text), cx)
+    }
+
+    /// A left click on the text of a chat line. Shift inserts the insertion text of the style at
+    /// the caret. Without Shift, `suggest_command` replaces the input; other click events do
+    /// nothing.
+    pub fn click_style<L: VanillaLookup, I: TextTypes>(
+        &mut self,
+        style: StyleClick<'_, I>,
+        mode: ClickMode,
+        cx: &Context<'_, L>,
+    ) -> Outcome {
+        match (mode, style.insertion, style.event) {
+            (ClickMode::Shift, Some(insertion), _) => self.type_text(insertion, cx),
+            (ClickMode::Plain, _, Some(ClickEvent::SuggestCommand { command })) => {
+                self.edit.set(command);
+                self.changed(cx)
+            }
+            _ => Outcome::Ignored,
+        }
     }
 
     /// Inserts the selected suggestion of the list in place.

@@ -8,8 +8,8 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_chat_client::{
-    Anchor, ChatScreen, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome, Step,
-    TabDirection, Tag, UnsentDraft,
+    Anchor, ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key,
+    Outcome, Step, StyleClick, TabDirection, Tag, UnsentDraft,
 };
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol::text::Text;
@@ -346,19 +346,36 @@ fn mouse(
             }
         }
     }
-    let Some(list) = screen.commands.list_mut() else {
+    let mut inserted = false;
+    if let Some(list) = screen.commands.list_mut() {
+        if let Some(index) = hovered
+            && moved
+            && list.selected() != index
+        {
+            list.select(index as isize);
+        }
+        if let Some(index) = over.filter(|&index| index < list.entries().len())
+            && keys.buttons.just_pressed(MouseButton::Left)
+        {
+            list.select(index as isize);
+            screen.insert_suggestion(cx);
+            inserted = true;
+        }
+    }
+    if inserted || over.is_some() || !keys.buttons.just_pressed(MouseButton::Left) {
+        return;
+    }
+    let Some(span) = chat_view::open_chat_span_at(scene.size, log, scene.cursor, font) else {
         return;
     };
-    if let Some(index) = hovered
-        && moved
-        && list.selected() != index
-    {
-        list.select(index as isize);
-    }
-    if let Some(index) = over.filter(|&index| index < list.entries().len())
-        && keys.buttons.just_pressed(MouseButton::Left)
-    {
-        list.select(index as isize);
-        screen.insert_suggestion(cx);
-    }
+    let style = StyleClick {
+        insertion: span.insertion.as_deref(),
+        event: span.click.as_deref(),
+    };
+    let mode = if shift {
+        ClickMode::Shift
+    } else {
+        ClickMode::Plain
+    };
+    screen.click_style(style, mode, cx);
 }

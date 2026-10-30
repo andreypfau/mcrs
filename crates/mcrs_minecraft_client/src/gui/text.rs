@@ -4,7 +4,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
 
-use super::font::{Font, Hover, Span};
+use super::font::{ClickEvent, Font, Hover, Span};
 use super::language::Language;
 
 #[derive(Clone, Copy)]
@@ -12,6 +12,24 @@ struct Inherited<'a> {
     color: u32,
     bold: bool,
     hover: Option<&'a Hover>,
+    click: Option<&'a ClickEvent>,
+    insertion: Option<&'a str>,
+}
+
+impl Inherited<'_> {
+    fn apply(self, span: Span) -> Span {
+        Span {
+            bold: span.bold || self.bold,
+            hover: span
+                .hover
+                .or_else(|| self.hover.map(|hover| Box::new(hover.clone()))),
+            click: span
+                .click
+                .or_else(|| self.click.map(|click| Box::new(click.clone()))),
+            insertion: span.insertion.or_else(|| self.insertion.map(Box::from)),
+            ..span
+        }
+    }
 }
 
 /// An opaque ARGB colour.
@@ -39,12 +57,7 @@ fn number(tag: &NbtTag) -> String {
 fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     let text = text.into();
     if !text.is_empty() {
-        out.push(Span {
-            text,
-            color: style.color,
-            bold: style.bold,
-            hover: style.hover.map(|hover| Box::new(hover.clone())),
-        });
+        out.push(style.apply(Span::new(text, style.color)));
     }
 }
 
@@ -53,6 +66,8 @@ fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: 
         color: text.style.color.map_or(parent.color, argb),
         bold: text.style.bold.unwrap_or(parent.bold),
         hover: text.style.hover_event.as_ref().or(parent.hover),
+        click: text.style.click_event.as_ref().or(parent.click),
+        insertion: text.style.insertion.as_deref().or(parent.insertion),
     };
     match &text.content {
         TextContent::Text { text } => push(out, text.as_ref(), style),
@@ -81,13 +96,7 @@ fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: 
                 language
                     .translate(key, style.color, &args)
                     .into_iter()
-                    .map(|span| Span {
-                        bold: span.bold || style.bold,
-                        hover: span
-                            .hover
-                            .or_else(|| style.hover.map(|hover| Box::new(hover.clone()))),
-                        ..span
-                    }),
+                    .map(|span| style.apply(span)),
             );
         }
         TextContent::Keybind { keybind } => push(out, language.get(keybind), style),
@@ -109,6 +118,8 @@ pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
             color,
             bold: false,
             hover: None,
+            click: None,
+            insertion: None,
         },
         &mut out,
     );
@@ -167,7 +178,9 @@ pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec
                 Some(last)
                     if last.color == span.color
                         && last.bold == span.bold
-                        && last.hover == span.hover =>
+                        && last.hover == span.hover
+                        && last.click == span.click
+                        && last.insertion == span.insertion =>
                 {
                     last.text.push(c)
                 }
@@ -232,6 +245,24 @@ mod tests {
     use super::*;
     use crate::gui::font::corpus_font;
     use mcrs_minecraft_protocol::text::IntoText;
+
+    #[test]
+    fn click_event_and_insertion_pass_to_children_and_survive_wrapping() {
+        let text = Text::text("ab")
+            .on_click_suggest_command("/help")
+            .insertion("ins");
+        let mut text = text;
+        text.extra.push(Text::text("cd").insertion("own"));
+        let spans = text_spans(&text, &Language::default(), 0xFFFF_FFFF);
+        assert_eq!(spans.len(), 2);
+        assert!(spans.iter().all(|span| span.click.is_some()));
+        assert_eq!(spans[0].insertion.as_deref(), Some("ins"));
+        assert_eq!(spans[1].insertion.as_deref(), Some("own"));
+        let mut rows = Vec::new();
+        wrap(&spans, 1000, Wrap::ChatLog, &Font::default(), &mut rows);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].len(), 2);
+    }
 
     mod jar {
         use super::*;

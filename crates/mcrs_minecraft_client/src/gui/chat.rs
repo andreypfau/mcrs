@@ -108,9 +108,11 @@ pub(crate) fn chat_lines<'c>(
     } else {
         ChatFocus::Unfocused
     });
-    let text_origin = |slot: usize| IVec2::new(4, bottom - slot as i32 * LINE - TEXT_OFFSET);
+    let text_origin = |slot: usize| text_origin(size, slot);
     let (hovered, hovered_message) = pointer.as_ref().map_or((None, None), |pointer| {
-        hovered_text(lines, page, text_origin, pointer.at, font)
+        text_under(lines, page, text_origin, pointer.at, font).map_or((None, None), |under| {
+            (under.span.hover.as_deref(), Some(under.message))
+        })
     });
     let mut message = 0;
     let mut shown = 0;
@@ -170,25 +172,42 @@ pub(crate) fn chat_lines<'c>(
     hovered
 }
 
-/// The hover event under `at` and the number of the message that holds it.
-fn hovered_text<'c>(
+fn text_origin(size: GuiSize, slot: usize) -> IVec2 {
+    IVec2::new(4, size.height - BOTTOM - slot as i32 * LINE - TEXT_OFFSET)
+}
+
+struct TextUnder<'c> {
+    span: &'c Span,
+    message: usize,
+}
+
+/// The span under `at` and the number of the message that holds it.
+fn text_under<'c>(
     lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     page: usize,
-    text_origin: impl Fn(usize) -> IVec2,
+    origin: impl Fn(usize) -> IVec2,
     at: IVec2,
     font: &Font,
-) -> (Option<&'c Hover>, Option<usize>) {
-    let mut hovered = None;
-    let mut hovered_message = None;
+) -> Option<TextUnder<'c>> {
     let mut message = 0;
     for (slot, line) in lines.visible(page) {
         message += usize::from(line.last);
-        if let Some(span) = font::span_at(font, text_origin(slot), &line.content, at) {
-            hovered_message = Some(message);
-            hovered = span.hover.as_deref().or(hovered);
+        if let Some(span) = font::span_at(font, origin(slot), &line.content, at) {
+            return Some(TextUnder { span, message });
         }
     }
-    (hovered, hovered_message)
+    None
+}
+
+/// The span of the open chat under the mouse.
+pub(crate) fn open_chat_span_at<'c>(
+    size: GuiSize,
+    lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
+    at: IVec2,
+    font: &Font,
+) -> Option<&'c Span> {
+    let page = per_page(ChatFocus::Focused);
+    text_under(lines, page, |slot| text_origin(size, slot), at, font).map(|under| under.span)
 }
 
 /// The scroll bar of the open chat when the log holds more lines than it shows.
