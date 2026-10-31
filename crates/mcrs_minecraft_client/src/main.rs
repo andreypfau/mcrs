@@ -29,7 +29,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_world::save::{self, SaveError};
+use mcrs_minecraft_save::{self as save, SaveError};
 
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_assets::packs::PackRoots;

@@ -3709,6 +3709,7 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_save",
  "mcrs_minecraft_server",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_vanilla_light",
@@ -4029,6 +4030,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_save",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
@@ -4091,6 +4093,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_save",
  "mcrs_minecraft_world",
  "rand 0.10.0",
  "thiserror 2.0.18",
@@ -4554,6 +4557,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_save"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_world",
+ "serde",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_server"
 version = "0.5.8"
 dependencies = [
@@ -4601,6 +4623,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_save",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",

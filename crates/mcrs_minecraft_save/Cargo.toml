@@ -1,0 +1,29 @@
+[package]
+name = "mcrs_minecraft_save"
+description = "The files of a world save other than its regions: the level, its world generation settings and each player's file"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_world.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }

@@ -173,7 +173,7 @@ fn join_with_live_nether_end_and_overworld(
     expected: ResourceKey<Dimension>,
 ) {
     use mcrs_minecraft_engine_world::world::world_save::WorldSave;
-    use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
+    use mcrs_minecraft_save::{PlayerDat, write_player_dat};
 
     let mut app = build_host_app();
     let save = std::env::temp_dir().join(format!("mcrs-join-{}", Uuid::new_v4()));

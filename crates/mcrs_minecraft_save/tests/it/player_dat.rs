@@ -10,7 +10,7 @@ use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
+use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};
 use uuid::Uuid;
 
 static VANILLA: LazyLock<Vec<u8>> = LazyLock::new(|| fixture("vanilla_player").bytes());

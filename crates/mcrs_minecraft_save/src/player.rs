@@ -14,7 +14,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use super::{SaveError, check_data_version};
+use crate::level::{SaveError, check_data_version};
 
 /// The keys mcrs models, typed; every other root key rides along in `rest`
 /// so a vanilla file survives a round trip through a server that does not
@@ -133,7 +133,7 @@ pub fn read_player_dat(world: &Path, player: Uuid) -> Result<Option<PlayerDat>, 
 }
 
 pub fn parse_player_dat(bytes: &[u8], path: &Path) -> Result<PlayerDat, SaveError> {
-    let dat: PlayerDat = super::decode(bytes, path)?;
+    let dat: PlayerDat = crate::level::decode(bytes, path)?;
     check_data_version(dat.data_version, path)?;
     if dat.rotation.iter().any(|v| !v.is_finite()) {
         return Err(SaveError::OutOfRange {

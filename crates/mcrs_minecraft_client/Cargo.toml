@@ -79,6 +79,7 @@ mcrs_minecraft_engine_world.workspace = true
 wgpu = { version = "29", default-features = false }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+mcrs_minecraft_save.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image", "multi_threaded"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server = { workspace = true, optional = true }

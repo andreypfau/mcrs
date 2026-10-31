@@ -9,7 +9,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
+use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
 

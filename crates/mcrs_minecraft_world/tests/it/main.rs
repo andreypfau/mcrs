@@ -20,7 +20,6 @@ mod dimension_list;
 mod dimension_router_set;
 mod item_corpus;
 mod loaded_registries;
-mod player_dat;
 mod playing;
 mod received;
 mod registry_values;

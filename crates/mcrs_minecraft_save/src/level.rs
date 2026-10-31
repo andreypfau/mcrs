@@ -12,14 +12,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::dimension::DimensionEntry;
+use mcrs_minecraft_world::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::world_clock::ClockState;
-
-pub mod player;
-
-pub use player::{PlayerDat, read_player_dat, write_player_dat};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
@@ -196,14 +192,14 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, SaveError> {
     })
 }
 
-fn decode<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError> {
+pub(crate) fn decode<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError> {
     mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes(bytes).map_err(|source| SaveError::Nbt {
         path: path.to_path_buf(),
         source,
     })
 }
 
-fn check_data_version(found: i32, path: &Path) -> Result<(), SaveError> {
+pub(crate) fn check_data_version(found: i32, path: &Path) -> Result<(), SaveError> {
     if found == VERSION.world_version {
         return Ok(());
     }
@@ -357,4 +353,5 @@ fn uuid_from_int_array(ints: &[i32], path: &Path) -> Result<Uuid, SaveError> {
 }
 
 #[cfg(test)]
+#[path = "level_tests.rs"]
 mod tests;

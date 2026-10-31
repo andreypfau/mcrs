@@ -41,7 +41,7 @@ use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_world::save::read_player_dat;
+use mcrs_minecraft_save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
 

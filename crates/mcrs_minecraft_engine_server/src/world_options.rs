@@ -10,8 +10,8 @@ use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_save::read_world_gen_settings;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use tracing::{error, info};
 

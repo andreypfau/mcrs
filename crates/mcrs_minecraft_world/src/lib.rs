@@ -11,9 +11,6 @@ pub mod item;
 pub mod packs;
 pub mod registries;
 pub mod registry_load;
-// The save on disk is native-only; the browser receives world state over the network.
-#[cfg(not(target_family = "wasm"))]
-pub mod save;
 pub mod sulfur_cube_archetype;
 pub mod test_types;
 pub mod variant;

@@ -10,10 +10,10 @@ use mcrs_minecraft_light_engine::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
 use crate::support::preset;
