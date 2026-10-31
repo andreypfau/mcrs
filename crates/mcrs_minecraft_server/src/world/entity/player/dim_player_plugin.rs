@@ -10,8 +10,9 @@ use crate::world::entity::player::op_level::{AnnouncedOpLevel, send_op_level};
 use crate::world::entity::player::persistence;
 use bevy_app::{App, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_minecraft_chat_server::ChatPlugin;
-use mcrs_minecraft_engine::ability::PlayerOpLevel;
+use mcrs_minecraft_engine::ability::{
+    AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced, PlayerOpLevel,
+};
 use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
 use mcrs_minecraft_engine::dimension_change::DimensionChanger;
 use mcrs_minecraft_engine::session::GameProfile;
@@ -28,7 +29,9 @@ impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultGameMode>();
         app.insert_resource(DimensionChanger(dimension_change::change_dimension));
-        app.add_plugins((MovementPlugin, ColumnViewPlugin, ChatPlugin, GameModePlugin));
+        app.add_plugins((MovementPlugin, ColumnViewPlugin, GameModePlugin));
+        app.add_message::<OpLevelAnnounced>();
+        app.configure_sets(Update, (AnnounceOpLevel, AnswerOpLevel).chain());
         if !app.is_plugin_added::<ClientInfoPlugin>() {
             app.add_plugins(ClientInfoPlugin);
         }
@@ -43,9 +46,10 @@ impl Plugin for DimPlayerPlugin {
             Update,
             (
                 (
-                    consume_inbound_player_spawn,
-                    send_op_level,
-                    game_mode::send_game_mode,
+                    (consume_inbound_player_spawn, send_op_level)
+                        .chain()
+                        .in_set(AnnounceOpLevel),
+                    game_mode::send_game_mode.after(AnswerOpLevel),
                 )
                     .chain(),
                 // A player spawned and despawned in one drain must be saved and removed, or it

@@ -1,6 +1,9 @@
 //! The game mode, the flight and the operator level of a player.
 
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Message;
 use bevy_ecs::prelude::Component;
+use bevy_ecs::schedule::SystemSet;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_game_mode::GameMode;
 
@@ -25,6 +28,8 @@ pub struct PlayerOpLevel(pub u8);
 impl PlayerOpLevel {
     /// The highest level; a higher stored value counts as this one.
     pub const MAX: u8 = 4;
+    /// The lowest level that may switch its own game mode.
+    pub const GAMEMASTERS: u8 = 2;
 
     /// The level, at most [`Self::MAX`].
     pub fn clamped(self) -> u8 {
@@ -36,3 +41,20 @@ impl PlayerOpLevel {
         24i8 + self.clamped() as i8
     }
 }
+
+/// The operator level a client was just told, for the features whose packets depend on it.
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpLevelAnnounced {
+    pub player: Entity,
+    pub host: Entity,
+    pub level: PlayerOpLevel,
+}
+
+/// The systems that tell a client its operator level and write [`OpLevelAnnounced`].
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnnounceOpLevel;
+
+/// The systems that answer [`OpLevelAnnounced`], after [`AnnounceOpLevel`] and before the
+/// player's later packets.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnswerOpLevel;

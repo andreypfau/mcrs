@@ -10,10 +10,11 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Mut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
-use mcrs_minecraft_command_engine::{CommandTreePackets, DimensionWorld, in_dimension_order};
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::{
+    OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel,
+};
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::bus::{
     self, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
@@ -21,6 +22,7 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::channel_types::FromDim;
 use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
+use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_game_mode::GameMode;
@@ -135,13 +137,13 @@ pub fn change_dimension(
     if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor.0) {
         placement.set(Place::InDim(label));
     }
-    send_arrival(
-        host,
-        anchor.0,
-        state,
-        arrival.position_packet(teleport_id),
-        to.get_resource::<CommandTreePackets>(),
-    );
+    let op_level = state.op_level;
+    send_arrival(host, anchor.0, state, arrival.position_packet(teleport_id));
+    to.write_message(OpLevelAnnounced {
+        player: arrived,
+        host: anchor.0,
+        level: op_level,
+    });
     Ok(arrived)
 }
 
@@ -254,7 +256,6 @@ fn send_arrival(
     anchor: Entity,
     state: ArrivalState,
     position: ClientboundPlayerPosition,
-    tree: Option<&CommandTreePackets>,
 ) {
     dim::deliver(
         host,
@@ -274,7 +275,6 @@ fn send_arrival(
     enter_level_packets(
         anchor,
         state.op_level,
-        tree,
         position,
         game_mode::abilities(state.mode, state.flying),
         |packet| dim::deliver(host, packet),

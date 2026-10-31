@@ -3,12 +3,14 @@ use crate::command_outbox::CommandOutbox;
 use crate::command_queue::{CommandQueue, queue_command_line, queue_suggestion_request};
 use crate::command_set::CommandSet;
 use crate::command_targets::CommandTargets;
-use crate::command_tree::{CommandTree, CommandTreeBuilder, CommandTreePackets};
+use crate::command_tree::{CommandTree, CommandTreeBuilder, CommandTreePackets, send_command_tree};
 use crate::handlers::{CommandHandlers, ModifierHandlers};
 use crate::pass::PassBuffers;
 use crate::running_command::RunningCommand;
-use bevy_app::{App, Plugin};
+use bevy_app::{App, Plugin, Update};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_command::GraphBuilder;
+use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
@@ -90,5 +92,7 @@ impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
         app.init_resource::<RunningCommand>();
         app.init_resource::<CommandTargets>();
         app.init_resource::<CommandOutbox>();
+        app.add_message::<OpLevelAnnounced>();
+        app.add_systems(Update, send_command_tree.in_set(AnswerOpLevel));
     }
 }

@@ -12,6 +12,8 @@ use mcrs_minecraft_protocol::text::{IntoText, Text, TextContent};
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::host_app::{self, PlayServer};
+use mcrs_minecraft_chat_server::ChatPlugin;
+use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 
 pub fn line(message: &str) -> ServerboundChat<'_> {
     ServerboundChat {
@@ -75,7 +77,9 @@ fn a_chat_line_reaches_everyone_unless_it_is_rejected_or_the_sender_hides_chat()
         ),
     ];
     for (case, mode, message, broadcast, reply) in cases {
-        let mut server = PlayServer::start(host_app::make_host_app(), &[], 0);
+        let mut app = host_app::make_host_app();
+        app.add_dimension_plugin(ChatPlugin);
+        let mut server = PlayServer::start(app, &[], 0);
         let (sender, _) = server.join(Uuid::from_u128(1), "Sender");
         server.queue(sender, &client_information(mode));
         server.queue(sender, &line(message));

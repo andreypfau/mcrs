@@ -1,6 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
+use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
@@ -9,6 +10,7 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::game_event::GameEventKind;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
@@ -35,8 +37,10 @@ fn walker_in_the_overworld() -> (PlayServer, Entity, Entity, Entity) {
 
 /// As [`walker_in_the_overworld`], with the packets the player received on joining.
 fn walker_and_its_join() -> (PlayServer, Entity, Entity, Entity, Vec<PacketPayload>) {
+    let mut app = host_app::make_host_app();
+    app.add_dimension_plugin(ChatPlugin);
     let mut server = PlayServer::start_in(
-        host_app::make_host_app(),
+        app,
         &[
             ("minecraft:overworld", "minecraft:overworld"),
             ("minecraft:the_end", "minecraft:the_end"),

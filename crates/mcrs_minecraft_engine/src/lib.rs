@@ -11,6 +11,7 @@ pub mod client_info;
 pub mod clock;
 pub mod dim;
 pub mod dimension_change;
+pub mod dimension_order;
 pub mod disconnect;
 pub mod heightmap;
 pub mod light_codec;

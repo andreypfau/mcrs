@@ -20,6 +20,7 @@ use crate::world::WorldPlugin;
 use bevy_app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder};
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_level::world::world_save::WorldSave;
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -262,6 +263,7 @@ impl Plugin for DimensionWorldsPlugin {
         }
         app.add_systems(bevy_app::Startup, crate::world_options::bake_dimensions);
         app.add_plugins(mcrs_minecraft_engine::heightmap::HeightmapPredicatesPlugin);
+        app.add_dimension_plugin(mcrs_minecraft_chat_server::ChatPlugin);
         app.add_plugins(WorldPlugin);
     }
 }

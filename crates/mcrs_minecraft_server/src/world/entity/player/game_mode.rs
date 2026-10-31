@@ -1,7 +1,6 @@
 use crate::world::entity::player::dimension_change::CarryOnDimensionChangeExt;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::bus::{
@@ -46,7 +45,7 @@ fn handle_change_game_mode(
     let Ok((op_level, mut current_mode)) = players.get_mut(event.entity) else {
         return;
     };
-    if mcrs_minecraft_command_engine::level_of(*op_level) < CommandLevel::Gamemasters {
+    if op_level.clamped() < PlayerOpLevel::GAMEMASTERS {
         tracing::warn!(
             "player {:?} tried to change game mode to {:?} without permission",
             event.entity,

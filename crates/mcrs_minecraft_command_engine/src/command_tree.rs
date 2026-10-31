@@ -1,11 +1,13 @@
 use crate::command_set::CommandSet;
 use crate::registrar::Handler;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 use bytes::Bytes;
 use mcrs_command::{Graph, GraphBuilder};
 use mcrs_minecraft_command::{CommandLevel, NoLookup, PermissionCheck, Source};
-use mcrs_minecraft_engine::ability::PlayerOpLevel;
+use mcrs_minecraft_engine::ability::{OpLevelAnnounced, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
 use mcrs_minecraft_protocol::{Packet, anyhow};
@@ -61,6 +63,19 @@ impl CommandTreePackets {
             *packet = Bytes::from(bytes);
         }
         Ok(Self { by_level })
+    }
+}
+
+/// Sends each player that was told its operator level the command tree of that level.
+pub(crate) fn send_command_tree(
+    mut announced: MessageReader<OpLevelAnnounced>,
+    packets: Res<CommandTreePackets>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    for announced in announced.read() {
+        if let Some(packet) = packets.to_player(announced.host, announced.level) {
+            packet_writer.write(packet);
+        }
     }
 }
 

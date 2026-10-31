@@ -1,6 +1,5 @@
-use crate::world::entity::player::op_level::level_packets;
+use crate::world::entity::player::op_level::op_level_packet;
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_command_engine::CommandTreePackets;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
@@ -18,13 +17,12 @@ use mcrs_minecraft_protocol::{GameEventKind, VarInt};
 pub(crate) fn enter_level_packets(
     host: Entity,
     op_level: PlayerOpLevel,
-    tree: Option<&CommandTreePackets>,
     position: ClientboundPlayerPosition,
     abilities: ClientboundPlayerAbilities,
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
     let column = ColumnPos::from(position.position);
-    level_packets(host, op_level, tree, &mut push);
+    push(op_level_packet(host, op_level));
     push(to(host, PacketPayload::PlayerPosition(position)).critical());
     push(
         to(

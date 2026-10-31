@@ -11,10 +11,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::world::World;
-use mcrs_minecraft_command_engine::CommandTreePackets;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::{
+    OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel,
+};
 use mcrs_minecraft_engine::bus::{
     InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
     PlayerInfoEntry, to,
@@ -65,7 +66,7 @@ pub(crate) fn consume_inbound_player_spawn(
     default_game_mode: Res<DefaultGameMode>,
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
-    tree: Option<Res<CommandTreePackets>>,
+    mut announced_levels: MessageWriter<OpLevelAnnounced>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -154,7 +155,6 @@ pub(crate) fn consume_inbound_player_spawn(
         enter_level_packets(
             host,
             op_level,
-            tree.as_deref(),
             arrival.position_packet(TeleportState::LOGIN_TELEPORT_ID),
             game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
             |packet| {
@@ -162,6 +162,11 @@ pub(crate) fn consume_inbound_player_spawn(
             },
         );
 
+        announced_levels.write(OpLevelAnnounced {
+            player: new_entity,
+            host,
+            level: op_level,
+        });
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
         });

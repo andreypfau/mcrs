@@ -15,6 +15,7 @@ use mcrs_minecraft_text::is_allowed_chat_character;
 use tracing::info;
 
 /// Broadcasts the chat messages of the players as system messages.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ChatPlugin;
 
 impl Plugin for ChatPlugin {
