@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
 use mcrs_minecraft_chunk::VoxelId;
 
@@ -29,17 +29,17 @@ use mcrs_minecraft_core::Direction;
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FeatureCompileError {
     #[error("unknown feature: {0}")]
-    UnknownFeature(ResourceLocation),
+    UnknownFeature(ResourceLocationBuf),
     #[error("unknown placed feature: {0}")]
-    UnknownPlacedFeature(ResourceLocation),
+    UnknownPlacedFeature(ResourceLocationBuf),
     #[error("unknown placed feature tag: #{0}")]
-    UnknownPlacedFeatureTag(ResourceLocation),
+    UnknownPlacedFeatureTag(ResourceLocationBuf),
     #[error("unknown template: {0}")]
-    UnknownTemplate(ResourceLocation),
+    UnknownTemplate(ResourceLocationBuf),
     #[error("unknown processor list: {0}")]
-    UnknownProcessorList(ResourceLocation),
+    UnknownProcessorList(ResourceLocationBuf),
     #[error("unknown block state provider: {0}")]
-    UnknownBlockStateProvider(ResourceLocation),
+    UnknownBlockStateProvider(ResourceLocationBuf),
     #[error("template {0}")]
     Template(String),
     #[error("feature order cycle through {0}")]
@@ -76,12 +76,12 @@ impl FeatureCompileError {
 /// with the templates and processor lists the features name.
 #[derive(Default)]
 pub struct LoadedFeatures {
-    pub features: BTreeMap<ResourceLocation, Feature>,
-    pub placed_features: BTreeMap<ResourceLocation, PlacedFeature>,
-    pub templates: BTreeMap<ResourceLocation, Template>,
-    pub processor_lists: BTreeMap<ResourceLocation, StructureProcessorList>,
-    pub block_state_providers: BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
-    pub placed_feature_tags: BTreeMap<ResourceLocation, Vec<ResourceLocation>>,
+    pub features: BTreeMap<ResourceLocationBuf, Feature>,
+    pub placed_features: BTreeMap<ResourceLocationBuf, PlacedFeature>,
+    pub templates: BTreeMap<ResourceLocationBuf, Template>,
+    pub processor_lists: BTreeMap<ResourceLocationBuf, StructureProcessorList>,
+    pub block_state_providers: BTreeMap<ResourceLocationBuf, DirectBlockStateProvider<Named>>,
+    pub placed_feature_tags: BTreeMap<ResourceLocationBuf, Vec<ResourceLocationBuf>>,
 }
 
 impl LoadedFeatures {
@@ -106,7 +106,7 @@ impl LoadedFeatures {
 /// inline, the id it was named by.
 #[derive(Debug)]
 pub struct CompiledPlacedFeature {
-    pub id: Option<ResourceLocation>,
+    pub id: Option<ResourceLocationBuf>,
     pub placed: PlacedFeature,
 }
 
@@ -235,7 +235,7 @@ impl Ord for Token {
 struct Interner<'a> {
     registries: &'a LoadedFeatures,
     next_index: usize,
-    by_id: HashMap<ResourceLocation, Token>,
+    by_id: HashMap<ResourceLocationBuf, Token>,
 }
 
 impl<'a> Interner<'a> {
@@ -254,7 +254,7 @@ impl<'a> Interner<'a> {
         }
     }
 
-    fn reference(&mut self, id: &ResourceLocation) -> Result<Token, FeatureCompileError> {
+    fn reference(&mut self, id: &ResourceLocationBuf) -> Result<Token, FeatureCompileError> {
         if let Some(token) = self.by_id.get(id) {
             return Ok(token.clone());
         }
@@ -268,7 +268,7 @@ impl<'a> Interner<'a> {
         Ok(token)
     }
 
-    fn push(&mut self, id: Option<ResourceLocation>, placed: &PlacedFeature) -> Token {
+    fn push(&mut self, id: Option<ResourceLocationBuf>, placed: &PlacedFeature) -> Token {
         let index = self.next_index;
         self.next_index += 1;
         Token {
@@ -289,9 +289,9 @@ impl<'a> Interner<'a> {
 pub enum StateQuery<'a> {
     Blocks(&'a KeySet<mcrs_minecraft_block::keys::Block>),
     /// Blocks a datapack value lists by name rather than as a holder set.
-    Names(&'a [ResourceLocation]),
-    Block(&'a ResourceLocation),
-    BlockTag(&'a ResourceLocation),
+    Names(&'a [ResourceLocationBuf]),
+    Block(&'a ResourceLocationBuf),
+    BlockTag(&'a ResourceLocationBuf),
     Fluids(&'a KeySet<Fluid>, &'a StatePropertiesPredicate),
     SturdyFace(Direction),
     /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
@@ -515,8 +515,8 @@ mod tests {
     use super::*;
     use mcrs_minecraft_block_predicate::provider::UnitFloat;
 
-    fn id(name: &str) -> ResourceLocation {
-        ResourceLocation::read(name).unwrap()
+    fn id(name: &str) -> ResourceLocationBuf {
+        ResourceLocationBuf::read(name).unwrap()
     }
 
     fn bamboo() -> Feature {
@@ -646,7 +646,7 @@ mod tests {
 
     #[test]
     fn every_shipped_placed_feature_compiles() {
-        let placed: BTreeMap<ResourceLocation, PlacedFeature> =
+        let placed: BTreeMap<ResourceLocationBuf, PlacedFeature> =
             mcrs_minecraft_worldgen_testing::registry("placed_feature");
         assert_eq!(placed.len(), 300);
         for (id, feature) in &placed {
@@ -656,7 +656,7 @@ mod tests {
 
         // `cuboid`, `randomly_selected` and `random_chance` appear only in the
         // placed features a feature inlines, never in the registry's own files.
-        let features: BTreeMap<ResourceLocation, Feature> =
+        let features: BTreeMap<ResourceLocationBuf, Feature> =
             mcrs_minecraft_worldgen_testing::registry("feature");
         let mut inline = 0;
         for (id, feature) in &features {

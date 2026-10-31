@@ -9,12 +9,12 @@ use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
-use mcrs_minecraft_resource::{Id, NarrowError, ResourceLocation};
+use mcrs_minecraft_resource::{Id, NarrowError, ResourceLocationBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("registry {registry} holds no entry named {name}")]
 pub struct UnknownEntry {
-    pub registry: ResourceLocation,
+    pub registry: ResourceLocationBuf,
     pub name: String,
 }
 
@@ -37,7 +37,7 @@ pub trait BiomeNames {
 
 impl BiomeNames for mcrs_minecraft_registries::Registry<BiomeFile> {
     fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
-        ResourceLocation::read(name)
+        ResourceLocationBuf::read(name)
             .ok()
             .and_then(|name| self.by_name(&name))
             .and_then(|id| Id::checked(id.number(), self.len()))
@@ -159,7 +159,7 @@ pub struct PresetBiomeTables {
 impl PresetBiomeTables {
     /// `lists` holds the name and preset of each parameter list in id order.
     pub fn build<'a>(
-        lists: impl IntoIterator<Item = (&'a ResourceLocation, Preset)>,
+        lists: impl IntoIterator<Item = (&'a ResourceLocationBuf, Preset)>,
         biomes: &impl BiomeNames,
         diagnostics: &mut Diagnostics,
     ) -> Option<Self> {

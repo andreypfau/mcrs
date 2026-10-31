@@ -6,7 +6,6 @@ pub mod value;
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::Arc;
 
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
@@ -16,7 +15,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
 pub use mob_spawns::{MobSpawnSettings, SpawnCost};
 pub use modifier::{ModifierError, Operation, apply};
@@ -36,7 +35,7 @@ use spec::{MapMeaning, malformed};
 /// Each argument is read once, when the map is, into the type its attribute
 /// registers; a frame borrows it from here.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct EnvironmentAttributeMap(pub BTreeMap<ResourceLocation<Arc<str>>, AttributeEntry>);
+pub struct EnvironmentAttributeMap(pub BTreeMap<ResourceLocationBuf, AttributeEntry>);
 
 impl EnvironmentAttributeMap {
     pub fn get(&self, id: &str) -> Option<&AttributeEntry> {
@@ -316,7 +315,7 @@ impl<'de> Deserialize<'de> for EnvironmentAttributeMap {
                 mut map: A,
             ) -> Result<EnvironmentAttributeMap, A::Error> {
                 let mut entries = BTreeMap::new();
-                while let Some(id) = map.next_key::<ResourceLocation<Arc<str>>>()? {
+                while let Some(id) = map.next_key::<ResourceLocationBuf>()? {
                     let spec = attribute(id.as_str()).ok_or_else(|| {
                         A::Error::custom(AttributeError::UnknownAttribute(id.as_str().to_owned()))
                     })?;

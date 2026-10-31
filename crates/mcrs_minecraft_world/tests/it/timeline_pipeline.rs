@@ -6,8 +6,7 @@ use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::{CurrentRegistries, Resolve, Resolver};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::common::tag_members;
 
@@ -16,7 +15,7 @@ const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 fn overworld_clock(app: &App) -> Id<WorldClock> {
     app.world()
         .resource::<CurrentRegistries>()
-        .id(&ResourceKey::from_location(
+        .id(&ResourceKeyBuf::from_location(
             OVERWORLD_CLOCK.parse().unwrap(),
         ))
         .expect("the overworld clock is registered")
@@ -51,11 +50,11 @@ pub fn the_timeline_tags_resolve_through_universal(app: &App) {
 pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let set = app.world().resource::<CurrentRegistries>();
     let environment = |name: &str| {
-        let dimension = ResourceKey::<Dimension>::from_location(name.parse().unwrap());
+        let dimension = ResourceKeyBuf::<Dimension>::from_location(name.parse().unwrap());
         EnvironmentAttributes::of_dimension(
             set,
             &dimension,
-            set.id::<DimensionType>(&ResourceKey::from_location(name.parse().unwrap()))
+            set.id::<DimensionType>(&ResourceKeyBuf::from_location(name.parse().unwrap()))
                 .unwrap_or_else(|error| panic!("{name}: {error}")),
         )
         .ok()

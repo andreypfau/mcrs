@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::codec::NonNegativeInt;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +33,7 @@ mob_categories! {
 #[serde(deny_unknown_fields)]
 pub struct SpawnerData {
     #[serde(rename = "type")]
-    pub entity: ResourceLocation,
+    pub entity: ResourceLocationBuf,
     pub count: IntProvider,
     pub weight: NonNegativeInt,
 }

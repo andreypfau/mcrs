@@ -1,4 +1,3 @@
-use mcrs_minecraft_resource::{Registered, TagKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -15,7 +14,7 @@ use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, RegistryAdditions, Resolve};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Registered, ResourceLocationBuf, TagKeyBuf};
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -85,7 +84,7 @@ pub fn declared_registries(stable: bool) -> BTreeSet<String> {
 }
 
 pub fn loaded_names(set: &Registries, registry: &str) -> Vec<String> {
-    set.names_of(&ResourceLocation::read(registry).unwrap())
+    set.names_of(&ResourceLocationBuf::read(registry).unwrap())
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
         .iter()
         .map(ToString::to_string)
@@ -97,7 +96,9 @@ pub fn tag_members<R: Registered>(set: &Registries, tag: &str) -> Vec<String> {
         .tags::<R>()
         .unwrap_or_else(|| panic!("the load builds the tags of {}", std::any::type_name::<R>()));
     let id = tags
-        .id(&TagKey::from_location(ResourceLocation::read(tag).unwrap()))
+        .id(&TagKeyBuf::from_location(
+            ResourceLocationBuf::read(tag).unwrap(),
+        ))
         .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", std::any::type_name::<R>()));
     tags.members(id)
         .map(|member| set.name(member).unwrap().as_str().to_owned())

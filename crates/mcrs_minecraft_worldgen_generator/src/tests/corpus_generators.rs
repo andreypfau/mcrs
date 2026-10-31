@@ -4,6 +4,8 @@
 //! nothing, so a gap here is silent in the world and loud only in this census.
 
 #[cfg(test)]
+use mcrs_minecraft_resource::ResourceLocationBuf;
+#[cfg(test)]
 use mcrs_minecraft_worldgen_testing::registry;
 #[cfg(test)]
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,8 +15,6 @@ use std::sync::LazyLock;
 
 #[cfg(test)]
 use mcrs_minecraft_block_predicate::provider::Holder;
-#[cfg(test)]
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
@@ -94,7 +94,7 @@ fn generator_of<'a>(
 ///
 /// Compiling to a generator is not enough: a container whose every entry is a
 /// shape this build has no code for still compiles and still places nothing.
-fn runnable() -> BTreeSet<ResourceLocation> {
+fn runnable() -> BTreeSet<ResourceLocationBuf> {
     let (tables, program) = corpus_program();
     tables.features.steps[0]
         .iter()
@@ -124,8 +124,8 @@ fn the_corpus_features_compile_to_their_shapes() {
 }
 
 #[cfg(test)]
-fn id(name: &str) -> ResourceLocation {
-    ResourceLocation::read(name).unwrap()
+fn id(name: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(name).unwrap()
 }
 
 #[cfg(test)]
@@ -133,7 +133,7 @@ fn id(name: &str) -> ResourceLocation {
 /// registry rather than written by hand: the gap is loud here or nowhere.
 fn the_census_of_what_still_places_nothing() {
     let runnable = runnable();
-    let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
+    let features: BTreeMap<ResourceLocationBuf, Feature> = registry("feature");
     let missing: BTreeSet<&str> = features
         .keys()
         .filter(|id| !runnable.contains(*id))
@@ -190,7 +190,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
     use mcrs_minecraft_registries::Ref;
     use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 
-    let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
+    let features: BTreeMap<ResourceLocationBuf, Feature> = registry("feature");
     let resolve = |name: &str| {
         let Some(Feature::SimpleBlock { to_place, .. }) = features.get(&id(name)) else {
             panic!("{name} is a simple_block");
@@ -401,7 +401,7 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
         serde_json::Value::String(name) => {
             if blocks().0.block(name).is_some() {
                 out.insert(name.clone());
-            } else if let Ok(provider) = ResourceLocation::read(name)
+            } else if let Ok(provider) = ResourceLocationBuf::read(name)
                 && let Some(provider) =
                     registry::<serde_json::Value>("block_state_provider").get(&provider)
             {

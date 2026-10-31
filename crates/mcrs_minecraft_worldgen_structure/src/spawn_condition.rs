@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
@@ -5,7 +6,6 @@ use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registries::{KeySet, Named};
-use mcrs_minecraft_resource::ResourceLocation;
 
 pub use mcrs_minecraft_entity::spawn_condition::{SpawnCondition, SpawnSelector};
 
@@ -52,7 +52,7 @@ struct Selector {
 /// registry then file order.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct VariantTable {
-    pub ids: Vec<ResourceLocation>,
+    pub ids: Vec<ResourceLocationBuf>,
     selectors: Vec<Selector>,
 }
 
@@ -60,7 +60,7 @@ impl VariantTable {
     /// `entries` in registry order; `structures` and `biomes` resolve a key
     /// set into the id set a condition tests.
     pub fn freeze<'a>(
-        entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector<Named>])>,
+        entries: impl IntoIterator<Item = (ResourceLocationBuf, &'a [SpawnSelector<Named>])>,
         structures: &dyn Fn(
             &KeySet<mcrs_minecraft_entity::spawn_condition::Structure>,
         ) -> Result<IdSet, String>,
@@ -100,7 +100,11 @@ impl VariantTable {
     /// `VariantUtils.selectVariantToSpawn`: the candidates of the highest
     /// priority that passes, one drawn even when it is the only one. `None`
     /// leaves the kind's default variant, as an empty registry would.
-    pub fn pick(&self, ctx: &SpawnContext, rng: &mut WorldgenRandom) -> Option<&ResourceLocation> {
+    pub fn pick(
+        &self,
+        ctx: &SpawnContext,
+        rng: &mut WorldgenRandom,
+    ) -> Option<&ResourceLocationBuf> {
         let mut highest = i32::MIN;
         let mut candidates = Vec::new();
         for selector in &self.selectors {
@@ -124,8 +128,8 @@ impl VariantTable {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct VariantTables {
     pub cats: VariantTable,
-    pub cat_sounds: Vec<ResourceLocation>,
+    pub cat_sounds: Vec<ResourceLocationBuf>,
     pub chickens: VariantTable,
-    pub chicken_sounds: Vec<ResourceLocation>,
+    pub chicken_sounds: Vec<ResourceLocationBuf>,
     pub zombie_nautiluses: VariantTable,
 }

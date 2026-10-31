@@ -7,12 +7,12 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::{Id, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf, StaticResourceLocation};
 
 /// The dimension type of the source and its default clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DimensionClock<'a> {
-    pub dimension_type: Option<&'a ResourceLocation>,
+    pub dimension_type: Option<&'a ResourceLocationBuf>,
     pub clock: Option<Id<WorldClock>>,
 }
 
@@ -33,7 +33,7 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The names of the entries of `registry` in id order.
-    pub fn names(&self, registry: StaticResourceLocation) -> &'a [ResourceLocation] {
+    pub fn names(&self, registry: StaticResourceLocation) -> &'a [ResourceLocationBuf] {
         self.registries
             .and_then(|registries| registries.names_of(&registry))
             .unwrap_or_default()
@@ -150,7 +150,11 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The name of the entry with the registry id `id`.
-    pub fn name(&self, registry: StaticResourceLocation, id: u16) -> Option<&'a ResourceLocation> {
+    pub fn name(
+        &self,
+        registry: StaticResourceLocation,
+        id: u16,
+    ) -> Option<&'a ResourceLocationBuf> {
         self.names(registry).get(usize::from(id))
     }
 
@@ -178,7 +182,7 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The name of a world clock.
-    pub fn clock_name(&self, clock: Id<WorldClock>) -> Option<&'a ResourceLocation> {
+    pub fn clock_name(&self, clock: Id<WorldClock>) -> Option<&'a ResourceLocationBuf> {
         self.registries?.registry::<WorldClock>()?.name(clock)
     }
 
@@ -186,7 +190,7 @@ impl<'a> RegistryLookup<'a> {
     pub fn timelines(
         &self,
         clock: Option<Id<WorldClock>>,
-    ) -> impl Iterator<Item = (&'a ResourceLocation, &'a Timeline)> + use<'a> {
+    ) -> impl Iterator<Item = (&'a ResourceLocationBuf, &'a Timeline)> + use<'a> {
         self.registries
             .and_then(|registries| registries.registry::<Timeline>())
             .into_iter()
@@ -196,7 +200,10 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The timeline `name`, with its name.
-    pub fn timeline(&self, name: Identifier<'_>) -> Option<(&'a ResourceLocation, &'a Timeline)> {
+    pub fn timeline(
+        &self,
+        name: Identifier<'_>,
+    ) -> Option<(&'a ResourceLocationBuf, &'a Timeline)> {
         self.registries?
             .registry::<Timeline>()?
             .iter()

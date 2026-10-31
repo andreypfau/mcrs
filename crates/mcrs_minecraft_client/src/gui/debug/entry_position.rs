@@ -2,8 +2,7 @@ use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
 use mcrs_minecraft_core::{Direction, RegionPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::rl;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use super::DebugScreenDisplayer;

@@ -643,7 +643,7 @@ mod tests {
         );
 
         let world = app.world_mut();
-        set(world, held, ItemModel(rl!("minecraft:stone").to_arc()));
+        set(world, held, ItemModel(rl!("minecraft:stone").to_buf()));
         app.update();
         let after = app
             .world()

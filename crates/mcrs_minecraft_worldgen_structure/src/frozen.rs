@@ -1,8 +1,7 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-
-use mcrs_minecraft_resource::ResourceLocation;
 
 use super::{
     JigsawConfig, LiquidSettings, MineshaftType, OceanTemperature, RuinedPortalSetup,
@@ -28,7 +27,7 @@ pub struct ElementId(pub u32);
 pub struct TemplateId(pub u32);
 
 pub struct FrozenSet {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub placement: StructurePlacement,
     pub exclusion: Option<(SetId, i32)>,
     pub preferred_biomes: Option<BiomeMask>,
@@ -36,7 +35,7 @@ pub struct FrozenSet {
 }
 
 pub struct FrozenStructure {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub step: DecorationStep,
     pub step_index: u32,
     pub adaptation: TerrainAdaptation,
@@ -98,7 +97,7 @@ pub struct OceanRuinConfig {
 }
 
 pub struct FrozenPool {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub fallback: PoolId,
     /// Every element repeated `weight` times, in file order: what the shuffle draws from.
     pub expanded: Vec<ElementId>,
@@ -145,10 +144,10 @@ pub struct FrozenStructures {
     pub elements: Vec<FrozenElement>,
     pub templates: Vec<Arc<FrozenTemplate>>,
     pub manifests: Vec<Arc<TemplateManifest>>,
-    pub set_ids: BTreeMap<ResourceLocation, SetId>,
-    pub structure_ids: BTreeMap<ResourceLocation, StructureId>,
-    pub pool_ids: BTreeMap<ResourceLocation, PoolId>,
-    pub template_ids: BTreeMap<ResourceLocation, TemplateId>,
+    pub set_ids: BTreeMap<ResourceLocationBuf, SetId>,
+    pub structure_ids: BTreeMap<ResourceLocationBuf, StructureId>,
+    pub pool_ids: BTreeMap<ResourceLocationBuf, PoolId>,
+    pub template_ids: BTreeMap<ResourceLocationBuf, TemplateId>,
     /// The variant registries the structures' mobs draw from.
     pub variants: VariantTables,
 }

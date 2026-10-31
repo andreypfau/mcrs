@@ -1,4 +1,3 @@
-use mcrs_minecraft_resource::Registered;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -6,7 +5,7 @@ pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Registered, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf};
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -171,7 +170,7 @@ impl<R: Registered, V> Serialize for WireRef<Named, R, V> {
 
 impl<'de, R: Registered, V> Deserialize<'de> for WireRef<Named, R, V> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        ResourceKey::deserialize(d).map(|key| WireRef(Ref::Id(key)))
+        ResourceKeyBuf::deserialize(d).map(|key| WireRef(Ref::Id(key)))
     }
 }
 
@@ -204,7 +203,7 @@ macro_rules! resolvable {
         #[derive(Clone, Debug, PartialEq)]
         pub enum $name {
             Constant($scalar),
-            Reference(ResourceKey<$registry>),
+            Reference(ResourceKeyBuf<$registry>),
         }
 
         impl Serialize for $name {
@@ -228,8 +227,10 @@ macro_rules! resolvable {
                     }
 
                     fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<$name, E> {
-                        ResourceLocation::read(text)
-                            .map(|location| $name::Reference(ResourceKey::from_location(location)))
+                        ResourceLocationBuf::read(text)
+                            .map(|location| {
+                                $name::Reference(ResourceKeyBuf::from_location(location))
+                            })
                             .map_err(E::custom)
                     }
 
@@ -400,7 +401,7 @@ pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
 /// string; the `id` is lifted out and written back first.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedEntityData<R> {
-    pub id: ResourceKey<R>,
+    pub id: ResourceKeyBuf<R>,
     pub tag: NbtCompound,
 }
 
@@ -427,9 +428,9 @@ impl<'de, R> Deserialize<'de> for TypedEntityData<R> {
         let Some(id) = id.extract_string() else {
             return Err(D::Error::custom("Expected 'id' field to be a string"));
         };
-        let id = ResourceLocation::read(id).map_err(D::Error::custom)?;
+        let id = ResourceLocationBuf::read(id).map_err(D::Error::custom)?;
         Ok(TypedEntityData {
-            id: ResourceKey::from_location(id),
+            id: ResourceKeyBuf::from_location(id),
             tag,
         })
     }
@@ -602,7 +603,7 @@ macro_rules! resolvable_wire {
                 Ok(match bool::decode(r)? {
                     true => Self::Constant(Decode::decode(r)?),
                     false => {
-                        Self::Reference(ResourceKey::from_location(ResourceLocation::decode(r)?))
+                        Self::Reference(ResourceKeyBuf::from_location(ResourceLocation::decode(r)?))
                     }
                 })
             }
@@ -672,7 +673,7 @@ macro_rules! typed_entity_data_wire {
                     "expected a compound tag"
                 );
                 Ok(TypedEntityData {
-                    id: ResourceKey::from_location(entry.location().to_arc()),
+                    id: ResourceKeyBuf::from_location(entry.location().to_buf()),
                     tag: NbtCompound::decode(r)?,
                 })
             }

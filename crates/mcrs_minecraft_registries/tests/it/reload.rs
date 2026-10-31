@@ -1,5 +1,5 @@
 use mcrs_minecraft_registries::Diagnostic;
-use mcrs_minecraft_resource::TagKey;
+use mcrs_minecraft_resource::TagKeyBuf;
 
 use crate::support::{
     Block, Damage, DamageType, Enchant, Item, LootTable, META, Packs, damage, declarations, get,
@@ -51,12 +51,12 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     let old_item_tag = before
         .tags::<Item>()
         .unwrap()
-        .id(&TagKey::from_location(rl("t:i")))
+        .id(&TagKeyBuf::from_location(rl("t:i")))
         .unwrap();
     let old_damage_tag = before
         .tags::<DamageType>()
         .unwrap()
-        .id(&TagKey::from_location(rl("t:t")))
+        .id(&TagKeyBuf::from_location(rl("t:t")))
         .unwrap();
 
     let (after, diagnostics) = reloaded("{}").reload(&before).unwrap();
@@ -71,7 +71,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
 
     let damage_tags = after.tags::<DamageType>().unwrap();
     assert_eq!(
-        damage_tags.id(&TagKey::from_location(rl("t:t"))),
+        damage_tags.id(&TagKeyBuf::from_location(rl("t:t"))),
         Some(old_damage_tag)
     );
     assert_eq!(tag::<DamageType>(&after, "t:t"), Some(vec!["t:y".into()]));
@@ -87,7 +87,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     assert_eq!(failed, ["t:b", "t:bad"]);
 
     let item_tags = after.tags::<Item>().unwrap();
-    assert_eq!(item_tags.id(&TagKey::from_location(rl("t:i"))), None);
+    assert_eq!(item_tags.id(&TagKeyBuf::from_location(rl("t:i"))), None);
     let listed: Vec<String> = item_tags.iter().map(|(_, n)| n.to_string()).collect();
     assert_eq!(listed, ["t:j"]);
     let listed: Vec<String> = damage_tags.iter().map(|(_, n)| n.to_string()).collect();
@@ -101,7 +101,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     let before_items = before.tags::<Item>().unwrap();
     assert!(before_items.contains(old_item_tag, stone));
 
-    let newer = item_tags.id(&TagKey::from_location(rl("t:j"))).unwrap();
+    let newer = item_tags.id(&TagKeyBuf::from_location(rl("t:j"))).unwrap();
     assert_eq!(before_items.members(newer).count(), 0);
     assert_eq!(before_items.name(newer), None);
     assert!(!before_items.contains(newer, get::<Item>(&before, "dirt")));
@@ -109,7 +109,7 @@ fn a_reload_rereads_reloadable_entries_and_every_tag_but_keeps_the_world_stage()
     let (restored, _) = startup().reload(&after).unwrap();
     let restored_items = restored.tags::<Item>().unwrap();
     assert_eq!(
-        restored_items.id(&TagKey::from_location(rl("t:i"))),
+        restored_items.id(&TagKeyBuf::from_location(rl("t:i"))),
         Some(old_item_tag)
     );
     let enchantment = value::<Enchant>(&restored, "t:e");

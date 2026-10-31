@@ -1,14 +1,14 @@
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WolfVariantAssets {
-    pub wild: ResourceLocation,
-    pub tame: ResourceLocation,
-    pub angry: ResourceLocation,
+    pub wild: ResourceLocationBuf,
+    pub tame: ResourceLocationBuf,
+    pub angry: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -21,42 +21,42 @@ pub struct WolfVariant {
 pub struct PigVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: PigModel,
-    pub asset_id: ResourceLocation,
-    pub baby_asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
+    pub baby_asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CowVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: CowModel,
-    pub asset_id: ResourceLocation,
-    pub baby_asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
+    pub baby_asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChickenVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: ChickenModel,
-    pub asset_id: ResourceLocation,
-    pub baby_asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
+    pub baby_asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ZombieNautilusVariant {
     #[serde(default, skip_serializing_if = "is_default")]
     pub model: ZombieNautilusModel,
-    pub asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatVariant {
-    pub asset_id: ResourceLocation,
-    pub baby_asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
+    pub baby_asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FrogVariant {
-    pub asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

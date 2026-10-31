@@ -3,7 +3,7 @@ use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_value_provider::{DispatchedFloatProvider, FloatProvider};
 use serde::de::Error as _;
@@ -30,7 +30,7 @@ pub struct SulfurCubeArchetype<M: Refs = Resolved> {
 #[serde(deny_unknown_fields)]
 pub struct AttributeEntry<M: Refs = Resolved> {
     pub attribute: M::Id<Attribute>,
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub amount: f64,
     pub operation: AttributeOperation,
 }

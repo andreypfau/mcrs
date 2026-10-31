@@ -17,7 +17,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRa
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::TextContent;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::chat::{client_information, line};
 use crate::host_app::{self, PlayServer};
@@ -70,8 +70,8 @@ fn position_of(packets: &[PacketPayload], wanted: impl Fn(&PacketPayload) -> boo
         .unwrap_or_else(|| panic!("{packets:?}"))
 }
 
-fn the_end() -> ResourceKey<mcrs_minecraft_dimension::Dimension> {
-    ResourceKey::from_location(ResourceLocation::read("minecraft:the_end").unwrap())
+fn the_end() -> ResourceKeyBuf<mcrs_minecraft_dimension::Dimension> {
+    ResourceKeyBuf::from_location(ResourceLocationBuf::read("minecraft:the_end").unwrap())
 }
 
 #[test]

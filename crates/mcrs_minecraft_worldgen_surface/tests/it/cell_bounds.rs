@@ -32,7 +32,7 @@ const BLOCKS: RouterBlocks = RouterBlocks {
 };
 
 fn settings() -> NoiseGeneratorSettings {
-    corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc())
+    corpus::read("noise_settings", &rl!("minecraft:overworld").to_buf())
 }
 
 fn router(seed: u64) -> NoiseRouter {

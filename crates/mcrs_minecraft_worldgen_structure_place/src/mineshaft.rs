@@ -90,7 +90,7 @@ impl MineshaftBlocks {
         };
         let unstable = mcrs_minecraft_block::keys::block_tags::UNSTABLE_BOTTOM_CENTER
             .location()
-            .to_arc();
+            .to_buf();
         let unstable = states_of(blocks, StateQuery::BlockTag(&unstable))?;
         let mut chain_support = FixedBitSet::clone(&world.center_down);
         chain_support.difference_with(&unstable);

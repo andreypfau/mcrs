@@ -16,7 +16,7 @@ use mcrs_minecraft_entity::keys::VillagerType;
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
 };
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -702,7 +702,7 @@ pub struct AttributeModifierPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribute: Option<M::Set<Attribute>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<ResourceLocation>,
+    pub id: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amount: MinMaxBounds<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1105,7 +1105,7 @@ fn sample_matchers() -> DataComponentMatchers {
                         contains: Some(vec![
                             AttributeModifierPredicate {
                                 attribute: Some(one_set("attack_damage")),
-                                id: Some(rl!("minecraft:base_attack_damage").to_arc()),
+                                id: Some(rl!("minecraft:base_attack_damage").to_buf()),
                                 amount: MinMaxBounds {
                                     min: Some(1.5),
                                     max: None,

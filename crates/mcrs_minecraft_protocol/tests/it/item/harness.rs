@@ -1,6 +1,4 @@
 use mcrs_minecraft_protocol::item::decode_component_value;
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::ResourceKey;
 use std::fmt;
 
 use serde::Serialize;
@@ -19,7 +17,7 @@ use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemData
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::{IdSet, Named, Registries, Resolve, Resolver};
-use mcrs_minecraft_resource::{Id, ResourceLocation};
+use mcrs_minecraft_resource::{Id, Registered, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_world::registry_load::test_registries;
 
 pub use crate::common::{hex, nbt_tree};
@@ -107,8 +105,8 @@ fn in_registries(sample: ItemComponentValue) -> ItemComponentValue {
     resolved(name).unwrap_or_else(|e| panic!("{sample:?}: resolve: {e}"))
 }
 
-fn key<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
+fn key<R>(path: &str) -> ResourceKeyBuf<R> {
+    ResourceKeyBuf::from_location(ResourceLocationBuf::minecraft(path).unwrap())
 }
 
 pub fn entry<R: Registered>(path: &str) -> Id<R> {
@@ -116,8 +114,9 @@ pub fn entry<R: Registered>(path: &str) -> Id<R> {
 }
 
 pub fn tag_set<R: Registered>(path: &str) -> IdSet<R> {
-    let tag =
-        mcrs_minecraft_resource::TagKey::from_location(ResourceLocation::minecraft(path).unwrap());
+    let tag = mcrs_minecraft_resource::TagKeyBuf::from_location(
+        ResourceLocationBuf::minecraft(path).unwrap(),
+    );
     IdSet::Tag(registries().tag(&tag).unwrap())
 }
 

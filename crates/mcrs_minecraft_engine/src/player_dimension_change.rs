@@ -31,7 +31,7 @@ use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition, ClientboundRespawn,
 };
-use mcrs_minecraft_resource::{Id, ResourceKey};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data.
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
@@ -81,7 +81,7 @@ pub fn change_dimension(
     arrival: Arrival,
 ) -> Result<Entity, DimensionChangeError> {
     let (dimension, key, dimension_type) = to
-        .query_filtered::<(Entity, &ResourceKey<DimensionKey>, &DimensionTypeId), With<Dimension>>()
+        .query_filtered::<(Entity, &ResourceKeyBuf<DimensionKey>, &DimensionTypeId), With<Dimension>>()
         .single(to)
         .map(|(dimension, key, dimension_type)| (dimension, key.clone(), dimension_type.0))
         .map_err(|_| DimensionChangeError::NoDimension)?;
@@ -218,13 +218,13 @@ struct ArrivalState {
     mode: GameMode,
     flying: PlayerFlying,
     op_level: PlayerOpLevel,
-    key: ResourceKey<DimensionKey>,
+    key: ResourceKeyBuf<DimensionKey>,
     dimension_type: Id<DimensionType>,
 }
 
 impl ArrivalState {
     fn read(
-        key: ResourceKey<DimensionKey>,
+        key: ResourceKeyBuf<DimensionKey>,
         dimension_type: Id<DimensionType>,
         leaving: EntityRef<'_>,
     ) -> Result<Self, DimensionChangeError> {
@@ -296,7 +296,7 @@ pub fn apply_dimension_change_requests(app: &mut App) {
         sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
         |world| {
             world
-                .query_filtered::<&ResourceKey<DimensionKey>, With<Dimension>>()
+                .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
                 .single(world)
                 .ok()
                 .cloned()

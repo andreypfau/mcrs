@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 use std::marker::PhantomData;
 use std::vec;
 
 use mcrs_minecraft_nbt::{ArrayKind, NBT_ARRAY_TAG};
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{
     self, DeserializeSeed, EnumAccess, Error as _, IntoDeserializer, MapAccess, SeqAccess,
     Unexpected, VariantAccess, Visitor,
@@ -705,7 +705,7 @@ where
             &"a registry entry name",
         ));
     };
-    let location = ResourceLocation::read(&text).map_err(D::Error::custom)?;
+    let location = ResourceLocationBuf::read(&text).map_err(D::Error::custom)?;
     match pick(location.as_str()) {
         Pick::Variant(variant) => derive(Chosen {
             variant,

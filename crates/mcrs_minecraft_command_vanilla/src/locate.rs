@@ -11,7 +11,7 @@ use mcrs_minecraft_command_engine::{
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_entity::keys::STRUCTURE;
 use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::structures::nearest_biome;
@@ -150,7 +150,7 @@ fn structure(
     let invalid = || not_found("commands.locate.structure.invalid", value);
     let index = fill.and_then(|fill| fill.structures.as_deref());
     let frozen = index.map(|index| &index.tables().frozen);
-    let id_of = |name: &ResourceLocation| frozen?.structure_ids.get(name).copied();
+    let id_of = |name: &ResourceLocationBuf| frozen?.structure_ids.get(name).copied();
     let lookup = context.lookup().registry_lookup();
     // chisle: `StructureIndex::locate` takes a slice and builds its own placement lists per search; an iterator parameter and caller-owned scratch lift both allocations.
     let structures: Vec<StructureId> = lookup

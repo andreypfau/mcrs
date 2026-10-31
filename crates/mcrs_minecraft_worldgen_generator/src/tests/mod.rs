@@ -75,6 +75,7 @@ pub mod trees;
 mod support;
 pub use support::*;
 
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
@@ -83,7 +84,6 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::ColumnPos;
 
 use fixedbitset::FixedBitSet;
@@ -119,8 +119,9 @@ pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
 /// processor list the features name, parsed once per process.
 pub fn corpus_features() -> &'static LoadedFeatures {
     static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| {
-        let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
-        let placed_features: BTreeMap<ResourceLocation, PlacedFeature> = registry("placed_feature");
+        let features: BTreeMap<ResourceLocationBuf, Feature> = registry("feature");
+        let placed_features: BTreeMap<ResourceLocationBuf, PlacedFeature> =
+            registry("placed_feature");
         let mut templates = BTreeMap::new();
         for feature in features.values() {
             for_each_feature(feature, &mut |node| {
@@ -145,7 +146,7 @@ pub fn corpus_features() -> &'static LoadedFeatures {
     &CORPUS
 }
 
-fn placed_feature_tags() -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
+fn placed_feature_tags() -> BTreeMap<ResourceLocationBuf, Vec<ResourceLocationBuf>> {
     use mcrs_minecraft_registries::Namer;
 
     let registries = test_registries();
@@ -174,8 +175,8 @@ pub fn one_step(entries: Vec<Arc<CompiledPlacedFeature>>, biome: &str) -> Featur
             steps: vec![entries],
             per_biome: vec![vec![carried]],
         },
-        biome_order: vec![ResourceLocation::read(biome).unwrap()],
-        climate: BTreeMap::from([(ResourceLocation::read(biome).unwrap(), TEMPERATE)]),
+        biome_order: vec![ResourceLocationBuf::read(biome).unwrap()],
+        climate: BTreeMap::from([(ResourceLocationBuf::read(biome).unwrap(), TEMPERATE)]),
     }
 }
 
@@ -290,8 +291,8 @@ pub fn parameter_list_id(
 ) -> mcrs_minecraft_resource::Id<
     mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
 > {
-    let key = mcrs_minecraft_resource::ResourceKey::from_location(
-        ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
+    let key = ResourceKeyBuf::from_location(
+        ResourceLocationBuf::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
     );
     mcrs_minecraft_registries::Resolver::id(test_registries(), &key)
         .unwrap_or_else(|e| panic!("{e}"))
@@ -434,14 +435,14 @@ pub fn possible_biome_mask(source: &mcrs_minecraft_biome::source::BiomeSource) -
 /// The program every biome of `registries` runs: the shipped populate step, alone in its one
 /// step.
 pub fn beta_populate_program(registries: &Registries, seed: i64) -> FeatureProgram {
-    let id = ResourceLocation::read("minecraft:beta_populate").unwrap();
+    let id = ResourceLocationBuf::read("minecraft:beta_populate").unwrap();
     let entry = Arc::new(CompiledPlacedFeature {
         placed: corpus_features().placed_features[&id].clone(),
         id: Some(id),
     });
     let mut carried = FixedBitSet::with_capacity(1);
     carried.insert(0);
-    let biome_order: Vec<ResourceLocation> = biomes_of(registries)
+    let biome_order: Vec<ResourceLocationBuf> = biomes_of(registries)
         .iter()
         .map(|(_, name, _)| name.clone())
         .collect();

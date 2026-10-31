@@ -14,8 +14,7 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Registry};
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Registered, ResourceLocationBuf};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::variant::{
     CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
@@ -34,7 +33,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Resource, Default, Clone)]
-pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStructureTables>>);
+pub struct DimensionStructures(pub BTreeMap<ResourceLocationBuf, Arc<DimensionStructureTables>>);
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
@@ -125,12 +124,12 @@ pub(crate) fn build_dimension_structures(
             return;
         }
     };
-    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = template_names
+    let template_handles: BTreeMap<ResourceLocationBuf, Handle<TemplateAsset>> = template_names
         .into_iter()
         .filter_map(|id| Some((id.clone(), template_handle(&asset_server, &id)?)))
         .collect();
 
-    let template = |id: &ResourceLocation| {
+    let template = |id: &ResourceLocationBuf| {
         let handle = template_handles.get(id)?;
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
@@ -150,7 +149,7 @@ pub(crate) fn build_dimension_structures(
             return;
         }
     };
-    fn names<R: Registered>(registries: &Registries) -> Vec<ResourceLocation> {
+    fn names<R: Registered>(registries: &Registries) -> Vec<ResourceLocationBuf> {
         registries
             .entries::<R>()
             .map(|entries| entries.names().to_vec())

@@ -5,8 +5,7 @@ use bevy_ecs::prelude::{Entity, Resource};
 use bevy_ecs::schedule::SystemSet;
 
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
 pub struct DimAppLabel(pub Entity);
@@ -18,7 +17,7 @@ pub struct DimensionLabel(pub Entity);
 
 #[derive(Debug, Clone)]
 pub struct DimSpawnRequest {
-    pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    pub dimension: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     pub dimension_type: Id<DimensionType>,
 }
 
@@ -55,7 +54,7 @@ pub struct DimDespawnQueue(pub Vec<Entity>);
 pub struct DimensionPlugins(Vec<DimensionPluginEntry>);
 
 struct DimensionPluginEntry {
-    only: Option<ResourceKey<Dimension>>,
+    only: Option<ResourceKeyBuf<Dimension>>,
     name: String,
     unique: bool,
     // Bevy rejects a duplicate by `Plugin::name`, but `SubApp::is_plugin_added` looks up the
@@ -66,11 +65,11 @@ struct DimensionPluginEntry {
 
 impl DimensionPlugins {
     /// The key of the dimension of each plugin that is added to one dimension alone.
-    pub fn dimensions(&self) -> impl Iterator<Item = &ResourceKey<Dimension>> {
+    pub fn dimensions(&self) -> impl Iterator<Item = &ResourceKeyBuf<Dimension>> {
         self.0.iter().filter_map(|plugin| plugin.only.as_ref())
     }
 
-    pub fn build(&self, dimension: &ResourceKey<Dimension>, sub_app: &mut SubApp) {
+    pub fn build(&self, dimension: &ResourceKeyBuf<Dimension>, sub_app: &mut SubApp) {
         let replaced: HashSet<&str> = self
             .0
             .iter()
@@ -98,7 +97,7 @@ impl DimensionPlugins {
         }
     }
 
-    fn push<P: Plugin + Clone>(&mut self, only: Option<ResourceKey<Dimension>>, plugin: P) {
+    fn push<P: Plugin + Clone>(&mut self, only: Option<ResourceKeyBuf<Dimension>>, plugin: P) {
         self.0.push(DimensionPluginEntry {
             only,
             name: plugin.name().to_owned(),
@@ -121,7 +120,7 @@ pub trait AddDimensionPlugins {
 
     fn add_dimension_plugin_to(
         &mut self,
-        dimension: impl Into<ResourceKey<Dimension>>,
+        dimension: impl Into<ResourceKeyBuf<Dimension>>,
         plugin: impl Plugin + Clone,
     ) -> &mut Self;
 }
@@ -136,7 +135,7 @@ impl AddDimensionPlugins for App {
 
     fn add_dimension_plugin_to(
         &mut self,
-        dimension: impl Into<ResourceKey<Dimension>>,
+        dimension: impl Into<ResourceKeyBuf<Dimension>>,
         plugin: impl Plugin + Clone,
     ) -> &mut Self {
         self.world_mut()

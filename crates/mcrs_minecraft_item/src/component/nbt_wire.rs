@@ -5,7 +5,7 @@ use mcrs_minecraft_core::codec::{is_default, long_value};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
-use mcrs_minecraft_resource::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKeyBuf, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
@@ -85,7 +85,7 @@ impl Sample for BucketEntityData {
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {
     #[serde(rename = "type")]
-    pub kind: ResourceKey<MapDecorationType>,
+    pub kind: ResourceKeyBuf<MapDecorationType>,
     pub x: f64,
     pub z: f64,
     pub rotation: f32,
@@ -116,8 +116,8 @@ impl Sample for MapDecorations {
             MapDecorations(BTreeMap::from([(
                 "m1".to_string(),
                 MapDecoration {
-                    kind: ResourceKey::from_location(
-                        crate::keys::MapDecorationType::Player.location().to_arc(),
+                    kind: ResourceKeyBuf::from_location(
+                        crate::keys::MapDecorationType::Player.location().to_buf(),
                     ),
                     x: 1.5,
                     z: -2.5,
@@ -133,7 +133,7 @@ impl Sample for MapDecorations {
 /// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct DebugStickState(pub BTreeMap<ResourceKey<Block>, String>);
+pub struct DebugStickState(pub BTreeMap<ResourceKeyBuf<Block>, String>);
 
 impl Sample for DebugStickState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -148,7 +148,7 @@ impl Sample for DebugStickState {
         vec![
             DebugStickState::default(),
             DebugStickState(BTreeMap::from([(
-                ResourceKey::from_location(Block::OakLog.location().to_arc()),
+                ResourceKeyBuf::from_location(Block::OakLog.location().to_buf()),
                 "axis".to_string(),
             )])),
         ]
@@ -157,7 +157,7 @@ impl Sample for DebugStickState {
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Recipes(pub Vec<ResourceKey<Recipe>>);
+pub struct Recipes(pub Vec<ResourceKeyBuf<Recipe>>);
 
 impl Sample for Recipes {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -168,8 +168,8 @@ impl Sample for Recipes {
         vec![
             Recipes::default(),
             Recipes(vec![
-                ResourceKey::from_location(rl!("minecraft:stone").to_arc()),
-                ResourceKey::from_location(rl!("minecraft:oak_planks").to_arc()),
+                ResourceKeyBuf::from_location(rl!("minecraft:stone").to_buf()),
+                ResourceKeyBuf::from_location(rl!("minecraft:oak_planks").to_buf()),
             ]),
         ]
     }
@@ -178,7 +178,7 @@ impl Sample for Recipes {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerLoot {
-    pub loot_table: ResourceKey<LootTable>,
+    pub loot_table: ResourceKeyBuf<LootTable>,
     #[serde(
         default,
         deserialize_with = "long_value",
@@ -197,7 +197,7 @@ impl Sample for ContainerLoot {
     }
 
     fn samples() -> Vec<Self> {
-        let loot_table: ResourceKey<LootTable> =
+        let loot_table: ResourceKeyBuf<LootTable> =
             crate::keys::loot_table::CHESTS_SIMPLE_DUNGEON.into();
         vec![
             ContainerLoot {

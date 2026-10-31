@@ -1,8 +1,8 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::tagged_compound::{tagged_compound, variant};
@@ -40,7 +40,7 @@ pub enum ClickEvent<I: TextTypes = ()> {
         value: Cow<'static, str>,
     },
     Custom {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<NbtTag>,
     },
@@ -79,7 +79,7 @@ impl<'de, I: TextSerde> Deserialize<'de> for ClickEvent<I> {
 
         #[derive(Deserialize)]
         struct Custom {
-            id: ResourceLocation,
+            id: ResourceLocationBuf,
             #[serde(default)]
             payload: Option<NbtTag>,
         }

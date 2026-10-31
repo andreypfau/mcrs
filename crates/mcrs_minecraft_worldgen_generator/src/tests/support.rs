@@ -1,4 +1,3 @@
-use mcrs_minecraft_resource::ResourceKey;
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -39,7 +38,6 @@ pub fn blocks() -> &'static Blocks {
 
 use mcrs_minecraft_worldgen_testing::registry;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 
@@ -71,7 +69,7 @@ pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
 pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft(settings_name).unwrap(),
+        &ResourceLocationBuf::minecraft(settings_name).unwrap(),
     );
     build_router(
         &settings,
@@ -102,7 +100,7 @@ pub fn material_router(
 
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft(settings_name).unwrap(),
+        &ResourceLocationBuf::minecraft(settings_name).unwrap(),
     );
     let biomes = material_biomes(registries);
     let inputs = MaterialInputs {
@@ -140,8 +138,8 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 
     use crate::block_state::try_resolve_state;
 
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
-    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
+    let rules: BTreeMap<ResourceLocationBuf, MaterialRuleHolder> = registry("material_rule");
+    let conditions: BTreeMap<ResourceLocationBuf, MaterialConditionHolder> =
         registry("material_condition");
     let biomes = material_biomes(test_registries());
     let functions = registry("density_function");
@@ -176,7 +174,7 @@ use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Registry, Resolve, Resolver, Tags};
-use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub type Biomes = Registry<BiomeFile>;
@@ -192,8 +190,8 @@ pub fn biomes_of(registries: &Registries) -> &Biomes {
 }
 
 pub fn biome_id(registries: &Registries, name: &str) -> Id<Biome> {
-    let key = ResourceKey::from_location(
-        ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
+    let key = ResourceKeyBuf::from_location(
+        ResourceLocationBuf::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
     );
     Resolver::id(registries, &key).unwrap_or_else(|e| panic!("{e}"))
 }
@@ -293,7 +291,7 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     let mut received = SENT
         .get_or_init(|| sent_by(test_registries(), false))
         .clone();
-    let biome_key = mcrs_minecraft_biome::keys::BIOME.location().to_arc();
+    let biome_key = mcrs_minecraft_biome::keys::BIOME.location().to_buf();
     let (_, entries) = received
         .registries
         .iter_mut()
@@ -307,11 +305,11 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     let loaded = entries.len();
     for name in leading {
         if !entries.iter().any(|(entry, _)| entry.as_str() == *name) {
-            let name = ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let name = ResourceLocationBuf::read(name).unwrap_or_else(|e| panic!("{name}: {e}"));
             entries.push((name, stand_in.clone()));
         }
     }
-    let rank = |name: &ResourceLocation| {
+    let rank = |name: &ResourceLocationBuf| {
         leading
             .iter()
             .position(|leading| *leading == name.as_str())

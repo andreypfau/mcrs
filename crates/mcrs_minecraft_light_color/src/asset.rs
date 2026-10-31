@@ -1,8 +1,7 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -33,8 +32,8 @@ impl Serialize for LightColor {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StateTarget {
-    Block(ResourceLocation<Arc<str>>),
-    Tag(ResourceLocation<Arc<str>>),
+    Block(ResourceLocationBuf),
+    Tag(ResourceLocationBuf),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -63,7 +62,7 @@ impl FromStr for BlockStateRef {
         if id.is_empty() {
             return Err(format!("`{text}` names no block or tag"));
         }
-        let id = ResourceLocation::read(id).map_err(|e| e.to_string())?;
+        let id = ResourceLocationBuf::read(id).map_err(|e| e.to_string())?;
         let target = if tag {
             StateTarget::Tag(id)
         } else {

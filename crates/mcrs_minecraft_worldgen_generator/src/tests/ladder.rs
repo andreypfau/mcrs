@@ -23,7 +23,7 @@ use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_heightmap::heightmap_predicates;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
@@ -133,7 +133,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         -64,
         384,
     );
-    let wanted = frozen.structure_ids[&ResourceLocation::read(structure).unwrap()];
+    let wanted = frozen.structure_ids[&ResourceLocationBuf::read(structure).unwrap()];
     let (pos, _) = index
         .locate(IVec3::ZERO, &[wanted])
         .unwrap_or_else(|| panic!("no {structure} within the search radius"));

@@ -7,8 +7,7 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_registries::Diagnostics;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_voxel::BlockPos;
 
@@ -317,7 +316,7 @@ fn the_shipped_parameter_lists_resolve_into_preset_tables() {
 
 #[test]
 fn entries_naming_one_preset_share_one_table() {
-    let pair = ["test:one", "test:two"].map(|name| ResourceLocation::read(name).unwrap());
+    let pair = ["test:one", "test:two"].map(|name| ResourceLocationBuf::read(name).unwrap());
     let mut diagnostics = Diagnostics::default();
     let shared = PresetBiomeTables::build(
         pair.iter().map(|name| (name, Preset::Overworld)),
@@ -345,7 +344,7 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
         .filter(|biome| *biome != missing)
         .collect();
     let biomes = NameList::of(named);
-    let name = ResourceLocation::read("minecraft:overworld").expect("a vanilla name");
+    let name = ResourceLocationBuf::read("minecraft:overworld").expect("a vanilla name");
 
     let mut diagnostics = Diagnostics::default();
     let built = PresetBiomeTables::build([(&name, Preset::Overworld)], &biomes, &mut diagnostics);

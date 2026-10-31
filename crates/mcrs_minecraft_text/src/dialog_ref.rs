@@ -1,5 +1,5 @@
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 
 /// A registry id, or the dialog written inline.
@@ -8,6 +8,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DialogRef {
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Inline(NbtCompound),
 }

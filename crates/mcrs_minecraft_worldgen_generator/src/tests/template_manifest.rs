@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, HashMap};
 
 use bytes::Buf;
@@ -5,7 +6,6 @@ use mcrs_minecraft_block_entity::Joint;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, Template, TemplateManifest,
 };
@@ -128,7 +128,7 @@ pub(super) fn parse_state(text: &str) -> PaletteState {
         None => (text, None),
     };
     PaletteState {
-        id: ResourceLocation::read(name).unwrap(),
+        id: ResourceLocationBuf::read(name).unwrap(),
         properties,
     }
 }
@@ -140,7 +140,7 @@ pub(super) fn resolve(state: &PaletteState) -> VoxelId {
 }
 
 pub(super) fn freeze(id: &str) -> (Template, FrozenTemplate, TemplateManifest) {
-    let id = ResourceLocation::read(id).unwrap();
+    let id = ResourceLocationBuf::read(id).unwrap();
     let bytes = mcrs_minecraft_worldgen_testing::template(&id)
         .unwrap_or_else(|| panic!("{id}: no such template"));
     let template: Template =
@@ -241,7 +241,7 @@ fn check_manifest(dump: &DumpManifest) {
 const CAT_BLACK: &str = "minecraft:village/common/animals/cat_black";
 
 fn is_built(id: &str) -> bool {
-    mcrs_minecraft_worldgen_testing::is_built_template(&ResourceLocation::read(id).unwrap())
+    mcrs_minecraft_worldgen_testing::is_built_template(&ResourceLocationBuf::read(id).unwrap())
 }
 
 #[test]

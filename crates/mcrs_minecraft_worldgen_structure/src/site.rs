@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -14,7 +15,6 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::{HeightContext, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::{JigsawBlock, bounding_box, transform};
@@ -93,7 +93,7 @@ pub struct CentrePiece {
 pub enum Stub {
     Jigsaw {
         centre: CentrePiece,
-        aliases: BTreeMap<ResourceLocation, PoolId>,
+        aliases: BTreeMap<ResourceLocationBuf, PoolId>,
     },
     Rotated(Rotation),
     Portal {
@@ -126,13 +126,13 @@ pub struct PlacedJigsaw<'a> {
 
 impl PlacedJigsaw<'_> {
     /// `None` for the feature element's synthetic jigsaw, which any target matches.
-    pub fn name(&self) -> Option<&ResourceLocation> {
+    pub fn name(&self) -> Option<&ResourceLocationBuf> {
         (!std::ptr::eq(self.block, &*FEATURE_JIGSAW)).then_some(&self.block.name)
     }
 }
 
 static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
-    let label = EMPTY_LABEL.to_arc();
+    let label = EMPTY_LABEL.to_buf();
     JigsawBlock {
         pos: [0; 3],
         front: Direction::Down,
@@ -141,7 +141,7 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
         name: label.clone(),
         pool: mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY
             .location()
-            .to_arc(),
+            .to_buf(),
         target: label,
         placement_priority: 0,
         selection_priority: 0,
@@ -322,7 +322,7 @@ fn resolve_aliases(
     frozen: &FrozenStructures,
     bindings: &[PoolAlias],
     rng: &mut LegacyRandom,
-    out: &mut BTreeMap<ResourceLocation, PoolId>,
+    out: &mut BTreeMap<ResourceLocationBuf, PoolId>,
 ) {
     for binding in bindings {
         match binding {

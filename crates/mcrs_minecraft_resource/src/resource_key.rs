@@ -1,5 +1,5 @@
 use crate::ResourceLocation;
-use alloc::sync::Arc;
+use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -12,17 +12,20 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// Generic over `S` (string storage), just like `ResourceLocation<S>`:
 /// - `ResourceKey<T, &'static str>` — `Copy`, const-constructible.
-/// - `ResourceKey<T, Arc<str>>` (default) — `Clone`, deserializable.
+/// - [`ResourceKeyBuf<T>`] — owned, `Clone`, deserializable.
 ///
 /// Both variants hash and compare identically (by underlying string), and the
 /// `Borrow<str>` impl enables zero-alloc lookups in `HashMap<ResourceKey<T>, …>`.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct ResourceKey<T, S = Arc<str>> {
+pub struct ResourceKey<T, S> {
     location: ResourceLocation<S>,
     _marker: PhantomData<fn() -> T>,
 }
 
 // ─── Copy for &'static str variant ──────────────────────────────────────────
+
+/// The owned form of a key.
+pub type ResourceKeyBuf<T> = ResourceKey<T, Box<str>>;
 
 impl<T> Copy for ResourceKey<T, &'static str> {}
 
@@ -58,9 +61,9 @@ impl<T> ResourceKey<T, &'static str> {
     }
 }
 
-impl<T> ResourceKey<T, Arc<str>> {
-    /// Runtime constructor from an `Arc<str>` resource location.
-    pub fn from_location(location: ResourceLocation<Arc<str>>) -> Self {
+impl<T> ResourceKey<T, Box<str>> {
+    /// Runtime constructor from an owned resource location.
+    pub fn from_location(location: ResourceLocation<Box<str>>) -> Self {
         ResourceKey {
             location,
             _marker: PhantomData,
@@ -96,9 +99,9 @@ impl<T, S: AsRef<str>> ResourceKey<T, S> {
     }
 }
 
-// ─── Conversion: static → Arc ───────────────────────────────────────────────
+// ─── Conversion: static → owned ───────────────────────────────────────────────
 
-impl<T> From<ResourceKey<T, &'static str>> for ResourceKey<T, Arc<str>> {
+impl<T> From<ResourceKey<T, &'static str>> for ResourceKey<T, Box<str>> {
     fn from(key: ResourceKey<T, &'static str>) -> Self {
         ResourceKey {
             location: key.location.into(),
@@ -177,9 +180,9 @@ impl<T, S: AsRef<str>> Serialize for ResourceKey<T, S> {
     }
 }
 
-impl<'de, T> Deserialize<'de> for ResourceKey<T, Arc<str>> {
+impl<'de, T> Deserialize<'de> for ResourceKey<T, Box<str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let location = ResourceLocation::<Arc<str>>::deserialize(d)?;
+        let location = ResourceLocation::<Box<str>>::deserialize(d)?;
         Ok(ResourceKey {
             location,
             _marker: PhantomData,

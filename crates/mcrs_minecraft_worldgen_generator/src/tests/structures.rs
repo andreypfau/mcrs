@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_testing::registry;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -12,7 +13,6 @@ use mcrs_minecraft_core::VERSION;
 #[cfg(test)]
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_resource::ResourceLocation;
 #[cfg(test)]
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
@@ -37,16 +37,16 @@ use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, StructureKind};
 
-pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
+pub(super) fn template_file<'a>(id: &ResourceLocationBuf) -> Option<Cow<'a, Template>> {
     let bytes = mcrs_minecraft_worldgen_testing::template(id)?;
     let template = from_gzip_bytes(bytes.as_slice()).unwrap_or_else(|e| panic!("{id}: {e}"));
     Some(Cow::Owned(template))
 }
 
 struct Corpus {
-    sets: BTreeMap<ResourceLocation, StructureSet>,
-    structures: BTreeMap<ResourceLocation, Structure>,
-    pools: BTreeMap<ResourceLocation, TemplatePool>,
+    sets: BTreeMap<ResourceLocationBuf, StructureSet>,
+    structures: BTreeMap<ResourceLocationBuf, Structure>,
+    pools: BTreeMap<ResourceLocationBuf, TemplatePool>,
 }
 
 fn corpus_registries() -> Corpus {
@@ -61,7 +61,7 @@ fn corpus_registries() -> Corpus {
 /// alphabetical order the snapshot assigns; only the spawn conditions are read.
 fn variant_selectors(
     registry: &str,
-) -> BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>> {
+) -> BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>> {
     #[derive(serde::Deserialize)]
     struct Variant {
         #[serde(default)]
@@ -76,7 +76,7 @@ fn variant_selectors(
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let name = path.file_stem().expect("a file").to_string_lossy();
             (
-                ResourceLocation::minecraft(&name).unwrap(),
+                ResourceLocationBuf::minecraft(&name).unwrap(),
                 variant.spawn_conditions,
             )
         })
@@ -85,20 +85,20 @@ fn variant_selectors(
 
 pub(super) fn variant_inputs() -> VariantInputs<'static> {
     static CATS: LazyLock<
-        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+        BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
     > = LazyLock::new(|| variant_selectors("cat_variant"));
-    static CAT_SOUNDS: LazyLock<Vec<ResourceLocation>> =
+    static CAT_SOUNDS: LazyLock<Vec<ResourceLocationBuf>> =
         LazyLock::new(|| variant_selectors("cat_sound_variant").into_keys().collect());
     static CHICKENS: LazyLock<
-        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+        BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
     > = LazyLock::new(|| variant_selectors("chicken_variant"));
-    static CHICKEN_SOUNDS: LazyLock<Vec<ResourceLocation>> = LazyLock::new(|| {
+    static CHICKEN_SOUNDS: LazyLock<Vec<ResourceLocationBuf>> = LazyLock::new(|| {
         variant_selectors("chicken_sound_variant")
             .into_keys()
             .collect()
     });
     static ZOMBIE_NAUTILUSES: LazyLock<
-        BTreeMap<ResourceLocation, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
+        BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>>,
     > = LazyLock::new(|| variant_selectors("zombie_nautilus_variant"));
     VariantInputs {
         cats: Some(&CATS),
@@ -135,7 +135,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
 #[cfg(test)]
 fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::FrozenStructure {
     let frozen = frozen();
-    let id = ResourceLocation::read(id).unwrap();
+    let id = ResourceLocationBuf::read(id).unwrap();
     &frozen.structures[usize::from(frozen.structure_ids[&id].0)]
 }
 
@@ -155,16 +155,16 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     let frozen = frozen();
     let variants = &frozen.variants;
     assert_eq!(variants.cats.ids.len(), 11);
-    assert_eq!(variants.cats.ids[0], rl!("minecraft:all_black").to_arc());
+    assert_eq!(variants.cats.ids[0], rl!("minecraft:all_black").to_buf());
     assert_eq!(
         variants.cat_sounds,
         vec![
-            rl!("minecraft:classic").to_arc(),
-            rl!("minecraft:royal").to_arc(),
+            rl!("minecraft:classic").to_buf(),
+            rl!("minecraft:royal").to_buf(),
         ]
     );
     let in_hut = SpawnContext {
-        structure: Some(frozen.structure_ids[&rl!("minecraft:swamp_hut").to_arc()].0),
+        structure: Some(frozen.structure_ids[&rl!("minecraft:swamp_hut").to_buf()].0),
         biome: biome_id(test_registries(), "minecraft:swamp").number(),
         moon_brightness: 1.0,
     };
@@ -172,11 +172,11 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     for _ in 0..20 {
         assert_eq!(
             variants.cats.pick(&in_hut, &mut rng),
-            Some(&rl!("minecraft:all_black").to_arc())
+            Some(&rl!("minecraft:all_black").to_buf())
         );
     }
     let elsewhere = SpawnContext {
-        structure: Some(frozen.structure_ids[&rl!("minecraft:igloo").to_arc()].0),
+        structure: Some(frozen.structure_ids[&rl!("minecraft:igloo").to_buf()].0),
         moon_brightness: 0.0,
         ..in_hut
     };
@@ -184,7 +184,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
         .map(|_| variants.cats.pick(&elsewhere, &mut rng).unwrap().clone())
         .collect();
     assert_eq!(picked.len(), 10);
-    assert!(!picked.contains(&rl!("minecraft:all_black").to_arc()));
+    assert!(!picked.contains(&rl!("minecraft:all_black").to_buf()));
 }
 
 #[cfg(test)]
@@ -263,7 +263,7 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
         }
     }
     let missing =
-        ResourceLocation::read("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5")
+        ResourceLocationBuf::read("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5")
             .unwrap();
     let substitute = &frozen.templates[frozen.template_ids[&missing].0 as usize];
     assert_eq!(substitute.size, [0; 3]);
@@ -280,13 +280,13 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     assert_eq!(structure("minecraft:village_plains").step_index, 40);
     assert_eq!(structure("minecraft:ancient_city").step_index, 0);
 
-    let empty = frozen.pool_ids[&rl!("minecraft:empty").to_arc()];
+    let empty = frozen.pool_ids[&rl!("minecraft:empty").to_buf()];
     let empty_pool = &frozen.pools[usize::from(empty.0)];
     assert_eq!(empty_pool.fallback, empty);
     assert!(empty_pool.expanded.is_empty());
     assert_eq!(empty_pool.max_size, 0);
     let houses = &frozen.pools
-        [usize::from(frozen.pool_ids[&rl!("minecraft:village/plains/houses").to_arc()].0)];
+        [usize::from(frozen.pool_ids[&rl!("minecraft:village/plains/houses").to_buf()].0)];
     assert!(
         houses.expanded.len()
             > houses
@@ -346,12 +346,12 @@ fn each_dimension_source_keeps_the_sets_its_biomes_admit() {
 #[cfg(test)]
 fn parse<T: serde::de::DeserializeOwned>(
     entries: &[(&str, &str)],
-) -> BTreeMap<ResourceLocation, T> {
+) -> BTreeMap<ResourceLocationBuf, T> {
     entries
         .iter()
         .map(|(id, json)| {
             (
-                ResourceLocation::read(id).unwrap(),
+                ResourceLocationBuf::read(id).unwrap(),
                 serde_json::from_str(json).unwrap_or_else(|e| panic!("{id}: {e}")),
             )
         })
@@ -373,13 +373,13 @@ fn try_freeze_with(
     sets: &[(&str, &str)],
     structures: &[(&str, &str)],
     pools: &[(&str, &str)],
-    template: impl Fn(&ResourceLocation) -> Option<Template>,
+    template: impl Fn(&ResourceLocationBuf) -> Option<Template>,
     resolve: &dyn Fn(&PaletteState) -> Option<ResolvedState>,
 ) -> Result<FrozenStructures, String> {
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
+    let template = |id: &ResourceLocationBuf| template(id).map(Cow::Owned);
     freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,
@@ -548,7 +548,7 @@ fn template_with_a_jigsaw_to(pool: &str) -> Template {
             state: 0,
         }],
         palette: Some(vec![PaletteState {
-            id: rl!("minecraft:jigsaw").to_arc(),
+            id: rl!("minecraft:jigsaw").to_buf(),
             properties: Some([("orientation".to_owned(), "north_up".to_owned())].into()),
         }]),
         palettes: None,
@@ -562,7 +562,7 @@ fn a_jigsaw_names_a_loaded_pool_or_an_alias_of_its_structure() {
         "element_type": "minecraft:single_pool_element", "location": "minecraft:t",
         "processors": "minecraft:empty", "projection": "rigid"}}]}"#;
     let pools = [("minecraft:empty", EMPTY_POOL), ("minecraft:p", pool)];
-    let template = |_: &ResourceLocation| Some(template_with_a_jigsaw_to("minecraft:gone"));
+    let template = |_: &ResourceLocationBuf| Some(template_with_a_jigsaw_to("minecraft:gone"));
     let resolve = |state: &PaletteState| resolve_palette_state(corpus(), state);
     let start = jigsaw("").replace(
         r#""start_pool": "minecraft:empty""#,

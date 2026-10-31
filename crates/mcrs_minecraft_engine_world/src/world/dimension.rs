@@ -14,8 +14,7 @@ use bevy_ecs::prelude::{
     Query, Ref, With,
 };
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_voxel::SectionPos;
 use std::collections::BTreeSet;
 
@@ -49,7 +48,7 @@ impl Plugin for DimensionPlugin {
 #[derive(Bundle)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
-    pub key: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    pub key: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     pub type_config: DimensionTypeConfig,
     pub chunk_index: SectionIndex,
     pub tickets: SectionTickets,
@@ -60,7 +59,7 @@ pub struct DimensionBundle {
 
 impl DimensionBundle {
     pub fn new(
-        key: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+        key: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
         type_config: DimensionTypeConfig,
     ) -> Self {
         let min_section_y = type_config.min_y >> SectionPos::BITS;

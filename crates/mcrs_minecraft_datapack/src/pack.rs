@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 
 use crate::PackDiagnostic;
 use crate::filter::Filter;
@@ -90,16 +90,16 @@ impl Default for PackSelection {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Features {
-    pub known: Vec<ResourceLocation>,
-    pub vanilla: Vec<ResourceLocation>,
-    pub world: Option<Vec<ResourceLocation>>,
+    pub known: Vec<ResourceLocationBuf>,
+    pub vanilla: Vec<ResourceLocationBuf>,
+    pub world: Option<Vec<ResourceLocationBuf>>,
 }
 
 impl Features {
     /// The vanilla feature alone, known and enabled by the vanilla pack, in a world that does not
     /// restrict its features.
     pub fn vanilla() -> Self {
-        let vanilla: ResourceLocation = rl!("minecraft:vanilla").into();
+        let vanilla: ResourceLocationBuf = rl!("minecraft:vanilla").into();
         Self {
             known: vec![vanilla.clone()],
             vanilla: vec![vanilla],
@@ -130,7 +130,7 @@ pub struct StackedPack {
     pub(crate) id: String,
     pub(crate) kind: PackKind,
     pub(crate) known_pack: Option<KnownPack>,
-    pub(crate) features: Vec<ResourceLocation>,
+    pub(crate) features: Vec<ResourceLocationBuf>,
     pub(crate) overlays: Vec<String>,
     pub(crate) filter: Option<Filter>,
 }
@@ -148,7 +148,7 @@ impl StackedPack {
         self.known_pack.as_ref()
     }
 
-    pub fn features(&self) -> &[ResourceLocation] {
+    pub fn features(&self) -> &[ResourceLocationBuf] {
         &self.features
     }
 }
@@ -156,7 +156,7 @@ impl StackedPack {
 #[derive(Debug, Default)]
 pub struct PackStack {
     pub(crate) packs: Vec<StackedPack>,
-    pub(crate) enabled_features: Vec<ResourceLocation>,
+    pub(crate) enabled_features: Vec<ResourceLocationBuf>,
 }
 
 /// What a pack holds at a path: the bytes of a file, or a ready value in place of one.
@@ -190,7 +190,7 @@ impl PackStack {
         self.packs.iter().filter_map(StackedPack::known_pack)
     }
 
-    pub fn enabled_features(&self) -> &[ResourceLocation] {
+    pub fn enabled_features(&self) -> &[ResourceLocationBuf] {
         &self.enabled_features
     }
 

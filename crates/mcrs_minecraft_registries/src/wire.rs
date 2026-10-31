@@ -6,7 +6,7 @@ use std::sync::Arc;
 use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
-use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, TagKey};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKeyBuf};
 use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;
@@ -64,7 +64,7 @@ impl<R> fmt::Debug for WireId<R> {
 
 #[derive_where(Clone, PartialEq, Eq, Debug)]
 pub enum WireSet<R> {
-    Tag(TagKey<R>),
+    Tag(TagKeyBuf<R>),
     List(Box<[WireId<R>]>),
 }
 
@@ -73,11 +73,11 @@ pub trait BlockStates {
     fn block_state(
         &self,
         id: u16,
-    ) -> Result<(ResourceLocation, Vec<(String, String)>), ResolveError>;
+    ) -> Result<(ResourceLocationBuf, Vec<(String, String)>), ResolveError>;
 
     fn block_state_id(
         &self,
-        block: &ResourceLocation,
+        block: &ResourceLocationBuf,
         properties: &[(&str, &str)],
     ) -> Result<u16, ResolveError>;
 }
@@ -134,7 +134,7 @@ impl<R: Registered> FromWire for IdSet<R> {
         match self {
             IdSet::Tag(tag) => ctx
                 .tag_name(*tag)
-                .map(|name| WireSet::Tag(TagKey::from_location(name.clone())))
+                .map(|name| WireSet::Tag(TagKeyBuf::from_location(name.clone())))
                 .ok_or_else(|| ResolveError::new(format!("no tag is numbered {}", tag.number()))),
             IdSet::List(ids) => Ok(WireSet::List(
                 ids.iter().copied().map(WireId::from).collect(),
@@ -375,7 +375,7 @@ impl<R> Decode<'_> for WireSet<R> {
             return Err(ErrorKind::NegativeLength(raw).into());
         };
         if raw == 0 {
-            return Ok(WireSet::Tag(TagKey::from_location(
+            return Ok(WireSet::Tag(TagKeyBuf::from_location(
                 ResourceLocation::decode(r)?,
             )));
         }

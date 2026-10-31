@@ -1,6 +1,6 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 use crate::{ClickEvent, Color, HoverEvent, TextMap, TextSerde, TextTypes};
@@ -63,7 +63,7 @@ pub struct Style<I: TextTypes = ()> {
     pub insertion: Option<Cow<'static, str>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub font: Option<ResourceLocation>,
+    pub font: Option<ResourceLocationBuf>,
 }
 
 impl<I: TextTypes> Default for Style<I> {

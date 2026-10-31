@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::HashMap;
 use std::io::Cursor;
 
@@ -8,7 +9,6 @@ use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_structure::piece::PieceContext;
 use mcrs_minecraft_worldgen_testing::dump_string;
 use mcrs_voxel::ColumnPos;
@@ -110,7 +110,7 @@ mod exhaustive {
         let mut compared = 0;
         let mut pieces = 0;
         for case in &dump {
-            let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
+            let id = frozen.structure_ids[&ResourceLocationBuf::read(&case.structure).unwrap()];
             let label = format!(
                 "seed {} {} {} at {:?}",
                 case.seed, case.dimension, case.structure, case.chunk

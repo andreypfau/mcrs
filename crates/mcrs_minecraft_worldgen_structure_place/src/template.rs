@@ -71,13 +71,13 @@ impl OceanRuinBlocks {
                         delegate: Box::new(StructureProcessor::Rule {
                             rules: vec![ProcessorRule {
                                 input_predicate: RuleTest::BlockMatch {
-                                    block: candidate.location().to_arc(),
+                                    block: candidate.location().to_buf(),
                                 },
                                 location_predicate: RuleTest::AlwaysTrue,
                                 position_predicate: None,
                                 output_state: replacement.into(),
                                 block_entity_modifier: Some(RuleBlockEntityModifier::AppendLoot {
-                                    loot_table: loot.location().to_arc(),
+                                    loot_table: loot.location().to_buf(),
                                 }),
                             }],
                         }),

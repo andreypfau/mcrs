@@ -8,7 +8,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -117,7 +117,7 @@ impl DebugFunction {
     }
 }
 
-pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange>;
+pub type SpawnTargetPoint = BTreeMap<ResourceLocationBuf, ValueRange>;
 
 /// `worldgen/noise_settings/*.json` in full.
 ///
@@ -135,7 +135,7 @@ pub struct NoiseGeneratorSettings {
     pub default_block: Option<BlockState>,
     pub default_fluid: BlockState,
     pub noise_router: RouterFunctions,
-    pub material_rule: ResourceLocation,
+    pub material_rule: ResourceLocationBuf,
     pub spawn_target: Vec<SpawnTargetPoint>,
     pub sea_level: i32,
     pub disable_mob_generation: bool,
@@ -158,7 +158,7 @@ impl NoiseGeneratorSettings {
         noise: NoiseSettings,
         default_fluid: BlockState,
         noise_router: RouterFunctions,
-        material_rule: ResourceLocation,
+        material_rule: ResourceLocationBuf,
         sea_level: i32,
     ) -> Self {
         NoiseGeneratorSettings {

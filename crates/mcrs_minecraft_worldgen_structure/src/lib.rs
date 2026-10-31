@@ -26,7 +26,7 @@ use mcrs_minecraft_core::codec::{
 };
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registries::{KeySet, dispatch};
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation};
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -41,7 +41,7 @@ pub struct StructureSet {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StructureSelectionEntry {
-    pub structure: ResourceLocation,
+    pub structure: ResourceLocationBuf,
     pub weight: PositiveInt,
 }
 
@@ -86,7 +86,7 @@ pub struct Spreading {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExclusionZone {
-    pub other_set: ResourceLocation,
+    pub other_set: ResourceLocationBuf,
     pub chunk_count: Bounded<1, 16>,
 }
 
@@ -309,9 +309,9 @@ pub enum PortalPlacement {
 // Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JigsawConfig {
-    pub start_pool: ResourceLocation,
+    pub start_pool: ResourceLocationBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub start_jigsaw_name: Option<ResourceLocation>,
+    pub start_jigsaw_name: Option<ResourceLocationBuf>,
     pub size: Bounded<0, 20>,
     pub start_height: HeightProvider,
     pub use_expansion_hack: bool,
@@ -406,13 +406,13 @@ fn is_unit_1_0(value: &UnitFloat) -> bool {
 #[serde(deny_unknown_fields)]
 pub enum PoolAlias {
     Direct {
-        alias: ResourceLocation,
-        target: ResourceLocation,
+        alias: ResourceLocationBuf,
+        target: ResourceLocationBuf,
     },
     Random {
-        alias: ResourceLocation,
+        alias: ResourceLocationBuf,
         #[serde(deserialize_with = "non_empty")]
-        targets: Vec<Weighted<ResourceLocation>>,
+        targets: Vec<Weighted<ResourceLocationBuf>>,
     },
     RandomGroup {
         #[serde(deserialize_with = "non_empty")]

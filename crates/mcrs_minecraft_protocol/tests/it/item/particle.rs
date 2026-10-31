@@ -1,5 +1,6 @@
 use crate::item::harness::WireCodec;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf, TagKeyBuf};
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -16,7 +17,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, Wire};
-use mcrs_minecraft_resource::ResourceKey;
 use mcrs_voxel::BlockPos;
 
 use crate::item::harness::{block_lookup, hex, named, read_json};
@@ -120,8 +120,8 @@ fn golden_values_decode_to_the_expected_fields() {
         check("block"),
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
-                block: ResourceKey::from_location(
-                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_arc()
+                block: ResourceKeyBuf::from_location(
+                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_buf()
                 ),
                 properties: BTreeMap::from([
                     ("facing".to_string(), "north".to_string()),
@@ -134,8 +134,8 @@ fn golden_values_decode_to_the_expected_fields() {
         check("block_furnace_default"),
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
-                block: ResourceKey::from_location(
-                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_arc()
+                block: ResourceKeyBuf::from_location(
+                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_buf()
                 ),
                 properties: BTreeMap::new(),
             },
@@ -326,7 +326,6 @@ fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
     use mcrs_minecraft_item::kind::ItemComponentValue;
     use mcrs_minecraft_item::stack::ItemStackValue;
     use mcrs_minecraft_registries::{WireId, WireSet};
-    use mcrs_minecraft_resource::{ResourceLocation, TagKey};
 
     let item = |id: u16, components: ComponentPatch<Wire>| {
         ParticleOptions::<Wire>::Item(ItemParticle {
@@ -340,8 +339,8 @@ fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
     let mut unknown_tag = ComponentPatch::<Wire>::default();
     unknown_tag.set_value(ItemComponentValue::CanPlaceOn(CanPlaceOn(
         AdventureModePredicate(CompactList(vec![BlockPredicate {
-            blocks: Some(WireSet::Tag(TagKey::from_location(
-                ResourceLocation::read("mcrs:nope").unwrap(),
+            blocks: Some(WireSet::Tag(TagKeyBuf::from_location(
+                ResourceLocationBuf::read("mcrs:nope").unwrap(),
             ))),
             ..BlockPredicate::default()
         }])),

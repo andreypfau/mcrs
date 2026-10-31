@@ -14,7 +14,7 @@ use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
@@ -810,7 +810,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_registries::{Named, Resolve, Resolver};
-    use mcrs_minecraft_resource::ResourceLocation;
+
     use mcrs_minecraft_world::registry_load::test_registries;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
@@ -835,7 +835,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     .expect("the loader holds desert");
     let desert = Resolver::id::<Biome>(
         &registries,
-        &ResourceKey::from_location(ResourceLocation::read("minecraft:desert").unwrap()),
+        &ResourceKeyBuf::from_location(ResourceLocationBuf::read("minecraft:desert").unwrap()),
     )
     .expect("the loader holds desert")
     .narrow::<u8>()

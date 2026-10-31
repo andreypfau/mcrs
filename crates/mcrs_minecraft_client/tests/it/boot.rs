@@ -17,7 +17,7 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::{
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Registries};
-use mcrs_minecraft_resource::{Id, RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, RegistryValue, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_world::registry_load::{sent_by, test_packs, test_registries};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -116,7 +116,7 @@ pub fn received_id<V: RegistryValue + 'static>(app: &App, name: &str) -> Id<V::R
         .registry::<V>()
         .expect("the registry is received");
     registry
-        .by_name(&ResourceLocation::read(name).unwrap())
+        .by_name(&ResourceLocationBuf::read(name).unwrap())
         .unwrap_or_else(|| panic!("{name} is not received"))
 }
 
@@ -126,7 +126,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
-            let key = ResourceLocation::read(registry).unwrap();
+            let key = ResourceLocationBuf::read(registry).unwrap();
             let names = set
                 .names_of(&key)
                 .map(|names| names.iter().map(ToString::to_string).collect())
@@ -195,7 +195,7 @@ fn a_client_ends_configuration_with_the_registries_the_server_holds() {
         .expect("the dimension type registry is received");
     assert!(!types.is_empty());
     for (id, name, _) in types.iter() {
-        let dimension = ResourceKey::<Dimension>::from_location(name.clone());
+        let dimension = ResourceKeyBuf::<Dimension>::from_location(name.clone());
         let id = Id::checked(id.number(), types.len()).unwrap();
         assert!(
             EnvironmentAttributes::of_dimension(registries, &dimension, id).is_ok(),

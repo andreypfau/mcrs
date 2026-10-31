@@ -1,6 +1,6 @@
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::fmt;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
@@ -10,7 +10,6 @@ use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use mcrs_minecraft_core::direction::Direction;
 use mcrs_minecraft_registries::TagEntry;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
@@ -35,7 +34,7 @@ pub struct BlockDefinition {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Description {
-    pub identifier: ResourceLocation<Arc<str>>,
+    pub identifier: ResourceLocationBuf,
     #[serde(default)]
     pub properties: BlockProperties,
     pub protocol_id: u16,
@@ -234,7 +233,7 @@ pub struct ItemSpeed {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum ItemSelector {
-    Item(ResourceLocation<Arc<str>>),
+    Item(ResourceLocationBuf),
     Tags { tags: String },
 }
 
@@ -601,14 +600,14 @@ components! {
     "minecraft:flammable" => flammable: Flammable,
     "minecraft:block_entity" => block_entity: BlockEntityDef,
     "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
-    "minecraft:loot" => loot: ResourceLocation<Arc<str>>,
+    "minecraft:loot" => loot: ResourceLocationBuf,
     "minecraft:placement_filter" => placement_filter: PlacementFilter,
     "mcrs:experience_drop" => experience_drop: IntProvider,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
     "mcrs:occlusion_shape" => occlusion_shape: BoxList,
     "mcrs:emissive_rendering" => emissive_rendering: bool,
-    "mcrs:block_sound_set" => block_sound_set: ResourceKey<BlockSoundSet>,
+    "mcrs:block_sound_set" => block_sound_set: ResourceKeyBuf<BlockSoundSet>,
 }
 
 /// The components a state may leave unstated. Each is a component whose

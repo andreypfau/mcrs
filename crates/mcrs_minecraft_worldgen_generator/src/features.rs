@@ -1,7 +1,7 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_registries::{Namer, Registries};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
@@ -22,11 +22,11 @@ const END_BIOMES: [ResourceKey<mcrs_minecraft_biome::Biome, &'static str>; 5] = 
 pub struct FeatureTables {
     pub features: FeatureSteps,
     /// The biome source's own order, which decides the sort.
-    pub biome_order: Vec<ResourceLocation>,
+    pub biome_order: Vec<ResourceLocationBuf>,
     /// What each biome's climate says about freezing. Only the parsed biome
     /// carries it, and the registry the feature program builds against holds
     /// names alone, so it is read here and carried rather than resolved there.
-    pub climate: BTreeMap<ResourceLocation, BiomeClimate>,
+    pub climate: BTreeMap<ResourceLocationBuf, BiomeClimate>,
 }
 
 /// The biomes a source can answer with, in the source's own order and without
@@ -35,13 +35,13 @@ pub fn possible_biomes(
     source: &BiomeSource,
     registries: &Registries,
     lists: &ParameterLists,
-) -> Vec<ResourceLocation> {
+) -> Vec<ResourceLocationBuf> {
     let named = |id: &mcrs_minecraft_resource::Id<mcrs_minecraft_biome::Biome>| {
         Namer::name(registries, *id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
             .clone()
     };
-    let listed: Vec<ResourceLocation> = match source {
+    let listed: Vec<ResourceLocationBuf> = match source {
         BiomeSource::MultiNoise(MultiNoiseBiomeSource::Biomes(entries)) => {
             entries.iter().map(|entry| named(&entry.biome)).collect()
         }
@@ -53,7 +53,7 @@ pub fn possible_biomes(
         }
         BiomeSource::TheEnd => END_BIOMES
             .iter()
-            .map(|biome| biome.location().to_arc())
+            .map(|biome| biome.location().to_buf())
             .collect(),
         BiomeSource::Fixed { biome } => vec![named(biome)],
         BiomeSource::Beta { land_biomes, .. } => land_biomes.iter().map(named).collect(),
@@ -68,10 +68,10 @@ pub fn possible_biomes(
 
 fn preset_biomes(
     list: &mcrs_minecraft_biome::climate::ParameterList<&'static str>,
-) -> Vec<ResourceLocation> {
+) -> Vec<ResourceLocationBuf> {
     list.values()
         .iter()
-        .filter_map(|(_, biome)| ResourceLocation::read(biome).ok())
+        .filter_map(|(_, biome)| ResourceLocationBuf::read(biome).ok())
         .collect()
 }
 

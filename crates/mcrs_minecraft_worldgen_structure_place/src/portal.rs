@@ -129,11 +129,11 @@ fn processors(
     let replace = |source: Block, probability: Option<f32>, target: Block| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
-                block: source.location().to_arc(),
+                block: source.location().to_buf(),
                 probability,
             },
             None => RuleTest::BlockMatch {
-                block: source.location().to_arc(),
+                block: source.location().to_buf(),
             },
         },
         location_predicate: RuleTest::AlwaysTrue,

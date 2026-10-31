@@ -1,8 +1,7 @@
 //! Provides the [`IntoText`] trait and implementations.
 
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
-
-use mcrs_minecraft_resource::ResourceLocation;
 
 use super::{ClickEvent, Color, HoverEvent, Text, TextTypes};
 
@@ -30,7 +29,7 @@ pub trait IntoText<I: TextTypes = ()>: Sized {
     }
 
     /// Sets the font of the text.
-    fn font(self, font: impl Into<ResourceLocation>) -> Text<I> {
+    fn font(self, font: impl Into<ResourceLocationBuf>) -> Text<I> {
         let mut value = self.into_text();
         value.style.font = Some(font.into());
         value

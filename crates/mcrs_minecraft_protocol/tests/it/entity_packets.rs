@@ -15,8 +15,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceLocation};
 use uuid::Uuid;
 
 fn id<R>(number: u16) -> Id<R> {

@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::JigsawConfig;
@@ -8,7 +9,6 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_voxel::BlockPos;
 
@@ -60,7 +60,7 @@ impl PriorityQueue {
 struct Assembly<'a> {
     frozen: &'a FrozenStructures,
     config: &'a JigsawConfig,
-    aliases: &'a BTreeMap<ResourceLocation, PoolId>,
+    aliases: &'a BTreeMap<ResourceLocationBuf, PoolId>,
     world: &'a mut dyn SiteWorld,
     rng: LegacyRandom,
     pieces: Vec<JigsawPiece>,
@@ -141,7 +141,7 @@ fn can_attach(source: &PlacedJigsaw<'_>, target: &PlacedJigsaw<'_>) -> bool {
 }
 
 impl Assembly<'_> {
-    fn pool(&self, name: &ResourceLocation) -> Option<PoolId> {
+    fn pool(&self, name: &ResourceLocationBuf) -> Option<PoolId> {
         self.aliases
             .get(name)
             .or_else(|| self.frozen.pool_ids.get(name))

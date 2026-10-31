@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::keys::{ContextFloatProviderType, ContextIntProviderType, ContextKeySet};
 
@@ -8,7 +8,7 @@ use crate::keys::{ContextFloatProviderType, ContextIntProviderType, ContextKeySe
 #[derive(Debug, Clone, PartialEq)]
 pub struct LootTable {
     pub context: ContextKeySet,
-    pub random_sequence: Option<ResourceLocation>,
+    pub random_sequence: Option<ResourceLocationBuf>,
 }
 
 /// A registered context int provider as an item names it: the type of the

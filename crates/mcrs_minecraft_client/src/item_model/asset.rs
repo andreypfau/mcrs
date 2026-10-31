@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -10,8 +11,6 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -63,7 +62,7 @@ pub enum UnbakedItemModel {
     Empty,
     #[serde(rename = "minecraft:model", alias = "model")]
     Model {
-        model: ResourceLocation,
+        model: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         transformation: Option<Transformation>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -107,7 +106,7 @@ pub enum UnbakedItemModel {
     },
     #[serde(rename = "minecraft:special", alias = "special")]
     Special {
-        base: ResourceLocation,
+        base: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         transformation: Option<Transformation>,
         model: SpecialModel,
@@ -436,7 +435,7 @@ impl<'de, S: DeserializeSeed<'de> + Clone> Visitor<'de> for CompactSeed<S> {
 pub enum SelectSwitch {
     #[serde(rename = "minecraft:trim_material", alias = "trim_material")]
     TrimMaterial {
-        cases: Vec<Case<ResourceKey<TrimMaterial>>>,
+        cases: Vec<Case<ResourceKeyBuf<TrimMaterial>>>,
     },
     #[serde(rename = "minecraft:display_context", alias = "display_context")]
     DisplayContext { cases: Vec<Case<DisplayContext>> },
@@ -469,11 +468,11 @@ pub enum SelectSwitch {
         alias = "context_entity_type"
     )]
     ContextEntityType {
-        cases: Vec<Case<ResourceKey<EntityType>>>,
+        cases: Vec<Case<ResourceKeyBuf<EntityType>>>,
     },
     #[serde(rename = "minecraft:context_dimension", alias = "context_dimension")]
     ContextDimension {
-        cases: Vec<Case<ResourceKey<Dimension>>>,
+        cases: Vec<Case<ResourceKeyBuf<Dimension>>>,
     },
     #[serde(rename = "minecraft:component", alias = "component")]
     Component(ComponentSwitch),
@@ -728,7 +727,7 @@ pub enum SpecialModel {
     Conduit,
     #[serde(rename = "minecraft:chest", alias = "chest")]
     Chest {
-        texture: ResourceLocation,
+        texture: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "is_default")]
         openness: f32,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -739,14 +738,14 @@ pub enum SpecialModel {
         alias = "copper_golem_statue"
     )]
     CopperGolemStatue {
-        texture: ResourceLocation,
+        texture: ResourceLocationBuf,
         pose: StatuePose,
     },
     #[serde(rename = "minecraft:head", alias = "head")]
     Head {
         kind: HeadKind,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        texture: Option<ResourceLocation>,
+        texture: Option<ResourceLocationBuf>,
         #[serde(default, skip_serializing_if = "is_default")]
         animation: f32,
     },
@@ -754,7 +753,7 @@ pub enum SpecialModel {
     PlayerHead,
     #[serde(rename = "minecraft:shulker_box", alias = "shulker_box")]
     ShulkerBox {
-        texture: ResourceLocation,
+        texture: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "is_default")]
         openness: f32,
     },

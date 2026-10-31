@@ -8,8 +8,7 @@ use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::read_world_gen_settings;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
@@ -62,7 +61,7 @@ fn dimension_list(
     given: Option<&PluginDimensions>,
     preset: &str,
     seed: &mut WorldSeed,
-) -> Result<(String, Vec<(ResourceKey<Dimension>, DimensionEntry)>), String> {
+) -> Result<(String, Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>), String> {
     let saved = match save {
         Some(save) => {
             let settings =
@@ -80,7 +79,7 @@ fn dimension_list(
         let named = registries
             .registry::<WorldPreset>()
             .and_then(|presets| {
-                presets.get(presets.by_name(&ResourceLocation::read(preset).ok()?)?)
+                presets.get(presets.by_name(&ResourceLocationBuf::read(preset).ok()?)?)
             })
             .ok_or_else(|| {
                 format!(

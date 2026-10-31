@@ -12,8 +12,7 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
@@ -40,7 +39,7 @@ pub fn insert_registries(app: &mut App) {
 pub fn dimension_type(name: &str) -> Id<DimensionType> {
     Resolver::id(
         test_registries(),
-        &ResourceKey::from_location(ResourceLocation::read(name).unwrap()),
+        &ResourceKeyBuf::from_location(ResourceLocationBuf::read(name).unwrap()),
     )
     .unwrap_or_else(|error| panic!("the dimension type {name} is loaded: {error}"))
 }
@@ -50,7 +49,7 @@ pub fn preset(name: &str) -> Dimensions {
         .registry::<WorldPreset>()
         .expect("the presets are loaded");
     presets
-        .by_name(&ResourceLocation::read(name).unwrap())
+        .by_name(&ResourceLocationBuf::read(name).unwrap())
         .and_then(|id| presets.get(id))
         .unwrap_or_else(|| panic!("the preset {name} is loaded"))
         .dimensions
@@ -60,7 +59,7 @@ pub fn preset(name: &str) -> Dimensions {
 pub fn baked(
     dimensions: &Dimensions,
     registries: &Registries,
-) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
+) -> Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)> {
     bake(dimensions, registries).expect("a list with an overworld bakes")
 }
 
@@ -70,7 +69,7 @@ pub fn dimension_list_with_extra() -> DimensionList {
 
     let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL.as_str());
     dimensions.insert(
-        ResourceKey::from_location("test:extra".parse().unwrap()),
+        ResourceKeyBuf::from_location("test:extra".parse().unwrap()),
         DimensionEntry {
             dimension_type: dimension_type(
                 mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),

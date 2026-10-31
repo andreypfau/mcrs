@@ -1,13 +1,13 @@
 //! What a rung buys: a feature reads the ground every other column already
 //! finished shaping, rather than the ground as it stood before any of them ran.
 
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -53,9 +53,9 @@ fn tables() -> FeatureTables {
 
     let entry = |id: &str, placement: &str| {
         Arc::new(CompiledPlacedFeature {
-            id: Some(ResourceLocation::read(id).unwrap()),
+            id: Some(ResourceLocationBuf::read(id).unwrap()),
             placed: PlacedFeature {
-                feature: Holder::Reference(ResourceLocation::read(id).unwrap()),
+                feature: Holder::Reference(ResourceLocationBuf::read(id).unwrap()),
                 placement: serde_json::from_str::<Vec<PlacementModifier>>(placement)
                     .expect("the placement parses"),
             },
@@ -93,8 +93,8 @@ fn tables() -> FeatureTables {
             token,
             per_biome: vec![carried],
         },
-        biome_order: vec![ResourceLocation::read(BIOME).unwrap()],
-        climate: BTreeMap::from([(ResourceLocation::read(BIOME).unwrap(), TEMPERATE)]),
+        biome_order: vec![ResourceLocationBuf::read(BIOME).unwrap()],
+        climate: BTreeMap::from([(ResourceLocationBuf::read(BIOME).unwrap(), TEMPERATE)]),
     }
 }
 

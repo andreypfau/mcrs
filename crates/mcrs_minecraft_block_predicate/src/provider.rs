@@ -6,8 +6,7 @@ use std::str::FromStr;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
-use mcrs_minecraft_resource::RegistryValue;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{RegistryValue, ResourceKey, ResourceLocationBuf};
 use mcrs_minecraft_value_provider::{IntProvider, Weighted};
 use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};
@@ -79,7 +78,7 @@ fn variety_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<IntRange,
 /// registry entry, or the entry itself written out in place.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Holder<T> {
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Inline(Box<T>),
 }
 
@@ -209,6 +208,6 @@ pub struct StateRule<M: Refs = Resolved> {
     pub then: BlockStateProvider<M>,
 }
 
-fn resource_location<E: serde::de::Error>(id: &str) -> Result<ResourceLocation, E> {
-    ResourceLocation::from_str(id).map_err(|_| E::custom(format!("Not a valid id: {id}")))
+fn resource_location<E: serde::de::Error>(id: &str) -> Result<ResourceLocationBuf, E> {
+    ResourceLocationBuf::from_str(id).map_err(|_| E::custom(format!("Not a valid id: {id}")))
 }

@@ -5,7 +5,7 @@ use crate::density::{
 };
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::proto::ValueRange;
 use mcrs_minecraft_worldgen_density::proto::build::Df;
 use mcrs_minecraft_worldgen_density::router::{
@@ -196,7 +196,7 @@ fn floating_islands() -> NoiseGeneratorSettings {
     )
 }
 
-pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+pub fn noise_settings() -> BTreeMap<ResourceLocationBuf, NoiseGeneratorSettings> {
     BTreeMap::from(
         [
             (

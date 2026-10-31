@@ -10,8 +10,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceLocation, TagKey, rl};
+use mcrs_minecraft_resource::{Id, ResourceLocationBuf, TagKey, rl};
 use mcrs_voxel::BlockStateId;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
@@ -25,7 +24,7 @@ pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct ItemLightFile(pub BTreeMap<ResourceLocation<Arc<str>>, BlockStateRef>);
+pub struct ItemLightFile(pub BTreeMap<ResourceLocationBuf, BlockStateRef>);
 
 impl<'de> Deserialize<'de> for ItemLightFile {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -44,9 +43,7 @@ impl<'de> de::Visitor<'de> for ItemLightFileVisitor {
 
     fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         let mut items = BTreeMap::new();
-        while let Some((item, state)) =
-            map.next_entry::<ResourceLocation<Arc<str>>, BlockStateRef>()?
-        {
+        while let Some((item, state)) = map.next_entry::<ResourceLocationBuf, BlockStateRef>()? {
             match items.entry(item) {
                 Entry::Vacant(slot) => {
                     slot.insert(state);
@@ -240,7 +237,7 @@ fn resolve(
     target: &BlockStateRef,
     blocks: &BlockDefinitions,
     path: &str,
-    item: &ResourceLocation<Arc<str>>,
+    item: &ResourceLocationBuf,
 ) -> Result<BlockStateId, ItemLightError> {
     let error =
         |make: fn(String, String) -> ItemLightError| make(path.to_owned(), item.to_string());

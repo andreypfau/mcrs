@@ -26,8 +26,7 @@ use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_voxel::BlockStateId;
@@ -115,7 +114,7 @@ pub struct BlockStateData {
 
 #[derive(Debug)]
 pub struct BlockEntry {
-    pub identifier: ResourceLocation<Arc<str>>,
+    pub identifier: ResourceLocationBuf,
     pub base_state_id: BlockStateId,
     pub default_state_id: BlockStateId,
     pub state_count: u16,
@@ -220,12 +219,12 @@ impl BlockEntry {
 pub struct BlockDefinitions {
     states: Vec<BlockStateData>,
     shapes: Vec<Box<[Aabb]>>,
-    loot: Vec<ResourceLocation<Arc<str>>>,
+    loot: Vec<ResourceLocationBuf>,
     experience: Vec<IntProvider>,
-    sound_sets: Vec<ResourceKey<BlockSoundSet>>,
+    sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
     blocks: Vec<BlockEntry>,
     owners: Vec<Id<Block>>,
-    ids: HashMap<ResourceLocation<Arc<str>>, Id<Block>>,
+    ids: HashMap<ResourceLocationBuf, Id<Block>>,
 }
 
 const _: () = assert!(size_of::<Id<Block>>() == 2);
@@ -248,7 +247,7 @@ impl BlockDefinitions {
     }
 
     #[inline]
-    pub fn loot_table(&self, id: LootId) -> Option<&ResourceLocation<Arc<str>>> {
+    pub fn loot_table(&self, id: LootId) -> Option<&ResourceLocationBuf> {
         self.loot.get(usize::from(id.0))
     }
 
@@ -261,7 +260,7 @@ impl BlockDefinitions {
         self.experience.get(usize::from(id.0))
     }
 
-    pub fn sound_set(&self, id: SoundSetId) -> Option<&ResourceKey<BlockSoundSet>> {
+    pub fn sound_set(&self, id: SoundSetId) -> Option<&ResourceKeyBuf<BlockSoundSet>> {
         self.sound_sets.get(usize::from(id.0))
     }
 
@@ -339,7 +338,7 @@ impl BlockDefinitions {
     /// block state codec ignores it.
     pub fn state_id_of(
         &self,
-        block: &ResourceLocation,
+        block: &ResourceLocationBuf,
         properties: &[(&str, &str)],
     ) -> Option<u16> {
         let entry = self.block(block.as_str())?;
@@ -353,7 +352,7 @@ impl BlockDefinitions {
 
     /// The block of state `id` and every property, or none when `id` is the block's default
     /// state, since that is the state a bare block id names.
-    pub fn properties_of(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+    pub fn properties_of(&self, id: u16) -> Option<(ResourceLocationBuf, Vec<(String, String)>)> {
         let id = BlockStateId::checked(id, self.states.len())?;
         let entry = self.owner(id)?;
         let properties = if id == entry.default_state_id {
@@ -383,8 +382,8 @@ impl BlockSoundSets {
     /// Fails with the first sound set `id_of` does not know.
     pub fn resolve(
         blocks: &BlockDefinitions,
-        id_of: impl Fn(&ResourceKey<BlockSoundSet>) -> Option<Id<BlockSoundSet>>,
-    ) -> Result<Self, ResourceKey<BlockSoundSet>> {
+        id_of: impl Fn(&ResourceKeyBuf<BlockSoundSet>) -> Option<Id<BlockSoundSet>>,
+    ) -> Result<Self, ResourceKeyBuf<BlockSoundSet>> {
         blocks
             .sound_sets
             .iter()
@@ -558,11 +557,11 @@ struct Builder {
     owners: Vec<Option<Id<Block>>>,
     shapes: Vec<Box<[Aabb]>>,
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
-    loot: Vec<ResourceLocation<Arc<str>>>,
+    loot: Vec<ResourceLocationBuf>,
     experience: Vec<IntProvider>,
-    sound_sets: Vec<ResourceKey<BlockSoundSet>>,
-    names: Vec<ResourceLocation<Arc<str>>>,
-    ids: HashMap<ResourceLocation<Arc<str>>, Id<Block>>,
+    sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
+    names: Vec<ResourceLocationBuf>,
+    ids: HashMap<ResourceLocationBuf, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
 }
@@ -573,7 +572,7 @@ impl Builder {
         let mut read = Vec::with_capacity(names.len());
         for (number, name) in (0..=u16::MAX).zip(names) {
             let name =
-                ResourceLocation::read(name.as_ref()).map_err(|_| LoadError::InvalidName {
+                ResourceLocationBuf::read(name.as_ref()).map_err(|_| LoadError::InvalidName {
                     name: name.as_ref().to_owned(),
                 })?;
             if let Some(id) = Id::checked(number, names.len()) {
@@ -611,7 +610,7 @@ impl Builder {
         id
     }
 
-    fn intern_loot(&mut self, table: &ResourceLocation<Arc<str>>) -> LootId {
+    fn intern_loot(&mut self, table: &ResourceLocationBuf) -> LootId {
         LootId(intern(&mut self.loot, table))
     }
 
@@ -1006,6 +1005,7 @@ fn to_engine_aabb(value: &ModelBox) -> Aabb {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_resource::ResourceKey;
     use mcrs_minecraft_resource::rl;
 
     const COMPONENTS: &str = r##"{
@@ -1315,7 +1315,7 @@ mod tests {
             "minecraft:decorated_pot_cracked",
         ];
         let id_of = |names: &'static [&'static str]| {
-            move |key: &ResourceKey<BlockSoundSet>| {
+            move |key: &ResourceKeyBuf<BlockSoundSet>| {
                 let at = names.iter().position(|name| *name == key.as_str())?;
                 Id::checked(u16::try_from(at).ok()?, names.len())
             }
@@ -1347,8 +1347,8 @@ mod tests {
         )
         .replace(r#""default_state_id": 0"#, r#""default_state_id": 1"#);
         let definitions = build(&[source, file("minecraft:stone", 4, "", "")]).unwrap();
-        let furnace = rl!("minecraft:furnace").to_arc();
-        let stone = rl!("minecraft:stone").to_arc();
+        let furnace = rl!("minecraft:furnace").to_buf();
+        let stone = rl!("minecraft:stone").to_buf();
 
         assert_eq!(definitions.state_id_of(&furnace, &[]), Some(1));
         assert_eq!(
@@ -1365,7 +1365,7 @@ mod tests {
         );
         assert_eq!(definitions.state_id_of(&stone, &[("lit", "true")]), Some(4));
         assert_eq!(
-            definitions.state_id_of(&rl!("minecraft:nope").to_arc(), &[]),
+            definitions.state_id_of(&rl!("minecraft:nope").to_buf(), &[]),
             None
         );
 

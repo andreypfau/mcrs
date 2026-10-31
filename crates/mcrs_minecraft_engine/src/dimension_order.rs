@@ -1,11 +1,11 @@
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_END, THE_NETHER};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 
 /// The rank of a dimension in the dimension order: the three vanilla dimensions first, then
 /// the others by identifier.
-fn dimension_rank(key: &ResourceKey<Dimension>) -> (u8, &str) {
+fn dimension_rank(key: &ResourceKeyBuf<Dimension>) -> (u8, &str) {
     let rank = [OVERWORLD, THE_NETHER, THE_END]
         .iter()
         .position(|vanilla| vanilla.as_str() == key.as_str())
@@ -25,7 +25,7 @@ pub struct DimensionWorld<'w, T> {
 pub fn in_dimension_order<'w, T>(
     worlds: impl Iterator<Item = &'w mut World>,
     mut read: impl FnMut(&mut World) -> Option<T>,
-    key: impl Fn(&T) -> &ResourceKey<Dimension>,
+    key: impl Fn(&T) -> &ResourceKeyBuf<Dimension>,
     found: &mut Vec<DimensionWorld<'w, T>>,
 ) {
     found.clear();

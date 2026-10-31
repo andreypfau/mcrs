@@ -6,7 +6,7 @@ use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryAdditions};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -91,7 +91,7 @@ fn request_templates(
 async fn with_named_templates(
     reader: &dyn ErasedAssetReader,
     listed: Vec<String>,
-    named: &BTreeSet<ResourceLocation>,
+    named: &BTreeSet<ResourceLocationBuf>,
 ) -> Vec<String> {
     let mut files: BTreeSet<String> = listed.into_iter().collect();
     for id in named {
@@ -170,7 +170,7 @@ mod tests {
             "example:twice",
             "minecraft:missing",
         ]
-        .map(|id| ResourceLocation::read(id).unwrap())
+        .map(|id| ResourceLocationBuf::read(id).unwrap())
         .into();
 
         let files = bevy_tasks::block_on(with_named_templates(
@@ -293,7 +293,8 @@ mod tests {
         let mut loaded = LoadedRegistryAssets::default();
         request_templates(&server, &registries, &mut loaded);
 
-        let requested = |id: &str| template_handle(&server, &ResourceLocation::read(id).unwrap());
+        let requested =
+            |id: &str| template_handle(&server, &ResourceLocationBuf::read(id).unwrap());
         assert!(requested("example:house").is_some());
         assert!(requested("example:missing").is_none());
     }

@@ -1,16 +1,16 @@
 use crate::ResourceLocation;
-use alloc::sync::Arc;
+use alloc::boxed::Box;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 
 /// A typed reference to a tag in a specific registry.
 ///
 /// Generic over storage `S`:
-/// - `TagKey<R>` = `TagKey<R, Arc<str>>` — heap-allocated, for runtime-parsed tag references.
+/// - [`TagKeyBuf<R>`] — owned, for a tag reference read at runtime.
 /// - `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible; every constant spells it.
 ///
 /// Cross-variant equality and hashing compare by string content (like `ResourceLocation`).
-pub struct TagKey<R, S = Arc<str>> {
+pub struct TagKey<R, S> {
     rl: ResourceLocation<S>,
     _marker: PhantomData<fn() -> R>,
 }
@@ -25,6 +25,9 @@ impl<R, S: Clone> Clone for TagKey<R, S> {
         }
     }
 }
+
+/// The owned form of a tag key.
+pub type TagKeyBuf<R> = TagKey<R, Box<str>>;
 
 impl<R> Copy for TagKey<R, &'static str> {}
 
@@ -61,11 +64,11 @@ impl<R> TagKey<R, &'static str> {
     }
 }
 
-// ── Arc variant (runtime-parsed) ──
+// ── Owned variant (runtime-parsed) ──
 
-impl<R> TagKey<R, Arc<str>> {
-    /// Create a tag key from a runtime-parsed `ResourceLocation<Arc<str>>`.
-    pub fn from_location(rl: ResourceLocation<Arc<str>>) -> Self {
+impl<R> TagKey<R, Box<str>> {
+    /// Create a tag key from a location read at runtime.
+    pub fn from_location(rl: ResourceLocation<Box<str>>) -> Self {
         TagKey {
             rl,
             _marker: PhantomData,
@@ -73,7 +76,7 @@ impl<R> TagKey<R, Arc<str>> {
     }
 }
 
-impl<R> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
+impl<R> From<TagKey<R, &'static str>> for TagKey<R, Box<str>> {
     fn from(key: TagKey<R, &'static str>) -> Self {
         TagKey::from_location(key.rl.into())
     }

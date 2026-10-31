@@ -2,7 +2,7 @@ use crate::density::{CELL_4, CELL_8};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
     NoiseGeneratorSettings, NoiseSettings, RouterFunctions,
@@ -87,7 +87,7 @@ pub fn define(f: &mut Functions) {
 
 /// The octaves of the beta noises. The sampler seeds them its own way from the
 /// ids alone, so these entries are only what the loader finds under the ids.
-pub fn noises() -> impl Iterator<Item = (ResourceLocation, NoiseParam)> {
+pub fn noises() -> impl Iterator<Item = (ResourceLocationBuf, NoiseParam)> {
     [
         (rl!("mcrs:beta/climate_detail"), -1, 2),
         (rl!("mcrs:beta/depth"), -15, 16),
@@ -101,7 +101,7 @@ pub fn noises() -> impl Iterator<Item = (ResourceLocation, NoiseParam)> {
     })
 }
 
-pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
+pub fn noise_settings() -> (ResourceLocationBuf, NoiseGeneratorSettings) {
     let top_slide = Df::reference(TOP_SLIDE);
     let density =
         Df::old_blended_noise(0.25, 0.125, 80.0, 160.0, 8.0) * 128.0 + Df::reference(FALLOFF);
@@ -122,9 +122,9 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
             router,
             mcrs_minecraft_worldgen_surface::keys::material_rule::OVERWORLD
                 .location()
-                .to_arc(),
+                .to_buf(),
             64,
         )
     };
-    (rl!("minecraft:beta").to_arc(), settings)
+    (rl!("minecraft:beta").to_buf(), settings)
 }

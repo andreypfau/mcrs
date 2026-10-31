@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::rl;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;

@@ -3,6 +3,7 @@ use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
@@ -14,7 +15,7 @@ use std::sync::Arc;
 /// overworld's.
 #[derive(bevy_ecs::prelude::Resource, Default, Clone)]
 pub struct DimensionCarverBiomes(
-    pub std::collections::BTreeMap<mcrs_minecraft_resource::ResourceLocation, Arc<CarverBiomeTable>>,
+    pub std::collections::BTreeMap<ResourceLocationBuf, Arc<CarverBiomeTable>>,
 );
 
 pub struct ModernCarverPlugin;

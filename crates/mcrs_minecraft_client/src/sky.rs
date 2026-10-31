@@ -515,6 +515,7 @@ mod sky_regression {
     use super::*;
     use crate::sky_state::{test_clock_count, test_resolved};
     use mcrs_minecraft_registries::Named;
+    use mcrs_minecraft_resource::ResourceKeyBuf;
 
     #[derive(serde::Deserialize)]
     struct Dimension {
@@ -650,7 +651,7 @@ mod sky_regression {
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
         let overworld_clock = mcrs_minecraft_registries::Resolver::id(
             mcrs_minecraft_world::registry_load::test_registries(),
-            &mcrs_minecraft_resource::ResourceKey::from_location(
+            &ResourceKeyBuf::from_location(
                 (*mcrs_minecraft_environment::keys::world_clock::OVERWORLD.location()).into(),
             ),
         )

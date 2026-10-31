@@ -1,7 +1,7 @@
 use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_world::registry_load::sent_by;
 
 use crate::common::tag_members;
@@ -30,7 +30,7 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
 pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {
     let set = app.world().resource::<CurrentRegistries>();
     let biomes = set
-        .names_of(&ResourceLocation::read("minecraft:worldgen/biome").unwrap())
+        .names_of(&ResourceLocationBuf::read("minecraft:worldgen/biome").unwrap())
         .expect("the loaded set holds the biomes");
     let (_, sent) = sent_by(set, false)
         .registries
@@ -39,6 +39,6 @@ pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &Ap
         .expect("the biomes are synced");
 
     assert!(!biomes.is_empty());
-    let sent: Vec<&ResourceLocation> = sent.iter().map(|(name, _)| name).collect();
+    let sent: Vec<&ResourceLocationBuf> = sent.iter().map(|(name, _)| name).collect();
     assert_eq!(biomes.iter().collect::<Vec<_>>(), sent);
 }

@@ -10,8 +10,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, IdSet, Named, Ref, Resolved, Wire};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, rl};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, rl};
 
 use crate::item::harness::{
     custom_data, entry, json_of, list_set, lookup, named, one_set, read_json, registries, resolved,
@@ -280,8 +279,8 @@ fn a_hashed_patch_matches_through_hash_ops() {
     );
 }
 
-fn stone() -> ResourceKey<Item> {
-    ResourceKey::from_location(rl!("minecraft:stone").to_arc())
+fn stone() -> ResourceKeyBuf<Item> {
+    ResourceKeyBuf::from_location(rl!("minecraft:stone").to_buf())
 }
 
 #[test]
@@ -560,7 +559,7 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();
     assert_eq!(
         layers,
-        ResolvableInt::Reference(ResourceKey::from_location(rl!("minecraft:foo").to_arc()))
+        ResolvableInt::Reference(ResourceKeyBuf::from_location(rl!("minecraft:foo").to_buf()))
     );
     assert!(serde_json::from_str::<ResolvableInt>(r#""Foo""#).is_err());
 

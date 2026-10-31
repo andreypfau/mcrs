@@ -240,6 +240,7 @@ mod tests {
     use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+    use mcrs_minecraft_resource::ResourceLocationBuf;
     use mcrs_minecraft_world::registry_load::test_registries;
 
     fn tints_of(biome: &str) -> BiomeTint {
@@ -252,7 +253,7 @@ mod tests {
         let id = test_registries()
             .registry::<BiomeFile>()
             .unwrap()
-            .by_name(&mcrs_minecraft_resource::ResourceLocation::read(biome).unwrap())
+            .by_name(&ResourceLocationBuf::read(biome).unwrap())
             .unwrap_or_else(|| panic!("{biome} is a biome"));
         TINTS[id.index()]
     }

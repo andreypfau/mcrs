@@ -180,7 +180,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                     base: Box::new(item("iron_chestplate")),
                     material: Box::new(item("netherite_ingot")),
                     pattern: Ref::Inline(Arc::new(TrimPattern {
-                        asset_id: rl!("mcrs:wave").to_arc(),
+                        asset_id: rl!("mcrs:wave").to_buf(),
                         description: Text::text("Wave"),
                         decal: true,
                     })),
@@ -259,11 +259,11 @@ fn update_recipes_matches_vanilla() {
     let packet = ClientboundUpdateRecipes {
         item_sets: vec![
             (
-                rl!("minecraft:smithing_base").to_arc(),
+                rl!("minecraft:smithing_base").to_buf(),
                 wire_form(&smithing_base),
             ),
             (
-                rl!("minecraft:furnace_input").to_arc(),
+                rl!("minecraft:furnace_input").to_buf(),
                 wire_form(&Vec::<Id<Item>>::new()),
             ),
         ],

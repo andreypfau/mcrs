@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -26,7 +26,7 @@ pub type TrimPatternRef<M> = Ref<M, TrimPattern, TrimPattern<M>>;
 )]
 #[serde(deny_unknown_fields)]
 pub struct TrimMaterial<M: Refs = Resolved> {
-    pub palette_id: ResourceLocation,
+    pub palette_id: ResourceLocationBuf,
     pub description: Text<M::Nbt>,
 }
 
@@ -44,7 +44,7 @@ pub struct TrimMaterial<M: Refs = Resolved> {
 )]
 #[serde(deny_unknown_fields)]
 pub struct TrimPattern<M: Refs = Resolved> {
-    pub asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
     pub description: Text<M::Nbt>,
     #[serde(default)]
     pub decal: bool,
@@ -87,7 +87,7 @@ fn amethyst() -> TrimMaterialRef<Resolved> {
 
 fn pal() -> TrimMaterialRef<Resolved> {
     Ref::Inline(Arc::new(TrimMaterial {
-        palette_id: rl!("mcrs:pal").to_arc(),
+        palette_id: rl!("mcrs:pal").to_buf(),
         description: Text::text("Pal"),
     }))
 }
@@ -116,7 +116,7 @@ impl Sample for Trim {
             Trim {
                 material: pal(),
                 pattern: Ref::Inline(Arc::new(TrimPattern {
-                    asset_id: rl!("mcrs:pat").to_arc(),
+                    asset_id: rl!("mcrs:pat").to_buf(),
                     description: Text::translate("trim.mcrs.pat", Vec::new()),
                     decal: true,
                 })),
@@ -124,7 +124,7 @@ impl Sample for Trim {
             Trim {
                 material: amethyst(),
                 pattern: Ref::Inline(Arc::new(TrimPattern {
-                    asset_id: rl!("mcrs:pat").to_arc(),
+                    asset_id: rl!("mcrs:pat").to_buf(),
                     description: Text::text("Pat"),
                     decal: false,
                 })),

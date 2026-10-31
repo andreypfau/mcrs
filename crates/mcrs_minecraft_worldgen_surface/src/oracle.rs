@@ -7,7 +7,7 @@ use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::map;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_value_provider::HeightContext;
 use std::collections::BTreeSet;
 
@@ -28,7 +28,7 @@ pub(crate) struct MaterialOracle<'a> {
 impl<'a> MaterialOracle<'a> {
     pub(crate) fn new(
         inputs: &'a MaterialInputs<'a>,
-        root: &ResourceLocation,
+        root: &ResourceLocationBuf,
         height: HeightContext,
     ) -> Self {
         let root = inputs.rules.get(root).expect("the root rule is registered");
@@ -338,7 +338,7 @@ mod tests {
             depth: router.noise.height as i32,
             sea_level: router.sea_level,
         };
-        let oracle = MaterialOracle::new(&inputs, &rl!("minecraft:overworld").to_arc(), height);
+        let oracle = MaterialOracle::new(&inputs, &rl!("minecraft:overworld").to_buf(), height);
 
         let min_y = router.noise.min_y;
         let top = 96;

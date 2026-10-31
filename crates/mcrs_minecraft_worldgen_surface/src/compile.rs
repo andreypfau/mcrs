@@ -8,7 +8,7 @@ use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder, NoiseParam};
 use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registries::KeySet;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf, rl};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;
@@ -183,9 +183,9 @@ pub struct MaterialProgram {
     /// The interning tables the builder kept. Only the differential oracle
     /// reads them back, to name the id a rule resolved to.
     #[cfg(test)]
-    noise_ids: HashMap<(ResourceLocation, bool), NoiseId>,
+    noise_ids: HashMap<(ResourceLocationBuf, bool), NoiseId>,
     #[cfg(test)]
-    random_ids: HashMap<ResourceLocation, RandomId>,
+    random_ids: HashMap<ResourceLocationBuf, RandomId>,
 }
 
 impl MaterialProgram {
@@ -235,12 +235,12 @@ impl MaterialProgram {
     }
 
     #[cfg(test)]
-    pub(crate) fn noise_id(&self, name: &ResourceLocation, is_3d: bool) -> Option<NoiseId> {
+    pub(crate) fn noise_id(&self, name: &ResourceLocationBuf, is_3d: bool) -> Option<NoiseId> {
         self.noise_ids.get(&(name.clone(), is_3d)).copied()
     }
 
     #[cfg(test)]
-    pub(crate) fn random_id(&self, name: &ResourceLocation) -> Option<RandomId> {
+    pub(crate) fn random_id(&self, name: &ResourceLocationBuf) -> Option<RandomId> {
         self.random_ids.get(name).copied()
     }
 
@@ -311,8 +311,8 @@ pub enum SurfaceNoise {
 /// The two registries plus what this crate cannot supply itself: resolvers for block states and
 /// for the biome numbers a `biome_is` set names, which it has no registries for.
 pub struct MaterialInputs<'a> {
-    pub rules: &'a BTreeMap<ResourceLocation, MaterialRuleHolder>,
-    pub conditions: &'a BTreeMap<ResourceLocation, MaterialConditionHolder>,
+    pub rules: &'a BTreeMap<ResourceLocationBuf, MaterialRuleHolder>,
+    pub conditions: &'a BTreeMap<ResourceLocationBuf, MaterialConditionHolder>,
     pub block: &'a dyn Fn(&BlockState) -> Option<VoxelId>,
     pub biomes: &'a dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>>,
 }
@@ -321,8 +321,8 @@ pub struct MaterialInputs<'a> {
 /// the material rules read the density functions they name.
 pub fn build_router_and_material(
     settings: &NoiseGeneratorSettings,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    noises: &BTreeMap<ResourceLocation, NoiseParam>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+    noises: &BTreeMap<ResourceLocationBuf, NoiseParam>,
     seed: u64,
     blocks: RouterBlocks,
     inputs: &MaterialInputs<'_>,
@@ -395,7 +395,7 @@ fn compile_material<'a>(
         iceberg_pillar,
         iceberg_pillar_roof,
         iceberg_surface,
-    ] = SURFACE_NOISE_NAMES.map(|name| name.location().to_arc());
+    ] = SURFACE_NOISE_NAMES.map(|name| name.location().to_buf());
     let surface_noises = [
         builder.noise(&surface, false)?,
         builder.noise(&surface_secondary, false)?,
@@ -436,14 +436,14 @@ struct Builder<'a, 'c, 'r> {
     conditions: Vec<CompiledCondition>,
     interned: HashMap<Condition, CondId>,
     noises: Vec<Arc<NoiseStack<Octave>>>,
-    noise_ids: HashMap<(ResourceLocation, bool), NoiseId>,
+    noise_ids: HashMap<(ResourceLocationBuf, bool), NoiseId>,
     biome_sets: Vec<BiomeMask>,
     biome_set_ids: HashMap<BiomeMask, BiomeMaskId>,
     randoms: Vec<RandomSource>,
-    random_ids: HashMap<ResourceLocation, RandomId>,
+    random_ids: HashMap<ResourceLocationBuf, RandomId>,
     veins: Vec<OreVein>,
-    rule_stack: Vec<ResourceLocation>,
-    condition_stack: Vec<ResourceLocation>,
+    rule_stack: Vec<ResourceLocationBuf>,
+    condition_stack: Vec<ResourceLocationBuf>,
 }
 
 impl<'r> Builder<'_, '_, 'r> {
@@ -491,7 +491,7 @@ impl<'r> Builder<'_, '_, 'r> {
                     density: self.density_root(density)?,
                     richness: self.density_root(richness)?,
                     filler_gap: self.density_root(filler_gap)?,
-                    random: self.random(&rl!("minecraft:ore").to_arc()),
+                    random: self.random(&rl!("minecraft:ore").to_buf()),
                 };
                 let id = self.veins.len() as VeinId;
                 self.veins.push(vein);
@@ -675,7 +675,7 @@ impl<'r> Builder<'_, '_, 'r> {
     /// and a 2D reading is stamped against a different scope than a 3D one.
     fn noise(
         &mut self,
-        id: &ResourceLocation,
+        id: &ResourceLocationBuf,
         is_3d: bool,
     ) -> Result<(NoiseId, Arc<NoiseStack<Octave>>), CompileError> {
         if let Some(&noise) = self.noise_ids.get(&(id.clone(), is_3d))
@@ -692,7 +692,7 @@ impl<'r> Builder<'_, '_, 'r> {
         Ok((noise, sampler))
     }
 
-    fn random(&mut self, name: &ResourceLocation) -> RandomId {
+    fn random(&mut self, name: &ResourceLocationBuf) -> RandomId {
         if let Some(&id) = self.random_ids.get(name) {
             return id;
         }
@@ -822,8 +822,8 @@ pub(crate) mod tests {
     use std::collections::BTreeSet;
 
     pub(crate) fn material_corpus() -> (
-        BTreeMap<ResourceLocation, MaterialRuleHolder>,
-        BTreeMap<ResourceLocation, MaterialConditionHolder>,
+        BTreeMap<ResourceLocationBuf, MaterialRuleHolder>,
+        BTreeMap<ResourceLocationBuf, MaterialConditionHolder>,
     ) {
         (registry("material_rule"), registry("material_condition"))
     }
@@ -837,7 +837,7 @@ pub(crate) mod tests {
     /// Stands in for the biome registry the compiling crate does not have: every
     /// name and tag resolves, to ids that depend on the name alone.
     pub(crate) fn biome_ids(set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>> {
-        let id = |name: &ResourceLocation| (hash_id(name.as_str()) % 64) as u16;
+        let id = |name: &ResourceLocationBuf| (hash_id(name.as_str()) % 64) as u16;
         Some(match set {
             KeySet::Tag(tag) => vec![id(tag.location()), (id(tag.location()) + 1) % 64],
             KeySet::List(keys) => keys.iter().map(|key| id(key.location())).collect(),
@@ -852,7 +852,7 @@ pub(crate) mod tests {
     pub(crate) fn settings(name: &str) -> NoiseGeneratorSettings {
         mcrs_minecraft_worldgen_testing::read(
             "noise_settings",
-            &ResourceLocation::minecraft(name).unwrap(),
+            &ResourceLocationBuf::minecraft(name).unwrap(),
         )
     }
 
@@ -1095,7 +1095,7 @@ pub(crate) mod tests {
     ) -> Result<(), CompileError> {
         let (mut rules, conditions) = material_corpus();
         rules.insert(
-            rl!("minecraft:overworld").to_arc(),
+            rl!("minecraft:overworld").to_buf(),
             serde_json::from_str(rule).unwrap(),
         );
         let inputs = MaterialInputs {

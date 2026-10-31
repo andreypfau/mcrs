@@ -1,6 +1,5 @@
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_resource::InvalidResourceLocation;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{InvalidResourceLocation, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -8,7 +7,7 @@ use std::collections::BTreeMap;
 /// stated property values.
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct BlockState {
-    pub name: ResourceLocation,
+    pub name: ResourceLocationBuf,
     /// `None` where the file named the block alone, which is not the same as an
     /// empty property map: the two must serialize back to what they came from.
     pub properties: Option<BTreeMap<String, String>>,
@@ -16,13 +15,13 @@ pub struct BlockState {
 
 impl From<Block> for BlockState {
     fn from(block: Block) -> Self {
-        Self::bare(block.location().to_arc())
+        Self::bare(block.location().to_buf())
     }
 }
 
 impl BlockState {
     /// A block named alone, with no stated property values.
-    pub fn bare(name: ResourceLocation) -> Self {
+    pub fn bare(name: ResourceLocationBuf) -> Self {
         BlockState {
             name,
             properties: None,
@@ -30,7 +29,7 @@ impl BlockState {
     }
 
     pub fn minecraft(name: &str) -> Result<Self, InvalidResourceLocation> {
-        Ok(Self::bare(ResourceLocation::minecraft(name)?))
+        Ok(Self::bare(ResourceLocationBuf::minecraft(name)?))
     }
 
     pub fn with(mut self, property: &str, value: &str) -> Self {
@@ -44,7 +43,7 @@ impl BlockState {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StatedBlockState {
-    id: ResourceLocation,
+    id: ResourceLocationBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     properties: Option<BTreeMap<String, String>>,
 }
@@ -86,7 +85,7 @@ pub(crate) fn serialize_stated<S: serde::Serializer>(
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Form {
-    Bare(ResourceLocation),
+    Bare(ResourceLocationBuf),
     Stated(StatedBlockState),
 }
 

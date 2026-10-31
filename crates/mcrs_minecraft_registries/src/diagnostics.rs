@@ -3,25 +3,25 @@ use std::fmt;
 use std::ops::Deref;
 
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 
 use crate::order::identifier_order;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Referrer {
     Entry {
-        registry: ResourceLocation,
-        entry: ResourceLocation,
+        registry: ResourceLocationBuf,
+        entry: ResourceLocationBuf,
     },
     TagFile {
-        tag: ResourceLocation,
+        tag: ResourceLocationBuf,
         pack: String,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Missing {
-    pub name: ResourceLocation,
+    pub name: ResourceLocationBuf,
     pub tag: bool,
     pub referrer: Referrer,
 }
@@ -31,50 +31,50 @@ pub struct Missing {
 pub enum Diagnostic {
     Pack(PackDiagnostic),
     TagFileSkipped {
-        registry: ResourceLocation,
-        tag: ResourceLocation,
+        registry: ResourceLocationBuf,
+        tag: ResourceLocationBuf,
         pack: String,
         file: String,
         reason: String,
     },
     TagFailed {
-        registry: ResourceLocation,
-        tag: ResourceLocation,
+        registry: ResourceLocationBuf,
+        tag: ResourceLocationBuf,
         missing: Vec<Missing>,
     },
     Entry {
-        registry: ResourceLocation,
-        entry: ResourceLocation,
+        registry: ResourceLocationBuf,
+        entry: ResourceLocationBuf,
         pack: Option<String>,
         file: Option<String>,
         field: Option<String>,
         message: String,
     },
     Unresolved {
-        registry: ResourceLocation,
+        registry: ResourceLocationBuf,
         missing: Vec<Missing>,
     },
     EmptyRegistry {
-        registry: ResourceLocation,
+        registry: ResourceLocationBuf,
     },
     TooManyEntries {
-        registry: ResourceLocation,
+        registry: ResourceLocationBuf,
         count: usize,
     },
     TooManyTags {
-        registry: ResourceLocation,
+        registry: ResourceLocationBuf,
         count: usize,
     },
     Declaration {
-        registry: ResourceLocation,
+        registry: ResourceLocationBuf,
         message: String,
     },
 }
 
 impl Diagnostic {
     pub(crate) fn entry(
-        registry: &ResourceLocation,
-        entry: &ResourceLocation,
+        registry: &ResourceLocationBuf,
+        entry: &ResourceLocationBuf,
         message: impl Into<String>,
     ) -> Self {
         Diagnostic::Entry {
@@ -94,7 +94,7 @@ impl Diagnostic {
         }
     }
 
-    pub fn report_key(&self) -> Option<(ResourceLocation, ResourceLocation)> {
+    pub fn report_key(&self) -> Option<(ResourceLocationBuf, ResourceLocationBuf)> {
         match self {
             Diagnostic::Entry {
                 registry, entry, ..

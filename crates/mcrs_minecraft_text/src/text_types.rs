@@ -1,6 +1,6 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::Serialize;
 
 use crate::DialogRef;
@@ -27,7 +27,7 @@ impl<T> Serde for T where T: Serialize + serde::de::DeserializeOwned {}
 pub trait TextSerde: TextTypes<EntityKey: Serde, Dialog: Serde> + Serde {}
 
 impl TextTypes for () {
-    type EntityKey = ResourceLocation;
+    type EntityKey = ResourceLocationBuf;
     type Dialog = DialogRef;
 }
 

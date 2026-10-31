@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -57,7 +57,7 @@ pub struct InboundPlayerSpawn {
     /// `DimensionList` so the per-dim spawn consumer can fill
     /// `ClientboundLogin.dimensions` without reading the list resource
     /// (which is host-only and absent from any DimWorld).
-    pub dimensions: Arc<[ResourceKey<mcrs_minecraft_dimension::Dimension>]>,
+    pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
 }
 
 #[derive(Message, Clone, Debug)]

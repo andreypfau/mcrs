@@ -308,7 +308,7 @@ impl Sample for BlocksAttacks {
                 bypassed_by: Some(one_set("in_fire")),
                 block_sound: Some(item_break()),
                 disable_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:off").to_arc(),
+                    sound_id: rl!("mcrs:off").to_buf(),
                     range: None,
                 }))),
             },
@@ -333,7 +333,7 @@ impl Sample for PiercingWeapon {
                 dismounts: true,
                 sound: Some(item_break()),
                 hit_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:hit").to_arc(),
+                    sound_id: rl!("mcrs:hit").to_buf(),
                     range: Some(4.0),
                 }))),
             },

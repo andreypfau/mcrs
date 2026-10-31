@@ -6,8 +6,7 @@ use mcrs_minecraft_client::sky_state::SkyFrame;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_render::sky::SkyUniform;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::boot::{boot, receive_registries, received_id};
 use mcrs_minecraft_dimension::DimensionType;
@@ -23,7 +22,7 @@ fn join(app: &mut App, connection: Entity, dimension: &str, dimension_type: Id<D
     app.world_mut()
         .entity_mut(connection)
         .insert(CurrentDimension {
-            key: ResourceKey::from_location(ResourceLocation::read(dimension).unwrap()),
+            key: ResourceKeyBuf::from_location(ResourceLocationBuf::read(dimension).unwrap()),
             dimension_type,
         });
     app.update();

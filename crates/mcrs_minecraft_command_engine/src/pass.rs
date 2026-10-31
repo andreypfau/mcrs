@@ -28,7 +28,7 @@ use mcrs_minecraft_engine_world::session::{Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::{Id, ResourceKey};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 /// The host's buffers for running command lines, reused from one run to the next.
 #[derive(Resource)]
@@ -78,7 +78,10 @@ type PlayerRow = (
     &'static PlayerGameMode,
 );
 
-type DimensionRow = (&'static ResourceKey<DimensionKey>, &'static DimensionTypeId);
+type DimensionRow = (
+    &'static ResourceKeyBuf<DimensionKey>,
+    &'static DimensionTypeId,
+);
 
 /// The queries a pass runs in one dimension world, kept from one pass to the next.
 struct WorldQueries {

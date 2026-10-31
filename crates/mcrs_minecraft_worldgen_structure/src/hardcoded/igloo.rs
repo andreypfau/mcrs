@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::Mirror;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::on_top_of_chunk_centre;
@@ -36,7 +36,7 @@ impl IglooTemplate {
         }
     }
 
-    pub fn from_location(location: &ResourceLocation) -> Option<Self> {
+    pub fn from_location(location: &ResourceLocationBuf) -> Option<Self> {
         [Self::Top, Self::Middle, Self::Bottom]
             .into_iter()
             .find(|template| template.location() == *location)

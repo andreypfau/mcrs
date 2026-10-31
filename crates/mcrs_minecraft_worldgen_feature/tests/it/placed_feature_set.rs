@@ -1,10 +1,10 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 
-fn id(name: &str) -> ResourceLocation {
-    ResourceLocation::read(name).unwrap()
+fn id(name: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(name).unwrap()
 }
 
 fn features_of(json: &str) -> (Feature, String) {

@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_datapack::{
     PackContent, PackFile, PackIndex, PackStack, StackedPack, read_json,
 };
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
@@ -23,7 +23,7 @@ struct TagFile {
 /// One value of a tag file: an entry or a `#tag`, required unless the file says otherwise.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagEntry {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub tag: bool,
     pub required: bool,
 }
@@ -72,7 +72,7 @@ impl<'de> Deserialize<'de> for TagEntry {
             None => (false, text.as_str()),
         };
         Ok(TagEntry {
-            id: ResourceLocation::read(id).map_err(D::Error::custom)?,
+            id: ResourceLocationBuf::read(id).map_err(D::Error::custom)?,
             tag,
             required,
         })
@@ -80,13 +80,13 @@ impl<'de> Deserialize<'de> for TagEntry {
 }
 
 struct Node {
-    name: ResourceLocation,
+    name: ResourceLocationBuf,
     members: Vec<(TagEntry, PackIndex)>,
     failed: bool,
     missing: Vec<Missing>,
 }
 
-fn missing(tag: &ResourceLocation, member: &TagEntry, pack: String) -> Missing {
+fn missing(tag: &ResourceLocationBuf, member: &TagEntry, pack: String) -> Missing {
     Missing {
         name: member.id.clone(),
         tag: member.tag,
@@ -205,7 +205,7 @@ pub(crate) fn pack_id(stack: &PackStack, pack: PackIndex) -> String {
     stack.get(pack).map_or("", StackedPack::id).to_owned()
 }
 
-type Index = HashMap<ResourceLocation, usize>;
+type Index = HashMap<ResourceLocationBuf, usize>;
 
 fn tag_target(index: &Index, member: &TagEntry) -> Option<usize> {
     index.get(&member.id).copied()
@@ -229,12 +229,12 @@ fn is_failed(nodes: &[Node], at: usize) -> bool {
 
 // A value stands for an entry; a tag is read from a file only.
 fn read_nodes(
-    registry: &ResourceLocation,
-    files: BTreeMap<ResourceLocation, Vec<PackFile<'_>>>,
+    registry: &ResourceLocationBuf,
+    files: BTreeMap<ResourceLocationBuf, Vec<PackFile<'_>>>,
     stack: &PackStack,
     skipped: &mut Vec<Diagnostic>,
 ) -> Vec<Node> {
-    let mut ordered: Vec<(ResourceLocation, Vec<PackFile<'_>>)> = files.into_iter().collect();
+    let mut ordered: Vec<(ResourceLocationBuf, Vec<PackFile<'_>>)> = files.into_iter().collect();
     ordered.sort_by(|a, b| identifier_order(&a.0, &b.0));
 
     let mut nodes: Vec<Node> = Vec::new();
@@ -468,8 +468,8 @@ fn number(
     index: &Index,
     mut resolved: Vec<Option<Vec<u16>>>,
     previous: Option<&TagTable>,
-) -> Vec<(ResourceLocation, Option<Vec<u16>>)> {
-    let mut numbered: Vec<(ResourceLocation, Option<Vec<u16>>)> = Vec::new();
+) -> Vec<(ResourceLocationBuf, Option<Vec<u16>>)> {
+    let mut numbered: Vec<(ResourceLocationBuf, Option<Vec<u16>>)> = Vec::new();
     for name in previous.into_iter().flat_map(TagTable::names) {
         let members = index.get(name).and_then(|&at| resolved.get_mut(at)?.take());
         numbered.push((name.clone(), members));
@@ -484,14 +484,14 @@ fn number(
 
 /// The tags of `registry` its tag `files` define, numbered after the tags of `previous`.
 pub(crate) fn resolve_tags(
-    registry: &ResourceLocation,
+    registry: &ResourceLocationBuf,
     names: &Names,
-    files: BTreeMap<ResourceLocation, Vec<PackFile<'_>>>,
+    files: BTreeMap<ResourceLocationBuf, Vec<PackFile<'_>>>,
     stack: &PackStack,
     absent_elements_fail_load: bool,
     previous: Option<&TagTable>,
     report: &mut Report,
-) -> Vec<(ResourceLocation, Option<Vec<u16>>)> {
+) -> Vec<(ResourceLocationBuf, Option<Vec<u16>>)> {
     let mut nodes = read_nodes(registry, files, stack, &mut report.skipped);
     let index: Index = nodes
         .iter()

@@ -9,7 +9,7 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundReg
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
@@ -96,7 +96,7 @@ fn a_client_without_an_app_joins_the_embedded_server_offline() {
 
     let (profile, configuration) = joined;
     assert_eq!(profile.username, "Bot");
-    let dimension_type = ResourceLocation::read("minecraft:dimension_type").unwrap();
+    let dimension_type = ResourceLocationBuf::read("minecraft:dimension_type").unwrap();
     assert!(
         configuration.registry_data.iter().any(|body| {
             let data = ClientboundRegistryData::decode(&mut &body[..]).unwrap();

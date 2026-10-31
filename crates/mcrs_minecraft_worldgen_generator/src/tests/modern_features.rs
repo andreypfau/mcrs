@@ -1,13 +1,12 @@
 //! The modern path of the `Run` stage: one ore feature, resolved at freeze and
 //! placed against a region of stone.
 
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_registries::{KeySet, Registries};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
@@ -63,7 +62,7 @@ fn tables_of(feature_json: &str, placement_json: &str) -> FeatureTables {
 
 fn test_entry(feature: Feature, placement: Vec<PlacementModifier>) -> Arc<CompiledPlacedFeature> {
     Arc::new(CompiledPlacedFeature {
-        id: Some(ResourceLocation::read("minecraft:ore_coal_test").unwrap()),
+        id: Some(ResourceLocationBuf::read("minecraft:ore_coal_test").unwrap()),
         placed: PlacedFeature {
             feature: Holder::Inline(Box::new(feature)),
             placement,
@@ -274,12 +273,12 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
             token: vec![vec![0], vec![0]],
         },
         biome_order: vec![
-            ResourceLocation::read(BIOME).unwrap(),
-            ResourceLocation::read(OTHER).unwrap(),
+            ResourceLocationBuf::read(BIOME).unwrap(),
+            ResourceLocationBuf::read(OTHER).unwrap(),
         ],
         climate: [BIOME, OTHER]
             .into_iter()
-            .map(|id| (ResourceLocation::read(id).unwrap(), TEMPERATE))
+            .map(|id| (ResourceLocationBuf::read(id).unwrap(), TEMPERATE))
             .collect(),
     };
     let program = program_of(&tables, &registry);
@@ -455,7 +454,7 @@ fn a_survival_rule_reads_the_water_condition_its_block_names() {
 }
 
 fn fluid_set(name: &str) -> KeySet<Fluid> {
-    KeySet::List(Box::new([ResourceKey::from_location(
-        ResourceLocation::read(name).unwrap(),
+    KeySet::List(Box::new([ResourceKeyBuf::from_location(
+        ResourceLocationBuf::read(name).unwrap(),
     )]))
 }

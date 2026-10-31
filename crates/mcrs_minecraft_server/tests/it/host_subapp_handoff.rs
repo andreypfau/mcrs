@@ -20,7 +20,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
 
@@ -102,7 +102,10 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 
 /// A live dimension label on the host with its channels registered; returns the label and the
 /// receiving end of its control channel.
-fn live_dimension(app: &mut App, key: ResourceKey<Dimension>) -> (Entity, flume::Receiver<ToDim>) {
+fn live_dimension(
+    app: &mut App,
+    key: ResourceKeyBuf<Dimension>,
+) -> (Entity, flume::Receiver<ToDim>) {
     use mcrs_minecraft_engine::channel_types::FromDim;
     use mcrs_minecraft_engine_world::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -169,8 +172,8 @@ fn game_transition_emits_initial_spawn(
 /// Live dimensions are registered nether first, so a join that takes the first
 /// live one lands in the wrong world.
 fn join_with_live_nether_end_and_overworld(
-    saved: Option<ResourceKey<Dimension>>,
-    expected: ResourceKey<Dimension>,
+    saved: Option<ResourceKeyBuf<Dimension>>,
+    expected: ResourceKeyBuf<Dimension>,
 ) {
     use mcrs_minecraft_engine_world::world::world_save::WorldSave;
     use mcrs_minecraft_save::{PlayerDat, write_player_dat};
@@ -205,7 +208,7 @@ fn join_with_live_nether_end_and_overworld(
     ]
     .into_iter()
     .map(|name| {
-        let key = ResourceKey::<Dimension>::from(name);
+        let key = ResourceKeyBuf::<Dimension>::from(name);
         let (label, control) = live_dimension(&mut app, key.clone());
         (key, label, control)
     })
@@ -237,10 +240,10 @@ fn join_with_live_nether_end_and_overworld(
 #[test]
 fn a_joining_player_enters_its_saved_dimension_or_else_the_overworld() {
     let nether =
-        ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::THE_NETHER);
+        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::THE_NETHER);
     let overworld =
-        ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD);
-    let gone = ResourceKey::from_location(ResourceLocation::read("test:gone").unwrap());
+        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD);
+    let gone = ResourceKeyBuf::from_location(ResourceLocationBuf::read("test:gone").unwrap());
     for (saved, expected) in [
         (Some(nether.clone()), nether),
         (Some(gone), overworld.clone()),
@@ -359,7 +362,7 @@ fn no_duplicate_spawn_on_reread() {
 fn joining_players_share_the_baked_dimension_list(
     app: &mut App,
     ctl_rx: &flume::Receiver<ToDim>,
-    baked: &Arc<[ResourceKey<Dimension>]>,
+    baked: &Arc<[ResourceKeyBuf<Dimension>]>,
 ) {
     for _ in 0..2 {
         let (connection, _) = spawn_accepted_connection(app);
@@ -500,10 +503,10 @@ fn every_registry_resource_of_the_host_reaches_every_dimension_through_one_snaps
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
 const NETHER: (&str, &str) = ("minecraft:the_nether", "minecraft:the_nether");
 
-fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<Dimension>)> {
+fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKeyBuf<Dimension>)> {
     let mut query = app
         .world_mut()
-        .query_filtered::<(Entity, &ResourceKey<Dimension>), With<DimSubAppHandle>>();
+        .query_filtered::<(Entity, &ResourceKeyBuf<Dimension>), With<DimSubAppHandle>>();
     query
         .iter(app.world())
         .map(|(label, key)| (label, key.clone()))

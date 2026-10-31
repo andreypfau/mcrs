@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::item::{
     SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 
 use crate::item::harness::{from_json, from_nbt, hex, lookup, named, nbt_tree, persistent_json};
 
@@ -213,15 +213,15 @@ fn flat_records_match_vanilla() {
 fn text_bearing_records_match_vanilla() {
     use mcrs_minecraft_protocol::item::{WritableBookContent, WrittenBookContent};
 
-    check("item_model", ItemModel(rl!("minecraft:stone").to_arc()));
-    check("tooltip_style", TooltipStyle(rl!("custom:style").to_arc()));
+    check("item_model", ItemModel(rl!("minecraft:stone").to_buf()));
+    check("tooltip_style", TooltipStyle(rl!("custom:style").to_buf()));
     check(
         "note_block_sound",
-        NoteBlockSound(rl!("minecraft:block.bell.use").to_arc()),
+        NoteBlockSound(rl!("minecraft:block.bell.use").to_buf()),
     );
     assert_eq!(
         parse::<NoteBlockSound>(r#""block.bell.use""#),
-        NoteBlockSound(rl!("minecraft:block.bell.use").to_arc())
+        NoteBlockSound(rl!("minecraft:block.bell.use").to_buf())
     );
 
     check("writable_empty", sample::<WritableBookContent>(0));
@@ -489,8 +489,9 @@ fn nbt_wire_records_match_vanilla() {
 
 #[test]
 fn fuel_matches_vanilla() {
-    let int = |path: &str| ResolvableInt::reference(ResourceLocation::minecraft(path).unwrap());
-    let float = |path: &str| ResolvableFloat::reference(ResourceLocation::minecraft(path).unwrap());
+    let int = |path: &str| ResolvableInt::reference(ResourceLocationBuf::minecraft(path).unwrap());
+    let float =
+        |path: &str| ResolvableFloat::reference(ResourceLocationBuf::minecraft(path).unwrap());
     check("compostable_const", sample::<Compostable>(0));
     check(
         "compostable_ref",

@@ -11,13 +11,13 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_registries::FromWire;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::item::harness::{block_lookup, hex, json_of, read_json};
 use crate::item::particle::{golden, to_hex};
 
-fn id(text: &str) -> ResourceLocation {
-    ResourceLocation::read(text).unwrap()
+fn id(text: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(text).unwrap()
 }
 
 fn item(path: &str, count: i32, components: &str) -> Template {

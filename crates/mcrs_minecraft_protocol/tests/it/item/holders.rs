@@ -124,7 +124,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         "jukebox_playable_direct_sound",
         JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
             sound_event: Ref::Inline(Arc::new(SoundEventValue {
-                sound_id: rl!("mcrs:song").to_arc(),
+                sound_id: rl!("mcrs:song").to_buf(),
                 range: None,
             })),
             description: Text::translate("song.mcrs", Vec::new()),
@@ -137,7 +137,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         PaintingVariant(WireRef(Ref::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(2),
             height: Bounded(1),
-            asset_id: rl!("mcrs:art").to_arc(),
+            asset_id: rl!("mcrs:art").to_buf(),
             title: Some(Text::text("T")),
             author: None,
         })))),
@@ -147,7 +147,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         PaintingVariant(WireRef(Ref::Inline(Arc::new(PaintingVariantValue {
             width: Bounded(16),
             height: Bounded(16),
-            asset_id: rl!("mcrs:big").to_arc(),
+            asset_id: rl!("mcrs:big").to_buf(),
             title: None,
             author: Some(Text::translate("author.mcrs", Vec::new())),
         })))),

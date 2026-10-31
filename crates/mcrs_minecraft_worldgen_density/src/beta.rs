@@ -124,6 +124,7 @@ impl BetaTerrainNoises {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_resource::ResourceLocationBuf;
 
     /// The scale each climate noise is sampled at, which the density functions
     /// carry as `xz_scale` and which Beta folds into its 1.5 noise scale.
@@ -144,7 +145,6 @@ mod tests {
     fn inline_noise_scales(name: &str) -> Vec<(String, f64)> {
         use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
         use mcrs_minecraft_noise::proto::NoiseHolder;
-        use mcrs_minecraft_resource::ResourceLocation;
 
         fn walk(holder: &DensityFunctionHolder, out: &mut Vec<(String, f64)>) {
             let DensityFunctionHolder::Owned(function) = holder else {
@@ -165,7 +165,7 @@ mod tests {
         walk(
             &mcrs_minecraft_worldgen_testing::read(
                 "density_function",
-                &ResourceLocation::minecraft(name).unwrap(),
+                &ResourceLocationBuf::minecraft(name).unwrap(),
             ),
             &mut out,
         );

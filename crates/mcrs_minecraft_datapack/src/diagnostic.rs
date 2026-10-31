@@ -1,6 +1,5 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
-
-use mcrs_minecraft_resource::ResourceLocation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Level {
@@ -30,14 +29,14 @@ pub enum PackDiagnostic {
     },
     PackFeaturesDisabled {
         pack: String,
-        features: Vec<ResourceLocation>,
+        features: Vec<ResourceLocationBuf>,
     },
     PackFound {
         pack: String,
     },
     PackNotAppended {
         pack: String,
-        features: Vec<ResourceLocation>,
+        features: Vec<ResourceLocationBuf>,
     },
     FeaturePackAppended {
         pack: String,

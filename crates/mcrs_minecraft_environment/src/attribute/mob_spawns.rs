@@ -1,9 +1,8 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use mcrs_minecraft_core::codec::NonNegativeInt;
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -15,7 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// `deep_dark` and `the_void` silence the dimension's spawns.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct MobSpawnSettings {
-    pub spawn_costs: BTreeMap<ResourceLocation<Arc<str>>, SpawnCost>,
+    pub spawn_costs: BTreeMap<ResourceLocationBuf, SpawnCost>,
     pub spawns_by_category: BTreeMap<MobCategory, Vec<SpawnerData>>,
 }
 
@@ -82,7 +81,7 @@ impl MobSpawnSettings {
     pub fn add_spawn(
         &mut self,
         category: MobCategory,
-        entity: impl Into<ResourceLocation>,
+        entity: impl Into<ResourceLocationBuf>,
         weight: NonNegativeInt,
         count: IntProvider,
     ) {
@@ -98,7 +97,7 @@ impl MobSpawnSettings {
 
     pub fn add_cost(
         &mut self,
-        entity: impl Into<ResourceLocation>,
+        entity: impl Into<ResourceLocationBuf>,
         charge: f64,
         energy_budget: f64,
     ) {

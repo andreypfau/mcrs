@@ -1,10 +1,10 @@
 use mcrs_minecraft_registries::dispatch;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use glam::IVec3;
 use mcrs_minecraft_core::{BoundingBox, Direction, Mirror, Rotation, mirror, rotation};
 use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_voxel::ColumnPos;
 use serde::de::{DeserializeSeed, Error as _};
@@ -642,7 +642,7 @@ impl PieceContext<'_> {
     }
 
     /// `None` for a template the context's tables do not name.
-    pub fn template_name(&self, template: TemplateId) -> Option<ResourceLocation> {
+    pub fn template_name(&self, template: TemplateId) -> Option<ResourceLocationBuf> {
         self.frozen
             .template_ids
             .iter()
@@ -653,7 +653,7 @@ impl PieceContext<'_> {
     fn template_name_or<E: serde::ser::Error>(
         &self,
         template: TemplateId,
-    ) -> Result<ResourceLocation, E> {
+    ) -> Result<ResourceLocationBuf, E> {
         self.template_name(template)
             .ok_or_else(|| E::custom("a piece names a template no loaded pool holds"))
     }
@@ -901,7 +901,7 @@ enum PieceTag {
         #[serde(rename = "TPZ")]
         template_z: i32,
         #[serde(rename = "Template")]
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         #[serde(rename = "isBeached", deserialize_with = "nbt_flag")]
         is_beached: bool,
         #[serde(rename = "Rot", with = "rotation::legacy")]
@@ -988,7 +988,7 @@ enum PieceTag {
         #[serde(rename = "TPZ")]
         template_z: i32,
         #[serde(rename = "Template")]
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
         #[serde(rename = "Integrity")]
@@ -1013,7 +1013,7 @@ enum PieceTag {
         #[serde(rename = "TPZ")]
         pos_z: i32,
         #[serde(rename = "Template")]
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         #[serde(rename = "Rotation", with = "rotation::legacy")]
         rotation: Rotation,
         #[serde(rename = "Mirror", with = "mirror::legacy")]
@@ -1098,7 +1098,7 @@ enum PieceTag {
         #[serde(rename = "TPZ")]
         template_z: i32,
         #[serde(rename = "Template")]
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
@@ -1117,7 +1117,7 @@ enum PieceTag {
         #[serde(rename = "TPZ")]
         template_z: i32,
         #[serde(rename = "Template")]
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
@@ -1656,7 +1656,7 @@ impl Serialize for PieceNbt<'_> {
                 template_x: piece.position.x,
                 template_y: piece.height,
                 template_z: piece.position.z,
-                template: piece.template.location().to_arc(),
+                template: piece.template.location().to_buf(),
                 rotation: piece.rotation,
             },
             Piece::NetherFossil(piece) => PieceTag::NetherFossil {
@@ -2127,9 +2127,10 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 overwrite,
                 ..
             } => {
-                let location =
-                    ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{template}"))
-                        .map_err(D::Error::custom)?;
+                let location = ResourceLocationBuf::minecraft(&format!(
+                    "{END_CITY_TEMPLATE_PREFIX}{template}"
+                ))
+                .map_err(D::Error::custom)?;
                 let template = *self.0.frozen.template_ids.get(&location).ok_or_else(|| {
                     D::Error::custom(format!("the end city template {location} is not loaded"))
                 })?;
@@ -2152,7 +2153,7 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 mirror,
                 ..
             } => {
-                let name = ResourceLocation::minecraft(&format!(
+                let name = ResourceLocationBuf::minecraft(&format!(
                     "{}{template}",
                     WoodlandMansionPiece::TEMPLATE_PREFIX
                 ))
@@ -2273,11 +2274,11 @@ mod tests {
 
     fn frozen(liquid_settings: LiquidSettings) -> FrozenStructures {
         let mut frozen = FrozenStructures::default();
-        let house = ResourceLocation::read("minecraft:village/plains/houses/house_1").unwrap();
-        let empty = ResourceLocation::read("minecraft:empty").unwrap();
+        let house = ResourceLocationBuf::read("minecraft:village/plains/houses/house_1").unwrap();
+        let empty = ResourceLocationBuf::read("minecraft:empty").unwrap();
         frozen.template_ids.insert(house, TemplateId(0));
         frozen.template_ids.insert(
-            rl!("minecraft:end_city/second_floor_1").to_arc(),
+            rl!("minecraft:end_city/second_floor_1").to_buf(),
             TemplateId(1),
         );
         let single = |legacy: bool| FrozenElement::Single {
@@ -2311,7 +2312,7 @@ mod tests {
             panic!("the structure is a jigsaw")
         };
         frozen.structures.push(FrozenStructure {
-            id: ResourceLocation::read("minecraft:village_plains").unwrap(),
+            id: ResourceLocationBuf::read("minecraft:village_plains").unwrap(),
             step: DecorationStep::SurfaceStructures,
             step_index: 0,
             adaptation: TerrainAdaptation::BeardThin,
@@ -2322,7 +2323,7 @@ mod tests {
             },
         });
         frozen.structures.push(FrozenStructure {
-            id: ResourceLocation::read("minecraft:mineshaft_mesa").unwrap(),
+            id: ResourceLocationBuf::read("minecraft:mineshaft_mesa").unwrap(),
             step: DecorationStep::UndergroundStructures,
             step_index: 0,
             adaptation: TerrainAdaptation::None,

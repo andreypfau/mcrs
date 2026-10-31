@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use std::io::Cursor;
 
@@ -48,7 +48,7 @@ mod exhaustive {
     }
 }
 
-fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> String {
+fn digest(entries: impl IntoIterator<Item = (ResourceLocationBuf, Vec<u8>)>) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     for (id, bytes) in entries {

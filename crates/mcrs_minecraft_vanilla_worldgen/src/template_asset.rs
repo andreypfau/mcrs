@@ -5,8 +5,7 @@ use bevy_reflect::TypePath;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::RegistryValue;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{RegistryValue, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_feature::template::Template;
@@ -44,7 +43,7 @@ fn column<T: RegistryValue + Send + Sync + 'static>(
 
 /// The structure templates a template pool names, in its elements and in the
 /// features it writes inline.
-pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocation> {
+pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocationBuf> {
     let mut names = TemplateNames::default();
     names.visit_template_pool(pool);
     names.0
@@ -54,7 +53,7 @@ pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocation> {
 /// template pool of `registries` names.
 pub fn named_templates(
     registries: &Registries,
-) -> Result<BTreeSet<ResourceLocation>, MissingColumn> {
+) -> Result<BTreeSet<ResourceLocationBuf>, MissingColumn> {
     let mut names = TemplateNames::default();
     for feature in column::<Feature>(registries)? {
         names.visit_feature(feature);
@@ -124,12 +123,12 @@ impl AssetLoader for TemplateLoader {
 }
 
 #[derive(Default)]
-struct TemplateNames(BTreeSet<ResourceLocation>);
+struct TemplateNames(BTreeSet<ResourceLocationBuf>);
 
 impl TemplateNames {
     fn visit_structure(&mut self, structure: &Structure) {
         self.0
-            .extend(structure.templates().iter().map(ResourceLocation::to_arc));
+            .extend(structure.templates().iter().map(ResourceLocation::to_buf));
     }
 
     fn visit_feature(&mut self, feature: &Feature) {

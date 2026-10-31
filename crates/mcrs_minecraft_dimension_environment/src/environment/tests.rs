@@ -1,13 +1,11 @@
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::ResourceKey;
 
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use super::*;
 use mcrs_minecraft_registries::{Named, Resolve, Resolver};
-use mcrs_minecraft_resource::TagId;
+use mcrs_minecraft_resource::{Registered, TagId, TagKeyBuf};
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
@@ -40,7 +38,7 @@ impl ShippedClocks {
 impl Resolver for ShippedClocks {
     fn id<R: Registered>(
         &self,
-        key: &ResourceKey<R>,
+        key: &ResourceKeyBuf<R>,
     ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let at = self
             .0
@@ -52,7 +50,7 @@ impl Resolver for ShippedClocks {
 
     fn tag<R: Registered>(
         &self,
-        _: &mcrs_minecraft_resource::TagKey<R>,
+        _: &TagKeyBuf<R>,
     ) -> Result<TagId<R>, mcrs_minecraft_registries::ResolveError> {
         Ok(TagId::checked(0, 1).unwrap())
     }
@@ -107,8 +105,8 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         .collect()
 }
 
-fn dimension_key(id: &str) -> ResourceKey<Dimension> {
-    ResourceKey::from_location(id.parse().unwrap())
+fn dimension_key(id: &str) -> ResourceKeyBuf<Dimension> {
+    ResourceKeyBuf::from_location(id.parse().unwrap())
 }
 
 fn shape<'a>(

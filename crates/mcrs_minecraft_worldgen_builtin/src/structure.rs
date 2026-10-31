@@ -63,7 +63,7 @@ mod village_taiga;
 use mcrs_minecraft_core::Axis::{X, Y, Z};
 use mcrs_minecraft_core::Direction::{East, North, South, West};
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, StaticResourceLocation};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
     BlueprintError, Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs,
@@ -87,16 +87,16 @@ fn listed() -> impl Iterator<Item = &'static Entry> {
     FAMILIES.iter().flat_map(|family| family.iter())
 }
 
-pub fn keys() -> impl Iterator<Item = ResourceLocation> {
+pub fn keys() -> impl Iterator<Item = ResourceLocationBuf> {
     listed().map(|(name, ..)| (*name).into())
 }
 
-pub fn all() -> impl Iterator<Item = (ResourceLocation, Result<Template, BlueprintError>)> {
+pub fn all() -> impl Iterator<Item = (ResourceLocationBuf, Result<Template, BlueprintError>)> {
     listed().map(|entry| (entry.0.into(), paint(entry)))
 }
 
 /// `None` for a name no procedure paints or a procedure that paints a mistake.
-pub fn build(id: &ResourceLocation) -> Option<Template> {
+pub fn build(id: &ResourceLocationBuf) -> Option<Template> {
     listed()
         .find(|(name, ..)| name == id)
         .and_then(|entry| paint(entry).ok())

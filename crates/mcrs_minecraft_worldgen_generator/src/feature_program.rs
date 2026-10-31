@@ -28,10 +28,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registries::{IdSet, KeySet, Named, Registries, Resolve, Tags};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::TagKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf, TagKey, TagKeyBuf};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -512,7 +509,7 @@ impl FeatureProgram {
 
         let moss_id = mcrs_minecraft_worldgen_feature::keys::feature::PALE_MOSS_PATCH
             .location()
-            .to_arc();
+            .to_buf();
         let moss_patch = corpus
             .features
             .get(&moss_id)
@@ -2109,7 +2106,7 @@ fn compile_generator(
 fn freeze_feature_template(
     corpus: &LoadedFeatures,
     resolver: &Resolver<'_>,
-    id: &ResourceLocation,
+    id: &ResourceLocationBuf,
 ) -> Compiled<FrozenTemplate> {
     let template = corpus
         .templates
@@ -2154,7 +2151,7 @@ pub(crate) fn spring_state(state: &FluidState, resolver: &Resolver<'_>) -> Optio
     if fluid.source {
         fluid.level = mcrs_minecraft_block::definition::FluidState::FULL;
     }
-    let name = Fluid::from_id(fluid.fluid)?.location().to_arc();
+    let name = Fluid::from_id(fluid.fluid)?.location().to_buf();
     let default = crate::block_state::try_resolve_state(resolver.blocks, &BlockState::bare(name))?;
     let entry = resolver.blocks.owner(default)?;
     (0..entry.state_count)
@@ -2639,7 +2636,7 @@ pub struct Resolver<'a> {
     pub world_seed: i64,
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
-    pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
+    pub block_state_providers: &'a BTreeMap<ResourceLocationBuf, DirectBlockStateProvider<Named>>,
     shape_masks: ShapeMasks,
 }
 
@@ -2695,7 +2692,7 @@ impl<'a> Resolver<'a> {
         registries: &'a Registries,
         world_seed: i64,
         climate: &'a [BiomeClimate],
-        block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>>,
+        block_state_providers: &'a BTreeMap<ResourceLocationBuf, DirectBlockStateProvider<Named>>,
     ) -> Compiled<Self> {
         let mut resolver = Resolver {
             block_state_providers,
@@ -2855,7 +2852,7 @@ impl<'a> Resolver<'a> {
         self.state_mask(|state| state.flags.contains(flag))
     }
 
-    pub fn block_mask(&self, block: &ResourceLocation) -> Compiled<StateMask> {
+    pub fn block_mask(&self, block: &ResourceLocationBuf) -> Compiled<StateMask> {
         self.mask(StateQuery::Block(block))
     }
 
@@ -2895,7 +2892,7 @@ impl<'a> Resolver<'a> {
         mask.insert_range(base..base + entry.state_count as usize);
     }
 
-    fn add_block(&self, mask: &mut FixedBitSet, id: &ResourceLocation) -> Option<()> {
+    fn add_block(&self, mask: &mut FixedBitSet, id: &ResourceLocationBuf) -> Option<()> {
         let _: () = Self::add_entry(mask, self.blocks.block(id.as_str())?);
         Some(())
     }
@@ -2941,9 +2938,10 @@ impl BlockResolver for Resolver<'_> {
                 .iter()
                 .try_for_each(|name| self.add_block(&mut mask, name))?,
             StateQuery::Block(id) => self.add_block(&mut mask, id)?,
-            StateQuery::BlockTag(tag) => {
-                self.add_set(&mut mask, &KeySet::Tag(TagKey::from_location(tag.clone())))?
-            }
+            StateQuery::BlockTag(tag) => self.add_set(
+                &mut mask,
+                &KeySet::Tag(TagKeyBuf::from_location(tag.clone())),
+            )?,
             StateQuery::Fluids(set, properties) => return self.fluid_mask(set, properties),
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
@@ -2966,8 +2964,8 @@ impl BlockResolver for Resolver<'_> {
     }
 }
 
-fn named<R>(location: ResourceLocation) -> KeySet<R> {
-    KeySet::List(Box::new([ResourceKey::from_location(location)]))
+fn named<R>(location: ResourceLocationBuf) -> KeySet<R> {
+    KeySet::List(Box::new([ResourceKeyBuf::from_location(location)]))
 }
 
 fn block_tag(tag: TagKey<Block, &'static str>) -> KeySet<Block> {

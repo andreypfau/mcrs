@@ -1,10 +1,10 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_generator::routers::{build_router, refuse_misplaced_beardifier};
@@ -23,7 +23,7 @@ use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 /// the dimension's sub-app an `Arc` of it. Compiling inside the sub-app instead
 /// would make every dimension re-read the worldgen corpus off disk.
 #[derive(Resource, Default, Clone)]
-pub struct DimensionRouters(pub BTreeMap<ResourceLocation, DimensionRouter>);
+pub struct DimensionRouters(pub BTreeMap<ResourceLocationBuf, DimensionRouter>);
 
 /// A router and the material rules compiled into its graph.
 #[derive(Clone)]

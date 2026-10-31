@@ -259,7 +259,8 @@ mod tests {
     use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use mcrs_minecraft_resource::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocationBuf;
+
     use mcrs_minecraft_value_provider::HeightContext;
     use mcrs_minecraft_worldgen_testing::read;
 
@@ -280,7 +281,7 @@ mod tests {
     }
 
     fn shipped(name: &str) -> CarverConfig {
-        read("carver", &ResourceLocation::minecraft(name).unwrap())
+        read("carver", &ResourceLocationBuf::minecraft(name).unwrap())
     }
 
     fn compare_region_with_columns(

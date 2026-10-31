@@ -1,7 +1,7 @@
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceKey;
 use serde::{Deserialize, Serialize};
 
 use crate::dimension::DimensionEntry;
@@ -11,5 +11,5 @@ use mcrs_minecraft_dimension::Dimension;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorldPreset<M: Refs = Resolved> {
-    pub dimensions: BTreeMap<ResourceKey<Dimension>, DimensionEntry<M>>,
+    pub dimensions: BTreeMap<ResourceKeyBuf<Dimension>, DimensionEntry<M>>,
 }

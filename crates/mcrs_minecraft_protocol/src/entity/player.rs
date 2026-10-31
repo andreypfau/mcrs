@@ -2,14 +2,13 @@ use crate::{Bounded, GlobalPos, VarInt};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::OptGameMode;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo {
     pub dimension_type_id: Id<DimensionType>,
-    pub dimension: ResourceKey<Dimension>,
+    pub dimension: ResourceKeyBuf<Dimension>,
     pub game_mode: GameMode,
     pub prev_game_mode: OptGameMode,
     pub is_debug: bool,
@@ -22,7 +21,7 @@ pub struct PlayerSpawnInfo {
 impl PlayerSpawnInfo {
     pub fn new(
         dimension_type_id: Id<DimensionType>,
-        dimension: ResourceKey<Dimension>,
+        dimension: ResourceKeyBuf<Dimension>,
         game_mode: GameMode,
     ) -> Self {
         Self {

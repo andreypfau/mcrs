@@ -22,8 +22,7 @@ use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::boot::{boot, receive_registries, received_id};
 
@@ -68,7 +67,7 @@ fn dimension_type(app: &App, name: &str) -> Id<DimensionType> {
 
 fn current(name: &str, dimension_type: Id<DimensionType>) -> CurrentDimension {
     CurrentDimension {
-        key: ResourceKey::from_location(ResourceLocation::read(name).unwrap()),
+        key: ResourceKeyBuf::from_location(ResourceLocationBuf::read(name).unwrap()),
         dimension_type,
     }
 }
@@ -110,7 +109,7 @@ fn receive_respawn(
     let packet = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo::new(
             dimension_type,
-            ResourceKey::from_location(ResourceLocation::read(dimension).unwrap()),
+            ResourceKeyBuf::from_location(ResourceLocationBuf::read(dimension).unwrap()),
             GameMode::Survival,
         ),
         data_to_keep: 0,

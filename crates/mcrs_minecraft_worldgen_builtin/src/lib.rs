@@ -17,8 +17,7 @@ use mcrs_minecraft_environment::attribute::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_resource::InvalidResourceLocation;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{InvalidResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -27,35 +26,35 @@ use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::BlueprintError;
 use std::collections::BTreeMap;
 
-pub fn vanilla_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+pub fn vanilla_noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
     noises::noises()
 }
 
-pub fn beta_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+pub fn beta_noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
     beta::noises().collect()
 }
 
-pub fn vanilla_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+pub fn vanilla_density_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
     let mut functions = Functions::default();
     density::define(&mut functions);
     functions.0
 }
 
-pub fn beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+pub fn beta_density_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
     let mut functions = Functions::default();
     beta::define(&mut functions);
     functions.0
 }
 
-pub fn vanilla_noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+pub fn vanilla_noise_settings() -> BTreeMap<ResourceLocationBuf, NoiseGeneratorSettings> {
     settings::noise_settings()
 }
 
-pub fn beta_noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+pub fn beta_noise_settings() -> BTreeMap<ResourceLocationBuf, NoiseGeneratorSettings> {
     BTreeMap::from([beta::noise_settings()])
 }
 
-pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+pub fn noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
     let mut noises = vanilla_noises();
     noises.extend(beta_noises());
     noises
@@ -66,19 +65,19 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
 pub enum BuiltinError {
     #[error("the built-in biome `{biome}`: {refused}")]
     Biome {
-        biome: ResourceLocation,
+        biome: ResourceLocationBuf,
         refused: AttributeError,
     },
     #[error("a built-in template pool: {0}")]
     TemplatePool(#[from] InvalidResourceLocation),
     #[error("the built-in structure template `{template}`: {painted}")]
     Template {
-        template: ResourceLocation,
+        template: ResourceLocationBuf,
         painted: BlueprintError,
     },
 }
 
-pub fn biomes() -> Result<BTreeMap<ResourceLocation, BiomeFile<Named>>, BuiltinError> {
+pub fn biomes() -> Result<BTreeMap<ResourceLocationBuf, BiomeFile<Named>>, BuiltinError> {
     biome::drafts()
         .map(|(biome, draft)| match draft.finish() {
             Ok(file) => Ok((biome, file)),
@@ -87,23 +86,23 @@ pub fn biomes() -> Result<BTreeMap<ResourceLocation, BiomeFile<Named>>, BuiltinE
         .collect()
 }
 
-pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+pub fn density_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
     let mut functions = vanilla_density_functions();
     functions.extend(beta_density_functions());
     functions
 }
 
-pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
+pub fn noise_settings() -> BTreeMap<ResourceLocationBuf, NoiseGeneratorSettings> {
     let mut settings = vanilla_noise_settings();
     settings.extend(beta_noise_settings());
     settings
 }
 
-pub fn template_pools() -> Result<BTreeMap<ResourceLocation, TemplatePool>, BuiltinError> {
+pub fn template_pools() -> Result<BTreeMap<ResourceLocationBuf, TemplatePool>, BuiltinError> {
     Ok(template_pool::all().collect::<Result<_, _>>()?)
 }
 
-pub fn templates() -> Result<BTreeMap<ResourceLocation, Template>, BuiltinError> {
+pub fn templates() -> Result<BTreeMap<ResourceLocationBuf, Template>, BuiltinError> {
     structure::all()
         .map(|(template, painted)| match painted {
             Ok(painted) => Ok((template, painted)),
@@ -129,6 +128,6 @@ pub fn template_paths(directory: &str) -> Vec<String> {
 /// built by the registry loader and never answered here.
 pub fn asset(path: &str) -> Option<Vec<u8>> {
     let (namespace, name) = path.strip_suffix(".nbt")?.split_once("/structure/")?;
-    let template = structure::build(&ResourceLocation::new(namespace, name).ok()?)?;
+    let template = structure::build(&ResourceLocationBuf::new(namespace, name).ok()?)?;
     to_gzip_bytes_vec(&template).ok()
 }

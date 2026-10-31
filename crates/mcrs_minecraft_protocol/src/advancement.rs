@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocationBuf, ResourceLocation};
 use mcrs_minecraft_core::codec;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire, registry_value};
@@ -51,7 +51,7 @@ pub struct DisplayInfo<M: Refs = Resolved> {
     pub title: Text<M::Nbt>,
     pub description: Text<M::Nbt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub background: Option<ResourceLocation>,
+    pub background: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "codec::is_default")]
     pub frame: AdvancementType,
     #[serde(default = "codec::default_true", skip_serializing_if = "Clone::clone")]
@@ -119,7 +119,7 @@ impl Decode<'_> for DisplayInfo<Wire> {
 /// the server.
 #[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct Advancement<M: Refs = Resolved> {
-    pub parent: Option<ResourceLocation>,
+    pub parent: Option<ResourceLocationBuf>,
     pub display: Option<DisplayInfo<M>>,
     pub requirements: Vec<Vec<String>>,
     pub sends_telemetry_event: bool,
@@ -127,7 +127,7 @@ pub struct Advancement<M: Refs = Resolved> {
 
 #[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct PositionedAdvancement<M: Refs = Resolved> {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub advancement: Advancement<M>,
     pub x: f32,
     pub y: f32,

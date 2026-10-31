@@ -1,8 +1,9 @@
 use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_resource::InvalidResourceLocation;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{
+    InvalidResourceLocation, ResourceLocationBuf, StaticResourceLocation, rl,
+};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
 
@@ -63,7 +64,7 @@ fn pool(elements: impl IntoIterator<Item = PoolElement>) -> TemplatePool {
 }
 
 fn legacy(location: String) -> Result<PoolElement, InvalidResourceLocation> {
-    let location = ResourceLocation::minecraft(&location)?;
+    let location = ResourceLocationBuf::minecraft(&location)?;
     Ok(PoolElement::LegacySingle(SingleElement::new(
         location, None, Rigid,
     )))
@@ -100,15 +101,15 @@ fn campsites(biome: &str) -> Result<TemplatePool, InvalidResourceLocation> {
 }
 
 pub fn all()
--> impl Iterator<Item = Result<(ResourceLocation, TemplatePool), InvalidResourceLocation>> {
+-> impl Iterator<Item = Result<(ResourceLocationBuf, TemplatePool), InvalidResourceLocation>> {
     let trees = TREES
         .iter()
         .map(|(name, feature)| Ok(((*name).into(), tree(*feature))));
     let camps = BIOME_VARIANTS.iter().flat_map(|biome| {
         [
-            ResourceLocation::minecraft(&format!("abandoned_camp/tent/{biome}"))
+            ResourceLocationBuf::minecraft(&format!("abandoned_camp/tent/{biome}"))
                 .and_then(|name| Ok((name, tents(biome)?))),
-            ResourceLocation::minecraft(&format!("abandoned_camp/camp/{biome}"))
+            ResourceLocationBuf::minecraft(&format!("abandoned_camp/camp/{biome}"))
                 .and_then(|name| Ok((name, campsites(biome)?))),
         ]
     });

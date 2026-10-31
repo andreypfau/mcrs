@@ -9,8 +9,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::TagKey;
+use mcrs_minecraft_resource::{ResourceLocationBuf, TagKey};
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -435,7 +434,8 @@ pub fn block_mask(
     blocks: &dyn BlockResolver,
     list: &[Block],
 ) -> Result<StateMask, FeatureCompileError> {
-    let names: Vec<ResourceLocation> = list.iter().map(|block| block.location().into()).collect();
+    let names: Vec<ResourceLocationBuf> =
+        list.iter().map(|block| block.location().into()).collect();
     states_of(blocks, StateQuery::Names(&names))
 }
 
@@ -447,7 +447,7 @@ pub fn state(
     state_of(
         blocks,
         &BlockState {
-            name: block.location().to_arc(),
+            name: block.location().to_buf(),
             properties: (!properties.is_empty()).then(|| {
                 properties
                     .iter()
@@ -559,7 +559,7 @@ fn compile_processor(
         ),
         BlockAge { mossiness } => {
             let tag = |tag: TagKey<Block, &'static str>| {
-                states_of(blocks, StateQuery::BlockTag(&tag.location().to_arc()))
+                states_of(blocks, StateQuery::BlockTag(&tag.location().to_buf()))
             };
             CompiledProcessor::BlockAge(BlockAgeTables {
                 mossiness: *mossiness as f32,
@@ -1350,9 +1350,9 @@ mod tests {
             front: Direction::North,
             top: Direction::Up,
             joint: mcrs_minecraft_block_entity::Joint::Rollable,
-            name: rl!("minecraft:empty").to_arc(),
-            pool: rl!("minecraft:empty").to_arc(),
-            target: rl!("minecraft:empty").to_arc(),
+            name: rl!("minecraft:empty").to_buf(),
+            pool: rl!("minecraft:empty").to_buf(),
+            target: rl!("minecraft:empty").to_buf(),
             placement_priority: 0,
             selection_priority: 0,
             final_state: None,

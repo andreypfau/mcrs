@@ -91,7 +91,7 @@ mod tests {
         let CarverConfig::Cave {
             start_vertical_radius_multiplier,
             ..
-        } = read("carver", &rl!("minecraft:cave").to_arc())
+        } = read("carver", &rl!("minecraft:cave").to_buf())
         else {
             panic!("cave.json is a cave carver");
         };

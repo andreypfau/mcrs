@@ -1,5 +1,5 @@
 use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]
@@ -71,7 +71,7 @@ const NOISES: &[(StaticResourceLocation, i32, &[f64])] = &[
     (rl!("minecraft:nether_state_selector"), -4, &[1.0]),
 ];
 
-pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+pub fn noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
     NOISES
         .iter()
         .map(|(name, octave, amplitudes)| {

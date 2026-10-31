@@ -6,8 +6,7 @@ use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registries::{CurrentRegistries, IdSet};
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::TagKey;
+use mcrs_minecraft_resource::{ResourceLocationBuf, TagKey, TagKeyBuf};
 use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{read_named, tag_members};
@@ -44,8 +43,8 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
 
     // And a tag no Rust constant names is there, because the pack ships it.
     let stairs = tags
-        .id(&TagKey::from_location(
-            ResourceLocation::read("minecraft:stairs").unwrap(),
+        .id(&TagKeyBuf::from_location(
+            ResourceLocationBuf::read("minecraft:stairs").unwrap(),
         ))
         .expect("the pack ships the stairs tag");
     assert!(tags.contains(
@@ -71,11 +70,11 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     let tags = set
         .tags::<EntityType>()
         .expect("the load builds the entity type tags");
-    let skeletons = ResourceLocation::read("minecraft:skeletons").unwrap();
+    let skeletons = ResourceLocationBuf::read("minecraft:skeletons").unwrap();
 
     let mut members: Vec<usize> = tags
         .members(
-            tags.id(&TagKey::from_location(skeletons))
+            tags.id(&TagKeyBuf::from_location(skeletons))
                 .expect("the pack ships the skeletons tag"),
         )
         .map(|id| id.index())
@@ -92,7 +91,7 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     .into_iter()
     .map(|name| {
         registry
-            .by_name(&ResourceLocation::read(name).unwrap())
+            .by_name(&ResourceLocationBuf::read(name).unwrap())
             .unwrap()
             .index()
     })

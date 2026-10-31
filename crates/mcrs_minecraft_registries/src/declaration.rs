@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{PackFiles, read_json};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::{Registered, ResourceLocation};
+use mcrs_minecraft_resource::{Registered, ResourceLocationBuf};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -185,7 +185,7 @@ impl<V: DataValue> Codec for DataDeclaration<V> {
 }
 
 /// The path of the file of the entry `name` of the registry whose path is `registry`.
-pub(crate) fn entry_path(registry: &str, name: &ResourceLocation) -> String {
+pub(crate) fn entry_path(registry: &str, name: &ResourceLocationBuf) -> String {
     format!("data/{}/{registry}/{}.json", name.namespace(), name.path())
 }
 
@@ -194,7 +194,7 @@ pub(crate) fn entry_path(registry: &str, name: &ResourceLocation) -> String {
 pub fn insert_entry<V: DataValue>(
     files: &mut PackFiles,
     pack: &str,
-    name: &ResourceLocation,
+    name: &ResourceLocationBuf,
     value: V::Named,
 ) where
     V::Named: Send + Sync,
@@ -204,11 +204,11 @@ pub fn insert_entry<V: DataValue>(
 }
 
 pub struct Declaration {
-    pub(crate) key: ResourceLocation,
+    pub(crate) key: ResourceLocationBuf,
     pub(crate) stage: Stage,
     pub(crate) kind: Kind,
     /// The entries of a static registry, in id order.
-    pub(crate) names: Vec<ResourceLocation>,
+    pub(crate) names: Vec<ResourceLocationBuf>,
 }
 
 impl Declaration {
@@ -223,7 +223,7 @@ impl Declaration {
     }
 
     /// A data registry whose entries are the names of its files, which are never read.
-    pub fn names_only(key: ResourceLocation, stage: Stage) -> Declaration {
+    pub fn names_only(key: ResourceLocationBuf, stage: Stage) -> Declaration {
         Declaration {
             key,
             stage,
@@ -233,7 +233,7 @@ impl Declaration {
     }
 
     /// A static registry: its entries are `names`, in id order.
-    pub fn fixed(key: ResourceLocation, names: Vec<ResourceLocation>) -> Declaration {
+    pub fn fixed(key: ResourceLocationBuf, names: Vec<ResourceLocationBuf>) -> Declaration {
         Declaration {
             key,
             stage: Stage::Static,
@@ -242,7 +242,7 @@ impl Declaration {
         }
     }
 
-    pub fn key(&self) -> &ResourceLocation {
+    pub fn key(&self) -> &ResourceLocationBuf {
         &self.key
     }
 

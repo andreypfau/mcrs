@@ -1,8 +1,8 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::path::PathBuf;
 
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
 use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer, RegistryAdditions};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 
 use crate::common::directory_packs;
@@ -10,8 +10,8 @@ use crate::common::directory_packs;
 const METADATA: &str = r#"{"pack":{"description":"t","min_format":124,"max_format":124}}"#;
 const OVERLAID: &str = r#"{"pack":{"description":"t","min_format":124,"max_format":124},"overlays":{"entries":[{"directory":"o","min_format":124,"max_format":124}]}}"#;
 
-fn rl(text: &str) -> ResourceLocation {
-    ResourceLocation::read(text).unwrap()
+fn rl(text: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(text).unwrap()
 }
 
 fn entry(registry: &str, pack: &str, file: &str, field: Option<&str>) -> Diagnostic {

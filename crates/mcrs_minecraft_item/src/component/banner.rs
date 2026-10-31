@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::component::enums::DyeColor;
@@ -12,7 +12,7 @@ use mcrs_minecraft_wire::{Decode, Encode};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct BannerPattern {
-    pub asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
     pub translation_key: String,
 }
 
@@ -65,7 +65,7 @@ impl Sample for BannerPatterns {
                 },
                 BannerLayer {
                     pattern: Ref::Inline(Arc::new(BannerPattern {
-                        asset_id: rl!("mcrs:x").to_arc(),
+                        asset_id: rl!("mcrs:x").to_buf(),
                         translation_key: "block.mcrs.banner.x".into(),
                     })),
                     color: DyeColor::LightBlue,

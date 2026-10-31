@@ -11,8 +11,9 @@ mod tag_key;
 
 pub use id::{Id, NarrowError, TagId};
 pub use registry_key::{Registered, RegistryKey, RegistryValue};
-pub use resource_key::ResourceKey;
+pub use resource_key::{ResourceKey, ResourceKeyBuf};
 pub use resource_location::{
-    InvalidResourceLocation, ResourceLocation, StaticResourceLocation, parse_parts,
+    InvalidResourceLocation, ResourceLocation, ResourceLocationBuf, StaticResourceLocation,
+    parse_parts,
 };
-pub use tag_key::TagKey;
+pub use tag_key::{TagKey, TagKeyBuf};

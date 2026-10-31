@@ -40,7 +40,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -261,7 +261,7 @@ pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
     live_dims: Query<
-        (Entity, &ResourceKey<mcrs_minecraft_dimension::Dimension>),
+        (Entity, &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>),
         With<DimSubAppHandle>,
     >,
     dim_channels: Res<DimChannelsResource>,
@@ -286,7 +286,7 @@ pub fn emit_initial_player_spawn(
         let saved = save
             .as_ref()
             .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
-        let live = |key: &ResourceKey<mcrs_minecraft_dimension::Dimension>| {
+        let live = |key: &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>| {
             live_dims
                 .iter()
                 .find(|(_, live)| *live == key)

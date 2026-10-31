@@ -4,7 +4,7 @@ use mcrs_minecraft_core::codec::{
     self, NonNegativeInt, Validate, default_true, is_default, is_true,
 };
 use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,7 @@ pub struct BlockTransformData<M: Refs = Resolved> {
     pub disallowed_faces: Vec<Direction>,
     // chisle: an unchecked name until loot tables load as a registry
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub loot: Option<ResourceLocation>,
+    pub loot: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub drop_strategy: DropStrategy,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
