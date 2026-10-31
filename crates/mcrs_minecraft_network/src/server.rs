@@ -1,13 +1,16 @@
 use crate::inbound_rate::InboundRateBucket;
+use crate::intent::status_frame;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, lan, webtransport};
-use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup};
+use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
+use bevy_ecs::change_detection::{DetectChanges, ResMut};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
+use bytes::Bytes;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -15,8 +18,10 @@ use mcrs_minecraft_protocol::{Bounded, Encode, Packet, WritePacket};
 use mcrs_minecraft_text::Text;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::{Sender, channel};
+use tokio::sync::watch;
 use tracing::{info, warn};
 
 pub struct NetworkPlugin {
@@ -75,12 +80,25 @@ pub struct StatusPlayers {
 }
 
 #[derive(Resource)]
-pub struct StatusPublisher(tokio::sync::watch::Sender<StatusPlayers>);
+pub struct StatusPublisher {
+    sender: watch::Sender<Bytes>,
+    players: StatusPlayers,
+}
+
 impl StatusPublisher {
-    pub fn publish(&self, players: StatusPlayers) {
-        self.0.send_replace(players);
+    /// Replaces the online players; the next status exchange sees them. A system that calls this
+    /// must run before [`NetworkSet::RefreshStatus`] to show the change in the same frame.
+    pub fn publish(&mut self, players: StatusPlayers) {
+        self.players = players;
     }
 }
+
+#[derive(Resource)]
+struct StatusClock {
+    built_at: Instant,
+}
+
+const STATUS_PERIOD: Duration = Duration::from_secs(5);
 impl WebTransportEndpoint {
     pub fn certificate_hash_hex(&self) -> String {
         self.certificate_hash
@@ -116,7 +134,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     };
 
     let (new_sessions_send, mut new_sessions_recv) = channel(128);
-    let (status_send, status_recv) = tokio::sync::watch::channel(StatusPlayers::default());
+    let (status_send, status_recv) = tokio::sync::watch::channel(Bytes::new());
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
         tokio_handle,
@@ -129,10 +147,11 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
     }));
+    status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
     app.insert_resource(shared_state.clone());
     app.insert_resource(BoundAddress(bound));
-    app.insert_resource(StatusPublisher(status_send));
+    insert_status(app, status_send);
 
     let mut webtransport_endpoint = {
         let _guard = shared_state.0.tokio_handle.enter();
@@ -206,6 +225,40 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
+    app.insert_resource(StatusPublisher {
+        sender,
+        players: StatusPlayers::default(),
+    });
+    app.insert_resource(StatusClock {
+        built_at: Instant::now(),
+    });
+    app.add_systems(
+        Update,
+        refresh_status
+            .run_if(status_due)
+            .in_set(NetworkSet::RefreshStatus),
+    );
+}
+
+fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool {
+    publisher.is_changed() || clock.built_at.elapsed() >= STATUS_PERIOD
+}
+
+fn refresh_status(
+    publisher: Res<StatusPublisher>,
+    mut clock: ResMut<StatusClock>,
+    shared: Res<SharedNetworkState>,
+) {
+    clock.built_at = Instant::now();
+    match status_frame(&publisher.players, &shared.0) {
+        Ok(frame) => {
+            publisher.sender.send_replace(frame);
+        }
+        Err(error) => warn!("the status response was not rebuilt: {error:#}"),
+    }
+}
+
 #[derive(Resource, Clone)]
 pub(crate) struct SharedNetworkState(pub(crate) Arc<SharedNetworkStateInner>);
 
@@ -218,7 +271,7 @@ pub(crate) struct SharedNetworkStateInner {
     tokio_runtime: Option<Runtime>,
     pub(crate) new_connections_send: Sender<Box<RawConnection>>,
     pub(crate) max_players: u32,
-    pub(crate) status_recv: tokio::sync::watch::Receiver<StatusPlayers>,
+    pub(crate) status_recv: tokio::sync::watch::Receiver<Bytes>,
     pub(crate) motd: String,
     pub(crate) accepts_transfers: bool,
     pub(crate) hide_online_players: bool,

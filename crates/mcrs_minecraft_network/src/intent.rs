@@ -1,7 +1,10 @@
 use crate::packet_io::{ByteStream, PacketIo};
-use crate::{SharedNetworkState, SwitchMode};
+use crate::server::SharedNetworkStateInner;
+use crate::{SharedNetworkState, StatusPlayers, SwitchMode};
+use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::Bounded;
+use mcrs_minecraft_protocol::PacketEncoder;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
@@ -92,43 +95,9 @@ pub(crate) async fn handle_intent<S: ByteStream>(
                 .recv_packet::<mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest>()
                 .await?;
 
-            let json = {
-                let players = shared.0.status_recv.borrow();
-                let mut samples = Vec::new();
+            let frame = shared.0.status_recv.borrow().clone();
 
-                if !shared.0.hide_online_players {
-                    let n = players.players.len();
-                    let start = if n > 12 {
-                        rand::random_range(0..=n - 12)
-                    } else {
-                        0
-                    };
-                    for (uuid, name) in players.players.iter().skip(start).take(12) {
-                        samples.push(Sample {
-                            id: *uuid,
-                            name: name.clone(),
-                        });
-                    }
-                    samples.shuffle(&mut rand::rng());
-                }
-
-                let status = Status {
-                    version: Version {
-                        name: VERSION.name.to_owned(),
-                        protocol: VERSION.protocol_version,
-                    },
-                    players: Players {
-                        max: shared.0.max_players,
-                        online: u32::try_from(players.players.len()).unwrap_or(u32::MAX),
-                        sample: samples,
-                    },
-                    description: (!shared.0.motd.is_empty())
-                        .then(|| Text::from(shared.0.motd.clone())),
-                };
-                serde_json::to_string(&status)?
-            };
-
-            io.send_packet(&StatusResponse { json: &json }).await?;
+            io.send_encoded(&frame).await?;
 
             if let Ok(ping) = io.recv_packet::<PingRequest>().await {
                 io.send_packet(&PongResponse {
@@ -154,4 +123,44 @@ pub(crate) async fn handle_intent<S: ByteStream>(
         }
     }
     Ok(())
+}
+
+pub(crate) fn status_frame(
+    players: &StatusPlayers,
+    shared: &SharedNetworkStateInner,
+) -> anyhow::Result<Bytes> {
+    let mut samples = Vec::new();
+
+    if !shared.hide_online_players {
+        let n = players.players.len();
+        let start = if n > 12 {
+            rand::random_range(0..=n - 12)
+        } else {
+            0
+        };
+        for (uuid, name) in players.players.iter().skip(start).take(12) {
+            samples.push(Sample {
+                id: *uuid,
+                name: name.clone(),
+            });
+        }
+        samples.shuffle(&mut rand::rng());
+    }
+
+    let status = Status {
+        version: Version {
+            name: VERSION.name.to_owned(),
+            protocol: VERSION.protocol_version,
+        },
+        players: Players {
+            max: shared.max_players,
+            online: u32::try_from(players.players.len()).unwrap_or(u32::MAX),
+            sample: samples,
+        },
+        description: (!shared.motd.is_empty()).then(|| Text::from(shared.motd.clone())),
+    };
+    let json = serde_json::to_string(&status)?;
+    let mut encoder = PacketEncoder::new();
+    encoder.append_packet(&StatusResponse { json: &json })?;
+    Ok(encoder.take().freeze())
 }

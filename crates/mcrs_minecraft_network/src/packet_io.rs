@@ -131,6 +131,13 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         self.flush().await
     }
 
+    /// Writes a frame that a [`PacketEncoder`] already produced for this connection's compression
+    /// setting.
+    pub(crate) async fn send_encoded(&mut self, frame: &[u8]) -> anyhow::Result<()> {
+        self.stream.write_all(frame).await?;
+        Ok(())
+    }
+
     pub async fn flush(&mut self) -> anyhow::Result<()> {
         let bytes = self.enc.take();
         self.stream.write_all(&bytes).await?;
