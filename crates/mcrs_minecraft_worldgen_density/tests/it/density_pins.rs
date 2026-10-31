@@ -1,5 +1,5 @@
 use crate::vanilla_parity::overworld_router;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;

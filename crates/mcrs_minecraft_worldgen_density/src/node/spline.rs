@@ -210,7 +210,7 @@ pub(crate) fn multipoint_range(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_noise::strata::{AXIS_Y, NO_AXES};
     use std::cell::RefCell;
 

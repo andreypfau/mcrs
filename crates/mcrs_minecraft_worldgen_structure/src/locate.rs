@@ -1,6 +1,6 @@
 use crate::StructurePlacement;
 use crate::placement::SpreadPlacement;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 
 use super::frozen::{SetId, StructureId};

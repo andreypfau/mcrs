@@ -1,6 +1,6 @@
 use crate::bounds::{Bounds, node_bounds};
 use crate::program::{Node, NodeId, Program};
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::{lerp, mul_add};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;

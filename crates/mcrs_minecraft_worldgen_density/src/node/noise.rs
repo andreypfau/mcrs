@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_noise::kernel::{Runs, at, each_column};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_noise::stack::ColumnScratch;

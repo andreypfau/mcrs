@@ -241,7 +241,7 @@ pub fn set_held(
 mod tests {
     use super::*;
     use crate::placement::VerticalDirection;
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_block_predicate::provider::UnitFloat;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};

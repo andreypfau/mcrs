@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::{Axis, Direction, Mirror, ResourceLocation, Rotation, VERSION};
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, Template, TemplateBlock, TemplateEntity, transform, zero_position_with_transform,

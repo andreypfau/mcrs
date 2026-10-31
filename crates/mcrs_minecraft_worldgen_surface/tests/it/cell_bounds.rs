@@ -1,7 +1,7 @@
 //! A cell the bound settles is filled with one block state outright, so a bound
 //! that does not contain every density inside its cell writes stone through air.
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::rl;
 use std::collections::BTreeMap;

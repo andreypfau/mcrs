@@ -1,7 +1,7 @@
 use mcrs_minecraft_registries::dispatch;
 use std::fmt;
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::{
     BoundingBox, ColumnPos, Direction, Mirror, ResourceLocation, Rotation, mirror, rotation,
 };

@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceLocation;
 
 use mcrs_minecraft_chunk::VoxelId;
 
-use bevy_math::IVec3;
+use glam::IVec3;
 
 use super::placement::PlacementModifier;
 use super::placer::{BiomeMask, Modifier, Predicate, Rule, StateMask, single_state};

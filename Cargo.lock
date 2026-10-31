@@ -4638,11 +4638,11 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
  "bytes",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -4720,8 +4720,8 @@ name = "mcrs_minecraft_worldgen_density"
 version = "0.5.8"
 dependencies = [
  "bevy_asset",
- "bevy_math",
  "bevy_reflect",
+ "glam",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4742,9 +4742,9 @@ dependencies = [
 name = "mcrs_minecraft_worldgen_feature"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "bytes",
  "fixedbitset",
+ "glam",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
@@ -4857,9 +4857,9 @@ dependencies = [
 name = "mcrs_minecraft_worldgen_structure"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "bytes",
  "fixedbitset",
+ "glam",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
@@ -4906,8 +4906,8 @@ name = "mcrs_minecraft_worldgen_surface"
 version = "0.5.8"
 dependencies = [
  "bevy_asset",
- "bevy_math",
  "bevy_reflect",
+ "glam",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",

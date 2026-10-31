@@ -4,7 +4,7 @@ use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::mth;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
@@ -1676,7 +1676,7 @@ impl Workspace {
 mod tests {
     use super::*;
     use crate::node::gradient::Tiling;
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
 
     fn gradient(axis: Axis, from: f32, to: f32, from_value: f32, to_value: f32) -> Node {

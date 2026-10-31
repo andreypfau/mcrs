@@ -66,7 +66,7 @@ impl DistanceParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_math::IVec3;
+    use glam::IVec3;
 
     fn run(params: &DistanceParams, ext: SampleGrid) -> Vec<f32> {
         let mut out = vec![0.0; ext.len()];

@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;

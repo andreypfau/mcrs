@@ -339,7 +339,7 @@ fn contains_beardifier(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_core::rl;
     use mcrs_minecraft_worldgen_density::proto::build::Df;
 

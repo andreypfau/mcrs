@@ -2,8 +2,8 @@
 //! the kernel entry by entry, then every point of each case's volume through both
 //! the point sampler and the volume fill.
 
-use bevy_math::IVec3;
 use bytes::{Buf, Bytes};
+use glam::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_noise::SampleGrid;

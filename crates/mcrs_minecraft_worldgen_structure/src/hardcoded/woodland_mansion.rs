@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::{Direction, Mirror, Rotation, StaticResourceLocation, rl};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};

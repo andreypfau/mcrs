@@ -2,7 +2,7 @@ use crate::compile::{
     CLAY_BAND_COUNT, CompiledCondition, CondId, Condition, MaterialProgram, NoiseId, Op, Scope,
     SurfaceNoise, Tri, VeinId,
 };
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::{map, mth_floor};
 use mcrs_minecraft_noise::interval::Interval;

@@ -1,6 +1,6 @@
 use crate::node::gradient::{GradientParams, Tiling};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::mth::jmax;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::mul_add;

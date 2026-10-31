@@ -1281,7 +1281,7 @@ pub(crate) mod tests {
     use crate::proto::ProtoSpline;
     use crate::proto::build::Df;
     use crate::router::{EROSION, FINAL_DENSITY};
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z};
 

@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use crate::PoolAlias;
 use crate::hardcoded;
 use crate::piece::Piece;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_block_entity::{EMPTY_LABEL, Joint};
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;

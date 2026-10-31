@@ -88,7 +88,7 @@ impl GradientParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_math::IVec3;
+    use glam::IVec3;
 
     fn gradient(
         axis: Axis,

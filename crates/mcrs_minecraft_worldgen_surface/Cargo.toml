@@ -17,7 +17,7 @@ mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 bevy_asset = { workspace = true, optional = true }
 bevy_reflect = { workspace = true, optional = true }
-bevy_math.workspace = true
+glam.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_random.workspace = true

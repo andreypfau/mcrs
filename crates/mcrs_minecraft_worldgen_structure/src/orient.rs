@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 

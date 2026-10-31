@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use mcrs_minecraft_random::Random;

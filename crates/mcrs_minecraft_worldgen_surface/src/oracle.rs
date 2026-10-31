@@ -3,7 +3,7 @@ use crate::eval::{MaterialEval, NO_WATER};
 use crate::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::map;

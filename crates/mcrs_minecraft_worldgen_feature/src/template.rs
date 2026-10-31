@@ -2,7 +2,7 @@ use mcrs_minecraft_registries::dispatch;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use bevy_math::{DVec3, IVec3};
+use glam::{DVec3, IVec3};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};

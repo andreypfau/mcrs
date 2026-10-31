@@ -1,6 +1,6 @@
 use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::mth::floor_div;

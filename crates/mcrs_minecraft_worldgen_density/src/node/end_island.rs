@@ -74,7 +74,7 @@ impl EndIslandParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_math::IVec3;
+    use glam::IVec3;
 
     fn value_at(params: &EndIslandParams, bx: i32, bz: i32) -> f32 {
         let mut out = [0.0f32];
