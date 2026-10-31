@@ -143,10 +143,10 @@ pub fn spawn_dim_subapp(
         .get_resource::<mcrs_minecraft_assets::packs::PackRoots>()
         .cloned()
         .ok_or(DimSpawnError::NoPackRoots)?;
-    let builtin = app
+    let layering = app
         .world()
-        .get_resource::<mcrs_minecraft_assets::packs::BuiltinAssets>()
-        .copied()
+        .get_resource::<mcrs_minecraft_assets::packs::PackLayering>()
+        .cloned()
         .ok_or(DimSpawnError::NoPackRoots)?;
 
     let label_entity = app
@@ -324,7 +324,7 @@ pub fn spawn_dim_subapp(
         .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
         .insert(
             bevy_asset::io::AssetSourceId::Default,
-            mcrs_minecraft_assets::packs::layered_file_source(&roots, builtin.0),
+            mcrs_minecraft_assets::packs::layered_file_source(&roots, &layering),
         );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),

@@ -62,7 +62,10 @@ pub fn add_assets(app: &mut App) {
     mcrs_minecraft_assets::packs::register_pack_sources(
         app,
         &roots,
-        mcrs_minecraft_worldgen_builtin::asset,
+        mcrs_minecraft_assets::packs::PackLayering {
+            local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
+            builtin: mcrs_minecraft_worldgen_builtin::asset,
+        },
     );
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),

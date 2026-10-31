@@ -141,7 +141,7 @@ async fn walk_files(
 mod tests {
     use super::*;
     use bevy_asset::io::memory::{Dir, MemoryAssetReader};
-    use mcrs_minecraft_assets::packs::layered_reader;
+    use mcrs_minecraft_assets::packs::{PackLayering, layered_reader};
     use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
 
     #[test]
@@ -158,7 +158,11 @@ mod tests {
         ] {
             root.insert_asset(Path::new(path), Vec::new());
         }
-        let reader = layered_reader(Box::new(MemoryAssetReader { root }), |_| None);
+        let layering = PackLayering {
+            local_packs: vec!["extra".to_owned()],
+            builtin: |_| None,
+        };
+        let reader = layered_reader(Box::new(MemoryAssetReader { root }), &layering);
         let named = [
             "minecraft:listed",
             "minecraft:unlisted",
@@ -265,11 +269,18 @@ mod tests {
             Path::new("mcrs/datapacks/extra/example/structure/house.nbt"),
             Vec::new(),
         );
+        let layering = PackLayering {
+            local_packs: vec!["extra".to_owned()],
+            builtin: |_| None,
+        };
         let mut app = App::new();
         app.register_asset_source(
             AssetSourceId::Default,
             AssetSourceBuilder::new(move || {
-                layered_reader(Box::new(MemoryAssetReader { root: root.clone() }), |_| None)
+                layered_reader(
+                    Box::new(MemoryAssetReader { root: root.clone() }),
+                    &layering,
+                )
             }),
         );
         app.add_plugins((

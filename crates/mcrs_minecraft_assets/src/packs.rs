@@ -128,10 +128,20 @@ pub struct PackLayers {
 }
 
 impl PackLayers {
+    /// Layers every local pack `inner` lists.
     pub fn new(inner: Box<dyn ErasedAssetReader>) -> Self {
         PackLayers {
             inner,
             packs: OnceLock::new(),
+        }
+    }
+
+    /// Layers the local packs `packs` names, in name order as the registry loader stacks them.
+    pub fn with_packs(inner: Box<dyn ErasedAssetReader>, mut packs: Vec<String>) -> Self {
+        packs.sort();
+        PackLayers {
+            inner,
+            packs: OnceLock::from(packs),
         }
     }
 
@@ -160,29 +170,33 @@ impl PackLayers {
 
 pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
 
-/// The built-in assets [`register_pack_sources`] layered under the packs, for an app built beside
-/// this one.
-#[derive(Resource, Clone, Copy)]
-pub struct BuiltinAssets(pub BuiltinAsset);
+/// What [`register_pack_sources`] layers over the vanilla tree: the local packs by directory
+/// name, over the assets built in code. Kept as a resource for an app built beside this one.
+#[derive(Resource, Clone, Debug)]
+pub struct PackLayering {
+    pub local_packs: Vec<String>,
+    pub builtin: BuiltinAsset,
+}
 
-/// The packs layered over `builtin`, layered over `inner`'s own files: a pack overrides a
-/// built-in by shipping the same path, and a built-in replaces the file of the vanilla tree.
+/// The packs of `layering` over its built-in assets, over `inner`'s own files: a pack overrides
+/// a built-in by shipping the same path, and a built-in replaces the file of the vanilla tree.
 /// Only structure templates are answered this way; registry entries are built by the registry
 /// loader and never reach this reader.
 pub fn layered_reader(
     inner: Box<dyn ErasedAssetReader>,
-    builtin: BuiltinAsset,
+    layering: &PackLayering,
 ) -> Box<dyn ErasedAssetReader> {
     Box::new(BuiltinLayer {
-        layers: PackLayers::new(inner),
-        builtin,
+        layers: PackLayers::with_packs(inner, layering.local_packs.clone()),
+        builtin: layering.builtin,
     })
 }
 
-pub fn layered_file_source(roots: &PackRoots, builtin: BuiltinAsset) -> AssetSourceBuilder {
+pub fn layered_file_source(roots: &PackRoots, layering: &PackLayering) -> AssetSourceBuilder {
     let mut files = pack_files_reader(roots);
+    let layering = layering.clone();
     AssetSourceBuilder::platform_default(&roots.assets, None)
-        .with_reader(move || layered_reader(files(), builtin))
+        .with_reader(move || layered_reader(files(), &layering))
 }
 
 // The default source merges the pack layers; the registry loader reads every pack's own files from
@@ -191,15 +205,18 @@ pub const PACK_FILES: &str = "pack_files";
 
 /// Registers the sources over `roots` and keeps `roots` as a resource, so an app built beside
 /// this one reads the same trees.
-pub fn register_pack_sources(app: &mut App, roots: &PackRoots, builtin: BuiltinAsset) {
-    app.register_asset_source(AssetSourceId::Default, layered_file_source(roots, builtin));
+pub fn register_pack_sources(app: &mut App, roots: &PackRoots, layering: PackLayering) {
+    app.register_asset_source(
+        AssetSourceId::Default,
+        layered_file_source(roots, &layering),
+    );
     app.register_asset_source(
         PACK_FILES,
         AssetSourceBuilder::platform_default(&roots.assets, None)
             .with_reader(pack_files_reader(roots)),
     );
     app.insert_resource(roots.clone());
-    app.insert_resource(BuiltinAssets(builtin));
+    app.insert_resource(layering);
 }
 
 struct BuiltinLayer {
@@ -285,15 +302,25 @@ mod tests {
     }
 
     #[test]
-    fn a_built_in_replaces_a_vanilla_file_and_yields_to_a_pack() {
+    fn a_built_in_replaces_a_vanilla_file_and_yields_to_a_named_pack() {
         let root = Dir::default();
         root.insert_asset_text(Path::new("minecraft/in_root.json"), "root");
         root.insert_asset_text(Path::new("minecraft/root_only.json"), "root");
         root.insert_asset_text(Path::new("mcrs/datapacks/a/pack.mcmeta"), "{}");
         root.insert_asset_text(Path::new("mcrs/datapacks/a/minecraft/in_pack.json"), "pack");
-        let reader = layered_reader(Box::new(MemoryAssetReader { root }), |path| {
-            (path != "minecraft/root_only.json").then(|| format!("built-in {path}").into_bytes())
-        });
+        root.insert_asset_text(Path::new("mcrs/datapacks/unnamed/pack.mcmeta"), "{}");
+        root.insert_asset_text(
+            Path::new("mcrs/datapacks/unnamed/minecraft/root_only.json"),
+            "unnamed",
+        );
+        let layering = PackLayering {
+            local_packs: vec!["a".to_owned()],
+            builtin: |path| {
+                (path != "minecraft/root_only.json")
+                    .then(|| format!("built-in {path}").into_bytes())
+            },
+        };
+        let reader = layered_reader(Box::new(MemoryAssetReader { root }), &layering);
 
         assert_eq!(
             read(&*reader, "minecraft/in_root.json").unwrap(),

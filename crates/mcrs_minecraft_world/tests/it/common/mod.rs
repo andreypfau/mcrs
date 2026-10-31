@@ -7,7 +7,7 @@ use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::PackRoots;
+use mcrs_minecraft_assets::packs::{PackLayering, PackRoots};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
 use mcrs_minecraft_fixtures::vanilla_dir;
@@ -104,6 +104,25 @@ pub fn tag_members<R: Registered>(set: &Registries, tag: &str) -> Vec<String> {
         .collect()
 }
 
+/// The repository's local packs over the built-in worldgen assets.
+pub fn pack_layering() -> PackLayering {
+    PackLayering {
+        local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
+        builtin: mcrs_minecraft_worldgen_builtin::asset,
+    }
+}
+
+/// Registers the pack sources of [`pack_layering`] and names its local packs for the registry
+/// load.
+fn register_packs(app: &mut App) {
+    let layering = pack_layering();
+    app.world_mut()
+        .get_resource_or_init::<RegistryAdditions>()
+        .local_packs
+        .extend(layering.local_packs.iter().cloned());
+    mcrs_minecraft_assets::packs::register_pack_sources(app, &pack_roots(), layering);
+}
+
 pub fn run_to_playing() -> App {
     std::env::set_current_dir(workspace_root()).unwrap();
     let _ = tracing_subscriber::fmt()
@@ -116,20 +135,12 @@ pub fn run_to_playing() -> App {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
     app.add_plugins(StatesPlugin);
-    mcrs_minecraft_assets::packs::register_pack_sources(
-        &mut app,
-        &pack_roots(),
-        mcrs_minecraft_worldgen_builtin::asset,
-    );
+    register_packs(&mut app);
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-    app.world_mut()
-        .get_resource_or_init::<RegistryAdditions>()
-        .local_packs
-        .push("mcrs".to_owned());
     app.add_plugins(MinecraftWorldPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
@@ -152,21 +163,13 @@ pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin::default());
     app.add_plugins(StatesPlugin);
-    mcrs_minecraft_assets::packs::register_pack_sources(
-        &mut app,
-        &pack_roots(),
-        mcrs_minecraft_worldgen_builtin::asset,
-    );
+    register_packs(&mut app);
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(plugins);
-    app.world_mut()
-        .get_resource_or_init::<RegistryAdditions>()
-        .local_packs
-        .push("mcrs".to_owned());
     app.add_plugins(MinecraftWorldPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();

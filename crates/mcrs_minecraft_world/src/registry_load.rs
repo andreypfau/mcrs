@@ -181,7 +181,9 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
 #[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 pub fn test_additions() -> RegistryAdditions {
     let mut additions = RegistryAdditions::default();
-    additions.local_packs.push("mcrs".to_owned());
+    additions
+        .local_packs
+        .extend(["mcrs".to_owned(), "beta".to_owned()]);
     mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions)
         .unwrap_or_else(|error| panic!("{error}"));
     additions

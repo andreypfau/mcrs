@@ -1,5 +1,5 @@
 use bevy_app::{App, AppExit, Plugin};
-use mcrs_minecraft_assets::packs::{BuiltinAsset, PackRoots};
+use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_registries::RegistryAdditions;
 
@@ -19,6 +19,9 @@ pub struct ServerCorePlugin {
     pub data_pack: DataPack,
     /// The assets built in code, layered under the packs.
     pub builtin_assets: BuiltinAsset,
+    /// The local packs of the pack root that the registries load and the assets layer, by
+    /// directory name.
+    pub local_packs: Vec<String>,
 }
 
 impl Default for ServerCorePlugin {
@@ -28,6 +31,7 @@ impl Default for ServerCorePlugin {
             asset_path: None,
             data_pack: DataPack::default(),
             builtin_assets: |_| None,
+            local_packs: vec!["mcrs".to_owned()],
         }
     }
 }
@@ -49,11 +53,18 @@ impl Plugin for ServerCorePlugin {
                 .unwrap_or_else(|| bevy_asset::AssetPlugin::default().file_path),
             vanilla,
         };
-        mcrs_minecraft_assets::packs::register_pack_sources(app, &roots, self.builtin_assets);
+        mcrs_minecraft_assets::packs::register_pack_sources(
+            app,
+            &roots,
+            PackLayering {
+                local_packs: self.local_packs.clone(),
+                builtin: self.builtin_assets,
+            },
+        );
         app.world_mut()
             .get_resource_or_init::<RegistryAdditions>()
             .local_packs
-            .push("mcrs".to_owned());
+            .extend(self.local_packs.iter().cloned());
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,

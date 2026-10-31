@@ -312,7 +312,7 @@ fn the_fallback_serves_only_structure_templates() {
         Box::new(MemoryAssetReader {
             root: Dir::default(),
         }),
-        mcrs_minecraft_worldgen_builtin::asset,
+        &crate::common::pack_layering(),
     );
 
     let mut json_paths = 0;
@@ -1569,7 +1569,7 @@ fn layered_asset_app() -> App {
         AssetSourceId::Default,
         layered_file_source(
             &crate::common::pack_roots(),
-            mcrs_minecraft_worldgen_builtin::asset,
+            &crate::common::pack_layering(),
         ),
     );
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));

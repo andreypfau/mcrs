@@ -24,6 +24,8 @@ impl Default for MinecraftServerPlugins {
         Self {
             core: ServerCorePlugin {
                 builtin_assets: mcrs_minecraft_worldgen_builtin::asset,
+                // The beta presets name the noise settings the world generation registries build.
+                local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
                 ..Default::default()
             },
             worlds: DimensionWorldsPlugin::default(),
