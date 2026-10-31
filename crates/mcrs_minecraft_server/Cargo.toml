@@ -13,35 +13,22 @@ workspace = true
 [dependencies]
 mcrs_minecraft_chat_server.workspace = true
 mcrs_minecraft_game_mode.workspace = true
-mcrs_minecraft_block_entity.workspace = true
-mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_dimension.workspace = true
-mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
-mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
 mcrs_minecraft_engine.workspace = true
-mcrs_minecraft_simulation.workspace = true
-mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_nbt.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
@@ -50,14 +37,9 @@ bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_asset.workspace = true
 rand.workspace = true
-serde_json.workspace = true
 smallvec.workspace = true
-rustc-hash.workspace = true
-derive_more.workspace = true
 bytes.workspace = true
-flume.workspace = true
 thiserror.workspace = true
-serde = { version = "1.0.228", features = ["derive"] }
 tracing = { workspace = true }
 
 # Without this a build of the server alone runs every schedule and `par_iter` on one thread.
@@ -66,6 +48,21 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_block_entity.workspace = true
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_nbt.workspace = true
+rustc-hash.workspace = true
+serde_json.workspace = true
+flume.workspace = true
 mcrs_minecraft_light_engine = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true

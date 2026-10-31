@@ -1,4 +1,8 @@
-use crate::world::entity::player::DimPlayerPlugin;
+use crate::bus::to;
+use crate::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
+use crate::dim_player_plugin::DimPlayerPlugin;
+use crate::network_id::network_id;
+use crate::session::HostAnchor;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
@@ -9,20 +13,13 @@ use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use derive_more::{Deref, DerefMut};
-use mcrs_minecraft_engine::bus::to;
-use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine::network_id::network_id;
-use mcrs_minecraft_engine::session::HostAnchor;
+use mcrs_minecraft_level::entity::EntityUuid;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
-
-pub mod player;
-
-pub use mcrs_minecraft_level::entity::EntityUuid;
 
 pub struct MinecraftEntityPlugin;
 
@@ -33,7 +30,7 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_observer(entity_pos_sync);
         app.add_systems(
             FixedPreUpdate,
-            dispatch_inbound_to_dim.after(crate::world::sub_app_builder::DimInboxDrain),
+            dispatch_inbound_to_dim.after(crate::sub_app_builder::DimInboxDrain),
         );
     }
 }
@@ -78,7 +75,7 @@ fn dispatch_inbound_to_dim(
             continue;
         };
         tracing::debug!(
-            target: "mcrs_minecraft_server::bridge",
+            target: "mcrs_minecraft_engine::bridge",
             packet_id = msg.id,
             in_dim_entity = ?in_dim_entity,
             "dispatch_inbound_to_dim: routing packet to dim entity"

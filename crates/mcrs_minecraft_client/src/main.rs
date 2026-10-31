@@ -43,6 +43,8 @@ use mcrs_minecraft_client::{
 };
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::{asset_source, screenshot};
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_engine::ops::{OPS_FILE, OpList, OpListEntry};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -56,7 +58,6 @@ use mcrs_minecraft_server::login::SingleplayerProfile;
 use mcrs_minecraft_server::{
     BoundAddress, DataPack, DimensionWorldsPlugin, MinecraftServerPlugins,
     NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
-    ops::{OPS_FILE, OpList, OpListEntry},
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_vanilla_light::LightingPlugin;

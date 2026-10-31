@@ -8,10 +8,10 @@ use bevy_ecs::schedule::SystemSet;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 
-use crate::world::aoi::mirror::{
+use crate::column_held::{
     ColumnHeld, announce_held_columns, mirror_held_columns, withdraw_held_columns,
 };
-use crate::world::aoi::update_tracked_by::update_tracked_by;
+use crate::update_tracked_by::update_tracked_by;
 
 /// `SystemSet` covering the AoI system. Living on its own set keeps the AoI
 /// work from inadvertently parallelising against simulation systems that
@@ -49,8 +49,8 @@ impl Plugin for PlayerTrackerPlugin {
         // update_tracked_by runs.
         app.add_systems(
             FixedPreUpdate,
-            crate::world::aoi::drain_player_despawn::drain_inbound_player_despawn
-                .after(crate::world::sub_app_builder::DimInboxDrain),
+            crate::drain_player_despawn::drain_inbound_player_despawn
+                .after(crate::sub_app_builder::DimInboxDrain),
         );
         app.add_systems(
             FixedPostUpdate,

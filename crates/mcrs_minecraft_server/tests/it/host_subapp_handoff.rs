@@ -15,12 +15,12 @@ use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
+use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::login::{LoginPlugin, LoginState};
-use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 

@@ -11,19 +11,19 @@
 //! per-dim wire emitters that want a belt-and-braces liveness filter
 //! before fan-out.
 
+use crate::bus::to;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, In, Query, With};
-use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use smallvec::SmallVec;
 
-use crate::world::aoi::components::TrackedBy;
-use crate::world::entity::player::column_view::ColumnView;
-use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine::session::HostAnchor;
+use crate::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
+use crate::column_view::ColumnView;
+use crate::session::HostAnchor;
+use crate::tracked_by::TrackedBy;
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:
@@ -99,9 +99,7 @@ fn evict(
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     let left_view = ClientboundRemoveEntities {
-        entity_ids: vec![VarInt(
-            mcrs_minecraft_engine::network_id::player_network_id(host_anchor),
-        )],
+        entity_ids: vec![VarInt(crate::network_id::player_network_id(host_anchor))],
     };
 
     // The former observers are found through their TrackedBy, so they hear of the leave before

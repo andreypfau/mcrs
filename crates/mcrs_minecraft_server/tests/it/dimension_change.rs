@@ -5,6 +5,7 @@ use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
+use mcrs_minecraft_engine::player_dimension_change;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
@@ -17,7 +18,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRa
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::TextContent;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::world::entity::player::dimension_change;
 
 use crate::chat::{client_information, line};
 use crate::host_app::{self, PlayServer};
@@ -176,7 +176,7 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
             transform,
         });
 
-    dimension_change::apply_dimension_change_requests(&mut server.app);
+    player_dimension_change::apply_dimension_change_requests(&mut server.app);
 
     let sent: Vec<OutboundPlayerPacket> = server
         .app
@@ -250,7 +250,7 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
                 transform,
             });
 
-        dimension_change::apply_dimension_change_requests(&mut server.app);
+        player_dimension_change::apply_dimension_change_requests(&mut server.app);
         let mut sent: Vec<PacketPayload> = server
             .app
             .world_mut()

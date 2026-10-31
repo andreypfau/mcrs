@@ -8,7 +8,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 
-use crate::world::entity::player::column_view::ColumnView;
+use crate::column_view::ColumnView;
 
 /// A player started or stopped holding a column on its client.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]

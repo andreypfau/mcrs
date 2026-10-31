@@ -12,8 +12,8 @@ use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
 
+use crate::session::GameProfile;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_level::world::world_save::WorldSave;
 
 /// Vanilla's own autosave cadence, in ticks.

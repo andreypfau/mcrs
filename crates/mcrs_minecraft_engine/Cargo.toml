@@ -11,6 +11,21 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_block_entity.workspace = true
+mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+bevy_asset.workspace = true
+bevy_state.workspace = true
+bevy_tasks.workspace = true
+bevy_time.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
@@ -34,7 +49,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 
 [features]

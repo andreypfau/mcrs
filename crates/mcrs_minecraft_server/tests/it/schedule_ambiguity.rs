@@ -7,9 +7,9 @@ use bevy_ecs::system::System;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 

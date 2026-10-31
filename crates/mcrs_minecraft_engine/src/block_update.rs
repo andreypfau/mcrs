@@ -35,10 +35,8 @@ use smallvec::SmallVec;
 
 pub use mcrs_minecraft_level::block_update::BlockUpdatePlugin;
 
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
-use mcrs_minecraft_engine::session::HostAnchor;
+use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::session::HostAnchor;
 
 /// Per-dim wire emitter. Reads the blocks placed this tick that notify
 /// clients, resolves the observer set through the section's column
@@ -93,7 +91,7 @@ pub fn update_client_blocks_per_dim(
             .map(|obs| obs.0.iter().copied().collect())
             .unwrap_or_default();
 
-        crate::world::aoi::retain_live_observers(&mut observer_entities, &live_players);
+        crate::drain_player_despawn::retain_live_observers(&mut observer_entities, &live_players);
 
         // The anchor, not the dimension world's player entity: the session
         // registry is keyed by anchor, and a target it cannot resolve is

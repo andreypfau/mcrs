@@ -1,30 +1,29 @@
+use crate::ability::{OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::bus::{
+    InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
+    PlayerInfoEntry, to,
+};
+use crate::column_view::ColumnView;
+use crate::default_game_mode::DefaultGameMode;
+use crate::dimension_change::Arrival;
+use crate::enter_level_packets::enter_level_packets;
+use crate::game_mode::{self, ListedGameMode};
+use crate::minecraft_entity::EntityBundle;
+use crate::network_id;
+use crate::op_level::AnnouncedOpLevel;
 use crate::ops::{DefaultOpLevel, OpList};
-use crate::world::entity::player::column_view::ColumnView;
-use crate::world::entity::player::default_game_mode::DefaultGameMode;
-use crate::world::entity::player::enter_level_packets::enter_level_packets;
-use crate::world::entity::player::game_mode::{self, ListedGameMode};
-use crate::world::entity::player::op_level::AnnouncedOpLevel;
-use crate::world::entity::player::persistence;
-use crate::world::entity::player::player_bundle::PlayerBundle;
-use crate::world::entity::{EntityBundle, EntityUuid};
+use crate::persistence;
+use crate::player_bundle::PlayerBundle;
+use crate::session::{GameProfile, HostAnchor};
+use crate::teleport::TeleportState;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine::ability::{
-    OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel,
-};
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
-    PlayerInfoEntry, to,
-};
-use mcrs_minecraft_engine::dimension_change::Arrival;
-use mcrs_minecraft_engine::network_id;
-use mcrs_minecraft_engine::session::{GameProfile, HostAnchor};
-use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_level::entity::EntityUuid;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
@@ -105,7 +104,7 @@ pub(crate) fn consume_inbound_player_spawn(
             spawn.snapshot.username, spawn_pos.x, spawn_pos.y, spawn_pos.z
         );
         debug!(
-            target: "mcrs_minecraft_server::player",
+            target: "mcrs_minecraft_engine::player",
             player = wire_id,
             host_anchor = ?host,
             "emit_play_login: emitting play ClientboundLogin for newly-materialized in-dim entity"

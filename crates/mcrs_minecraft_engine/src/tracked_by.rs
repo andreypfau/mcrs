@@ -1,7 +1,7 @@
+use crate::session::HostAnchor;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::session::HostAnchor;
 use smallvec::SmallVec;
 
 /// Derived cache: the set of OTHER players inside this player's

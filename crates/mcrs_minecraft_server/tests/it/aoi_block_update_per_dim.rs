@@ -11,6 +11,7 @@ use bevy_ecs::system::IntoSystem;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_engine::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_level::aoi::PlayerObservers;
@@ -18,7 +19,6 @@ use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
-use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 #[test]

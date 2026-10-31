@@ -1,3 +1,5 @@
+use crate::bus::to;
+use crate::light_codec::{LightCodecParams, build_full_light_data, build_fullbright_light_data};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::entity::Entity;
@@ -9,10 +11,6 @@ use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
-use mcrs_minecraft_engine::bus::to;
-use mcrs_minecraft_engine::light_codec::{
-    LightCodecParams, build_full_light_data, build_fullbright_light_data,
-};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{
     ChunkTrackingView, PlayerViewDistance, SentChunkView,
@@ -47,12 +45,12 @@ use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks};
 
-use crate::world::aoi::ColumnHeld;
-use crate::world::block_entity::packet_entry;
+use crate::block_entity_packet::packet_entry;
+use crate::bus::{OutboundPlayerPacket, PacketPayload};
+use crate::column_held::ColumnHeld;
+use crate::heightmap::client_heightmaps;
+use crate::session::HostAnchor;
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine::heightmap::client_heightmaps;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -82,7 +80,7 @@ impl Plugin for ColumnViewPlugin {
                 (
                     promote_lit_columns,
                     send_column_queue,
-                    crate::world::aoi::mirror_held_columns,
+                    crate::column_held::mirror_held_columns,
                 )
                     .chain()
                     .after(ColumnLightGate),
@@ -799,7 +797,7 @@ pub(crate) fn send_column_queue(
                 });
 
                 trace!(
-                    target: "mcrs_minecraft_server::player",
+                    target: "mcrs_minecraft_engine::player",
                     host_anchor = ?host,
                     col_x = column_pos.x,
                     col_z = column_pos.z,

@@ -1,3 +1,4 @@
+use crate::bus::to;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
     Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
@@ -5,7 +6,6 @@ use bevy_ecs::prelude::{
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::tick::TickSet;
 use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
@@ -17,10 +17,10 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
 
-use crate::world::entity::player::dimension_change::CarryOnDimensionChangeExt;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
+use crate::bus::{OutboundPlayerPacket, PacketPayload};
+use crate::player_dimension_change::CarryOnDimensionChangeExt;
+use crate::session::HostAnchor;
+use crate::teleport::{MAX_XZ, MAX_Y, TeleportState};
 
 pub struct MovementPlugin;
 
@@ -176,10 +176,10 @@ fn handle_accept_teleportation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bus::PacketTarget;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
-    use mcrs_minecraft_engine::bus::PacketTarget;
 
     #[test]
     fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {

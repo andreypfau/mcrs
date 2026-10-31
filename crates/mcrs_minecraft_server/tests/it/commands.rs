@@ -24,7 +24,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
-use mcrs_minecraft_server::ops::broadcast_to_operators;
+use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};

@@ -181,13 +181,13 @@ already exists (`ColumnScheduler`, `crates/mcrs_minecraft_vanilla_worldgen/src/c
 beside `pending` and `in_flight`, and the completion handler
 (`process_completed_columns`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `deliver_merged_columns`, `enqueue_pending_columns`) gains a branch per stage. The
 store lives where the scheduler lives — in the dimension sub-app
-(`crates/mcrs_minecraft_server/src/world/sub_app_builder.rs`, `spawn_dim_subapp`), outside the ECS's entities (X1).
+(`crates/mcrs_minecraft_engine/src/sub_app_builder.rs`, `spawn_dim_subapp`), outside the ECS's entities (X1).
 
 ### 3.2 The stage ladder
 
 Every column passes through four stages. Each is a separate task on the
 generation pool, dispatched by the same drain that dispatches today
-(`crates/mcrs_minecraft_server/src/world/sub_app_builder.rs`, `spawn_dim_subapp`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `dispatch_column_generation`, `tests`).
+(`crates/mcrs_minecraft_engine/src/sub_app_builder.rs`, `spawn_dim_subapp`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `dispatch_column_generation`, `tests`).
 
 ```
 Filled     fill, surface, carving, the six heightmaps, packed palettes

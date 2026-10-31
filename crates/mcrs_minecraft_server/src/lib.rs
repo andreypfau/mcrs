@@ -7,17 +7,17 @@ pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
 mod keep_alive;
 pub mod login;
-pub mod ops;
+pub mod operator_broadcast;
 mod status;
-pub mod world;
 pub mod world_options;
 
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::status::StatusPlugin;
-use crate::world::WorldPlugin;
 use bevy_app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder};
+use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList};
+use mcrs_minecraft_engine::world_plugin::WorldPlugin;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
@@ -217,7 +217,7 @@ pub struct DimensionWorldsPlugin {
     /// The dimensions the world spawns, in place of a save's list and the world preset; the
     /// overworld is then optional, and a player with no saved dimension spawns in the first.
     pub dimensions: Option<Dimensions>,
-    pub ops: ops::OpList,
+    pub ops: OpList,
     /// Operator level of a player who has no entry in `ops`.
     pub default_op_level: u8,
     /// Game mode of a player joining for the first time.
@@ -232,7 +232,7 @@ impl Default for DimensionWorldsPlugin {
             seed: 0,
             preset: "normal".to_owned(),
             dimensions: None,
-            ops: ops::OpList::default(),
+            ops: OpList::default(),
             default_op_level: 0,
             default_game_mode: GameMode::Creative,
         }
@@ -251,11 +251,11 @@ impl Plugin for DimensionWorldsPlugin {
             app.insert_resource(crate::world_options::PluginDimensions(dimensions.clone()));
         }
         app.insert_resource(self.ops.clone());
-        app.add_observer(ops::broadcast_to_operators);
-        app.insert_resource(ops::DefaultOpLevel(
+        app.add_observer(operator_broadcast::broadcast_to_operators);
+        app.insert_resource(DefaultOpLevel(
             mcrs_minecraft_engine::ability::PlayerOpLevel(self.default_op_level),
         ));
-        app.insert_resource(crate::world::entity::player::DefaultGameMode(
+        app.insert_resource(mcrs_minecraft_engine::default_game_mode::DefaultGameMode(
             self.default_game_mode,
         ));
         if let Some(traces) = &self.column_traces {

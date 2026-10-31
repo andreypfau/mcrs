@@ -14,7 +14,10 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
+use mcrs_minecraft_engine::column_view::ColumnView;
+use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_engine::session::HostAnchor;
+use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -24,8 +27,6 @@ use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionTypeConfi
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
-use mcrs_minecraft_server::world::aoi::{PlayerTrackerPlugin, TrackedBy};
-use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 
 /// Ad-hoc sub-app label for this test.
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]

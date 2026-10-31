@@ -7,11 +7,11 @@ use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
+use mcrs_minecraft_engine::minecraft_entity::entity_pos_sync;
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_level::entity::EntityNetworkSyncEvent;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Rotation, Transform};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
-use mcrs_minecraft_server::world::entity::entity_pos_sync;
 
 #[test]
 fn a_synced_entity_keeps_its_look_angles_on_the_wire() {

@@ -13,9 +13,9 @@ use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::session::SessionBundle;
+use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimSpawnQueue, DimSpawnRequest};
-use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 use crate::host_app;
 

@@ -12,9 +12,9 @@ use bevy_time::{Fixed, Real, Time, Virtual};
 use std::collections::VecDeque;
 use tracing::{error, warn};
 
-use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
-use mcrs_minecraft_engine::channel_types::{FromDim, ToDim};
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
+use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
+use crate::channel_types::{FromDim, ToDim};
+use crate::dim::DimSubAppHandle;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -52,12 +52,12 @@ pub struct DimInboxDrain;
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 
-use crate::world::aoi::PlayerTrackerPlugin;
-use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
-use crate::world::entity::MinecraftEntityPlugin;
+use crate::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
+use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
+use crate::minecraft_entity::MinecraftEntityPlugin;
+use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
-use mcrs_minecraft_engine::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_level::world::dimension::{
@@ -143,6 +143,11 @@ pub fn spawn_dim_subapp(
         .get_resource::<mcrs_minecraft_assets::packs::PackRoots>()
         .cloned()
         .ok_or(DimSpawnError::NoPackRoots)?;
+    let builtin = app
+        .world()
+        .get_resource::<mcrs_minecraft_assets::packs::BuiltinAssets>()
+        .copied()
+        .ok_or(DimSpawnError::NoPackRoots)?;
 
     let label_entity = app
         .world_mut()
@@ -181,16 +186,16 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<InboundPlayerSpawn>();
     // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
-    sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerDespawn>();
+    sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
     // Written by `despawn_inbound_player` once the player is saved and drained into the
     // `FromDim` channel by `flush_from_dim_outbox`.
-    sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>();
+    sub_app.add_message::<crate::bus::OutboundPlayerReleased>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
-    sub_app.add_message::<mcrs_minecraft_engine::bus::InboundPlayerPacket>();
+    sub_app.add_message::<crate::bus::InboundPlayerPacket>();
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
     // extracted by the host to attach the session.
-    sub_app.add_message::<mcrs_minecraft_engine::bus::OutboundPlayerAttached>();
+    sub_app.add_message::<crate::bus::OutboundPlayerAttached>();
     sub_app.add_message::<mcrs_minecraft_level::entity::player::ChangeDimensionRequest>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
@@ -278,7 +283,7 @@ pub fn spawn_dim_subapp(
             (
                 mcrs_minecraft_level::world::storage::column::reconcile_columns,
                 mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
-                mcrs_minecraft_engine::heightmap::prime_column_heightmaps,
+                crate::heightmap::prime_column_heightmaps,
             )
                 .chain()
                 .in_set(ColumnDrainSet::Reconcile),
@@ -289,12 +294,11 @@ pub fn spawn_dim_subapp(
                 .chain()
                 .in_set(ColumnDrainSet::Request),
             (
-                crate::world::entity::player::column_view::project_touched_columns
-                    .before(ColumnLightGate),
+                crate::column_view::project_touched_columns.before(ColumnLightGate),
                 (
-                    crate::world::entity::player::column_view::promote_lit_columns,
-                    crate::world::entity::player::column_view::send_column_queue,
-                    crate::world::aoi::mirror_held_columns,
+                    crate::column_view::promote_lit_columns,
+                    crate::column_view::send_column_queue,
+                    crate::column_held::mirror_held_columns,
                     flush_from_dim_outbox,
                 )
                     .chain()
@@ -320,10 +324,7 @@ pub fn spawn_dim_subapp(
         .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
         .insert(
             bevy_asset::io::AssetSourceId::Default,
-            mcrs_minecraft_assets::packs::layered_file_source(
-                &roots,
-                mcrs_minecraft_worldgen_builtin::asset,
-            ),
+            mcrs_minecraft_assets::packs::layered_file_source(&roots, builtin.0),
         );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
@@ -343,7 +344,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(default_op_level);
     let default_game_mode = app
         .world()
-        .get_resource::<crate::world::entity::player::DefaultGameMode>()
+        .get_resource::<crate::default_game_mode::DefaultGameMode>()
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_game_mode);
@@ -361,11 +362,11 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
     sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
-    sub_app.init_resource::<mcrs_minecraft_engine::clock::GameTime>();
+    sub_app.init_resource::<crate::clock::GameTime>();
     sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
-        use mcrs_minecraft_engine::bus::OutboundPlayerAttached;
+        use crate::bus::OutboundPlayerAttached;
 
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
@@ -382,7 +383,7 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
-        mcrs_minecraft_engine::clock::extract_game_time(main_world, sub_world);
+        crate::clock::extract_game_time(main_world, sub_world);
         mcrs_minecraft_world::registry_snapshot::extract_registries(main_world, sub_world);
         if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
             sub_world.insert_resource(ops.clone());
@@ -476,7 +477,7 @@ fn drain_to_dim_inbox(
     rx: Res<ToDimReceiver<ToDim>>,
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
-    mut serverbound_msgs: ResMut<Messages<mcrs_minecraft_engine::bus::InboundPlayerPacket>>,
+    mut serverbound_msgs: ResMut<Messages<crate::bus::InboundPlayerPacket>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -512,7 +513,7 @@ pub(crate) struct FromDimBacklog(pub(crate) VecDeque<FromDim>);
 /// costs the acknowledgement the whole column stream is paced by.
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
-    mut released: ResMut<Messages<mcrs_minecraft_engine::bus::OutboundPlayerReleased>>,
+    mut released: ResMut<Messages<crate::bus::OutboundPlayerReleased>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: ResMut<FromDimBacklog>,
 ) {
@@ -569,8 +570,8 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
     use bevy_ecs::system::{IntoSystem, System};
-    use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
 
     /// A tick that writes more than the channel holds must not cost a packet: a column is
     /// recorded as sent when it is queued and never offered again.
@@ -580,9 +581,7 @@ mod tests {
         let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
-        world.insert_resource(
-            Messages::<mcrs_minecraft_engine::bus::OutboundPlayerReleased>::default(),
-        );
+        world.insert_resource(Messages::<crate::bus::OutboundPlayerReleased>::default());
         world.insert_resource(FromDimSender(tx));
         world.init_resource::<FromDimBacklog>();
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();

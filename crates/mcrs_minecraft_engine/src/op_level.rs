@@ -1,11 +1,11 @@
+use crate::ability::{OpLevelAnnounced, PlayerOpLevel};
+use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
+use crate::network_id;
+use crate::session::HostAnchor;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Query};
-use mcrs_minecraft_engine::ability::{OpLevelAnnounced, PlayerOpLevel};
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
-use mcrs_minecraft_engine::network_id;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
 
 /// The operator level that the client of a player was told, which the login and a dimension

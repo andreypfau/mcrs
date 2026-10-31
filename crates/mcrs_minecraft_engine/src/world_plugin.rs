@@ -8,18 +8,12 @@ use mcrs_minecraft_level::world::sub_app::{
 };
 use tracing::{debug, info, warn};
 
-pub mod aoi;
-pub mod block_entity;
-pub mod block_update;
-pub mod entity;
-pub mod sub_app_builder;
-
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(mcrs_minecraft_engine::EnginePlugin);
-        app.add_plugins(mcrs_minecraft_engine::clock::WorldClockHostPlugin);
+        app.add_plugins(crate::EnginePlugin);
+        app.add_plugins(crate::clock::WorldClockHostPlugin);
         app.add_systems(
             OnEnter(AppState::Playing),
             enqueue_dim_spawns.in_set(DimSpawnEnqueue),

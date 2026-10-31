@@ -160,6 +160,11 @@ impl PackLayers {
 
 pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
 
+/// The built-in assets [`register_pack_sources`] layered under the packs, for an app built beside
+/// this one.
+#[derive(Resource, Clone, Copy)]
+pub struct BuiltinAssets(pub BuiltinAsset);
+
 /// The packs layered over `builtin`, layered over `inner`'s own files: a pack overrides a
 /// built-in by shipping the same path, and a built-in replaces the file of the vanilla tree.
 /// Only structure templates are answered this way; registry entries are built by the registry
@@ -194,6 +199,7 @@ pub fn register_pack_sources(app: &mut App, roots: &PackRoots, builtin: BuiltinA
             .with_reader(pack_files_reader(roots)),
     );
     app.insert_resource(roots.clone());
+    app.insert_resource(BuiltinAssets(builtin));
 }
 
 struct BuiltinLayer {

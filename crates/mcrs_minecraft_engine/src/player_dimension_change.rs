@@ -1,8 +1,18 @@
-use crate::world::aoi::components::TrackedBy;
-use crate::world::entity::player::column_view::ColumnView;
-use crate::world::entity::player::{enter_level_packets, game_mode};
-use crate::world::entity::{EntityBundle, EntityUuid};
-use crate::world::sub_app_builder::FromDimBacklog;
+use crate::ability::{OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::bridge::OutboundFlush;
+use crate::bus::{self, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload};
+use crate::channel_types::FromDim;
+use crate::column_view::ColumnView;
+use crate::dim;
+use crate::dimension_change::{Arrival, DimensionChangeError};
+use crate::dimension_order::{DimensionWorld, in_dimension_order};
+use crate::enter_level_packets::enter_level_packets;
+use crate::game_mode;
+use crate::minecraft_entity::EntityBundle;
+use crate::session::HostAnchor;
+use crate::sub_app_builder::FromDimBacklog;
+use crate::teleport::TeleportState;
+use crate::tracked_by::TrackedBy;
 use bevy_app::{App, SubApp};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -12,20 +22,8 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
-use mcrs_minecraft_engine::ability::{
-    OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel,
-};
-use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::bus::{
-    self, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
-};
-use mcrs_minecraft_engine::channel_types::FromDim;
-use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
-use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
-use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_level::entity::EntityUuid;
 use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
@@ -161,11 +159,8 @@ fn leave(
     if let Err(error) = host.try_run_schedule(OutboundFlush) {
         tracing::warn!("the packets of a player leaving were not flushed: {error}");
     }
-    from.run_system_cached_with(
-        crate::world::aoi::drain_player_despawn::leave_dimension,
-        player,
-    )
-    .map_err(|_| DimensionChangeError::NotLeft)?;
+    from.run_system_cached_with(crate::drain_player_despawn::leave_dimension, player)
+        .map_err(|_| DimensionChangeError::NotLeft)?;
     Ok(from
         .get_mut::<TeleportState>(player)
         .ok_or(DimensionChangeError::NoArrivalState)?
